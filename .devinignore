@@ -1,0 +1,13 @@
+# Devin IDE ignore file
+# Prevent indexing of local secrets, virtual envs, and caches
+
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+secrets/
+.devin/*.local.json
+venv/
+__pycache__/
+node_modules/

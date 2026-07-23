@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  ansible-automation:
+    build:
+      context: ../..
+      dockerfile: services/ansible_automation_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.ansible_automation_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9535",
+    ]
+    ports:
+      - "9535:9535"
+    environment:
+      - ANSIBLE_AUTOMATION_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9635:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - ansible-automation

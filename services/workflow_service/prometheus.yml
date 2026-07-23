@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "workflow-orchestrator"
+    static_configs:
+      - targets: ["workflow-orchestrator:9201"]
+  - job_name: "workflow-scheduler"
+    static_configs:
+      - targets: ["workflow-scheduler:9202"]
+  - job_name: "workflow-executor"
+    static_configs:
+      - targets: ["workflow-executor:9203"]

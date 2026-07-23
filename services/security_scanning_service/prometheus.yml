@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "security-scanning"
+    static_configs:
+      - targets: ["security-scanning:9563"]

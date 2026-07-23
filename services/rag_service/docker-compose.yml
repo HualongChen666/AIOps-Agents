@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6389:6379"
+
+  rag-service:
+    build:
+      context: ../..
+      dockerfile: services/rag_service/Dockerfile
+    command:
+      [
+        "uvicorn",
+        "services.rag_service.main_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "9406",
+      ]
+    ports:
+      - "9406:9406"
+    environment:
+      - RAG_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9096:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - rag-service

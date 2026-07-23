@@ -1,0 +1,74 @@
+{
+  "mcpServers": {
+    "gitlab": {
+      "command": "C:\\Program Files\\Python312\\python.exe",
+      "args": [
+        "C:\\Users\\Hualong_Chen\\AppData\\Roaming\\devin\\mcp-gitlab-launcher.py"
+      ],
+      "env": {
+        "GITLAB_PERSONAL_ACCESS_TOKEN": "glpat-bbyxpmgaYG7laTiv06Hktm86MQp1OjIxdDIK.01.1015q66ft",
+        "GITLAB_API_URL": "https://gitlab.dell.com/api/v4"
+      },
+      "disabled": false
+    },
+    "github": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "YOUR_GITHUB_TOKEN_HERE"
+      },
+      "disabled": false
+    },
+    "filesystem": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\AIOps_Agent_bak"
+      ],
+      "disabled": false
+    },
+    "git": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git",
+        "--repository",
+        "C:\\AIOps_Agent_bak"
+      ],
+      "disabled": false
+    },
+    "postgres": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://localhost:5432/aiops"
+      ],
+      "env": {},
+      "disabled": false
+    },
+    "brave-search": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "YOUR_BRAVE_API_KEY_HERE"
+      },
+      "disabled": false
+    },
+    "memory": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "disabled": false
+    }
+  }
+}

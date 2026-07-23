@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-aggregation
+  labels:
+    app: log-aggregation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: log-aggregation
+  template:
+    metadata:
+      labels:
+        app: log-aggregation
+    spec:
+      containers:
+        - name: log-aggregation
+          image: log-aggregation:latest
+          ports:
+            - containerPort: 9567
+          env:
+            - name: LOG_AGGREGATION_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-aggregation
+spec:
+  selector:
+    app: log-aggregation
+  ports:
+    - port: 9567
+      targetPort: 9567
+  type: ClusterIP

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-monitoring
+  labels:
+    app: metrics-monitoring
+spec:
+  selector:
+    app: metrics-monitoring
+  ports:
+    - name: http
+      port: 9568
+      targetPort: 9568
+  type: ClusterIP

@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  postgres-primary:
+    image: postgres:15-alpine
+    container_name: aiops-postgres-primary
+    environment:
+      POSTGRES_DB: aiops
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-primary-data:/var/lib/postgresql/data
+      - ./postgres/primary/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    command:
+      - "postgres"
+      - "-c"
+      - "config_file=/etc/postgresql/postgresql.conf"
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-replica:
+    image: postgres:15-alpine
+    container_name: aiops-postgres-replica
+    environment:
+      POSTGRES_DB: aiops
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data
+      - ./postgres/replica/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/replica/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    command:
+      - "postgres"
+      - "-c"
+      - "config_file=/etc/postgresql/postgresql.conf"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: aiops-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass redis_password
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgpool:
+    image: pgpool/pgpool:latest
+    container_name: aiops-pgpool
+    environment:
+      POSTGRES_USERNAME: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DBNAME: aiops
+      BACKEND_HOST0: postgres-primary
+      BACKEND_PORT0: 5432
+      BACKEND_HOST1: postgres-replica
+      BACKEND_PORT1: 5432
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./pgpool/pgpool.conf:/etc/pgpool-II/pgpool.conf
+      - ./pgpool/pool_hba.conf:/etc/pgpool-II/pool_hba.conf
+    depends_on:
+      - postgres-primary
+      - postgres-replica
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pgpool -h localhost -p 5432 -U postgres -c 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  database:
+    driver: bridge
+
+volumes:
+  postgres-primary-data:
+  postgres-replica-data:
+  redis-data:

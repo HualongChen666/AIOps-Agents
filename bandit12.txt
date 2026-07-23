@@ -1,0 +1,103 @@
+Run started:2026-07-21 04:40:38.739898+00:00
+
+Test results:
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\backup.py:10:0
+9	import os
+10	import subprocess
+11	from dataclasses import dataclass
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\backup.py:129:21
+128	            # Check Wal-G availability
+129	            result = subprocess.run([self.wal_g_path, "version"], capture_output=True, text=True)
+130	
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\backup.py:182:21
+181	                text=True,
+182	                shell=False,
+183	                timeout=3600,  # 1 hour timeout
+184	            )
+185	
+186	            if result.returncode == 0:
+187	                backup_info.status = BackupStatus.COMPLETED
+188	                backup_info.end_time = datetime.now()
+189	                backup_info.location = f"s3://{self.s3_bucket}/{backup_id}"
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\backup.py:270:21
+269	                text=True,
+270	                shell=False,
+271	                timeout=7200,  # 2 hour timeout
+272	            )
+273	
+274	            if result.returncode == 0:
+275	                logger.info(f"Restore completed successfully: {backup_id}")
+276	                return True
+277	            else:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\backup.py:303:21
+302	                text=True,
+303	                shell=False,
+304	            )
+305	
+306	            if result.returncode == 0:
+307	                # Parse JSON output
+308	                backups = json.loads(result.stdout)
+309	                return backups if isinstance(backups, list) else []
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\backup.py:346:29
+345	                        text=True,
+346	                        shell=False,
+347	                    )
+348	
+349	                    if result.returncode == 0:
+350	                        cleaned_count += 1
+351	                        logger.info(f"Deleted old backup: {backup_name}")
+352	                    else:
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 111243
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 89
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 6
+		Medium: 0
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 0
+		High: 6
+Files skipped (0):

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracing
+  labels:
+    app: tracing
+spec:
+  selector:
+    app: tracing
+  ports:
+    - name: http
+      port: 9521
+      targetPort: 9521
+  type: ClusterIP

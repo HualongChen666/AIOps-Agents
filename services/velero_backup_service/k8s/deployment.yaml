@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: velero-backup
+  labels:
+    app: velero-backup
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: velero-backup
+  template:
+    metadata:
+      labels:
+        app: velero-backup
+    spec:
+      containers:
+        - name: velero-backup
+          image: velero-backup:latest
+          ports:
+            - containerPort: 9543
+          env:
+            - name: VELERO_BACKUP_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: velero-backup
+spec:
+  selector:
+    app: velero-backup
+  ports:
+    - port: 9543
+      targetPort: 9543
+  type: ClusterIP

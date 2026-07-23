@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache_service
+  labels:
+    app: cache_service
+spec:
+  selector:
+    app: cache_service
+  ports:
+    - name: http
+      port: 9411
+      targetPort: 9411
+  type: ClusterIP

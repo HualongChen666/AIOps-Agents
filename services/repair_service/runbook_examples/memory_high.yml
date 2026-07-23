@@ -1,0 +1,12 @@
+runbook_id: memory_high
+name: High Memory Usage Repair
+description: Free memory cache and optimize memory usage
+platform: linux
+risk_level: low
+params:
+  threshold: 90.0
+steps:
+  - name: drop_caches
+    command: "sync; echo 3 > /proc/sys/vm/drop_caches"
+    timeout_seconds: 15
+    verify_command: "free -m | awk 'NR==2{printf \"%.1f\", $3*100/$2}'"

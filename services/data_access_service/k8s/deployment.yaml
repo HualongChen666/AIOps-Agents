@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data_access_service
+  labels:
+    app: data_access_service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: data_access_service
+  template:
+    metadata:
+      labels:
+        app: data_access_service
+    spec:
+      containers:
+        - name: data_access_service
+          image: data_access_service:latest
+          ports:
+            - containerPort: 9410
+          env:
+            - name: DATA_ACCESS_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data_access_service
+spec:
+  selector:
+    app: data_access_service
+  ports:
+    - port: 9410
+      targetPort: 9410
+  type: ClusterIP

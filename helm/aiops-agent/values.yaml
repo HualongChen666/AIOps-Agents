@@ -1,0 +1,263 @@
+# Default values for aiops-agent
+replicaCount: 3
+
+image:
+  repository: aiops/aiops-agent
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: aiops.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: aiops-tls
+  #    hosts:
+  #      - aiops.example.com
+
+resources:
+  limits:
+    cpu: "2000m"
+    memory: "2Gi"
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - aiops-agent
+        topologyKey: kubernetes.io/hostname
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+startupProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+# Database configurations
+postgresql:
+  enabled: true
+  auth:
+    # SECURITY: Password should be set via Kubernetes Secret or environment variable
+    # Use: helm install --set postgresql.auth.postgresPassword=$(openssl rand -base64 32)
+    # Or create a Secret: kubectl create secret generic postgres-secret --from-literal=password=<strong-password>
+    postgresPassword: ""  # Empty by default, must be set during deployment
+    database: "aiops"
+    # Post-init script to force password change on first login
+    existingSecret: ""  # Reference to existing Secret containing 'password' key
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+timescaledb:
+  enabled: true
+  image:
+    tag: "latest-pg14"
+  pgHbaConfiguration: |
+    local all all trust
+    host all all all md5
+  persistentVolume:
+    size: 50Gi
+
+qdrant:
+  enabled: true
+  persistence:
+    size: 20Gi
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+argocd:
+  enabled: false
+  global:
+    domain: argocd.example.com
+
+# AIOps specific configurations
+aiops:
+  logLevel: info
+  otel:
+    enabled: true
+    endpoint: "http://otel-collector:4317"
+  prometheus:
+    enabled: true
+    port: 9090
+  anomalyDetection:
+    enabled: true
+    model: "ensemble"
+    threshold: 0.95
+  autoHeal:
+    enabled: true
+    maxRetries: 3
+  sampling:
+    enabled: true
+    defaultRate: 0.1
+    criticalRate: 1.0
+
+# Monitoring and Alerting
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+  prometheusRules:
+    enabled: true
+    rules:
+    - name: aiops-alerts
+      rules:
+      - alert: HighCPUUsage
+        expr: cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% for {{ $labels.instance }}"
+      - alert: HighMemoryUsage
+        expr: memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% for {{ $labels.instance }}"
+      - alert: HighDiskUsage
+        expr: disk_usage_percent > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% for {{ $labels.instance }}"
+      - alert: ApplicationDown
+        expr: up{job="aiops-agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AIOps Agent is down"
+          description: "AIOps Agent has been down for more than 1 minute"
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} for {{ $labels.instance }}"
+
+# Security Configuration
+security:
+  cors:
+    enabled: true
+    allowedOrigins:
+    - https://aiops.example.com
+    allowedMethods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+    allowedHeaders:
+    - Content-Type
+    - Authorization
+  rateLimiting:
+    enabled: true
+    requestsPerMinute: 100
+    burst: 20
+  https:
+    enabled: true
+    redirectHTTP: true
+
+# Secret configuration
+# These should be overridden with actual secrets in production
+secret:
+  jwtSecretKey: ""  # Override with strong random value
+  databaseUrl: ""  # External database connection string if needed
+  redisUrl: ""  # External Redis connection string if needed
+  openaiApiKey: ""  # OpenAI API key if using OpenAI
+  anthropicApiKey: ""  # Anthropic API key if using Anthropic

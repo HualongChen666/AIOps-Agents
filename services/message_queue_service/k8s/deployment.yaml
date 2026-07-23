@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-queue
+  labels:
+    app: message-queue
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: message-queue
+  template:
+    metadata:
+      labels:
+        app: message-queue
+    spec:
+      containers:
+        - name: message-queue
+          image: message-queue:latest
+          ports:
+            - containerPort: 9523
+          env:
+            - name: MESSAGE_QUEUE_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-queue
+spec:
+  selector:
+    app: message-queue
+  ports:
+    - port: 9523
+      targetPort: 9523
+  type: ClusterIP

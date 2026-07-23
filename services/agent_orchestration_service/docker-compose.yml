@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6390:6379"
+
+  agent-orchestration-service:
+    build:
+      context: ../..
+      dockerfile: services/agent_orchestration_service/Dockerfile
+    command:
+      [
+        "uvicorn",
+        "services.agent_orchestration_service.main_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "9407",
+      ]
+    ports:
+      - "9407:9407"
+    environment:
+      - AGENT_ORCHESTRATION_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9097:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - agent-orchestration-service

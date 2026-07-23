@@ -1,0 +1,442 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  COVERAGE_THRESHOLD: 80
+
+jobs:
+  # 🔧 P0-11: 代码质量检查
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort mypy flake8
+
+      - name: Run code formatting check
+        run: |
+          echo "=== Running Black code formatting check ==="
+          echo "Configuration: line-length=100 (from pyproject.toml)"
+          black --check .
+          echo "=== Running isort import sorting check ==="
+          echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
+          isort --check-only .
+
+      - name: Run linting
+        run: |
+          echo "=== Running flake8 linting check ==="
+          echo "Configuration: max-line-length=100, extend-ignore=E203,W503 (from pyproject.toml)"
+          flake8 .
+
+      - name: Run type checking
+        run: |
+          echo "=== Running mypy type checking ==="
+          echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
+          mypy . --ignore-missing-imports
+
+  # 🔧 P0-11: 单元测试和覆盖率
+  test:
+    needs: code-quality
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: aiops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-mock pytest-cov pytest-xdist
+          pip install bandit safety
+
+      - name: Run security scan
+        run: |
+          echo "=== Running bandit security scan ==="
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f screen || true
+          echo "=== Running safety dependency check ==="
+          safety check --json > safety-report.json || true
+          safety check || true
+
+      - name: Run database migrations
+        env:
+          POSTGRES_URL: postgresql+asyncpg://postgres:test_password@localhost:5432/aiops_test
+        run: |
+          pip install alembic
+          alembic upgrade head
+
+      - name: Run unit tests with coverage
+        env:
+          POSTGRES_URL: postgresql+asyncpg://postgres:test_password@localhost:5432/aiops_test
+        run: |
+          pytest tests/ -v --cov=core --cov=api --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=${{ env.COVERAGE_THRESHOLD }} -n auto
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.python-version }}
+          path: |
+            htmlcov/
+            coverage.xml
+            coverage.json
+
+      - name: Store coverage history
+        run: |
+          pip install python-dateutil
+          python scripts/store_coverage_history.py --coverage-file coverage.json --commit ${{ github.sha }} --branch ${{ github.ref_name }} --report
+
+      - name: Upload coverage history
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-history
+          path: |
+            coverage_history.json
+            coverage_report.txt
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+
+  # 🔧 P0-11: 集成测试
+  integration-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: aiops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run integration tests
+        env:
+          POSTGRES_URL: postgresql+asyncpg://postgres:test_password@localhost:5432/aiops_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          pytest tests/test_integration_*.py -v --tb=short
+
+  # 🔧 P0-11: 性能测试
+  performance-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: aiops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-benchmark pytest-xdist
+
+      - name: Run performance tests
+        env:
+          POSTGRES_URL: postgresql+asyncpg://postgres:test_password@localhost:5432/aiops_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          pytest tests/performance/ -v --tb=short -m performance --benchmark-only
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            .benchmarks/
+            performance_report.json
+
+  # 🔧 P0-11: 安全测试
+  security-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: aiops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-mock
+
+      - name: Run security tests
+        env:
+          POSTGRES_URL: postgresql+asyncpg://postgres:test_password@localhost:5432/aiops_test
+        run: |
+          pytest tests/security/ -v --tb=short -m security
+
+      - name: Upload security test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-test-results
+          path: |
+            security_test_report.json
+            security_test_results.xml
+
+  # 🔧 P0-11: Docker构建测试
+  docker-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t aiops-agent:test .
+
+      - name: Test Docker image
+        run: |
+          docker run --rm aiops-agent:test python -c "import core; print('Core module OK')"
+          docker run --rm aiops-agent:test python -c "import api; print('API module OK')"
+
+      - name: Run security scan on Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: aiops-agent:test
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  # 🔧 P0-11: Helm Chart测试
+  helm-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "v3.13.0"
+
+      - name: Lint Helm chart
+        run: |
+          helm lint helm/aiops-agent
+
+      - name: Install kubeval
+        run: |
+          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval-linux-amd64.tar.gz
+          sudo mv kubeval /usr/local/bin/
+
+      - name: Validate Kubernetes manifests
+        run: |
+          helm template aiops-agent helm/aiops-agent > manifests.yaml
+          kubeval manifests.yaml
+
+  # 🔧 P0-11: 构建和发布
+  build:
+    runs-on: ubuntu-latest
+    needs:
+      [
+        code-quality,
+        test,
+        integration-test,
+        performance-test,
+        security-test,
+        docker-test,
+      ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Publish to PyPI
+        if: success()
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload dist/*
+
+  # 🔧 P0-11: Docker镜像发布
+  docker-push:
+    runs-on: ubuntu-latest
+    needs:
+      [
+        code-quality,
+        test,
+        integration-test,
+        performance-test,
+        security-test,
+        docker-test,
+      ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/aiops-agent:latest
+            ${{ secrets.DOCKER_USERNAME }}/aiops-agent:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  plugin-system:
+    build:
+      context: ../..
+      dockerfile: services/plugin_system_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.plugin_system_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9556",
+    ]
+    ports:
+      - "9556:9556"
+    environment:
+      - PLUGIN_SYSTEM_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9656:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - plugin-system

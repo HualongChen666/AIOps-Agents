@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-queue
+  labels:
+    app: message-queue
+spec:
+  selector:
+    app: message-queue
+  ports:
+    - name: http
+      port: 9523
+      targetPort: 9523
+  type: ClusterIP

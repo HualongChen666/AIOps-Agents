@@ -1,0 +1,239 @@
+﻿modules\analyze\root_cause\inference.py:200:25: error: Need type annotation for
+"type_to_nodes"  [var-annotated]
+            type_to_nodes = {ntype: [] for ntype in node_types}
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\inference.py:247:16: error: Incompatible return
+value type (got "tuple[Any, dict[str, Tensor]]", expected
+"tuple[Any, dict[str, ndarray[tuple[Any, ...], dtype[Any]]]]")  [return-value]
+            return g, features_dict
+                   ^~~~~~~~~~~~~~~~
+modules\analyze\root_cause\inference.py:286:63: error: Argument 2 to
+"predict_root_cause" of "HeterogeneousGNNModel" has incompatible type
+"dict[str, ndarray[tuple[Any, ...], dtype[Any]]]"; expected "dict[str, Tensor]" 
+[arg-type]
+    ...     result = self.gnn_model.predict_root_cause(g, features, alert_id)
+                                                          ^~~~~~~~
+modules\analyze\anomaly\train_transformer.py:28:1: error: Module
+"modules.analyze.anomaly.data_preprocessing" has no attribute
+"TimeSeriesDataset"; maybe "TimeSeriesDataLoader"?  [attr-defined]
+    from .data_preprocessing import (
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\train_transformer.py:317:18: error: Incompatible types
+in assignment (expression has type "ndarray[tuple[Any, ...], dtype[Any]]",
+variable has type "list[Any]")  [assignment]
+        all_scores = np.concatenate(all_scores)
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\train_transformer.py:318:27: error: Incompatible types
+in assignment (expression has type "ndarray[tuple[Any, ...], dtype[Any]]",
+variable has type "list[Any]")  [assignment]
+        all_reconstructions = np.concatenate(all_reconstructions)
+                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\train_transformer.py:319:21: error: Incompatible types
+in assignment (expression has type "ndarray[tuple[Any, ...], dtype[Any]]",
+variable has type "list[Any]")  [assignment]
+        all_originals = np.concatenate(all_originals)
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\train_transformer.py:322:37: error: Unsupported left
+operand type for - ("list[Any]")  [operator]
+        reconstruction_error = np.mean((all_originals - all_reconstruction...
+                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:296:41: error: Cannot
+instantiate type "type[None]"  [misc]
+                self.analyzer.do_calculus = self.analyzer.do_calculus.__cl...
+                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+modules\analyze\root_cause\causal_graph_builder.py:298:48: error: Cannot
+instantiate type "type[None]"  [misc]
+                    self.analyzer.counterfactual = self.analyzer.counterfa...
+                                                   ^~~~~~~~~~~~~~~~~~~~~~~...
+modules\analyze\root_cause\causal_graph_builder.py:449:16: error: Incompatible
+types in assignment (expression has type "Path", variable has type "str") 
+[assignment]
+            path = Path(path)
+                   ^~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:452:16: error: "str" has no
+attribute "resolve"  [attr-defined]
+            path = path.resolve()
+                   ^~~~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:460:9: error: "str" has no
+attribute "parent"  [attr-defined]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            ^~~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:464:13: error: "str" has no
+attribute "write_text"  [attr-defined]
+                path.write_text(json_str)
+                ^~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:496:16: error: Incompatible
+types in assignment (expression has type "Path", variable has type "str") 
+[assignment]
+            path = Path(path)
+                   ^~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:499:16: error: "str" has no
+attribute "resolve"  [attr-defined]
+            path = path.resolve()
+                   ^~~~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:505:16: error: "str" has no
+attribute "exists"  [attr-defined]
+            if not path.exists():
+                   ^~~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:509:24: error: "str" has no
+attribute "read_text"  [attr-defined]
+                json_str = path.read_text()
+                           ^~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_graph_builder.py:516:17: error: Returning Any
+from function declared to return "CausalGraph"  [no-any-return]
+                    return pickle.load(f)
+                    ^~~~~~~~~~~~~~~~~~~~~
+core\log_router.py:289:13: error: Unsupported target for indexed assignment
+("object")  [index]
+                results["by_destination"][destination] = {"success": 0, "f...
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+core\log_router.py:294:17: error: Unsupported operand types for + ("object" and
+"int")  [operator]
+                    results["success"] += 1
+                    ^
+core\log_router.py:296:21: error: Value of type "object" is not indexable 
+[index]
+                        results["by_destination"][destination]["success"] ...
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+core\log_router.py:298:17: error: Unsupported operand types for + ("object" and
+"int")  [operator]
+                    results["failed"] += 1
+                    ^
+core\log_router.py:300:21: error: Value of type "object" is not indexable 
+[index]
+                        results["by_destination"][destination]["failed"] +...
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+core\log_router.py:302:16: error: Incompatible return value type (got
+"dict[str, object]", expected "dict[str, int]")  [return-value]
+            return results
+                   ^~~~~~~
+core\interface\graphql\subscription.py:30:17: error: Need type annotation for
+"queue"  [var-annotated]
+            queue = asyncio.Queue()
+                    ^~~~~~~~~~~~~~~
+core\interface\graphql\subscription.py:83:17: error: Need type annotation for
+"queue"  [var-annotated]
+            queue = asyncio.Queue()
+                    ^~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:133:16: error: Item "None" of
+"CausalRootCauseAnalyzer | None" has no attribute "identify_root_cause" 
+[union-attr]
+            return self.analyzer.identify_root_cause(alert_var, current_da...
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:161:16: error: Item "None" of
+"CausalRootCauseAnalyzer | None" has no attribute "explain_root_cause" 
+[union-attr]
+            return self.analyzer.explain_root_cause(root_cause, alert_var,...
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:192:16: error: Item "None" of
+"CausalRootCauseAnalyzer | None" has no attribute "do_calculus"  [union-attr]
+            return self.analyzer.do_calculus.estimate_causal_effect(
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:192:16: error: Item "None" of
+"DoCalculus | Any | None" has no attribute "estimate_causal_effect" 
+[union-attr]
+            return self.analyzer.do_calculus.estimate_causal_effect(
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:225:16: error: Item "None" of
+"CausalRootCauseAnalyzer | None" has no attribute "counterfactual"  [union-attr]
+            return self.analyzer.counterfactual.what_if(factual, intervent...
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:225:16: error: Item "None" of
+"CounterfactualReasoning | Any | None" has no attribute "what_if"  [union-attr]
+            return self.analyzer.counterfactual.what_if(factual, intervent...
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:245:37: error: Argument 1 to
+"save" of "CausalGraphPersistence" has incompatible type "CausalGraph | None";
+expected "CausalGraph"  [arg-type]
+            CausalGraphPersistence.save(self.causal_graph, str(path))
+                                        ^~~~~~~~~~~~~~~~~
+modules\analyze\root_cause\causal_service.py:432:5: error: Name "np" is not
+defined  [name-defined]
+        np.random.seed(42)
+        ^~
+modules\analyze\root_cause\causal_service.py:435:9: error: Name "np" is not
+defined  [name-defined]
+        X = np.random.randn(n_samples)
+            ^~
+modules\analyze\root_cause\causal_service.py:436:19: error: Name "np" is not
+defined  [name-defined]
+        Y = 0.5 * X + np.random.randn(n_samples) * 0.5
+                      ^~
+modules\analyze\root_cause\causal_service.py:437:19: error: Name "np" is not
+defined  [name-defined]
+        Z = 0.3 * Y + np.random.randn(n_samples) * 0.7
+                      ^~
+modules\analyze\anomaly\transformer_service.py:108:30: error: Incompatible
+types in assignment (expression has type "Path", variable has type "str | None")
+ [assignment]
+                    model_path = self.model_dir / self.model_name
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:111:26: error: Incompatible
+types in assignment (expression has type "Path", variable has type "str | None")
+ [assignment]
+                model_path = Path(model_path).resolve()
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:111:31: error: Argument 1 to
+"Path" has incompatible type "str | None"; expected "str | PathLike[str]" 
+[arg-type]
+                model_path = Path(model_path).resolve()
+                                  ^~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:116:20: error: Item "str" of
+"str | None" has no attribute "exists"  [union-attr]
+                if not model_path.exists():
+                       ^~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:116:20: error: Item "None" of
+"str | None" has no attribute "exists"  [union-attr]
+                if not model_path.exists():
+                       ^~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:130:37: error: Argument 1 to
+"load" has incompatible type "str | None"; expected
+"str | PathLike[str] | IO[bytes]"  [arg-type]
+                state_dict = torch.load(model_path, map_location=self.devi...
+                                        ^~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:242:26: error: Item "None" of
+"TimeSeriesPreprocessingPipeline | None" has no attribute "process" 
+[union-attr]
+            processed_data = self.model_manager.preprocessor.process(
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:249:38: error: Item "None" of
+"TransformerAnomalyDetectorWrapper | None" has no attribute "detect" 
+[union-attr]
+            is_anomaly, anomaly_scores = self.model_manager.wrapper.detect...
+                                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:327:26: error: Item "None" of
+"TimeSeriesPreprocessingPipeline | None" has no attribute "process" 
+[union-attr]
+            processed_data = self.model_manager.preprocessor.process(
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules\analyze\anomaly\transformer_service.py:334:38: error: Item "None" of
+"TransformerAnomalyDetectorWrapper | None" has no attribute "detect" 
+[union-attr]
+            is_anomaly, anomaly_scores = self.model_manager.wrapper.detect...
+                                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+api\topology_router.py:244:13: error: Returning Any from function declared to
+return "dict[str, Any]"  [no-any-return]
+                return _full_link_cache["data"]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+api\topology_router.py:297:18: error: Unexpected keyword argument "hours" for
+"get_node_timeline"  [call-arg]
+            result = get_node_timeline(cleaned_node_id, hours=hours, limit...
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+api\topology_router.py:297:18: note: "get_node_timeline" defined in "core.topology_engine"
+api\topology_router.py:297:18: error: Unexpected keyword argument "limit" for
+"get_node_timeline"  [call-arg]
+            result = get_node_timeline(cleaned_node_id, hours=hours, limit...
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+python : error: INTERNAL ERROR -- Please try using mypy master on GitHub:
+At line:1 char:1
++ python -m mypy . --explicit-package-bases --show-error-codes 2>&1 | O ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (error: INTERNAL...ster on GitHub::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+https://mypy.readthedocs.io/en/stable/common_issues.html#using-a-development-mypy-build
+If this issue continues with mypy master, please report a bug at https://github.com/python/mypy/issues
+version: 2.1.0
+note: please use --show-traceback to print a traceback when reporting a bug
+api\qdrant_router.py:46:13: error: Invalid type comment or annotation 
+[valid-type]

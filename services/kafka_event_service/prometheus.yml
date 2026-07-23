@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "kafka-event"
+    static_configs:
+      - targets: ["kafka-event:9525"]

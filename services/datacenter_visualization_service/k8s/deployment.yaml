@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datacenter-visualization
+  labels:
+    app: datacenter-visualization
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: datacenter-visualization
+  template:
+    metadata:
+      labels:
+        app: datacenter-visualization
+    spec:
+      containers:
+        - name: datacenter-visualization
+          image: datacenter-visualization:latest
+          ports:
+            - containerPort: 9545
+          env:
+            - name: DATACENTER_VISUALIZATION_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datacenter-visualization
+spec:
+  selector:
+    app: datacenter-visualization
+  ports:
+    - port: 9545
+      targetPort: 9545
+  type: ClusterIP

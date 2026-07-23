@@ -1,0 +1,64 @@
+name: metric_analysis
+description: Metric analysis workflow for performance monitoring
+
+nodes:
+  - id: collect_metrics
+    name: Collect System Metrics
+    type: task
+    config:
+      timeout: 60
+      max_retries: 2
+    dependencies: []
+
+  - id: calculate_baselines
+    name: Calculate Baselines
+    type: task
+    config:
+      timeout: 120
+      max_retries: 2
+    dependencies: [collect_metrics]
+
+  - id: detect_anomalies
+    name: Detect Anomalies
+    type: task
+    config:
+      timeout: 60
+      max_retries: 3
+    dependencies: [calculate_baselines]
+
+  - id: correlate_events
+    name: Correlate Events
+    type: task
+    config:
+      timeout: 90
+      max_retries: 2
+    dependencies: [detect_anomalies]
+
+  - id: generate_report
+    name: Generate Analysis Report
+    type: task
+    config:
+      timeout: 60
+      max_retries: 2
+    dependencies: [correlate_events]
+
+  - id: store_results
+    name: Store Analysis Results
+    type: task
+    config:
+      timeout: 30
+      max_retries: 3
+    dependencies: [generate_report]
+
+edges:
+  - from: collect_metrics
+    to: calculate_baselines
+  - from: calculate_baselines
+    to: detect_anomalies
+  - from: detect_anomalies
+    to: correlate_events
+    condition: anomalies_detected
+  - from: correlate_events
+    to: generate_report
+  - from: generate_report
+    to: store_results

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-mesh
+  labels:
+    app: chaos-mesh
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chaos-mesh
+  template:
+    metadata:
+      labels:
+        app: chaos-mesh
+    spec:
+      containers:
+        - name: chaos-mesh
+          image: chaos-mesh:latest
+          ports:
+            - containerPort: 9546
+          env:
+            - name: CHAOS_MESH_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chaos-mesh
+spec:
+  selector:
+    app: chaos-mesh
+  ports:
+    - port: 9546
+      targetPort: 9546
+  type: ClusterIP

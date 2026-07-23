@@ -1,0 +1,86 @@
+# Filebeat Configuration for Log Collection
+# Filebeat日志收集配置
+
+filebeat.inputs:
+  # Application logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/aiops/*.log
+      - /var/log/aiops/*.json
+      - logs/*.log
+      - logs/*.json
+    fields:
+      log_type: application
+      environment: ${ENVIRONMENT:development}
+    fields_under_root: true
+    multiline.pattern: '^{"timestamp":'
+    multiline.negate: true
+    multiline.match: after
+
+  # Access logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/nginx/access.log
+      - /var/log/apache/access.log
+    fields:
+      log_type: access
+      environment: ${ENVIRONMENT:development}
+    fields_under_root: true
+
+  # Error logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/aiops/error.log
+      - /var/log/aiops/error.json
+    fields:
+      log_type: error
+      environment: ${ENVIRONMENT:development}
+    fields_under_root: true
+
+# Processors for log enrichment
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~
+
+# Output to Elasticsearch
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOST:localhost:9200}"]
+  protocol: "${ELASTICSEARCH_PROTOCOL:http}"
+  username: "${ELASTICSEARCH_USERNAME:}"
+  password: "${ELASTICSEARCH_PASSWORD:}"
+  index: "aiops-logs-%{+yyyy.MM.dd}"
+  template.name: "aiops-logs"
+  template.pattern: "aiops-logs-*"
+  template.settings:
+    index.number_of_shards: 3
+    index.number_of_replicas: 1
+
+# Output to Logstash (alternative)
+# output.logstash:
+#   hosts: ["${LOGSTASH_HOST:localhost:5044}"]
+
+# Kibana configuration
+setup.kibana:
+  host: "${KIBANA_HOST:localhost:5601}"
+  username: "${KIBANA_USERNAME:}"
+  password: "${KIBANA_PASSWORD:}"
+
+# Logging configuration
+logging.level: ${LOG_LEVEL:info}
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# Monitoring
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOST:localhost:9200}"]

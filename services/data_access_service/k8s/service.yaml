@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: data_access_service
+  labels:
+    app: data_access_service
+spec:
+  selector:
+    app: data_access_service
+  ports:
+    - name: http
+      port: 9410
+      targetPort: 9410
+  type: ClusterIP

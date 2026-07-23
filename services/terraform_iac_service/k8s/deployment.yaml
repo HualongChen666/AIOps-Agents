@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terraform-iac
+  labels:
+    app: terraform-iac
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: terraform-iac
+  template:
+    metadata:
+      labels:
+        app: terraform-iac
+    spec:
+      containers:
+        - name: terraform-iac
+          image: terraform-iac:latest
+          ports:
+            - containerPort: 9536
+          env:
+            - name: TERRAFORM_IAC_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: terraform-iac
+spec:
+  selector:
+    app: terraform-iac
+  ports:
+    - port: 9536
+      targetPort: 9536
+  type: ClusterIP

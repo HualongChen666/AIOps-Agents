@@ -1,0 +1,99 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-delay-experiment
+  namespace: aiops
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+      - aiops
+    labelSelectors:
+      app: aiops-agent
+  delay:
+    latency: "100ms"
+    correlation: "25"
+    jitter: "10ms"
+  duration: "5m"
+  scheduler:
+    cron: "@every 10m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pod-kill-experiment
+  namespace: aiops
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - aiops
+    labelSelectors:
+      app: aiops-agent
+  scheduler:
+    cron: "@every 30m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress-experiment
+  namespace: aiops
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - aiops
+    labelSelectors:
+      app: aiops-agent
+  stressors:
+    cpu:
+      workers: 4
+      load: 80
+  duration: "2m"
+  scheduler:
+    cron: "@every 1h"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: IoChaos
+metadata:
+  name: io-delay-experiment
+  namespace: aiops
+spec:
+  action: latency
+  mode: one
+  selector:
+    namespaces:
+      - aiops
+    labelSelectors:
+      app: aiops-agent
+  latency:
+    delay: "100ms"
+    path: "/var/lib/aiops"
+  duration: "3m"
+  scheduler:
+    cron: "@every 2h"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: KernelChaos
+metadata:
+  name: kernel-fail-experiment
+  namespace: aiops
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - aiops
+    labelSelectors:
+      app: aiops-agent
+  failKernRequest:
+    callchain:
+      - funcname: "__x64_sys_write"
+      - parameters:
+          type: "int"
+          val: "1"
+    failtype: 0
+  duration: "1m"
+  scheduler:
+    cron: "@every 4h"

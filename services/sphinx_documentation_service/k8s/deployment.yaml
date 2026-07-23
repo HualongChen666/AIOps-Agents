@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sphinx-documentation
+  labels:
+    app: sphinx-documentation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sphinx-documentation
+  template:
+    metadata:
+      labels:
+        app: sphinx-documentation
+    spec:
+      containers:
+        - name: sphinx-documentation
+          image: sphinx-documentation:latest
+          ports:
+            - containerPort: 9550
+          env:
+            - name: SPHINX_DOCUMENTATION_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sphinx-documentation
+spec:
+  selector:
+    app: sphinx-documentation
+  ports:
+    - port: 9550
+      targetPort: 9550
+  type: ClusterIP

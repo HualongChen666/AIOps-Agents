@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector_retrieval_service
+  labels:
+    app: vector_retrieval_service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vector_retrieval_service
+  template:
+    metadata:
+      labels:
+        app: vector_retrieval_service
+    spec:
+      containers:
+        - name: vector_retrieval_service
+          image: vector_retrieval_service:latest
+          ports:
+            - containerPort: 9412
+          env:
+            - name: VECTOR_RETRIEVAL_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector_retrieval_service
+spec:
+  selector:
+    app: vector_retrieval_service
+  ports:
+    - port: 9412
+      targetPort: 9412
+  type: ClusterIP

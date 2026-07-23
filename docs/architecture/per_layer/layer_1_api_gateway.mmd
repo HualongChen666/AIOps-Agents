@@ -1,0 +1,77 @@
+flowchart TB
+    subgraph L1["Layer 1: API 网关层"]
+        direction TB
+
+        subgraph Auth["认证/授权"]
+            A1["JWT/OAuth2"]
+            A2["MFA 多因素"]
+            A3["RBAC/ABAC"]
+            A4["统一访问控制"]
+        end
+
+        subgraph RL["流量与容错"]
+            R1["限流器"]
+            R2["熔断器"]
+            R3["降级策略"]
+        end
+
+        subgraph Route["路由与发现"]
+            D1["服务发现"]
+            D2["动态路由"]
+            D3["灰度/A-B"]
+        end
+
+        subgraph Sec["安全网关"]
+            S1["WAF"]
+            S2["输入校验"]
+            S3["命令保护"]
+            S4["DDoS 防护"]
+        end
+
+        subgraph Proto["协议适配"]
+            P1["REST"]
+            P2["gRPC"]
+            P3["GraphQL"]
+            P4["WebSocket"]
+            P5["SSE"]
+            P6["MCP"]
+        end
+
+        LB["负载均衡器<br/>(Nginx/HAProxy/ALB)"]
+        AG["API Gateway 集群<br/>(Kong/APISIX/Envoy)"]
+    end
+
+    Client["客户端 / SDK / CLI"] --> LB
+    LB --> AG
+
+    AG --> A1
+    A1 --> A2
+    A2 --> A3
+    A3 --> A4
+
+    A4 --> R1
+    R1 --> R2
+    R2 --> R3
+
+    R3 --> D1
+    D1 --> D2
+    D2 --> D3
+
+    D3 --> S1
+    S1 --> S2
+    S2 --> S3
+    S3 --> S4
+
+    S4 --> P1
+    S4 --> P2
+    S4 --> P3
+    S4 --> P4
+    S4 --> P5
+    S4 --> P6
+
+    P1 --> B1["Layer 2 业务服务"]
+    P2 --> B1
+    P3 --> B1
+    P4 --> B1
+    P5 --> B1
+    P6 --> B1

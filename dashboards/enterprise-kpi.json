@@ -1,0 +1,331 @@
+{
+  "dashboard": {
+    "title": "Enterprise AIOps KPI Dashboard",
+    "uid": "enterprise-kpi",
+    "tags": ["aiops", "kpi", "enterprise"],
+    "timezone": "browser",
+    "refresh": "1m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Collection Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(scrape_success_total[5m])) / sum(rate(scrape_total[5m])) * 100",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 99},
+                {"color": "green", "value": 99.9}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Anomaly Detection Recall Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "aiops_anomaly_recall_rate",
+            "legendFormat": "Recall"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 90},
+                {"color": "green", "value": 95}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Anomaly False Positive Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "aiops_anomaly_false_positive_rate",
+            "legendFormat": "False Positive"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 3},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "MTTR (Mean Time To Recovery)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "aiops_mttr_minutes",
+            "legendFormat": "MTTR"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "m",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 20},
+                {"color": "red", "value": 30}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Cost Prediction Error",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "aiops_cost_prediction_error_percent",
+            "legendFormat": "Prediction Error"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 8},
+                {"color": "red", "value": 10}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Service Availability (SLA)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(up) * 100",
+            "legendFormat": "Availability"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 99.9},
+                {"color": "green", "value": 99.95}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Deployment Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(ci_deployment_success_total[1h])) / sum(rate(ci_deployment_total[1h])) * 100",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 98},
+                {"color": "green", "value": 99.5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Security Vulnerability Count",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(severity_vulnerabilities{cvss >= 5})",
+            "legendFormat": "High/Critical"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "red", "value": 1}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Auto-scaling Response Time",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "aiops_autoscale_response_seconds",
+            "legendFormat": "Response Time"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 20},
+                {"color": "red", "value": 30}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Observability Query Latency",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(observability_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 3},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Collection Success Rate Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(scrape_success_total[5m])) / sum(rate(scrape_total[5m])) * 100",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Incident Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_incident_response_duration_seconds",
+            "legendFormat": "Response Time"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "Auto-heal Success Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(auto_heal_success_total[1h])) / sum(rate(auto_heal_total[1h])) * 100",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 14,
+        "title": "Model Performance Comparison",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_model_accuracy{model_type=\"prophet\"}",
+            "legendFormat": "Prophet"
+          },
+          {
+            "expr": "aiops_model_accuracy{model_type=\"isolation_forest\"}",
+            "legendFormat": "Isolation Forest"
+          },
+          {
+            "expr": "aiops_model_accuracy{model_type=\"gnn\"}",
+            "legendFormat": "GNN"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 15,
+        "title": "Storage Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(timescaledb_write_duration_seconds_sum[5m]) / rate(timescaledb_write_duration_seconds_count[5m])",
+            "legendFormat": "TimescaleDB Write Latency"
+          },
+          {
+            "expr": "rate(qdrant_query_duration_seconds_sum[5m]) / rate(qdrant_query_duration_seconds_count[5m])",
+            "legendFormat": "Qdrant Query Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,138 @@
+# Qdrant Helm Chart Values for AIOps Platform
+
+replicaCount: 1
+
+image:
+  repository: qdrant/qdrant
+  tag: latest
+  pullPolicy: IfNotExists
+
+# Qdrant configuration
+qdrant:
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 6333
+    grpcPort: 6334
+    metricsPort: 6335
+  
+  # Configuration
+  config:
+    log_level: INFO
+    storage:
+      # Storage settings
+      on_disk: true
+      optimizers_indexing_threshold: 20000
+      optimizers_indexing_interval_sec: 5
+      optimizer_id: 0
+      
+    # Performance settings
+    performance:
+      max_optimization_threads: 1
+      max_search_threads: 4
+      
+    # Service settings
+    service:
+      enable_telemetry: false
+      enable_dashboard: true
+      
+    # Cluster settings
+    cluster:
+      enabled: false
+      
+    # Snapshot settings
+    snapshots:
+      path: /snapshots
+      restoration_timeout_sec: 600
+
+# Resource limits and requests
+resources:
+  requests:
+    memory: 1Gi
+    cpu: 500m
+  limits:
+    memory: 2Gi
+    cpu: 1000m
+
+# Persistence configuration
+persistence:
+  enabled: true
+  size: 20Gi
+  storageClass: standard
+  accessMode: ReadWriteOnce
+
+# Snapshot persistence
+snapshotPersistence:
+  enabled: true
+  size: 10Gi
+  storageClass: standard
+  accessMode: ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  annotations: {}
+  
+# Ingress configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: qdrant.aiops.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Security context
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Readiness probe
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 6333
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Liveness probe
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: 6333
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# API key configuration (optional)
+apiKey: ""

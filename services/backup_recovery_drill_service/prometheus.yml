@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "backup-recovery-drill"
+    static_configs:
+      - targets: ["backup-recovery-drill:9552"]

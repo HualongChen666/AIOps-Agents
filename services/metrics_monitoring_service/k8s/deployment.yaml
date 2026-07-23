@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-monitoring
+  labels:
+    app: metrics-monitoring
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: metrics-monitoring
+  template:
+    metadata:
+      labels:
+        app: metrics-monitoring
+    spec:
+      containers:
+        - name: metrics-monitoring
+          image: metrics-monitoring:latest
+          ports:
+            - containerPort: 9568
+          env:
+            - name: METRICS_MONITORING_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-monitoring
+spec:
+  selector:
+    app: metrics-monitoring
+  ports:
+    - port: 9568
+      targetPort: 9568
+  type: ClusterIP

@@ -1,0 +1,17 @@
+runbook_id: cpu_high
+name: High CPU Usage Repair
+description: Identify and terminate high CPU processes
+platform: linux
+risk_level: medium
+params:
+  threshold: 80.0
+steps:
+  - name: find_top_cpu
+    command: "ps -eo pid,ppid,%cpu,comm --sort=-%cpu | head -n 10"
+    timeout_seconds: 10
+    verify_command: "echo 'top cpu listed'"
+  - name: kill_high_cpu
+    command: "kill -15 {pid}"
+    timeout_seconds: 10
+    rollback_command: "echo 'cannot restore killed process {pid}'"
+    verify_command: "ps -p {pid} -o pid="

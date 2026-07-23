@@ -1,0 +1,27 @@
+# 技术债务监控 - Cron定时任务配置
+# 
+# 使用说明：
+# 1. 将此配置添加到系统的crontab中
+# 2. 根据需要调整执行频率
+# 3. 确保Python环境路径正确
+#
+# 编辑crontab: crontab -e
+# 查看crontab: crontab -l
+
+# 每日早上8点执行监控脚本
+0 8 * * * cd /path/to/AIOps_Agent_bak && /path/to/venv/bin/python scripts/monitor/tech_debt_monitor.py >> /path/to/logs/tech_debt_monitor.log 2>&1
+
+# 每周一早上9点生成周报
+0 9 * * 1 cd /path/to/AIOps_Agent_bak && /path/to/venv/bin/python scripts/monitor/tech_debt_monitor.py >> /path/to/logs/tech_debt_weekly.log 2>&1
+
+# 每月1号早上10点生成月度报告
+0 10 1 * * cd /path/to/AIOps_Agent_bak && /path/to/venv/bin/python scripts/monitor/tech_debt_monitor.py >> /path/to/logs/tech_debt_monthly.log 2>&1
+
+# Windows任务计划程序配置（如果使用Windows）:
+# 1. 打开"任务计划程序"
+# 2. 创建基本任务
+# 3. 设置触发器：每天8:00
+# 4. 操作：启动程序
+#    - 程序：python.exe
+#    - 参数：scripts\monitor\tech_debt_monitor.py
+#    - 起始于：C:\AIOps_Agent_bak

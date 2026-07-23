@@ -1,0 +1,93 @@
+# -*- coding: utf-8 -*-
+# core/es_logger.py
+# Elasticsearch 日志聚合封装
+# 提供异步客户端单例、日志写入、搜索接口
+# 依赖 elasticsearch[async] >= 8.13.0
+
+import logging
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union  # noqa: F401
+
+try:
+    from elasticsearch import AsyncElasticsearch, NotFoundError
+
+    ElasticsearchClient = AsyncElasticsearch
+except Exception:
+    AsyncElasticsearch = None
+    ElasticsearchClient = None
+
+    # Define a dummy NotFoundError if elasticsearch is not available
+    NotFoundError = Exception  # type: ignore[misc,assignment]
+
+
+from config import ELASTICSEARCH_URL
+
+logger = logging.getLogger(__name__)
+
+# 单例客户端
+_es_client: Optional[Any] = None  # type: ignore[misc]
+
+
+def get_es_client():
+    """获取或创建全局 AsyncElasticsearch 客户端实例"""
+    global _es_client
+    if _es_client is None:
+        es_url = ELASTICSEARCH_URL
+        _es_client = AsyncElasticsearch([es_url])
+        logger.info(f"Elasticsearch client initialized | url={es_url}")
+    return _es_client
+
+
+async def index_log(index: str, doc: Dict[str, Any]) -> str:
+    """向指定索引写入单条日志文档，返回文档 ID"""
+    client = get_es_client()
+    if client is None:
+        logger.warning("Elasticsearch client unavailable, index_log is a no-op")
+        return "mock-id"
+    try:
+        resp = await client.index(index=index, document=doc)
+        doc_id = str(resp["_id"])
+        logger.debug(f"Indexed log into {index} id={doc_id}")
+        return doc_id
+    except Exception as e:
+        logger.error(f"Failed to index log to Elasticsearch: {e}", exc_info=True)
+        return "mock-id"
+
+
+async def es_search_logs(
+    index: str = "logs",
+    query: str = "*",
+    size: int = 100,
+    from_: int = 0,
+) -> List[Dict[str, Any]]:
+    """在 Elasticsearch 中搜索日志
+    参数:
+        index   索引名称（默认 logs）
+        query   Elasticsearch DSL 简单查询字符串
+        size    返回条数上限
+        from_   分页偏移
+    返回:
+        包含 _source 的日志列表
+    """
+    client = get_es_client()
+    body = {
+        "query": {
+            "query_string": {
+                "query": query,
+                "default_field": "message",
+                "default_operator": "AND",
+            }
+        },
+        "from": from_,
+        "size": size,
+        "sort": [{"@timestamp": {"order": "desc"}}],
+    }
+    try:
+        resp = await client.search(index=index, body=body)
+        hits = resp.get("hits", {}).get("hits", [])
+        return [hit.get("_source", {}) for hit in hits]
+    except NotFoundError:
+        logger.warning(f"Elasticsearch index not found: {index}")
+        return []
+    except Exception as e:
+        logger.error(f"Elasticsearch search error: {e}", exc_info=True)
+        return []

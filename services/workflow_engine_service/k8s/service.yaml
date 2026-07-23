@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-engine
+  labels:
+    app: workflow-engine
+spec:
+  selector:
+    app: workflow-engine
+  ports:
+    - name: http
+      port: 9524
+      targetPort: 9524
+  type: ClusterIP

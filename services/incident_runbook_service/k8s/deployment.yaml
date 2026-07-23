@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-runbook
+  labels:
+    app: incident-runbook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: incident-runbook
+  template:
+    metadata:
+      labels:
+        app: incident-runbook
+    spec:
+      containers:
+        - name: incident-runbook
+          image: incident-runbook:latest
+          ports:
+            - containerPort: 9547
+          env:
+            - name: INCIDENT_RUNBOOK_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: incident-runbook
+spec:
+  selector:
+    app: incident-runbook
+  ports:
+    - port: 9547
+      targetPort: 9547
+  type: ClusterIP

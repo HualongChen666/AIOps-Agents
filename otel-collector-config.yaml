@@ -1,0 +1,190 @@
+# OpenTelemetry Collector Configuration for AIOps Platform
+# Supports Prometheus Remote Write, OTLP Receivers, AWS/GCP/Azure Exporters, Batch Processing, Log Receiving
+
+receivers:
+  # OTLP Receiver for Metrics, Traces, and Logs
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  # Prometheus Receiver for scraping metrics
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'aiops-services'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['localhost:9090']
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: instance
+            - source_labels: [__address__]
+              regex: '.*:(\d+)'
+              target_label: port
+              replacement: '$1'
+  
+  # File Log Receiver for log files
+  filelog:
+    include:
+      - /var/log/aiops/*.log
+    start_at: beginning
+    include_file_name: true
+    include_file_path: true
+    operators:
+      - type: json_parser
+        parse_from: body
+      - type: move
+        from: attributes.message
+        to: body
+      - type: add
+        field: attributes.log_file
+        value: ${literal(attributes["log.file.name"])}
+
+processors:
+  # Batch processor for efficient data transmission
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+    send_batch_max_size: 4096
+  
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+  
+  # Resource processor to add common attributes
+  resource:
+    attributes:
+      - key: service.name
+        value: aiops-collector
+        action: upsert
+      - key: deployment.environment
+        value: production
+        action: upsert
+  
+  # Metric transformation processor
+  metricstransform:
+    transforms:
+      - include: ".*"
+        match_type: regexp
+        action: update
+        operations:
+          - action: add_label
+            new_label: env
+            new_value: prod
+          - action: add_label
+            new_label: region
+            new_value: us-east-1
+  
+  # Attributes processor for log enrichment
+  attributes:
+    actions:
+      - key: tenant_id
+        action: extract
+        pattern: tenant_id=(?P<value>[^,]+)
+      - key: user_id
+        action: extract
+        pattern: user_id=(?P<value>[^,]+)
+
+exporters:
+  # Prometheus Remote Write Exporter
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls:
+      insecure: true
+    timeout: 10s
+    send_queue_size: 10000
+    send_queue_capacity: 10000
+  
+  # OTLP Exporter for Traces
+  otlp/tempo:
+    endpoint: http://tempo:4317
+    tls:
+      insecure: true
+    timeout: 10s
+  
+  # Loki Exporter for Logs
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    tls:
+      insecure: true
+    timeout: 10s
+    labels:
+      service:
+        from_attributes: [service.name]
+      env:
+        from_attributes: [deployment.environment]
+      region:
+        from_attributes: [region]
+      tenant:
+        from_attributes: [tenant]
+      instance:
+        from_attributes: [instance]
+  
+  # AWS CloudWatch Exporter
+  awscloudwatch:
+    namespace: AIOps
+    region: us-east-1
+    metric_declarations:
+      - dimensions:
+          - name: service
+            value: attributes["service.name"]
+          - name: env
+            value: attributes["deployment.environment"]
+        metric_name: ${metric.name}
+        metric_unit: ${metric.unit}
+        metric_type: ${metric.type}
+        metric_value: ${metric.value}
+  
+  # Azure Monitor Exporter
+  azuremonitor:
+    instrumentation_key: ${env:AZURE_INSTRUMENTATION_KEY}
+    region: eastus
+    max_batch_size: 100
+    max_batch_interval: 5s
+  
+  # GCP Cloud Monitoring Exporter
+  googlecloudmonitoring:
+    project: ${env:GCP_PROJECT}
+    metric_prefix: custom.googleapis.com/aiops
+    skip_existing_metrics: true
+    timeout: 12s
+    reporting_interval: 60s
+
+extensions:
+  # Health check extension
+  health_check:
+    endpoint: 0.0.0.0:13133
+  
+  # Pprof extension for profiling
+  pprof:
+    endpoint: 0.0.0.0:1777
+  
+  # Zpages extension for debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  pipelines:
+    # Metrics Pipeline
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [batch, memory_limiter, resource, metricstransform]
+      exporters: [prometheusremotewrite, awscloudwatch, azuremonitor, googlecloudmonitoring]
+    
+    # Traces Pipeline
+    traces:
+      receivers: [otlp]
+      processors: [batch, memory_limiter, resource]
+      exporters: [otlp/tempo]
+    
+    # Logs Pipeline
+    logs:
+      receivers: [otlp, filelog]
+      processors: [batch, memory_limiter, resource, attributes]
+      exporters: [loki]

@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6381:6379"
+
+  topology-orchestrator:
+    build:
+      context: ../..
+      dockerfile: services/topology_service/Dockerfile
+    command: ["uvicorn", "services.topology_service.orchestrator:app", "--host", "0.0.0.0", "--port", "9101"]
+    ports:
+      - "9101:9101"
+    environment:
+      - TOPOLOGY_SERVICE_USE_IN_MEMORY=true
+      - TOPOLOGY_SERVICE_ORCHESTRATOR_PORT=9101
+    depends_on:
+      - redis
+
+  topology-analyzer:
+    build:
+      context: ../..
+      dockerfile: services/topology_service/Dockerfile
+    command: ["uvicorn", "services.topology_service.analyzer:app", "--host", "0.0.0.0", "--port", "9102"]
+    ports:
+      - "9102:9102"
+    environment:
+      - TOPOLOGY_SERVICE_USE_IN_MEMORY=true
+      - TOPOLOGY_SERVICE_ANALYZER_PORT=9102
+    depends_on:
+      - redis
+      - topology-orchestrator
+
+  topology-visualizer:
+    build:
+      context: ../..
+      dockerfile: services/topology_service/Dockerfile
+    command: ["uvicorn", "services.topology_service.visualizer_app:app", "--host", "0.0.0.0", "--port", "9103"]
+    ports:
+      - "9103:9103"
+    environment:
+      - TOPOLOGY_SERVICE_USE_IN_MEMORY=true
+      - TOPOLOGY_SERVICE_VISUALIZER_PORT=9103
+    depends_on:
+      - redis
+      - topology-orchestrator
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - topology-orchestrator
+      - topology-analyzer
+      - topology-visualizer

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: automated-deployment
+  labels:
+    app: automated-deployment
+spec:
+  selector:
+    app: automated-deployment
+  ports:
+    - name: http
+      port: 9565
+      targetPort: 9565
+  type: ClusterIP

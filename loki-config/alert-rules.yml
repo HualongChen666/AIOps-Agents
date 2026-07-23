@@ -1,0 +1,144 @@
+# Loki Alert Rules for AIOps Agent
+# These rules define alerting conditions for log events
+
+groups:
+  - name: loki_alerts
+    interval: 30s
+    rules:
+      # Loki down
+      - alert: LokiDown
+        expr: up{job="loki"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: loki
+        annotations:
+          summary: "Loki instance is down"
+          description: "Loki has been down for more than 1 minute."
+
+      # High ingestion rate
+      - alert: LokiHighIngestionRate
+        expr: rate(loki_write_bytes_total[5m]) > 10000000
+        for: 5m
+        labels:
+          severity: warning
+          component: loki
+        annotations:
+          summary: "Loki high ingestion rate"
+          description: "Ingestion rate is {{ $value }} bytes/sec"
+
+      # Slow queries
+      - alert: LokiSlowQueries
+        expr: histogram_quantile(0.95, rate(loki_query_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: loki
+        annotations:
+          summary: "Loki slow queries detected"
+          description: "95th percentile query latency is {{ $value }}s"
+
+  - name: aiops_log_alerts
+    interval: 30s
+    rules:
+      # High error rate
+      - alert: AIOpsHighErrorRate
+        expr: sum(rate({job="aiops-agent", level="error"}[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: aiops-agent
+        annotations:
+          summary: "AIOps Agent high error rate"
+          description: "Error rate is {{ $value }} errors/sec"
+
+      # Critical errors
+      - alert: AIOpsCriticalErrors
+        expr: sum(count_over_time({job="aiops-agent", level="error"} |= "critical" [5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: aiops-agent
+        annotations:
+          summary: "AIOps Agent critical errors detected"
+          description: "Critical errors found in logs"
+
+      # AI engine failures
+      - alert: AIEngineHighFailureRate
+        expr: sum(rate({job="aiops-agent", service="ai-engine"} |~ "error.*failed"[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: ai-engine
+        annotations:
+          summary: "AI engine high failure rate"
+          description: "AI failure rate is {{ $value }} failures/sec"
+
+      # Repair engine failures
+      - alert: RepairEngineHighFailureRate
+        expr: sum(rate({job="aiops-agent", service="repair-engine"} |~ "repair.*failed"[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: repair-engine
+        annotations:
+          summary: "Repair engine high failure rate"
+          description: "Repair failure rate is {{ $value }} failures/sec"
+
+      # Database connection errors
+      - alert: DatabaseConnectionErrors
+        expr: sum(rate({job="aiops-agent"} |~ "database.*connection.*error"[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database connection errors detected"
+          description: "Database connection error rate is {{ $value }} errors/sec"
+
+      # Out of memory errors
+      - alert: OutOfMemoryErrors
+        expr: sum(count_over_time({job="aiops-agent"} |~ "out of memory"[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Out of memory errors detected"
+          description: "Out of memory errors found in logs"
+
+  - name: security_alerts
+    interval: 30s
+    rules:
+      # Authentication failures
+      - alert: HighAuthenticationFailures
+        expr: sum(rate({job="aiops-agent"} |~ "authentication.*failed"[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Authentication failure rate is {{ $value }} failures/sec"
+
+      # Unauthorized access attempts
+      - alert: UnauthorizedAccessAttempts
+        expr: sum(rate({job="aiops-agent"} |~ "unauthorized.*access"[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "Unauthorized access attempts detected"
+          description: "Unauthorized access attempt rate is {{ $value }} attempts/sec"
+
+      # SQL injection attempts
+      - alert: SQLInjectionAttempts
+        expr: sum(count_over_time({job="aiops-agent"} |~ "sql.*injection"[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "SQL injection attempts detected"
+          description: "SQL injection attempts found in logs"

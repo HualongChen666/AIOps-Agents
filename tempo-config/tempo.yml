@@ -1,0 +1,72 @@
+# Tempo Configuration for AIOps Agent
+# Single-node deployment configuration
+
+server:
+  http_listen_port: 3200
+
+# Metrics configuration
+metrics:
+  enabled: true
+  port: 3100
+
+# Distributor configuration
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+# Ingester configuration
+ingester:
+  max_block_duration: 2h
+  trace_idle_period: 30s
+
+# Storage configuration
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo/traces
+    wal:
+      path: /tmp/tempo/wal
+
+# Compactor configuration
+compactor:
+  compaction:
+    block_retention: 30d
+    compacted_block_retention: 14d
+    compaction_window: 2h
+    max_block_bytes: 1073741824
+
+# Metrics generator configuration
+metrics_generator:
+  processor:
+    service-graph:
+      enabled: true
+      histogram_buckets: [0.1, 0.2, 0.5, 1, 2, 5, 10]
+    span-metrics:
+      enabled: true
+      dimensions:
+        - http.method
+        - http.status_code
+        - http.host
+
+# Overrides configuration
+overrides:
+  per_tenant_override_config: /etc/tempo/overrides.yaml
+  defaults:
+    global:
+      ingestion_rate_limit_bytes: 41943040
+      ingestion_burst_size_bytes: 10485760
+      max_bytes_per_trace: 10485760
+      max_traces_per_user: 0
+      max_search_duration: 30d
+      max_bytes_per_tag_values_query: 10485760
+
+# Search configuration
+search:
+  external_enabled: true
+  max_duration: 30d

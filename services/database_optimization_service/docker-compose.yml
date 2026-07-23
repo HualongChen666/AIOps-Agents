@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  database-optimization:
+    build:
+      context: ../..
+      dockerfile: services/database_optimization_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.database_optimization_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9562",
+    ]
+    ports:
+      - "9562:9562"
+    environment:
+      - DATABASE_OPTIMIZATION_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9662:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - database-optimization

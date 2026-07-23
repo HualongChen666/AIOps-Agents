@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elk-stack
+  labels:
+    app: elk-stack
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: elk-stack
+  template:
+    metadata:
+      labels:
+        app: elk-stack
+    spec:
+      containers:
+        - name: elk-stack
+          image: elk-stack:latest
+          ports:
+            - containerPort: 9532
+          env:
+            - name: ELK_STACK_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elk-stack
+spec:
+  selector:
+    app: elk-stack
+  ports:
+    - port: 9532
+      targetPort: 9532
+  type: ClusterIP

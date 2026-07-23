@@ -1,0 +1,48 @@
+[tool.pydocstyle]
+convention = "google"
+# Removed ignore to enforce docstring checks
+# skip any directories if needed, currently none
+
+[tool.poetry]
+name = "aiops-agent"
+version = "0.1.0"
+description = "AIOps Agent"
+authors = ["AIOps Team <aiops@example.com>"]
+readme = "README.md"
+python = "^3.10"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.0"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(?:
+  \.git
+  | \.venv
+  | venv
+  | build
+  | dist
+  | __pycache__
+  | \.pytest_cache
+  | \.mypy_cache
+  | \.tox
+  | \.hg
+  | \.eggs
+  | \.egg-info
+  | temp
+  | verify_logs
+)/|(?:^|/)temp_[^/]*\.py$
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["api", "core", "tests", "scripts", "infrastructure", "main", "services"]
+skip = [".git", "__pycache__", ".venv", "venv", "build", "dist", ".eggs", "*.egg-info", ".pytest_cache", ".mypy_cache", ".tox"]
+skip_glob = ["**/temp*", "verify_logs/**"]

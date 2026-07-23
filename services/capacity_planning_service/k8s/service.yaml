@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: capacity-planning
+  labels:
+    app: capacity-planning
+spec:
+  selector:
+    app: capacity-planning
+  ports:
+    - name: http
+      port: 9548
+      targetPort: 9548
+  type: ClusterIP

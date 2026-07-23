@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  knowledge-graph-service:
+    build: .
+    ports:
+      - "9409:9409"
+    environment:
+      - KNOWLEDGE_GRAPH_REDIS_URL=redis://redis:6379
+      - KNOWLEDGE_GRAPH_NEO4J_URI=bolt://neo4j:7687
+      - KNOWLEDGE_GRAPH_NEO4J_USER=neo4j
+      - KNOWLEDGE_GRAPH_NEO4J_PASSWORD=neo4j
+      - KNOWLEDGE_GRAPH_LOG_LEVEL=INFO
+    depends_on:
+      - redis
+      - neo4j
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/neo4j

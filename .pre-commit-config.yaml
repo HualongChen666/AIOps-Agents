@@ -1,0 +1,175 @@
+# Pre-commit configuration for AIOps Agent
+# See https://pre-commit.com for more information
+#
+# Configuration Overview:
+# - Black: Code formatter (reads from pyproject.toml)
+# - ruff: Fast linter and import sorter (reads from pyproject.toml)
+# - mypy: Type checker (reads from pyproject.toml)
+# - bandit: Security linter
+# - Custom hooks: Test validation
+#
+# Installation:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Usage:
+#   pre-commit run --all-files  # Run on all files
+#   pre-commit run black --all-files  # Run specific hook
+#   pre-commit autoupdate  # Update hook versions
+
+# Default configuration for all hooks
+default_language_version:
+  python: python3.10
+
+# Exclude patterns for all hooks
+exclude: |
+  (?x)^(
+    \.git/|
+    \.mypy_cache/|
+    \.pytest_cache/|
+    \.venv/|
+    venv/|
+    __pycache__/|
+    build/|
+    dist/|
+    \.eggs/|
+    .*\.egg-info/
+    node_modules/|
+    \.tox/
+  )$
+
+repos:
+  # General Python checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+        description: Ensures no trailing whitespace in files
+
+      - id: end-of-file-fixer
+        name: Fix End of Files
+        description: Ensures that a file is either empty or ends with one newline
+
+      - id: check-yaml
+        name: Check YAML
+        description: Checks YAML files for syntax errors
+
+      - id: check-added-large-files
+        name: Check for Large Files
+        description: Prevents large files from being committed
+        args: ["--maxkb=1000"]
+
+      - id: check-json
+        name: Check JSON
+        description: Checks JSON files for syntax errors
+
+      - id: check-merge-conflict
+        name: Check for Merge Conflicts
+        description: Checks for files with merge conflict markers
+
+      - id: check-toml
+        name: Check TOML
+        description: Checks TOML files for syntax errors
+
+      - id: debug-statements
+        name: Debug Statements
+        description: Checks for debugger imports and py37+ breakpoint() calls
+
+  # Python code formatter - Black
+  # Configuration is read from pyproject.toml [tool.black] section
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+        name: Black - Python Code Formatter
+        description: The uncompromising Python code formatter
+        # language_version is set to python3.10 to match project requirement
+        language_version: python3.10
+        # Black will automatically read configuration from pyproject.toml
+        # No args needed - it will use line-length=100 from pyproject.toml
+        # To explicitly use config file, uncomment the line below:
+        # args: [--config=pyproject.toml]
+        # File patterns are handled by black's default include/exclude from pyproject.toml
+
+  # Python import sorter - isort
+  # Configuration is read from pyproject.toml [tool.isort]
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort - Python Import Sorter
+        description: Sorts Python imports
+        args: [--profile, black]
+        # isort will read configuration from pyproject.toml
+
+  # Python linter - flake8
+  # Configuration is read from .flake8
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        name: flake8 - Python Linter
+        description: Checks Python code style and errors
+        # flake8 will read configuration from .flake8
+
+  # Security checks - Bandit
+  # Configuration is read from pyproject.toml [tool.bandit] section if available
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        name: Bandit - Security Linter
+        description: Finds common security issues in Python code
+        args: [-r, core/, api/, --config-file=.bandit]
+        additional_dependencies: ["bandit[toml]"]
+        # Exclude test files from security checks
+        exclude: ^tests/
+
+  # Type checking - mypy
+  # Configuration is read from pyproject.toml [tool.mypy] section
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        name: mypy - Static Type Checker
+        description: Static type checker for Python
+        additional_dependencies:
+          - types-all
+          - pydantic
+        args: [--config-file=pyproject.toml, --ignore-missing-imports]
+        # Exclude test files from type checking (optional)
+        exclude: ^tests/
+
+  # Custom hooks for test collection validation
+  - repo: local
+    hooks:
+      - id: test-collection-validation
+        name: Test Collection Validation
+        description: Validates that all test files can be collected by pytest
+        entry: python -m pytest --collect-only --tb=line
+        language: system
+        pass_filenames: false
+        always_run: true
+        args: [.]
+        # Only run when Python files change
+        types: [python]
+
+      - id: test-syntax-check
+        name: Test Syntax Check
+        description: Validates syntax of all test files
+        entry: >
+          python -c "import sys; import subprocess; import os;
+          sys.path.insert(0, '.');
+          test_files = [os.path.join(root, f) for root, dirs, files in os.walk('tests')
+          for f in files if f.startswith('test_') and f.endswith('.py')];
+          errors = [f for f in test_files if subprocess.run(['python', '-m', 'py_compile', f],
+          capture_output=True).returncode != 0];
+          print(f'Checking {len(test_files)} test files');
+          print(f'Syntax errors: {len(errors)}');
+          [print(f'  ❌ {error}') for error in errors];
+          sys.exit(1 if errors else 0)"
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]

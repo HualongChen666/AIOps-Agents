@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  alert-rule:
+    build:
+      context: ../..
+      dockerfile: services/alert_rule_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.alert_rule_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9522",
+    ]
+    ports:
+      - "9522:9522"
+    environment:
+      - ALERT_RULE_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9622:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - alert-rule

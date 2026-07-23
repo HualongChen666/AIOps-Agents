@@ -1,0 +1,107 @@
+{
+  "dashboard": {
+    "title": "AIOps Logs Dashboard",
+    "description": "AIOps log aggregation and analysis dashboard",
+    "panels": [
+      {
+        "id": 1,
+        "type": "metric",
+        "title": "Total Logs",
+        "grid": {"x": 0, "y": 0, "w": 6, "h": 3},
+        "targets": [
+          {
+            "query": "SELECT count(*) FROM \"aiops-logs-*\""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "type": "metric",
+        "title": "Error Logs",
+        "grid": {"x": 6, "y": 0, "w": 6, "h": 3},
+        "targets": [
+          {
+            "query": "SELECT count(*) FROM \"aiops-logs-*\" WHERE level = 'ERROR'"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "type": "metric",
+        "title": "Critical Logs",
+        "grid": {"x": 12, "y": 0, "w": 6, "h": 3},
+        "targets": [
+          {
+            "query": "SELECT count(*) FROM \"aiops-logs-*\" WHERE level = 'CRITICAL'"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "type": "metric",
+        "title": "Average Response Time",
+        "grid": {"x": 18, "y": 0, "w": 6, "h": 3},
+        "targets": [
+          {
+            "query": "SELECT avg(response_time) FROM \"aiops-logs-*\" WHERE response_time IS NOT NULL"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "type": "line",
+        "title": "Log Volume Over Time",
+        "grid": {"x": 0, "y": 3, "w": 12, "h": 6},
+        "targets": [
+          {
+            "query": "SELECT count(*) FROM \"aiops-logs-*\" GROUP BY timestamp"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "type": "pie",
+        "title": "Log Levels Distribution",
+        "grid": {"x": 12, "y": 3, "w": 12, "h": 6},
+        "targets": [
+          {
+            "query": "SELECT level, count(*) FROM \"aiops-logs-*\" GROUP BY level"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "type": "table",
+        "title": "Recent Error Logs",
+        "grid": {"x": 0, "y": 9, "w": 24, "h": 8},
+        "targets": [
+          {
+            "query": "SELECT timestamp, level, logger, message FROM \"aiops-logs-*\" WHERE level IN ('ERROR', 'CRITICAL') ORDER BY timestamp DESC LIMIT 50"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "type": "line",
+        "title": "Error Rate Trend",
+        "grid": {"x": 0, "y": 17, "w": 12, "h": 6},
+        "targets": [
+          {
+            "query": "SELECT count(*) FROM \"aiops-logs-*\" WHERE level IN ('ERROR', 'CRITICAL') GROUP BY timestamp"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "type": "bar",
+        "title": "Top Error Modules",
+        "grid": {"x": 12, "y": 17, "w": 12, "h": 6},
+        "targets": [
+          {
+            "query": "SELECT logger, count(*) FROM \"aiops-logs-*\" WHERE level IN ('ERROR', 'CRITICAL') GROUP BY logger ORDER BY count DESC LIMIT 10"
+          }
+        ]
+      }
+    ]
+  }
+}

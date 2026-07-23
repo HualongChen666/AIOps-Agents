@@ -1,0 +1,13 @@
+runbook_id: disk_high
+name: High Disk Usage Repair
+description: Clean temporary files and logs
+platform: linux
+risk_level: medium
+params:
+  threshold: 85.0
+steps:
+  - name: clean_tmp
+    command: "rm -rf /tmp/*"
+    timeout_seconds: 20
+    rollback_command: "echo 'tmp cleanup not reversible'"
+    verify_command: "df -h / | tail -n 1"

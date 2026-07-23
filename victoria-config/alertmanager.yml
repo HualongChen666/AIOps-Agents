@@ -1,0 +1,103 @@
+# Alertmanager configuration for VictoriaMetrics alerts
+# This file defines how alerts are routed and notified
+
+global:
+  resolve_timeout: 5m
+  # SMTP configuration for email alerts
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@aiops-agent.local'
+  smtp_auth_username: 'alertmanager'
+  smtp_auth_password: 'password'
+
+# Route configuration
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+
+  routes:
+    # Critical alerts go to PagerDuty/Slack immediately
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: false
+
+    # Warning alerts go to email
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      continue: false
+
+    # VictoriaMetrics specific alerts
+    - match:
+        component: victoriametrics
+      receiver: 'victoriametrics-alerts'
+      continue: true
+
+    # AIOps application alerts
+    - match:
+        component: aiops-agent
+      receiver: 'aiops-alerts'
+      continue: true
+
+# Receivers define how alerts are sent
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'admin@aiops-agent.local'
+        headers:
+          Subject: '[AIOps] Default Alert'
+
+  - name: 'critical-alerts'
+    # PagerDuty integration (optional)
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+        description: '{{ .GroupLabels.alertname }}'
+    
+    # Slack integration (optional)
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#aiops-critical'
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    
+    email_configs:
+      - to: 'oncall@aiops-agent.local'
+        headers:
+          Subject: '[CRITICAL] {{ .GroupLabels.alertname }}'
+
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'ops-team@aiops-agent.local'
+        headers:
+          Subject: '[WARNING] {{ .GroupLabels.alertname }}'
+
+  - name: 'victoriametrics-alerts'
+    email_configs:
+      - to: 'infra-team@aiops-agent.local'
+        headers:
+          Subject: '[VictoriaMetrics] {{ .GroupLabels.alertname }}'
+
+  - name: 'aiops-alerts'
+    email_configs:
+      - to: 'devops@aiops-agent.local'
+        headers:
+          Subject: '[AIOps] {{ .GroupLabels.alertname }}'
+
+# Inhibition rules prevent alert spam
+inhibit_rules:
+  # If a critical alert is firing, inhibit warnings for the same service
+  - source_match:
+      severity: 'critical'
+    target_match_re:
+      severity: 'warning|info'
+    equal: ['service', 'cluster']
+    
+  # If VictoriaMetrics is down, inhibit all VictoriaMetrics alerts
+  - source_match:
+      alertname: 'VictoriaMetricsDown'
+    target_match_re:
+      component: 'victoriametrics'
+    equal: ['cluster']

@@ -1,0 +1,113 @@
+# Production Docker Compose configuration for AIOps Agent
+version: '3.8'
+
+services:
+  aiops-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-}
+        VCS_REF: ${VCS_REF:-}
+    image: aiops-agent:latest
+    container_name: aiops-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # API
+      - "9090:9090"  # Metrics
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/aiops.db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - METRICS_ENABLED=true
+      - RATE_LIMIT_ENABLED=true
+      - ALERT_RULES_ENABLED=true
+    volumes:
+      - aiops-data:/app/data
+      - aiops-logs:/app/logs
+      - aiops-config:/app/config
+    depends_on:
+      - redis
+      - victoria-metrics
+    networks:
+      - aiops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: aiops-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - aiops-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: aiops-victoria-metrics
+    restart: unless-stopped
+    ports:
+      - "8428:8428"
+    volumes:
+      - victoria-data:/victoria-metrics-data
+    networks:
+      - aiops-network
+    command:
+      - "--storageDataPath=/victoria-metrics-data"
+      - "--httpListenAddr=:8428"
+      - "--retentionPeriod=30d"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8428/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aiops-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - aiops-network
+    depends_on:
+      - victoria-metrics
+
+volumes:
+  aiops-data:
+    driver: local
+  aiops-logs:
+    driver: local
+  aiops-config:
+    driver: local
+  redis-data:
+    driver: local
+  victoria-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  aiops-network:
+    driver: bridge

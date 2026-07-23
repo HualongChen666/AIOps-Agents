@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "cache-service"
+    static_configs:
+      - targets: ["cache_service:9411"]

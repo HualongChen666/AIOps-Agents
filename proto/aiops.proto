@@ -1,0 +1,167 @@
+syntax = "proto3";
+
+package aiops;
+
+// AIOps Agent gRPC Service Definition
+
+// System metrics
+message SystemMetrics {
+  double cpu_usage = 1;
+  double memory_usage = 2;
+  double disk_usage = 3;
+  int64 network_rx = 4;
+  int64 network_tx = 5;
+  int64 timestamp = 6;
+}
+
+// Alert information
+message Alert {
+  string id = 1;
+  string level = 2;
+  string title = 3;
+  string description = 4;
+  string platform = 5;
+  int64 timestamp = 6;
+  bool resolved = 7;
+}
+
+// Process information
+message ProcessInfo {
+  int32 pid = 1;
+  string name = 2;
+  double cpu_percent = 3;
+  double memory_percent = 4;
+  string status = 5;
+}
+
+// Repair action
+message RepairAction {
+  string id = 1;
+  string script_key = 2;
+  bool success = 3;
+  int32 duration_ms = 4;
+  int64 timestamp = 5;
+  string error_message = 6;
+}
+
+// AI analysis result
+message AIAnalysis {
+  string id = 1;
+  string query = 2;
+  string result = 3;
+  string model_used = 4;
+  int32 tokens_used = 5;
+  int64 timestamp = 6;
+}
+
+// Request messages
+message MetricsRequest {
+  // Empty for current metrics
+}
+
+message AlertRequest {
+  string id = 1;
+  string level = 2;
+  string platform = 3;
+  bool resolved = 4;
+  int32 limit = 5;
+}
+
+message ProcessRequest {
+  int32 limit = 1;
+}
+
+message RepairRequest {
+  string script_key = 1;
+  map<string, string> parameters = 2;
+}
+
+message CreateAlertRequest {
+  string level = 1;
+  string title = 2;
+  string description = 3;
+  string platform = 4;
+}
+
+message ResolveAlertRequest {
+  string alert_id = 1;
+}
+
+// Response messages
+message MetricsResponse {
+  SystemMetrics metrics = 1;
+}
+
+message AlertResponse {
+  Alert alert = 1;
+}
+
+message AlertsResponse {
+  repeated Alert alerts = 1;
+}
+
+message ProcessResponse {
+  repeated ProcessInfo processes = 1;
+}
+
+message RepairResponse {
+  RepairAction repair = 1;
+}
+
+message RepairsResponse {
+  repeated RepairAction repairs = 1;
+}
+
+message AIAnalysisRequest {
+  string query = 1;
+  string platform = 2;
+  map<string, string> context = 3;
+}
+
+message AIAnalysisResponse {
+  AIAnalysis analysis = 1;
+}
+
+// Streaming messages for bidirectional communication
+message StreamRequest {
+  string stream_type = 1;  // "metrics", "alerts", etc.
+  map<string, string> filters = 2;
+}
+
+message StreamResponse {
+  oneof data {
+    SystemMetrics metrics = 1;
+    Alert alert = 2;
+    string status = 3;
+  }
+}
+
+// Empty response
+message Empty {
+}
+
+// AIOps Agent Service
+service AIOpsService {
+  // Metrics operations
+  rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
+  
+  // Alert operations
+  rpc GetAlert(AlertRequest) returns (AlertResponse);
+  rpc ListAlerts(AlertRequest) returns (AlertsResponse);
+  rpc CreateAlert(CreateAlertRequest) returns (AlertResponse);
+  rpc ResolveAlert(ResolveAlertRequest) returns (Empty);
+  
+  // Process operations
+  rpc GetTopProcesses(ProcessRequest) returns (ProcessResponse);
+  
+  // Repair operations
+  rpc ExecuteRepair(RepairRequest) returns (RepairResponse);
+  rpc ListRepairs(RepairRequest) returns (RepairsResponse);
+  
+  // AI operations
+  rpc Analyze(AIAnalysisRequest) returns (AIAnalysisResponse);
+  
+  // Streaming operations
+  rpc StreamMetrics(StreamRequest) returns (stream StreamResponse);
+  rpc StreamAlerts(StreamRequest) returns (stream StreamResponse);
+}

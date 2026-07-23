@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  automated-deployment:
+    build:
+      context: ../..
+      dockerfile: services/automated_deployment_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.automated_deployment_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9565",
+    ]
+    ports:
+      - "9565:9565"
+    environment:
+      - AUTOMATED_DEPLOYMENT_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9665:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - automated-deployment

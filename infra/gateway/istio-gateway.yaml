@@ -1,0 +1,141 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: aiops-gateway
+  namespace: aiops
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "aiops.aiops.example.com"
+    tls:
+      httpsRedirect: true
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - "aiops.aiops.example.com"
+    tls:
+      mode: SIMPLE
+      credentialName: aiops-tls
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: aiops-vs
+  namespace: aiops
+spec:
+  hosts:
+  - "aiops.aiops.example.com"
+  gateways:
+  - aiops-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /api
+    route:
+    - destination:
+        host: aiops-agent
+        port:
+          number: 8080
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+  - match:
+    - uri:
+        prefix: /health
+    directResponse:
+      status: 200
+      body:
+        inlineString: "OK"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: aiops-dr
+  namespace: aiops
+spec:
+  host: aiops-agent
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutiveErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: aiops-jwt
+  namespace: aiops
+spec:
+  selector:
+    matchLabels:
+      app: aiops-agent
+  jwtRules:
+  - issuer: "https://keycloak.aiops.example.com/realms/aiops"
+    jwksUri: "https://keycloak.aiops.example.com/realms/aiops/protocol/openid-connect/certs"
+    forwardOriginalToken: true
+    outputPayloadToHeader: x-jwt-payload
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: aiops-authz
+  namespace: aiops
+spec:
+  selector:
+    matchLabels:
+      app: aiops-agent
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        requestPrincipals:
+        - "https://keycloak.aiops.example.com/realms/aiops/*"
+    to:
+    - operation:
+        methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        paths:
+        - "/api/*"
+  - to:
+    - operation:
+        methods:
+        - GET
+        paths:
+        - "/health"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: keycloak-external
+  namespace: aiops
+spec:
+  hosts:
+  - keycloak.aiops.example.com
+  location: MESH_EXTERNAL
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  resolution: DNS

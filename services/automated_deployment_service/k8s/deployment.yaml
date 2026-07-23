@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: automated-deployment
+  labels:
+    app: automated-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: automated-deployment
+  template:
+    metadata:
+      labels:
+        app: automated-deployment
+    spec:
+      containers:
+        - name: automated-deployment
+          image: automated-deployment:latest
+          ports:
+            - containerPort: 9565
+          env:
+            - name: AUTOMATED_DEPLOYMENT_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automated-deployment
+spec:
+  selector:
+    app: automated-deployment
+  ports:
+    - port: 9565
+      targetPort: 9565
+  type: ClusterIP

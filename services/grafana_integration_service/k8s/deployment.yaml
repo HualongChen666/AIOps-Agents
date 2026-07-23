@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-integration
+  labels:
+    app: grafana-integration
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: grafana-integration
+  template:
+    metadata:
+      labels:
+        app: grafana-integration
+    spec:
+      containers:
+        - name: grafana-integration
+          image: grafana-integration:latest
+          ports:
+            - containerPort: 9531
+          env:
+            - name: GRAFANA_INTEGRATION_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-integration
+spec:
+  selector:
+    app: grafana-integration
+  ports:
+    - port: 9531
+      targetPort: 9531
+  type: ClusterIP

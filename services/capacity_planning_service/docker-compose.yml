@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  capacity-planning:
+    build:
+      context: ../..
+      dockerfile: services/capacity_planning_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.capacity_planning_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9548",
+    ]
+    ports:
+      - "9548:9548"
+    environment:
+      - CAPACITY_PLANNING_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9648:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - capacity-planning

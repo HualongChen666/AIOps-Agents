@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant-shard
+  labels:
+    app: qdrant-shard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: qdrant-shard
+  template:
+    metadata:
+      labels:
+        app: qdrant-shard
+    spec:
+      containers:
+        - name: qdrant-shard
+          image: qdrant-shard:latest
+          ports:
+            - containerPort: 9503
+          env:
+            - name: QDRANT_SHARD_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant-shard
+spec:
+  selector:
+    app: qdrant-shard
+  ports:
+    - port: 9503
+      targetPort: 9503
+  type: ClusterIP

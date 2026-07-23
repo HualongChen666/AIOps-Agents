@@ -1,0 +1,98 @@
+# PostgreSQL Helm Chart Values for AIOps Platform
+
+replicaCount: 1
+
+image:
+  repository: postgres
+  tag: 14
+  pullPolicy: IfNotExists
+
+# PostgreSQL configuration
+postgresql:
+  username: aiops
+  # SECURITY: Password should be set via Kubernetes Secret or environment variable
+  # Use: helm install --set postgresql.password=$(openssl rand -base64 32)
+  # Or create a Secret: kubectl create secret generic postgres-secret --from-literal=password=<strong-password>
+  password: ""  # Empty by default, must be set during deployment
+  database: aiops
+  port: 5432
+  
+  # PostgreSQL configuration parameters
+  parameters:
+    max_connections: 200
+    shared_buffers: 256MB
+    effective_cache_size: 1GB
+    maintenance_work_mem: 64MB
+    checkpoint_completion_target: 0.9
+    wal_buffers: 16MB
+    default_statistics_target: 100
+    random_page_cost: 1.1
+    effective_io_concurrency: 200
+    work_mem: 1310kB
+    min_wal_size: 1GB
+    max_wal_size: 4GB
+    
+  # Replication settings
+  replication:
+    enabled: false
+    synchronousCommit: on
+    readReplicas: 0
+    
+  # Backup settings
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    retention: 7  # Keep 7 days of backups
+
+# Resource limits and requests
+resources:
+  requests:
+    memory: 2Gi
+    cpu: 1000m
+  limits:
+    memory: 4Gi
+    cpu: 2000m
+
+# Persistence configuration
+persistence:
+  enabled: true
+  size: 20Gi
+  storageClass: standard
+  accessMode: ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 5432
+  
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Security context
+securityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Init containers
+initContainers: []

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-orchestration-service
+  labels:
+    app: agent-orchestration-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-orchestration-service
+  template:
+    metadata:
+      labels:
+        app: agent-orchestration-service
+    spec:
+      containers:
+        - name: agent-orchestration-service
+          image: agent-orchestration-service:latest
+          ports:
+            - containerPort: 9407
+          env:
+            - name: AGENT_ORCHESTRATION_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-orchestration-service
+spec:
+  selector:
+    app: agent-orchestration-service
+  ports:
+    - port: 9407
+      targetPort: 9407
+  type: ClusterIP

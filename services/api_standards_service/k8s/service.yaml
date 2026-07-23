@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-standards
+  labels:
+    app: api-standards
+spec:
+  selector:
+    app: api-standards
+  ports:
+    - name: http
+      port: 9558
+      targetPort: 9558
+  type: ClusterIP

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-security
+  labels:
+    app: fastapi-security
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fastapi-security
+  template:
+    metadata:
+      labels:
+        app: fastapi-security
+    spec:
+      containers:
+        - name: fastapi-security
+          image: fastapi-security:latest
+          ports:
+            - containerPort: 9540
+          env:
+            - name: FASTAPI_SECURITY_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-security
+spec:
+  selector:
+    app: fastapi-security
+  ports:
+    - port: 9540
+      targetPort: 9540
+  type: ClusterIP

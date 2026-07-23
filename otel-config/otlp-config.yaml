@@ -1,0 +1,96 @@
+# OpenTelemetry Collector Configuration for AIOps Agent
+# This configures the OTLP collector to send traces to Tempo, metrics to VictoriaMetrics, and logs to Loki
+
+receivers:
+  # OTLP receiver for traces, metrics, and logs
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Batch processor for traces
+  batch/traces:
+    timeout: 5s
+    send_batch_size: 1000
+    send_batch_max_size: 2000
+  
+  # Batch processor for metrics
+  batch/metrics:
+    timeout: 10s
+    send_batch_size: 1000
+    send_batch_max_size: 2000
+  
+  # Batch processor for logs
+  batch/logs:
+    timeout: 5s
+    send_batch_size: 1000
+    send_batch_max_size: 2000
+  
+  # Memory limiter
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+exporters:
+  # Export traces to Tempo
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1000
+  
+  # Export metrics to VictoriaMetrics
+  otlp/victoriametrics:
+    endpoint: victoriametrics:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1000
+  
+  # Export logs to Loki
+  otlp/loki:
+    endpoint: loki:3100
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1000
+
+service:
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch/traces]
+      exporters: [otlp/tempo]
+    
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch/metrics]
+      exporters: [otlp/victoriametrics]
+    
+    # Logs pipeline
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch/logs]
+      exporters: [otlp/loki]
+
+  extensions:
+    # Health check extension
+    health_check:
+      endpoint: 0.0.0.0:13133
+    
+    # Profiling extension
+    pprof:
+      endpoint: 0.0.0.0:1777

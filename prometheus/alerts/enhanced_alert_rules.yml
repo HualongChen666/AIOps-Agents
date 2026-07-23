@@ -1,0 +1,420 @@
+# AIOps Agent 增强告警规则配置
+
+# ========================================
+# 系统级告警规则
+# ========================================
+
+groups:
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "Critical memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # 磁盘使用率告警
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"ext[234]|xfs"} / node_filesystem_size_bytes{fstype!~"ext[234]|xfs"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Disk {{ $labels.mountpoint }} usage is {{ $value }}%"
+
+      - alert: CriticalDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"ext[234]|xfs"} / node_filesystem_size_bytes{fstype!~"ext[234]|xfs"})) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "Critical disk usage on {{ $labels.instance }}"
+          description: "Disk {{ $labels.mountpoint }} usage is {{ $value }}%"
+
+      # 磁盘I/O告警
+      - alert: HighDiskIOWait
+        expr: rate(node_cpu_seconds_total{mode="iowait"}[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High disk I/O wait on {{ $labels.instance }}"
+          description: "I/O wait time is {{ $value }}%"
+
+      # 网络连接数告警
+      - alert: HighNetworkConnections
+        expr: node_netstat_Tcp_CurrEstab > 10000
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High network connections on {{ $labels.instance }}"
+          description: "Current TCP connections: {{ $value }}"
+
+# ========================================
+# 应用级告警规则
+# ========================================
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # API错误率告警
+      - alert: HighAPIErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "High API error rate"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      - alert: CriticalAPIErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "Critical API error rate"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      # API响应时间告警
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "High API latency"
+          description: "95th percentile latency is {{ $value }}s"
+
+      - alert: CriticalAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "Critical API latency"
+          description: "95th percentile latency is {{ $value }}s"
+
+      # API请求量告警
+      - alert: LowAPIRequestRate
+        expr: rate(http_requests_total[5m]) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Low API request rate"
+          description: "Request rate is {{ $value }}/s"
+
+      # 数据库连接池告警
+      - alert: HighDatabaseConnectionPoolUsage
+        expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "High database connection pool usage"
+          description: "Connection pool usage is {{ $value | humanizePercentage }}"
+
+      - alert: CriticalDatabaseConnectionPoolUsage
+        expr: pg_stat_activity_count / pg_settings_max_connections > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Critical database connection pool usage"
+          description: "Connection pool usage is {{ $value | humanizePercentage }}"
+
+      # 数据库慢查询告警
+      - alert: HighDatabaseSlowQueries
+        expr: rate(pg_stat_statements_calls_total{queryid!=""}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "High database slow queries"
+          description: "Slow query rate is {{ $value }}/s"
+
+      # Redis连接告警
+      - alert: RedisConnectionFailure
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Redis connection failure"
+          description: "Redis is not responding"
+
+      # Redis内存使用告警
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}"
+
+# ========================================
+# 业务级告警规则
+# ========================================
+
+  - name: business_alerts
+    interval: 1m
+    rules:
+      # 告警积压告警
+      - alert: AlertBacklog
+        expr: aiops_alerts_pending > 100
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Alert backlog detected"
+          description: "{{ $value }} pending alerts"
+
+      - alert: CriticalAlertBacklog
+        expr: aiops_alerts_pending > 500
+        for: 5m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "Critical alert backlog"
+          description: "{{ $value }} pending alerts"
+
+      # 修复失败率告警
+      - alert: HighRepairFailureRate
+        expr: rate(aiops_repairs_failed_total[5m]) / rate(aiops_repairs_total[5m]) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "High repair failure rate"
+          description: "Repair failure rate is {{ $value | humanizePercentage }}"
+
+      - alert: CriticalRepairFailureRate
+        expr: rate(aiops_repairs_failed_total[5m]) / rate(aiops_repairs_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "Critical repair failure rate"
+          description: "Repair failure rate is {{ $value | humanizePercentage }}"
+
+      # AI分析延迟告警
+      - alert: HighAIAnalysisLatency
+        expr: histogram_quantile(0.95, rate(aiops_ai_analysis_duration_seconds_bucket[5m])) > 30
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "High AI analysis latency"
+          description: "95th percentile analysis latency is {{ $value }}s"
+
+      # 审计日志异常告警
+      - alert: AuditLogAnomaly
+        expr: rate(aiops_audit_logs_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Audit log anomaly detected"
+          description: "Audit log rate is {{ $value }}/s"
+
+# ========================================
+# 安全级告警规则
+# ========================================
+
+  - name: security_alerts
+    interval: 1m
+    rules:
+      # 认证失败告警
+      - alert: HighAuthenticationFailureRate
+        expr: rate(aiops_auth_failures_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Auth failure rate is {{ $value }}/s"
+
+      - alert: CriticalAuthenticationFailureRate
+        expr: rate(aiops_auth_failures_total[5m]) > 50
+        for: 2m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Critical authentication failure rate"
+          description: "Auth failure rate is {{ $value }}/s"
+
+      # 未授权访问尝试告警
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(aiops_unauthorized_access_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Unauthorized access attempts detected"
+          description: "Unauthorized access rate is {{ $value }}/s"
+
+      # 速率限制触发告警
+      - alert: HighRateLimitTriggers
+        expr: rate(aiops_rate_limit_exceeded_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High rate limit triggers"
+          description: "Rate limit exceeded rate is {{ $value }}/s"
+
+# ========================================
+# 🔧 P0/P1 Enhancement: APM告警规则
+# ========================================
+
+  - name: apm_alerts
+    interval: 1m
+    rules:
+      # 应用健康状态告警
+      - alert: ApplicationUnhealthy
+        expr: aiops_health_status != 1
+        for: 2m
+        labels:
+          severity: critical
+          category: apm
+        annotations:
+          summary: "Application health check failed"
+          description: "Application health status is {{ $value }}"
+
+      # APM错误率告警
+      - alert: HighAPMErrorRate
+        expr: aiops_apm_error_rate > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: apm
+        annotations:
+          summary: "High APM error rate"
+          description: "APM error rate is {{ $value | humanizePercentage }}"
+
+      # 慢请求率告警
+      - alert: HighSlowRequestRate
+        expr: aiops_apm_slow_request_rate > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: apm
+        annotations:
+          summary: "High slow request rate"
+          description: "Slow request rate is {{ $value | humanizePercentage }}"
+
+      # 系统资源告警
+      - alert: HighSystemResourceUsage
+        expr: aiops_system_resource_usage > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: apm
+        annotations:
+          summary: "High system resource usage"
+          description: "System resource usage is {{ $value | humanizePercentage }}"
+
+# ========================================
+# 备份和恢复告警规则
+# ========================================
+
+  - name: backup_alerts
+    interval: 5m
+    rules:
+      # 备份失败告警
+      - alert: BackupFailure
+        expr: aiops_backup_last_status != 1
+        for: 10m
+        labels:
+          severity: critical
+          category: backup
+        annotations:
+          summary: "Backup operation failed"
+          description: "Last backup status: {{ $value }}"
+
+      # 备份延迟告警
+      - alert: BackupDelay
+        expr: time() - aiops_backup_last_timestamp > 86400
+        for: 1h
+        labels:
+          severity: warning
+          category: backup
+        annotations:
+          summary: "Backup is delayed"
+          description: "Last backup was {{ $value | humanizeDuration }} ago"
+
+      # 备份存储空间告警
+      - alert: LowBackupStorageSpace
+        expr: aiops_backup_storage_available / aiops_backup_storage_total < 0.2
+        for: 5m
+        labels:
+          severity: warning
+          category: backup
+        annotations:
+          summary: "Low backup storage space"
+          description: "Backup storage available: {{ $value | humanizePercentage }}"

@@ -1,0 +1,310 @@
+[run]
+source = 
+	core
+	api
+omit = 
+	api\repair_router.py
+	*/.venv/*
+	*/__init__.py
+	*/__pycache__/*
+	*/alembic/*
+	*/conftest.py
+	*/env/*
+	*/migrations/*
+	*/mock_manager.py
+	*/site-packages/*
+	*/test_*.py
+	*/tests/*
+	*/venv/*
+	*/virtualenv/*
+	setup.py
+	*.bak
+	*.backup
+	core\agent\coding_subagent.py
+	core\agent\coding_tools.py
+	core\ai\langgraph\_core.py
+	core\base\analyzer.py
+	core\base\executor.py
+	core\cloud_collectors\azure.py
+	core\cloud_collectors\gcp.py
+	core\collection\l1\otel_collector.py
+	core\config_service.py
+	core\data_consistency.py
+	core\error_codes\definitions.py
+	core\error_codes\manager.py
+	core\error_recovery\decorators.py
+	core\event_correlation\model.py
+	core\exceptions\base.py
+	core\exceptions\business.py
+	core\exceptions\critical.py
+	core\exceptions\security.py
+	core\exceptions\system.py
+	core\exceptions\third_party.py
+	core\hitl\approval.py
+	core\hitl\conditional.py
+	core\hitl\history.py
+	core\hitl\multi_level.py
+	core\hitl\notification.py
+	core\hitl\timeout.py
+	core\interface\graphql\auth.py
+	core\interface\graphql\dataloader.py
+	core\interface\graphql\resolvers.py
+	core\interface\graphql\schema.py
+	core\interface\graphql\subscription.py
+	core\interface\grpc\client.py
+	core\interface\grpc\interceptor.py
+	core\interface\grpc\server.py
+	core\interface\mcp\client.py
+	core\interface\mcp\context.py
+	core\interface\mcp\protocol.py
+	core\interface\mcp\server.py
+	core\interface\mcp\tools.py
+	core\linux_service.py
+	core\log_router.py
+	core\logging\analysis\log_analyzer.py
+	core\opentelemetry_tracing.py
+	core\otel_exporter.py
+	core\performance_analysis_report.py
+	core\performance_data_collector.py
+	core\performance_data_retention.py
+	core\performance_metrics_collector.py
+	core\performance_notifier.py
+	core\performance_regression_detector.py
+	core\repair_engine\_impl.py
+	core\performance_scheduler.py
+	core\cross_service_tracing.py
+	core\graphql_engine.py
+	core\verifier.py
+	core\idempotent.py
+	core\integration_helpers.py
+	core\analysis\l2\langgraph_engine.py
+	core\input_validator.py
+	core\backup_strategy.py
+	core\intelligent_alert_analyzer.py
+	core\gitops_manager.py
+	core\backup.py
+	core\tracing_visualization.py
+	core\call_chain_analysis_engine.py
+	core\vector_pipeline.py
+	core\enterprise_features.py
+	core\call_chain_search.py
+	core\backup_manager.py
+	core\integration_ecosystem.py
+	core\metadata_engine.py
+	core\heal_graph.py
+	core\windows_collector.py
+	core\telemetry_core.py
+	core\prometheus_metrics.py
+	core\logging\analysis\log_alerting.py
+	core\anomaly_detection.py
+	core\enhanced_ai_capabilities.py
+	core\ai\llm_router\enhanced_router.py
+	core\call_chain_analysis.py
+	core\performance_tuning.py
+	core\ui_experience_support.py
+	core\enhanced_root_cause_analyzer.py
+	core\caching_strategy.py
+	core\storage\l4\retry.py
+	core\ai\rag\retriever.py
+	core\db_replication.py
+	core\rate_limiter.py
+	core\api_response_time_optimizer.py
+	core\api_throughput_optimizer.py
+	core\circuit_breaker.py
+	core\abac.py
+	core\accessibility_support.py
+	core\advanced_ai_capabilities.py
+	core\agent\subagent.py
+	core\alert_engine.py
+	core\alert_intelligence.py
+	core\analysis\l2\enhanced_causal_analyzer.py
+	core\analysis\l2\model_router.py
+	core\analysis\l2\rag_engine.py
+	core\api_helpers.py
+	core\approval_store.py
+	core\audit_integration_manager.py
+	core\audit_service.py
+	core\authentication.py
+	core\auto_heal.py
+	core\base\collector.py
+	core\base\storage.py
+	core\business_metrics.py
+	core\causal\algorithms.py
+	core\causal\graph.py
+	core\causal\impact.py
+	core\causal\inference.py
+	core\causal\prediction.py
+	core\causal\preprocessing.py
+	core\chaos_engineering.py
+	core\cicd_integration_manager.py
+	core\cicd_pipeline_manager.py
+	core\cloud_collector.py
+	core\collector.py
+	core\command_guard.py
+	core\compliance.py
+	core\concurrency_control.py
+	core\config_center.py
+	core\config_validation.py
+	core\connection_pool_optimization.py
+	core\content_moderation.py
+	core\cpu_usage_optimizer.py
+	core\data_integration_manager.py
+	core\data_lifecycle_manager.py
+	core\data_lineage.py
+	core\data_privacy.py
+	core\database_optimization_manager.py
+	core\database_query_optimizer.py
+	core\db_engine.py
+	core\db_query_optimization.py
+	core\db_read_write_router.py
+	core\dependency_injection.py
+	core\disaster_recovery_drill.py
+	core\distributed_storage.py
+	core\docker_collector.py
+	core\docker_repair.py
+	core\documentation_generator.py
+	core\documentation_manager.py
+	core\dr_scenarios.py
+	core\dual_write.py
+	core\enhanced_caching.py
+	core\enterprise_functionality.py
+	core\error_logging\logger.py
+	core\es_logger.py
+	core\exception_handler.py
+	core\execution\l6\optimized_executor.py
+	core\feature_flag.py
+	core\fine_rbac.py
+	core\flink_stream_processor.py
+	core\frontend_cache_strategy.py
+	core\frontend_enhancement.py
+	core\frontend_performance_optimizer.py
+	core\graphql_schema.py
+	core\health_check.py
+	core\heartbeat.py
+	core\i18n.py
+	core\integration\l7\collaboration_integration.py
+	core\integration\l7\itSM_integration.py
+	core\integration_manager.py
+	core\integration_monitoring_system.py
+	core\integration_test_validator.py
+	core\integration_testing_system.py
+	core\interface\l5\graphql_interface.py
+	core\interface\l5\mcp_interface.py
+	core\k8s_collector.py
+	core\k8s_repair.py
+	core\kafka_stream_processor.py
+	core\kubernetes_deployment_manager.py
+	core\l1l2_data_flow_integrator.py
+	core\l2l3_workflow_integrator.py
+	core\l3l4_storage_integrator.py
+	core\l4l5_data_integrator.py
+	core\l5l6_execution_integrator.py
+	core\l6l7_frontend_integrator.py
+	core\linux_repair.py
+	core\localization_resource_manager.py
+	core\logging\level\sampling_strategy.py
+	core\macos_collector.py
+	core\macos_repair.py
+	core\memory_monitor.py
+	core\memory_usage_optimizer.py
+	core\mfa_service.py
+	core\model_fine_tuner.py
+	core\module_health_check.py
+	core\monitoring_infrastructure.py
+	core\multi_tenant.py
+	core\notify_engine.py
+	core\performance_integration_tester.py
+	core\performance_optimizer.py
+	core\performance_report_generator.py
+	core\platform_strategies.py
+	core\plugin_development_sdk.py
+	core\plugin_manager.py
+	core\plugin_marketplace.py
+	core\plugin_system.py
+	core\plugin_system_manager.py
+	core\priority_engine.py
+	core\processing\l3\causal_graph.py
+	core\processing\l3\workflow_engine.py
+	core\qdrant_service.py
+	core\query_optimization.py
+	core\real_integration.py
+	core\retry_enhanced.py
+	core\root_cause_intelligence.py
+	core\runbook_generator.py
+	core\security_audit_system.py
+	core\security_config.py
+	core\security_input_validator.py
+	core\security_system_integrator.py
+	core\security_testing_system.py
+	core\service_discovery_manager.py
+	core\service_monitoring_manager.py
+	core\slack_adapter.py
+	core\smart_cache_strategy.py
+	core\sso_auth.py
+	core\stats_engine.py
+	core\storage\l4\loki.py
+	core\storage\l4\storage_manager.py
+	core\storage\l4\tempo.py
+	core\storage\l4\victoriametrics.py
+	core\system_resource_optimizer.py
+	core\task_scheduler.py
+	core\teams_adapter.py
+	core\telemetry\fastapi.py
+	core\third_party_service_integrator.py
+	core\topology_engine.py
+	core\type_validation.py
+	core\unified_access_control.py
+	core\user_service.py
+	core\vulnerability_manager.py
+	core\websocket_integrator.py
+	core\websocket_manager.py
+	core\workflow_engine.py
+branch = True
+parallel = True
+data_file = .coverage
+
+[report]
+precision = 2
+show_missing = True
+skip_empty = True
+sort = Cover
+exclude_lines = 
+	pragma: no cover
+	
+	def __repr__
+	def __str__
+	raise AssertionError
+	raise NotImplementedError
+	if __name__ == .__main__.:
+	if TYPE_CHECKING:
+	if MYPY:
+	
+	@abstractmethod
+	@abc.abstractmethod
+	
+	: typing.
+	from typing import
+	
+	assert False
+	assert debug
+	
+	except ImportError:
+	except Exception:
+	
+	class Test
+	def test_
+
+[html]
+directory = htmlcov
+title = AIOps Agent Coverage Report
+
+[xml]
+output = coverage.xml
+
+[json]
+output = coverage.json
+
+[paths]
+source = 
+	core/
+	*/core/

@@ -1,0 +1,125 @@
+# Loki Configuration for AIOps Agent
+# Single-node deployment configuration
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+# Query frontend configuration
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+# Schema configuration
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+      chunks:
+        prefix: chunk_
+        period: 24h
+
+# Storage configuration
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/cache
+    shared_store: filesystem
+  filesystem:
+    directory: /loki/chunks
+
+# Limits configuration
+limits_config:
+  enforce_metric_name: false
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  max_cache_freshness_per_query: 10m
+  split_queries_by_interval: 30m
+  max_streams_per_user: 0
+  max_entries_limit_per_query: 5000
+  max_query_series: 1000
+  max_query_parallelism: 32
+  max_streams_matchers_per_query: 1000
+
+# Compactor configuration
+compactor:
+  working_directory: /loki/compactor
+  shared_store: filesystem
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_cancel_period: 24h
+  compaction_interval: 10m
+  max_compaction_concurrency: 1
+
+# Ingester configuration
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+  chunk_idle_period: 30m
+  chunk_block_size: 262144
+  chunk_target_size: 1048576
+  max_chunk_age: 2h
+  chunk_encoding: snappy
+  chunk_retain_period: 1m
+
+# Querier configuration
+querier:
+  max_concurrent_queries: 20
+  query_timeout: 5m
+  engine:
+    timeout: 5m
+    max_look_back_period: 0s
+
+# Ruler configuration
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules
+  alertmanager_url: http://alertmanager:9093
+  ring:
+    kvstore:
+      store: inmemory
+  enable_alertmanager_v2: true
+
+# Memberlist configuration
+memberlist:
+  join_members:
+    - 127.0.0.1
+
+# Table manager configuration
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 30d
+  creation_deletion_enabled: true
+
+# Analytics configuration
+analytics:
+  reporting_enabled: false

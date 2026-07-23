@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "vector-retrieval-service"
+    static_configs:
+      - targets: ["vector_retrieval_service:9412"]

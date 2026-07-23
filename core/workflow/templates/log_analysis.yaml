@@ -1,0 +1,73 @@
+name: log_analysis
+description: Log analysis workflow for troubleshooting
+
+nodes:
+  - id: collect_logs
+    name: Collect Logs
+    type: task
+    config:
+      timeout: 60
+      max_retries: 2
+    dependencies: []
+
+  - id: parse_logs
+    name: Parse Logs
+    type: task
+    config:
+      timeout: 120
+      max_retries: 2
+    dependencies: [collect_logs]
+
+  - id: filter_errors
+    name: Filter Errors
+    type: task
+    config:
+      timeout: 60
+      max_retries: 2
+    dependencies: [parse_logs]
+
+  - id: pattern_match
+    name: Pattern Matching
+    type: task
+    config:
+      timeout: 90
+      max_retries: 3
+    dependencies: [filter_errors]
+
+  - id: correlate_with_metrics
+    name: Correlate with Metrics
+    type: task
+    config:
+      timeout: 60
+      max_retries: 2
+    dependencies: [pattern_match]
+
+  - id: identify_root_cause
+    name: Identify Root Cause
+    type: task
+    config:
+      timeout: 120
+      max_retries: 3
+    dependencies: [correlate_with_metrics]
+
+  - id: generate_summary
+    name: Generate Summary
+    type: task
+    config:
+      timeout: 30
+      max_retries: 2
+    dependencies: [identify_root_cause]
+
+edges:
+  - from: collect_logs
+    to: parse_logs
+  - from: parse_logs
+    to: filter_errors
+  - from: filter_errors
+    to: pattern_match
+  - from: pattern_match
+    to: correlate_with_metrics
+  - from: correlate_with_metrics
+    to: identify_root_cause
+  - from: identify_root_cause
+    to: generate_summary

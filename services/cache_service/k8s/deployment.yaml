@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache_service
+  labels:
+    app: cache_service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cache_service
+  template:
+    metadata:
+      labels:
+        app: cache_service
+    spec:
+      containers:
+        - name: cache_service
+          image: cache_service:latest
+          ports:
+            - containerPort: 9411
+          env:
+            - name: CACHE_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache_service
+spec:
+  selector:
+    app: cache_service
+  ports:
+    - port: 9411
+      targetPort: 9411
+  type: ClusterIP

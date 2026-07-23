@@ -1,0 +1,66 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.3, pytest-9.1.0, pluggy-1.6.0
+rootdir: C:\AIOps_Agent_bak
+configfile: pytest.ini
+plugins: anyio-4.14.0, langsmith-0.8.16, asyncio-1.4.0, cov-7.1.0, mock-3.15.1, timeout-2.4.0, xdist-3.8.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+timeout: 30.0s
+timeout method: thread
+timeout func_only: False
+collected 0 items / 1 error
+
+=================================== ERRORS ====================================
+___________ ERROR collecting tests/api/test_low_priority_routers.py ___________
+ImportError while importing test module 'C:\AIOps_Agent_bak\tests\api\test_low_priority_routers.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Program Files\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\api\test_low_priority_routers.py:71: in <module>
+    import api.rag_router as rag_router
+api\rag_router.py:12: in <module>
+    from core.rbac import role_required
+E   ImportError: cannot import name 'role_required' from 'core.rbac' (C:\AIOps_Agent_bak\core\rbac.py)
+------------------------------- Captured stderr -------------------------------
+2026-06-26 09:05:30.346 | INFO     | config:<module>:13 - [config] Loaded environment from .env
+2026-06-26 09:05:30.346 | WARNING  | config:validate_config:1042 - [config validation] WARNING: No L4 storage backends are enabled (VictoriaMetrics, Loki, Tempo)
+2026-06-26 09:05:30.346 | INFO     | config:validate_config:1046 - [config validation] INFO: Redis password is configured for standalone mode
+2026-06-26 09:05:30.346 | INFO     | config:validate_config:1046 - [config validation] INFO: AI configuration is properly set up
+2026-06-26 09:05:30.346 | INFO     | config:validate_config:1049 - [config validation] Configuration validation passed
+INFO:api.grpc_router:Phase 3 gRPC server initialized
+
+INFO:api.hitl_router:Phase 4 HITL components initialized
+
+2026-06-26 09:05:31.009 | WARNING  | core.telemetry:<module>:15 - Jaeger exporter not available, Jaeger tracing will be disabled
+2026-06-26 09:05:31.520 | WARNING  | core.telemetry:<module>:36 - Zipkin exporter not available, Zipkin tracing will be disabled
+INFO:core.collector:Phase 1 OpenTelemetry initialized
+
+WARNING:core.ai_engine:LLM router not available, falling back to direct API calls
+
+WARNING:core.ai_engine:Content moderation not available
+
+INFO:core.ai_engine:Phase 2 RAG pipeline initialized
+
+INFO:core.auto_heal:Registered repair script: cpu_high_script
+
+INFO:core.auto_heal:Registered repair script: memory_high_script
+
+INFO:core.auto_heal:Registered repair script: disk_high_script
+
+INFO:core.auto_heal:Registered repair script: service_restart_script
+
+INFO:core.auto_heal:Registered repair script: cpu_high_script
+
+INFO:core.auto_heal:Registered repair script: memory_high_script
+
+INFO:core.auto_heal:Registered repair script: disk_high_script
+
+INFO:core.auto_heal:Registered repair script: service_restart_script
+
+INFO:api.priority_router:Phase 4 priority components initialized
+
+=========================== short test summary info ===========================
+ERROR tests/api/test_low_priority_routers.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+==================== no tests collected, 1 error in 16.77s ====================

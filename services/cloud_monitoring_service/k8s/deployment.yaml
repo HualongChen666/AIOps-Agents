@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-monitoring
+  labels:
+    app: cloud-monitoring
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloud-monitoring
+  template:
+    metadata:
+      labels:
+        app: cloud-monitoring
+    spec:
+      containers:
+        - name: cloud-monitoring
+          image: cloud-monitoring:latest
+          ports:
+            - containerPort: 9534
+          env:
+            - name: CLOUD_MONITORING_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-monitoring
+spec:
+  selector:
+    app: cloud-monitoring
+  ports:
+    - port: 9534
+      targetPort: 9534
+  type: ClusterIP

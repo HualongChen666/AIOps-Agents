@@ -1,0 +1,83 @@
+# VictoriaMetrics Prometheus-compatible scrape configuration
+# This file defines scrape targets for VictoriaMetrics
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'aiops-agent'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/victoriametrics/alerts/*.yml'
+  - '/etc/victoriametrics/recording_rules/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # VictoriaMetrics self-monitoring
+  - job_name: 'victoriametrics'
+    static_configs:
+      - targets: ['localhost:8428']
+        labels:
+          instance: 'victoriametrics-single'
+  
+  # AIOps Agent application metrics
+  - job_name: 'aiops-agent'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-agent'
+          component: 'api'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+  
+  # OpenTelemetry Collector metrics
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8888']
+        labels:
+          service: 'otel-collector'
+          component: 'observability'
+  
+  # Node exporter for system metrics (if available)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          component: 'infrastructure'
+  
+  # Custom scrape jobs for AIOps components
+  - job_name: 'aiops-alert-engine'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-alert-engine'
+          component: 'alerting'
+    metrics_path: '/metrics/alerts'
+    scrape_interval: 30s
+  
+  - job_name: 'aiops-ai-engine'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-ai-engine'
+          component: 'ai'
+    metrics_path: '/metrics/ai'
+    scrape_interval: 30s
+  
+  - job_name: 'aiops-repair-engine'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-repair-engine'
+          component: 'repair'
+    metrics_path: '/metrics/repair'
+    scrape_interval: 30s

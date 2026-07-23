@@ -1,0 +1,89 @@
+{
+  "version": "1.0",
+  "description": "Mock quality gates configuration for CI/CD integration",
+  "gates": {
+    "coverage": {
+      "enabled": true,
+      "service_coverage_threshold": 60.0,
+      "method_coverage_threshold": 50.0,
+      "fail_on_threshold_violation": true,
+      "warning_threshold": 75.0
+    },
+    "configuration": {
+      "enabled": true,
+      "require_all_valid": true,
+      "allow_deprecated_patterns": false,
+      "strict_naming_convention": true
+    },
+    "performance": {
+      "enabled": true,
+      "max_avg_creation_time_ms": 1.0,
+      "max_avg_usage_time_ms": 0.1,
+      "max_memory_overhead_mb": 10
+    },
+    "usage": {
+      "enabled": true,
+      "max_overuse_threshold": 100,
+      "min_usage_threshold": 1,
+      "identify_unused_mocks": true,
+      "identify_overused_mocks": true
+    },
+    "security": {
+      "enabled": true,
+      "check_for_secrets": true,
+      "validate_input_sanitization": true,
+      "check_for_hardcoded_credentials": true
+    }
+  },
+  "actions": {
+    "on_failure": {
+      "block_merge": true,
+      "notify_team": true,
+      "create_issue": false,
+      "comment_on_pr": true
+    },
+    "on_warning": {
+      "block_merge": false,
+      "notify_team": false,
+      "create_issue": false,
+      "comment_on_pr": true
+    },
+    "on_success": {
+      "approve_merge": false,
+      "notify_team": false,
+      "generate_badge": true
+    }
+  },
+  "reporting": {
+    "formats": ["json", "html", "text"],
+    "upload_artifacts": true,
+    "retention_days": 30,
+    "include_trends": true,
+    "include_benchmarks": true
+  },
+  "exemptions": {
+    "branches": ["main"],
+    "paths": [
+      "tests/e2e/*",
+      "tests/integration/*"
+    ],
+    "labels": ["wip", "experimental"]
+  },
+  "notifications": {
+    "slack": {
+      "enabled": false,
+      "webhook_url": "${SLACK_WEBHOOK_URL}",
+      "channels": ["#dev-notifications"]
+    },
+    "email": {
+      "enabled": false,
+      "recipients": ["dev-team@example.com"]
+    }
+  },
+  "custom_rules": {
+    "enforce_pytest_async": true,
+    "require_docstrings": true,
+    "check_type_hints": false,
+    "max_test_file_size_kb": 100
+  }
+}

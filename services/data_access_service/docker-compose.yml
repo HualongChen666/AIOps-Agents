@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6390:6379"
+
+  data_access_service:
+    build:
+      context: ../..
+      dockerfile: services/data_access_service/Dockerfile
+    command:
+      [
+        "uvicorn",
+        "services.data_access_service.main_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "9410",
+      ]
+    ports:
+      - "9410:9410"
+    environment:
+      - DATA_ACCESS_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9110:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - data_access_service

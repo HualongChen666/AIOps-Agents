@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ansible-automation
+  labels:
+    app: ansible-automation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ansible-automation
+  template:
+    metadata:
+      labels:
+        app: ansible-automation
+    spec:
+      containers:
+        - name: ansible-automation
+          image: ansible-automation:latest
+          ports:
+            - containerPort: 9535
+          env:
+            - name: ANSIBLE_AUTOMATION_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ansible-automation
+spec:
+  selector:
+    app: ansible-automation
+  ports:
+    - port: 9535
+      targetPort: 9535
+  type: ClusterIP

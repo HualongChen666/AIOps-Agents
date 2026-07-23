@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6382:6379"
+
+  workflow-orchestrator:
+    build:
+      context: ../..
+      dockerfile: services/workflow_service/Dockerfile
+    command: ["uvicorn", "services.workflow_service.workflow_orchestrator_app:app", "--host", "0.0.0.0", "--port", "9201"]
+    ports:
+      - "9201:9201"
+    environment:
+      - WORKFLOW_SERVICE_USE_IN_MEMORY=true
+      - WORKFLOW_SERVICE_ORCHESTRATOR_PORT=9201
+    depends_on:
+      - redis
+
+  workflow-scheduler:
+    build:
+      context: ../..
+      dockerfile: services/workflow_service/Dockerfile
+    command: ["uvicorn", "services.workflow_service.scheduler_app:app", "--host", "0.0.0.0", "--port", "9202"]
+    ports:
+      - "9202:9202"
+    environment:
+      - WORKFLOW_SERVICE_USE_IN_MEMORY=true
+      - WORKFLOW_SERVICE_SCHEDULER_PORT=9202
+    depends_on:
+      - redis
+      - workflow-orchestrator
+
+  workflow-executor:
+    build:
+      context: ../..
+      dockerfile: services/workflow_service/Dockerfile
+    command: ["uvicorn", "services.workflow_service.executor_app:app", "--host", "0.0.0.0", "--port", "9203"]
+    ports:
+      - "9203:9203"
+    environment:
+      - WORKFLOW_SERVICE_USE_IN_MEMORY=true
+      - WORKFLOW_SERVICE_EXECUTOR_PORT=9203
+    depends_on:
+      - redis
+      - workflow-orchestrator
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9092:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - workflow-orchestrator
+      - workflow-scheduler
+      - workflow-executor

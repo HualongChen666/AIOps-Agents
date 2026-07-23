@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-collector
+  namespace: alert-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alert-collector
+  template:
+    metadata:
+      labels:
+        app: alert-collector
+    spec:
+      containers:
+        - name: collector
+          image: aiops/alert-service:latest
+          ports:
+            - containerPort: 8001
+          command: ["uvicorn", "services.alert_service.collector:app", "--host", "0.0.0.0", "--port", "8001"]
+          envFrom:
+            - configMapRef:
+                name: alert-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-collector
+  namespace: alert-service
+spec:
+  selector:
+    app: alert-collector
+  ports:
+    - port: 8001
+      targetPort: 8001

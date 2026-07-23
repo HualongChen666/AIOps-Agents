@@ -1,0 +1,2 @@
+[bandit]
+exclude = venv,.venv,tests,build,dist,.git,__pycache__,.pytest_cache,.mypy_cache

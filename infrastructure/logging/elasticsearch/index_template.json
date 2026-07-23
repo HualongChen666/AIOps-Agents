@@ -1,0 +1,104 @@
+{
+  "index_patterns": ["aiops-logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 3,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "aiops-logs-policy",
+      "index.lifecycle.rollover_alias": "aiops-logs"
+    },
+    "mappings": {
+      "properties": {
+        "timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "logger": {
+          "type": "keyword"
+        },
+        "message": {
+          "type": "text",
+          "analyzer": "standard"
+        },
+        "context": {
+          "type": "object",
+          "dynamic": true
+        },
+        "trace_id": {
+          "type": "keyword"
+        },
+        "span_id": {
+          "type": "keyword"
+        },
+        "parent_span_id": {
+          "type": "keyword"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "session_id": {
+          "type": "keyword"
+        },
+        "request_id": {
+          "type": "keyword"
+        },
+        "correlation_id": {
+          "type": "keyword"
+        },
+        "module": {
+          "type": "keyword"
+        },
+        "function": {
+          "type": "keyword"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "exception": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "keyword"
+            },
+            "message": {
+              "type": "text"
+            },
+            "traceback": {
+              "type": "text"
+            }
+          }
+        },
+        "hostname": {
+          "type": "keyword"
+        },
+        "environment": {
+          "type": "keyword"
+        },
+        "log_type": {
+          "type": "keyword"
+        },
+        "response_time": {
+          "type": "float"
+        },
+        "status_code": {
+          "type": "integer"
+        },
+        "client_ip": {
+          "type": "ip"
+        },
+        "user_agent": {
+          "type": "text"
+        },
+        "request_method": {
+          "type": "keyword"
+        },
+        "request_path": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

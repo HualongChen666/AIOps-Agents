@@ -1,0 +1,80 @@
+flowchart TB
+    subgraph L3["Layer 3: AI 引擎层"]
+        direction TB
+
+        subgraph LLM["LLM 路由"]
+            LL1["core/ai/llm_router"]
+            LL2["core/ai_engine.py"]
+            LL3["api/ai_router.py"]
+        end
+
+        subgraph RAG["RAG 服务"]
+            RA1["core/ai/rag/retriever.py"]
+            RA2["core/ai/rag/vectorizer.py"]
+            RA3["core/rag_engine.py"]
+            RA4["api/rag_router.py"]
+        end
+
+        subgraph Agent["代理编排"]
+            AG1["core/ai/langgraph"]
+            AG2["core/agent/planner.py"]
+            AG3["core/agent/executor.py"]
+            AG4["api/ai_feedback_router.py"]
+        end
+
+        subgraph Memory["情景记忆"]
+            ME1["知识库/经验库"]
+            ME2["core/ai/rag/knowledge_base.py"]
+        end
+
+        subgraph KG["知识图谱"]
+            KG1["core/heal_graph.py"]
+            KG2["core/causal/graph.py"]
+        end
+
+        subgraph Causal["因果/异常/根因"]
+            CA1["core/causal"]
+            CA2["core/anomaly_detection.py"]
+            CA3["core/enhanced_root_cause_analyzer.py"]
+            CA4["core/root_cause_intelligence.py"]
+        end
+
+        subgraph Fine["模型微调"]
+            FT1["core/model_fine_tuner.py"]
+        end
+
+        REQ["L2 业务请求"]
+    end
+
+    REQ --> LL3
+    LL3 --> LL1
+    LL1 --> LL2
+    LL2 --> AG1
+    LL2 --> RA1
+    LL2 --> ME1
+
+    AG1 --> AG2
+    AG2 --> AG3
+    AG3 --> AG4
+
+    RA1 --> RA2
+    RA2 --> RA3
+    RA3 --> RA4
+
+    ME1 --> ME2
+    ME2 --> RA1
+
+    AG2 --> KG1
+    KG1 --> KG2
+    KG2 --> CA1
+
+    CA1 --> CA2
+    CA2 --> CA3
+    CA3 --> CA4
+
+    FT1 --> LL1
+
+    AG3 --> RES["返回 L2 业务结果"]
+    RA4 --> RES
+    CA4 --> RES
+    KG2 --> RES

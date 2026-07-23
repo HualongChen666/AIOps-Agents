@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>全链路拓扑视图</title>
+    <style>
+        body {font-family: Arial, sans-serif; margin:0; padding:0; background:#f5f5f5;}
+        #app {padding:20px;}
+        .graph {width:100%; height:80vh; background:#fff; border:1px solid #ddd;}
+            /* 移动端响应式布局 */
+        @media (max-width: 768px) {
+            body {margin: 0; padding: 0; font-size: 14px;}
+            #app {padding: 10px;}
+            .graph {height: 60vh;}
+        }
+    </style>
+    <!-- 若有前端打包的 JS 可在此引入 -->
+</head>
+<body>
+<div class="global-status">
+  <span id="status-text" data-i18n="status.running">系统运行中</span>
+  <span id="status-time"></span>
+</div>
+<script>
+function updateTime(){
+  const now = new Date();
+  document.getElementById('status-time').textContent = now.toLocaleString();
+}
+setInterval(updateTime, 1000);
+updateTime();
+</script>
+<div id="app">
+    <h1 data-i18n="topology.title">全链路拓扑视图</h1>
+    <div class="graph" id="topology-graph">加载拓扑中...</div>
+</div>
+<script>
+    // 简单示例：从后端获取全链路拓扑 JSON 并在控制台打印
+    fetch('/api/topology/full-link')
+        .then(r=>r.json())
+        .then(data=>{
+            // 在页面展示完整的拓扑 JSON，便于调试和查看
+            const pretty = JSON.stringify(data, null, 2);
+            const pre = document.createElement('pre');
+            pre.id = 'topology-json';
+            pre.style.background = '#fafafa';
+            pre.style.border = '1px solid #ddd';
+            pre.style.padding = '10px';
+            pre.textContent = pretty;
+            const container = document.getElementById('topology-graph');
+            // 清空原有提示后插入 JSON
+            container.textContent = '';
+            container.appendChild(pre);
+            console.log('Full link topology:', data);
+        })
+        .catch(err=>{console.error(err); document.getElementById('topology-graph').textContent='加载失败';});
+</script>
+<script>
+(() => {
+  const defaultLang = localStorage.getItem('lang') || 'zh';
+  const setLang = (lang) => { localStorage.setItem('lang', lang); location.reload(); };
+  const nav = document.querySelector('.top-nav');
+  if (nav) { const btn = document.createElement('button'); btn.textContent = defaultLang === 'zh' ? 'English' : '中文'; btn.style.marginLeft='8px'; btn.onclick = () => setLang(defaultLang === 'zh' ? 'en' : 'zh'); nav.appendChild(btn); }
+  fetch(`/i18n/translations/${defaultLang}`).then(r=>r.json()).then(trans=>{ document.querySelectorAll('[data-i18n]').forEach(el=>{ const k=el.getAttribute('data-i18n'); if(trans[k]) el.textContent=trans[k]; }); });
+})();
+</script>
+<link rel="stylesheet" href="/static/toast.css">
+<script src="/static/toast.js"></script>
+</body>
+</html>

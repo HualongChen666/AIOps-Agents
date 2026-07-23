@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-optimization
+  labels:
+    app: cache-optimization
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cache-optimization
+  template:
+    metadata:
+      labels:
+        app: cache-optimization
+    spec:
+      containers:
+        - name: cache-optimization
+          image: cache-optimization:latest
+          ports:
+            - containerPort: 9561
+          env:
+            - name: CACHE_OPTIMIZATION_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache-optimization
+spec:
+  selector:
+    app: cache-optimization
+  ports:
+    - port: 9561
+      targetPort: 9561
+  type: ClusterIP

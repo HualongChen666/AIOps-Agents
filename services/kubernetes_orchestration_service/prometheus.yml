@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "kubernetes-orchestration"
+    static_configs:
+      - targets: ["kubernetes-orchestration:9537"]

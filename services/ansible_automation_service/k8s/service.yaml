@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ansible-automation
+  labels:
+    app: ansible-automation
+spec:
+  selector:
+    app: ansible-automation
+  ports:
+    - name: http
+      port: 9535
+      targetPort: 9535
+  type: ClusterIP

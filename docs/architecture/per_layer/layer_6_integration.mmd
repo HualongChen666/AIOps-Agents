@@ -1,0 +1,116 @@
+flowchart TB
+    subgraph L6["Layer 6: 集成层"]
+        direction TB
+
+        subgraph MON["监控工具"]
+            M1["Prometheus"]
+            M2["Datadog"]
+            M3["CloudWatch"]
+            M4["Zabbix"]
+            M5["core/monitoring_system_integrator.py"]
+            M6["api/service_monitoring_router.py"]
+        end
+
+        subgraph CLOUD["云平台"]
+            C1["AWS"]
+            C2["Azure"]
+            C3["GCP"]
+            C4["阿里云/腾讯云"]
+            C5["core/cloud_collector.py"]
+        end
+
+        subgraph OS["Agent / OS / 容器"]
+            O1["Linux"]
+            O2["Windows"]
+            O3["macOS"]
+            O4["Docker"]
+            O5["Kubernetes"]
+            O6["core/*_collector.py"]
+            O7["core/*_repair.py"]
+        end
+
+        subgraph NOTIFY["通知"]
+            N1["Slack"]
+            N2["Teams"]
+            N3["钉钉"]
+            N4["邮件/短信"]
+            N5["core/notify_engine.py"]
+        end
+
+        subgraph ITSM["ITSM"]
+            I1["ServiceNow"]
+            I2["Jira"]
+            I3["Zendesk"]
+            I4["api/itsm_router.py"]
+        end
+
+        subgraph CICD["CI/CD"]
+            P1["Jenkins"]
+            P2["GitLab CI"]
+            P3["GitHub Actions"]
+            P4["core/cicd_integration_manager.py"]
+        end
+
+        subgraph Third["第三方/通用"]
+            T1["Webhook"]
+            T2["gRPC"]
+            T3["GraphQL"]
+            T4["MCP"]
+            T5["core/third_party_service_integrator.py"]
+        end
+
+        EXT["外部系统"]
+        L2["L2 业务逻辑"]
+    end
+
+    EXT --> M1
+    EXT --> C1
+    EXT --> O1
+    EXT --> I1
+    EXT --> P1
+
+    M1 --> M5
+    M2 --> M5
+    M3 --> M5
+    M4 --> M5
+    M5 --> M6
+    M6 --> L2
+
+    C1 --> C5
+    C2 --> C5
+    C3 --> C5
+    C4 --> C5
+    C5 --> L2
+
+    O1 --> O6
+    O2 --> O6
+    O3 --> O6
+    O4 --> O6
+    O5 --> O6
+    O6 --> L2
+    L2 --> O7
+    O7 --> O1
+    O7 --> O4
+    O7 --> O5
+
+    L2 --> N5
+    N5 --> N1
+    N5 --> N2
+    N5 --> N3
+    N5 --> N4
+
+    L2 --> I4
+    I4 --> I1
+    I4 --> I2
+    I4 --> I3
+
+    L2 --> P4
+    P4 --> P1
+    P4 --> P2
+    P4 --> P3
+
+    T5 --> T1
+    T5 --> T2
+    T5 --> T3
+    T5 --> T4
+    T5 --> L2

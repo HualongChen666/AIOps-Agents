@@ -1,0 +1,162 @@
+flowchart TB
+    subgraph L2["Layer 2: 业务逻辑层"]
+        direction TB
+
+        subgraph Alert["告警服务"]
+            AL1["api/alert_router.py"]
+            AL2["core/alert_engine.py"]
+            AL3["core/alert_intelligence.py"]
+            AL4["core/alert_rules.py"]
+            AL5["core/intelligent_alert_analyzer.py"]
+            AL6["core/anomaly_detection.py"]
+        end
+
+        subgraph Repair["自动修复服务"]
+            RP1["api/repair_router.py"]
+            RP2["core/repair_engine.py"]
+            RP3["core/auto_heal.py"]
+            RP4["core/runbook_generator.py"]
+            RP5["core/verifier.py"]
+            RP6["core/*_repair.py"]
+        end
+
+        subgraph Topo["拓扑服务"]
+            TP1["api/topology_router.py"]
+            TP2["core/topology_engine.py"]
+            TP3["core/heal_graph.py"]
+            TP4["core/event_correlation"]
+        end
+
+        subgraph WF["工作流服务"]
+            WF1["api/workflow_router.py"]
+            WF2["core/workflow_engine.py"]
+            WF3["core/task_scheduler.py"]
+            WF4["core/hitl"]
+        end
+
+        subgraph Audit["审计/合规"]
+            AU1["api/audit_router.py"]
+            AU2["core/audit_service.py"]
+            AU3["core/audit_logger.py"]
+            AU4["core/compliance_manager.py"]
+        end
+
+        subgraph User["用户/租户"]
+            US1["api/user_router.py"]
+            US2["core/user_service.py"]
+            US3["core/authentication.py"]
+            US4["core/multi_tenant.py"]
+        end
+
+        subgraph Config["配置/平台"]
+            CF1["api/infrastructure_router.py"]
+            CF2["core/config_service.py"]
+            CF3["core/plugin_*"]
+            CF4["api/plugin_router.py"]
+        end
+
+        subgraph Dashboard["仪表盘/指标"]
+            DB1["api/dashboard_router.py"]
+            DB2["core/stats_engine.py"]
+            DB3["core/business_metrics.py"]
+            DB4["core/cost_monitor.py"]
+        end
+
+        subgraph Integration["集成/通知"]
+            IN1["api/integration_router.py"]
+            IN2["api/itsm_router.py"]
+            IN3["api/slack_router.py"]
+            IN4["api/notify_router.py"]
+            IN5["core/integration_manager.py"]
+        end
+
+        subgraph Security["安全"]
+            SE1["api/guard_router.py"]
+            SE2["core/security_input_validator.py"]
+            SE3["core/security_middleware.py"]
+        end
+
+        subgraph Doc["文档/测试"]
+            DC1["api/documentation_router.py"]
+            DC2["api/test_automation_router.py"]
+            DC3["core/documentation_manager.py"]
+            DC4["core/test_coverage_manager.py"]
+        end
+
+        AG["L1 API Gateway 输入"]
+    end
+
+    AG --> AL1
+    AG --> RP1
+    AG --> TP1
+    AG --> WF1
+    AG --> AU1
+    AG --> US1
+    AG --> CF1
+    AG --> DB1
+    AG --> IN1
+    AG --> SE1
+    AG --> DC1
+
+    AL1 --> AL2
+    AL2 --> AL3
+    AL3 --> AL4
+    AL4 --> AL5
+    AL5 --> AL6
+
+    RP1 --> RP2
+    RP2 --> RP3
+    RP3 --> RP4
+    RP4 --> RP5
+    RP5 --> RP6
+
+    TP1 --> TP2
+    TP2 --> TP3
+    TP3 --> TP4
+
+    WF1 --> WF2
+    WF2 --> WF3
+    WF3 --> WF4
+
+    AU1 --> AU2
+    AU2 --> AU3
+    AU3 --> AU4
+
+    US1 --> US2
+    US2 --> US3
+    US3 --> US4
+
+    CF1 --> CF2
+    CF2 --> CF3
+    CF3 --> CF4
+
+    DB1 --> DB2
+    DB2 --> DB3
+    DB3 --> DB4
+
+    IN1 --> IN5
+    IN5 --> IN2
+    IN5 --> IN3
+    IN5 --> IN4
+
+    SE1 --> SE2
+    SE2 --> SE3
+
+    DC1 --> DC3
+    DC2 --> DC4
+
+    AL6 --> AI3["L3 AI 引擎"]
+    RP2 --> AI3
+    TP4 --> AI3
+    WF2 --> AI3
+    DB2 --> AI3
+
+    AL2 --> DA4["L4 数据访问"]
+    RP2 --> DA4
+    TP2 --> DA4
+    WF2 --> DA4
+    AU2 --> DA4
+    US2 --> DA4
+    CF2 --> DA4
+    DB2 --> DA4
+    IN5 --> DA4

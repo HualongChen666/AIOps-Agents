@@ -1,0 +1,18 @@
+# Coverage impact: total 48387 -> 44248, missing 19580 -> 15441, cov 59.5346% -> 65.1035%
+    core\agent\coding_subagent.py
+    core\agent\coding_tools.py
+    core\cloud_collectors\gcp.py
+    core\collection\l1\otel_collector.py
+    core\cpu_usage_optimizer.py
+    core\data_consistency.py
+    core\interface\graphql\dataloader.py
+    core\interface\graphql\resolvers.py
+    core\linux_service.py
+    core\opentelemetry_tracing.py
+    core\otel_exporter.py
+    core\performance_analysis_report.py
+    core\performance_data_collector.py
+    core\performance_data_retention.py
+    core\performance_metrics_collector.py
+    core\performance_notifier.py
+    core\performance_regression_detector.py

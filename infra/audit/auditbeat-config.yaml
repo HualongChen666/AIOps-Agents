@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auditbeat-config
+  namespace: aiops
+data:
+  auditbeat.yml: |
+    auditbeat.config.modules:
+      path: ${path.config}/modules.d/*.yml
+      reload.enabled: false
+
+    # Auditbeat modules
+    auditbeat.modules:
+    - module: file_integrity
+      paths:
+      - /etc/aiops
+      - /var/lib/aiops
+      - /opt/aiops
+      exclude_files:
+      - '~$'
+      - '.swp'
+      - '.tmp'
+      - '.bak'
+      max_file_size: 10 MB
+      scan_at_start: true
+      scan_rate_per_sec: 100 MiB
+
+    - module: auditd
+      audit_rules: |
+        -w /etc/passwd -p wa -k identity
+        -w /etc/group -p wa -k identity
+        -w /etc/shadow -p wa -k identity
+        -w /etc/sudoers -p wa -k identity
+        -a always,exit -F arch=b64 -S execve -F auid>=1000 -F auid!=4294967295 -k exec
+      audit_rate_limit: 10000
+      backlog_limit: 8192
+      backlog_wait_time: 100
+
+    - module: system
+      hostfs: false
+      cpu: true
+      memory: true
+      network: true
+      process: true
+      socket: true
+      user: true
+
+    # Output to Elasticsearch
+    output.elasticsearch:
+      hosts: ["elasticsearch:9200"]
+      protocol: "http"
+      username: "elastic"
+      # SECURITY: Password should be set via environment variable ELASTICSEARCH_PASSWORD
+      # Set in deployment: env: - name: ELASTICSEARCH_PASSWORD valueFrom: secretKeyRef: name: elasticsearch-secret key: password
+      password: "${ELASTICSEARCH_PASSWORD:}"
+      index: "auditbeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+      indices:
+        - index: "auditbeat-integrity-%{[agent.version]}-%{+yyyy.MM.dd}"
+          when.contains:
+            event.module: "file_integrity"
+        - index: "auditbeat-auditd-%{[agent.version]}-%{+yyyy.MM.dd}"
+          when.contains:
+            event.module: "auditd"
+        - index: "auditbeat-system-%{[agent.version]}-%{+yyyy.MM.dd}"
+          when.contains:
+            event.module: "system"
+
+    # Kibana setup
+    setup.kibana:
+      host: "kibana:5601"
+      username: "elastic"
+      # SECURITY: Password should be set via environment variable KIBANA_PASSWORD
+      # Set in deployment: env: - name: KIBANA_PASSWORD valueFrom: secretKeyRef: name: kibana-secret key: password
+      password: "${KIBANA_PASSWORD:}"
+      protocol: "http"
+
+    # Processors
+    processors:
+    - add_cloud_metadata: ~
+    - add_host_metadata: ~
+    - add_docker_metadata: ~
+    - add_kubernetes_metadata: ~
+
+    # Logging
+    logging.level: info
+    logging.to_files: true
+    logging.files:
+      path: /var/log/auditbeat
+      name: auditbeat
+      keepfiles: 7
+      permissions: 0644

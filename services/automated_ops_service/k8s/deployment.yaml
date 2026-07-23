@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: automated-ops
+  labels:
+    app: automated-ops
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: automated-ops
+  template:
+    metadata:
+      labels:
+        app: automated-ops
+    spec:
+      containers:
+        - name: automated-ops
+          image: automated-ops:latest
+          ports:
+            - containerPort: 9566
+          env:
+            - name: AUTOMATED_OPS_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automated-ops
+spec:
+  selector:
+    app: automated-ops
+  ports:
+    - port: 9566
+      targetPort: 9566
+  type: ClusterIP

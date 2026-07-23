@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "audit-orchestrator"
+    static_configs:
+      - targets: ["audit-orchestrator:9301"]

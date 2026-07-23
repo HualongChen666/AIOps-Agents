@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-standards
+  labels:
+    app: data-standards
+spec:
+  selector:
+    app: data-standards
+  ports:
+    - name: http
+      port: 9559
+      targetPort: 9559
+  type: ClusterIP

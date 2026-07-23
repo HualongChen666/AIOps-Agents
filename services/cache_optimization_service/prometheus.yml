@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "cache-optimization"
+    static_configs:
+      - targets: ["cache-optimization:9561"]

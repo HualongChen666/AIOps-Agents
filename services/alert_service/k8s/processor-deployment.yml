@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-processor
+  namespace: alert-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alert-processor
+  template:
+    metadata:
+      labels:
+        app: alert-processor
+    spec:
+      containers:
+        - name: processor
+          image: aiops/alert-service:latest
+          ports:
+            - containerPort: 8002
+          command: ["uvicorn", "services.alert_service.processor:app", "--host", "0.0.0.0", "--port", "8002"]
+          envFrom:
+            - configMapRef:
+                name: alert-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-processor
+  namespace: alert-service
+spec:
+  selector:
+    app: alert-processor
+  ports:
+    - port: 8002
+      targetPort: 8002

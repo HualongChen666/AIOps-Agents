@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  backup-recovery-drill:
+    build:
+      context: ../..
+      dockerfile: services/backup_recovery_drill_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.backup_recovery_drill_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9552",
+    ]
+    ports:
+      - "9552:9552"
+    environment:
+      - BACKUP_RECOVERY_DRILL_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9652:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - backup-recovery-drill

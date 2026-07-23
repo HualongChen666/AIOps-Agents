@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6388:6379"
+
+  llm-router:
+    build:
+      context: ../..
+      dockerfile: services/llm_router_service/Dockerfile
+    command:
+      [
+        "uvicorn",
+        "services.llm_router_service.main_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "9405",
+      ]
+    ports:
+      - "9405:9405"
+    environment:
+      - LLM_ROUTER_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9095:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - llm-router

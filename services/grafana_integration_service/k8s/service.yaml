@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-integration
+  labels:
+    app: grafana-integration
+spec:
+  selector:
+    app: grafana-integration
+  ports:
+    - name: http
+      port: 9531
+      targetPort: 9531
+  type: ClusterIP

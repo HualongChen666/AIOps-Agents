@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-scanning
+  labels:
+    app: security-scanning
+spec:
+  selector:
+    app: security-scanning
+  ports:
+    - name: http
+      port: 9563
+      targetPort: 9563
+  type: ClusterIP

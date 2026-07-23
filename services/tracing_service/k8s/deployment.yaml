@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracing
+  labels:
+    app: tracing
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tracing
+  template:
+    metadata:
+      labels:
+        app: tracing
+    spec:
+      containers:
+        - name: tracing
+          image: tracing:latest
+          ports:
+            - containerPort: 9521
+          env:
+            - name: TRACING_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracing
+spec:
+  selector:
+    app: tracing
+  ports:
+    - port: 9521
+      targetPort: 9521
+  type: ClusterIP

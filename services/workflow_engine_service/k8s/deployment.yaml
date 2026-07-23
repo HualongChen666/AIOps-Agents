@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-engine
+  labels:
+    app: workflow-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: workflow-engine
+  template:
+    metadata:
+      labels:
+        app: workflow-engine
+    spec:
+      containers:
+        - name: workflow-engine
+          image: workflow-engine:latest
+          ports:
+            - containerPort: 9524
+          env:
+            - name: WORKFLOW_ENGINE_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-engine
+spec:
+  selector:
+    app: workflow-engine
+  ports:
+    - port: 9524
+      targetPort: 9524
+  type: ClusterIP

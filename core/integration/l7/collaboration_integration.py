@@ -1,0 +1,247 @@
+# -*- coding: utf-8 -*-
+"""
+L7 Integration Layer - Collaboration Integration (Slack, Teams)
+Provides integration with collaboration platforms for notifications and approvals
+"""
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from loguru import logger
+
+
+class CollaborationIntegration:
+    """
+    Collaboration Integration for L7 Layer
+
+    This integration provides:
+    - Slack notifications and approvals
+    - Microsoft Teams notifications and approvals
+    - Rich message formatting
+    - Interactive buttons and workflows
+    """
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        config = config or {}
+        self.config = config
+
+        # Slack configuration
+        self.slack_enabled = config.get("slack", {}).get("enabled", False)
+        self.slack_bot_token = config.get("slack", {}).get("bot_token", "")
+        self.slack_channel = config.get("slack", {}).get("channel", "")
+
+        # Teams configuration
+        self.teams_enabled = config.get("teams", {}).get("enabled", False)
+        self.teams_webhook = config.get("teams", {}).get("webhook", "")
+        self.teams_channel = config.get("teams", {}).get("channel", "")
+
+        self._is_initialized = False
+
+        if self.slack_enabled or self.teams_enabled:
+            self._is_initialized = True
+            logger.info("Collaboration Integration initialized")
+
+    async def send_slack_notification(
+        self,
+        message: str,
+        channel: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Send a notification to Slack
+
+        Args:
+            message: Message text
+            channel: Target channel (overrides default)
+            attachments: Message attachments
+
+        Returns:
+            Send result
+        """
+        if not self.slack_enabled:
+            logger.warning("Slack integration not enabled")
+            return {"error": "Slack not enabled"}
+
+        try:
+            # Placeholder for actual Slack API call
+            # In production, this would use the Slack Web API
+            target_channel = channel or self.slack_channel
+
+            logger.info(f"Sent Slack notification to {target_channel}")
+            return {
+                "success": True,
+                "channel": target_channel,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to send Slack notification: {e}")
+            return {"error": str(e)}
+
+    async def send_slack_approval_request(
+        self, title: str, description: str, actions: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send an approval request to Slack with interactive buttons
+
+        Args:
+            title: Request title
+            description: Request description
+            actions: Button actions (approve, reject, etc.)
+
+        Returns:
+            Send result
+        """
+        if not self.slack_enabled:
+            return {"error": "Slack not enabled"}
+
+        try:
+            # Placeholder for actual Slack API call with blocks
+            logger.info(f"Sent Slack approval request: {title}")
+            return {
+                "success": True,
+                "channel": self.slack_channel,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to send Slack approval request: {e}")
+            return {"error": str(e)}
+
+    async def send_teams_notification(
+        self, message: str, title: Optional[str] = None, color: str = "0078D4"
+    ) -> Dict[str, Any]:
+        """
+        Send a notification to Microsoft Teams
+
+        Args:
+            message: Message text
+            title: Message title
+            color: Message color (hex)
+
+        Returns:
+            Send result
+        """
+        if not self.teams_enabled:
+            logger.warning("Teams integration not enabled")
+            return {"error": "Teams not enabled"}
+
+        try:
+            # Placeholder for actual Teams webhook call
+            logger.info("Sent Teams notification")
+            return {"success": True, "timestamp": datetime.now().isoformat()}
+
+        except Exception as e:
+            logger.error(f"Failed to send Teams notification: {e}")
+            return {"error": str(e)}
+
+    async def send_teams_approval_card(
+        self, title: str, description: str, actions: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send an adaptive card to Teams with approval buttons
+
+        Args:
+            title: Card title
+            description: Card description
+            actions: Button actions
+
+        Returns:
+            Send result
+        """
+        if not self.teams_enabled:
+            return {"error": "Teams not enabled"}
+
+        try:
+            # Placeholder for actual Teams adaptive card API call
+            logger.info(f"Sent Teams approval card: {title}")
+            return {"success": True, "timestamp": datetime.now().isoformat()}
+
+        except Exception as e:
+            logger.error(f"Failed to send Teams approval card: {e}")
+            return {"error": str(e)}
+
+    async def notify_alert(
+        self, alert_id: str, alert_data: Dict[str, Any], platforms: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send alert notification to collaboration platforms
+
+        Args:
+            alert_id: Alert ID
+            alert_data: Alert data
+            platforms: Target platforms (slack, teams, or both)
+
+        Returns:
+            Notification results
+        """
+        results = {}
+        platforms = platforms or ["slack", "teams"]
+
+        message = f"🚨 Alert: {alert_id}\n"
+        message += f"Severity: {alert_data.get('severity', 'unknown')}\n"
+        message += f"Description: {alert_data.get('description', 'No description')}"
+
+        if "slack" in platforms and self.slack_enabled:
+            results["slack"] = await self.send_slack_notification(message)
+
+        if "teams" in platforms and self.teams_enabled:
+            results["teams"] = await self.send_teams_notification(
+                message, title=f"Alert: {alert_id}"
+            )
+
+        return results
+
+    async def request_approval(
+        self, repair_id: str, repair_data: Dict[str, Any], platforms: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send approval request for a repair action
+
+        Args:
+            repair_id: Repair ID
+            repair_data: Repair data
+            platforms: Target platforms
+
+        Returns:
+            Approval request results
+        """
+        results = {}
+        platforms = platforms or ["slack", "teams"]
+
+        title = f"Repair Approval Required: {repair_id}"
+        description = repair_data.get("description", "No description")
+
+        actions = [{"text": "Approve", "value": "approve"}, {"text": "Reject", "value": "reject"}]
+
+        if "slack" in platforms and self.slack_enabled:
+            results["slack"] = await self.send_slack_approval_request(title, description, actions)
+
+        if "teams" in platforms and self.teams_enabled:
+            results["teams"] = await self.send_teams_approval_card(title, description, actions)
+
+        return results
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get integration status"""
+        return {
+            "initialized": self._is_initialized,
+            "slack": {"enabled": self.slack_enabled, "channel": self.slack_channel},
+            "teams": {"enabled": self.teams_enabled, "channel": self.teams_channel},
+        }
+
+
+# Global singleton instance
+_collaboration_integration: Optional[CollaborationIntegration] = None
+
+
+def get_collaboration_integration() -> Optional[CollaborationIntegration]:
+    """Get global collaboration integration instance"""
+    return _collaboration_integration
+
+
+def init_collaboration_integration(config: Dict[str, Any]) -> CollaborationIntegration:
+    """Initialize global collaboration integration"""
+    global _collaboration_integration
+    _collaboration_integration = CollaborationIntegration(config)
+    return _collaboration_integration

@@ -1,0 +1,132 @@
+# Promtail Configuration for AIOps Agent
+# Log collection agent configuration
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+# Position configuration
+positions:
+  filename: /tmp/positions.yaml
+
+# Loki client configuration
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+# Scrape configurations
+scrape_configs:
+  # AIOps Agent application logs
+  - job_name: aiops-agent
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: aiops-agent
+          service: api
+          environment: production
+          __path__: /var/log/aiops-agent/*.log
+
+  # AIOps Agent error logs
+  - job_name: aiops-agent-errors
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: aiops-agent
+          level: error
+          environment: production
+          __path__: /var/log/aiops-agent/error.log
+
+  # System logs
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          environment: production
+          __path__: /var/log/syslog
+
+  # Docker container logs
+  - job_name: docker
+    docker:
+      host: unix:///var/run/docker.sock
+      refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container_name
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: stream
+      - source_labels: ['__meta_docker_container_id']
+        target_label: container_id
+
+  # Journal logs (systemd)
+  - job_name: journal
+    journal:
+      max_age: 12h
+      labels:
+        job: systemd-journal
+        environment: production
+      path: /var/log/journal
+    relabel_configs:
+      - source_labels: ['__journal__systemd_unit']
+        target_label: unit
+      - source_labels: ['__journal__hostname']
+        target_label: hostname
+      - source_labels: ['__journal_priority']
+        target_label: priority
+
+# Pipeline configurations for log processing
+pipeline_stages:
+  # Parse JSON logs
+  - json:
+      expressions:
+        timestamp: timestamp
+        level: level
+        message: message
+        service: service
+        trace_id: trace_id
+        span_id: span_id
+
+  # Parse timestamp
+  - timestamp:
+      source: timestamp
+      format: RFC3339
+
+  # Add labels from structured data
+  - labels:
+      level:
+      service:
+      trace_id:
+      span_id:
+
+  # Filter out debug logs in production
+  - match:
+      selector: '{level="debug"}'
+      action: drop
+
+  # Add static labels
+  - static_labels:
+      cluster: aiops-agent
+      region: default
+
+# Limit configuration
+limit_config:
+  readline_rate: 10000
+  readline_burst: 20000
+  max_line_size: 1048576
+  max_streams: 0
+
+# Target configuration
+target_config:
+  sync_period: 10s
+
+# Metrics configuration
+metrics:
+  # Enable metrics endpoint
+  enabled: true
+  # Metrics endpoint path
+  path: /metrics
+  # Metrics endpoint address
+  address: localhost:9080

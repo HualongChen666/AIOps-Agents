@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "alert-collector"
+    static_configs:
+      - targets: ["alert-collector:8001"]
+    metrics_path: /metrics
+
+  - job_name: "alert-processor"
+    static_configs:
+      - targets: ["alert-processor:8002"]
+    metrics_path: /metrics
+
+  - job_name: "alert-notifier"
+    static_configs:
+      - targets: ["alert-notifier:8003"]
+    metrics_path: /metrics

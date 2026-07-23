@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "qdrant-shard"
+    static_configs:
+      - targets: ["qdrant-shard:9503"]

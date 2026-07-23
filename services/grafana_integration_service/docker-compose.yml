@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  grafana-integration:
+    build:
+      context: ../..
+      dockerfile: services/grafana_integration_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.grafana_integration_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9531",
+    ]
+    ports:
+      - "9531:9531"
+    environment:
+      - GRAFANA_INTEGRATION_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9631:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - grafana-integration

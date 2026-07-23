@@ -1,0 +1,75 @@
+# Production Environment Configuration
+# 生产环境配置
+
+environment: production
+debug: false
+app_name: "AIOps Agent"
+app_version: "1.0.0"
+host: "0.0.0.0"
+port: 8000
+workers: 4
+
+# Database Configuration
+database:
+  host: "${POSTGRES_HOST}"
+  port: 5432
+  database: "${POSTGRES_DB}"
+  username: "${POSTGRES_USER}"
+  password: "${POSTGRES_PASSWORD}"
+  pool_size: 50
+  max_overflow: 100
+  pool_timeout: 30
+  pool_recycle: 3600
+
+# Redis Configuration
+redis:
+  host: "${REDIS_HOST}"
+  port: 6379
+  db: 0
+  password: "${REDIS_PASSWORD}"
+  pool_size: 20
+  socket_timeout: 5
+
+# Security Configuration
+security:
+  jwt_secret_key: "${JWT_SECRET_KEY}"
+  jwt_algorithm: "HS256"
+  jwt_access_token_expire_minutes: 30
+  jwt_refresh_token_expire_days: 7
+  tls_enabled: true
+  tls_cert_path: "${TLS_CERT_PATH}"
+  tls_key_path: "${TLS_KEY_PATH}"
+  mfa_enabled: true
+  password_policy_enabled: true
+  rate_limiting_enabled: true
+  rate_limit_max_requests: 100
+  rate_limit_time_window: 60
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  prometheus_port: 9090
+  metrics_path: "/metrics"
+  tracing_enabled: true
+  tracing_sample_rate: 0.1
+  log_level: "INFO"
+
+# AI Configuration
+ai:
+  enabled: true
+  model_provider: "openai"
+  model_name: "gpt-4"
+  api_key: "${OPENAI_API_KEY}"
+  api_base: "${OPENAI_API_BASE}"
+  max_tokens: 2000
+  temperature: 0.7
+  timeout: 30
+  retry_attempts: 3
+  cache_enabled: true
+  cache_ttl: 300
+
+# CORS Configuration
+cors_origins: ["https://yourdomain.com"]
+cors_allow_credentials: true
+cors_allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+cors_allow_headers: ["Content-Type", "Authorization"]

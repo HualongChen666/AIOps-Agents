@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql-shard
+  labels:
+    app: postgresql-shard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: postgresql-shard
+  template:
+    metadata:
+      labels:
+        app: postgresql-shard
+    spec:
+      containers:
+        - name: postgresql-shard
+          image: postgresql-shard:latest
+          ports:
+            - containerPort: 9501
+          env:
+            - name: POSTGRESQL_SHARD_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-shard
+spec:
+  selector:
+    app: postgresql-shard
+  ports:
+    - port: 9501
+      targetPort: 9501
+  type: ClusterIP

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-optimization
+  labels:
+    app: database-optimization
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: database-optimization
+  template:
+    metadata:
+      labels:
+        app: database-optimization
+    spec:
+      containers:
+        - name: database-optimization
+          image: database-optimization:latest
+          ports:
+            - containerPort: 9562
+          env:
+            - name: DATABASE_OPTIMIZATION_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-optimization
+spec:
+  selector:
+    app: database-optimization
+  ports:
+    - port: 9562
+      targetPort: 9562
+  type: ClusterIP

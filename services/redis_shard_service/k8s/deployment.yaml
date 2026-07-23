@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-shard
+  labels:
+    app: redis-shard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: redis-shard
+  template:
+    metadata:
+      labels:
+        app: redis-shard
+    spec:
+      containers:
+        - name: redis-shard
+          image: redis-shard:latest
+          ports:
+            - containerPort: 9502
+          env:
+            - name: REDIS_SHARD_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-shard
+spec:
+  selector:
+    app: redis-shard
+  ports:
+    - port: 9502
+      targetPort: 9502
+  type: ClusterIP

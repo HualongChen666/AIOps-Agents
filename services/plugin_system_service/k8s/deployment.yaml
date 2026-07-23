@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plugin-system
+  labels:
+    app: plugin-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: plugin-system
+  template:
+    metadata:
+      labels:
+        app: plugin-system
+    spec:
+      containers:
+        - name: plugin-system
+          image: plugin-system:latest
+          ports:
+            - containerPort: 9556
+          env:
+            - name: PLUGIN_SYSTEM_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plugin-system
+spec:
+  selector:
+    app: plugin-system
+  ports:
+    - port: 9556
+      targetPort: 9556
+  type: ClusterIP

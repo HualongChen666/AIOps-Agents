@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repair-orchestrator
+  labels:
+    app: repair-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: repair-orchestrator
+  template:
+    metadata:
+      labels:
+        app: repair-orchestrator
+    spec:
+      containers:
+        - name: repair-orchestrator
+          image: aiops/repair-service:latest
+          command: ["uvicorn", "services.repair_service.orchestrator:app", "--host", "0.0.0.0", "--port", "9001"]
+          ports:
+            - containerPort: 9001
+          env:
+            - name: REPAIR_SERVICE_USE_IN_MEMORY
+              value: "true"
+            - name: REPAIR_SERVICE_ORCHESTRATOR_PORT
+              value: "9001"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: repair-orchestrator
+spec:
+  selector:
+    app: repair-orchestrator
+  ports:
+    - port: 9001
+      targetPort: 9001

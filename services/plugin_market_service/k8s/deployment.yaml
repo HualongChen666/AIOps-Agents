@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plugin-market
+  labels:
+    app: plugin-market
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: plugin-market
+  template:
+    metadata:
+      labels:
+        app: plugin-market
+    spec:
+      containers:
+        - name: plugin-market
+          image: plugin-market:latest
+          ports:
+            - containerPort: 9557
+          env:
+            - name: PLUGIN_MARKET_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plugin-market
+spec:
+  selector:
+    app: plugin-market
+  ports:
+    - port: 9557
+      targetPort: 9557
+  type: ClusterIP

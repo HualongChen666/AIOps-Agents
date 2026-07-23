@@ -1,0 +1,75 @@
+# Staging Environment Configuration
+# 预发布环境配置
+
+environment: staging
+debug: false
+app_name: "AIOps Agent"
+app_version: "1.0.0"
+host: "0.0.0.0"
+port: 8000
+workers: 2
+
+# Database Configuration
+database:
+  host: "${POSTGRES_HOST}"
+  port: 5432
+  database: "aiops_staging"
+  username: "${POSTGRES_USER}"
+  password: "${POSTGRES_PASSWORD}"
+  pool_size: 20
+  max_overflow: 40
+  pool_timeout: 30
+  pool_recycle: 3600
+
+# Redis Configuration
+redis:
+  host: "${REDIS_HOST}"
+  port: 6379
+  db: 1
+  password: "${REDIS_PASSWORD}"
+  pool_size: 10
+  socket_timeout: 5
+
+# Security Configuration
+security:
+  jwt_secret_key: "${JWT_SECRET_KEY}"
+  jwt_algorithm: "HS256"
+  jwt_access_token_expire_minutes: 30
+  jwt_refresh_token_expire_days: 7
+  tls_enabled: true
+  tls_cert_path: "${TLS_CERT_PATH}"
+  tls_key_path: "${TLS_KEY_PATH}"
+  mfa_enabled: true
+  password_policy_enabled: true
+  rate_limiting_enabled: true
+  rate_limit_max_requests: 200
+  rate_limit_time_window: 60
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  prometheus_port: 9090
+  metrics_path: "/metrics"
+  tracing_enabled: true
+  tracing_sample_rate: 0.5
+  log_level: "INFO"
+
+# AI Configuration
+ai:
+  enabled: true
+  model_provider: "openai"
+  model_name: "gpt-4o-mini"
+  api_key: "${OPENAI_API_KEY}"
+  api_base: "${OPENAI_API_BASE}"
+  max_tokens: 2000
+  temperature: 0.7
+  timeout: 30
+  retry_attempts: 3
+  cache_enabled: true
+  cache_ttl: 300
+
+# CORS Configuration
+cors_origins: ["https://staging.yourdomain.com"]
+cors_allow_credentials: true
+cors_allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+cors_allow_headers: ["Content-Type", "Authorization"]

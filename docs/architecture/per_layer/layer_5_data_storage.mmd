@@ -1,0 +1,68 @@
+flowchart TB
+    subgraph L5["Layer 5: 数据存储层"]
+        direction TB
+
+        subgraph Relational["关系型数据库"]
+            PG1["PostgreSQL 主从集群"]
+            PG2["alembic 迁移"]
+            PG3["core/models.py"]
+        end
+
+        subgraph Cache["缓存"]
+            R1["Redis Cluster"]
+        end
+
+        subgraph Vector["向量/图数据库"]
+            Q1["Qdrant"]
+            N1["Neo4j"]
+        end
+
+        subgraph Metrics["时序/监控"]
+            P1["Prometheus"]
+            P2["Thanos"]
+            P3["VictoriaMetrics"]
+            C1["ClickHouse"]
+        end
+
+        subgraph Logs["日志/链路"]
+            E1["Elasticsearch"]
+            L1["Loki"]
+            T1["Tempo"]
+        end
+
+        subgraph Object["对象/备份"]
+            O1["S3 / MinIO"]
+            O2["core/backup_manager.py"]
+        end
+
+        L4["L4 数据访问"]
+    end
+
+    L4 --> PG1
+    L4 --> R1
+    L4 --> Q1
+    L4 --> P1
+    L4 --> C1
+    L4 --> E1
+    L4 --> O1
+
+    PG1 --> PG2
+    PG2 --> PG3
+
+    P1 --> P2
+    P2 --> P3
+
+    E1 --> L1
+    L1 --> T1
+
+    Q1 --> N1
+
+    O1 --> O2
+
+    PG1 --> L7["L7 可观测性"]
+    R1 --> L7
+    Q1 --> L7
+    P1 --> L7
+    E1 --> L7
+    L1 --> L7
+    T1 --> L7

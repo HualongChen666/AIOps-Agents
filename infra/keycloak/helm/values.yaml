@@ -1,0 +1,231 @@
+# Keycloak Helm Chart Values for AIOps Platform
+
+replicaCount: 1
+
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: 23.0
+  pullPolicy: IfNotPresent
+
+# Keycloak configuration
+keycloak:
+  # Admin credentials
+  username: admin
+  # SECURITY: Admin password should be set via Kubernetes Secret or environment variable
+  # Use: helm install --set keycloak.password=$(openssl rand -base64 32)
+  # Or create a Secret: kubectl create secret generic keycloak-admin --from-literal=password=<strong-password>
+  password: ""  # Empty by default, must be set during deployment
+
+  # Database configuration
+  database:
+    vendor: postgres
+    host: postgres
+    port: 5432
+    name: keycloak
+    user: keycloak
+    # SECURITY: Database password should be set via Kubernetes Secret
+    # Use: helm install --set keycloak.database.password=$(openssl rand -base64 32)
+    password: ""  # Empty by default, must be set during deployment
+  
+  # Initial settings
+  hostname: keycloak.aiops.example.com
+  hostnameStrict: false
+  hostnameStrictHttps: false
+  
+  # Proxy configuration
+  proxy: edge
+  httpEnabled: true
+  
+  # TLS configuration
+  tls:
+    enabled: false
+    crt: ""
+    key: ""
+  
+  # Cache configuration
+  cache:
+    stack: "default"
+    
+  # Logging
+  log:
+    level: INFO
+    output: default
+
+# Resource limits and requests
+resources:
+  requests:
+    memory: 1Gi
+    cpu: 500m
+  limits:
+    memory: 2Gi
+    cpu: 1000m
+
+# Persistence configuration
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: standard
+  accessMode: ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  annotations: {}
+  
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: keycloak.aiops.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: keycloak-tls
+      hosts:
+        - keycloak.aiops.example.com
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Security context
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Readiness probe
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Liveness probe
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Extra environment variables
+extraEnv: []
+  # - name: KEYCLOAK_LOG_LEVEL
+  #   value: DEBUG
+
+# Initial realms, clients, and users
+initial:
+  realms:
+    - id: aiops
+      realm: aiops
+      enabled: true
+      displayName: AIOps Platform
+      sslRequired: external
+      registrationAllowed: false
+      loginWithEmailAllowed: true
+      resetPasswordAllowed: true
+      editUsernameAllowed: false
+      roles:
+        realm:
+          - name: admin
+            description: Administrator role
+          - name: operator
+            description: Operator role
+          - name: viewer
+            description: Viewer role
+      clients:
+        - clientId: aiops-ui
+          name: AIOps UI
+          enabled: true
+          clientAuthenticatorType: client-secret
+          # SECURITY: Client secret should be set via Kubernetes Secret
+          # Use: helm install --set initial.clients[0].secret=$(openssl rand -base64 32)
+          secret: ""  # Empty by default, must be set during deployment
+          redirectUris:
+            - https://aiops.aiops.example.com/*
+          webOrigins:
+            - https://aiops.aiops.example.com
+          standardFlowEnabled: true
+          directAccessGrantsEnabled: true
+          publicClient: false
+          protocol: openid-connect
+          attributes:
+            access.token.lifespan: 3600
+            refresh.token.max.reuse: 0
+        - clientId: aiops-api
+          name: AIOps API
+          enabled: true
+          clientAuthenticatorType: client-secret
+          # SECURITY: Client secret should be set via Kubernetes Secret
+          # Use: helm install --set initial.clients[1].secret=$(openssl rand -base64 32)
+          secret: ""  # Empty by default, must be set during deployment
+          redirectUris:
+            - http://localhost:8080/*
+          webOrigins:
+            - http://localhost:8080
+          standardFlowEnabled: false
+          directAccessGrantsEnabled: true
+          serviceAccountsEnabled: true
+          publicClient: false
+          protocol: openid-connect
+  users:
+    - username: aiops-admin
+      firstName: AIOps
+      lastName: Admin
+      email: admin@aiops.example.com
+      enabled: true
+      emailVerified: true
+      realmRoles:
+        - admin
+      credentials:
+        - type: password
+          # SECURITY: Initial password should be set via Kubernetes Secret
+          # Use: helm install --set initial.users[0].credentials[0].value=$(openssl rand -base64 16)
+          # IMPORTANT: Set temporary: true to force password change on first login
+          value: ""  # Empty by default, must be set during deployment
+          temporary: true  # Force password change on first login
+    - username: aiops-operator
+      firstName: AIOps
+      lastName: Operator
+      email: operator@aiops.example.com
+      enabled: true
+      emailVerified: true
+      realmRoles:
+        - operator
+      credentials:
+        - type: password
+          # SECURITY: Initial password should be set via Kubernetes Secret
+          # Use: helm install --set initial.users[1].credentials[0].value=$(openssl rand -base64 16)
+          # IMPORTANT: Set temporary: true to force password change on first login
+          value: ""  # Empty by default, must be set during deployment
+          temporary: true  # Force password change on first login

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: security-scanning
+  labels:
+    app: security-scanning
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: security-scanning
+  template:
+    metadata:
+      labels:
+        app: security-scanning
+    spec:
+      containers:
+        - name: security-scanning
+          image: security-scanning:latest
+          ports:
+            - containerPort: 9563
+          env:
+            - name: SECURITY_SCANNING_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-scanning
+spec:
+  selector:
+    app: security-scanning
+  ports:
+    - port: 9563
+      targetPort: 9563
+  type: ClusterIP

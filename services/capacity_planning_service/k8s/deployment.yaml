@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capacity-planning
+  labels:
+    app: capacity-planning
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: capacity-planning
+  template:
+    metadata:
+      labels:
+        app: capacity-planning
+    spec:
+      containers:
+        - name: capacity-planning
+          image: capacity-planning:latest
+          ports:
+            - containerPort: 9548
+          env:
+            - name: CAPACITY_PLANNING_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: capacity-planning
+spec:
+  selector:
+    app: capacity-planning
+  ports:
+    - port: 9548
+      targetPort: 9548
+  type: ClusterIP

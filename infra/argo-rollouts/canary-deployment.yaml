@@ -1,0 +1,233 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: aiops-agent-canary
+  namespace: aiops
+spec:
+  replicas: 3
+  strategy:
+    canary:
+      # Canary service configuration
+      canaryService: aiops-agent-canary
+      stableService: aiops-agent-stable
+      
+      # Traffic routing
+      trafficRouting:
+        istio:
+          virtualService:
+            name: aiops-vs
+          destinationRule:
+            name: aiops-dr
+      
+      # Analysis templates for automated validation
+      analysis:
+        templates:
+        - templateName: success-rate
+        - templateName: error-rate
+        - templateName: latency-check
+        args:
+        - name: service-name
+          value: aiops-agent
+      
+      # Canary deployment steps
+      steps:
+      # Initial canary deployment - 10% traffic
+      - setWeight: 10
+      - pause: {duration: 5m}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          - templateName: error-rate
+          args:
+          - name: service-name
+            value: aiops-agent
+      
+      # Scale up to 25% traffic
+      - setWeight: 25
+      - pause: {duration: 10m}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          - templateName: error-rate
+          - templateName: latency-check
+          args:
+          - name: service-name
+            value: aiops-agent
+      
+      # Scale up to 50% traffic
+      - setWeight: 50
+      - pause: {duration: 15m}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          - templateName: error-rate
+          - templateName: latency-check
+          args:
+          - name: service-name
+            value: aiops-agent
+      
+      # Scale up to 75% traffic
+      - setWeight: 75
+      - pause: {duration: 10m}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          - templateName: error-rate
+          args:
+          - name: service-name
+            value: aiops-agent
+      
+      # Final validation before full rollout
+      - setWeight: 90
+      - pause: {duration: 5m}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          - templateName: error-rate
+          - templateName: latency-check
+          args:
+          - name: service-name
+            value: aiops-agent
+      
+      # Full rollout
+      - setWeight: 100
+  
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: aiops-agent
+  template:
+    metadata:
+      labels:
+        app: aiops-agent
+        version: canary
+    spec:
+      containers:
+      - name: aiops-agent
+        image: aiops/aiops-agent:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: metrics
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiops-agent-stable
+  namespace: aiops
+spec:
+  ports:
+  - port: 8080
+    targetPort: http
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: metrics
+    protocol: TCP
+    name: metrics
+  selector:
+    app: aiops-agent
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiops-agent-canary
+  namespace: aiops
+spec:
+  ports:
+  - port: 8080
+    targetPort: http
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: metrics
+    protocol: TCP
+    name: metrics
+  selector:
+    app: aiops-agent
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: aiops
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: success-rate
+    interval: 1m
+    count: 5
+    successCondition: result[0] >= 0.95
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: http://prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          sum(rate(http_requests_total{service="{{args.service-name}}",status=~"2.."}[1m]))
+          /
+          sum(rate(http_requests_total{service="{{args.service-name}"}[1m]))
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate
+  namespace: aiops
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: error-rate
+    interval: 1m
+    count: 5
+    successCondition: result[0] <= 0.02
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          sum(rate(http_requests_total{service="{{args.service-name}}",status=~"5.."}[1m]))
+          /
+          sum(rate(http_requests_total{service="{{args.service-name}"}[1m]))
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: latency-check
+  namespace: aiops
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: latency-p95
+    interval: 1m
+    count: 5
+    successCondition: result[0] <= 0.5
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket{service="{{args.service-name}"}[1m])
+          )

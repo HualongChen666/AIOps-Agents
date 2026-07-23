@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "workflow-engine"
+    static_configs:
+      - targets: ["workflow-engine:9524"]

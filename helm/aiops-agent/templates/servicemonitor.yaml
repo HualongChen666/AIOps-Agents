@@ -1,0 +1,20 @@
+{{- if .Values.monitoring.enabled -}}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aiops-agent.fullname" . }}
+  labels:
+    {{- include "aiops-agent.labels" . | nindent 4 }}
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "aiops-agent.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.aiops.prometheus.port | default "9090" }}
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- end }}

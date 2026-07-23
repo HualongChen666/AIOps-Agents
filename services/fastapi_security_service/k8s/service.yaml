@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-security
+  labels:
+    app: fastapi-security
+spec:
+  selector:
+    app: fastapi-security
+  ports:
+    - name: http
+      port: 9540
+      targetPort: 9540
+  type: ClusterIP

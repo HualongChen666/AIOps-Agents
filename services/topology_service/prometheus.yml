@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "topology-orchestrator"
+    static_configs:
+      - targets: ["topology-orchestrator:9101"]
+  - job_name: "topology-analyzer"
+    static_configs:
+      - targets: ["topology-analyzer:9102"]
+  - job_name: "topology-visualizer"
+    static_configs:
+      - targets: ["topology-visualizer:9103"]

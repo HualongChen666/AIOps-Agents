@@ -1,0 +1,280 @@
+groups:
+  - name: aiops_anomaly_alerts
+    interval: 30s
+    rules:
+      # Anomaly Detection Performance Alerts
+      - alert: AnomalyRecallRateLow
+        expr: aiops_anomaly_recall_rate < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Anomaly detection recall rate below threshold"
+          description: "Recall rate is {{ $value | humanizePercentage }}, below 95% threshold"
+
+      - alert: AnomalyFalsePositiveRateHigh
+        expr: aiops_anomaly_false_positive_rate > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Anomaly false positive rate above threshold"
+          description: "False positive rate is {{ $value | humanizePercentage }}, above 5% threshold"
+
+      - alert: AnomalyDetectionLatencyHigh
+        expr: histogram_quantile(0.95, rate(aiops_anomaly_detection_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Anomaly detection latency too high"
+          description: "P95 detection latency is {{ $value }}s, above 30s threshold"
+
+      # Anomaly Volume Alerts
+      - alert: HighAnomalyVolume
+        expr: sum(rate(aiops_anomalies_detected_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: critical
+          category: volume
+        annotations:
+          summary: "High volume of anomalies detected"
+          description: "{{ $value }} anomalies per second detected, above 10/s threshold"
+
+      - alert: AnomalySpike
+        expr: sum(rate(aiops_anomalies_detected_total[1m])) > 5 * sum(rate(aiops_anomalies_detected_total[5m]))
+        for: 2m
+        labels:
+          severity: critical
+          category: volume
+        annotations:
+          summary: "Sudden spike in anomaly detection"
+          description: "Anomaly detection rate increased by more than 5x"
+
+      # Service-Specific Anomaly Alerts
+      - alert: ServiceAnomalySpike
+        expr: sum by (service) (rate(aiops_anomalies_detected_total[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: service
+        annotations:
+          summary: "High anomaly rate for service {{ $labels.service }}"
+          description: "Service {{ $labels.service }} has {{ $value }} anomalies per second"
+
+      - alert: CriticalServiceAnomaly
+        expr: sum by (service, severity) (rate(aiops_anomalies_detected_total[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          category: service
+        annotations:
+          summary: "Critical anomaly for service {{ $labels.service }}"
+          description: "Service {{ $labels.service }} has {{ $labels.severity }} anomalies at {{ $value }}/s"
+
+      # Root Cause Analysis Alerts
+      - alert: RootCauseAnalysisFailure
+        expr: aiops_root_cause_success_rate < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          category: root_cause
+        annotations:
+          summary: "Root cause analysis success rate low"
+          description: "RCA success rate is {{ $value | humanizePercentage }}, below 80%"
+
+      - alert: RootCauseAnalysisLatencyHigh
+        expr: histogram_quantile(0.95, rate(aiops_root_cause_analysis_duration_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+          category: root_cause
+        annotations:
+          summary: "Root cause analysis latency too high"
+          description: "P95 RCA latency is {{ $value }}s, above 60s threshold"
+
+      # Auto-Heal Alerts
+      - alert: AutoHealFailureRateHigh
+        expr: sum(rate(auto_heal_failed_total[5m])) / sum(rate(auto_heal_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          category: auto_heal
+        annotations:
+          summary: "Auto-heal failure rate high"
+          description: "Auto-heal failure rate is {{ $value | humanizePercentage }}, above 10%"
+
+      - alert: AutoHealNotTriggered
+        expr: sum(rate(auto_heal_triggered_total[10m])) == 0 and sum(rate(aiops_anomalies_detected_total[10m])) > 5
+        for: 10m
+        labels:
+          severity: warning
+          category: auto_heal
+        annotations:
+          summary: "Auto-heal not triggered despite anomalies"
+          description: "Anomalies detected but auto-heal not triggered"
+
+      # Model Performance Alerts
+      - alert: ModelAccuracyLow
+        expr: aiops_model_accuracy < 0.85
+        for: 10m
+        labels:
+          severity: warning
+          category: model
+        annotations:
+          summary: "Model accuracy below threshold"
+          description: "Model {{ $labels.model_type }} accuracy is {{ $value | humanizePercentage }}, below 85%"
+
+      - alert: ModelPredictionLatencyHigh
+        expr: histogram_quantile(0.95, rate(aiops_model_prediction_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: model
+        annotations:
+          summary: "Model prediction latency too high"
+          description: "P95 prediction latency is {{ $value }}s, above 5s threshold"
+
+      # MTTR Alerts
+      - alert: AnomalyMTTRHigh
+        expr: aiops_anomaly_mttr_minutes > 30
+        for: 15m
+        labels:
+          severity: critical
+          category: mttr
+        annotations:
+          summary: "Anomaly MTTR above SLA"
+          description: "Mean time to recovery is {{ $value }} minutes, above 30 minute SLA"
+
+      - alert: AnomalyMTTRTrendingUp
+        expr: predict_linear(aiops_anomaly_mttr_minutes[1h], 3600) > 30
+        for: 10m
+        labels:
+          severity: warning
+          category: mttr
+        annotations:
+          summary: "Anomaly MTTR trending above SLA"
+          description: "MTTR is predicted to exceed 30 minutes in the next hour"
+
+      # Data Quality Alerts
+      - alert: AnomalyDataQualityLow
+        expr: aiops_data_quality_score < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          category: data_quality
+        annotations:
+          summary: "Anomaly detection data quality low"
+          description: "Data quality score is {{ $value | humanizePercentage }}, below 80%"
+
+      - alert: MissingAnomalyData
+        expr: rate(aiops_missing_data_points_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: data_quality
+        annotations:
+          summary: "High rate of missing anomaly data"
+          description: "Missing data point rate is {{ $value }}/s"
+
+  - name: aiops_capacity_alerts
+    interval: 1m
+    rules:
+      - alert: CapacityUtilizationHigh
+        expr: aiops_capacity_utilization > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "High capacity utilization"
+          description: "Capacity utilization is {{ $value | humanizePercentage }}, above 80%"
+
+      - alert: CapacityUtilizationCritical
+        expr: aiops_capacity_utilization > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "Critical capacity utilization"
+          description: "Capacity utilization is {{ $value | humanizePercentage }}, above 95%"
+
+      - alert: CapacityForecastExceeds
+        expr: aiops_forecasted_capacity_utilization > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Forecasted capacity will exceed threshold"
+          description: "Forecasted utilization will be {{ $value | humanizePercentage }}"
+
+  - name: aiops_cost_alerts
+    interval: 5m
+    rules:
+      - alert: CostForecastExceedsBudget
+        expr: aiops_forecasted_monthly_cost > aiops_monthly_budget
+        for: 10m
+        labels:
+          severity: warning
+          category: cost
+        annotations:
+          summary: "Forecasted cost exceeds budget"
+          description: "Forecasted cost {{ $value }} exceeds budget {{ $labels.budget }}"
+
+      - alert: CostSpike
+        expr: rate(aiops_daily_cost[1h]) > 2 * rate(aiops_daily_cost[24h])
+        for: 5m
+        labels:
+          severity: critical
+          category: cost
+        annotations:
+          summary: "Sudden cost spike detected"
+          description: "Daily cost increased by more than 2x"
+
+      - alert: CostGrowthRateHigh
+        expr: aiops_cost_growth_rate > 0.2
+        for: 1h
+        labels:
+          severity: warning
+          category: cost
+        annotations:
+          summary: "High cost growth rate"
+          description: "Cost growth rate is {{ $value | humanizePercentage }}, above 20%"
+
+  - name: aiops_system_alerts
+    interval: 30s
+    rules:
+      - alert: AIOpsServiceDown
+        expr: up{job="aiops"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "AIOps service is down"
+          description: "AIOps service {{ $labels.instance }} is not responding"
+
+      - alert: AIOpsHighMemoryUsage
+        expr: process_resident_memory_bytes{job="aiops"} / 1024 / 1024 / 1024 > 4
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "AIOps service high memory usage"
+          description: "Memory usage is {{ $value }}GB, above 4GB threshold"
+
+      - alert: AIOpsHighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="aiops"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "AIOps service high CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }}, above 80%"

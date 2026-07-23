@@ -1,0 +1,155 @@
+# VictoriaMetrics Alert Rules for AIOps Agent
+# These rules define alerting conditions for system health and performance
+
+groups:
+  - name: victoriametrics_alerts
+    interval: 30s
+    rules:
+      # VictoriaMetrics down
+      - alert: VictoriaMetricsDown
+        expr: up{job="victoriametrics"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: victoriametrics
+        annotations:
+          summary: "VictoriaMetrics instance is down"
+          description: "VictoriaMetrics has been down for more than 1 minute."
+      
+      # High storage usage
+      - alert: VictoriaMetricsHighStorageUsage
+        expr: (vmmetrics_storage_size_bytes / vmmetrics_storage_size_bytes_limit) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: victoriametrics
+        annotations:
+          summary: "VictoriaMetrics storage usage is high"
+          description: "VictoriaMetrics storage usage is {{ $value | humanizePercentage }}"
+      
+      # Slow queries
+      - alert: VictoriaMetricsSlowQueries
+        expr: histogram_quantile(0.95, rate(vmmetrics_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: victoriametrics
+        annotations:
+          summary: "VictoriaMetrics slow queries detected"
+          description: "95th percentile query latency is {{ $value }}s"
+      
+      # High ingestion rate
+      - alert: VictoriaMetricsHighIngestionRate
+        expr: rate(vmmetrics_rows_per_second[5m]) > 1000000
+        for: 5m
+        labels:
+          severity: warning
+          component: victoriametrics
+        annotations:
+          summary: "VictoriaMetrics high ingestion rate"
+          description: "Ingestion rate is {{ $value }} samples/sec"
+
+  - name: aiops_application_alerts
+    interval: 30s
+    rules:
+      # AIOps Agent down
+      - alert: AIOpsAgentDown
+        expr: up{job="aiops-agent"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: aiops-agent
+        annotations:
+          summary: "AIOps Agent is down"
+          description: "AIOps Agent has been down for more than 2 minutes."
+      
+      # High error rate
+      - alert: AIOpsAgentHighErrorRate
+        expr: rate(http_requests_total{job="aiops-agent",status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: aiops-agent
+        annotations:
+          summary: "AIOps Agent high error rate"
+          description: "Error rate is {{ $value }} requests/sec"
+      
+      # High latency
+      - alert: AIOpsAgentHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="aiops-agent"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: aiops-agent
+        annotations:
+          summary: "AIOps Agent high latency"
+          description: "95th percentile latency is {{ $value }}s"
+      
+      # Alert engine backlog
+      - alert: AlertEngineHighBacklog
+        expr: aiops_alert_backlog_count > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: alert-engine
+        annotations:
+          summary: "Alert engine has high backlog"
+          description: "Alert backlog is {{ $value }}"
+      
+      # AI engine slow responses
+      - alert: AIEngineSlowResponses
+        expr: histogram_quantile(0.95, rate(aiops_ai_response_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: ai-engine
+        annotations:
+          summary: "AI engine slow responses"
+          description: "95th percentile AI response time is {{ $value }}s"
+      
+      # Repair engine failures
+      - alert: RepairEngineHighFailureRate
+        expr: rate(aiops_repair_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: repair-engine
+        annotations:
+          summary: "Repair engine high failure rate"
+          description: "Repair failure rate is {{ $value }} repairs/sec"
+
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="aiops-agent"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value | humanizePercentage }}"
+      
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes{job="aiops-agent"} / node_memory_MemTotal_bytes) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+      
+      # Disk space low
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.2
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space available is {{ $value | humanizePercentage }}"

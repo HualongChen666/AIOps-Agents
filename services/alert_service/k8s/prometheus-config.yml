@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-prometheus-config
+  namespace: alert-service
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: "alert-collector"
+        static_configs:
+          - targets: ["alert-collector:8001"]
+      - job_name: "alert-processor"
+        static_configs:
+          - targets: ["alert-processor:8002"]
+      - job_name: "alert-notifier"
+        static_configs:
+          - targets: ["alert-notifier:8003"]

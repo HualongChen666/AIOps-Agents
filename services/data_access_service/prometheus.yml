@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "data-access-service"
+    static_configs:
+      - targets: ["data_access_service:9410"]

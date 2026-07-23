@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "elk-stack"
+    static_configs:
+      - targets: ["elk-stack:9532"]

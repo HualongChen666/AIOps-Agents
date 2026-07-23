@@ -1,0 +1,94 @@
+# TimescaleDB Helm Chart Values for AIOps Platform
+
+replicaCount: 1
+
+image:
+  repository: timescale/timescaledb
+  tag: latest-pg14
+  pullPolicy: IfNotExists
+
+# TimescaleDB configuration
+timescaledb:
+  # PostgreSQL configuration
+  postgresql:
+    username: aiops
+    # SECURITY: Password should be set via Kubernetes Secret or environment variable
+    # Use: helm install --set timescaledb.postgresql.password=$(openssl rand -base64 32)
+    # Or create a Secret: kubectl create secret generic timescaledb-secret --from-literal=password=<strong-password>
+    password: ""  # Empty by default, must be set during deployment
+    database: aiops
+    
+  # TimescaleDB configuration
+  maxConnections: 100
+  sharedBuffers: 256MB
+  effectiveCacheSize: 1GB
+  maintenanceWorkMem: 64MB
+  checkpointCompletionTarget: 0.9
+  walBuffers: 16MB
+  defaultStatisticsTarget: 100
+  randomPageCost: 1.1
+  effectiveIOConcurrency: 200
+  workMem: 1310kB
+  minWALSize: 1GB
+  maxWALSize: 4GB
+  
+  # Replication settings
+  replication:
+    enabled: false
+    synchronousCommit: on
+    
+  # Backup settings
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    retention: 7  # Keep 7 days of backups
+
+# Resource limits and requests
+resources:
+  requests:
+    memory: 2Gi
+    cpu: 1000m
+  limits:
+    memory: 4Gi
+    cpu: 2000m
+
+# Persistence configuration
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: standard
+  accessMode: ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 5432
+  
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Security context
+securityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: incident-runbook
+  labels:
+    app: incident-runbook
+spec:
+  selector:
+    app: incident-runbook
+  ports:
+    - name: http
+      port: 9547
+      targetPort: 9547
+  type: ClusterIP

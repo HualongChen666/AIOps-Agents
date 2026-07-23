@@ -1,0 +1,843 @@
+Run started:2026-07-21 04:38:07.735580+00:00
+
+Test results:
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\agent\coding_tools.py:17:0
+16	import shlex
+17	import subprocess
+18	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\ai\langgraph\visualizer.py:147:20
+146	                    import shutil
+147	                    import subprocess
+148	
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\ai\langgraph\visualizer.py:152:20
+151	                        [dot_path, "-Tpng", output_path, "-o", output_path.replace(".dot", ".png")],
+152	                        shell=False,
+153	                        check=True,
+154	                    )
+155	                    logger.info("Graphviz PNG saved")
+156	                except Exception as e:
+157	                    logger.warning(f"Graphviz render failed: {e}")
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\alert_engine.py:235:56
+234	    # 🔧 AL12 [P2]:毫秒精度 + 4 位随机后缀,杜绝同毫秒冲突
+235	    unique_suffix = now.strftime("%H%M%S%f")[:-3] + f"-{random.randint(1000, 9999)}"
+236	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\alert_engine.py:375:68
+374	                now_str = now.strftime("%H:%M:%S")
+375	                unique_suffix = now.strftime("%H%M%S%f")[:-3] + f"-{random.randint(1000, 9999)}"
+376	                alert = {
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'TOKEN_EXPIRED'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\api_response_standard.py:62:20
+61	    INSUFFICIENT_PRIVILEGES = "INSUFFICIENT_PRIVILEGES"
+62	    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+63	    TOKEN_INVALID = "TOKEN_INVALID"
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'TOKEN_INVALID'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\api_response_standard.py:63:20
+62	    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+63	    TOKEN_INVALID = "TOKEN_INVALID"
+64	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'token_bucket'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\api_throughput_optimizer.py:20:19
+19	
+20	    TOKEN_BUCKET = "token_bucket"
+21	    LEAKY_BUCKET = "leaky_bucket"
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\api_throughput_optimizer.py:280:19
+279	
+280	            rand = random.uniform(0, total_weight)
+281	            cumulative = 0
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\audit_integration_manager.py:225:25
+224	
+225	            num_trails = random.randint(0, 10)
+226	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\audit_integration_manager.py:238:29
+237	                    details={"collected_from": source.source_name},
+238	                    priority=random.choice(list(AuditPriority)),
+239	                )
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'token_refresh'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\audit_logger.py:18:4
+17	    "LOGOUT": "user_logout",
+18	    "TOKEN_REFRESH": "token_refresh",
+19	    "PERMISSION_GRANTED": "permission_granted",
+20	    "PERMISSION_REVOKED": "permission_revoked",
+21	    "REPAIR_EXECUTED": "repair_executed",
+22	    "ALERT_GENERATED": "alert_generated",
+23	    "CONFIG_CHANGED": "config_changed",
+24	    "DATA_ACCESS": "data_access",
+25	}
+26	
+27	
+28	def log_audit_event(
+29	    event_type: str,
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'example'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\authentication.py:345:36
+344	    class Config:
+345	        schema_extra = {"example": {"access_token": "example", "token_type": "example"}}
+346	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'example'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\authentication.py:345:63
+344	    class Config:
+345	        schema_extra = {"example": {"access_token": "example", "token_type": "example"}}
+346	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'bearer'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\authentication.py:814:42
+813	    )
+814	    return {"access_token": access_token, "token_type": "bearer"}
+815	
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\backup_manager.py:14:0
+13	import os
+14	import subprocess
+15	from typing import List
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\backup_manager.py:39:11
+38	        text=True,
+39	        shell=False,
+40	    )
+41	
+42	
+43	logger = logging.getLogger(__name__)
+44	
+45	# -----------------------------------------------------------------
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\chaos_engineering.py:162:46
+161	        """
+162	        delay_ms = parameters.get("delay_ms", random.randint(100, 1000))
+163	        delay_seconds = delay_ms / 1000.0
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\chaos_engineering.py:312:28
+311	        logger.debug("Simulating random error")
+312	        await asyncio.sleep(random.uniform(0.2, 0.8))
+313	        return True
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\compliance_manager.py:318:27
+317	
+318	            is_compliant = random.random() > 0.3  # 70% chance of compliance
+319	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'dev-secret-key-change-me'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\config_manager.py:160:26
+159	                )
+160	            _jwt_secret = "dev-secret-key-change-me"
+161	            logger.warning(
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'dev-secret-key-change-me'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\config_validation.py:97:21
+96	        # Check if using default secret
+97	        if secret == "dev-secret-key-change-me":
+98	            severity = (
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\data_integration_manager.py:551:26
+550	
+551	            num_records = random.randint(0, 20)
+552	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\data_integration_manager.py:555:76
+554	                await self.ingest_data(
+555	                    source.source_id, {"data": f"sample_data_{i}", "value": random.randint(1, 100)}
+556	                )
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\database_connection_optimizer.py:723:15
+722	
+723	        rand = random.uniform(0, total_weight)
+724	        cumulative = 0
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\db_read_write_router.py:216:19
+215	        else:
+216	            return random.choice(available_replicas)
+217	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: ''
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\db_replication.py:22:8
+21	        "username": "",
+22	        "password": "",
+23	    },
+24	    "replicas": [],
+25	    "read_write_splitting": False,
+26	    "failover_enabled": False,
+27	    "failover_timeout_seconds": 30,
+28	    "health_check_interval_seconds": 10,
+29	}
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\distributed_storage.py:100:15
+99	
+100	        rand = random.randint(0, total_weight)
+101	        current_weight = 0
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'dev-secret-key-change-me'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\enhanced_auth_integration.py:120:30
+119	                # Development environment: use default with warning
+120	                _jwt_secret = "dev-secret-key-change-me"
+121	                import warnings
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'dev-secret-key-change-me'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\environment_config.py:149:53
+148	
+149	                if config.security.jwt_secret_key == "dev-secret-key-change-me":
+150	                    results["validation_errors"].append(
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: '02_01_0002'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\error_codes\definitions.py:47:25
+46	    AUTH_INVALID_CREDENTIALS = "02_01_0001"
+47	    AUTH_INVALID_TOKEN = "02_01_0002"
+48	    AUTH_TOKEN_EXPIRED = "02_01_0003"
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: '02_01_0003'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\error_codes\definitions.py:48:25
+47	    AUTH_INVALID_TOKEN = "02_01_0002"
+48	    AUTH_TOKEN_EXPIRED = "02_01_0003"
+49	    AUTH_TOKEN_REVOKED = "02_01_0004"
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: '02_01_0004'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\error_codes\definitions.py:49:25
+48	    AUTH_TOKEN_EXPIRED = "02_01_0003"
+49	    AUTH_TOKEN_REVOKED = "02_01_0004"
+50	    AUTH_INVALID_SIGNATURE = "02_01_0005"
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: '11_10_0002'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\error_codes\definitions.py:91:30
+90	    AI_RATE_LIMIT_EXCEEDED = "11_10_0001"
+91	    AI_TOKEN_LIMIT_EXCEEDED = "11_10_0002"
+92	    AI_QUOTA_EXCEEDED = "11_10_0003"
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'AUTH_4000'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\error_handling.py:49:25
+48	    # 认证授权错误 (4000-4999)
+49	    AUTH_INVALID_TOKEN = "AUTH_4000"
+50	    AUTH_EXPIRED_TOKEN = "AUTH_4001"
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'AUTH_4001'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\error_handling.py:50:25
+49	    AUTH_INVALID_TOKEN = "AUTH_4000"
+50	    AUTH_EXPIRED_TOKEN = "AUTH_4001"
+51	    AUTH_INSUFFICIENT_PERMISSIONS = "AUTH_4002"
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\error_recovery\core.py:219:35
+218	
+219	            delay = delay * (0.5 + random.random() * 0.5)
+220	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: '***'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\exceptions\security.py:72:31
+71	            else:
+72	                masked_token = "***"
+73	            error_context["token"] = masked_token
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\gitops_manager.py:21:0
+20	import shutil
+21	import subprocess
+22	from typing import Optional
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\gitops_manager.py:36:17
+35	            text=True,
+36	            shell=False,
+37	            check=False,
+38	        )
+39	        if result.returncode != 0:
+40	            logger.error(
+41	                "Command %s failed (code %s): %s",
+42	                " ".join(cmd),
+43	                result.returncode,
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_monitoring_system.py:429:24
+428	            if "cpu" in monitor.target:
+429	                value = random.uniform(20.0, 95.0)
+430	            elif "memory" in monitor.target:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_monitoring_system.py:431:24
+430	            elif "memory" in monitor.target:
+431	                value = random.uniform(40.0, 90.0)
+432	            elif "disk" in monitor.target:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_monitoring_system.py:433:24
+432	            elif "disk" in monitor.target:
+433	                value = random.uniform(30.0, 95.0)
+434	            elif "latency" in monitor.target:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_monitoring_system.py:435:24
+434	            elif "latency" in monitor.target:
+435	                value = random.uniform(50.0, 800.0)
+436	            elif "error_rate" in monitor.target:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_monitoring_system.py:437:24
+436	            elif "error_rate" in monitor.target:
+437	                value = random.uniform(0.0, 10.0)
+438	            elif "health" in monitor.target:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_monitoring_system.py:439:31
+438	            elif "health" in monitor.target:
+439	                value = 1.0 if random.random() > 0.1 else 0.0
+440	            else:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_monitoring_system.py:441:24
+440	            else:
+441	                value = random.uniform(0.0, 100.0)
+442	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_test_validator.py:297:24
+296	
+297	            is_passed = random.random() > 0.15  # 85% chance of passing
+298	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_testing_system.py:331:24
+330	
+331	            is_passed = random.random() > 0.2  # 80% chance of passing
+332	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\integration_testing_system.py:339:33
+338	            execution.failed = not is_passed
+339	            execution.coverage = random.uniform(70.0, 95.0)
+340	            execution.output = f"Test {'passed' if is_passed else 'failed'}"
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'mock-token'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\interface\graphql\auth.py:118:16
+117	    # For now, return mock user info
+118	    if token == "mock-token":
+119	        return {"user_id": "user-1", "role": Role.ADMIN, "permissions": [Permission.ADMIN]}
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\interface\mcp\tools.py:104:4
+103	    import shlex
+104	    import subprocess
+105	
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\interface\mcp\tools.py:162:17
+161	            text=True,
+162	            shell=False,
+163	            timeout=30,  # Add timeout for safety
+164	        )
+165	
+166	        return f"stdout: {result.stdout}\nstderr: {result.stderr}\nreturncode: {result.returncode}"
+167	
+168	    except subprocess.TimeoutExpired:
+169	        raise ValueError("Command execution timed out (30s limit)")
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\k8s_repair.py:25:0
+24	import logging
+25	import subprocess
+26	import time
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'secret'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\kubernetes_deployment_manager.py:23:13
+22	    CONFIGMAP = "configmap"
+23	    SECRET = "secret"
+24	    INGRESS = "ingress"
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\log_collector.py:19:0
+18	import shutil
+19	import subprocess
+20	from typing import Any, Optional
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\log_collector.py:189:15
+188	            [powershell_path, "-NonInteractive", "-NoProfile", "-Command", command],
+189	            shell=False,
+190	            stdout=subprocess.PIPE,
+191	            stderr=subprocess.PIPE,
+192	            text=True,
+193	            encoding="utf-8-sig",
+194	            errors="replace",
+195	        )
+196	
+197	        try:
+198	            stdout, stderr = proc.communicate(timeout=30)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\logging\level\sampling_strategy.py:62:23
+61	        """Initialize random number generator"""
+62	        self._random = random.Random(self.seed)
+63	        if not 0.0 <= self.sampling_rate <= 1.0:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\logging\level\sampling_strategy.py:139:15
+138	
+139	        return random.random() < self._current_rate
+140	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\logging\level\sampling_strategy.py:227:15
+226	        sampling_rate = self.level_rates.get(record_level, self.default_rate)
+227	        return random.random() < sampling_rate
+228	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\performance_integration_tester.py:258:32
+257	            for _ in range(test.duration):
+258	                response_time = random.uniform(100.0, 800.0)
+259	                throughput = random.uniform(50.0, 200.0)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\performance_integration_tester.py:259:29
+258	                response_time = random.uniform(100.0, 800.0)
+259	                throughput = random.uniform(50.0, 200.0)
+260	                error_rate = random.uniform(0.0, 5.0)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\performance_integration_tester.py:260:29
+259	                throughput = random.uniform(50.0, 200.0)
+260	                error_rate = random.uniform(0.0, 5.0)
+261	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: ''
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\performance_notifier.py:45:16
+44	                "smtp_username": "",
+45	                "smtp_password": "",
+46	                "from_email": "aiops@example.com",
+47	                "to_emails": ["admin@example.com"],
+48	            },
+49	        )
+50	
+51	        # Slack通知
+52	        self.channels["slack"] = NotificationChannel(
+53	            name="slack",
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: ''
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: core\performance_notifier.py:67:16
+66	                "webhook_url": "",
+67	                "secret": "",
+68	            },
+69	        )
+70	
+71	    def enable_channel(self, channel_name: str, config: Dict[str, Any]):
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: core\repair_engine\_impl.py:27:0
+26	import shutil
+27	import subprocess
+28	from collections import deque
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: core\repair_engine\_impl.py:569:15
+568	            ],
+569	            shell=False,
+570	            stdout=subprocess.PIPE,
+571	            stderr=subprocess.PIPE,
+572	            text=True,
+573	            encoding="utf-8",
+574	            errors="replace",
+575	        )
+576	
+577	        try:
+578	            stdout, stderr = proc.communicate(timeout=_PS_TIMEOUT_SEC)
+579	            return_code = proc.returncode
+580	        except subprocess.TimeoutExpired:
+581	            # 🔧 RE2 [P0]:超时强制 kill,避免僵尸进程
+582	            logger.error(f"PowerShell 执行超时(>{_PS_TIMEOUT_SEC}s),强制终止子进程")
+583	            try:
+584	                proc.kill()
+585	                # 等待 kill 完成,清理 stdout/stderr 缓冲
+586	                stdout, stderr = proc.communicate(timeout=5)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\retry_enhanced.py:153:28
+152	            jitter_amount = delay * self.jitter_range
+153	            delay = delay + random.uniform(-jitter_amount, jitter_amount)
+154	            delay = max(0.0, delay)  # Ensure non-negative
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\security_testing_system.py:324:20
+323	        # Randomly generate some vulnerabilities
+324	        num_vulns = random.randint(0, 5)
+325	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\security_testing_system.py:327:23
+326	        for i in range(num_vulns):
+327	            severity = random.choice(list(SeverityLevel))
+328	            vuln = Vulnerability(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\security_testing_system.py:332:30
+331	                severity=severity,
+332	                cwe_id=f"CWE-{random.randint(79, 125)}",
+333	                description=f"Sample vulnerability found during {test.test_name}",
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\service_discovery_manager.py:255:15
+254	        """
+255	        return random.choice(instances)
+256	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\service_discovery_manager.py:281:19
+280	        if total_weight == 0:
+281	            return random.choice(instances)
+282	
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\service_discovery_manager.py:283:15
+282	
+283	        rand = random.uniform(0, total_weight)
+284	        current = 0
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: core\service_discovery_manager.py:310:25
+309	            # For demonstration, randomly mark as healthy
+310	            is_healthy = random.random() > 0.1  # 90% chance of being healthy
+311	
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 111240
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 14
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 75
+		Medium: 0
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 23
+		High: 52
+Files skipped (1):
+	core\backup.py (syntax error while parsing AST from file)

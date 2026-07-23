@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-orchestration-service
+  labels:
+    app: agent-orchestration-service
+spec:
+  selector:
+    app: agent-orchestration-service
+  ports:
+    - name: http
+      port: 9407
+      targetPort: 9407
+  type: ClusterIP

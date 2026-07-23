@@ -1,0 +1,60 @@
+# Grafana Datasources Provisioning Configuration
+# Configures VictoriaMetrics, Loki, and Tempo as data sources
+
+apiVersion: 1
+
+datasources:
+  # VictoriaMetrics - Metrics Storage
+  - name: VictoriaMetrics
+    type: prometheus
+    access: proxy
+    url: http://victoriametrics:8428
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 30s
+      httpMethod: POST
+    version: 1
+
+  # Loki - Log Aggregation
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: Tempo
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+          urlDisplayLabel: "View Trace"
+    version: 1
+
+  # Tempo - Distributed Tracing
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: true
+    jsonData:
+      tracesToLogs:
+        datasourceUid: Loki
+        filterByTraceID: true
+        mapLabels:
+          host: host
+        spanStartTimeShift: "-10m"
+        spanEndTimeShift: "10m"
+        filterByDuration: "10m"
+        customQuery: "exporter=OTLP"
+      tracesToMetrics:
+        datasourceUid: VictoriaMetrics
+        queries:
+          - name: Sampled Trace Rate
+            query: rate(tempo_spanmetrics_latency_bucket{service_name="{{serviceName}}"}[5m])
+          - name: Error Rate
+            query: rate(tempo_spanmetrics_calls_total{service_name="{{serviceName}}",status_code="STATUS_ERROR"}[5m])
+      serviceMap:
+        datasourceUid: VictoriaMetrics
+    version: 1

@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "log-aggregation"
+    static_configs:
+      - targets: ["log-aggregation:9567"]

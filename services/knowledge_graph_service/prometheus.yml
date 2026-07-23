@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: knowledge-graph-service
+    static_configs:
+      - targets: ["knowledge-graph-service:9409"]

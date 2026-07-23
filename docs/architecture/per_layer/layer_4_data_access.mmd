@@ -1,0 +1,92 @@
+flowchart TB
+    subgraph L4["Layer 4: 数据访问与处理层"]
+        direction TB
+
+        subgraph DAO["数据访问"]
+            D1["core/database.py"]
+            D2["core/db_engine.py"]
+            D3["core/models.py"]
+            D4["core/repositories"]
+            D5["core/query_optimization.py"]
+            D6["core/db_read_write_router.py"]
+        end
+
+        subgraph Cache["缓存"]
+            C1["core/cache_helpers.py"]
+            C2["core/caching_strategy.py"]
+            C3["core/redis_cluster.py"]
+            C4["core/enhanced_caching.py"]
+        end
+
+        subgraph Vector["向量检索"]
+            V1["core/qdrant_service.py"]
+            V2["core/vector_pipeline.py"]
+            V3["core/ai/rag/vectorizer.py"]
+        end
+
+        subgraph Sync["数据同步"]
+            S1["core/dual_write.py"]
+            S2["core/data_integration_manager.py"]
+            S3["core/data_lifecycle_manager.py"]
+        end
+
+        subgraph Stream["流处理"]
+            ST1["core/flink_stream_processor.py"]
+            ST2["core/kafka_stream_processor.py"]
+            ST3["core/message_queue_mock.py"]
+        end
+
+        subgraph TX["分布式事务"]
+            T1["core/data_consistency.py"]
+            T2["Saga / TCC"]
+            T3["core/disaster_recovery_drill.py"]
+        end
+
+        subgraph Collect["采集器"]
+            CO1["core/collector.py"]
+            CO2["core/log_collector.py"]
+            CO3["core/collection/l1/otel_collector.py"]
+        end
+
+        BR2["L2 业务调用"]
+        BR3["L3 AI 调用"]
+    end
+
+    BR2 --> D1
+    BR3 --> V1
+
+    D1 --> D2
+    D2 --> D3
+    D3 --> D4
+    D4 --> D5
+    D5 --> D6
+
+    D1 --> C1
+    C1 --> C2
+    C2 --> C3
+    C3 --> C4
+
+    V1 --> V2
+    V2 --> V3
+    V3 --> C3
+
+    D6 --> S1
+    S1 --> S2
+    S2 --> S3
+    S3 --> ST1
+    ST1 --> ST2
+    ST2 --> ST3
+
+    S1 --> T1
+    T1 --> T2
+    T2 --> T3
+
+    CO1 --> CO2
+    CO2 --> CO3
+    CO3 --> ST2
+
+    D6 --> DB5["L5 数据存储"]
+    C3 --> DB5
+    V1 --> DB5
+    ST2 --> DB5
+    T2 --> DB5

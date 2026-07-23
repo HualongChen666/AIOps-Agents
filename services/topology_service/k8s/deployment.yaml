@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: topology-orchestrator
+  labels:
+    app: topology-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: topology-orchestrator
+  template:
+    metadata:
+      labels:
+        app: topology-orchestrator
+    spec:
+      containers:
+        - name: topology-orchestrator
+          image: aiops/topology-service:latest
+          ports:
+            - containerPort: 9101
+          env:
+            - name: TOPOLOGY_SERVICE_USE_IN_MEMORY
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: topology-orchestrator
+spec:
+  selector:
+    app: topology-orchestrator
+  ports:
+    - port: 9101
+      targetPort: 9101

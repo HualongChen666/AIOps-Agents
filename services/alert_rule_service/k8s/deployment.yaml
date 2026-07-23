@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-rule
+  labels:
+    app: alert-rule
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alert-rule
+  template:
+    metadata:
+      labels:
+        app: alert-rule
+    spec:
+      containers:
+        - name: alert-rule
+          image: alert-rule:latest
+          ports:
+            - containerPort: 9522
+          env:
+            - name: ALERT_RULE_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-rule
+spec:
+  selector:
+    app: alert-rule
+  ports:
+    - port: 9522
+      targetPort: 9522
+  type: ClusterIP

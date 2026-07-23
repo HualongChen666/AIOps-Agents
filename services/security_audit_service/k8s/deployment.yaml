@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: security-audit
+  labels:
+    app: security-audit
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: security-audit
+  template:
+    metadata:
+      labels:
+        app: security-audit
+    spec:
+      containers:
+        - name: security-audit
+          image: security-audit:latest
+          ports:
+            - containerPort: 9551
+          env:
+            - name: SECURITY_AUDIT_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-audit
+spec:
+  selector:
+    app: security-audit
+  ports:
+    - port: 9551
+      targetPort: 9551
+  type: ClusterIP

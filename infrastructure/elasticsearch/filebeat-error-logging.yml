@@ -1,0 +1,56 @@
+# Filebeat配置文件 - 错误日志聚合到ELK Stack
+# 用于将AIOps Agent的错误日志发送到Elasticsearch
+
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/aiops/error_*.log
+      - logs/error_*.log
+    json.keys_under_root: true
+    json.add_error_key: true
+    json.message_key: message
+    fields:
+      service: aiops-agent
+      log_type: error
+    fields_under_root: true
+    multiline:
+      pattern: '^{"error_code":'
+      negate: true
+      match: after
+
+# 输出到Elasticsearch
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  protocol: "http"
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  index: "aiops-error-logs-%{+yyyy.MM.dd}"
+  template.name: "aiops-error-logs"
+  template.pattern: "aiops-error-logs-*"
+  template.settings:
+    index.number_of_shards: 3
+    index.number_of_replicas: 1
+
+# Kibana配置
+setup.kibana:
+  host: "localhost:5601"
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+
+# 日志级别
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# 处理器配置
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~

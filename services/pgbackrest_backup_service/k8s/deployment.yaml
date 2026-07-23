@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbackrest-backup
+  labels:
+    app: pgbackrest-backup
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pgbackrest-backup
+  template:
+    metadata:
+      labels:
+        app: pgbackrest-backup
+    spec:
+      containers:
+        - name: pgbackrest-backup
+          image: pgbackrest-backup:latest
+          ports:
+            - containerPort: 9544
+          env:
+            - name: PGBACKREST_BACKUP_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbackrest-backup
+spec:
+  selector:
+    app: pgbackrest-backup
+  ports:
+    - port: 9544
+      targetPort: 9544
+  type: ClusterIP

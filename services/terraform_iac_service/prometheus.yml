@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "terraform-iac"
+    static_configs:
+      - targets: ["terraform-iac:9536"]

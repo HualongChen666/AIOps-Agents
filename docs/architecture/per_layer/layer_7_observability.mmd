@@ -1,0 +1,99 @@
+flowchart TB
+    subgraph L7["Layer 7: 可观测性监控层"]
+        direction TB
+
+        subgraph Metrics["指标"]
+            M1["core/prometheus_metrics.py"]
+            M2["core/metrics_converter.py"]
+            M3["api/metrics_router.py"]
+            M4["prometheus/"]
+            M5["grafana/"]
+        end
+
+        subgraph Logs["日志"]
+            L1["core/structured_logging.py"]
+            L2["core/logging/context"]
+            L3["core/logging/level"]
+            L4["core/logging/analysis"]
+            L5["api/log_router.py"]
+            L6["infrastructure/logging"]
+        end
+
+        subgraph Trace["链路追踪"]
+            T1["core/opentelemetry_tracing.py"]
+            T2["core/otel_exporter.py"]
+            T3["core/cross_service_tracing.py"]
+            T4["api/tracing_router.py"]
+        end
+
+        subgraph APM["APM / 性能"]
+            A1["core/api_performance_optimizer.py"]
+            A2["core/performance_optimizer.py"]
+            A3["core/performance_metrics_collector.py"]
+            A4["api/apm_router.py"]
+        end
+
+        subgraph Alert["告警管理"]
+            AL1["alertmanager/"]
+            AL2["prometheus/alerts/"]
+            AL3["modules/observability/smart_alerting.py"]
+        end
+
+        subgraph Audit["安全审计"]
+            AU1["core/security_audit_system.py"]
+            AU2["core/external_api_audit.py"]
+            AU3["audit_logs/"]
+        end
+
+        subgraph Health["健康检查"]
+            H1["api/health_router.py"]
+            H2["core/health_check.py"]
+            H3["core/heartbeat.py"]
+        end
+
+        APP["全层应用"]
+    end
+
+    APP --> M1
+    APP --> L1
+    APP --> T1
+    APP --> A1
+    APP --> H1
+
+    M1 --> M2
+    M2 --> M3
+    M3 --> M4
+    M4 --> M5
+
+    L1 --> L2
+    L2 --> L3
+    L3 --> L4
+    L4 --> L5
+    L5 --> L6
+
+    T1 --> T2
+    T2 --> T3
+    T3 --> T4
+
+    A1 --> A2
+    A2 --> A3
+    A3 --> A4
+
+    M1 --> AL1
+    L4 --> AL2
+    AL1 --> AL2
+    AL2 --> AL3
+
+    APP --> AU1
+    AU1 --> AU2
+    AU2 --> AU3
+
+    H1 --> H2
+    H2 --> H3
+
+    M5 --> OPS["运维/值班"]
+    L6 --> OPS
+    T4 --> OPS
+    AL3 --> OPS
+    AU1 --> OPS
+    H3 --> OPS

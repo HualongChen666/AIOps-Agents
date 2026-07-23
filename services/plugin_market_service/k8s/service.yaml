@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: plugin-market
+  labels:
+    app: plugin-market
+spec:
+  selector:
+    app: plugin-market
+  ports:
+    - name: http
+      port: 9557
+      targetPort: 9557
+  type: ClusterIP

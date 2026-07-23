@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  scenario-memory-service:
+    build: .
+    ports:
+      - "9408:9408"
+    environment:
+      - SCENARIO_MEMORY_REDIS_URL=redis://redis:6379
+      - SCENARIO_MEMORY_LOG_LEVEL=INFO
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

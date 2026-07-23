@@ -1,0 +1,86 @@
+{
+  "dashboard": {
+    "title": "AIOps Agent 错误日志分析",
+    "uid": "aiops-error-logging",
+    "tags": ["aiops", "error", "logging"],
+    "timezone": "browser",
+    "refresh": "1m",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "错误总数趋势",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(error_log_count[5m])) by (error_code)",
+            "legendFormat": "{{error_code}}"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "错误分类统计",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(error_log_count) by (category)",
+            "legendFormat": "{{category}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "错误严重程度分布",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(error_log_count) by (severity)",
+            "legendFormat": "{{severity}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "最频繁的错误码",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum(error_log_count) by (error_code))",
+            "legendFormat": "{{error_code}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "错误率（错误/分钟）",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(error_log_count[1m])",
+            "legendFormat": "错误率"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "错误响应时间分布",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(error_log_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95"
+          }
+        ]
+      }
+    ]
+  }
+}

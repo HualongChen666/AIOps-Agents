@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  data-standards:
+    build:
+      context: ../..
+      dockerfile: services/data_standards_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.data_standards_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9559",
+    ]
+    ports:
+      - "9559:9559"
+    environment:
+      - DATA_STANDARDS_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9659:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - data-standards

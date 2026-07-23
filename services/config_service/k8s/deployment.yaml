@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-orchestrator
+  labels:
+    app: config-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: config-orchestrator
+  template:
+    metadata:
+      labels:
+        app: config-orchestrator
+    spec:
+      containers:
+        - name: config-orchestrator
+          image: aiops/config-service:latest
+          ports:
+            - containerPort: 9501
+          env:
+            - name: CONFIG_SERVICE_USE_IN_MEMORY
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: config-orchestrator
+spec:
+  selector:
+    app: config-orchestrator
+  ports:
+    - port: 9501
+      targetPort: 9501

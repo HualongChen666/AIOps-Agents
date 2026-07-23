@@ -1,0 +1,32 @@
+Run started:2026-07-21 04:48:20.451010+00:00
+
+Test results:
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Low
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: core\abac.py:526:24
+525	                    query = (  # nosec B608
+526	                        "UPDATE abac_policies SET "
+527	                        + ", ".join(updates)
+528	                        + " WHERE id = %s"
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 111247
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 94
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 0
+		Medium: 1
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 1
+		Medium: 0
+		High: 0
+Files skipped (0):

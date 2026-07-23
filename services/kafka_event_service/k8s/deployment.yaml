@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-event
+  labels:
+    app: kafka-event
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kafka-event
+  template:
+    metadata:
+      labels:
+        app: kafka-event
+    spec:
+      containers:
+        - name: kafka-event
+          image: kafka-event:latest
+          ports:
+            - containerPort: 9525
+          env:
+            - name: KAFKA_EVENT_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-event
+spec:
+  selector:
+    app: kafka-event
+  ports:
+    - port: 9525
+      targetPort: 9525
+  type: ClusterIP

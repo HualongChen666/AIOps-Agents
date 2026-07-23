@@ -1,0 +1,19 @@
+# -*- coding: utf-8 -*-
+# Core Constants
+# 核心常量
+
+# Memory monitoring
+DEFAULT_MAX_MEMORY_MB = 1024
+DEFAULT_WARNING_THRESHOLD = 0.8
+
+# Error recovery
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_BASE_DELAY = 1.0
+DEFAULT_MAX_DELAY = 30.0
+
+# Cache
+DEFAULT_CACHE_TTL = 300
+DEFAULT_MAX_CACHE_SIZE = 1000
+
+# Data lifecycle
+DEFAULT_RETENTION_DAYS = 30

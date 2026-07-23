@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-mesh
+  labels:
+    app: service-mesh
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service-mesh
+  template:
+    metadata:
+      labels:
+        app: service-mesh
+    spec:
+      containers:
+        - name: service-mesh
+          image: service-mesh:latest
+          ports:
+            - containerPort: 9520
+          env:
+            - name: SERVICE_MESH_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-mesh
+spec:
+  selector:
+    app: service-mesh
+  ports:
+    - port: 9520
+      targetPort: 9520
+  type: ClusterIP

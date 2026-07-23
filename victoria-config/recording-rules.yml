@@ -1,0 +1,87 @@
+# VictoriaMetrics Recording Rules for AIOps Agent
+# These rules pre-compute frequently used queries for better performance
+
+groups:
+  - name: victoriametrics_recording
+    interval: 30s
+    rules:
+      # Storage usage rate
+      - record: vmmetrics:storage_size_bytes:rate5m
+        expr: rate(vmmetrics_storage_size_bytes[5m])
+      
+      # Request duration percentiles
+      - record: vmmetrics:request_duration_seconds:p50
+        expr: histogram_quantile(0.5, rate(vmmetrics_request_duration_seconds_bucket[5m]))
+      
+      - record: vmmetrics:request_duration_seconds:p95
+        expr: histogram_quantile(0.95, rate(vmmetrics_request_duration_seconds_bucket[5m]))
+      
+      - record: vmmetrics:request_duration_seconds:p99
+        expr: histogram_quantile(0.99, rate(vmmetrics_request_duration_seconds_bucket[5m]))
+
+  - name: aiops_application_recording
+    interval: 30s
+    rules:
+      # HTTP request rate
+      - record: aiops:http_requests_total:rate5m
+        expr: sum by (job, status) (rate(http_requests_total[5m]))
+      
+      # HTTP request duration percentiles
+      - record: aiops:http_request_duration_seconds:p50
+        expr: histogram_quantile(0.5, rate(http_request_duration_seconds_bucket[5m]))
+      
+      - record: aiops:http_request_duration_seconds:p95
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+      
+      - record: aiops:http_request_duration_seconds:p99
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
+      
+      # Alert rate by severity
+      - record: aiops:alerts_total:rate5m
+        expr: sum by (severity) (rate(aiops_alerts_total[5m]))
+      
+      # AI response rate
+      - record: aiops:ai_responses_total:rate5m
+        expr: sum by (model) (rate(aiops_ai_responses_total[5m]))
+      
+      # AI response duration percentiles
+      - record: aiops:ai_response_duration_seconds:p50
+        expr: histogram_quantile(0.5, rate(aiops_ai_response_duration_seconds_bucket[5m]))
+      
+      - record: aiops:ai_response_duration_seconds:p95
+        expr: histogram_quantile(0.95, rate(aiops_ai_response_duration_seconds_bucket[5m]))
+      
+      # Repair success rate
+      - record: aiops:repair_success_rate
+        expr: sum(rate(aiops_repair_successes_total[5m])) / sum(rate(aiops_repair_attempts_total[5m]))
+      
+      # Active repairs
+      - record: aiops:repairs_active
+        expr: aiops_repair_active_count
+      
+      # Memory usage by component
+      - record: aiops:memory_usage_bytes
+        expr: sum by (component) (process_resident_memory_bytes)
+      
+      # CPU usage by component
+      - record: aiops:cpu_usage_rate
+        expr: sum by (component) (rate(process_cpu_seconds_total[5m]))
+
+  - name: system_recording
+    interval: 30s
+    rules:
+      # Total CPU usage
+      - record: system:cpu_usage:rate5m
+        expr: sum by (instance) (rate(process_cpu_seconds_total[5m]))
+      
+      # Total memory usage
+      - record: system:memory_usage_bytes
+        expr: sum by (instance) (process_resident_memory_bytes)
+      
+      # Disk I/O rate
+      - record: system:disk_io_bytes:rate5m
+        expr: sum by (instance) (rate(node_disk_io_time_seconds_total[5m]))
+      
+      # Network I/O rate
+      - record: system:network_io_bytes:rate5m
+        expr: sum by (instance) (rate(node_network_receive_bytes_total[5m]) + rate(node_network_transmit_bytes_total[5m]))

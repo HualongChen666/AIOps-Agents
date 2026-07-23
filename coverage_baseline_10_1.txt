@@ -1,0 +1,17 @@
+ERROR: usage: python -m pytest [options] [file_or_dir] [file_or_dir] [...]
+python -m pytest: error: unrecognized arguments: -n
+  inifile: C:\AIOps_Agent_bak\pytest.ini
+  rootdir: C:\AIOps_Agent_bak
+
+PYTEST_FAIL 
+python : ERROR: usage: python -m pytest [options] [file_or_dir] [file_or_dir] [...]
+At line:1 char:1
++ python -m pytest -n auto --cov=. --cov-report=term --cov-report=xml - ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: usage: p...e_or_dir] [...]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+python -m pytest: error: unrecognized arguments: -n
+  inifile: C:\AIOps_Agent_bak\pytest.ini
+  rootdir: C:\AIOps_Agent_bak
+

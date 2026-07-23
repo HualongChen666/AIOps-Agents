@@ -1,0 +1,362 @@
+name: Mock Monitoring and Quality Gates
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  mock-coverage-analysis:
+    name: Mock Coverage Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio pytest-xdist
+
+    - name: Run tests with mock monitoring
+      run: |
+        python -m pytest tests/ -v --tb=short --cov=. --cov-report=xml --cov-report=html
+      env:
+        AIOPS_MOCK_MONITORING: true
+        AIOPS_GENERATE_MOCK_REPORT: true
+
+    - name: Generate mock coverage report
+      if: always()
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        from tests.mock_manager import get_mock_monitor, MockCoverageReporter, MockConfigs
+        
+        monitor = get_mock_monitor()
+        
+        # Get all predefined configs
+        registered_mocks = {}
+        config_methods = [
+            'get_ai_analyze_config', 'get_alert_service_config', 
+            'get_health_check_config', 'get_database_config',
+            'get_cache_config', 'get_auth_config',
+            'get_workflow_service_config', 'get_topology_service_config',
+            'get_audit_service_config', 'get_user_service_config',
+            'get_config_service_config', 'get_notification_service_config',
+            'get_storage_service_config', 'get_monitoring_service_config',
+            'get_security_service_config', 'get_plugin_service_config'
+        ]
+        
+        for method_name in config_methods:
+            method = getattr(MockConfigs, method_name)
+            config = method()
+            service_name = method_name.replace('get_', '').replace('_config', '')
+            registered_mocks[service_name] = config
+        
+        # Generate reports
+        reporter = MockCoverageReporter(monitor)
+        
+        # Text report
+        text_report = reporter.generate_coverage_report(registered_mocks, 'text')
+        with open('mock_coverage_report.txt', 'w') as f:
+            f.write(text_report)
+        
+        # JSON report
+        json_report = reporter.generate_coverage_report(registered_mocks, 'json')
+        with open('mock_coverage_report.json', 'w') as f:
+            f.write(json_report)
+        
+        # HTML report
+        html_report = reporter.generate_coverage_report(registered_mocks, 'html')
+        with open('mock_coverage_report.html', 'w') as f:
+            f.write(html_report)
+        
+        print('Mock coverage reports generated successfully')
+        "
+
+    - name: Upload mock coverage reports
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: mock-coverage-reports
+        path: |
+          mock_coverage_report.txt
+          mock_coverage_report.json
+          mock_coverage_report.html
+        retention-days: 30
+
+    - name: Check mock coverage quality gate
+      if: always()
+      run: |
+        python -c "
+        import json
+        import sys
+        
+        with open('mock_coverage_report.json', 'r') as f:
+            report = json.load(f)
+        
+        summary = report['summary']
+        service_coverage = summary['service_coverage_percentage']
+        method_coverage = summary['method_coverage_percentage']
+        
+        # Quality gate thresholds
+        MIN_SERVICE_COVERAGE = 60.0
+        MIN_METHOD_COVERAGE = 50.0
+        
+        print(f'Service Coverage: {service_coverage}% (required: {MIN_SERVICE_COVERAGE}%)')
+        print(f'Method Coverage: {method_coverage}% (required: {MIN_METHOD_COVERAGE}%)')
+        
+        if service_coverage < MIN_SERVICE_COVERAGE:
+            print(f'FAIL: Service coverage below threshold')
+            sys.exit(1)
+        
+        if method_coverage < MIN_METHOD_COVERAGE:
+            print(f'FAIL: Method coverage below threshold')
+            sys.exit(1)
+        
+        print('PASS: All quality gates met')
+        "
+
+    - name: Generate smart analysis report
+      if: always()
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        from tests.mock_manager import get_mock_monitor, get_smart_manager
+        
+        monitor = get_mock_monitor()
+        smart_manager = get_smart_manager()
+        
+        # Generate smart analysis
+        smart_report = smart_manager.generate_smart_report()
+        
+        with open('smart_mock_analysis.txt', 'w') as f:
+            f.write(smart_report)
+        
+        print('Smart analysis report generated')
+        "
+
+    - name: Upload smart analysis report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: smart-mock-analysis
+        path: smart_mock_analysis.txt
+        retention-days: 30
+
+    - name: Comment PR with mock coverage
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          try {
+            const report = fs.readFileSync('mock_coverage_report.txt', 'utf8');
+            const smartReport = fs.readFileSync('smart_mock_analysis.txt', 'utf8');
+            
+            const comment = `## Mock Coverage Report
+          
+          ${report}
+          
+          ## Smart Analysis
+          
+          ${smartReport}
+          `;
+          
+            github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+            });
+          } catch (error) {
+            console.log('Could not post comment:', error.message);
+          }
+
+  mock-quality-check:
+    name: Mock Configuration Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Validate all mock configurations
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        from tests.mock_manager import MockConfigValidator, MockConfigs
+        
+        validator = MockConfigValidator()
+        
+        # Validate all predefined configs
+        config_methods = [
+            'get_ai_analyze_config', 'get_alert_service_config', 
+            'get_health_check_config', 'get_database_config',
+            'get_cache_config', 'get_auth_config',
+            'get_workflow_service_config', 'get_topology_service_config',
+            'get_audit_service_config', 'get_user_service_config',
+            'get_config_service_config', 'get_notification_service_config',
+            'get_storage_service_config', 'get_monitoring_service_config',
+            'get_security_service_config', 'get_plugin_service_config'
+        ]
+        
+        all_valid = True
+        for method_name in config_methods:
+            method = getattr(MockConfigs, method_name)
+            config = method()
+            service_name = method_name.replace('get_', '').replace('_config', '')
+            
+            if not validator.validate_config(service_name, config):
+                print(f'FAIL: {service_name} configuration validation failed')
+                print(validator.get_validation_report())
+                all_valid = False
+            else:
+                print(f'PASS: {service_name} configuration validated')
+        
+        if not all_valid:
+            print('\\nFAIL: Some configurations failed validation')
+            sys.exit(1)
+        
+        print('\\nPASS: All configurations validated successfully')
+        "
+
+    - name: Check for deprecated patterns
+      run: |
+        python -c "
+        import re
+        import sys
+        
+        # Check for deprecated mock patterns in test files
+        deprecated_patterns = [
+            r'Mock\(\)',
+            r'MagicMock\(\)',
+            r'@patch\([^)]+\)\s*def',
+        ]
+        
+        test_files = []
+        import os
+        for root, dirs, files in os.walk('tests'):
+            for file in files:
+                if file.startswith('test_') and file.endswith('.py'):
+                    test_files.append(os.path.join(root, file))
+        
+        issues_found = False
+        for test_file in test_files:
+            with open(test_file, 'r') as f:
+                content = f.read()
+                for pattern in deprecated_patterns:
+                    if re.search(pattern, content):
+                        print(f'WARNING: Deprecated pattern found in {test_file}')
+                        issues_found = True
+        
+        if issues_found:
+            print('\\nWARNING: Deprecated mock patterns found. Consider using MockConfigs.')
+        else:
+            print('\\nPASS: No deprecated patterns found')
+        "
+
+  performance-benchmark:
+    name: Mock Performance Benchmark
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-benchmark
+
+    - name: Run mock performance benchmarks
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        import time
+        from tests.mock_manager import get_mock_manager, MockConfigs
+        
+        manager = get_mock_manager()
+        
+        # Benchmark mock creation
+        start = time.time()
+        for i in range(100):
+            config = MockConfigs.get_ai_analyze_config()
+            mock = manager.create_mock_config(return_value=config['return_value'])
+        end = time.time()
+        
+        creation_time = (end - start) * 1000  # Convert to ms
+        avg_creation_time = creation_time / 100
+        
+        print(f'Mock creation benchmark:')
+        print(f'  Total time: {creation_time:.2f}ms for 100 mocks')
+        print(f'  Average time: {avg_creation_time:.2f}ms per mock')
+        
+        # Benchmark mock usage
+        config = MockConfigs.get_ai_analyze_config()
+        mock = manager.create_mock_config(return_value=config['return_value'])
+        
+        start = time.time()
+        for i in range(1000):
+            result = mock()
+        end = time.time()
+        
+        usage_time = (end - start) * 1000
+        avg_usage_time = usage_time / 1000
+        
+        print(f'\\nMock usage benchmark:')
+        print(f'  Total time: {usage_time:.2f}ms for 1000 calls')
+        print(f'  Average time: {avg_usage_time:.2f}ms per call')
+        
+        # Performance thresholds
+        MAX_AVG_CREATION_TIME = 1.0  # ms
+        MAX_AVG_USAGE_TIME = 0.1  # ms
+        
+        if avg_creation_time > MAX_AVG_CREATION_TIME:
+            print(f'\\nFAIL: Mock creation too slow ({avg_creation_time:.2f}ms > {MAX_AVG_CREATION_TIME}ms)')
+            sys.exit(1)
+        
+        if avg_usage_time > MAX_AVG_USAGE_TIME:
+            print(f'\\nFAIL: Mock usage too slow ({avg_usage_time:.2f}ms > {MAX_AVG_USAGE_TIME}ms)')
+            sys.exit(1)
+        
+        print(f'\\nPASS: All performance benchmarks met')
+        "
+
+    - name: Upload benchmark results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: mock-performance-benchmark
+        path: benchmark_results.txt
+        retention-days: 30

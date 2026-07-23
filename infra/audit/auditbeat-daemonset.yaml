@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: auditbeat
+  namespace: aiops
+  labels:
+    app: auditbeat
+spec:
+  selector:
+    matchLabels:
+      app: auditbeat
+  template:
+    metadata:
+      labels:
+        app: auditbeat
+    spec:
+      serviceAccountName: auditbeat
+      containers:
+      - name: auditbeat
+        image: docker.elastic.co/beats/auditbeat:8.10.0
+        args:
+        - "-c"
+        - "/etc/auditbeat.yml"
+        - "-e"
+        resources:
+          limits:
+            memory: 200Mi
+            cpu: 100m
+          requests:
+            memory: 100Mi
+            cpu: 50m
+        volumeMounts:
+        - name: config
+          mountPath: /etc/auditbeat.yml
+          subPath: auditbeat.yml
+        - name: auditd
+          mountPath: /var/log/audit
+          readOnly: true
+        - name: hostfs
+          mountPath: /hostfs
+          readOnly: true
+        - name: hostetc
+          mountPath: /host/etc
+          readOnly: true
+        - name: hostvar
+          mountPath: /host/var
+          readOnly: true
+        securityContext:
+          privileged: true
+          runAsUser: 0
+      volumes:
+      - name: config
+        configMap:
+          name: auditbeat-config
+      - name: auditd
+        hostPath:
+          path: /var/log/audit
+          type: Directory
+      - name: hostfs
+        hostPath:
+          path: /
+          type: Directory
+      - name: hostetc
+        hostPath:
+          path: /etc
+          type: Directory
+      - name: hostvar
+        hostPath:
+          path: /var
+          type: Directory
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auditbeat
+  namespace: aiops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: auditbeat
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - namespaces
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: auditbeat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: auditbeat
+subjects:
+- kind: ServiceAccount
+  name: auditbeat
+  namespace: aiops

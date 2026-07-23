@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-repository
+  labels:
+    app: github-repository
+spec:
+  selector:
+    app: github-repository
+  ports:
+    - name: http
+      port: 9554
+      targetPort: 9554
+  type: ClusterIP

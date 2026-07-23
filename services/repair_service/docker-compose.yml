@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  repair-orchestrator:
+    build:
+      context: ../..
+      dockerfile: services/repair_service/Dockerfile
+    command: ["uvicorn", "services.repair_service.orchestrator:app", "--host", "0.0.0.0", "--port", "9001"]
+    ports:
+      - "9001:9001"
+    environment:
+      - REPAIR_SERVICE_USE_IN_MEMORY=true
+      - REPAIR_SERVICE_ORCHESTRATOR_PORT=9001
+    depends_on:
+      - redis
+
+  repair-executor:
+    build:
+      context: ../..
+      dockerfile: services/repair_service/Dockerfile
+    command: ["uvicorn", "services.repair_service.executor:app", "--host", "0.0.0.0", "--port", "9002"]
+    ports:
+      - "9002:9002"
+    environment:
+      - REPAIR_SERVICE_USE_IN_MEMORY=true
+      - REPAIR_SERVICE_EXECUTOR_PORT=9002
+    depends_on:
+      - redis
+      - repair-orchestrator
+
+  repair-verifier:
+    build:
+      context: ../..
+      dockerfile: services/repair_service/Dockerfile
+    command: ["uvicorn", "services.repair_service.verifier:app", "--host", "0.0.0.0", "--port", "9003"]
+    ports:
+      - "9003:9003"
+    environment:
+      - REPAIR_SERVICE_USE_IN_MEMORY=true
+      - REPAIR_SERVICE_VERIFIER_PORT=9003
+    depends_on:
+      - redis
+      - repair-orchestrator
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - repair-orchestrator
+      - repair-executor
+      - repair-verifier

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aiops-agent.fullname" . }}-config
+  labels:
+    {{- include "aiops-agent.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.aiops.logLevel | quote }}
+  ENVIRONMENT: "production"
+  METRICS_ENABLED: {{ .Values.aiops.prometheus.enabled | quote }}
+  RATE_LIMIT_ENABLED: {{ .Values.security.rateLimiting.enabled | quote }}
+  ALERT_RULES_ENABLED: "true"
+  {{- if .Values.aiops.otel.enabled }}
+  OTEL_ENABLED: "true"
+  OTEL_ENDPOINT: {{ .Values.aiops.otel.endpoint | quote }}
+  {{- end }}
+  {{- if .Values.aiops.anomalyDetection.enabled }}
+  ANOMALY_DETECTION_ENABLED: "true"
+  ANOMALY_DETECTION_MODEL: {{ .Values.aiops.anomalyDetection.model | quote }}
+  ANOMALY_DETECTION_THRESHOLD: {{ .Values.aiops.anomalyDetection.threshold | quote }}
+  {{- end }}
+  {{- if .Values.aiops.autoHeal.enabled }}
+  AUTO_HEAL_ENABLED: "true"
+  AUTO_HEAL_MAX_RETRIES: {{ .Values.aiops.autoHeal.maxRetries | quote }}
+  {{- end }}
+  {{- if .Values.aiops.sampling.enabled }}
+  SAMPLING_ENABLED: "true"
+  SAMPLING_DEFAULT_RATE: {{ .Values.aiops.sampling.defaultRate | quote }}
+  SAMPLING_CRITICAL_RATE: {{ .Values.aiops.sampling.criticalRate | quote }}
+  {{- end }}

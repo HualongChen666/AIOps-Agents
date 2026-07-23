@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  velero-backup:
+    build:
+      context: ../..
+      dockerfile: services/velero_backup_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.velero_backup_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9543",
+    ]
+    ports:
+      - "9543:9543"
+    environment:
+      - VELERO_BACKUP_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9643:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - velero-backup

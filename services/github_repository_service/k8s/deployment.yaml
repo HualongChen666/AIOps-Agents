@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-repository
+  labels:
+    app: github-repository
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: github-repository
+  template:
+    metadata:
+      labels:
+        app: github-repository
+    spec:
+      containers:
+        - name: github-repository
+          image: github-repository:latest
+          ports:
+            - containerPort: 9554
+          env:
+            - name: GITHUB_REPOSITORY_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-repository
+spec:
+  selector:
+    app: github-repository
+  ports:
+    - port: 9554
+      targetPort: 9554
+  type: ClusterIP

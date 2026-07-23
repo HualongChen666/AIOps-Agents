@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: repair-saga-config
+data:
+  SAGA_ENABLED: "true"
+  SAGA_COMPENSATION_TIMEOUT: "60"

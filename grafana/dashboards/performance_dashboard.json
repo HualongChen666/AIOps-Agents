@@ -1,0 +1,197 @@
+{
+  "dashboard": {
+    "title": "AIOps Agent Performance Dashboard",
+    "uid": "aiops-performance",
+    "tags": ["aiops", "performance"],
+    "timezone": "browser",
+    "refresh": "1m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "API Response Time P95",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_api_response_time_p95_ms",
+            "legendFormat": "{{endpoint}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "API Throughput (QPS)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_api_throughput_qps",
+            "legendFormat": "{{endpoint}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Database Query Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_db_query_time_p95_ms",
+            "legendFormat": "{{table}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Database Connection Pool",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_db_pool_connections",
+            "legendFormat": "active"
+          },
+          {
+            "expr": "aiops_db_pool_idle",
+            "legendFormat": "idle"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "LLM Inference Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_llm_inference_time_p95_ms",
+            "legendFormat": "{{model}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 6,
+        "title": "AI Token Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_ai_token_usage_total",
+            "legendFormat": "{{model}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        }
+      },
+      {
+        "id": 7,
+        "title": "RAG End-to-End Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_rag_latency_p95_ms",
+            "legendFormat": "total"
+          },
+          {
+            "expr": "aiops_rag_retrieval_time_p95_ms",
+            "legendFormat": "retrieval"
+          },
+          {
+            "expr": "aiops_rag_generation_time_p95_ms",
+            "legendFormat": "generation"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        }
+      },
+      {
+        "id": 8,
+        "title": "Vector Search Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_vector_search_time_p95_ms",
+            "legendFormat": "{{collection}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        }
+      },
+      {
+        "id": 9,
+        "title": "Performance Regressions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "aiops_performance_regressions_total",
+            "legendFormat": "total"
+          },
+          {
+            "expr": "aiops_performance_regressions_critical",
+            "legendFormat": "critical"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 12,
+          "x": 0,
+          "y": 32
+        }
+      },
+      {
+        "id": 10,
+        "title": "AI Cost (USD)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "aiops_ai_cost_total_usd",
+            "legendFormat": "total"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 12,
+          "x": 12,
+          "y": 32
+        }
+      }
+    ]
+  }
+}

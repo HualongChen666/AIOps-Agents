@@ -1,0 +1,65 @@
+{
+  "mcpServers": {
+    "gitlab": {
+      "command": "C:\\Program Files\\Python312\\python.exe",
+      "args": [
+        "C:\\Users\\Hualong_Chen\\AppData\\Roaming\\devin\\mcp-gitlab-launcher.py"
+      ],
+      "env": {
+        "GITLAB_PERSONAL_ACCESS_TOKEN": "",
+        "GITLAB_API_URL": "https://gitlab.dell.com/api/v4"
+      }
+    },
+    "filesystem": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\AIOps_Agent_bak"
+      ],
+      "env": {}
+    },
+    "postgres": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://localhost:5432/aiops"
+      ],
+      "env": {}
+    }
+  },
+  "project": {
+    "name": "AIOps Agent",
+    "directory": "C:\\AIOps_Agent_bak",
+    "language": "python",
+    "framework": "fastapi"
+  },
+  "security": {
+    "gitlab_upload_control": {
+      "enabled": true,
+      "deny_all_uploads_without_command": true,
+      "allowed_command_pattern": "将某一个目录(含目录中的子目录和文件)或者某一个/几个文件(具体文件名)上传到我的gitlab中"
+    }
+  },
+  "permissions": {
+    "allow": [
+      "mcp__gitlab__read_*",
+      "mcp__gitlab__search_*",
+      "mcp__filesystem__*",
+      "mcp__postgres__read_query",
+      "mcp__postgres__execute_sql"
+    ],
+    "ask": [
+      "mcp__gitlab__write_*",
+      "mcp__gitlab__push",
+      "mcp__gitlab__commit",
+      "mcp__gitlab__upload",
+      "mcp__postgres__write_query"
+    ],
+    "deny": [
+      "mcp__gitlab__push_without_command",
+      "mcp__gitlab__upload_without_command"
+    ]
+  }
+}

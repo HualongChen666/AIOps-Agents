@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "repair-orchestrator"
+    static_configs:
+      - targets: ["repair-orchestrator:9001"]
+    metrics_path: /metrics
+
+  - job_name: "repair-executor"
+    static_configs:
+      - targets: ["repair-executor:9002"]
+    metrics_path: /metrics
+
+  - job_name: "repair-verifier"
+    static_configs:
+      - targets: ["repair-verifier:9003"]
+    metrics_path: /metrics

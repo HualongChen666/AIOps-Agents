@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: scenario-memory-service
+  labels:
+    app: scenario-memory-service
+spec:
+  type: ClusterIP
+  selector:
+    app: scenario-memory-service
+  ports:
+    - port: 80
+      targetPort: 9408
+      name: http

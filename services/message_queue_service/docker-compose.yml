@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  message-queue:
+    build:
+      context: ../..
+      dockerfile: services/message_queue_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.message_queue_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9523",
+    ]
+    ports:
+      - "9523:9523"
+    environment:
+      - MESSAGE_QUEUE_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9623:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - message-queue

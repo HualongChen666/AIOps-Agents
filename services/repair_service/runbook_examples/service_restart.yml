@@ -1,0 +1,13 @@
+runbook_id: service_restart
+name: Service Restart Repair
+description: Restart failed or hung services
+platform: linux
+risk_level: high
+params:
+  service_name: nginx
+steps:
+  - name: restart_service
+    command: "systemctl restart {service_name}"
+    timeout_seconds: 30
+    rollback_command: "systemctl stop {service_name}"
+    verify_command: "systemctl is-active {service_name}"

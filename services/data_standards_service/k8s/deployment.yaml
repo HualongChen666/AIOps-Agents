@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-standards
+  labels:
+    app: data-standards
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: data-standards
+  template:
+    metadata:
+      labels:
+        app: data-standards
+    spec:
+      containers:
+        - name: data-standards
+          image: data-standards:latest
+          ports:
+            - containerPort: 9559
+          env:
+            - name: DATA_STANDARDS_SERVICE_REDIS_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-standards
+spec:
+  selector:
+    app: data-standards
+  ports:
+    - port: 9559
+      targetPort: 9559
+  type: ClusterIP

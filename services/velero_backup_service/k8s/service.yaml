@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: velero-backup
+  labels:
+    app: velero-backup
+spec:
+  selector:
+    app: velero-backup
+  ports:
+    - name: http
+      port: 9543
+      targetPort: 9543
+  type: ClusterIP

@@ -1,0 +1,88 @@
+name: auto_remediation
+description: Auto-remediation workflow for common infrastructure issues
+
+nodes:
+  - id: detect_issue
+    name: Detect Issue
+    type: task
+    config:
+      timeout: 30
+      max_retries: 2
+    dependencies: []
+
+  - id: classify_issue
+    name: Classify Issue Type
+    type: task
+    config:
+      timeout: 30
+      max_retries: 2
+    dependencies: [detect_issue]
+
+  - id: check_impact
+    name: Check Impact
+    type: task
+    config:
+      timeout: 30
+      max_retries: 2
+    dependencies: [classify_issue]
+
+  - id: select_remediation
+    name: Select Remediation Strategy
+    type: task
+    config:
+      timeout: 30
+      max_retries: 2
+    dependencies: [check_impact]
+
+  - id: request_approval
+    name: Request Approval
+    type: task
+    config:
+      timeout: 60
+      max_retries: 3
+    dependencies: [select_remediation]
+
+  - id: execute_remediation
+    name: Execute Remediation
+    type: task
+    config:
+      timeout: 300
+      max_retries: 2
+    dependencies: [request_approval]
+
+  - id: verify_resolution
+    name: Verify Resolution
+    type: task
+    config:
+      timeout: 120
+      max_retries: 3
+    dependencies: [execute_remediation]
+
+  - id: document_action
+    name: Document Action
+    type: task
+    config:
+      timeout: 30
+      max_retries: 2
+    dependencies: [verify_resolution]
+
+edges:
+  - from: detect_issue
+    to: classify_issue
+  - from: classify_issue
+    to: check_impact
+  - from: check_impact
+    to: select_remediation
+  - from: select_remediation
+    to: request_approval
+    condition: high_risk
+  - from: select_remediation
+    to: execute_remediation
+    condition: low_risk
+  - from: request_approval
+    to: execute_remediation
+    condition: approved
+  - from: execute_remediation
+    to: verify_resolution
+  - from: verify_resolution
+    to: document_action

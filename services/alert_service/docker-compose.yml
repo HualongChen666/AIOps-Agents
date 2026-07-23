@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  alert-collector:
+    build:
+      context: ../..
+      dockerfile: services/alert_service/Dockerfile
+    command: ["uvicorn", "services.alert_service.collector:app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    environment:
+      - ALERT_SERVICE_USE_IN_MEMORY=true
+      - ALERT_SERVICE_COLLECTOR_PORT=8001
+    depends_on:
+      - redis
+
+  alert-processor:
+    build:
+      context: ../..
+      dockerfile: services/alert_service/Dockerfile
+    command: ["uvicorn", "services.alert_service.processor:app", "--host", "0.0.0.0", "--port", "8002"]
+    ports:
+      - "8002:8002"
+    environment:
+      - ALERT_SERVICE_USE_IN_MEMORY=true
+      - ALERT_SERVICE_PROCESSOR_PORT=8002
+      - ALERT_SERVICE_AGGREGATOR_WINDOW_SECONDS=5
+    depends_on:
+      - redis
+      - alert-collector
+
+  alert-notifier:
+    build:
+      context: ../..
+      dockerfile: services/alert_service/Dockerfile
+    command: ["uvicorn", "services.alert_service.notifier:app", "--host", "0.0.0.0", "--port", "8003"]
+    ports:
+      - "8003:8003"
+    environment:
+      - NOTIFY_MIN_LEVEL=warning
+    depends_on:
+      - redis
+      - alert-processor
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - alert-collector
+      - alert-processor
+      - alert-notifier

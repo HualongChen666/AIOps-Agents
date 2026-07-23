@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  chaos-mesh:
+    build:
+      context: ../..
+      dockerfile: services/chaos_mesh_service/Dockerfile
+    command: [
+      "uvicorn",
+      "services.chaos_mesh_service.main_app:app",
+      "--host", "0.0.0.0",
+      "--port", "9546",
+    ]
+    ports:
+      - "9546:9546"
+    environment:
+      - CHAOS_MESH_SERVICE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9646:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - chaos-mesh
