@@ -94,3 +94,6 @@ ai_api.env
 bandit_*.txt
 flake8_full.txt
 static/indexbackup
+.coverage.*
+test
+
