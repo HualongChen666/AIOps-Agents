@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import json
 import os
 import re
@@ -68,8 +69,12 @@ def gather_file_facts(svc: str) -> dict:
     facts = {
         "service_path": str(svc_path),
         "test_path": str(test_path),
-        "files": sorted(p.name for p in svc_path.iterdir() if p.is_file()) if svc_path.exists() else [],
-        "test_files": sorted(p.name for p in test_path.iterdir() if p.is_file()) if test_path.exists() else [],
+        "files": (
+            sorted(p.name for p in svc_path.iterdir() if p.is_file()) if svc_path.exists() else []
+        ),
+        "test_files": (
+            sorted(p.name for p in test_path.iterdir() if p.is_file()) if test_path.exists() else []
+        ),
         "has_readme": (svc_path / "README.md").exists(),
         "has_dockerfile": (svc_path / "Dockerfile").exists(),
         "has_requirements": (svc_path / "requirements.txt").exists(),
@@ -90,7 +95,8 @@ def gather_file_facts(svc: str) -> dict:
         facts["python_files"] += 1
         try:
             text = py.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             continue
         facts["pass_lines"] += text.count("pass")
         facts["notimplemented_lines"] += text.count("NotImplementedError")
@@ -314,9 +320,10 @@ def render_markdown(results: list[dict]) -> str:
         lines.append(
             f"- **证据**：服务目录 `{files['service_path']}` 存在；Python 文件 {files['python_files']} 个；"
         )
-        lines.append(
-            f"`NotImplementedError` {files['notimplemented_lines']} 处；`TODO`/`FIXME` {files['todo_lines']} 处；`pass` 桩 {files['pass_lines']} 处。\n\n"
-        )
+        lines.append(f"`NotImplementedError` {
+                files['notimplemented_lines']} 处；`TODO`/`FIXME` {
+                files['todo_lines']} 处；`pass` 桩 {
+                files['pass_lines']} 处。\n\n")
 
         # 2. 功能与功能完成度
         lines.append("#### 2. 功能与功能完成度\n")
@@ -324,9 +331,10 @@ def render_markdown(results: list[dict]) -> str:
         lines.append(
             f"- **证据**：`{svc}/` 下包含 {files['files']}；公共方法/async 函数共 {m['async_defs']} 个；"
         )
-        lines.append(
-            f"包含 `asyncio.gather` 并行调用 {m['gather_calls']} 处；缓存/重试类 {m['cache_classes'] + m['retry_classes']} 个。\n\n"
-        )
+        lines.append(f"包含 `asyncio.gather` 并行调用 {
+                m['gather_calls']} 处；缓存/重试类 {
+                m['cache_classes'] +
+                m['retry_classes']} 个。\n\n")
 
         # 3. 测试覆盖率与通过率
         lines.append("#### 3. 测试覆盖率与通过率\n")
@@ -335,39 +343,40 @@ def render_markdown(results: list[dict]) -> str:
         )
         lines.append("- **证据**:\n")
         lines.append(f"  - pytest 命令：`{r['pytest']['cmd']}`\n")
-        lines.append(
-            f"  - 结果：`{pt.get('passed') or '?'} passed, {pt.get('failed') or 0} failed, {pt.get('skipped') or 0} skipped in {pt.get('duration') or '?'}s`\n"
-        )
+        lines.append(f"  - 结果：`{
+                pt.get('passed') or '?'} passed, {
+                pt.get('failed') or 0} failed, {
+                pt.get('skipped') or 0} skipped in {
+                pt.get('duration') or '?'}s`\n")
         lines.append(f"  - bandit：低/中/高危 = {bnd['low']}/{bnd['medium']}/{bnd['high']}\n\n")
 
         # 4. 函数与接口
         lines.append("#### 4. 函数与接口\n")
         lines.append("- **结论**：通过\n")
-        lines.append(
-            f"- **证据**：使用 Pydantic v2 模型 {m['pydantic_base_model']} 个；`model_dump()` 调用 {m['model_dump_calls']} 次；"
-        )
-        lines.append(
-            f"`from __future__ import annotations` {'已启用' if m['future_annotations'] else '未启用'}。\n\n"
-        )
+        lines.append(f"- **证据**：使用 Pydantic v2 模型 {
+                m['pydantic_base_model']} 个；`model_dump()` 调用 {
+                m['model_dump_calls']} 次；")
+        lines.append(f"`from __future__ import annotations` {
+                '已启用' if m['future_annotations'] else '未启用'}。\n\n")
 
         # 5. 代码编写规范
         lines.append("#### 5. 代码编写规范\n")
         lines.append(
-            f"- **结论**：black={'通过' if r['black']['returncode']==0 else '失败'}；"
-            f"isort={'通过' if r['isort']['returncode']==0 else '失败'}；"
-            f"flake8={'通过' if r['flake8']['returncode']==0 else '失败'}；"
-            f"mypy={'通过' if r['mypy']['returncode']==0 else '失败'}\n"
+            f"- **结论**：black={'通过' if r['black']['returncode'] == 0 else '失败'}；"
+            f"isort={'通过' if r['isort']['returncode'] == 0 else '失败'}；"
+            f"flake8={'通过' if r['flake8']['returncode'] == 0 else '失败'}；"
+            f"mypy={'通过' if r['mypy']['returncode'] == 0 else '失败'}\n"
         )
         lines.append(f"- **证据**：\n")
-        lines.append(
-            f"  - black: exit={r['black']['returncode']}, stderr={r['black']['stderr'].strip() or 'OK'}\n"
-        )
-        lines.append(
-            f"  - isort: exit={r['isort']['returncode']}, stdout={r['isort']['stdout'].strip() or 'OK'}\n"
-        )
-        lines.append(
-            f"  - flake8: exit={r['flake8']['returncode']}, stdout={r['flake8']['stdout'].strip() or 'OK'}\n"
-        )
+        lines.append(f"  - black: exit={
+                r['black']['returncode']}, stderr={
+                r['black']['stderr'].strip() or 'OK'}\n")
+        lines.append(f"  - isort: exit={
+                r['isort']['returncode']}, stdout={
+                r['isort']['stdout'].strip() or 'OK'}\n")
+        lines.append(f"  - flake8: exit={
+                r['flake8']['returncode']}, stdout={
+                r['flake8']['stdout'].strip() or 'OK'}\n")
         lines.append(
             f"  - mypy: exit={r['mypy']['returncode']}, stdout={r['mypy']['stdout'].strip()[:200]}\n\n"
         )
@@ -377,13 +386,15 @@ def render_markdown(results: list[dict]) -> str:
         lines.append(
             f"- **结论**：{'通过' if bnd['medium'] == 0 and bnd['high'] == 0 else '未通过'}\n"
         )
-        lines.append(
-            f"- **证据**：`bandit -r services/{svc} -f txt` 输出：低危 {bnd['low']}，中危 {bnd['medium']}，高危 {bnd['high']}。\n"
-        )
+        lines.append(f"- **证据**：`bandit -r services/{svc} -f txt` 输出：低危 {
+                bnd['low']}，中危 {
+                bnd['medium']}，高危 {
+                bnd['high']}。\n")
         if m["random_insecure"] or m["md5_insecure"] or m["assert_count"]:
-            lines.append(
-                f"  - 原始风险计数：不安全的 random {m['random_insecure']}，未标记 MD5 {m['md5_insecure']}，assert {m['assert_count']}（已修复后应变为 0）。\n"
-            )
+            lines.append(f"  - 原始风险计数：不安全的 random {
+                    m['random_insecure']}，未标记 MD5 {
+                    m['md5_insecure']}，assert {
+                    m['assert_count']}（已修复后应变为 0）。\n")
         lines.append("\n")
 
         # 7. 性能
@@ -399,15 +410,19 @@ def render_markdown(results: list[dict]) -> str:
         # 8. 集成
         lines.append("#### 8. 集成\n")
         lines.append("- **结论**：通过\n")
-        lines.append(
-            f"- **证据**：Dockerfile={files['has_dockerfile']}; k8s YAML={files['has_k8s']}; Prometheus={files['has_prometheus']}; README={files['has_readme']}; requirements.txt={files['has_requirements']}。\n\n"
-        )
+        lines.append(f"- **证据**：Dockerfile={
+                files['has_dockerfile']}; k8s YAML={
+                files['has_k8s']}; Prometheus={
+                files['has_prometheus']}; README={
+                files['has_readme']}; requirements.txt={
+                    files['has_requirements']}。\n\n")
 
         # 9. 依赖
         lines.append("#### 9. 依赖\n")
         lines.append("- **结论**：通过\n")
         lines.append(
-            f"- **证据**：服务代码仅使用项目统一依赖（见 `pyproject.toml` / `requirements.txt`），未引入私有/未声明依赖；服务目录 requirements.txt 存在={files['has_requirements']}。\n\n"
+            f"- **证据**：服务代码仅使用项目统一依赖（见 `pyproject.toml` / `requirements.txt`），未引入私有/未声明依赖；服务目录 requirements.txt 存在={
+                files['has_requirements']}。\n\n"
         )
 
         # 10. 兼容性
@@ -430,19 +445,20 @@ def render_markdown(results: list[dict]) -> str:
         # 12. 可观测性
         lines.append("#### 12. 可观测性\n")
         lines.append("- **结论**：通过\n")
-        lines.append(
-            f"- **证据**：`loguru` logger 调用 {m['logger_calls']} 次；Prometheus metrics 调用 {m['metrics_calls']} 次；"
-        )
-        lines.append(
-            f"/health 端点 {m['health_endpoints']} 个；/metrics 端点 {m['prometheus_metrics']} 个；无 `print` 调用（{m['print_calls']} 次）。\n\n"
-        )
+        lines.append(f"- **证据**：`loguru` logger 调用 {
+                m['logger_calls']} 次；Prometheus metrics 调用 {
+                m['metrics_calls']} 次；")
+        lines.append(f"/health 端点 {
+                m['health_endpoints']} 个；/metrics 端点 {
+                m['prometheus_metrics']} 个；无 `print` 调用（{
+                m['print_calls']} 次）。\n\n")
 
         # 13. 幂等性与并发安全
         lines.append("#### 13. 幂等性与并发安全\n")
         lines.append("- **结论**：通过\n")
-        lines.append(
-            f"- **证据**：`uuid.uuid4()` 生成幂等键 {m['uuid_usages']} 处；`asyncio.Lock()` 锁 {m['lock_usages']} 处；"
-        )
+        lines.append(f"- **证据**：`uuid.uuid4()` 生成幂等键 {
+                m['uuid_usages']} 处；`asyncio.Lock()` 锁 {
+                m['lock_usages']} 处；")
         lines.append(
             f"事务/begin 调用 {m['transaction_usages']} 处；异步操作幂等键或事务边界清晰。\n\n"
         )

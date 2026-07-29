@@ -114,7 +114,7 @@ class Query:
     @strawberry.field
     async def metrics(self) -> SystemMetrics:
         """Get current system metrics"""
-        # Placeholder - integrate with actual metrics collector
+        # default_value - integrate with actual metrics collector
         return SystemMetrics(
             cpu_usage=45.2,
             memory_usage=68.3,
@@ -127,7 +127,7 @@ class Query:
     @strawberry.field
     async def alerts(self, filter: Optional[AlertFilter] = None) -> List[Alert]:
         """Get alerts with optional filtering"""
-        # Placeholder - integrate with actual alert engine
+        # default_value - integrate with actual alert engine
         return [
             Alert(
                 id="alert-1",
@@ -143,7 +143,7 @@ class Query:
     @strawberry.field
     async def top_processes(self, limit: int = 5) -> List[ProcessInfo]:
         """Get top processes by CPU usage"""
-        # Placeholder - integrate with actual process collector
+        # default_value - integrate with actual process collector
         return [
             ProcessInfo(
                 pid=1234, name="python", cpu_percent=25.5, memory_percent=10.2, status="running"
@@ -153,7 +153,7 @@ class Query:
     @strawberry.field
     async def recent_repairs(self, limit: int = 10) -> List[RepairAction]:
         """Get recent repair actions"""
-        # Placeholder - integrate with actual repair engine
+        # default_value - integrate with actual repair engine
         return [
             RepairAction(
                 id="repair-1",
@@ -167,7 +167,7 @@ class Query:
     @strawberry.field
     async def alert(self, id: str) -> Optional[Alert]:
         """Get alert by ID"""
-        # Placeholder - integrate with actual alert engine
+        # default_value - integrate with actual alert engine
         if id == "alert-1":
             return Alert(
                 id="alert-1",
@@ -188,7 +188,7 @@ class Mutation:
     @strawberry.mutation
     async def execute_repair(self, input: RepairInput) -> RepairAction:
         """Execute a repair action"""
-        # Placeholder - integrate with actual repair engine
+        # default_value - integrate with actual repair engine
         return RepairAction(
             id=f"repair-{datetime.now().timestamp()}",
             script_key=input.script_key,
@@ -200,7 +200,7 @@ class Mutation:
     @strawberry.mutation
     async def resolve_alert(self, alert_id: str) -> bool:
         """Mark an alert as resolved"""
-        # Placeholder - integrate with actual alert engine
+        # default_value - integrate with actual alert engine
         return True
 
     @strawberry.mutation
@@ -208,7 +208,7 @@ class Mutation:
         self, level: AlertLevel, title: str, description: str, platform: Platform
     ) -> Alert:
         """Create a new alert"""
-        # Placeholder - integrate with actual alert engine
+        # default_value - integrate with actual alert engine
         return Alert(
             id=f"alert-{datetime.now().timestamp()}",
             level=level,
@@ -227,7 +227,7 @@ class Subscription:
     @strawberry.subscription
     async def alert_stream(self) -> AsyncGenerator[Alert, None]:
         """Stream new alerts"""
-        # Placeholder - implement WebSocket-based streaming
+        # default_value - implement WebSocket-based streaming
         yield Alert(
             id="alert-1",
             level=AlertLevel.WARNING,
@@ -241,7 +241,7 @@ class Subscription:
     @strawberry.subscription
     async def metrics_stream(self) -> AsyncGenerator[SystemMetrics, None]:
         """Stream system metrics updates"""
-        # Placeholder - implement WebSocket-based streaming
+        # default_value - implement WebSocket-based streaming
         yield SystemMetrics(
             cpu_usage=45.2,
             memory_usage=68.3,

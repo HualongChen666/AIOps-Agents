@@ -323,6 +323,8 @@ async def notify_health() -> dict[str, Any]:
                 "dingtalk": bool(cfg.get("dingtalk_webhook")),
                 "feishu": bool(cfg.get("feishu_webhook")),
                 "email": bool(cfg.get("email_webhook")),
+                "phone": bool(cfg.get("phone_provider")),
+                "sms": bool(cfg.get("sms_provider")),
             },
             "configured_count": sum(
                 [
@@ -330,8 +332,66 @@ async def notify_health() -> dict[str, Any]:
                     bool(cfg.get("dingtalk_webhook")),
                     bool(cfg.get("feishu_webhook")),
                     bool(cfg.get("email_webhook")),
+                    bool(cfg.get("phone_provider")),
+                    bool(cfg.get("sms_provider")),
                 ]
             ),
         }
     except Exception as e:
         return {"module_loaded": False, "error": str(e)[:200]}
+
+
+@router.get("/status", summary="查询通知发送/送达/已读状态")
+async def get_notification_status(
+    alert_id: str = "",
+    fingerprint: str = "",
+    channel: str = "",
+    limit: int = 100,
+) -> dict[str, Any]:
+    """查询通知历史状态，支持按 alert_id/fingerprint/channel 过滤"""
+    try:
+        records = _notify_engine.get_notification_status(
+            alert_id=alert_id or None,
+            fingerprint=fingerprint or None,
+            channel=channel or None,
+            limit=limit,
+        )
+        return {"status": "ok", "count": len(records), "records": records}
+    except Exception as e:
+        logger.error(f"查询通知状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)[:200])
+
+
+@router.post("/read", summary="标记通知为已读")
+async def mark_notification_read(payload: dict[str, Any]) -> dict[str, Any]:
+    """标记指定 message_id 在某渠道上的通知为已读"""
+    message_id = payload.get("message_id", "")
+    channel = payload.get("channel", "")
+    if not message_id or not channel:
+        raise HTTPException(status_code=422, detail="message_id and channel are required")
+    updated = _notify_engine.mark_notification_read(message_id, channel)
+    return {"status": "ok" if updated else "not_found", "updated": updated}
+
+
+@router.get("/oncall", summary="查询当前 oncall 值班人")
+async def get_oncall(
+    category: str = "",
+    service: str = "",
+    team: str = "",
+) -> dict[str, Any]:
+    """根据 category/service/team 查询 oncall 排班"""
+    try:
+        adapter = _notify_engine.get_oncall_adapter()
+        contacts = await adapter.lookup(
+            category=category,
+            service=service,
+            team=team,
+        )
+        return {
+            "status": "ok",
+            "count": len(contacts),
+            "contacts": [c.__dict__ for c in contacts],
+        }
+    except Exception as e:
+        logger.error(f"查询 oncall 失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)[:200])

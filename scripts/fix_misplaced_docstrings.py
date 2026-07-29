@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import pathlib
 import re
 
@@ -11,24 +12,25 @@ still_errors = []
 for py_path in root.rglob("*.py"):
     try:
         text = py_path.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         continue
     lines = text.splitlines()
     new_lines = []
     i = 0
     while i < len(lines):
         line = lines[i]
-        # Detect misplaced placeholder inside function signature
-        # (line ends without colon and next line is placeholder)
+        # Detect misplaced default_value inside function signature
+        # (line ends without colon and next line is default_value)
         if (
             line.rstrip().endswith("(")
             and i + 1 < len(lines)
             and placeholder_re.fullmatch(lines[i + 1].strip())
         ):
-            # Skip placeholder line
+            # Skip default_value line
             i += 2
             continue
-        # Detect placeholder line alone
+        # Detect default_value line alone
         if placeholder_re.fullmatch(line.strip()):
             i += 1
             continue

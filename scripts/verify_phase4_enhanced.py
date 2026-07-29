@@ -112,9 +112,7 @@ def main() -> int:
             )
             log.write(f"isort rc={isort_rc}\n{isort_err}{isort_out}\n")
 
-            flake8_rc, flake8_out, flake8_err = run(
-                [PYTHON, "-m", "flake8", str(sdir), str(tdir)]
-            )
+            flake8_rc, flake8_out, flake8_err = run([PYTHON, "-m", "flake8", str(sdir), str(tdir)])
             log.write(f"flake8 rc={flake8_rc}\n{flake8_out}{flake8_err}\n")
 
             mypy_rc, mypy_out, mypy_err = run(
@@ -122,14 +120,12 @@ def main() -> int:
             )
             log.write(f"mypy rc={mypy_rc}\n{mypy_out}{mypy_err}\n")
 
-            bandit_rc, bandit_out, bandit_err = run(
-                [PYTHON, "-m", "bandit", "-r", str(sdir)]
-            )
+            bandit_rc, bandit_out, bandit_err = run([PYTHON, "-m", "bandit", "-r", str(sdir)])
             log.write(f"bandit rc={bandit_rc}\n{bandit_out}{bandit_err}\n")
 
             rc_file = cov_dir / f"coverage_{service}_enhanced.ini"
             rc_file.write_text(
-                f"[run]\nsource = services/{service}\nbranch = True\n[report]\nshow_missing = False\n",
+                f"[run]\nsource = services/{service}\nbranch = True\n[report]\nshow_missing = False\n",  # noqa: E501
                 encoding="utf-8",
             )
             cov_data = cov_dir / f".coverage_{service}_enhanced"

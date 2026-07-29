@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import requests
+
 YOUR_CONVERSATION_ID = ""
 conversation_id = "YOUR_CONVERSATION_ID"
-import requests
 
 # 示例：GET /conversation/{conversation_id}
 # 使用 GET 方法请求 /conversation/{conversation_id}

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Add placeholder response examples for any FastAPI endpoint lacking them.
+"""Add default_value response examples for any FastAPI endpoint lacking them.
 This script parses router files to collect all (path, method) pairs, then loads
 openapi.yaml and ensures each endpoint has a 200 response example. If an
 example already exists, it is left unchanged; otherwise a generic example is
@@ -53,7 +53,7 @@ def ensure_examples(spec, routes):
             resp200.setdefault("description", "Successful response")
             resp200.setdefault("content", {})
             resp200["content"].setdefault("application/json", {})
-            # If no example, add placeholder
+            # If no example, add default_value
             if "example" not in resp200["content"]["application/json"]:
                 resp200["content"]["application/json"]["example"] = {"message": "success"}
     return spec

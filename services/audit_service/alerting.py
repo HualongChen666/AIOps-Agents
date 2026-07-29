@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, List
 
 from services.audit_service.repository import AuditRepository
@@ -101,8 +102,11 @@ class AlertingEngine:
             return False
         local_ctx = {"severity": event.severity, "action": event.action}
         try:
-            return bool(eval(rule.condition, {"__builtins__": {}}, local_ctx))  # noqa: S307
-        except Exception:
+            return bool(
+                eval(rule.condition, {"__builtins__": {}}, local_ctx)  # nosec B307  # noqa: E501
+            )  # noqa: S307
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             return False
 
     async def add_rule(self, rule: AlertRule) -> None:

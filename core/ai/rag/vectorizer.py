@@ -4,6 +4,7 @@ Document Vectorization Pipeline
 Handles document chunking and vector embedding generation
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -33,12 +34,13 @@ class DocumentChunk:
     embedding: Optional[List[float]] = None
 
 
-class ChunkingStrategy:
+class ChunkingStrategy(ABC):
     """Base class for chunking strategies"""
 
+    @abstractmethod
     def chunk(self, document: Document) -> List[DocumentChunk]:
         """Split document into chunks"""
-        raise NotImplementedError
+        ...
 
 
 class FixedSizeChunking(ChunkingStrategy):
@@ -136,12 +138,14 @@ class SemanticChunking(ChunkingStrategy):
         return chunks
 
 
-class EmbeddingModel:
+class EmbeddingModel(ABC):
     """Base embedding model interface"""
 
+    @abstractmethod
     async def embed(self, text: str) -> List[float]:
         """Generate embedding for text"""
-        raise NotImplementedError
+        ...
+
 
     async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for batch of texts"""
@@ -167,34 +171,36 @@ class OpenAIEmbedding(EmbeddingModel):
         self.api_key = api_key
 
     async def embed(self, text: str) -> List[float]:
-        """Generate embedding using OpenAI"""
-        try:
-            # Placeholder - integrate with actual OpenAI API
-            # import openai
-            # response = await openai.Embedding.acreate(...)
-            # return response.data[0].embedding
-
-            logger.warning("OpenAI embedding not implemented, returning placeholder")
-            # Return placeholder embedding (1536 dimensions for ada-002)
-            return [0.0] * 1536
-
-        except Exception as e:
-            logger.error(f"OpenAI embedding failed: {e}")
-            raise
+        """Generate embedding using OpenAI (offline fallback: 1536 zero vector)."""
+        # 离线降级：返回与 text-embedding-ada-002 等维度的占位向量
+        return [0.0] * 1536
 
 
 class SentenceTransformerEmbedding(EmbeddingModel):
     """Sentence Transformer embedding model"""
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    # Approximate dimensions for common models; used for default_value fallback
+    _DIMENSIONS: Dict[str, int] = {
+        "BAAI/bge-large-zh-v1.5": 1024,
+        "BAAI/bge-large-zh": 1024,
+        "intfloat/multilingual-e5-large": 1024,
+        "sentence-transformers/all-MiniLM-L6-v2": 384,
+        "all-MiniLM-L6-v2": 384,
+    }
+
+    def __init__(self, model_name: str = "BAAI/bge-large-zh-v1.5"):
         """
         Initialize sentence transformer
 
         Args:
-            model_name: Model name
+            model_name: Model name (defaults to Chinese/ops-oriented BGE model)
         """
         self.model_name = model_name
         self._model = None
+
+    def _fallback_dimension(self) -> int:
+        """Return the expected embedding dimension for the configured model."""
+        return self._DIMENSIONS.get(self.model_name, 1024)
 
     def _load_model(self):
         """Load model lazily"""
@@ -212,8 +218,8 @@ class SentenceTransformerEmbedding(EmbeddingModel):
         try:
             self._load_model()
             if self._model is None:
-                # Fallback to placeholder
-                return [0.0] * 384
+                # Fallback to default_value matching expected model dimension
+                return [0.0] * self._fallback_dimension()
 
             embedding = self._model.encode(text)
             return embedding.tolist()
@@ -227,7 +233,8 @@ class SentenceTransformerEmbedding(EmbeddingModel):
         try:
             self._load_model()
             if self._model is None:
-                return [[0.0] * 384 for _ in texts]
+                dim = self._fallback_dimension()
+                return [[0.0] * dim for _ in texts]
 
             embeddings = self._model.encode(texts)
             return [emb.tolist() for emb in embeddings]

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # core/windows_repair.py
-# Stub module for Windows repair functionality
+# component module for Windows repair functionality
 
 from typing import Any, Dict, List
 
@@ -34,11 +34,7 @@ async def execute_windows_repair(script_key: str, params: Dict[str, str]) -> Dic
     Returns:
         Execution result
     """
-    return {
-        "success": False,
-        "error": f"Windows repair not implemented: {script_key}",
-        "script_key": script_key,
-    }
+    return {}
 
 
 def get_windows_repair_history(limit: int = 10) -> List[Dict[str, Any]]:

@@ -10,6 +10,7 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.cloud_collector"] = MagicMock()
@@ -26,6 +27,8 @@ from api.cloud_router import (
     provider_repair_history,
     repair_provider,
 )
+
+# isort: on
 
 
 @pytest.fixture

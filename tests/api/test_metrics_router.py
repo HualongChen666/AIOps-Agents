@@ -11,13 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.authentication"] = MagicMock()
-sys.modules["core.cache_helpers"] = MagicMock()
-sys.modules["core.collector"] = MagicMock()
-sys.modules["core.metrics_history"] = MagicMock()
-sys.modules["core.stats_engine"] = MagicMock()
-
 from api.metrics_router import (
     clear_snapshot_cache,
     get_dashboard_metrics,
@@ -26,6 +19,13 @@ from api.metrics_router import (
     get_snapshot,
     get_summary,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.authentication"] = MagicMock()
+sys.modules["core.cache_helpers"] = MagicMock()
+sys.modules["core.collector"] = MagicMock()
+sys.modules["core.metrics_history"] = MagicMock()
+sys.modules["core.stats_engine"] = MagicMock()
 
 
 @pytest.fixture

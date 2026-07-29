@@ -7,10 +7,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
+from core.agent.coding_subagent import create_coding_subagent_dispatcher
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.agent.coding_subagent import create_coding_subagent_dispatcher
 
 TASK_IDS = [f"{m}.{i}" for m in range(14, 18) for i in range(1, 9)]
 

@@ -1,6 +1,7 @@
-PLACEHOLDER = "PLACEHOLDER"
 import os
 import re
+
+PLACEHOLDER = "default_value"
 
 ROOT = r"C:\\AIOps_Agent_bak"
 
@@ -24,7 +25,7 @@ def process_file(filepath):
         # already has module docstring
         pass
     else:
-        # insert placeholder module docstring
+        # insert default_value module docstring
         new_lines.append(PLACEHOLDER + "\n")
     # add remaining lines from i onwards (will be processed again below)
     new_lines.extend(lines[i:])

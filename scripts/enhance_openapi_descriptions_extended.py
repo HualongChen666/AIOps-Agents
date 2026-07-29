@@ -100,7 +100,7 @@ def enhance():
             if changed:
                 details["x-codeSamples"] = samples
                 enhanced += 1
-            # add notes placeholder if missing
+            # add notes default_value if missing
             if "x-notes" not in details:
                 details["x-notes"] = "注意事项: 暂无特殊限制。"
                 enhanced += 1

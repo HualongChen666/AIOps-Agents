@@ -8,12 +8,12 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+import api.workflow_router as workflow_router
+from api.workflow_router import get_concurrent_status, list_workflows
+
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.workflow_engine"] = MagicMock()
-
-import api.workflow_router as workflow_router
-from api.workflow_router import get_concurrent_status, list_workflows
 
 
 @pytest.fixture

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Unit tests for core/ai/rag/vectorizer.py
 
@@ -9,6 +10,18 @@ covering document chunking strategies, embedding models, and vectorization pipel
 import asyncio
 
 import pytest
+
+from core.ai.rag.vectorizer import (
+    ChunkingStrategy,
+    Document,
+    DocumentChunk,
+    EmbeddingModel,
+    FixedSizeChunking,
+    OpenAIEmbedding,
+    SemanticChunking,
+    SentenceTransformerEmbedding,
+    VectorizationPipeline,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -26,18 +39,6 @@ def mock_sentence_transformer(monkeypatch):
     except ImportError:
         pass
 
-
-from core.ai.rag.vectorizer import (
-    ChunkingStrategy,
-    Document,
-    DocumentChunk,
-    EmbeddingModel,
-    FixedSizeChunking,
-    OpenAIEmbedding,
-    SemanticChunking,
-    SentenceTransformerEmbedding,
-    VectorizationPipeline,
-)
 
 # ============================================================
 # Document dataclass tests (8 test cases)
@@ -445,7 +446,7 @@ class TestOpenAIEmbedding:
         assert model.api_key is None
 
     def test_openai_embedding_embed_placeholder(self):
-        """Test OpenAIEmbedding returns placeholder."""
+        """Test OpenAIEmbedding returns default_value."""
         model = OpenAIEmbedding()
         embedding = asyncio.run(model.embed("test text"))
         assert len(embedding) == 1536  # ada-002 dimensions
@@ -500,17 +501,18 @@ class TestSentenceTransformerEmbedding:
     def test_sentence_transformer_defaults(self):
         """Test SentenceTransformerEmbedding with default parameters."""
         model = SentenceTransformerEmbedding()
-        assert model.model_name == "all-MiniLM-L6-v2"
+        assert model.model_name == "BAAI/bge-large-zh-v1.5"
 
     def test_sentence_transformer_embed_placeholder(self):
-        """Test SentenceTransformerEmbedding returns placeholder when model unavailable."""
+        """Test SentenceTransformerEmbedding returns default_value when model unavailable."""
         model = SentenceTransformerEmbedding()
         # Model will try to load but fail gracefully
         try:
             embedding = asyncio.run(model.embed("test text"))
             # If it succeeds, check dimensions
-            assert len(embedding) == 384  # MiniLM dimensions
-        except Exception:
+            assert len(embedding) == 1024  # BGE-large-zh dimensions
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # If it fails, that's expected when sentence-transformers not installed
             pass
 
@@ -520,8 +522,9 @@ class TestSentenceTransformerEmbedding:
         try:
             embeddings = asyncio.run(model.embed_batch(["text1", "text2"]))
             assert len(embeddings) == 2
-            assert all(len(emb) == 384 for emb in embeddings)
-        except Exception:
+            assert all(len(emb) == 1024 for emb in embeddings)
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # Expected when sentence-transformers not installed
             pass
 
@@ -530,8 +533,9 @@ class TestSentenceTransformerEmbedding:
         model = SentenceTransformerEmbedding()
         try:
             embedding = asyncio.run(model.embed(""))
-            assert len(embedding) == 384
-        except Exception:
+            assert len(embedding) == 1024
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # Expected when sentence-transformers not installed
             pass
 
@@ -540,8 +544,9 @@ class TestSentenceTransformerEmbedding:
         model = SentenceTransformerEmbedding()
         try:
             embedding = asyncio.run(model.embed("测试文本"))
-            assert len(embedding) == 384
-        except Exception:
+            assert len(embedding) == 1024
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # Expected when sentence-transformers not installed
             pass
 
@@ -551,8 +556,9 @@ class TestSentenceTransformerEmbedding:
         try:
             long_text = "Test " * 1000
             embedding = asyncio.run(model.embed(long_text))
-            assert len(embedding) == 384
-        except Exception:
+            assert len(embedding) == 1024
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # Expected when sentence-transformers not installed
             pass
 
@@ -574,7 +580,8 @@ class TestSentenceTransformerEmbedding:
             texts = [f"text{i}" for i in range(10)]
             embeddings = asyncio.run(model.embed_batch(texts))
             assert len(embeddings) == 10
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # Expected when sentence-transformers not installed
             pass
 

@@ -23,9 +23,17 @@ class ServiceLifecycle:
 
     async def initialize(self) -> None:
         """初始化服务"""
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}.initialize invoked")
+        return None
 
     async def shutdown(self, instance: Any) -> None:
         """关闭服务"""
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}.shutdown invoked")
+        return None
 
 
 class DIContainer:

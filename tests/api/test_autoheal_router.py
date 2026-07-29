@@ -11,6 +11,8 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.autoheal_router import approve, list_pending, reject
+
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 
@@ -25,8 +27,6 @@ sys.modules["core.alert_engine"] = MagicMock()
 sys.modules["api.ai_router"] = MagicMock()
 sys.modules["core.collector"] = MagicMock()
 sys.modules["core.runbook_generator"] = MagicMock()
-
-from api.autoheal_router import approve, list_pending, reject
 
 
 @pytest.fixture
@@ -51,14 +51,14 @@ class TestListPending:
 
     def test_list_pending_empty(self, client):
         """测试空待审批列表"""
-        with patch("core.auto_heal.get_pending_approvals") as mock_get:
+        with patch("api.autoheal_router.get_pending_approvals") as mock_get:
             mock_get.return_value = []
             response = client.get("/api/v1/approvals/pending")
             assert response.status_code in [200, 500]
 
     def test_list_pending_with_items(self, client):
         """测试有项目的待审批列表"""
-        with patch("core.auto_heal.get_pending_approvals") as mock_get:
+        with patch("api.autoheal_router.get_pending_approvals") as mock_get:
             mock_get.return_value = [
                 {"alert_id": "alert1", "status": "pending", "timestamp": "2026-07-03T10:00:00Z"}
             ]
@@ -67,7 +67,7 @@ class TestListPending:
 
     def test_list_pending_error(self, client):
         """测试获取待审批列表失败"""
-        with patch("core.auto_heal.get_pending_approvals") as mock_get:
+        with patch("api.autoheal_router.get_pending_approvals") as mock_get:
             mock_get.side_effect = Exception("Failed to get pending approvals")
             response = client.get("/api/v1/approvals/pending")
             assert response.status_code == 500

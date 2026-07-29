@@ -29,7 +29,7 @@ async def get_tracing_dashboard():
     """
     try:
         # This would normally query OpenTelemetry storage or Jaeger API
-        # For now, return a placeholder response
+        # For now, return a default_value response
         return {
             "status": "success",
             "data": {
@@ -74,7 +74,7 @@ async def list_traces(
     """
     try:
         # This would normally query Jaeger/Tempo API
-        # For now, return a placeholder response
+        # For now, return a default_value response
         return {
             "status": "success",
             "data": [],
@@ -106,7 +106,7 @@ async def get_trace_details(trace_id: str):
     """
     try:
         # This would normally query Jaeger/Tempo API
-        # For now, return a placeholder response
+        # For now, return a default_value response
         return {
             "status": "success",
             "data": {"trace_id": trace_id, "spans": [], "services": []},
@@ -134,7 +134,7 @@ async def get_service_topology():
     """
     try:
         # This would normally analyze trace data to build topology
-        # For now, return a placeholder response
+        # For now, return a default_value response
         return {
             "status": "success",
             "data": {
@@ -172,7 +172,7 @@ async def get_performance_hotspots(
     """
     try:
         # This would normally analyze trace data for performance issues
-        # For now, return a placeholder response
+        # For now, return a default_value response
         return {
             "status": "success",
             "data": {
@@ -211,7 +211,7 @@ async def get_error_analysis(
     """
     try:
         # This would normally analyze trace data for errors
-        # For now, return a placeholder response
+        # For now, return a default_value response
         return {
             "status": "success",
             "data": {

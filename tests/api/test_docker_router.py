@@ -13,12 +13,6 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-sys.modules["core.authentication"] = MagicMock()
-sys.modules["core.config"] = MagicMock()
-sys.modules["core.config"].DOCKER_HOSTS = [{"host": "localhost", "port": 2375}]
-sys.modules["core.docker_collector"] = MagicMock()
-sys.modules["core.docker_repair"] = MagicMock()
-
 
 class DockerRepairRequest(BaseModel):
     host: str
@@ -33,7 +27,16 @@ mock_schemas = MagicMock()
 mock_schemas.DockerRepairRequest = DockerRepairRequest
 sys.modules["api.schemas"] = mock_schemas
 sys.modules["api.schemas.repair"] = mock_schemas
+sys.modules["core.authentication"] = MagicMock()
+sys.modules["core.config"] = MagicMock()
+sys.modules["core.config"].DOCKER_HOSTS = [{"host": "localhost", "port": 2375}]
+sys.modules["core.docker_collector"] = MagicMock()
+sys.modules["core.docker_repair"] = MagicMock()
+
+# isort: off
 from api.docker_router import get_docker_metrics, post_docker_repair
+
+# isort: on
 
 
 @pytest.fixture

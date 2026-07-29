@@ -4,6 +4,7 @@ interface BadgeProps {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary';
   className?: string;
   children: React.ReactNode;
+  onClick?: () => void;
 }
 
 const variantStyles = {
@@ -13,9 +14,9 @@ const variantStyles = {
   secondary: 'bg-gray-200 text-gray-800',
 };
 
-export const Badge = ({ variant = 'default', className = '', children }: BadgeProps) => {
+export const Badge = ({ variant = 'default', className = '', children, onClick, ...props }: BadgeProps) => {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variantStyles[variant]} ${className}`}>
+    <span onClick={onClick} {...props} className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variantStyles[variant]} ${className}`}>
       {children}
     </span>
   );

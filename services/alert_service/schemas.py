@@ -7,7 +7,42 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+try:
+    from core.content_moderation import moderate_content as _moderate_content
+except ImportError:
+    _moderate_content = None  # type: ignore[assignment]
+
+
+# Content-size limits to protect downstream caches, queues and LLM prompts.
+MAX_TITLE_LENGTH = 512
+MAX_DESCRIPTION_LENGTH = 4096
+MAX_TAG_VALUE_LENGTH = 1024
+MAX_TAG_KEYS = 64
+MAX_LABEL_VALUE_LENGTH = 1024
+MAX_LABEL_KEYS = 64
+
+
+def _truncate_str(value: Any, max_length: int) -> Any:
+    if isinstance(value, str):
+        return value[:max_length]
+    return value
+
+
+def _sanitize_dict(value: Any, max_keys: int = 64, max_value_length: int = 1024) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    sanitized: Dict[str, Any] = {}
+    for idx, (k, v) in enumerate(value.items()):
+        if idx >= max_keys:
+            sanitized["__truncated"] = True
+            break
+        if isinstance(v, str):
+            sanitized[k] = v[:max_value_length]
+        else:
+            sanitized[k] = v
+    return sanitized
 
 
 class AlertSeverity(str, Enum):
@@ -41,6 +76,18 @@ class PrometheusAlert(BaseModel):
     generatorURL: Optional[str] = None
     fingerprint: Optional[str] = None
 
+    @field_validator("labels", "annotations", mode="before")
+    @classmethod
+    def _sanitize_labels(cls, v: Any) -> Dict[str, Any]:
+        return _sanitize_dict(v, max_keys=MAX_LABEL_KEYS, max_value_length=MAX_LABEL_VALUE_LENGTH)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _normalize_status(cls, v: Any) -> str:
+        if isinstance(v, str):
+            return v.lower()
+        return "firing"
+
 
 class PrometheusAlertGroup(BaseModel):
     """Prometheus webhook request body."""
@@ -54,7 +101,19 @@ class PrometheusAlertGroup(BaseModel):
     commonLabels: Dict[str, Any] = Field(default_factory=dict)
     commonAnnotations: Dict[str, Any] = Field(default_factory=dict)
     externalURL: str = ""
-    alerts: List[PrometheusAlert] = Field(default_factory=list)
+    alerts: List[PrometheusAlert] = Field(default_factory=list, max_length=10_000)
+
+    @field_validator("groupLabels", "commonLabels", "commonAnnotations", mode="before")
+    @classmethod
+    def _sanitize_group_labels(cls, v: Any) -> Dict[str, Any]:
+        return _sanitize_dict(v, max_keys=MAX_LABEL_KEYS, max_value_length=MAX_LABEL_VALUE_LENGTH)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _normalize_group_status(cls, v: Any) -> str:
+        if isinstance(v, str):
+            return v.lower()
+        return "firing"
 
 
 class Alert(BaseModel):
@@ -67,15 +126,22 @@ class Alert(BaseModel):
     alert_type: str = "unknown"
     title: str
     description: str = ""
+    desc: Optional[str] = None
     metric: Optional[str] = None
     value: Optional[float] = None
     detected_at: datetime = Field(default_factory=datetime.utcnow)
     metric_time: Optional[datetime] = None
     host: Optional[str] = None
+    service: Optional[str] = None
     platform: str = "unknown"
     priority: str = "P3"
     source: str = "prometheus"
+    severity: Optional[str] = None
     fingerprint: Optional[str] = None
+    trace_id: Optional[str] = None
+    labels: Dict[str, Any] = Field(default_factory=dict)
+    annotations: Dict[str, Any] = Field(default_factory=dict)
+    raw: Dict[str, Any] = Field(default_factory=dict)
     routed_to: Optional[str] = None
     suppressed: bool = False
     suppression_reason: Optional[str] = None
@@ -84,6 +150,34 @@ class Alert(BaseModel):
     tags: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"extra": "allow"}
+
+    @field_validator("id", "title", "description", mode="before")
+    @classmethod
+    def _truncate_strings(cls, v: Any, info) -> Any:
+        if not isinstance(v, str):
+            return v
+        if info.field_name == "id":
+            return v[:256]
+        if info.field_name == "title":
+            return v[:MAX_TITLE_LENGTH]
+        if info.field_name == "description":
+            return v[:MAX_DESCRIPTION_LENGTH]
+        return v
+
+    @field_validator("title", "description", mode="before")
+    @classmethod
+    def _reject_malicious_content(cls, v: Any) -> Any:
+        if not isinstance(v, str) or not _moderate_content:
+            return v
+        allowed, reasons = _moderate_content(v)
+        if not allowed:
+            raise ValueError(f"Alert content rejected by moderation: {reasons}")
+        return v
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _sanitize_tags(cls, v: Any) -> Dict[str, Any]:
+        return _sanitize_dict(v, max_keys=MAX_TAG_KEYS, max_value_length=MAX_TAG_VALUE_LENGTH)
 
 
 class RoutingRule(BaseModel):

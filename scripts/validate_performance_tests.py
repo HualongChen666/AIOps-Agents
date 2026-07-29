@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import logging
 """
 Validate Performance Tests
 性能测试验证脚本
@@ -31,7 +32,8 @@ def check_dependencies():
             else:
                 print(f"❌ {name}: 未安装")
                 missing.append(name)
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             print(f"❌ {name}: 未安装")
             missing.append(name)
 

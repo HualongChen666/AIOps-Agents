@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -11,34 +12,34 @@ from loguru import logger
 from services.alert_service.schemas import Alert, AlertStatus
 
 
-class AlertRepository:
+class AlertRepository(ABC):
     """Abstract alert repository."""
 
-    async def save(self, alert: Alert) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save(self, alert: Alert) -> str: ...
 
-    async def get(self, alert_id: str) -> Optional[Alert]:
-        raise NotImplementedError
+    @abstractmethod
+    async def get(self, alert_id: str) -> Optional[Alert]: ...
 
+    @abstractmethod
     async def list(
         self,
         limit: int = 100,
         status: Optional[AlertStatus] = None,
         level: Optional[str] = None,
-    ) -> List[Alert]:
-        raise NotImplementedError
+    ) -> List[Alert]: ...
 
-    async def update(self, alert_id: str, data: Dict[str, Any]) -> bool:
-        raise NotImplementedError
+    @abstractmethod
+    async def update(self, alert_id: str, data: Dict[str, Any]) -> bool: ...
 
-    async def count(self) -> int:
-        raise NotImplementedError
+    @abstractmethod
+    async def count(self) -> int: ...
 
-    async def delete(self, alert_id: str) -> bool:
-        raise NotImplementedError
+    @abstractmethod
+    async def delete(self, alert_id: str) -> bool: ...
 
-    async def clear(self) -> int:
-        raise NotImplementedError
+    @abstractmethod
+    async def clear(self) -> int: ...
 
 
 class InMemoryAlertRepository(AlertRepository):

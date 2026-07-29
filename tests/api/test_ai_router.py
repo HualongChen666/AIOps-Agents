@@ -8,6 +8,19 @@ import time
 from unittest.mock import AsyncMock, Mock, patch  # noqa: F401
 
 import pytest  # noqa: F401
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+import api.ai_router as _ai_router
+from api.ai_router import (
+    _build_context_summary,
+    _build_metrics_context,
+    _extract_disk_usage,
+    _extract_gather_result,
+    _safe_alert_value,
+    _safe_get_metric,
+    router,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -22,19 +35,6 @@ def _patch_expensive_ai_context(monkeypatch):
         AsyncMock(return_value=None),
     )
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-import api.ai_router as _ai_router
-from api.ai_router import (
-    _build_context_summary,
-    _build_metrics_context,
-    _extract_disk_usage,
-    _extract_gather_result,
-    _safe_alert_value,
-    _safe_get_metric,
-    router,
-)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 

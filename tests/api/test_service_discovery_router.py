@@ -11,14 +11,14 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.service_discovery_manager"] = MagicMock()
-
 from api.service_discovery_router import (
     deregister_service,
     get_discovery_status,
     register_service,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.service_discovery_manager"] = MagicMock()
 
 
 @pytest.fixture

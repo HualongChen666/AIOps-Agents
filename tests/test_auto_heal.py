@@ -24,6 +24,10 @@ def mock_auto_heal_db():
         patch("core.auto_heal.insert_repair_record", new=Mock(return_value="repair-001")),
         patch("core.auto_heal._create_verify_record", new=Mock(return_value="verify-001")),
         patch("core.auto_heal._create_pending_approval", new=Mock(return_value=None)),
+        patch(
+            "core.auto_heal.async_update_approval_status_by_alert", new=AsyncMock(return_value=None)
+        ),
+        patch("core.auto_heal.async_get_all_pending_approvals", new=AsyncMock(return_value=[])),
     ):
         yield
 
@@ -57,65 +61,77 @@ class TestAutoHealTrigger:
         assert isinstance(result, dict)
 
 
+@pytest.mark.usefixtures("mock_auto_heal_db")
 class TestRepairApproval:
     """修复审批测试"""
 
-    def test_approve_repair_success(self):
+    @pytest.mark.asyncio
+    async def test_approve_repair_success(self):
         """测试修复审批成功"""
         alert_id = 1
 
-        result = approve_repair(alert_id)
+        result = await approve_repair(alert_id)
 
         # 验证审批成功
+        assert result["success"] is True
         assert result["status"] == "approved"
-        assert result["alert_id"] == alert_id
+        assert result["alert_id"] == str(alert_id)
 
-    def test_approve_repair_with_different_id(self):
+    @pytest.mark.asyncio
+    async def test_approve_repair_with_different_id(self):
         """测试不同ID审批"""
         alert_id = 999
 
-        result = approve_repair(alert_id)
+        result = await approve_repair(alert_id)
 
         # 验证审批成功
+        assert result["success"] is True
         assert result["status"] == "approved"
-        assert result["alert_id"] == alert_id
+        assert result["alert_id"] == str(alert_id)
 
-    def test_reject_repair_success(self):
+    @pytest.mark.asyncio
+    async def test_reject_repair_success(self):
         """测试修复拒绝成功"""
         alert_id = 1
 
-        result = reject_repair(alert_id)
+        result = await reject_repair(alert_id)
 
         # 验证拒绝成功
+        assert result["success"] is True
         assert result["status"] == "rejected"
-        assert result["alert_id"] == alert_id
+        assert result["alert_id"] == str(alert_id)
 
-    def test_reject_repair_with_reason(self):
+    @pytest.mark.asyncio
+    async def test_reject_repair_with_reason(self):
         """测试带原因的修复拒绝"""
         alert_id = 1
         reason = "Unsafe operation"
 
-        result = reject_repair(alert_id, reason)
+        result = await reject_repair(alert_id, reason)
 
         # 验证拒绝成功并记录原因
+        assert result["success"] is True
         assert result["status"] == "rejected"
-        assert result["alert_id"] == alert_id
+        assert result["alert_id"] == str(alert_id)
         assert result["reason"] == reason
 
 
+@pytest.mark.usefixtures("mock_auto_heal_db")
 class TestPendingApprovals:
     """待审批管理测试"""
 
-    def test_get_pending_approvals(self):
+    @pytest.mark.asyncio
+    async def test_get_pending_approvals(self):
         """测试获取待审批列表"""
-        approvals = get_pending_approvals()
+        approvals = await get_pending_approvals()
 
         # 验证返回列表
         assert isinstance(approvals, list)
 
-    def test_get_pending_approvals_empty(self):
+    @pytest.mark.asyncio
+    async def test_get_pending_approvals_empty(self):
         """测试获取空待审批列表"""
-        approvals = get_pending_approvals()
+        approvals = await get_pending_approvals()
 
         # 验证返回空列表（当前实现返回空列表）
         assert len(approvals) == 0

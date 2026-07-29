@@ -350,8 +350,29 @@ class ErrorHandler:
         return None
 
     async def _handle_aiops_exception(self, error_record: ErrorRecord):
-        """处理AIOps异常"""
-        # 默认处理逻辑
+        """处理AIOps异常：记录结构化日志并触发告警阈值检查。"""
+        loguru_logger.log(
+            error_record.severity.value.upper(),
+            f"[AIOps Exception] {error_record.error_message}",
+            extra={
+                "error_id": error_record.id,
+                "category": error_record.category.value,
+                "severity": error_record.severity.value,
+                "error_type": error_record.error_type,
+                "context": error_record.context,
+            },
+        )
+
+        # 触发告警检查
+        await self._check_error_alert(error_record)
+
+        # 对于严重错误，调用自定义 recovery 处理器（如果已注册）
+        handler = self.error_handlers.get(type(Exception(error_record.error_message)))
+        if handler:
+            try:
+                await handler(error_record)
+            except Exception as exc:
+                loguru_logger.error(f"Recovery handler failed: {exc}")
 
     async def _handle_network_exception(self, error_record: ErrorRecord):
         """处理网络异常"""

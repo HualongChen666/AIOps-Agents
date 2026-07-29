@@ -204,7 +204,8 @@ def collect_cloud(host_cfg: Dict[str, Any]) -> Dict[str, Any]:
         # Loki & Stats 写入
         try:
             push_to_loki(snapshot)
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             _logger.debug("Failed to push cloud snapshot to Loki", exc_info=True)
         try:
             collect_data = {
@@ -214,12 +215,14 @@ def collect_cloud(host_cfg: Dict[str, Any]) -> Dict[str, Any]:
                 "key": "cloud",
             }
             record_collect(collect_data)
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             _logger.debug("Failed to record cloud collect", exc_info=True)
         # PID 防护登记（统一使用 CLOUD_* 配置）
         try:
             register_self_pid()
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             _logger.debug("register_self_pid failed for cloud", exc_info=True)
         # 记录历史
         with _collect_lock:

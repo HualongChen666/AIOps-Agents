@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Batch API Router
 批量API路由
@@ -45,7 +46,8 @@ async def batch_get_alerts(alert_ids: List[str]):
                     alert = alert_data
                     break
             results.append(alert)
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             results.append(None)
     return {"results": results}
 

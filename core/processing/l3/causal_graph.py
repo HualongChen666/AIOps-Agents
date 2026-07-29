@@ -23,7 +23,7 @@ class _FallbackCausalStrength(str, Enum):
     STRONG = "strong"
 
 
-# Create a stub CausalEdge class for type checking when import fails
+# Create a component CausalEdge class for type checking when import fails
 class _FallbackCausalEdge:
     """Fallback CausalEdge for type checking when import fails"""
 

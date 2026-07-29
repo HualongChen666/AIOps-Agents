@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 for _mod in ["api.user_router"]:
     sys.modules.pop(_mod, None)
 
-# Stub service modules so the router import does not drag in heavy infra.
+# component service modules so the router import does not drag in heavy infra.
 sys.modules.setdefault("core.audit_service", Mock())
 sys.modules.setdefault("core.mfa_service", Mock())
 sys.modules.setdefault("core.user_service", Mock())

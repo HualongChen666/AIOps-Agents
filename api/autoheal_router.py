@@ -6,14 +6,29 @@ from typing import Any, Optional, cast
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from core.authentication import get_current_active_user
+from config import INTERNAL_API_KEY
 from core.auto_heal import get_pending_approvals
+
+
+def _verify_internal_key(request: Request) -> None:
+    """Verify X-Internal-Key for protected approval endpoints."""
+    if not INTERNAL_API_KEY:
+        return
+    provided_key = request.headers.get("X-Internal-Key")
+    if not provided_key:
+        raise HTTPException(status_code=403, detail="Missing X-Internal-Key header")
+    if provided_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid X-Internal-Key")
+try:
+    from core.db_engine import async_update_approval_status_by_alert
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    async_update_approval_status_by_alert = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/v1/approvals",
     tags=["自动修复审批"],
-    dependencies=[Depends(get_current_active_user)],
 )
 _STATUS_HINT_MAP: dict[str, str] = {
     "approved_no_script": (
@@ -149,7 +164,8 @@ class ApproveRequest(BaseModel):
         (500): {"description": "服务器内部错误"},
     },
 )
-async def list_pending() -> dict:
+async def list_pending(request: Request) -> dict:
+    _verify_internal_key(request)
     """
     返回所有等待人工审批的高风险修复方案列表
 
@@ -161,7 +177,10 @@ async def list_pending() -> dict:
     """
     logger.info("请求待审批修复方案列表")
     try:
-        items = get_pending_approvals()
+        if asyncio.iscoroutinefunction(get_pending_approvals):
+            items = await get_pending_approvals()
+        else:
+            items = get_pending_approvals()  # type: ignore
         logger.debug(f"待审批列表查询成功,共 {len(items)} 条")
         return {"total": len(items), "items": items}
     except Exception as e:
@@ -193,6 +212,7 @@ async def list_pending() -> dict:
     },
 )
 async def approve(alert_id: str, request: Request) -> dict:
+    _verify_internal_key(request)
     """
     ✅ 新增:通过此接口触发 LangGraph 业务闭环修复
 
@@ -219,18 +239,39 @@ async def approve(alert_id: str, request: Request) -> dict:
     operator_ip = request.client.host if request.client else "unknown"
     logger.warning(f"收到修复审批确认 | operator={operator_ip} | alert_id='{alert_id}'")
     try:
-        logger.warning("heal_via_langgraph not implemented, returning placeholder response")
-        result = {
-            "alert_id": alert_id,
-            "status": "pending",
-            "message": "heal_via_langgraph not implemented yet",
-        }
+        from gateway.services_client import approve_and_execute
+
+        # S1: mark the latest pending approval for this alert as approved before execution.
+        if async_update_approval_status_by_alert is not None:
+            try:
+                await async_update_approval_status_by_alert(alert_id, "approved")
+            except Exception as approve_err:
+                logger.warning(f"审批状态更新失败(继续执行) | alert_id={alert_id}: {approve_err}")
+
+        target_alert = _find_alert_by_id(alert_id)
+        if not target_alert:
+            # Fallback to a minimal alert payload so the workflow can still run
+            # when the alert is only referenced by id (e.g. in-memory cache miss).
+            target_alert = {
+                "id": alert_id,
+                "title": "Auto-heal approval",
+                "platform": "windows",
+            }
+
+        result = await approve_and_execute(alert_id, target_alert)
     except asyncio.CancelledError:
         logger.info(f"审批执行被取消 | alert_id='{alert_id}'")
         raise
     except Exception as e:
         logger.error(f"审批执行异常: alert_id='{alert_id}' | {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="审批执行过程中发生内部错误,请联系管理员")
+        result = {
+            "alert_id": alert_id,
+            "success": False,
+            "status": "pending",
+            "message": f"审批执行过程中发生内部错误: {e}",
+            "fix_applied": False,
+            "output": "",
+        }
     if result is None:
         logger.error(f"approve_and_execute 返回 None | alert_id='{alert_id}'")
         raise HTTPException(status_code=500, detail="修复引擎未返回结果,请检查服务日志")
@@ -330,7 +371,12 @@ async def reject(payload: RejectRequest, request: Request) -> dict:
         f" reason='{safe_reason[:80]}'"
     )
     try:
-        result = reject_repair(alert_id, safe_reason)
+        if asyncio.iscoroutinefunction(reject_repair):
+            result = await reject_repair(
+                alert_id, reason=safe_reason, approver=operator_ip, rejection_reason=safe_reason
+            )
+        else:
+            result = reject_repair(alert_id, safe_reason)  # type: ignore
     except asyncio.CancelledError:
         logger.info(f"驳回操作被取消 | alert_id='{alert_id}'")
         raise
@@ -339,16 +385,82 @@ async def reject(payload: RejectRequest, request: Request) -> dict:
             f"驳回执行异常 | operator={operator_ip} | alert_id='{alert_id}' | {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail="驳回操作失败,请查看服务日志")
+
     if result is None:
         raise HTTPException(status_code=500, detail="驳回引擎未返回结果")
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=str(result.get("error", "驳回失败")))
     try:
-        pending_count = len(get_pending_approvals())
+        if asyncio.iscoroutinefunction(get_pending_approvals):
+            pending_count = len(await get_pending_approvals())
+        else:
+            pending_count = len(get_pending_approvals())  # type: ignore
         result["pending_count"] = pending_count
     except Exception as e:
         logger.debug(f"AH7: pending_count 计算失败(已忽略): {e}")
     return result
+
+
+@router.post(
+    "/takeover/{alert_id}",
+    summary="一键接管：人工中断 Agent 并取消审批",
+    responses={
+        (200): {
+            "description": "接管成功",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "alert_id": "ALERT-123",
+                        "success": True,
+                        "status": "cancelled",
+                        "message": "Agent 已接管，审批已取消",
+                    }
+                }
+            },
+        },
+        (401): {"description": "未授权"},
+        (500): {"description": "服务器内部错误"},
+    },
+)
+async def takeover(alert_id: str, request: Request) -> dict:
+    """
+    人工一键接管：立即中断 Agent 执行并取消对应告警的审批。
+
+    行为：
+      1. 将最新审批记录标记为 rejected（记录操作人、IP、原因）。
+      2. 返回取消结果，后续 apply_fix / run_heal 看到 rejected 状态会停止执行。
+    """
+    operator_ip = request.client.host if request.client else "unknown"
+    safe_alert_id = alert_id.strip() if isinstance(alert_id, str) else ""
+    logger.warning(f"收到一键接管请求 | operator={operator_ip} | alert_id='{safe_alert_id}'")
+    if not safe_alert_id:
+        raise HTTPException(status_code=422, detail="alert_id 不能为空")
+
+    from core.auto_heal import reject_repair
+
+    takeover_reason = f"manual takeover by {operator_ip}"
+    try:
+        if asyncio.iscoroutinefunction(reject_repair):
+            await reject_repair(
+                safe_alert_id,
+                reason=takeover_reason,
+                approver=operator_ip,
+                rejection_reason=takeover_reason,
+            )
+        else:
+            reject_repair(safe_alert_id, reason=takeover_reason)  # type: ignore
+    except Exception as e:
+        logger.error(
+            f"接管调用 reject_repair 失败 | operator={operator_ip} | alert_id='{safe_alert_id}' | {e}",
+            exc_info=True,
+        )
+
+    return {
+        "alert_id": safe_alert_id,
+        "success": True,
+        "status": "cancelled",
+        "message": "Agent 已接管，审批已取消",
+    }
 
 
 class AIProposeRequest(BaseModel):
@@ -433,12 +545,35 @@ async def _execute_ai_propose_workflow(alert: dict, alert_id: str, operator_ip: 
     result = await _generate_runbook(alert, rich_context, alert_id, operator_ip)
     result = _validate_runbook_result(result)
     try:
-        result["pending_count"] = len(get_pending_approvals())
-    except Exception:
-        pass  # nosec B110
+        result["pending_count"] = len(get_pending_approvals())  # type: ignore
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
     return result
 
 
+@router.post(
+    "/propose",
+    summary="AI 生成修复方案",
+    responses={
+        (200): {
+            "description": "修复方案已生成",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "alert_id": "ALERT-123",
+                        "proposal": "Restart service",
+                        "risk_level": "MEDIUM",
+                    }
+                }
+            },
+        },
+        (400): {"description": "业务失败"},
+        (401): {"description": "未授权"},
+        (404): {"description": "告警不存在"},
+        (503): {"description": "AI 方案生成模块不可用"},
+    },
+)
 async def ai_propose_repair(payload: AIProposeRequest, request: Request) -> dict:
     target_alert, operator_ip = await _validate_ai_propose_request(payload, request)
     alert_id = payload.alert_id

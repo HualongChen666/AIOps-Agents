@@ -11,11 +11,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.macos_router import get_macos_metrics, post_macos_repair
+
 # Mock problematic imports before importing router
 sys.modules["core.macos_collector"] = MagicMock()
 sys.modules["core.macos_repair"] = MagicMock()
-
-from api.macos_router import get_macos_metrics, post_macos_repair
 
 
 @pytest.fixture

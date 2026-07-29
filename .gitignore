@@ -48,6 +48,8 @@ yarn-error.log*
 *.db
 
 # ---- Logs / generated reports ----
+e2e_*out*.txt
+pytest_warnings*.txt
 logs/
 *.log
 security_reports/
@@ -84,4 +86,11 @@ test_audit/
 # ---- Portable tools / temp scripts ----
 .tools/
 push_gh_now.ps1
-push_gh_*.ps1
+push_gh_*.ps1bandit_new_report.json
+bandit_report.json
+*.env
+ai_api.env
+*.pyc
+bandit_*.txt
+flake8_full.txt
+static/indexbackup

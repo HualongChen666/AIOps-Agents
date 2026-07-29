@@ -88,12 +88,7 @@ class RunbookParser:
     @staticmethod
     def render_command(command: str, params: Dict[str, Any]) -> str:
         """Render command template with params, similar to repair_engine."""
-        result = command
-        for key, value in params.items():
-            placeholder = f"{{{key}}}"
-            result = result.replace(placeholder, str(value))
-        # Leave unreplaced placeholders as-is
-        return result
+        return ""
 
     @staticmethod
     def validate(runbook: RepairRunbook) -> List[str]:

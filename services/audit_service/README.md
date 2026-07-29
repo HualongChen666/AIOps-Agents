@@ -1,3 +1,10 @@
+---
+pack: core
+enabled_by: N/A (always on)
+docker_profile: core
+core_dependency: True
+---
+
 # Audit Service
 
 Microservice for audit logging, event tracking, compliance reports, encryption, retention, and alerts.

@@ -11,10 +11,10 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.priority_router import assess_impact, get_sla_status, priority_health, rank_alerts
+
 # Mock problematic imports before importing router
 sys.modules["core.priority"] = MagicMock()
-
-from api.priority_router import assess_impact, get_sla_status, priority_health, rank_alerts
 
 
 @pytest.fixture

@@ -8,6 +8,8 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.windows_repair_router import get_history, list_repair_scripts, run_repair
+
 # Mock problematic imports before importing router
 sys.modules["config"] = MagicMock()
 sys.modules["config"].WIN_HOSTS = []
@@ -19,8 +21,6 @@ sys.modules["core.windows_repair"] = MagicMock()
 sys.modules["core.windows_repair"].WINDOWS_REPAIR_SCRIPTS = {}
 sys.modules["core.windows_repair"].execute_windows_repair = AsyncMock()
 sys.modules["core.windows_repair"].get_windows_repair_history = Mock(return_value=[])
-
-from api.windows_repair_router import get_history, list_repair_scripts, run_repair
 
 
 @pytest.fixture

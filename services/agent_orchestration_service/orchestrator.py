@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections import Counter
 from typing import Any, Dict, List, Optional, cast
 
 from loguru import logger
+
+from core.context_compression import compress_context
 
 from . import metrics
 from .cache import CacheManager
@@ -32,6 +35,18 @@ from .schemas import (
     StatsResponse,
     SubTask,
 )
+
+try:
+    from services.scenario_memory_service.schemas import (
+        EventMemory,
+        LearnExperienceRequest,
+        StoreEventRequest,
+    )
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    LearnExperienceRequest = None  # type: ignore
+    StoreEventRequest = None  # type: ignore
+    EventMemory = None  # type: ignore
 
 
 class LangGraphAdapter:
@@ -67,6 +82,7 @@ class AgentOrchestrator:
         llm_model: Optional[Any] = None,
         cache: Optional[CacheManager] = None,
         retry_engine: Optional[AgentRetryEngine] = None,
+        memory_orchestrator: Optional[Any] = None,
     ) -> None:
         self.settings = settings
         self._llm_model = llm_model
@@ -74,6 +90,21 @@ class AgentOrchestrator:
         self.retry_engine = retry_engine or AgentRetryEngine(settings.retry_policy)
         self.langgraph = LangGraphAdapter()
         self._request_counts: Dict[str, int] = {}
+
+        # Cross-session memory integration (best-effort; degrades if unavailable)
+        self.memory = memory_orchestrator
+        if self.memory is None:
+            try:
+                from services.scenario_memory_service.cache import CacheManager as SMCache
+                from services.scenario_memory_service.config import settings as sm_settings
+                from services.scenario_memory_service.orchestrator import (
+                    ScenarioMemoryOrchestrator,
+                )
+
+                self.memory = ScenarioMemoryOrchestrator(cache=SMCache(sm_settings.redis_url))
+            except Exception as exc:
+                logger.debug(f"Scenario memory not available for agent orchestrator: {exc}")
+                self.memory = None
 
     # ------------------------------------------------------------------
     # Utility / lifecycle
@@ -179,13 +210,39 @@ class AgentOrchestrator:
     # 33.2 Multi-agent collaboration & single agent execution
     # ------------------------------------------------------------------
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
-        """Run a single agent by type."""
+        """Run a single agent by type with cross-session memory integration."""
         start = time.time()
         metrics.AGENT_REQUESTS_TOTAL.labels(
             operation="run_agent",
             agent_type=request.agent_type.value,
         ).inc()
         metrics.AGENT_ACTIVE_AGENTS.labels(agent_type=request.agent_type.value).inc()
+
+        # Ensure session isolation.
+        session_id = request.session_id or str(uuid.uuid4())
+        request.context.setdefault("session_id", session_id)
+
+        # Retrieve relevant cross-session experiences before reasoning.
+        if request.enable_memory and self.memory is not None:
+            try:
+                task = request.input_data.get("task", "")
+                relevant = await self.memory.find_experiences(
+                    query=task,
+                    top_k=3,
+                    session_id=None,  # allow cross-session retrieval
+                )
+                if relevant:
+                    request.context["relevant_experiences"] = [
+                        {
+                            "situation": e.situation,
+                            "action": e.action,
+                            "outcome": e.outcome,
+                            "confidence": e.confidence,
+                        }
+                        for e in relevant
+                    ]
+            except Exception as exc:
+                logger.debug(f"Experience retrieval failed: {exc}")
 
         if request.agent_type == AgentType.MONITOR:
             result = await self.monitor_agent(request)
@@ -197,6 +254,22 @@ class AgentOrchestrator:
             result = await self.analysis_agent(request)
         else:
             result = await self._generic_agent(request)
+
+        # Persist experience from this agent run.
+        if request.enable_memory and self.memory is not None:
+            try:
+                task = request.input_data.get("task", "")
+                await self.memory.learn_experience(
+                    request=LearnExperienceRequest(
+                        situation=task[:200],
+                        action=request.agent_type.value,
+                        outcome=result.output[:500],
+                        confidence=result.confidence,
+                        session_id=session_id,
+                    )
+                )
+            except Exception as exc:
+                logger.debug(f"Experience save failed: {exc}")
 
         metrics.AGENT_ACTIVE_AGENTS.labels(agent_type=request.agent_type.value).dec()
         latency = (time.time() - start) * 1000
@@ -290,6 +363,13 @@ class AgentOrchestrator:
             from langchain.schema import HumanMessage
             from langchain_openai import ChatOpenAI
 
+            # Compress context to a safe token budget for the chosen model.
+            compressed_context = compress_context(
+                request.context,
+                max_tokens=3000,
+                protected_keys={"session_id", "relevant_experiences"},
+            )
+
             model = ChatOpenAI(  # type: ignore[call-arg]
                 model="gpt-3.5-turbo",
                 temperature=request.temperature,
@@ -299,7 +379,7 @@ class AgentOrchestrator:
             prompt = (
                 f"You are a {agent_type} agent. {verb} the following task.\n"
                 f"Task: {request.input_data.get('task', '')}\n"
-                f"Context: {request.context}\nAnswer:"
+                f"Context: {compressed_context}\nAnswer:"
             )
             result = await model.ainvoke([HumanMessage(content=prompt)])
             return str(result.content if hasattr(result, "content") else result)

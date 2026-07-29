@@ -216,12 +216,48 @@ devin-desktop --version
 
 ## 🔍 MCP 权限配置
 
-已配置的权限：
+已配置的最小权限（覆盖 7 个 MCP 服务器：gitlab、filesystem、postgres、github、git、brave-search、memory）：
 
-- **允许**: GitLab 操作（包括搜索）、文件系统操作、Postgres 查询
-- **询问**: Postgres 写操作 (需要确认)
+- **允许**:
+  - GitLab / GitHub 读/搜索/获取 (`mcp__gitlab__read_*`, `mcp__github__read_*` 等)
+  - 文件系统 MCP 仅只读/列表/搜索 (`read_*`, `list_*`, `directory_tree`, `search_files`, `get_file_info`)
+  - Postgres 只读查询 (`mcp__postgres__read_query`)
+  - Git 只读状态 (`mcp__git__status`, `mcp__git__log`, `mcp__git__diff`, `mcp__git__branch`)
+  - Memory 只读查询 (`mcp__memory__read_*`, `mcp__memory__get_*`, `mcp__memory__search_*`)
+- **询问**（需用户确认）:
+  - GitLab / GitHub 写/push/commit/upload / pull request 操作
+  - Postgres 写查询与执行 SQL (`mcp__postgres__write_query`, `mcp__postgres__execute_sql`)
+  - Git 提交/推送/切换/重置/合并/变基 (`mcp__git__commit`, `mcp__git__push`, 等)
+  - Brave Search 网络搜索
+  - Memory 写入/添加/删除/更新
+- **拒绝**:
+  - 文件系统写/改/删/创建/移动操作
+  - 无明确上传/提交指令的 GitLab/GitHub push/upload
+  - Git 强制推送 (`mcp__git__force_*`)
+  - Postgres drop/truncate 等破坏性操作
 
-可以在 `.devin/config.json` 中调整权限设置。
+可以在 `.devin/config.json` 中调整权限设置，修改后建议运行 `python scripts/verify_tool_security.py` 验证。
+
+### ⚠️ 本地配置安全提醒
+
+`.devin/config.local.json` 用于存放敏感信息（Token、API Key 等），**已受 `.devinignore` 保护不被索引**，但仍建议：
+
+1. 避免长期以明文形式存储真实 Token/Key；
+2. 如已明文存储，建议轮换该凭据，并通过 Devin 支持的环境变量/凭证管理方式重新配置；
+3. 不要在该文件中添加 `permissions` 键，否则会覆盖项目级 `.devin/config.json` 的安全策略。
+
+## 🛡️ 原生 Tool 安全策略
+
+项目已通过 `.windsurf/rules/security-tools.md` 约束 Agent 原生 Tool 使用：
+
+- `bash`：删除/格式化/安装/外发命令必须每次询问；只读命令才允许 `SafeToAutoRun`。
+- `read_file`：禁止读取 `.env`、`*key*`、`*secret*`、`*.pem`、`credentials.json` 等敏感文件。
+- `read_url_content` / `search_web`：禁止访问本地/内网地址，限制可访问域名。
+- `write_to_file` / `edit` / `multi_edit`：仅允许写入项目工作区，禁止覆盖敏感文件。
+- `browser_preview`：仅允许 `localhost` / `127.0.0.1`。
+- 死循环防护：同一 Tool 60 秒内超过 10 次无进展调用必须停止并询问用户。
+
+运行 `python scripts/verify_tool_security.py` 可检查上述策略是否配置正确。
 
 ## 🔎 GitLab 搜索功能详解
 

@@ -8,6 +8,7 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 # Use a real dependency with no params so FastAPI doesn't inject "args"/"kwargs"
@@ -16,6 +17,7 @@ sys.modules["core.authentication"].get_current_active_user = lambda: {
     "role": "admin",
 }
 sys.modules["core.slack_adapter"] = MagicMock()
+sys.modules["core.chat_command_handler"] = MagicMock()
 
 from api.slack_router import (
     send_slack_interactive_message,
@@ -23,6 +25,8 @@ from api.slack_router import (
     slack_events_callback,
     slack_health_check,
 )
+
+# isort: on
 
 
 @pytest.fixture

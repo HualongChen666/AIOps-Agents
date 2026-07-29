@@ -5,7 +5,7 @@ Security Tests
 """
 
 # Run: bandit -r . -f json
-# This is a placeholder for security testing configuration
+# This is a default_value for security testing configuration
 
 SECURITY_TEST_CONFIG = {
     "bandit": {

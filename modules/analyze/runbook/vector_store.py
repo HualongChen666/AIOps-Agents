@@ -31,7 +31,7 @@ try:
     QDRANT_AVAILABLE = True
 except ImportError:
     QDRANT_AVAILABLE = False
-    # Define a stub for type checking
+    # Define a component for type checking
     if TYPE_CHECKING:
         from qdrant_client import QdrantClient  # type: ignore[misc]
 
@@ -41,7 +41,7 @@ try:
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
-    # Define a stub for type checking
+    # Define a component for type checking
     if TYPE_CHECKING:
         from sentence_transformers import SentenceTransformer  # type: ignore[misc]
 

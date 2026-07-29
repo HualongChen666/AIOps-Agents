@@ -16,11 +16,24 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, cast
 
 from loguru import logger
+
+from core.observability_query import (
+    DEFAULT_MAX_PROMQL_SAMPLES,
+    QueryCache,
+    align_time_window,
+    cached_query,
+    limit_range_samples,
+    make_cache_key,
+    parse_duration_to_seconds,
+    sanitize_error_for_llm,
+    validate_promql,
+    with_query_timeout,
+)
 
 # Try to import HTTP libraries
 try:
@@ -136,6 +149,9 @@ class IntegrationManager:
         self.http_client: Optional[Any] = None
         if HTTP_AVAILABLE:
             self.http_client = httpx.AsyncClient(timeout=30.0)
+
+        # Observability query cache / safety layer
+        self._observability_cache = QueryCache()
 
         # Initialize integration templates
         self._initialize_integration_templates()
@@ -703,25 +719,58 @@ class IntegrationManager:
         url = config.get("url")
 
         try:
-            # Query range query
-            if self.http_client is None:
-                return {"error": "HTTP client not initialized"}
-            response = await self.http_client.get(
-                f"{url}/api/v1/query_range",
-                params={
-                    "query": query,
-                    "start": (datetime.now() - timedelta(hours=1)).isoformat(),
-                    "end": datetime.now().isoformat(),
-                    "step": "1m",
-                },
+            validate_promql(query)
+        except ValueError as exc:
+            logger.warning("Invalid PromQL rejected for integration %s: %s", integration_id, exc)
+            return {"error": f"Invalid PromQL query: {exc}"}
+
+        try:
+            duration_seconds = parse_duration_to_seconds(time_range)
+        except ValueError as exc:
+            return {"error": f"Invalid time_range: {exc}"}
+
+        try:
+            end = datetime.now(timezone.utc)
+            start, end = align_time_window(
+                end=end, duration_seconds=duration_seconds, latency_offset_seconds=0.0
+            )
+            step = limit_range_samples(
+                start,
+                end,
+                60.0,
+                config.get("max_samples", DEFAULT_MAX_PROMQL_SAMPLES),
             )
 
-            if response.status_code == 200:
-                return cast(Dict[str, Any], response.json())
-            else:
+            if self.http_client is None:
+                return {"error": "HTTP client not initialized"}
+
+            cache_key = make_cache_key("prometheus_integration", url, query, time_range, step)
+
+            async def _run_query() -> Dict[str, Any]:
+                response = await with_query_timeout(
+                    self.http_client.get(
+                        f"{url}/api/v1/query_range",
+                        params={
+                            "query": query,
+                            "start": int(start.timestamp()),
+                            "end": int(end.timestamp()),
+                            "step": int(step),
+                        },
+                    )
+                )
+                if response.status_code == 200:
+                    return cast(Dict[str, Any], response.json())
                 return {"error": f"Prometheus query failed: {response.status_code}"}
+
+            return await cached_query(
+                self._observability_cache,
+                cache_key,
+                _run_query(),
+            )
         except Exception as e:
-            return {"error": f"Prometheus query error: {e}"}
+            safe_error = sanitize_error_for_llm(e)
+            logger.error(f"Prometheus query error for {integration_id}: {safe_error}")
+            return {"error": safe_error}
 
     async def trigger_jenkins_job(
         self, integration_id: str, job_name: str, parameters: Optional[Dict[str, Any]] = None

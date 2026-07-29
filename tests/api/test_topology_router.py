@@ -8,11 +8,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.topology_router import get_topo_status, list_topology_types, set_node_health
+
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.topology_engine"] = MagicMock()
-
-from api.topology_router import get_topo_status, list_topology_types, set_node_health
 
 
 @pytest.fixture

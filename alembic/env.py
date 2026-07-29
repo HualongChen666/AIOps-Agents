@@ -3,6 +3,7 @@
 # 🔧 P0-3: Alembic环境配置
 # 配置Alembic使用core.models中的ORM模型
 
+import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -23,8 +24,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Alembic Config对象
 config = context.config
 
-# 设置数据库URL
-config.set_main_option("sqlalchemy.url", POSTGRES_URL)
+# 设置数据库URL，允许通过环境变量覆盖（用于本地 SQLite 测试或 CI）
+config.set_main_option(
+    "sqlalchemy.url", os.getenv("ALEMBIC_DATABASE_URL", POSTGRES_URL)
+)
 
 # 解释配置文件的日志配置
 if config.config_file_name is not None:

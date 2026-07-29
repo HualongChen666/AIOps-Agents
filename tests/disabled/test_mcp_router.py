@@ -10,9 +10,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.mcp_tools"] = MagicMock()
-
 from core.mcp_server import (
     api_approve_repair,
     api_get_host_health,
@@ -20,6 +17,9 @@ from core.mcp_server import (
     api_search_incident,
     api_trigger_repair,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.mcp_tools"] = MagicMock()
 
 
 @pytest.fixture

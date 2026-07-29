@@ -11,11 +11,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.graphql_router import router
+
 # Mock problematic imports before importing router
 sys.modules["core.graphql_schema"] = MagicMock()
 sys.modules["core.graphql_schema"].graphql_app = APIRouter()
-
-from api.graphql_router import router
 
 
 @pytest.fixture

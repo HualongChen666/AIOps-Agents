@@ -8,15 +8,15 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.system_resource_optimizer"] = MagicMock()
-
 from api.system_resource_router import (
     analyze_memory_usage,
     get_optimization_status,
     get_resource_summary,
     optimize_memory,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.system_resource_optimizer"] = MagicMock()
 
 
 @pytest.fixture

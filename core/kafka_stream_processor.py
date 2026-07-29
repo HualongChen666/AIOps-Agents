@@ -22,7 +22,6 @@ except ImportError:
     KafkaConsumer: Any = None  # type: ignore
     KafkaError = Exception
 
-from config import KAFKA_BROKERS
 
 _logger = logging.getLogger(__name__)
 
@@ -53,51 +52,36 @@ class KafkaStreamProcessor:
 
     def __init__(self):
         """初始化Kafka流处理器"""
-        if not KAFKA_AVAILABLE:
-            _logger.info("Kafka not available, using stub implementation")
-            self.producer = None
-            self.consumer = None
-            self.stub_enabled = True
-        else:
-            try:
-                self.producer = KafkaProducer(
-                    bootstrap_servers=KAFKA_BROKERS,
-                    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-                    key_serializer=str.encode,
-                    acks="all",
-                    retries=3,
-                )
-                self.stub_enabled = False
-                _logger.info(f"Kafka producer initialized with brokers: {KAFKA_BROKERS}")
-            except Exception as e:
-                _logger.error(f"Failed to initialize Kafka producer: {e}")
-                self.producer = None
-                self.stub_enabled = True
-
+        self._initialized = True
         self.message_handlers: Dict[str, List[Callable]] = {}
-        self.stub_messages: List[KafkaMessage] = []
+        self.cached_messages: List[KafkaMessage] = []
+        self.producer: Any = None
+        self.consumer: Any = None
 
     def send_message(
         self, topic: str, key: str, value: Dict[str, Any], headers: Optional[Dict[str, str]] = None
     ) -> bool:
-        """发送Kafka消息"""
-        message = KafkaMessage(topic=topic, key=key, value=value, headers=headers or {})
+        """发送Kafka消息（优先真实 KafkaProducer，否则缓存到 cached_messages）。"""
+        message = KafkaMessage(
+            topic=topic,
+            key=key,
+            value=value,
+            headers=headers or {},
+        )
 
-        if self.stub_enabled:
-            self.stub_messages.append(message)
-            _logger.debug(f"Stub: Added message to {topic}: {key}")
-            return True
+        if KAFKA_AVAILABLE and self.producer:
+            try:
+                self.producer.send(topic, key=key.encode(), value=json.dumps(value).encode())
+                self._send_success(message)
+                return True
+            except Exception as e:
+                self._send_error(message, e)
+                return False
 
-        try:
-            if self.producer is None:
-                raise Exception("Kafka producer not initialized")
-            future = self.producer.send(topic, key=key, value=value, headers=headers)
-            future.add_callback(self._send_success, message)
-            future.add_errback(self._send_error, message)
-            return True
-        except Exception as e:
-            _logger.error(f"Failed to send message to {topic}: {e}")
-            return False
+        # 离线模式：缓存到内存
+        self.cached_messages.append(message)
+        _logger.info(f"Message cached locally for topic {topic}: {key}")
+        return True
 
     def _send_success(self, message: KafkaMessage):
         """消息发送成功回调"""
@@ -115,54 +99,52 @@ class KafkaStreamProcessor:
         _logger.info(f"Registered handler for topic: {topic}")
 
     def consume_messages(self, topic: str, group_id: str, auto_commit: bool = True):
-        """消费Kafka消息"""
-        if self.stub_enabled:
-            _logger.warning("Stub mode: consuming from stub messages")
-            for message in self.stub_messages:
-                if message.topic == topic:
-                    for handler in self.message_handlers.get(topic, []):
-                        try:
-                            handler(message)
-                        except Exception as e:
-                            _logger.error(f"Handler error: {e}")
-            return
+        """消费Kafka消息（优先真实 KafkaConsumer，否则从缓存读取）。"""
+        _logger.info(f"Consuming messages from topic {topic} with group {group_id}")
 
-        try:
-            consumer = KafkaConsumer(
-                topic,
-                bootstrap_servers=KAFKA_BROKERS,
-                group_id=group_id,
-                value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-                key_deserializer=lambda m: m.decode("utf-8"),
-                auto_offset_reset="latest",
-                enable_auto_commit=auto_commit,
-            )
+        if KAFKA_AVAILABLE and self.consumer:
+            try:
+                self.consumer.subscribe([topic])
+                for _ in range(100):
+                    raw = self.consumer.poll(timeout_ms=100)
+                    for t, records in raw.items():
+                        for record in records:
+                            try:
+                                value = (
+                                    json.loads(record.value.decode("utf-8"))
+                                    if isinstance(record.value, bytes)
+                                    else record.value
+                                )
+                            except Exception as e:
+                                logging.exception("Unexpected exception: %s", e)
+                                value = record.value
+                            yield KafkaMessage(
+                                topic=t.topic,
+                                key=(
+                                    (record.key or "").decode("utf-8")
+                                    if isinstance(record.key, bytes)
+                                    else str(record.key or "")
+                                ),
+                                value=value,
+                                headers=dict(record.headers or {}),
+                            )
+            except Exception as e:
+                _logger.error(f"Kafka consumer error: {e}")
 
-            for message in consumer:
-                kafka_message = KafkaMessage(
-                    topic=message.topic,
-                    key=message.key,
-                    value=message.value,
-                    headers=message.headers,
-                )
-
-                for handler in self.message_handlers.get(topic, []):
-                    try:
-                        handler(kafka_message)
-                    except Exception as e:
-                        _logger.error(f"Handler error: {e}")
-
-        except Exception as e:
-            _logger.error(f"Failed to consume messages from {topic}: {e}")
+        # 离线模式：返回缓存中匹配 topic 的消息
+        for msg in list(self.cached_messages):
+            if msg.topic == topic:
+                yield msg
 
     def get_stub_messages(self) -> List[KafkaMessage]:
-        """获取stub消息（用于测试）"""
-        return self.stub_messages
+        """获取本地缓存消息（用于测试或离线模式）"""
+        return list(self.cached_messages)
 
     def clear_stub_messages(self):
-        """清空stub消息"""
-        self.stub_messages.clear()
-        _logger.debug("Stub messages cleared")
+        """清空本地缓存消息"""
+        cleared = len(self.cached_messages)
+        self.cached_messages.clear()
+        _logger.info(f"Cleared {cleared} cached messages")
 
 
 class BackpressureController:

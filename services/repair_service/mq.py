@@ -20,7 +20,8 @@ class InMemoryMessageQueue:
             instance = super().__new__(cls)
             instance._queues = {}
             cls._instance = instance
-        assert cls._instance is not None
+        if cls._instance is None:
+            raise AssertionError("Singleton instance not initialized")
         return cls._instance
 
     def _get_queue(self, channel: str) -> asyncio.Queue[Dict[str, Any]]:

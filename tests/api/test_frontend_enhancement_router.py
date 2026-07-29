@@ -11,13 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.frontend_enhancement"] = MagicMock()
-sys.modules["core.frontend_enhancement"].FRONTEND_AVAILABLE = True
-sys.modules["core.frontend_enhancement"].ThemeType = MagicMock()
-sys.modules["core.frontend_enhancement"].ViewMode = MagicMock()
-sys.modules["core.frontend_enhancement"].frontend_enhancement_manager = MagicMock()
-
 from api.frontend_enhancement_router import (
     add_dashboard_widget,
     get_available_themes,
@@ -25,6 +18,13 @@ from api.frontend_enhancement_router import (
     get_user_preferences,
     update_user_preferences,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.frontend_enhancement"] = MagicMock()
+sys.modules["core.frontend_enhancement"].FRONTEND_AVAILABLE = True
+sys.modules["core.frontend_enhancement"].ThemeType = MagicMock()
+sys.modules["core.frontend_enhancement"].ViewMode = MagicMock()
+sys.modules["core.frontend_enhancement"].frontend_enhancement_manager = MagicMock()
 
 
 @pytest.fixture

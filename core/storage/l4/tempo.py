@@ -11,6 +11,14 @@ import httpx
 from loguru import logger
 
 from core.base.storage import BaseStorage
+from core.observability_query import (
+    DEFAULT_MAX_LLM_ITEMS,
+    QueryCache,
+    cached_query,
+    make_cache_key,
+    validate_tempoql,
+    with_query_timeout,
+)
 
 
 class TempoStorage(BaseStorage):
@@ -27,7 +35,15 @@ class TempoStorage(BaseStorage):
 
         self.base_url = config.get("base_url", "http://localhost:3200")
         self.timeout = config.get("timeout", 30)
+        self.max_limit = config.get("max_limit", DEFAULT_MAX_LLM_ITEMS)
+        self.read_only = config.get("read_only")
         self._client: Optional[httpx.AsyncClient] = None
+        self._query_cache = QueryCache()
+        if self.read_only is None:
+            logger.warning(
+                "Tempo storage created without explicit read_only flag; "
+                "set read_only=True in production to enforce read-only credentials."
+            )
 
     def initialize(self) -> bool:
         """Initialize Tempo client"""
@@ -58,6 +74,10 @@ class TempoStorage(BaseStorage):
             logger.warning("Tempo not initialized")
             return False
 
+        if self.read_only is True:
+            logger.warning("Tempo write rejected: storage is configured as read_only")
+            return False
+
         try:
             # Tempo typically uses OTLP for trace ingestion
             # This is a fallback for manual ingestion
@@ -67,6 +87,17 @@ class TempoStorage(BaseStorage):
         except Exception as e:
             logger.error(f"Error storing to Tempo: {e}")
             return False
+
+    async def _fetch_trace(self, key: str) -> Optional[Any]:
+        """Internal trace fetch that parses the response before caching."""
+        response = await self._client.get(f"/api/traces/{key}")
+        if response.status_code == 200:
+            return response.json()
+        if response.status_code == 404:
+            logger.debug(f"Trace not found: {key}")
+            return None
+        logger.error(f"Tempo retrieve failed: {response.status_code} - {response.text}")
+        return None
 
     async def retrieve(self, key: str) -> Optional[Any]:
         """
@@ -83,16 +114,12 @@ class TempoStorage(BaseStorage):
             return None
 
         try:
-            response = await self._client.get(f"/api/traces/{key}")
-
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 404:
-                logger.debug(f"Trace not found: {key}")
-                return None
-            else:
-                logger.error(f"Tempo retrieve failed: {response.status_code} - {response.text}")
-                return None
+            cache_key = make_cache_key("tempo_trace", self.base_url, key)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(self._fetch_trace(key)),
+            )
 
         except Exception as e:
             logger.error(f"Error retrieving from Tempo: {e}")
@@ -131,8 +158,9 @@ class TempoStorage(BaseStorage):
             logger.warning("Tempo client not initialized")
             return []
 
-        if self._client is None:
-            return []
+        if "limit" in params and int(params["limit"]) > self.max_limit:
+            params = {**params, "limit": self.max_limit}
+
         response = await self._client.get("/api/search", params=params)
 
         if response.status_code == 200:
@@ -165,8 +193,20 @@ class TempoStorage(BaseStorage):
             if not params:
                 return []
 
-            return await self._execute_tempo_query(params)
+            tempo_query = params.get("query", "")
+            if tempo_query:
+                validate_tempoql(tempo_query)
 
+            cache_key = make_cache_key("tempo_query", self.base_url, params)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(self._execute_tempo_query(params)),
+            )
+
+        except ValueError as exc:
+            logger.warning("Invalid TempoQL query rejected: %s", exc)
+            return []
         except Exception as e:
             logger.error(f"Error querying Tempo: {e}")
             return []
@@ -241,7 +281,7 @@ class TempoStorage(BaseStorage):
             List of matching traces
         """
         query = self._build_search_query(service_name, operation, tags, min_duration, max_duration)
-        query_params = self._build_search_params(query, start, end, limit)
+        query_params = self._build_search_params(query, start, end, min(limit, self.max_limit))
 
         return await self.query(query_params)
 
@@ -256,15 +296,21 @@ class TempoStorage(BaseStorage):
             logger.warning("Tempo not initialized")
             return []
 
-        try:
+        async def _fetch_services() -> List[str]:
             response = await self._client.get("/api/services")
-
             if response.status_code == 200:
                 data = response.json()
                 services = cast(List[str], data.get("data", []))
                 return services if isinstance(services, list) else []
-
             return []
+
+        try:
+            cache_key = make_cache_key("tempo_services", self.base_url)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(_fetch_services()),
+            )
 
         except Exception as e:
             logger.error(f"Error getting services from Tempo: {e}")
@@ -284,15 +330,21 @@ class TempoStorage(BaseStorage):
             logger.warning("Tempo not initialized")
             return []
 
-        try:
+        async def _fetch_operations() -> List[str]:
             response = await self._client.get(f"/api/services/{service_name}/operations")
-
             if response.status_code == 200:
                 data = response.json()
                 operations = cast(List[str], data.get("data", []))
                 return operations if isinstance(operations, list) else []
-
             return []
+
+        try:
+            cache_key = make_cache_key("tempo_operations", self.base_url, service_name)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(_fetch_operations()),
+            )
 
         except Exception as e:
             logger.error(f"Error getting operations from Tempo: {e}")

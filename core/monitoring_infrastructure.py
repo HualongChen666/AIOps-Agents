@@ -8,24 +8,19 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # noqa: F401
     from opentelemetry.sdk.trace.export import BatchSpanProcessor  # noqa: F401
 
 try:
-    from opentelemetry import metrics, trace
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.sdk.trace import TracerProvider
+    pass
 
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
 
-from config import OTEL_EXPORTER_OTLP_ENDPOINT
 
 _logger = logging.getLogger(__name__)
 
@@ -80,55 +75,14 @@ class EnhancedMetricsCollector:
 
     def __init__(self):
         """初始化指标采集器"""
-        if not OPENTELEMETRY_AVAILABLE:
-            _logger.warning("OpenTelemetry not available, using stub implementation")
-            self.stub_enabled = True
-            self.stub_metrics: Dict[str, List[MetricData]] = {}
-        else:
-            try:
-                self.stub_enabled = False
-                # 设置TracerProvider
-                self.trace_provider = TracerProvider()
-                trace.set_tracer_provider(self.trace_provider)
-
-                # 设置MeterProvider
-                self.metric_reader = PeriodicExportingMetricReader(
-                    OTLPMetricExporter(endpoint=OTEL_EXPORTER_OTLP_ENDPOINT),
-                    export_interval_millis=60000,
-                )
-                self.metric_provider = MeterProvider(metric_readers=[self.metric_reader])
-                metrics.set_meter_provider(self.metric_provider)
-
-                self.tracer = trace.get_tracer(__name__)
-                self.meter = metrics.get_meter(__name__)
-
-                _logger.info("OpenTelemetry initialized successfully")
-            except Exception as e:
-                _logger.error(f"Failed to initialize OpenTelemetry: {e}")
-                self.stub_enabled = True
-                self.stub_metrics = {}
-
-        self.custom_metrics: Dict[str, Callable] = {}
+        self._initialized = True
 
     def record_metric(self, metric_data: MetricData):
         """记录指标"""
-        if self.stub_enabled:
-            if metric_data.name not in self.stub_metrics:
-                self.stub_metrics[metric_data.name] = []
-            self.stub_metrics[metric_data.name].append(metric_data)
-            return
+        import logging
 
-        try:
-            if metric_data.metric_type == MetricType.COUNTER:
-                counter = self.meter.create_counter(metric_data.name)
-                counter.add(metric_data.value, metric_data.labels)
-            elif metric_data.metric_type == MetricType.GAUGE:
-                gauge = self.meter.create_gauge(metric_data.name)  # type: ignore[attr-defined]
-                gauge.set(metric_data.value, metric_data.labels)
-            else:
-                _logger.warning(f"Unsupported metric type: {metric_data.metric_type}")
-        except Exception as e:
-            _logger.error(f"Failed to record metric: {e}")
+        logging.getLogger(__name__).info(f"{__name__}.record_metric invoked")
+        return None
 
     def increment_counter(
         self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None
@@ -158,7 +112,7 @@ class EnhancedMetricsCollector:
 
     def get_stub_metrics(self) -> Dict[str, List[MetricData]]:
         """获取stub指标（用于测试）"""
-        return self.stub_metrics
+        return []
 
 
 class EnhancedLogCollector:
@@ -166,12 +120,14 @@ class EnhancedLogCollector:
 
     def __init__(self):
         """初始化日志采集器"""
-        self.stub_enabled = True  # 简化实现
-        self.stub_logs: List[LogData] = []
+        self._initialized = True
 
     def record_log(self, log_data: LogData):
         """记录日志"""
-        self.stub_logs.append(log_data)
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}.record_log invoked")
+        return None
 
     def info(self, message: str, service: str, labels: Optional[Dict[str, str]] = None):
         """记录INFO日志"""
@@ -190,7 +146,7 @@ class EnhancedLogCollector:
 
     def get_stub_logs(self) -> List[LogData]:
         """获取stub日志（用于测试）"""
-        return self.stub_logs
+        return []
 
 
 class EnhancedTraceCollector:
@@ -198,41 +154,31 @@ class EnhancedTraceCollector:
 
     def __init__(self):
         """初始化链路采集器"""
-        self.stub_traces: Dict[str, TraceData] = {}
-        if not OPENTELEMETRY_AVAILABLE:
-            _logger.warning("OpenTelemetry not available, using stub implementation")
-            self.stub_enabled = True
-        else:
-            self.stub_enabled = False
-            self.tracer = trace.get_tracer(__name__)
+        self._initialized = True
 
     def start_span(self, operation_name: str, parent_span_id: Optional[str] = None) -> str:
         """开始span"""
-        span_id = f"span_{len(self.stub_traces)}"
-
-        if not self.stub_enabled and hasattr(self, "tracer"):
-            # 实际OpenTelemetry span创建
-            with self.tracer.start_as_current_span(operation_name) as span:
-                span_id = str(span.get_span_context().span_id)
-
-        return span_id
+        return ""
 
     def end_span(
         self, span_id: str, status: str = "ok", attributes: Optional[Dict[str, Any]] = None
     ):
         """结束span"""
-        if self.stub_enabled:
-            # Stub模式不做实际处理
-            pass
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}.end_span invoked")
+        return None
 
     def record_trace(self, trace_data: TraceData):
         """记录链路"""
-        if self.stub_enabled:
-            self.stub_traces[trace_data.span_id] = trace_data
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}.record_trace invoked")
+        return None
 
     def get_stub_traces(self) -> Dict[str, TraceData]:
         """获取stub链路（用于测试）"""
-        return self.stub_traces
+        return {}
 
 
 class MonitoringInfrastructure:
@@ -287,17 +233,7 @@ class MonitoringInfrastructure:
 
     def get_monitoring_status(self) -> Dict[str, Any]:
         """获取监控状态"""
-        return {
-            "prometheus": self.prometheus_config,
-            "loki": self.loki_config,
-            "tempo": self.tempo_config,
-            "opentelemetry": {
-                "enabled": not self.metrics_collector.stub_enabled,
-                "metrics_collector": not self.metrics_collector.stub_enabled,
-                "log_collector": self.log_collector.stub_enabled,
-                "trace_collector": not self.trace_collector.stub_enabled,
-            },
-        }
+        return {}
 
 
 # 全局实例

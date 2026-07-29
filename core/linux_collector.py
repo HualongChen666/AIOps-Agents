@@ -599,7 +599,8 @@ async def _ssh_execute(
                 try:
                     proc.kill()
                     await proc.wait()
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     logger.debug("Failed to terminate timed-out SSH process", exc_info=True)
             return "TIMEOUT"
 

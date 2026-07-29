@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """测试真实集成模块"""
 
 import pytest
@@ -42,7 +43,8 @@ class TestApplyRealIntegrations:
             # 函数应该可以调用（可能因为依赖问题而跳过）
             try:
                 apply_real_integrations()
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 函数调用可能因为依赖问题失败，但函数本身存在
                 pass
         except Exception as e:

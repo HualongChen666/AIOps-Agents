@@ -7,14 +7,23 @@ and ensure fair usage across all users with advanced features.
 """
 
 import asyncio
+import logging
+import os
 import time
 from collections import defaultdict
 from typing import Any, Dict, Optional
 
-from fastapi import Request
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 import config
+
+try:
+    from core.prometheus_metrics import get_metrics_exporter
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    get_metrics_exporter = None  # type: ignore[assignment]
 
 # Lazy initialization to avoid import errors
 _limiter = None
@@ -215,10 +224,110 @@ def check_rate_limit(request: Request, limit: Optional[str] = None) -> bool:
         return True
 
 
+# O15: concurrency and session limiters
+class ConcurrencyLimiter:
+    """Limit concurrent operations per key."""
+
+    def __init__(self):
+        self._counts: Dict[str, int] = defaultdict(int)
+        self._locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+    async def acquire(self, key: str, max_concurrent: int) -> bool:
+        async with self._locks[key]:
+            if self._counts[key] >= max_concurrent:
+                logger.warning(f"Concurrency limit exceeded for {key}")
+                return False
+            self._counts[key] += 1
+            return True
+
+    async def release(self, key: str) -> None:
+        async with self._locks[key]:
+            if self._counts[key] > 0:
+                self._counts[key] -= 1
+
+
+class SessionLimiter:
+    """Limit number of active sessions per user/identifier."""
+
+    def __init__(self):
+        self._sessions: Dict[str, int] = defaultdict(int)
+        self._lock = asyncio.Lock()
+
+    def _update_session_metric(self) -> None:
+        total = sum(self._sessions.values())
+        if get_metrics_exporter:
+            try:
+                get_metrics_exporter().record_active_sessions("user", total)
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
+                logging.warning("Suppressed exception", exc_info=True)
+                pass
+
+    async def check_and_register(self, key: str, max_sessions: int) -> bool:
+        async with self._lock:
+            if self._sessions[key] >= max_sessions:
+                logger.warning(f"Session limit exceeded for {key}")
+                return False
+            self._sessions[key] += 1
+            self._update_session_metric()
+            return True
+
+    async def unregister(self, key: str) -> None:
+        async with self._lock:
+            if self._sessions[key] > 0:
+                self._sessions[key] -= 1
+                self._update_session_metric()
+
+
+_global_concurrency_limiter = ConcurrencyLimiter()
+_global_session_limiter = SessionLimiter()
+
+
+def get_concurrency_limiter() -> ConcurrencyLimiter:
+    """Get the global concurrency limiter instance."""
+    return _global_concurrency_limiter
+
+
+def get_session_limiter() -> SessionLimiter:
+    """Get the global session limiter instance."""
+    return _global_session_limiter
+
+
+def add_concurrency_middleware(app: FastAPI) -> None:
+    """Add request-level concurrency/session limit middleware (default disabled)."""
+    max_concurrent = int(os.getenv("AIOPS_MAX_CONCURRENT", "10"))
+    max_sessions = int(os.getenv("AIOPS_MAX_SESSIONS", "5"))
+    concurrency_limiter = get_concurrency_limiter()
+    session_limiter = get_session_limiter()
+
+    @app.middleware("http")
+    async def concurrency_middleware(request: Request, call_next):
+        client_id = request.client.host if request.client else "unknown"
+        user = getattr(request.state, "user", {})
+        session_key = user.get("id", client_id) if user else client_id
+
+        if not await concurrency_limiter.acquire(client_id, max_concurrent):
+            return JSONResponse(status_code=503, content={"error": "Concurrency limit exceeded"})
+        try:
+            if not await session_limiter.check_and_register(session_key, max_sessions):
+                await concurrency_limiter.release(client_id)
+                return JSONResponse(status_code=503, content={"error": "Session limit exceeded"})
+            try:
+                return await call_next(request)
+            finally:
+                await session_limiter.unregister(session_key)
+        finally:
+            await concurrency_limiter.release(client_id)
+
+
 __all__ = [
     "get_limiter",
     "get_rate_limit_for_endpoint",
     "check_rate_limit",
     "AdvancedRateLimiter",
     "get_advanced_rate_limiter",
+    "ConcurrencyLimiter",
+    "get_concurrency_limiter",
+    "SessionLimiter",
+    "get_session_limiter",
 ]

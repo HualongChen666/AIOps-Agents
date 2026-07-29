@@ -11,12 +11,12 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.rag_router import rag_search
+
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.authentication"].role_required = Mock(return_value=lambda: {"role": "user"})
 sys.modules["core.rag_engine"] = MagicMock()
-
-from api.rag_router import rag_search
 
 
 @pytest.fixture

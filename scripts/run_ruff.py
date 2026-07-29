@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import logging
 """Ruff runner with Windows App Control fallback.
 
 Attempts to run ``ruff``. If the compiled ruff binary is blocked by Windows
@@ -21,7 +22,8 @@ def ruff_available() -> bool:
         from ruff import find_ruff_bin
 
         ruff_bin = find_ruff_bin()
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         return False
     try:
         rc = subprocess.run(

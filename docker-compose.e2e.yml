@@ -1,0 +1,146 @@
+version: "3.8"
+
+# Self-contained end-to-end demo stack for the AI SRE Agent.
+# Usage: docker compose -f docker-compose.e2e.yml up --build -d
+services:
+  aiops:
+    build: .
+    container_name: aiops-e2e-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8000
+      - UVICORN_WORKERS=1
+      - HEAL_EXECUTE_ENABLED=false
+      - HEAL_AUTO_APPROVE_SAFE_LOW=false
+      - HEAL_DRY_RUN=true
+      - HARDWARE_EXECUTE_ENABLED=false
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - POSTGRES_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/aiops
+      - REDIS_URL=redis://redis:6379/0
+      - MICROSERVICE_MODE=remote
+      - ALERT_SERVICE_URL=http://alert_service:8001
+      - REPAIR_SERVICE_URL=http://repair_service:8002
+      - AGENT_ORCHESTRATION_SERVICE_URL=http://agent_orchestration:8003
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      - postgres
+      - redis
+      - alert_service
+      - repair_service
+      - agent_orchestration
+
+  alert_service:
+    build:
+      context: .
+      dockerfile: services/alert_service/Dockerfile
+    container_name: aiops-e2e-alert
+    ports:
+      - "8001:8001"
+    environment:
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8001
+      - POSTGRES_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/aiops
+      - REDIS_URL=redis://redis:6379/0
+      - HEAL_EXECUTE_ENABLED=false
+      - HARDWARE_EXECUTE_ENABLED=false
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    command: ["uvicorn", "services.alert_service.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    depends_on:
+      - postgres
+      - redis
+
+  repair_service:
+    build:
+      context: .
+      dockerfile: services/repair_service/Dockerfile
+    container_name: aiops-e2e-repair
+    ports:
+      - "8002:8002"
+    environment:
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8002
+      - POSTGRES_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/aiops
+      - HEAL_EXECUTE_ENABLED=false
+      - HARDWARE_EXECUTE_ENABLED=false
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    command: ["uvicorn", "services.repair_service.main:app", "--host", "0.0.0.0", "--port", "8002"]
+    depends_on:
+      - postgres
+
+  agent_orchestration:
+    build:
+      context: .
+      dockerfile: services/agent_orchestration_service/Dockerfile
+    container_name: aiops-e2e-orchestration
+    ports:
+      - "8003:8003"
+    environment:
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8003
+      - POSTGRES_URL=postgresql+asyncpg://postgres:postgres:5432/aiops
+      - HEAL_EXECUTE_ENABLED=false
+      - HARDWARE_EXECUTE_ENABLED=false
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    command: ["uvicorn", "services.agent_orchestration_service.main:app", "--host", "0.0.0.0", "--port", "8003"]
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: aiops-e2e-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=aiops
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: aiops-e2e-redis
+    ports:
+      - "6379:6379"
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: aiops-e2e-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager-e2e.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    depends_on:
+      - aiops
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: aiops-e2e-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus-e2e.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts/aiops-e2e.yml:/etc/prometheus/alerts/aiops.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    depends_on:
+      - alertmanager
+      - aiops
+
+volumes:
+  postgres_data:

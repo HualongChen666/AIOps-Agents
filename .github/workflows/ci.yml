@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 env:
-  COVERAGE_THRESHOLD: 80
+  COVERAGE_THRESHOLD: 85
 
 jobs:
   # 🔧 P0-11: 代码质量检查
@@ -25,28 +25,37 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black isort mypy flake8
+          pip install black isort mypy flake8 ruff bandit
 
       - name: Run code formatting check
         run: |
           echo "=== Running Black code formatting check ==="
           echo "Configuration: line-length=100 (from pyproject.toml)"
           black --check .
+          echo "=== Running Ruff code formatting check ==="
+          ruff format --check .
           echo "=== Running isort import sorting check ==="
           echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
           isort --check-only .
 
       - name: Run linting
         run: |
-          echo "=== Running flake8 linting check ==="
+          echo "=== Running flake8 linting check (fallback for local Windows) ==="
           echo "Configuration: max-line-length=100, extend-ignore=E203,W503 (from pyproject.toml)"
           flake8 .
+          echo "=== Running Ruff lint check ==="
+          ruff check .
 
       - name: Run type checking
         run: |
           echo "=== Running mypy type checking ==="
           echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
           mypy . --ignore-missing-imports
+      - name: Run security scan (HIGH=0)
+        run: |
+          echo "=== Running bandit security scan (fail on HIGH) ==="
+          bandit -r . -lll
+        continue-on-error: false
 
   # 🔧 P0-11: 单元测试和覆盖率
   test:
@@ -96,12 +105,14 @@ jobs:
 
       - name: Run security scan
         run: |
-          echo "=== Running bandit security scan ==="
+          echo "=== Running bandit security scan (report) ==="
           bandit -r . -f json -o bandit-report.json || true
           bandit -r . -f screen || true
           echo "=== Running safety dependency check ==="
           safety check --json > safety-report.json || true
           safety check || true
+          echo "=== Enforcing bandit HIGH=0 ==="
+          bandit -r . -lll
 
       - name: Run database migrations
         env:

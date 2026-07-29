@@ -29,6 +29,19 @@ from typing import Any, Callable, Dict, List, Optional, cast
 
 from loguru import logger
 
+from core.observability_query import (
+    DEFAULT_MAX_PROMQL_SAMPLES,
+    QueryCache,
+    align_time_window,
+    cached_query,
+    limit_range_samples,
+    make_cache_key,
+    parse_duration_to_seconds,
+    sanitize_error_for_llm,
+    validate_promql,
+    with_query_timeout,
+)
+
 # Optional integration library imports
 try:
     import requests
@@ -149,6 +162,9 @@ class IntegrationEcosystem:
         self.webhook_timeout = 30
         self.event_processing_interval = timedelta(seconds=5)
 
+        # 可观测性查询缓存 / 安全层
+        self._observability_cache = QueryCache()
+
     async def initialize(self):
         """初始化集成生态模块"""
         logger.info("Initializing Integration Ecosystem")
@@ -186,9 +202,38 @@ class IntegrationEcosystem:
         return session
 
     async def _load_existing_integrations(self):
-        """加载现有集成配置"""
+        """加载现有集成配置（从 integrations.json 文件或环境变量指定路径）。"""
         logger.info("Loading existing integration configurations")
-        # 实现从数据库加载集成配置的逻辑
+        try:
+            import os
+
+            path = os.getenv("AIOPS_INTEGRATIONS_PATH", "integrations.json")
+            if not os.path.exists(path):
+                logger.info(f"No integration configuration file found at {path}")
+                return
+
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            for item in data:
+                try:
+                    config = IntegrationConfig(
+                        id=item.get("id") or f"integration_{uuid.uuid4().hex[:12]}",
+                        name=item["name"],
+                        type=IntegrationType(item["type"]),
+                        provider=item["provider"],
+                        configuration=item.get("configuration", {}),
+                        status=IntegrationStatus(item.get("status", "pending")),
+                        credentials=item.get("credentials", {}),
+                        metadata=item.get("metadata", {}),
+                    )
+                    self.integrations[config.id] = config
+                except Exception as exc:
+                    logger.warning(f"Failed to load integration entry: {exc}")
+
+            logger.info(f"Loaded {len(self.integrations)} integrations from {path}")
+        except Exception as exc:
+            logger.warning(f"Failed to load existing integrations: {exc}")
 
     async def register_integration(
         self,
@@ -410,7 +455,7 @@ class IntegrationEcosystem:
             elif channel == NotificationChannel.EMAIL:
                 return await self._send_email_notification(message, metadata or {})
             else:
-                logger.warning(f"Notification channel {channel.value} not implemented")
+                logger.warning(f"Notification channel {channel.value} not supported")
                 return False
 
         except Exception as e:
@@ -467,27 +512,115 @@ class IntegrationEcosystem:
 
     async def _send_teams_notification(self, message: str, metadata: Dict[str, Any]) -> bool:
         """发送Teams通知"""
-        # 实现Teams通知逻辑
-        logger.warning("Teams notification not implemented")
-        return False
+        return await self._post_webhook_notification("teams", message, metadata)
 
     async def _send_dingtalk_notification(self, message: str, metadata: Dict[str, Any]) -> bool:
         """发送钉钉通知"""
-        # 实现钉钉通知逻辑
-        logger.warning("DingTalk notification not implemented")
-        return False
+        return await self._post_webhook_notification("dingtalk", message, metadata)
 
     async def _send_wecom_notification(self, message: str, metadata: Dict[str, Any]) -> bool:
         """发送企业微信通知"""
-        # 实现企业微信通知逻辑
-        logger.warning("WeCom notification not implemented")
-        return False
+        return await self._post_webhook_notification("wecom", message, metadata)
 
     async def _send_email_notification(self, message: str, metadata: Dict[str, Any]) -> bool:
-        """发送邮件通知"""
-        # 实现邮件通知逻辑
-        logger.warning("Email notification not implemented")
-        return False
+        """发送邮件通知（使用 smtplib 发送配置 SMTP）。"""
+        integration = self._find_notification_integration("email")
+        if not integration:
+            logger.error("Email integration not found")
+            return False
+
+        smtp_config = integration.configuration
+        smtp_host = smtp_config.get("smtp_host")
+        smtp_port = smtp_config.get("smtp_port", 587)
+        sender = smtp_config.get("sender")
+        recipient = metadata.get("to") or smtp_config.get("default_recipient")
+        password = integration.credentials.get("password")
+
+        if not smtp_host or not sender or not recipient:
+            logger.error("Email integration missing host, sender or recipient")
+            return False
+
+        try:
+            import smtplib
+            from email.mime.multipart import MIMEMultipart
+            from email.mime.text import MIMEText
+
+            msg = MIMEMultipart()
+            msg["From"] = sender
+            msg["To"] = recipient
+            msg["Subject"] = metadata.get("subject", "AIOps Notification")
+            msg.attach(MIMEText(message, "plain", "utf-8"))
+
+            def _send():
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+                    server.starttls()
+                    if password:
+                        server.login(sender, password)
+                    server.sendmail(sender, [recipient], msg.as_string())
+
+            await asyncio.get_event_loop().run_in_executor(None, _send)
+            logger.info(f"Email notification sent to {recipient}")
+            return True
+        except Exception as e:
+            logger.error(f"Email notification failed: {e}")
+            return False
+
+    async def _post_webhook_notification(
+        self, provider: str, message: str, metadata: Dict[str, Any]
+    ) -> bool:
+        """Generic webhook POST for notification providers."""
+        integration = self._find_notification_integration(provider)
+        if not integration:
+            logger.error(f"{provider} integration not found")
+            return False
+
+        webhook_url = integration.configuration.get("webhook_url")
+        if not webhook_url:
+            logger.error(f"{provider} integration missing webhook_url")
+            return False
+
+        secret = integration.credentials.get("secret")
+        payload: Dict[str, Any] = {"text": message, "provider": provider}
+        if metadata:
+            payload.update(metadata)
+
+        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        if secret:
+            timestamp = str(datetime.now(timezone.utc).timestamp())
+            signature = hmac.new(
+                secret.encode(),
+                f"{timestamp}\n{secret}".encode(),
+                "sha256",
+            ).hexdigest()
+            headers["X-Timestamp"] = timestamp
+            headers["X-Signature"] = signature
+
+        try:
+            if not self.http_session:
+                logger.error("HTTP session not available")
+                return False
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.http_session.post(
+                    webhook_url, json=payload, headers=headers, timeout=10
+                ),
+            )
+            return int(response.status_code) in (200, 201, 204)
+        except Exception as e:
+            logger.error(f"{provider} notification failed: {e}")
+            return False
+
+    def _find_notification_integration(self, provider: str) -> Optional[IntegrationConfig]:
+        """查找指定 provider 的通知集成配置。"""
+        for integration in self.integrations.values():
+            if (
+                integration.type == IntegrationType.NOTIFICATION
+                and integration.provider == provider
+            ):
+                return integration
+        return None
 
     async def register_webhook(
         self, url: str, secret: Optional[str] = None, events: Optional[List[str]] = None
@@ -618,9 +751,9 @@ class IntegrationEcosystem:
         logger.info(f"Registered handler for event type: {event_type}")
 
     async def query_prometheus_metrics(
-        self, query: str, integration_id: str
+        self, query: str, integration_id: str, time_range: str = "1h"
     ) -> Optional[Dict[str, Any]]:
-        """查询Prometheus指标"""
+        """查询Prometheus指标，支持 PromQL 校验、时间窗口对齐和查询缓存"""
         prometheus_integration = self.integrations.get(integration_id)
 
         if not prometheus_integration or prometheus_integration.provider != "prometheus":
@@ -628,26 +761,70 @@ class IntegrationEcosystem:
             return None
 
         config = prometheus_integration.configuration
-        query_url = f"{config['url']}:{config.get('port', 9090)}/api/v1/query"
+        base_url = f"{config['url']}:{config.get('port', 9090)}"
 
         try:
-            if REQUESTS_AVAILABLE and self.http_session:
-                response = self.http_session.post(
-                    query_url, json={"query": query}, params={"timeout": "30s"}, timeout=30
-                )
+            validate_promql(query)
+        except ValueError as exc:
+            logger.warning("Invalid PromQL rejected for integration %s: %s", integration_id, exc)
+            return None
 
-                if response.status_code == 200:
-                    return cast(Dict[str, Any], response.json())
-                else:
-                    logger.error(f"Prometheus query failed: {response.status_code}")
-                    return None
-            else:
+        try:
+            duration_seconds = parse_duration_to_seconds(time_range)
+        except ValueError as exc:
+            logger.warning(
+                "Invalid time_range rejected for integration %s: %s", integration_id, exc
+            )
+            return None
+
+        try:
+            end = datetime.now(timezone.utc)
+            start, end = align_time_window(
+                end=end, duration_seconds=duration_seconds, latency_offset_seconds=0.0
+            )
+            step = limit_range_samples(
+                start,
+                end,
+                60.0,
+                config.get("max_samples", DEFAULT_MAX_PROMQL_SAMPLES),
+            )
+
+            cache_key = make_cache_key("ecosystem_prometheus", base_url, query, time_range, step)
+
+            if not REQUESTS_AVAILABLE or not self.http_session:
                 logger.warning("HTTP session not available")
                 return None
 
+            async def _run_query() -> Dict[str, Any]:
+                def _sync_query():
+                    return self.http_session.get(
+                        f"{base_url}/api/v1/query_range",
+                        params={
+                            "query": query,
+                            "start": int(start.timestamp()),
+                            "end": int(end.timestamp()),
+                            "step": int(step),
+                            "timeout": "30s",
+                        },
+                        timeout=30,
+                    )
+
+                response = await asyncio.get_running_loop().run_in_executor(None, _sync_query)
+                if response.status_code == 200:
+                    return cast(Dict[str, Any], response.json())
+                logger.error(f"Prometheus query failed: {response.status_code}")
+                return {"error": f"Prometheus query failed: {response.status_code}"}
+
+            return await cached_query(
+                self._observability_cache,
+                cache_key,
+                with_query_timeout(_run_query()),
+            )
+
         except Exception as e:
-            logger.error(f"Prometheus query failed: {e}")
-            return None
+            safe_error = sanitize_error_for_llm(e)
+            logger.error(f"Prometheus query failed for {integration_id}: {safe_error}")
+            return {"error": safe_error}
 
     async def trigger_jenkins_build(
         self, job_name: str, integration_id: str, parameters: Optional[Dict[str, Any]] = None
@@ -782,8 +959,19 @@ class IntegrationEcosystem:
         return True
 
     async def _cleanup_integration(self, integration_id: str):
-        """清理集成"""
-        # 实现集成清理逻辑
+        """清理集成相关资源（Webhook、事件处理器等）。"""
+        integration = self.integrations.get(integration_id)
+        if not integration:
+            return
+
+        # 移除与该集成 URL 关联的 webhook
+        url = integration.configuration.get("webhook_url") or integration.configuration.get("url")
+        if url:
+            self.webhooks = {wid: wh for wid, wh in self.webhooks.items() if wh.url != url}
+
+        # 注销该集成注册的事件处理器
+        self.event_handlers.pop(integration_id, None)
+        logger.info(f"Integration {integration_id} resources cleaned up")
 
     async def get_integration_statistics(self) -> Dict[str, Any]:
         """获取集成统计信息"""

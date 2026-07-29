@@ -10,10 +10,10 @@ from fastapi import FastAPI
 from fastapi.responses import Response
 from fastapi.testclient import TestClient
 
+import api.sse_router as sse_router
+
 # Mock problematic imports before importing router
 sys.modules["core.websocket_manager"] = MagicMock()
-
-import api.sse_router as sse_router
 
 
 @pytest.fixture

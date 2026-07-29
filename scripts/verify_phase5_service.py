@@ -112,19 +112,23 @@ def verify_service(svc: str, task: str, base_env: dict[str, str]) -> dict:
         test_dir,
     ]
     rc, out = run("pytest", cov_cmd, base_env, timeout=55)
-    svc_res["commands"].append({"name": "pytest", "returncode": rc, "output": out[:4000], "passed": parse_passed(out)})
+    svc_res["commands"].append(
+        {"name": "pytest", "returncode": rc, "output": out[:4000], "passed": parse_passed(out)}
+    )
 
     # coverage report
     report_cmd = [PYTHON, "-m", "coverage", "report", f"--data-file={data_file}", "--show-missing"]
     rc, out = run("coverage-report", report_cmd, base_env, timeout=55)
     total_line, cov_pct = parse_total_cov(out)
-    svc_res["commands"].append({
-        "name": "coverage-report",
-        "returncode": rc,
-        "output": out[:4000],
-        "total_coverage": total_line,
-        "coverage_pct": cov_pct,
-    })
+    svc_res["commands"].append(
+        {
+            "name": "coverage-report",
+            "returncode": rc,
+            "output": out[:4000],
+            "total_coverage": total_line,
+            "coverage_pct": cov_pct,
+        }
+    )
 
     # lint / type / security
     for tool, args in [

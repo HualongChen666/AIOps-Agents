@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Authentication Module
 =====================
@@ -331,8 +332,11 @@ class Token(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "example": {"access_token": "example", "token_type": "example"}
-        }
+            "example": {
+                "access_token": "example",
+                "token_type": "example",
+            }  # nosec B105  # noqa: E501
+        }  # nosec B105  # noqa: E501
     }  # nosec B105  # noqa: E501
 
 
@@ -340,9 +344,7 @@ class TokenData(BaseModel):
     username: Optional[str] = None
     role: Optional[str] = None
 
-    model_config = {
-        "json_schema_extra": {"example": {"username": "example", "role": "example"}}
-    }
+    model_config = {"json_schema_extra": {"example": {"username": "example", "role": "example"}}}
 
 
 class User(BaseModel):
@@ -418,7 +420,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
     try:
         return pwd_context.verify(plain_password, hashed_password)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         return False
 
 
@@ -457,7 +460,15 @@ async def get_user(username: str) -> Optional[UserInDB]:
 
 def get_user_by_username(username: str) -> Optional[Any]:
     """同步获取用户，可被测试 patch 替换；默认未接入数据库时返回 None。"""
-    return None
+    try:
+        if inspect.iscoroutinefunction(get_user):
+            user = asyncio.run(get_user(username))
+        else:
+            user = get_user(username)
+        return user
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
+        return None
 
 
 def authenticate_user(username: str, password: str) -> Optional[Any]:
@@ -471,7 +482,8 @@ def authenticate_user(username: str, password: str) -> Optional[Any]:
                     user = asyncio.run(get_user(username))
                 else:
                     user = get_user(username)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 user = None
 
         if not user:

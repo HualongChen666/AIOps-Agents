@@ -10,6 +10,7 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 # Mock problematic imports before importing router
 sys.modules["config"] = MagicMock()
 sys.modules["config"].LINUX_HOSTS = [
@@ -34,6 +35,8 @@ from api.linux_router import (
     list_repair_scripts,
     run_repair,
 )
+
+# isort: on
 
 
 @pytest.fixture

@@ -8,16 +8,16 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["config"] = MagicMock()
-sys.modules["config"].OTEL_COLLECTOR_ENDPOINT = "http://localhost:4318"
-
 from api.tracing_router import (
     get_service_topology,
     get_trace_details,
     get_tracing_dashboard,
     list_traces,
 )
+
+# Mock problematic imports before importing router
+sys.modules["config"] = MagicMock()
+sys.modules["config"].OTEL_COLLECTOR_ENDPOINT = "http://localhost:4318"
 
 
 @pytest.fixture

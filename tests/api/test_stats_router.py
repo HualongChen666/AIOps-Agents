@@ -8,6 +8,9 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+import api.stats_router
+from api.stats_router import get_summary, record_repair_result
+
 # Mock problematic imports before importing router
 sys.modules["config"] = MagicMock()
 sys.modules["config"].INTERNAL_API_KEY = ""
@@ -15,7 +18,9 @@ sys.modules["config"].ALLOWED_LOCAL_IPS = ["127.0.0.1", "::1"]
 sys.modules["config"].TRUST_PROXY_HEADER = False
 sys.modules["core.stats_engine"] = MagicMock()
 
-from api.stats_router import get_summary, record_repair_result
+api.stats_router.INTERNAL_API_KEY = ""
+api.stats_router.ALLOWED_LOCAL_IPS = ["127.0.0.1", "::1"]
+api.stats_router.TRUST_PROXY_HEADER = False
 
 
 @pytest.fixture

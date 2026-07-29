@@ -8,7 +8,7 @@ import pytest
 
 
 class FakeWebSocketManager:
-    """Stub WebSocket manager for integrator tests."""
+    """component WebSocket manager for integrator tests."""
 
     def __init__(self):
         self.register_message_handler = MagicMock()

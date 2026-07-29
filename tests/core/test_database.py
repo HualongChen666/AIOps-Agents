@@ -248,16 +248,20 @@ class TestBaseSQLAlchemyIntegration:
         parent_table = get_unique_table_name()
         child_table = get_unique_table_name()
 
-        class Parent(Base):
-            __tablename__ = parent_table
-            id = Column(Integer, primary_key=True)
-            children = relationship("Child", back_populates="parent")
-
+        # Define classes first, then assign relationships using class objects.
+        # This avoids SQLAlchemy string-lookup failures in the shared Base
+        # registry when tests run under pytest-xdist.
         class Child(Base):
             __tablename__ = child_table
             id = Column(Integer, primary_key=True)
             parent_id = Column(Integer, ForeignKey(f"{parent_table}.id"))
-            parent = relationship("Parent", back_populates="children")
+
+        class Parent(Base):
+            __tablename__ = parent_table
+            id = Column(Integer, primary_key=True)
+
+        Parent.children = relationship(Child, back_populates="parent")
+        Child.parent = relationship(Parent, back_populates="children")
 
         assert hasattr(Parent, "children")
         assert hasattr(Child, "parent")

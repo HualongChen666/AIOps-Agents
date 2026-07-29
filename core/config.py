@@ -7,10 +7,18 @@ modifying many import statements we provide a thin wrapper that re‑exports all
 symbols from the top‑level configuration module.
 """
 
+import importlib.util
 import os
-import sys
 
-from config import *  # re‑export everything  # noqa: F401, F403
+# Explicitly load the top-level config.py to avoid namespace package conflicts
+# with the config/ directory.
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_spec = importlib.util.spec_from_file_location("config", os.path.join(_root, "config.py"))
+_config = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_config)  # type: ignore[union-attr]
+for _name in dir(_config):
+    if not _name.startswith("_"):
+        globals()[_name] = getattr(_config, _name)
 
-# Add parent directory to path to import config
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Expose common names to keep static linters happy
+DOCKER_HOSTS = _config.DOCKER_HOSTS  # type: ignore[name-defined]

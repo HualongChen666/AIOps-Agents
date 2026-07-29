@@ -20,7 +20,16 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from core.ai.token_budget import estimate_tokens
+from core.content_moderation import moderate_content
+from core.context_compression import compress_context
+from core.data_privacy import anonymize_dict, anonymize_text
+from core.llm_cost_monitor import get_session_budget
+
 logger = logging.getLogger(__name__)
+
+# Default token budget for the reasoning prompt.
+_REASONING_TOKEN_BUDGET = 3500
 
 
 # ----------------------------------------------------------------------
@@ -138,13 +147,23 @@ class ChainOfThought:
         context: Dict[str, Any],
         max_steps: int,
     ) -> List[str]:
-        """使用 LLM 生成推理步骤"""
-        # 构造提示词
-        prompt = f"""
-目标: {goal}
+        """使用 LLM 生成推理步骤，并在超出 token 预算时压缩上下文。"""
+        # Compress context so key findings are preserved and the prompt stays
+        # within a reasonable token budget for any model.
+        compressed_context = compress_context(
+            context,
+            max_tokens=_REASONING_TOKEN_BUDGET,
+        )
+
+        # 构造提示词前先对敏感信息和注入风险做处理
+        safe_goal = anonymize_text(str(goal))
+        safe_context = anonymize_dict(compressed_context)
+        safe_context_str = json.dumps(safe_context, indent=2, ensure_ascii=False)
+        prompt_text = f"""
+目标: {safe_goal}
 
 上下文:
-{json.dumps(context, indent=2, ensure_ascii=False)}
+{safe_context_str}
 
 请生成达成目标的推理步骤，每步应该：
 1. 具体可执行
@@ -158,6 +177,24 @@ class ChainOfThought:
   ...
 ]
 """
+        allowed, reasons = moderate_content([prompt_text], check_injection=True)
+        if not allowed:
+            logger.warning(f"planner prompt 被安全过滤拦截: {reasons}")
+            return self._rule_reason(goal, context, max_steps)
+
+        prompt = prompt_text
+
+        # 会话级 token/cost 预算保护
+        session_id = context.get("session_id")
+        session_budget = get_session_budget(session_id) if session_id else None
+        if session_budget is not None:
+            estimated_input_tokens = estimate_tokens(prompt_text)
+            estimated_output_tokens = max_steps * 20
+            if not session_budget.check_and_record(
+                estimated_input_tokens + estimated_output_tokens
+            ):
+                logger.warning(f"Session {session_id} token 预算不足，回退到规则推理")
+                return self._rule_reason(goal, context, max_steps)
 
         try:
             # 调用 LLM
@@ -176,19 +213,56 @@ class ChainOfThought:
             logger.error(f"LLM 推理失败: {e}，使用规则推理")
             return self._rule_reason(goal, context, max_steps)
 
+    @staticmethod
+    def _detect_symptom(goal: str, context: Dict[str, Any]) -> str:
+        """识别当前故障场景，支持 DNS/SQL/OOM 三类典型症状。"""
+        text = f"{goal} {json.dumps(context, default=str, ensure_ascii=False)}".lower()
+        if any(kw in text for kw in ["dns", "domain", "resolution", "解析", "域名"]):
+            return "dns"
+        if any(kw in text for kw in ["sql", "query", "slow", "慢查询", "数据库", "database"]):
+            return "sql"
+        if any(
+            kw in text
+            for kw in ["oom", "oomkilled", "killed", "memory", "内存", "pod", "container"]
+        ):
+            return "oom"
+        return "generic"
+
     def _rule_reason(
         self,
         goal: str,
         context: Dict[str, Any],
         max_steps: int,
     ) -> List[str]:
-        """规则推理（降级方案）"""
-        steps = []
-
-        # 根据目标类型生成推理步骤
+        """规则推理（降级方案），已按 DNS/SQL/OOM 三类症状拆分。"""
         goal_lower = goal.lower()
+        symptom = self._detect_symptom(goal, context)
 
-        if "诊断" in goal_lower or "分析" in goal_lower:
+        if symptom == "dns":
+            steps = [
+                "步骤1: 收集下游目标网络与DNS解析指标",
+                "步骤2: 收集服务依赖拓扑",
+                "步骤3: 收集近期变更事件",
+                "步骤4: 根因分析验证DNS解析超时假设",
+                "步骤5: 生成DNS故障诊断报告",
+            ]
+        elif symptom == "sql":
+            steps = [
+                "步骤1: 收集数据库慢查询与连接池指标",
+                "步骤2: 收集相关服务指标与变更事件",
+                "步骤3: 收集拓扑与调用链",
+                "步骤4: 根因分析定位慢SQL",
+                "步骤5: 生成SQL性能诊断报告",
+            ]
+        elif symptom == "oom":
+            steps = [
+                "步骤1: 收集Kubernetes事件和容器内存指标",
+                "步骤2: 收集宿主机内存与硬件错误指标",
+                "步骤3: 收集服务变更事件",
+                "步骤4: 根因分析验证OOM原因",
+                "步骤5: 生成OOM诊断报告",
+            ]
+        elif "诊断" in goal_lower or "分析" in goal_lower:
             steps = [
                 "步骤1: 收集系统指标和日志数据",
                 "步骤2: 分析异常模式和趋势",
@@ -250,6 +324,7 @@ class TaskPlanner:
         goal: str,
         context: Dict[str, Any],
         available_tools: List[str],
+        max_tasks: int = 20,
     ) -> List[Task]:
         """
         规划任务
@@ -262,6 +337,8 @@ class TaskPlanner:
             上下文信息
         available_tools : List[str]
             可用工具列表
+        max_tasks : int
+            最大任务数量，防止无限分解
 
         Returns
         -------
@@ -270,8 +347,12 @@ class TaskPlanner:
         """
         logger.info(f"Planning tasks for goal: {goal}")
 
-        # 执行思维链推理
+        # 执行思维链推理（本身受 max_steps 限制）
         reasoning_steps = self.cot_engine.reason(goal, context)
+
+        if len(reasoning_steps) > max_tasks:
+            reasoning_steps = reasoning_steps[:max_tasks]
+            logger.warning(f"Reasoning steps truncated to max_tasks={max_tasks}")
 
         # 将推理步骤转换为任务
         tasks = []
@@ -309,8 +390,36 @@ class TaskPlanner:
             self.tasks[task_id] = task
             prev_task_id = task_id
 
+        # 检测任务依赖是否成环（如 LLM 意外引入循环依赖）
+        if self._has_cycle(tasks):
+            raise ValueError("Cyclic task dependencies detected; aborting plan")
+
         logger.info(f"Planned {len(tasks)} tasks")
         return tasks
+
+    def _has_cycle(self, tasks: List[Task]) -> bool:
+        """使用 DFS 检测任务依赖图是否存在环。"""
+        adj: Dict[str, set] = {t.id: set(t.dependencies) for t in tasks}
+        visited: set = set()
+        rec_stack: set = set()
+
+        def dfs(node: str) -> bool:
+            visited.add(node)
+            rec_stack.add(node)
+            for dep in adj.get(node, set()):
+                if dep not in visited:
+                    if dfs(dep):
+                        return True
+                elif dep in rec_stack:
+                    return True
+            rec_stack.remove(node)
+            return False
+
+        for node in adj:
+            if node not in visited:
+                if dfs(node):
+                    return True
+        return False
 
     def _infer_task_parameters(
         self,
@@ -322,15 +431,42 @@ class TaskPlanner:
         parameters: Dict[str, Any] = {}
 
         # 根据描述推断参数
+        symptom = ChainOfThought._detect_symptom(description, context)
+
         if "收集" in description or "获取" in description:
             parameters["action"] = "collect"
             parameters["target"] = context.get("target", "system")
+            parameters["service"] = context.get("service") or context.get("target", "system")
+            parameters["service_name"] = (
+                context.get("service_name")
+                or context.get("service")
+                or context.get("target", "system")
+            )
+
+            # 按症状注入更精确的参数
+            if symptom == "dns":
+                parameters["target"] = context.get("target") or context.get(
+                    "service", "payment-gateway"
+                )
+            elif symptom == "sql":
+                parameters["database"] = context.get("database") or context.get(
+                    "service", "unknown"
+                )
+            elif symptom == "oom":
+                parameters["pod_name"] = context.get("pod_name", "unknown")
+                parameters["namespace"] = context.get("namespace", "default")
+                parameters["node_name"] = context.get("node_name", "unknown")
         elif "分析" in description:
             parameters["action"] = "analyze"
             parameters["method"] = "statistical"
+            if "metrics" in context:
+                parameters["data"] = context["metrics"]
         elif "识别" in description or "定位" in description:
             parameters["action"] = "identify"
             parameters["algorithm"] = "anomaly_detection"
+            parameters["alert_id"] = (
+                context.get("alert_id") or context.get("alert", {}).get("id") or "unknown"
+            )
         elif "验证" in description:
             parameters["action"] = "validate"
             parameters["criteria"] = "success_rate"
@@ -340,6 +476,13 @@ class TaskPlanner:
         elif "生成" in description:
             parameters["action"] = "generate"
             parameters["format"] = "report"
+
+        # 让 root cause 分析任务能拿到已收集的数据
+        if "根因" in description or "root cause" in description.lower():
+            parameters["alert"] = context.get("alert", {})
+            parameters["metrics_data"] = context.get("metrics_data", {})
+            parameters["correlated_alerts"] = context.get("correlated_alerts", [])
+            parameters["change_events"] = context.get("change_events", [])
 
         # 添加可用工具信息
         parameters["available_tools"] = available_tools

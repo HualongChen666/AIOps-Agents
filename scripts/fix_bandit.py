@@ -1,5 +1,6 @@
 # flake8: noqa
 # isort: skip_file
+import logging
 """Append targeted # nosec comments for bandit low-severity false positives.
 
 This script reads the latest bandit text report and inserts ``# nosec Bxxx``
@@ -8,6 +9,7 @@ duplicating comments, and skips multi-line string literals.  Lines that would
 exceed the project's 100-character line length receive an additional
 ``# noqa: E501`` marker so flake8 stays green.
 """
+
 import ast
 import re
 from collections import defaultdict
@@ -21,7 +23,8 @@ def find_multiline_string_lines(text: str) -> set[int]:
     """Return 1-based line numbers that fall inside multi-line string literals."""
     try:
         tree = ast.parse(text)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         return set()
     lines = set()
     for node in ast.walk(tree):
@@ -93,7 +96,9 @@ def process_file(path: Path, issues: list[dict]) -> None:
 
         comment = build_comment(bids)
         # Skip if the line already carries a nosec comment for any of these bids.
-        if any(f"nosec {bid}" in stripped or ("nosec" in stripped and bid in stripped) for bid in bids):
+        if any(
+            f"nosec {bid}" in stripped or ("nosec" in stripped and bid in stripped) for bid in bids
+        ):
             continue
 
         candidate = f"{bare}  {comment}"

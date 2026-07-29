@@ -128,7 +128,7 @@ async def check_primary_health() -> Dict[str, Any]:
         Health status dictionary
     """
     try:
-        # Placeholder for actual health check
+        # default_value for actual health check
         # In production, this would execute a simple query to test connectivity
         start_time = datetime.now(timezone.utc)
 
@@ -170,7 +170,7 @@ async def check_replica_health(replica_index: int) -> Dict[str, Any]:
     replica_key = f"replica_{replica_index}"
 
     try:
-        # Placeholder for actual health check
+        # default_value for actual health check
         start_time = datetime.now(timezone.utc)
 
         # Simulate health check

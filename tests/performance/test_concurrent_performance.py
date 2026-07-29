@@ -71,14 +71,22 @@ class TestConcurrentDatabasePerformance:
     """并发数据库性能测试"""
 
     @pytest.mark.asyncio
-    async def test_concurrent_database_reads(self, test_db_session):
+    async def test_concurrent_database_reads(self, test_db_engine):
         """测试并发数据库读取性能"""
         from sqlalchemy import select
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from sqlalchemy.orm import sessionmaker
+
+        async_session = sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
+
+        async def read_one():
+            async with async_session() as session:
+                await session.execute(select(1))
 
         num_reads = 100
         start_time = time.time()
 
-        tasks = [test_db_session.execute(select(1)) for _ in range(num_reads)]
+        tasks = [read_one() for _ in range(num_reads)]
         await asyncio.gather(*tasks)
 
         end_time = time.time()

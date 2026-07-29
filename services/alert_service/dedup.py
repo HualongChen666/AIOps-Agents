@@ -30,14 +30,27 @@ class Deduplicator:
         self.max_entries = max_entries
         self._cache: Dict[str, _DedupEntry] = {}
 
+    def fingerprint(self, alert: Alert) -> str:
+        """Public accessor to compute and assign the stable fingerprint."""
+        fp = alert.fingerprint or self._fingerprint(alert)
+        alert.fingerprint = fp
+        return fp
+
     def _fingerprint(self, alert: Alert) -> str:
-        keys = ("level", "category", "alert_type", "host", "metric", "title")
+        """按（服务/主机 + 告警类型 + 指标 + 标题）生成去重 key。
+
+        同主机同类型的重复告警会被抑制；不同主机的同类告警保留，
+        交由聚合器按根因维度进一步合并。
+        """
+        keys = ("category", "alert_type", "host", "metric", "title")
         data = {k: getattr(alert, k, "") or "" for k in keys}
+        data["level"] = str(alert.level.value) if alert.level else ""
         data["tags"] = alert.tags
-        payload = json.dumps(data, sort_keys=True, ensure_ascii=False)
+        payload = json.dumps(data, sort_keys=True, ensure_ascii=False, default=str)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
 
     def is_duplicate(self, alert: Alert) -> bool:
+        """滑动窗口去重：以上一次出现时间为基准，持续相同则抑制。"""
         now = time.time()
         fp = alert.fingerprint or self._fingerprint(alert)
         alert.fingerprint = fp
@@ -46,11 +59,12 @@ class Deduplicator:
 
         if fp in self._cache:
             entry = self._cache[fp]
-            elapsed = now - entry.first_seen
+            elapsed = now - entry.last_seen
             if elapsed < self.window_seconds:
                 alert.prev_suppressed = entry.repeat_count
                 entry.repeat_count += 1
                 entry.last_seen = now
+                entry.last_alert = alert
                 logger.debug(f"Deduplicated alert {alert.id} (count={entry.repeat_count})")
                 return True
 

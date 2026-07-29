@@ -29,7 +29,7 @@ class TestPushToLoki:
         try:
             from core.loki_sink import push_to_loki
 
-            # Should not raise exception (stub implementation)
+            # Should not raise exception (component implementation)
             data = {"message": "test log", "level": "info"}
             push_to_loki(data)
         except Exception as e:

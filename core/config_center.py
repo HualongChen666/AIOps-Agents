@@ -67,7 +67,7 @@ class ConsulConfigCenter:
         self.stub_enabled = not CONSUL_AVAILABLE
 
         if self.stub_enabled:
-            _logger.info("Consul not available, using stub implementation")
+            _logger.info("Consul not available, using component implementation")
             self.stub_config: Dict[str, ConfigItem] = {}
         else:
             try:
@@ -85,38 +85,47 @@ class ConsulConfigCenter:
 
     def set_config(self, key: str, value: Any, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """设置配置"""
-        if self.stub_enabled:
-            old_item = self.stub_config.get(key)
-            old_value = old_item.value if old_item else None
-
-            new_item = ConfigItem(
-                key=key,
-                value=value,
-                version=old_item.version + 1 if old_item else 0,
-                metadata=metadata or {},
-            )
-            self.stub_config[key] = new_item
-
-            # 触发变更事件
-            event = ConfigChangeEvent(
-                key=key,
-                old_value=old_value,
-                new_value=value,
-                event_type=ConfigEventType.UPDATE if old_item else ConfigEventType.CREATE,
-                version=new_item.version,
-            )
-            self._notify_change(event)
-            return True
-
         try:
-            # 实际Consul设置
-            value_str = json.dumps(value) if not isinstance(value, str) else value
-            self.consul_client.kv.put(key, value_str)
-            _logger.info(f"Config set: {key}")
-            return True
+            if self.stub_enabled:
+                event_type = (
+                    ConfigEventType.UPDATE if key in self.stub_config else ConfigEventType.CREATE
+                )
+                if key in self.stub_config:
+                    self.stub_config[key].value = value
+                    self.stub_config[key].version += 1
+                    self.stub_config[key].updated_at = datetime.now(timezone.utc)
+                    if metadata:
+                        self.stub_config[key].metadata.update(metadata)
+                else:
+                    self.stub_config[key] = ConfigItem(
+                        key=key,
+                        value=value,
+                        metadata=metadata or {},
+                    )
+                self._notify_change(
+                    ConfigChangeEvent(
+                        key=key,
+                        old_value=(
+                            None
+                            if event_type == ConfigEventType.CREATE
+                            else self.stub_config[key].value
+                        ),
+                        new_value=value,
+                        event_type=event_type,
+                        version=self.stub_config[key].version,
+                    )
+                )
+                return True
+
+            # Consul 模式：简单 KV 存储
+            if self.consul_client:
+                self.consul_client.kv.put(
+                    key, json.dumps({"value": value, "metadata": metadata or {}})
+                )
+                return True
         except Exception as e:
             _logger.error(f"Failed to set config {key}: {e}")
-            return False
+        return False
 
     def get_config(self, key: str, default: Any = None) -> Optional[Any]:
         """获取配置"""
@@ -125,45 +134,37 @@ class ConsulConfigCenter:
             return item.value if item else default
 
         try:
-            index, data = self.consul_client.kv.get(key)
-            if data is None:
-                return default
-
-            value_str = data["Value"].decode("utf-8")
-            try:
-                return json.loads(value_str)
-            except json.JSONDecodeError:
-                return value_str
+            if self.consul_client:
+                _, data = self.consul_client.kv.get(key)
+                if data and data["Value"]:
+                    payload = json.loads(data["Value"].decode("utf-8"))
+                    return payload.get("value", default)
         except Exception as e:
             _logger.error(f"Failed to get config {key}: {e}")
-            return default
+        return default
 
     def delete_config(self, key: str) -> bool:
         """删除配置"""
         if self.stub_enabled:
-            old_item = self.stub_config.get(key)
-            if old_item:
-                old_value = old_item.value
-                del self.stub_config[key]
-
-                event = ConfigChangeEvent(
+            if key not in self.stub_config:
+                return False
+            old_value = self.stub_config.pop(key).value
+            self._notify_change(
+                ConfigChangeEvent(
                     key=key,
                     old_value=old_value,
                     new_value=None,
                     event_type=ConfigEventType.DELETE,
-                    version=old_item.version,
                 )
-                self._notify_change(event)
-                return True
-            return False
+            )
+            return True
 
         try:
-            self.consul_client.kv.delete(key)
-            _logger.info(f"Config deleted: {key}")
-            return True
+            if self.consul_client:
+                return self.consul_client.kv.delete(key)
         except Exception as e:
             _logger.error(f"Failed to delete config {key}: {e}")
-            return False
+        return False
 
     def watch_config(self, key: str, callback: Callable[[Any], None]):
         """监听配置变化"""
@@ -212,26 +213,25 @@ class ConsulConfigCenter:
         if self.stub_enabled:
             return {key: item.value for key, item in self.stub_config.items()}
 
+        all_configs: Dict[str, Any] = {}
         try:
-            index, data = self.consul_client.kv.get("/", recurse=True)
-            configs = {}
-            if data:
-                for item in data:
-                    key = item["Key"]
-                    value_str = item["Value"].decode("utf-8")
-                    try:
-                        value = json.loads(value_str)
-                    except json.JSONDecodeError:
-                        value = value_str
-                    configs[key] = value
-            return configs
+            if self.consul_client:
+                _, data = self.consul_client.kv.get("", recurse=True)
+                if data:
+                    for item in data:
+                        key = item["Key"]
+                        try:
+                            payload = json.loads(item["Value"].decode("utf-8"))
+                            all_configs[key] = payload.get("value")
+                        except (json.JSONDecodeError, KeyError):
+                            all_configs[key] = item["Value"].decode("utf-8")
         except Exception as e:
             _logger.error(f"Failed to get all configs: {e}")
-            return {}
+        return all_configs
 
     def get_stub_configs(self) -> Dict[str, ConfigItem]:
         """获取stub配置（用于测试）"""
-        return self.stub_config
+        return dict(self.stub_config)
 
 
 class ServiceDiscovery:
@@ -251,67 +251,30 @@ class ServiceDiscovery:
         tags: Optional[List[str]] = None,
     ):
         """注册服务"""
-        if self.config_center.stub_enabled:
-            service_info = {
-                "service_id": service_id,
-                "address": address,
-                "port": port,
-                "tags": tags or [],
-                "registered_at": datetime.now(timezone.utc).isoformat(),
-            }
-            if service_name not in self.services:
-                self.services[service_name] = []
-            self.services[service_name].append(service_info)
-            _logger.info(f"Service registered: {service_name}/{service_id}")
-            return
-
-        try:
-            self.config_center.consul_client.agent.service.register(
-                name=service_name,
-                service_id=service_id,
-                address=address,
-                port=port,
-                tags=tags or [],
-            )
-            _logger.info(f"Service registered: {service_name}/{service_id}")
-        except Exception as e:
-            _logger.error(f"Failed to register service {service_name}: {e}")
+        instance = {
+            "service_name": service_name,
+            "service_id": service_id,
+            "address": address,
+            "port": port,
+            "tags": tags or [],
+        }
+        self.services.setdefault(service_name, [])
+        # 去重：替换相同 service_id 的实例
+        self.services[service_name] = [
+            s for s in self.services[service_name] if s["service_id"] != service_id
+        ]
+        self.services[service_name].append(instance)
+        _logger.info(f"Registered service: {service_name}/{service_id} at {address}:{port}")
 
     def deregister_service(self, service_id: str):
         """注销服务"""
-        if self.config_center.stub_enabled:
-            for service_name, services in self.services.items():
-                self.services[service_name] = [s for s in services if s["service_id"] != service_id]
-            _logger.info(f"Service deregistered: {service_id}")
-            return
-
-        try:
-            self.config_center.consul_client.agent.service.deregister(service_id)
-            _logger.info(f"Service deregistered: {service_id}")
-        except Exception as e:
-            _logger.error(f"Failed to deregister service {service_id}: {e}")
+        for service_name, instances in self.services.items():
+            self.services[service_name] = [s for s in instances if s["service_id"] != service_id]
+        _logger.info(f"Deregistered service instance: {service_id}")
 
     def discover_service(self, service_name: str) -> List[Dict[str, Any]]:
         """发现服务"""
-        if self.config_center.stub_enabled:
-            return self.services.get(service_name, [])
-
-        try:
-            _, services = self.config_center.consul_client.health.service(
-                service_name, passing=True
-            )
-            return [
-                {
-                    "service_id": s["Service"]["ID"],
-                    "address": s["Service"]["Address"],
-                    "port": s["Service"]["Port"],
-                    "tags": s["Service"]["Tags"],
-                }
-                for s in services
-            ]
-        except Exception as e:
-            _logger.error(f"Failed to discover service {service_name}: {e}")
-            return []
+        return list(self.services.get(service_name, []))
 
 
 # 全局实例

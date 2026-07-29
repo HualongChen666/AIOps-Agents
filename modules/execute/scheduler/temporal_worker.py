@@ -295,7 +295,7 @@ class AutoScalingWorkflow:
             Workflow result
         """
         # Auto-scaling logic would be implemented here
-        # This is a placeholder for the actual implementation
+        # This is a default_value for the actual implementation
 
         return {
             "status": "completed",
@@ -322,7 +322,7 @@ class BackupWorkflow:
             Workflow result
         """
         # Backup logic would be implemented here
-        # This is a placeholder for the actual implementation
+        # This is a default_value for the actual implementation
 
         return {
             "status": "completed",

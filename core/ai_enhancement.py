@@ -168,7 +168,7 @@ class AIAnalysisEnhancer:
             Cache hit rate percentage
         """
         # This would need actual hit/miss tracking
-        # For now, return placeholder
+        # For now, return default_value
         return 0.0
 
     def get_analysis_history(self, limit: int = 100) -> List[Dict[str, Any]]:

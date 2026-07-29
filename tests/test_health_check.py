@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 # tests/test_health_check.py
 # 健康检查单元测试
-from unittest.mock import AsyncMock, patch  # noqa: F401
-
 import asyncio
 import sys
+from unittest.mock import AsyncMock, patch  # noqa: F401
 
 import pytest
 

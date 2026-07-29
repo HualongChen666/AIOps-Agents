@@ -369,9 +369,43 @@ class EnhancedRootCauseAnalyzer:
         )
 
     async def _add_cross_layer_causality(self):
-        """添加跨层级因果关系"""
-        # 实现跨层级因果关系逻辑
-        # 例如：基础设施层 -> 应用层 -> 业务层
+        """添加跨层级因果关系。
+
+        基于节点类型推断层级：基础设施/数据库/缓存/队列 -> 应用服务 -> 业务组件，
+        为跨层边补充因果强度。
+        """
+        infra_types = {"database", "cache", "queue", "server", "host", "network", "storage"}
+        app_types = {"service", "application", "api", "microservice", "web"}
+        business_types = {"business", "product", "order", "payment", "user", "transaction"}
+
+        layer_map: Dict[str, int] = {}
+        for node_id, node in self.nodes.items():
+            node_type = (node.type or "").lower()
+            if node_type in infra_types or any(t in node_type for t in infra_types):
+                layer_map[node_id] = 0
+            elif node_type in app_types or any(t in node_type for t in app_types):
+                layer_map[node_id] = 1
+            elif node_type in business_types or any(t in node_type for t in business_types):
+                layer_map[node_id] = 2
+            else:
+                layer_map[node_id] = 1  # 默认归为应用层
+
+        # 推断跨层因果关系：低层节点影响高层节点
+        for source, edges in self.edges.items():
+            source_layer = layer_map.get(source, 1)
+            for edge in edges:
+                target_layer = layer_map.get(edge.target, 1)
+                if target_layer > source_layer:
+                    # 低层 -> 高层，添加或增强因果边
+                    self.causal_graph[source].add(edge.target)
+                    key = (source, edge.target)
+                    current_strength = self.causal_strength.get(key, edge.strength)
+                    self.causal_strength[key] = min(current_strength * 1.2, 1.0)
+
+        logger.info(
+            f"Cross-layer causality added: {len(self.causal_graph)} nodes, "
+            f"{len(self.causal_strength)} causal edges"
+        )
 
     async def _topology_discovery_loop(self):
         """拓扑发现循环"""

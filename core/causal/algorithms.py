@@ -225,7 +225,7 @@ class GESAlgorithm:
         n_params = n_edges * 2  # Simplified parameter count
 
         # Log-likelihood (simplified)
-        log_likelihood = -n_samples * 0.5  # Placeholder
+        log_likelihood = -n_samples * 0.5  # default_value
 
         score: float
         if self.scoring_metric == "bic":

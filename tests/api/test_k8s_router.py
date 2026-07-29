@@ -10,14 +10,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["kubernetes"] = MagicMock()
-sys.modules["kubernetes.client"] = MagicMock()
-sys.modules["kubernetes.config"] = MagicMock()
-sys.modules["core.authentication"] = MagicMock()
-sys.modules["core.k8s_collector"] = MagicMock()
-sys.modules["core.k8s_repair"] = MagicMock()
-
 from api.k8s_router import (
     get_k8s_history,
     get_k8s_metrics,
@@ -25,6 +17,14 @@ from api.k8s_router import (
     post_k8s_repair,
     post_k8s_repair_all,
 )
+
+# Mock problematic imports before importing router
+sys.modules["kubernetes"] = MagicMock()
+sys.modules["kubernetes.client"] = MagicMock()
+sys.modules["kubernetes.config"] = MagicMock()
+sys.modules["core.authentication"] = MagicMock()
+sys.modules["core.k8s_collector"] = MagicMock()
+sys.modules["core.k8s_repair"] = MagicMock()
 
 
 @pytest.fixture

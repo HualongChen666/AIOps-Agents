@@ -13,6 +13,12 @@ from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
+try:
+    from core.prometheus_metrics import get_metrics_exporter
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    get_metrics_exporter = None  # type: ignore[assignment]
+
 
 class ConnectionManager:
     """WebSocket连接管理器"""
@@ -33,9 +39,15 @@ class ConnectionManager:
         if channel not in self.active_connections:
             self.active_connections[channel] = set()
         self.active_connections[channel].add(websocket)
-        logger.info(
-            f"WebSocket connected to channel: {channel}, total: {len(self.active_connections[channel])}"  # noqa: E501
-        )
+        count = len(self.active_connections[channel])
+        if get_metrics_exporter:
+            try:
+                get_metrics_exporter().record_websocket_connections(channel, count)
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
+                logging.warning("Suppressed exception", exc_info=True)
+                pass
+        logger.info(f"WebSocket connected to channel: {channel}, total: {count}")  # noqa: E501
 
     def disconnect(self, websocket: WebSocket, channel: str = "default"):
         """
@@ -47,10 +59,15 @@ class ConnectionManager:
         """
         if channel in self.active_connections:
             self.active_connections[channel].discard(websocket)
-            logger.info(
-                f"WebSocket disconnected from channel: {channel}, "
-                f"remaining: {len(self.active_connections[channel])}"
-            )
+            count = len(self.active_connections[channel])
+            if get_metrics_exporter:
+                try:
+                    get_metrics_exporter().record_websocket_connections(channel, count)
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
+                    logging.warning("Suppressed exception", exc_info=True)
+                    pass
+            logger.info(f"WebSocket disconnected from channel: {channel}, " f"remaining: {count}")
 
     async def broadcast(self, message: Any, channel: str = "default"):
         """

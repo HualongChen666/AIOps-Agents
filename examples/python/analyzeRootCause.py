@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import requests
+
 YOUR_ANOMALY_ID = ""
 anomaly_id = "YOUR_ANOMALY_ID"
-import requests
 
 # 示例：Analyze root cause
 # 使用 POST 方法请求 /anomalies/{anomaly_id}/root-cause

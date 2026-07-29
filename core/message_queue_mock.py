@@ -3,8 +3,25 @@
 # 消息队列的Mock实现
 # 用于测试目的，提供基本的消息队列功能
 
+import logging
 import time
 from typing import Any, Callable, Dict, List
+
+try:
+    from core.prometheus_metrics import get_metrics_exporter
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    get_metrics_exporter = None  # type: ignore[assignment]
+
+
+def _record_queue_depth(queue_name: str, depth: int) -> None:
+    if get_metrics_exporter:
+        try:
+            get_metrics_exporter().record_queue_depth(queue_name, depth)
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
+            logging.warning("Suppressed exception", exc_info=True)
+            pass
 
 
 class MessageQueue:
@@ -23,6 +40,7 @@ class MessageQueue:
         self._queues[queue_name].append(
             {"message": message, "timestamp": time.time(), "status": "pending"}
         )
+        _record_queue_depth(queue_name, len(self._queues[queue_name]))
         return True
 
     def publish_with_retry(
@@ -63,6 +81,7 @@ class MessageQueue:
         if not inserted:
             self._queues[queue_name].append(message_data)
 
+        _record_queue_depth(queue_name, len(self._queues[queue_name]))
         return True
 
     def publish_batch(self, queue_name: str, messages: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -76,12 +95,14 @@ class MessageQueue:
             else:
                 failed += 1
 
+        _record_queue_depth(queue_name, len(self._queues.get(queue_name, [])))
         return {"success": success, "failed": failed}
 
     async def consume(self, queue_name: str, handler: Callable) -> Any:
         """消费消息"""
         if queue_name in self._queues and self._queues[queue_name]:
             message_data = self._queues[queue_name].pop(0)
+            _record_queue_depth(queue_name, len(self._queues[queue_name]))
             try:
                 result = await handler(message_data["message"])
                 message_data["status"] = "processed"
@@ -188,6 +209,8 @@ class MessageQueue:
                 msg for msg in self._queues[queue_name] if msg["timestamp"] > cutoff_time
             ]
             cleaned = original_length - len(self._queues[queue_name])
+            _record_queue_depth(queue_name, len(self._queues[queue_name]))
             return {"cleaned": cleaned}
 
+        _record_queue_depth(queue_name, 0)
         return {"cleaned": 0}

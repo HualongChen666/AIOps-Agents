@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Root conftest.py - Set up Python path before test collection
+import logging
 import os
 import sys
 
@@ -40,5 +41,5 @@ try:
 
     _m.OTLPMetricExporter = _NoOpOTLPMetricExporter
     _t.OTLPSpanExporter = _NoOpOTLPSpanExporter
-except Exception:
-    pass
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)

@@ -20,7 +20,7 @@ def collect_costs() -> List[Dict[str, Any]]:
     Returns:
         List of cost records with metadata
     """
-    # Placeholder implementation - in production, this would integrate with:
+    # default_value implementation - in production, this would integrate with:
     # - AWS Cost Explorer
     # - Azure Cost Management
     # - Google Cloud Billing

@@ -38,6 +38,7 @@ class RiskLevel(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    CRITICAL = "critical"
     BLOCKED = "blocked"
 
     def serialize_to_json(self) -> str:
@@ -281,6 +282,37 @@ BLOCKED_PATTERNS: list[dict[str, Any]] = [
         "level": RiskLevel.HIGH,
         "reason": "Shell eval/exec 动态执行命令需审核",
     },
+    # ── 解释器参数代码执行绕过 ──
+    {
+        "name": "Shell 解释器 -c 参数执行",
+        "pattern": r"(?i)\b(bash|sh|zsh|dash|ksh|csh|tcsh)\b.*\s+-c\b",
+        "level": RiskLevel.BLOCKED,
+        "reason": "禁止通过 shell 解释器 -c 参数执行任意命令",
+    },
+    {
+        "name": "Python -c 参数执行",
+        "pattern": r"(?i)\bpython[23]?(?:\.\d+)?\b.*\s+-c\b",
+        "level": RiskLevel.BLOCKED,
+        "reason": "禁止通过 python -c 执行任意 Python 代码",
+    },
+    {
+        "name": "Node/Ruby/Perl -e 参数执行",
+        "pattern": r"(?i)\b(node|nodejs|ruby|perl)\b.*\s+-e\b",
+        "level": RiskLevel.BLOCKED,
+        "reason": "禁止通过脚本解释器 -e 参数执行任意代码",
+    },
+    {
+        "name": "Windows cmd /c 执行",
+        "pattern": r"(?i)\bcmd(?:\.exe)?\s+(/c|/k)\b",
+        "level": RiskLevel.BLOCKED,
+        "reason": "禁止通过 cmd /c 执行任意命令",
+    },
+    {
+        "name": "PowerShell -Command 执行",
+        "pattern": r"(?i)\b(powershell|pwsh)(?:\.exe)?\b.*\s+-[Cc](?:ommand)?\b",
+        "level": RiskLevel.BLOCKED,
+        "reason": "禁止通过 PowerShell -Command 执行任意代码",
+    },
     # ══ Windows 高危 ════════════════════════════════════
     {
         "name": "Windows 删除系统盘根目录",
@@ -402,6 +434,32 @@ BLOCKED_PATTERNS: list[dict[str, Any]] = [
         "pattern": r"(?i)\bpowershell\s+.*" r"-[Ee]xecution[Pp]olicy\s+[Bb]ypass",
         "level": RiskLevel.HIGH,
         "reason": "绕过 PowerShell 执行策略需审批",
+    },
+    # ══ K8s / 云原生高危 ═══════════════════════════════════
+    {
+        "name": "K8s 删除工作负载资源",
+        "pattern": (
+            r"(?i)\bkubectl\s+delete\s+" r"(pod|statefulset|pvc|deployment|service|namespace)\b"
+        ),
+        "level": RiskLevel.HIGH,
+        "reason": "删除 K8s 工作负载资源需人工审批，有状态/PVC 资源另有前置拦截",
+    },
+    # ══ 远程代码执行 / 数据外带 ═════════════════════════════
+    {
+        "name": "网络下载并执行",
+        "pattern": (
+            r"(?i)\b(curl|wget|Invoke-WebRequest|iwr)\b[^\n]*"
+            r"(?:\||;|&&|>)\s*"
+            r"(?:bash|sh|powershell|pwsh|cmd\.exe|Invoke-Expression|iex)\b"
+        ),
+        "level": RiskLevel.BLOCKED,
+        "reason": "禁止网络下载并立即执行命令（远程代码执行/数据外带）",
+    },
+    {
+        "name": "命令替换与反引号",
+        "pattern": r"(?i)\$\(.*\)|`.*`",
+        "level": RiskLevel.HIGH,
+        "reason": "命令替换与反引号可能隐藏危险操作或数据外带，需人工审批",
     },
 ]
 
@@ -646,7 +704,8 @@ def _analyze_command_chain(segments: list[str], original_command: str) -> dict[s
         RiskLevel.LOW: 1,
         RiskLevel.MEDIUM: 2,
         RiskLevel.HIGH: 3,
-        RiskLevel.BLOCKED: 4,
+        RiskLevel.CRITICAL: 4,
+        RiskLevel.BLOCKED: 5,
     }
 
     for seg in segments:
@@ -743,6 +802,7 @@ def _check_blacklist(cmd: str, cmd_lower: str) -> Optional[dict[str, Any]]:
                 level = rule["level"]
                 action_map = {
                     RiskLevel.BLOCKED: "block",
+                    RiskLevel.CRITICAL: "block",
                     RiskLevel.HIGH: "approve",
                     RiskLevel.MEDIUM: "confirm",
                     RiskLevel.LOW: "execute",
@@ -1017,6 +1077,7 @@ def record_audit(
     risk_level: str,
     executor: str = "agent",
     result: str = "success",
+    trace_id: Optional[str] = None,
 ) -> None:
     """
     记录命令执行审计日志(Who/When/Where/What/Risk/Result)
@@ -1032,6 +1093,7 @@ def record_audit(
         "what": str(command)[:500],
         "risk_level": str(risk_level)[:16],
         "result": str(result)[:128],
+        "trace_id": str(trace_id) if trace_id else None,
     }
     with _audit_lock:
         # 🔧 CG7:deque 自带 maxlen,自动淘汰最旧条目

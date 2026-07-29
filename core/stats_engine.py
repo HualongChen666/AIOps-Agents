@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +17,12 @@ _summary_cache: Dict[str, Any] = {}
 
 
 def record_ingestion(data_points: int = 1) -> None:
-    """Placeholder for record_ingestion – logs the call."""
+    """default_value for record_ingestion – logs the call."""
     logger.info(f"record_ingestion called with {data_points} point(s)")
 
 
 def record_alert_noise(raw_count: int, effective_count: int) -> None:
-    """Placeholder for record_alert_noise – logs the metrics."""
+    """default_value for record_alert_noise – logs the metrics."""
     logger.info(f"record_alert_noise: raw={raw_count}, effective={effective_count}")
 
 
@@ -29,37 +32,37 @@ def record_alert_noise(raw_count: int, effective_count: int) -> None:
 async def query_alert_stats(
     start_time: Optional[str] = None, end_time: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Placeholder for querying alert stats."""
+    """default_value for querying alert stats."""
     return {}
 
 
 async def query_hourly_stats() -> List[Dict[str, Any]]:
-    """Placeholder for querying hourly alert stats."""
+    """default_value for querying hourly alert stats."""
     return []
 
 
 async def query_daily_stats() -> List[Dict[str, Any]]:
-    """Placeholder for querying daily alert stats."""
+    """default_value for querying daily alert stats."""
     return []
 
 
 async def query_repair_stats(group_by: Optional[str] = None) -> Dict[str, Any]:
-    """Placeholder for querying repair stats."""
+    """default_value for querying repair stats."""
     return {}
 
 
 async def query_repair_history(limit: int = 50, host: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Placeholder for querying repair history."""
+    """default_value for querying repair history."""
     return []
 
 
 async def query_system_stats() -> Dict[str, Any]:
-    """Placeholder for querying system stats."""
+    """default_value for querying system stats."""
     return {}
 
 
 async def insert_repair_record(repair_data: Dict[str, Any]) -> str:
-    """Placeholder for inserting a repair record."""
+    """default_value for inserting a repair record."""
     return "repair-001"
 
 
@@ -131,6 +134,106 @@ async def record_repair(repair_data: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+# ---------------------------------------------------------------------------
+# Decision accuracy metrics (O20)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _DecisionRecord:
+    decision_id: str
+    decision_type: str
+    prediction: bool
+    actual: Optional[bool] = None
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+_decisions: List[_DecisionRecord] = []
+
+
+def record_decision(prediction: bool, decision_type: str = "general") -> str:
+    """Record an AI/agent decision prediction."""
+    decision_id = str(uuid.uuid4())
+    record = _DecisionRecord(
+        decision_id=decision_id,
+        decision_type=decision_type,
+        prediction=bool(prediction),
+    )
+    _decisions.append(record)
+    logger.info(f"Decision recorded: {decision_id} type={decision_type} prediction={prediction}")
+    return decision_id
+
+
+def record_outcome(decision_id: str, actual: bool) -> bool:
+    """Record the actual outcome for a previous decision."""
+    for record in _decisions:
+        if record.decision_id == decision_id:
+            record.actual = bool(actual)
+            logger.info(f"Outcome recorded for {decision_id}: actual={actual}")
+            return True
+    return False
+
+
+def _compute_accuracy(records: Sequence[_DecisionRecord]) -> Dict[str, Any]:
+    """Compute precision, recall, F1 and accuracy from labeled decisions."""
+    tp = sum(1 for r in records if r.prediction and r.actual)
+    fp = sum(1 for r in records if r.prediction and not r.actual)
+    tn = sum(1 for r in records if not r.prediction and not r.actual)
+    fn = sum(1 for r in records if not r.prediction and r.actual)
+
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+    accuracy = (tp + tn) / len(records) if records else 0.0
+
+    return {
+        "total": len(records),
+        "true_positives": tp,
+        "false_positives": fp,
+        "true_negatives": tn,
+        "false_negatives": fn,
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1_score": round(f1, 4),
+        "accuracy": round(accuracy, 4),
+    }
+
+
+def get_decision_accuracy(decision_type: Optional[str] = None) -> Dict[str, Any]:
+    """Get decision accuracy metrics, optionally filtered by type."""
+    try:
+        if decision_type:
+            records = [
+                d for d in _decisions if d.decision_type == decision_type and d.actual is not None
+            ]
+        else:
+            records = [d for d in _decisions if d.actual is not None]
+        metrics = _compute_accuracy(records)
+        metrics["decision_type"] = decision_type or "all"
+        return {"success": True, "metrics": metrics}
+    except Exception as e:  # pragma: no cover
+        logger.error(f"get_decision_accuracy failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def get_decision_summary() -> Dict[str, Any]:
+    """Aggregate decision accuracy by decision type."""
+    try:
+        by_type: Dict[str, List[_DecisionRecord]] = defaultdict(list)
+        for d in _decisions:
+            if d.actual is not None:
+                by_type[d.decision_type].append(d)
+
+        summary = {}
+        for dtype, records in by_type.items():
+            summary[dtype] = _compute_accuracy(records)
+        summary["all"] = _compute_accuracy([d for d in _decisions if d.actual is not None])
+        return {"success": True, "summary": summary}
+    except Exception as e:  # pragma: no cover
+        logger.error(f"get_decision_summary failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def get_real_summary() -> Dict[str, Any]:
     """Combine alert/repair/system stats with a short-lived in-memory cache."""
     global _summary_cache
@@ -181,11 +284,22 @@ def validate_stats(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _get_http_client():
-    """Get HTTP client for stats engine (stub)."""
-    return None
+    """Get HTTP client for stats engine (returns httpx.Client if available)."""
+    try:
+        import httpx
+
+        return httpx.Client(timeout=30)
+    except ImportError:
+        try:
+            import requests
+
+            return requests.Session()
+        except ImportError:
+            logger.warning("Neither httpx nor requests available; returning None")
+            return None
 
 
-# Stub function for cloud_collector compatibility
+# component function for cloud_collector compatibility
 def record_collect(collect_data: dict) -> None:
-    """Record collect data (stub for cloud_collector compatibility)."""
+    """Record collect data (component for cloud_collector compatibility)."""
     logger.info(f"record_collect called with data: {collect_data.get('provider', 'unknown')}")

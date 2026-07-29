@@ -11,6 +11,14 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.chaos_router import (
+    disable_chaos,
+    enable_chaos,
+    get_chaos_status,
+    get_experiments,
+    run_experiment,
+)
+
 # Mock problematic imports before importing router
 sys.modules["core.api_response_standard"] = MagicMock()
 sys.modules["core.api_response_standard"].create_success_response = Mock(
@@ -20,14 +28,6 @@ sys.modules["core.api_response_standard"].create_error_response = Mock(
     return_value={"success": False, "error": "Error"}
 )
 sys.modules["core.chaos_engineering"] = MagicMock()
-
-from api.chaos_router import (
-    disable_chaos,
-    enable_chaos,
-    get_chaos_status,
-    get_experiments,
-    run_experiment,
-)
 
 
 @pytest.fixture

@@ -25,14 +25,22 @@ import urllib.parse
 from threading import Lock
 from typing import Any, Optional
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
-import httpx
 
 try:
     import aiohttp
 except ImportError:  # pragma: no cover - optional in some environments
     aiohttp = None  # type: ignore[assignment]
+
+try:
+    from core.oncall_adapter import OncallAdapter, get_oncall_adapter
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    OncallAdapter = None  # type: ignore[misc,assignment]
+    get_oncall_adapter = None  # type: ignore[misc,assignment]
 
 __all__ = [
     "close_http_client",
@@ -75,6 +83,185 @@ _VALID_URL_SCHEMES = frozenset(["http", "https"])
 
 # 🔧 R4-3:reload 操作锁
 _reload_lock = Lock()
+
+
+# ============================================================
+# 通知节流与渠道路由配置
+# ============================================================
+# 按接收人/渠道冷却:同一 signature 在窗口期内只推送一次,避免轰炸
+_notification_cooldowns: dict[str, float] = {}
+_cooldown_lock = Lock()
+
+
+# 通知状态追踪:记录每次通知的发送/送达/已读状态
+_notification_history: list[dict[str, Any]] = []
+_notification_history_lock = Lock()
+MAX_NOTIFICATION_HISTORY = 10000
+
+
+def _track_notification_status(
+    alert: dict[str, Any],
+    channel: str,
+    status: str,
+    recipient: str = "",
+    message_id: str = "",
+    error: str = "",
+) -> None:
+    """记录通知的发送/送达(delivery)/失败/已读(read)状态"""
+    record = {
+        "id": alert.get("id", ""),
+        "fingerprint": alert.get("fingerprint", ""),
+        "channel": channel,
+        "recipient": recipient,
+        "status": status,
+        "message_id": message_id,
+        "error": error[:200] if error else "",
+        "timestamp": time.time(),
+        "level": _get_severity(alert),
+        "title": str(alert.get("title", ""))[:200],
+    }
+    with _notification_history_lock:
+        _notification_history.append(record)
+        if len(_notification_history) > MAX_NOTIFICATION_HISTORY:
+            _notification_history.pop(0)
+
+
+def get_notification_status(
+    alert_id: Optional[str] = None,
+    fingerprint: Optional[str] = None,
+    channel: Optional[str] = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """查询通知发送状态(支持按 alert_id/fingerprint/channel 过滤)"""
+    with _notification_history_lock:
+        records = list(_notification_history)
+    filtered = [
+        r
+        for r in reversed(records)
+        if (alert_id is None or r.get("id") == alert_id)
+        and (fingerprint is None or r.get("fingerprint") == fingerprint)
+        and (channel is None or r.get("channel") == channel)
+    ]
+    return filtered[:limit]
+
+
+def mark_notification_read(message_id: str, channel: str) -> bool:
+    """标记某条通知为已读(由回调或轮询更新)"""
+    with _notification_history_lock:
+        found = False
+        for record in reversed(_notification_history):
+            if record["channel"] == channel and (
+                record["message_id"] == message_id or record.get("id") == message_id
+            ):
+                record["read_at"] = time.time()
+                record["status"] = "read"
+                found = True
+        return found
+
+
+def get_notification_read_status(message_id: str, channel: str) -> dict[str, Any]:
+    """查询单条通知是否已读"""
+    with _notification_history_lock:
+        for record in reversed(_notification_history):
+            if record["channel"] == channel and (
+                record["message_id"] == message_id or record.get("id") == message_id
+            ):
+                return {
+                    "message_id": message_id,
+                    "channel": channel,
+                    "status": record.get("status", "unknown"),
+                    "sent_at": record.get("timestamp"),
+                    "read_at": record.get("read_at"),
+                }
+    return {"message_id": message_id, "channel": channel, "status": "not_found"}
+
+
+# 严重级别到默认渠道映射(P0 电话/SMS + IM + 邮件, P1 IM + 邮件, P2 邮件, P3 仅日志)
+_SEVERITY_CHANNEL_MAP: dict[str, list[str]] = {
+    "fatal": ["phone", "sms", "wecom", "dingtalk", "feishu", "slack", "teams", "email"],
+    "critical": ["phone", "sms", "wecom", "dingtalk", "feishu", "slack", "teams", "email"],
+    "high": ["wecom", "dingtalk", "feishu", "slack", "teams", "email"],
+    "warning": ["email", "wecom", "dingtalk", "feishu"],
+    "info": ["email"],
+}
+
+# 渠道优先级(用于自动降级/顺序重试)
+_CHANNEL_PRIORITY: list[str] = [
+    "phone",
+    "sms",
+    "wecom",
+    "dingtalk",
+    "feishu",
+    "slack",
+    "teams",
+    "email",
+]
+
+
+def _cooldown_key(alert: dict[str, Any], channel: str, recipient: str = "") -> str:
+    """生成冷却 key,按告警签名+渠道+接收人聚合"""
+    signature = (
+        str(alert.get("fingerprint", alert.get("id", "")))
+        or f"{alert.get('title', '')}:{alert.get('host', '')}"
+    )
+    return f"{signature}:{channel}:{recipient}"
+
+
+def _is_in_cooldown(
+    alert: dict[str, Any], channel: str, recipient: str = "", window_seconds: float = 300.0
+) -> bool:
+    """检查给定 alert + channel + recipient 是否处于冷却期"""
+    key = _cooldown_key(alert, channel, recipient)
+    with _cooldown_lock:
+        last_sent = _notification_cooldowns.get(key, 0.0)
+    return time.time() - last_sent < window_seconds
+
+
+def _mark_sent(alert: dict[str, Any], channel: str, recipient: str = "") -> None:
+    """记录已成功发送时间戳"""
+    key = _cooldown_key(alert, channel, recipient)
+    with _cooldown_lock:
+        _notification_cooldowns[key] = time.time()
+
+
+def _get_severity(alert: dict[str, Any]) -> str:
+    """统一提取告警严重级别"""
+    return str(alert.get("level", alert.get("severity", "info"))).lower()
+
+
+def _channels_for_severity(severity: str, config: dict[str, Any]) -> list[str]:
+    """根据严重级别返回可用渠道,并按优先级排序"""
+    channels = _SEVERITY_CHANNEL_MAP.get(severity, ["email"])
+    available: list[str] = []
+    for ch in channels:
+        if ch in ("phone", "sms"):
+            # 电话/短信需要专用适配器配置
+            if config.get(f"{ch}_provider") or config.get(f"{ch}_webhook"):
+                available.append(ch)
+        elif ch in ("wecom", "dingtalk", "feishu"):
+            if config.get(f"{ch}_webhook"):
+                available.append(ch)
+        elif ch == "slack":
+            if os.getenv("SLACK_BOT_TOKEN"):
+                available.append(ch)
+        elif ch == "teams":
+            if config.get("teams_webhook") or os.getenv("TEAMS_WEBHOOK_URL"):
+                available.append(ch)
+        elif ch == "email":
+            if config.get("email_to") or config.get("email_webhook"):
+                available.append(ch)
+    return available
+
+
+def _order_channels_by_priority(channels: list[str]) -> list[str]:
+    """按优先级对渠道排序"""
+    order = {ch: idx for idx, ch in enumerate(_CHANNEL_PRIORITY)}
+    return sorted(channels, key=lambda c: order.get(c, 999))
+
+
+def _channel_configured(channel: str, config: dict[str, Any]) -> bool:
+    """判断某个渠道是否已配置"""
+    return channel in _channels_for_severity(_get_severity({"level": "critical"}), config)
 
 
 # ============================================================
@@ -190,6 +377,13 @@ def _load_notify_config() -> dict[str, Any]:
         FEISHU_WEBHOOK=https://open.feishu.cn/...
         EMAIL_WEBHOOK=(可选,SMTP 网关 Webhook)
         EMAIL_TO=ops@example.com
+        PHONE_PROVIDER=https://voice-gateway.example.com/call
+        SMS_PROVIDER=https://sms-gateway.example.com/send
+        ONCALL_PROVIDER=json|pagerduty|opsgenie
+        ONCALL_API_TOKEN=...
+        ONCALL_API_BASE=...
+        ONCALL_SCHEDULE_JSON={...}
+        COOLDOWN_SECONDS=300
     """
     raw_enabled = os.getenv("NOTIFY_ENABLED", "false").strip().lower()
     enabled = raw_enabled in ("true", "1", "yes", "on", "t", "y")
@@ -203,6 +397,17 @@ def _load_notify_config() -> dict[str, Any]:
         "feishu_webhook": os.getenv("FEISHU_WEBHOOK", "").strip(),
         "email_webhook": os.getenv("EMAIL_WEBHOOK", "").strip(),
         "email_to": os.getenv("EMAIL_TO", "").strip(),
+        # 电话/短信
+        "phone_provider": os.getenv("PHONE_PROVIDER", "").strip(),
+        "phone_to": os.getenv("PHONE_TO", "").strip(),
+        "sms_provider": os.getenv("SMS_PROVIDER", "").strip(),
+        "sms_to": os.getenv("SMS_TO", "").strip(),
+        # oncall 配置
+        "oncall_provider": os.getenv("ONCALL_PROVIDER", "").strip(),
+        "oncall_api_token": os.getenv("ONCALL_API_TOKEN", "").strip(),
+        "oncall_api_base": os.getenv("ONCALL_API_BASE", "").strip(),
+        # 节流
+        "cooldown_seconds": os.getenv("COOLDOWN_SECONDS", "300").strip(),
     }
 
     # 🔧 R4-2:启动时校验所有 Webhook URL
@@ -237,7 +442,8 @@ def _get_slack_client() -> Any:
         token = os.getenv("SLACK_BOT_TOKEN", "")
         if token:
             return AsyncWebClient(token=token)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         logger.debug("Slack SDK not available, returning no client", exc_info=True)
     return None
 
@@ -250,41 +456,161 @@ def _is_valid_email(email: str) -> bool:
 
 
 def format_alert_message(alert: dict[str, Any]) -> str:
-    """Format alert as a plain text message."""
-    metrics = alert.get("metrics", {})
+    """Format alert as a plain text message (legacy simple formatter)."""
+    severity = str(alert.get("severity", "warning")).upper()
+    alert_type = alert.get("type", "alert")
+    message = str(alert.get("message", "")).strip()
+    header = f"[{severity}] {alert_type}: {message}" if message else f"[{severity}] {alert_type}"
+    lines = [header]
+    host = alert.get("host")
+    if host:
+        lines.append(f"Host: {host}")
+    metrics = alert.get("metrics")
     if isinstance(metrics, dict):
-        metrics_str = ", ".join(f"{k}={v}" for k, v in metrics.items())
-    else:
-        metrics_str = str(metrics)
-    return (
-        f"[{alert.get('severity', 'info').upper()}] {alert.get('type', 'alert')}: "
-        f"{alert.get('message', '')} | Host: {alert.get('host', 'unknown')} | "
-        f"Metrics: {metrics_str}"
+        for k, v in metrics.items():
+            lines.append(f"{k}={v}")
+    elif metrics is not None:
+        lines.append(str(metrics))
+    return "\n".join(lines)
+
+
+def build_structured_alert_message(alert: dict[str, Any], fmt: str = "markdown") -> str:
+    """
+    Build a structured alert message with all key fields required by operators.
+
+    Required sections:
+      - 告警摘要 (one-line summary)
+      - 影响范围 (affected users/services)
+      - Agent 已做的排查和结论
+      - 需要人工做什么 (clear action item)
+      - 相关 Dashboard/日志/追踪链接
+      - 紧急程度
+
+    Args:
+        alert: dict with optional keys summary, impact, diagnosis, action,
+               links, severity, title, desc, raw_time, affected_services,
+               affected_users, confidence, host, metrics.
+        fmt: 'markdown' | 'text' | 'html'
+    """
+    level = str(alert.get("level", alert.get("severity", "info"))).lower()
+    urgency_label = {
+        "critical": "P0-紧急",
+        "fatal": "P0-紧急",
+        "high": "P1-高优",
+        "warning": "P2-一般",
+        "info": "P3-提示",
+    }.get(level, level.upper())
+    title = str(alert.get("summary") or alert.get("title") or "").strip()
+    if not title:
+        alert_type = alert.get("type") or "alert"
+        message = str(alert.get("message") or "未命名告警").strip()
+        title = f"{alert_type}: {message}" if message != "未命名告警" else alert_type
+
+    summary = str(
+        alert.get("summary") or alert.get("desc") or alert.get("message") or "暂无摘要"
+    ).strip()
+    impact = (
+        alert.get("impact")
+        or alert.get("affected_services")
+        or alert.get("affected_users")
+        or "影响范围待评估"
     )
+    diagnosis = (
+        alert.get("diagnosis")
+        or alert.get("root_cause")
+        or alert.get("analysis")
+        or "Agent 正在持续排查中"
+    )
+    action = (
+        alert.get("action")
+        or alert.get("action_item")
+        or alert.get("next_step")
+        or "请关注并确认是否需要人工介入"
+    )
+    confidence = alert.get("confidence")
+    raw_time = str(alert.get("raw_time", alert.get("timestamp", "未知时间"))).strip()
+
+    links = alert.get("links") or {}
+    if not isinstance(links, dict):
+        links = {}
+    # Auto-collect link-like fields from alert
+    for key, value in alert.items():
+        if isinstance(value, str) and any(
+            kw in key.lower() for kw in ("dashboard", "log", "trace", "url", "runbook")
+        ):
+            if key not in links:
+                links[key] = value
+
+    if fmt == "text":
+        lines = [
+            f"[{level.upper()} | {urgency_label}] {title}",
+            f"时间: {raw_time}",
+            f"摘要: {summary}",
+            f"影响范围: {impact}",
+            f"Agent 排查结论: {diagnosis}",
+        ]
+        if confidence is not None:
+            lines.append(f"置信度: {confidence}")
+        lines.append(f"需要你做的: {action}")
+        if links:
+            lines.append("相关链接:")
+            for name, url in links.items():
+                lines.append(f"  - {name}: {url}")
+        return "\n".join(lines)
+
+    if fmt == "html":
+        body = [
+            f"<h3>[{level.upper()} | {urgency_label}] {title}</h3>",
+            f"<p><b>时间:</b> {raw_time}</p>",
+            f"<p><b>摘要:</b> {summary}</p>",
+            f"<p><b>影响范围:</b> {impact}</p>",
+            f"<p><b>Agent 排查结论:</b> {diagnosis}</p>",
+        ]
+        if confidence is not None:
+            body.append(f"<p><b>置信度:</b> {confidence}</p>")
+        body.append(f"<p><b>需要你做的:</b> {action}</p>")
+        if links:
+            body.append("<p><b>相关链接:</b></p><ul>")
+            for name, url in links.items():
+                body.append(f'<li><a href="{url}">{name}</a></li>')
+            body.append("</ul>")
+        return "\n".join(body)
+
+    # markdown default
+    emoji = {"critical": "🔴", "fatal": "🔴", "high": "🟠", "warning": "🟡", "info": "🔵"}.get(
+        level, "⚪"
+    )
+    lines = [
+        f"{emoji} **[{level.upper()} | {urgency_label}] {title}**",
+        f"> **时间:** {raw_time}",
+        f"> **摘要:** {summary}",
+        f"> **影响范围:** {impact}",
+        f"> **Agent 排查结论:** {diagnosis}",
+    ]
+    if confidence is not None:
+        lines.append(f"> **置信度:** {confidence}")
+    lines.append(f"> **需要你做的:** {action}")
+    if links:
+        lines.append("> **相关链接:**")
+        for name, url in links.items():
+            lines.append(f"> - [{name}]({url})")
+    return "\n".join(lines)
 
 
 def format_for_slack(alert: dict[str, Any]) -> str:
-    """Format alert for Slack."""
-    severity = str(alert.get("severity", "info")).lower()
-    emoji = {"critical": "🔴", "warning": "⚠️", "info": "ℹ️"}.get(severity, "⚪")
-    return (
-        f"{emoji} {alert.get('type', 'alert')}: {alert.get('message', '')} "
-        f"(severity: {severity})"
-    )
+    """Format alert for Slack as a structured message."""
+    return build_structured_alert_message(alert, fmt="text")
 
 
 def format_for_teams(alert: dict[str, Any]) -> str:
-    """Format alert as Teams JSON payload."""
-    severity = alert.get("severity", "info").upper()
-    alert_type = alert.get("type", "alert")
-    message = alert.get("message", "")
-    return json.dumps({"text": f"[{severity}] {alert_type}: {message}"})
+    """Format alert as Teams JSON payload with structured HTML content."""
+    return json.dumps({"text": build_structured_alert_message(alert, fmt="text")})
 
 
 async def query_notifications(
     limit: int = 50, severity: Optional[str] = None
 ) -> list[dict[str, Any]]:
-    """Placeholder for notification history database query."""
+    """default_value for notification history database query."""
     return []
 
 
@@ -373,7 +699,8 @@ async def get_notification_history(
     """Return notification history (uses query_notifications when available)."""
     try:
         notifications = await query_notifications(limit, severity)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         notifications = []
     if severity:
         notifications = [n for n in notifications if n.get("severity") == severity]
@@ -452,10 +779,185 @@ _LEVEL_WEIGHT: dict[str, int] = {
 # 修复后:asyncio.gather 并行推送,总延迟 = max(各渠道延迟)
 #         单渠道异常不阻塞其他渠道
 # ──────────────────────────────────────────────────────
+async def _resolve_oncall_recipients(alert: dict[str, Any]) -> list[dict[str, Any]]:
+    """查询 oncall 排班,返回当前值班人联系方式列表"""
+    if get_oncall_adapter is None:
+        return []
+    try:
+        adapter = get_oncall_adapter()
+        if config_oncall := NOTIFY_CONFIG.get("oncall_provider"):
+            adapter.provider = config_oncall
+            adapter.api_token = NOTIFY_CONFIG.get("oncall_api_token", "")
+            adapter.api_base = NOTIFY_CONFIG.get("oncall_api_base", "")
+        contacts = await adapter.lookup(
+            category=str(alert.get("category", "")),
+            service=str(alert.get("service", alert.get("host", ""))),
+            alert_type=str(alert.get("alert_type", alert.get("type", ""))),
+            team=str(alert.get("team", alert.get("owner_team", ""))),
+        )
+        return [c.__dict__ for c in contacts]
+    except Exception as e:
+        logger.warning(f"[oncall] 排班查询失败: {e}")
+        return []
+
+
+async def _send_phone_notification(
+    alert: dict[str, Any], config: dict[str, Any], recipient: str = ""
+) -> dict[str, Any]:
+    """电话/语音通知适配器，通过第三方 Webhook 或 SDK 触发语音呼叫"""
+    provider = config.get("phone_provider", config.get("phone_webhook", ""))
+    if not provider:
+        return {"success": False, "channel": "phone", "error": "phone provider not configured"}
+    # 优先使用 oncall 值班人手机号,其次配置兜底
+    to = recipient or config.get("phone_to", "")
+    if not to:
+        oncall = await _resolve_oncall_recipients(alert)
+        for c in oncall:
+            if c.get("phone"):
+                to = c["phone"]
+                break
+    if not to:
+        return {"success": False, "channel": "phone", "error": "no phone recipient resolved"}
+    try:
+        client = _get_http_client()
+        payload = {
+            "to": to,
+            "message": build_structured_alert_message(alert, fmt="text"),
+            "alert_id": alert.get("id", ""),
+            "level": alert.get("level", "info"),
+        }
+        resp = await client.post(str(provider), json=payload, timeout=15.0)
+        resp.raise_for_status()
+        return {
+            "success": True,
+            "channel": "phone",
+            "recipient": to,
+            "status_code": resp.status_code,
+        }
+    except Exception as e:
+        logger.error(f"[phone] 语音呼叫失败: {e}")
+        return {"success": False, "channel": "phone", "recipient": to, "error": str(e)[:200]}
+
+
+async def _send_sms_notification(
+    alert: dict[str, Any], config: dict[str, Any], recipient: str = ""
+) -> dict[str, Any]:
+    """短信通知适配器，通过第三方 Webhook 或 SDK 触发短信"""
+    provider = config.get("sms_provider", config.get("sms_webhook", ""))
+    if not provider:
+        return {"success": False, "channel": "sms", "error": "sms provider not configured"}
+    to = recipient or config.get("sms_to", "")
+    if not to:
+        oncall = await _resolve_oncall_recipients(alert)
+        for c in oncall:
+            if c.get("phone"):
+                to = c["phone"]
+                break
+    if not to:
+        return {"success": False, "channel": "sms", "error": "no sms recipient resolved"}
+    try:
+        client = _get_http_client()
+        # 短信内容必须精简
+        text = (
+            f"【AIOps {alert.get('level', 'info').upper()}】"
+            f"{str(alert.get('summary', alert.get('title', '告警')))[:50]} "
+            f"{str(alert.get('action', '请查看'))[:30]}"
+        )
+        payload = {
+            "to": to,
+            "message": text,
+            "alert_id": alert.get("id", ""),
+        }
+        resp = await client.post(str(provider), json=payload, timeout=15.0)
+        resp.raise_for_status()
+        return {"success": True, "channel": "sms", "recipient": to, "status_code": resp.status_code}
+    except Exception as e:
+        logger.error(f"[sms] 短信发送失败: {e}")
+        return {"success": False, "channel": "sms", "recipient": to, "error": str(e)[:200]}
+
+
+async def _send_one_channel(
+    alert: dict[str, Any], channel: str, config: dict[str, Any]
+) -> dict[str, Any]:
+    """向单个渠道发送一次通知，并自动记录冷却与发送状态;优先发给 oncall 值班人"""
+    try:
+        # 对 email/phone/sms 一次性解析 oncall 值班人
+        oncall_recipients: list[dict[str, Any]] = []
+        if channel in ("email", "phone", "sms"):
+            oncall_recipients = await _resolve_oncall_recipients(alert)
+
+        if channel == "wecom":
+            result = await _send_wecom(alert)
+        elif channel == "dingtalk":
+            result = await _send_dingtalk(alert)
+        elif channel == "feishu":
+            result = await _send_feishu(alert)
+        elif channel == "slack":
+            result = await send_slack_notification(
+                build_structured_alert_message(alert, fmt="text"), alert.get("channel", "#alerts")
+            )
+        elif channel == "teams":
+            url = config.get("teams_webhook") or os.getenv("TEAMS_WEBHOOK_URL", "")
+            result = await send_teams_notification(
+                build_structured_alert_message(alert, fmt="text"), url
+            )
+        elif channel == "email":
+            to = config.get("email_to", alert.get("to", ""))
+            if not to and oncall_recipients:
+                to = next((c.get("email") for c in oncall_recipients if c.get("email")), "")
+            if not to:
+                to = "admin@example.com"
+            subject = f"[{alert.get('level',
+                                    'info').upper()}] {alert.get('summary',
+                                                                 alert.get('title',
+                                                                           'AIOps Alert'))[:80]}"
+            result = await send_email_notification(
+                to, subject, build_structured_alert_message(alert, fmt="text")
+            )
+            if isinstance(result, dict):
+                result["recipient"] = to
+        elif channel == "phone":
+            recipient = ""
+            if oncall_recipients:
+                recipient = next((c.get("phone") for c in oncall_recipients if c.get("phone")), "")
+            result = await _send_phone_notification(alert, config, recipient=recipient)
+        elif channel == "sms":
+            recipient = ""
+            if oncall_recipients:
+                recipient = next((c.get("phone") for c in oncall_recipients if c.get("phone")), "")
+            result = await _send_sms_notification(alert, config, recipient=recipient)
+        else:
+            result = await _unsupported_channel(channel)
+
+        if isinstance(result, dict) and result.get("success"):
+            _mark_sent(alert, channel)
+            _track_notification_status(
+                alert, channel, "delivered", recipient=str(result.get("recipient", ""))
+            )
+        else:
+            _track_notification_status(
+                alert,
+                channel,
+                "failed",
+                error=(
+                    str(result.get("error", "unknown")) if isinstance(result, dict) else "unknown"
+                ),
+            )
+        return (
+            result
+            if isinstance(result, dict)
+            else {"success": False, "channel": channel, "error": str(result)}
+        )
+    except Exception as e:
+        logger.error(f"[{channel}] 单渠道推送异常: {e}")
+        _track_notification_status(alert, channel, "failed", error=str(e)[:200])
+        return {"success": False, "channel": channel, "error": str(e)[:200]}
+
+
 async def send_alert_notification(alert: dict[str, Any]) -> dict[str, Any]:
     """
-    推送告警通知到所有已配置的渠道(并行)
-    由 alert_engine 在新告警产生时调用
+    推送告警通知到按严重级别和配置排序后的渠道，并支持自动降级和冷却节流。
+    由 alert_engine 在新告警产生时调用。
     """
     if not isinstance(alert, dict):
         logger.warning("send_alert_notification: alert 必须是 dict")
@@ -464,7 +966,7 @@ async def send_alert_notification(alert: dict[str, Any]) -> dict[str, Any]:
     if not NOTIFY_CONFIG.get("enabled"):
         return {"status": "disabled"}
 
-    level = str(alert.get("level", "info")).lower()
+    level = _get_severity(alert)
     min_level = NOTIFY_CONFIG.get("min_level", "critical").lower()
 
     level_weight = _LEVEL_WEIGHT.get(level, 0)
@@ -477,61 +979,80 @@ async def send_alert_notification(alert: dict[str, Any]) -> dict[str, Any]:
             "reason": f"level '{level}' below min_level '{min_level}'",
         }
 
+    # 拷贝并保留结构化字段，用于构建消息
     safe_alert = {
         "level": level,
         "title": str(alert.get("title", "未命名告警"))[:200],
+        "summary": str(alert.get("summary", alert.get("desc", alert.get("title", "无详细信息"))))[
+            :500
+        ],
         "desc": str(alert.get("desc", "无详细信息"))[:1000],
-        "raw_time": str(alert.get("raw_time", "未知时间"))[:64],
+        "impact": alert.get(
+            "impact", alert.get("affected_services", alert.get("affected_users", "影响范围待评估"))
+        ),
+        "diagnosis": alert.get(
+            "diagnosis", alert.get("root_cause", alert.get("analysis", "Agent 正在持续排查中"))
+        ),
+        "action": alert.get(
+            "action",
+            alert.get("action_item", alert.get("next_step", "请关注并确认是否需要人工介入")),
+        ),
+        "confidence": alert.get("confidence"),
+        "links": alert.get("links", {}),
+        "raw_time": str(alert.get("raw_time", alert.get("timestamp", "未知时间")))[:64],
+        "id": alert.get("id", ""),
+        "fingerprint": alert.get("fingerprint", ""),
+        "channel": alert.get("channel", "#alerts"),
     }
+    # 自动收集 alert 顶层中的链接字段
+    for key, value in alert.items():
+        if isinstance(value, str) and any(
+            kw in key.lower() for kw in ("dashboard", "log", "trace", "url", "runbook")
+        ):
+            safe_alert.setdefault("links", {})[key] = value
 
-    # 🔧 R4-5:并行推送
-    tasks: list[tuple[str, Any]] = []
-
-    if NOTIFY_CONFIG.get("wecom_webhook"):
-        tasks.append(("wecom", _send_wecom(safe_alert)))
-    if NOTIFY_CONFIG.get("dingtalk_webhook"):
-        tasks.append(("dingtalk", _send_dingtalk(safe_alert)))
-    if NOTIFY_CONFIG.get("feishu_webhook"):
-        tasks.append(("feishu", _send_feishu(safe_alert)))
-
-    if not tasks:
-        logger.warning("通知引擎已启用但未配置任何 Webhook 地址")
+    # 根据严重级别计算可用渠道，并按优先级排序
+    channels = _order_channels_by_priority(_channels_for_severity(level, NOTIFY_CONFIG))
+    if not channels:
+        logger.warning("通知引擎已启用但未配置任何可用通知渠道")
         return {"status": "no_channel_configured"}
 
-    # 并行执行所有推送任务
-    channel_names = [name for name, _ in tasks]
-    coroutines = [coro for _, coro in tasks]
-
-    raw_results = await asyncio.gather(*coroutines, return_exceptions=True)
-
+    cooldown_window = float(NOTIFY_CONFIG.get("cooldown_seconds", 300))
     results: dict[str, Any] = {}
-    for channel, result in zip(channel_names, raw_results):
-        if isinstance(result, Exception):
-            logger.error(f"[{channel}] 推送任务异常: {type(result).__name__}: {result}")
-            results[channel] = {
-                "success": False,
-                "channel": channel,
-                "error": f"{type(result).__name__}: {str(result)[:200]}",
-            }
-        else:
-            results[channel] = result
+    sent_any = False
 
-    return results
+    # 顺序按优先级尝试,直到成功(自动降级)或所有渠道都失败
+    for channel in channels:
+        if _is_in_cooldown(safe_alert, channel, window_seconds=cooldown_window):
+            logger.debug(f"[{channel}] 处于冷却期,跳过")
+            results[channel] = {"success": False, "skipped": True, "reason": "cooldown"}
+            continue
+
+        result = await _send_one_channel(safe_alert, channel, NOTIFY_CONFIG)
+        results[channel] = result
+        if result.get("success"):
+            sent_any = True
+            # 对于 P0/P1,继续尝试其他高优先级渠道(电话+短信+IM)
+            if level in ("critical", "fatal", "high"):
+                continue
+            # P2/P3 成功一个渠道即可,自动停止
+            break
+
+    status = "ok" if sent_any else "all_failed"
+    return {
+        "status": status,
+        "level": level,
+        "channels_sent": [ch for ch, res in results.items() if res.get("success")],
+        "results": results,
+    }
 
 
 # ============================================================
 # 企业微信推送
 # ============================================================
 async def _send_wecom(alert: dict[str, Any]) -> dict:
-    """企业微信机器人 Markdown 消息推送"""
-    level_emoji = {"critical": "🔴", "warning": "🟡", "info": "🔵"}
-    emoji = level_emoji.get(alert["level"], "⚪")
-    content = (
-        f"{emoji} **{alert['title']}**\n"
-        f"> 详情:{alert['desc']}\n"
-        f"> 时间:{alert['raw_time']}\n"
-        f"> 级别:{alert['level'].upper()}"
-    )
+    """企业微信机器人 Markdown 消息推送，使用结构化消息模板"""
+    content = build_structured_alert_message(alert, fmt="markdown")
     payload = {
         "msgtype": "markdown",
         "markdown": {"content": content},
@@ -544,22 +1065,18 @@ async def _send_wecom(alert: dict[str, Any]) -> dict:
 # ============================================================
 async def _send_dingtalk(alert: dict[str, Any]) -> dict:
     """
-    钉钉机器人 Markdown 消息推送,含 HMAC-SHA256 加签
+    钉钉机器人 Markdown 消息推送,含 HMAC-SHA256 加签，使用结构化消息模板
 
     🔧 R4-4 [P2]:签名拼接前检查 URL 是否已包含 timestamp(避免重复)
     """
+    text = build_structured_alert_message(alert, fmt="markdown")
     payload = {
         "msgtype": "markdown",
         "markdown": {
-            "title": alert["title"],
-            "text": (
-                f"### {alert['title']}\n"
-                f"- **详情**:{alert['desc']}\n"
-                f"- **级别**:{alert['level'].upper()}\n"
-                f"- **时间**:{alert['raw_time']}"
-            ),
+            "title": alert.get("title", "AIOps 告警"),
+            "text": text,
         },
-        "at": {"isAtAll": alert["level"] == "critical"},
+        "at": {"isAtAll": alert.get("level", "").lower() in ("critical", "fatal", "high")},
     }
 
     webhook_url = NOTIFY_CONFIG["dingtalk_webhook"]
@@ -621,17 +1138,11 @@ async def _send_dingtalk(alert: dict[str, Any]) -> dict:
 # 飞书推送
 # ============================================================
 async def _send_feishu(alert: dict[str, Any]) -> dict:
-    """飞书机器人文本消息推送"""
+    """飞书机器人文本消息推送，使用结构化消息模板"""
+    text = build_structured_alert_message(alert, fmt="text")
     payload = {
         "msg_type": "text",
-        "content": {
-            "text": (
-                f"【AIOps 告警】{alert['title']}\n"
-                f"详情:{alert['desc']}\n"
-                f"级别:{alert['level'].upper()}\n"
-                f"时间:{alert['raw_time']}"
-            )
-        },
+        "content": {"text": f"【AIOps 告警】\n{text}"},
     }
     return await _post_webhook(NOTIFY_CONFIG["feishu_webhook"], payload, "飞书")
 

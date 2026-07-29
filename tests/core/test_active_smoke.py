@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """Smoke tests for active core modules.
 
 For each active module we import it (already covered by test_active_imports),
@@ -92,7 +93,8 @@ def _can_instantiate(cls: type) -> bool:
         return False
     try:
         return _all_args_optional(cls)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         return False
 
 

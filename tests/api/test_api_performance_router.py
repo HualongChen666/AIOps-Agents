@@ -9,11 +9,12 @@ import pytest  # noqa: F401
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.api_performance_router import router
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 sys.modules["core.api_performance_optimizer"] = MagicMock()
 
-from api.api_performance_router import router
 
 sys.modules["core.authentication"] = Mock()
 sys.modules["core.authentication"].get_current_active_user = Mock()

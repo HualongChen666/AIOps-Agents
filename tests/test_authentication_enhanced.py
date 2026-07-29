@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Enhanced Authentication Tests
 增强的认证模块测试，包含JWT功能、安全测试和边界条件
@@ -196,7 +197,8 @@ class TestJWTTokenVerification:
         try:
             payload = verify_token(invalid_token)
             assert payload is None
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -213,7 +215,8 @@ class TestJWTTokenVerification:
         try:
             payload = verify_token(token)
             assert payload is None
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -229,7 +232,8 @@ class TestJWTTokenVerification:
         try:
             payload = verify_token(tampered_token)
             assert payload is None
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -303,7 +307,8 @@ class TestCurrentActiveUser:
             try:
                 user = await get_current_active_user(token=token)
                 assert user is not None
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能需要不同的调用方式
                 pass
 
@@ -317,7 +322,8 @@ class TestCurrentActiveUser:
         try:
             user = await get_current_active_user(token=invalid_token)
             assert user is None
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -428,7 +434,8 @@ class TestErrorHandling:
             hashed = hash_password(None)
             # 可能返回None或空字符串
             assert hashed is None or hashed == ""
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -441,7 +448,8 @@ class TestErrorHandling:
         try:
             result = verify_password(None, hashed)  # noqa: F841
             assert result is False
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -452,7 +460,8 @@ class TestErrorHandling:
             token = create_access_token(data=None)
             # 可能返回None或空字符串
             assert token is None or token == ""
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -463,7 +472,8 @@ class TestErrorHandling:
             payload = verify_token(None)
             # 可能返回None
             assert payload is None
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -481,7 +491,8 @@ class TestEdgeCases:
             hashed = hash_password(long_password)
             assert hashed is not None
             assert verify_password(long_password, hashed) is True
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 可能有限制，抛出异常也是可以接受的行为
             pass
 
@@ -492,7 +503,8 @@ class TestEdgeCases:
             token = create_access_token(data={"sub": ""})
             # 空用户名可能被允许或拒绝
             assert token is not None or token is None
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 抛出异常也是可以接受的行为
             pass
 
@@ -524,8 +536,8 @@ class TestEdgeCases:
         try:
             payload = verify_token(token)
             assert payload is None
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
 
     @pytest.mark.skipif(not AUTH_AVAILABLE, reason="Authentication module not available")
     def test_token_with_maximal_expiration(self):

@@ -1,15 +1,25 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Approval Timeout Handler
 Handles approval timeout scenarios
 """
 
 import asyncio
-from typing import Dict
+from typing import Dict, Optional
 
 from loguru import logger
 
 from .approval import ApprovalRequest, ApprovalStatus, ApprovalWorkflow
+
+try:
+    from .notification import ApprovalNotifier
+
+    NOTIFIER_AVAILABLE = True
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    ApprovalNotifier = None  # type: ignore[misc,assignment]
+    NOTIFIER_AVAILABLE = False
 
 
 class ApprovalTimeoutHandler:
@@ -19,14 +29,20 @@ class ApprovalTimeoutHandler:
     Manages timeout scenarios for approval requests
     """
 
-    def __init__(self, workflow: ApprovalWorkflow):
+    def __init__(
+        self,
+        workflow: ApprovalWorkflow,
+        notifier: Optional["ApprovalNotifier"] = None,
+    ):
         """
         Initialize timeout handler
 
         Args:
             workflow: Approval workflow
+            notifier: Optional approval notifier used to notify the next approver.
         """
         self.workflow = workflow
+        self.notifier = notifier
         self.timeout_tasks: Dict[str, asyncio.Task] = {}
 
     async def monitor_timeout(self, request_id: str) -> None:
@@ -54,15 +70,18 @@ class ApprovalTimeoutHandler:
             # Check if still pending
             request = self.workflow.active_requests.get(request_id)
             if request and current_step.status == ApprovalStatus.PENDING:
-                # Handle timeout
-                self._handle_timeout(request, current_step)
+                # Handle timeout (escalate or reject)
+                await self._handle_timeout(request, current_step)
 
         except asyncio.CancelledError:
             logger.info(f"Timeout monitoring cancelled for {request_id}")
 
-    def _handle_timeout(self, request: ApprovalRequest, step) -> None:
+    async def _handle_timeout(self, request: ApprovalRequest, step) -> None:
         """
-        Handle timeout scenario
+        Handle timeout scenario.
+
+        Escalates to the next pending approval level if one exists; otherwise
+        rejects the request and interrupts any associated agent.
 
         Args:
             request: Approval request
@@ -70,20 +89,70 @@ class ApprovalTimeoutHandler:
         """
         step.status = ApprovalStatus.TIMEOUT
 
-        # If step is required, reject the request
-        if step.required:
-            request.status = ApprovalStatus.REJECTED
+        next_index = self._find_next_pending_step(request, step)
+        if next_index is not None:
+            request.current_step = next_index
+            next_step = request.steps[next_index]
+            logger.warning(
+                f"Approval request {request.request_id} step {step.step_id} timed out; "
+                f"escalating to {next_step.approver} ({next_step.step_id})"
+            )
+            self.workflow.history.record_action(
+                request_id=request.request_id,
+                workflow_id=request.workflow_id,
+                action="escalated",
+                actor="system",
+                details={
+                    "timed_out_step": step.step_id,
+                    "next_step": next_step.step_id,
+                    "next_approver": next_step.approver,
+                },
+            )
+            await self._notify_step(request, next_step)
+            # Re-arm monitoring for the escalated step.
+            self.start_monitoring(request.request_id)
+            return
 
-            # Move to completed
-            self.workflow.completed_requests[request.request_id] = request
-            if request.request_id in self.workflow.active_requests:
-                del self.workflow.active_requests[request.request_id]
+        # No further approver available: reject and stop the agent.
+        request.status = ApprovalStatus.REJECTED
+        self.workflow.completed_requests[request.request_id] = request
+        if request.request_id in self.workflow.active_requests:
+            del self.workflow.active_requests[request.request_id]
 
-            logger.warning(f"Approval request {request.request_id} rejected due to timeout")
-        else:
-            # Skip this step and move to next
-            logger.info(f"Optional step {step.step_id} timed out, skipping")
-            self.workflow._advance_workflow(request)
+        self.workflow.history.record_action(
+            request_id=request.request_id,
+            workflow_id=request.workflow_id,
+            action="timeout_rejected",
+            actor="system",
+            details={"step_id": step.step_id},
+        )
+        self.workflow._interrupt_associated_agent(request)
+
+        logger.warning(f"Approval request {request.request_id} rejected due to timeout")
+
+    def _find_next_pending_step(self, request: ApprovalRequest, timed_out_step) -> Optional[int]:
+        """Return the index of the next pending step after the timed-out step, if any."""
+        try:
+            start_index = request.steps.index(timed_out_step)
+        except ValueError:
+            return None
+
+        for i in range(start_index + 1, len(request.steps)):
+            if request.steps[i].status == ApprovalStatus.PENDING:
+                return i
+        return None
+
+    async def _notify_step(self, request: ApprovalRequest, step) -> None:
+        """Notify the next approver that an approval is pending."""
+        if not self.notifier:
+            return
+        try:
+            await self.notifier.send_approval_request(
+                step.approver,
+                request.to_dict(),
+            )
+        except Exception as exc:  # pragma: no cover
+            logger.warning(f"Failed to notify next approver {step.approver}: {exc}")
 
     def start_monitoring(self, request_id: str) -> None:
         """
@@ -95,7 +164,13 @@ class ApprovalTimeoutHandler:
         if request_id in self.timeout_tasks:
             return
 
-        task = asyncio.create_task(self.monitor_timeout(request_id))
+        try:
+            task = asyncio.create_task(self.monitor_timeout(request_id))
+        except RuntimeError:  # pragma: no cover
+            logger.warning(
+                f"No running event loop; cannot start timeout monitoring for {request_id}"
+            )
+            return
         self.timeout_tasks[request_id] = task
 
         logger.info(f"Started timeout monitoring for {request_id}")

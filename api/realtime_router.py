@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
@@ -56,7 +56,7 @@ async def realtime_sse_events() -> StreamingResponse:
         count = 0
         while True:
             now = datetime.utcnow().isoformat()
-            yield f"event: heartbeat\ndata: {{\"count\": {count}, \"time\": \"{now}\"}}\n\n"
+            yield f'event: heartbeat\ndata: {{"count": {count}, "time": "{now}"}}\n\n'
             count += 1
             await asyncio.sleep(5)
 

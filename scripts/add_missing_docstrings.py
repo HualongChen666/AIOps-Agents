@@ -69,7 +69,7 @@ for root, dirs, files in os.walk(project_root):
             line = lines[i]
             # Remove audit comments
             if audit_patterns.search(line):
-                audit_entries.append(f"{path}:{i+1}: {line.strip()}")
+                audit_entries.append(f"{path}:{i + 1}: {line.strip()}")
                 i += 1
                 continue
             # Detect function or class definitions without docstring

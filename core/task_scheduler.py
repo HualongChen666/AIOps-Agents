@@ -72,13 +72,14 @@ class _InMemoryScheduler:
         while True:
             try:
                 await coro()
-            except Exception:  # pragma: no cover
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 logger.exception("Task %s raised exception", name)
             await asyncio.sleep(interval)
 
     async def _run_cron(self, name: str, coro: TaskCallable, cron_expr: str) -> None:
         # Very naive cron implementation – only supports minute-level "*/N * * * *" patterns.
-        # For production we expect Temporal/Prefect; this is just a placeholder.
+        # For production we expect Temporal/Prefect; this is just a default_value.
         while True:
             now = datetime.now(timezone.utc)
             # parse simple "*/N" minute interval
@@ -89,12 +90,14 @@ class _InMemoryScheduler:
                     wait_seconds = ((next_min - now.minute) % 60) * 60 - now.second
                 else:
                     wait_seconds = 60  # fallback 1‑minute
-            except Exception:  # pragma: no cover
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 wait_seconds = 60
             await asyncio.sleep(max(wait_seconds, 0))
             try:
                 await coro()
-            except Exception:  # pragma: no cover
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 logger.exception("Cron task %s raised exception", name)
 
     def schedule(

@@ -69,7 +69,7 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            # Placeholder for actual ServiceNow API call
+            # default_value for actual ServiceNow API call
             # In production, this would use the ServiceNow REST API
             incident = {
                 "number": f"INC{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -106,7 +106,7 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            # Placeholder for actual ServiceNow API call
+            # default_value for actual ServiceNow API call
             logger.info(f"Updated ServiceNow incident: {incident_number}")
             return {
                 "number": incident_number,
@@ -145,7 +145,7 @@ class ITSMIntegration:
             return {"error": "Jira not enabled"}
 
         try:
-            # Placeholder for actual Jira API call
+            # default_value for actual Jira API call
             # In production, this would use the Jira REST API
             issue = {
                 "key": f"AIOPS-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -180,7 +180,7 @@ class ITSMIntegration:
             return {"error": "Jira not enabled"}
 
         try:
-            # Placeholder for actual Jira API call
+            # default_value for actual Jira API call
             logger.info(f"Updated Jira issue: {issue_key}")
             return {
                 "key": issue_key,

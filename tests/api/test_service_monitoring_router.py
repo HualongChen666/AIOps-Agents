@@ -8,10 +8,10 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.service_monitoring_router import get_monitoring_status, get_service_metrics, record_metric
+
 # Mock problematic imports before importing router
 sys.modules["core.service_monitoring_manager"] = MagicMock()
-
-from api.service_monitoring_router import get_monitoring_status, get_service_metrics, record_metric
 
 
 @pytest.fixture

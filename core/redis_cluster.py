@@ -115,7 +115,7 @@ async def check_node_health(node_index: int) -> Dict[str, Any]:
     node_key = f"node_{node_index}"
 
     try:
-        # Placeholder for actual health check
+        # default_value for actual health check
         # In production, this would execute PING command
         start_time = datetime.now(timezone.utc)
 

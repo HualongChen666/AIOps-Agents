@@ -9,11 +9,14 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 # Mock problematic imports before importing router
 sys.modules["config"] = MagicMock()
 sys.modules["config"].BASE_DIR = Path("/tmp")
 
 from api.workflow_visualization_router import get_workflow_structure, workflow_visualization_page
+
+# isort: on
 
 
 @pytest.fixture

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 FastAPI 主入口文件 – 已在原项目中实现多个路由注册。
 本次更新：
@@ -12,6 +13,7 @@ FastAPI 主入口文件 – 已在原项目中实现多个路由注册。
 import asyncio
 import os
 import traceback
+import warnings
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -19,96 +21,184 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-# ------------------------
-# 日志初始化（保持不变）
-# ------------------------
 from loguru import logger as _logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address  # noqa: F401
 
-from api.advanced_ai_router import router as advanced_ai_router
-from api.ai_feedback_router import router as ai_feedback_router
-from api.ai_router import router as ai_router
+from config import (
+    ENABLE_ADDONS,
+    RAG_ENABLED,
+    LLM_ROUTER_ENABLED,
+    TOPOLOGY_ENABLED,
+    TRACING_ENABLED,
+    LOG_AGGREGATION_ENABLED,
+    INCIDENT_RESPONSE_ENABLED,
+    WORKFLOW_ENABLED,
+    INTEGRATIONS_ENABLED,
+    SECURITY_SCANNING_ENABLED,
+    PENETRATION_TESTING_ENABLED,
+    PLUGINS_ENABLED,
+    SHARDING_ENABLED,
+    I18N_ENABLED,
+    DOC_GENERATION_ENABLED,
+    METRICS_ENABLED,
+    MCP_ENABLED,
+    GRAPHQL_ENABLED,
+    LOKI_ENABLED,
+)
+
+# Core routers are always imported and mounted
 from api.alert_router import router as alert_router
+from api.alert_webhook_router import router as alert_webhook_router
 from api.api_performance_router import router as api_performance_router
-from api.apm_router import router as apm_router
 from api.audit_center_router import router as audit_center_router
 from api.audit_router import router as audit_router
 from api.autoheal_router import router as autoheal_router
-from api.backup_router import router as backup_router
-from api.batch_router import router as batch_router
-from api.chaos_router import router as chaos_router
-from api.cloud_router import router as cloud_router
 from api.cost_router import router as cost_router
-from api.dashboard_router import router as dashboard_router
-from api.database_optimization_router import router as database_optimization_router
-from api.doc_generator_router import router as doc_generator_router
-from api.documentation_router import router as documentation_router
-from api.enterprise_router import router as enterprise_router
-from api.frontend_enhancement_router import router as frontend_enhancement_router
-from api.grpc_router import router as grpc_router
-from api.grpc_service_router import router as grpc_service_router
 from api.guard_router import router as guard_router
 from api.health_router import router as health_router
 from api.hitl_approval_router import router as hitl_approval_router
-from api.hitl_router import router as hitl_router
-from api.i18n_router import router as i18n_router
-from api.infrastructure_router import router as infrastructure_router
-from api.integration_router import router as integration_router
-from api.itsm_router import router as itsm_router
 from api.linux_router import router as linux_router
-from api.localization_adapter_router import router as localization_adapter_router
-from api.localization_resource_router import router as localization_resource_router
-from api.log_router import router as log_router
 from api.macos_router import router as macos_router
-from api.mcp_router import router as mcp_router
-from api.metrics_router import router as metrics_router
-from api.notify_router import router as notify_router
-from api.plugin_development_router import router as plugin_development_router
-from api.plugin_ecosystem_router import router as plugin_ecosystem_router
-from api.plugin_marketplace_router import router as plugin_marketplace_router
-from api.plugin_router import router as plugin_router
-from api.plugin_sdk_router import router as plugin_sdk_router
-from api.priority_router import router as priority_router
-from api.qdrant_router import router as qdrant_router
-from api.rag_history_router import router as rag_history_router
-from api.rag_router import router as rag_router
-from api.realtime_router import router as realtime_router
 from api.repair_scripts_router import router as repair_scripts_router
-from api.root_cause_router import router as root_cause_router
-from api.service_discovery_router import router as service_discovery_router
-from api.service_mesh_router import router as service_mesh_router
-from api.service_monitoring_router import router as service_monitoring_router
 from api.slack_router import router as slack_router
 from api.sse_router import router as sse_router
 from api.stats_router import router as stats_router
-from api.system_resource_router import router as system_resource_router
 from api.teams_router import router as teams_router
-from api.test_automation_router import router as test_automation_router
-from api.test_coverage_router import router as test_coverage_router
-from api.test_framework_router import router as test_framework_router
-from api.topology_router import router as topology_router
-from api.topology_view_router import router as topology_view_router
-from api.tracing_router import router as tracing_router
 from api.unified_repair_router import router as unified_repair_router
 from api.user_router import router as user_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
-from api.workflow_router import router as workflow_router
-from api.workflow_visualization_router import router as workflow_visualization_router
+
+# Add-on routers are loaded only when their pack flag is enabled
+advanced_ai_router = None
+ai_feedback_router = None
+ai_router = None
+root_cause_router = None
+apm_router = None
+tracing_router = None
+backup_router = None
+enterprise_router = None
+batch_router = None
+hitl_router = None
+notify_router = None
+priority_router = None
+chaos_router = None
+cloud_router = None
+database_optimization_router = None
+grpc_router = None
+grpc_service_router = None
+infrastructure_router = None
+mcp_router = None
+plugin_development_router = None
+plugin_ecosystem_router = None
+plugin_marketplace_router = None
+plugin_router = None
+plugin_sdk_router = None
+system_resource_router = None
+test_automation_router = None
+test_coverage_router = None
+test_framework_router = None
+graphql_router = None
+dashboard_router = None
+integration_router = None
+itsm_router = None
+doc_generator_router = None
+documentation_router = None
+frontend_enhancement_router = None
+i18n_router = None
+localization_adapter_router = None
+localization_resource_router = None
+log_router = None
+metrics_router = None
+qdrant_router = None
+rag_history_router = None
+rag_router = None
+realtime_router = None
+service_discovery_router = None
+service_mesh_router = None
+service_monitoring_router = None
+topology_router = None
+topology_view_router = None
+workflow_router = None
+workflow_visualization_router = None
+
+if ENABLE_ADDONS:
+    if LLM_ROUTER_ENABLED:
+        from api.advanced_ai_router import router as advanced_ai_router
+        from api.ai_feedback_router import router as ai_feedback_router
+        from api.ai_router import router as ai_router
+        from api.root_cause_router import router as root_cause_router
+    if RAG_ENABLED:
+        from api.qdrant_router import router as qdrant_router
+        from api.rag_history_router import router as rag_history_router
+        from api.rag_router import router as rag_router
+    if METRICS_ENABLED:
+        from api.metrics_router import router as metrics_router
+    if TOPOLOGY_ENABLED:
+        from api.realtime_router import router as realtime_router
+        from api.service_discovery_router import router as service_discovery_router
+        from api.service_mesh_router import router as service_mesh_router
+        from api.service_monitoring_router import router as service_monitoring_router
+        from api.topology_router import router as topology_router
+        from api.topology_view_router import router as topology_view_router
+    if TRACING_ENABLED:
+        from api.apm_router import router as apm_router
+        from api.tracing_router import router as tracing_router
+    if LOG_AGGREGATION_ENABLED:
+        from api.log_router import router as log_router
+    if INCIDENT_RESPONSE_ENABLED:
+        from api.batch_router import router as batch_router
+        from api.hitl_router import router as hitl_router
+        from api.notify_router import router as notify_router
+        from api.priority_router import router as priority_router
+    if WORKFLOW_ENABLED:
+        from api.workflow_router import router as workflow_router
+        from api.workflow_visualization_router import router as workflow_visualization_router
+    if INTEGRATIONS_ENABLED:
+        from api.dashboard_router import router as dashboard_router
+        from api.integration_router import router as integration_router
+        from api.itsm_router import router as itsm_router
+    if SECURITY_SCANNING_ENABLED:
+        from api.backup_router import router as backup_router
+        from api.enterprise_router import router as enterprise_router
+    if PLUGINS_ENABLED:
+        from api.chaos_router import router as chaos_router
+        from api.cloud_router import router as cloud_router
+        from api.database_optimization_router import router as database_optimization_router
+        from api.grpc_router import router as grpc_router
+        from api.grpc_service_router import router as grpc_service_router
+        from api.infrastructure_router import router as infrastructure_router
+        from api.plugin_development_router import router as plugin_development_router
+        from api.plugin_ecosystem_router import router as plugin_ecosystem_router
+        from api.plugin_marketplace_router import router as plugin_marketplace_router
+        from api.plugin_router import router as plugin_router
+        from api.plugin_sdk_router import router as plugin_sdk_router
+        from api.system_resource_router import router as system_resource_router
+        from api.test_automation_router import router as test_automation_router
+        from api.test_coverage_router import router as test_coverage_router
+        from api.test_framework_router import router as test_framework_router
+    if GRAPHQL_ENABLED:
+        from api.graphql_router import router as graphql_router
+    if MCP_ENABLED:
+        from api.mcp_router import router as mcp_router
+    if I18N_ENABLED:
+        from api.i18n_router import router as i18n_router
+        from api.localization_adapter_router import router as localization_adapter_router
+        from api.localization_resource_router import router as localization_resource_router
+    if DOC_GENERATION_ENABLED:
+        from api.doc_generator_router import router as doc_generator_router
+        from api.documentation_router import router as documentation_router
+        from api.frontend_enhancement_router import router as frontend_enhancement_router
 from core.accessibility_support import setup_accessibility_support
 from core.ai_engine import _get_http_client as _ai_get_http_client
 from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
-from core.api_deprecation import mark_deprecated  # noqa: F401
 from core.api_error import (
     api_error_handler,
     general_exception_handler,
     validation_error_handler,
 )
 from core.api_governance import setup_api_governance
-from core.api_performance import monitor_api_performance  # noqa: F401
 from core.api_performance_optimizer import get_api_performance_optimizer
 from core.api_response_middleware import setup_api_response_middleware
 from core.audit_integration_manager import get_audit_integration_manager
@@ -117,25 +207,18 @@ from core.chaos_engineering import setup_chaos_engineering
 from core.cicd_integration_manager import get_cicd_integration_manager
 from core.cicd_pipeline_manager import get_cicd_pipeline_manager
 from core.compliance_manager import get_compliance_manager
-from core.concurrency_control import ConcurrencyController  # noqa: F401
 from core.config_center import get_config_center, get_service_discovery
-from core.config_validation import setup_config_validation  # noqa: F401
 from core.data_integration_manager import get_data_integration_manager
 from core.data_lifecycle_manager import setup_data_lifecycle
-from core.data_lifecycle_operations import archive_alerts, archive_metrics  # noqa: F401
 from core.database_optimization_manager import get_database_optimization_manager
-from core.db_query_optimization import optimize_database_queries  # noqa: F401
 from core.db_read_write_router import get_read_write_router
-from core.dependency_injection import di_container, setup_dependency_injection  # noqa: F401
 from core.disaster_recovery_drill import setup_disaster_recovery
 from core.distributed_storage import get_distributed_storage_manager
 from core.documentation_generator import get_documentation_generator
 from core.documentation_manager import get_documentation_manager
 from core.dr_scenarios import list_dr_scenarios, run_dr_scenario
 from core.enhanced_auth_integration import get_enhanced_auth_integration
-from core.enhanced_caching import setup_enhanced_caching  # noqa: F401
 from core.enhanced_websocket_manager import get_enhanced_websocket_manager
-from core.environment_config import setup_environment_configuration  # noqa: F401
 from core.error_recovery import setup_error_recovery
 from core.exception_handler import setup_exception_handlers
 from core.execution.l6.fault_tolerant_executor import get_fault_tolerant_executor
@@ -171,11 +254,53 @@ from core.plugin_development_sdk import get_plugin_sdk
 from core.plugin_ecosystem_manager import get_ecosystem_manager
 from core.plugin_marketplace_manager import get_marketplace_manager
 from core.plugin_system_manager import get_plugin_system_manager
-from core.rate_limiting import ENDPOINT_LIMITS  # noqa: F401
 from core.request_tracking import RequestTrackingMiddleware
 from core.security_audit_system import get_security_audit_system
-from core.security_config import setup_enterprise_security  # noqa: F401
 from core.security_input_validator import add_input_validation_middleware
+from core.security_system_integrator import get_security_system_integrator
+from core.security_testing_system import get_security_testing_system
+from core.service_discovery_manager import get_service_discovery_manager
+from core.service_mesh_manager import get_service_mesh_manager
+from core.service_monitoring_manager import get_service_monitoring_manager
+from core.slack_adapter import close_slack_client
+from core.sso_auth import router as sso_router
+from core.stats_engine import _get_http_client as _stats_get_http_client
+from core.structured_logging import setup_logging
+from core.system_resource_optimizer import get_system_resource_optimizer
+from core.teams_adapter import close_teams_client
+from core.test_automation_manager import get_automation_manager
+from core.test_coverage_manager import get_coverage_manager
+from core.test_framework_manager import get_test_framework_manager
+from core.third_party_service_integrator import get_third_party_service_integrator
+from core.user_training_system import get_user_training_system
+from core.vulnerability_manager import get_vulnerability_manager
+from core.websocket_integrator import get_websocket_integrator
+
+warnings.filterwarnings(
+    "ignore",
+    message="pkg_resources is deprecated as an API",
+    category=UserWarning,
+)
+
+
+# ------------------------
+# 日志初始化（保持不变）
+# ------------------------
+from slowapi.util import get_remote_address  # noqa: F401
+
+from core.api_deprecation import mark_deprecated  # noqa: F401
+from core.api_performance import monitor_api_performance  # noqa: F401
+from core.command_guard import register_self_pid
+from core.concurrency_control import ConcurrencyController  # noqa: F401
+from core.config_validation import setup_config_validation  # noqa: F401
+from core.data_lifecycle_operations import archive_alerts, archive_metrics  # noqa: F401
+from core.db_query_optimization import optimize_database_queries  # noqa: F401
+from core.dependency_injection import di_container, setup_dependency_injection  # noqa: F401
+from core.enhanced_caching import setup_enhanced_caching  # noqa: F401
+from core.environment_config import setup_environment_configuration  # noqa: F401
+from core.rate_limiter import add_concurrency_middleware
+from core.rate_limiting import ENDPOINT_LIMITS  # noqa: F401
+from core.security_config import setup_enterprise_security  # noqa: F401
 from core.security_middleware import (  # noqa: F401
     mfa_manager,
     password_policy,
@@ -183,26 +308,11 @@ from core.security_middleware import (  # noqa: F401
     security_headers,
     tls_enforcer,
 )
-from core.security_system_integrator import get_security_system_integrator
-from core.security_testing_system import get_security_testing_system
-from core.service_discovery_manager import get_service_discovery_manager
-from core.service_mesh_manager import get_service_mesh_manager
-from core.service_monitoring_manager import get_service_monitoring_manager
-from core.slack_adapter import close_slack_client
 from core.smart_cache_strategy import SmartCacheStrategy  # noqa: F401
-from core.sso_auth import router as sso_router
-from core.stats_engine import _get_http_client as _stats_get_http_client
-from core.teams_adapter import close_teams_client
-from core.structured_logging import setup_logging
-from core.system_resource_optimizer import get_system_resource_optimizer
-from core.test_automation_manager import get_automation_manager
-from core.test_coverage_manager import get_coverage_manager
-from core.test_framework_manager import get_test_framework_manager
-from core.third_party_service_integrator import get_third_party_service_integrator
-from core.unified_access_control import setup_default_access_policies  # noqa: F401
-from core.user_training_system import get_user_training_system
-from core.vulnerability_manager import get_vulnerability_manager
-from core.websocket_integrator import get_websocket_integrator
+from core.unified_access_control import (
+    add_access_control_middleware,
+    setup_default_access_policies,
+)
 from core.websocket_manager import manager  # noqa: F401
 
 
@@ -288,9 +398,7 @@ except Exception as e:
 
 # P1-6: 前端增强路由
 
-# 新增 实时通信 Hook 路由
-from api.graphql_router import router as graphql_router  # noqa: E402
-from api.realtime_router import router as realtime_router  # noqa: E402
+# 新增 实时通信 Hook 路由（graphql_router 已按 PLUGINS_ENABLED 条件导入）
 
 # Long-term Phase 1: gRPC Service Router
 
@@ -413,7 +521,7 @@ except ImportError:
 # ------------------------
 # 初始化速率限制器
 # limiter = Limiter(key_func=get_remote_address)  # Temporarily disabled - .env encoding issue
-limiter = None  # Placeholder
+limiter = None  # default_value
 
 # Global variables for enhanced cache and AI enhancer
 _enhanced_cache: Any = None
@@ -428,10 +536,84 @@ _grpc_server: Any = None  # Type: Optional["AIOpsGrpcServer"]
 async def lifespan(app: FastAPI):
     # Startup
     _logger.info("Application startup started.")
+
+    # Register hardware remediation dry-run scripts
+    try:
+        import extensions.hardware_remediation  # noqa: F401
+
+        _logger.info("Hardware remediation extensions registered")
+    except Exception as e:
+        _logger.info(f"Hardware remediation extensions registration failed: {e}")
+
     # 预热 http 客户端（可选）
     _notify_get_http_client()
     _ai_get_http_client()
     _stats_get_http_client()
+    # 注册自身 PID，防止 AI 生成自杀命令
+    register_self_pid()
+    # 加载默认 ABAC 访问策略
+    setup_default_access_policies()
+
+    # Core init names that always run regardless of ENABLE_ADDONS.
+    CORE_INIT_NAMES = frozenset({
+        "memory monitoring",
+        "error recovery",
+        "dependency injection",
+        "business metrics",
+        "cache headers middleware",
+        "data lifecycle",
+        "api governance",
+        "module initialization order validation",
+        "module health check",
+        "l4 storage manager",
+        "jwt authservice",
+        "postgresql alert repository",
+        "llm analysis service",
+        "data lineage manager",
+        "feature flag manager",
+        "enhanced multi-level cache",
+        "optimized executor",
+        "api performance optimizer",
+        "system resource optimizer",
+        "read write router",
+        "enhanced auth integration",
+        "websocket integrator",
+        "websocket integrator start",
+        "real integrations",
+    })
+
+    # Production helper: every external initialization gets a timeout and graceful degradation.
+    # Core calls are always executed; everything else is treated as an add-on and skipped unless
+    # ENABLE_ADDONS is true. Explicit ``addon=True`` overrides the auto-detection.
+    async def _safe_init(coro_or_callable, name, timeout=2.0, addon=None):
+        import asyncio
+
+        is_addon = addon if addon is not None else (name.lower() not in CORE_INIT_NAMES)
+        if is_addon and not ENABLE_ADDONS:
+            _logger.info(f"Add-on '{name}' skipped (ENABLE_ADDONS=false)")
+            return None
+
+        try:
+            if asyncio.iscoroutine(coro_or_callable):
+                result = await asyncio.wait_for(coro_or_callable, timeout=timeout)
+            elif callable(coro_or_callable):
+                result = await asyncio.wait_for(asyncio.to_thread(coro_or_callable), timeout=timeout)
+                if asyncio.isawaitable(result):
+                    result = await asyncio.wait_for(result, timeout=timeout)
+            else:
+                result = coro_or_callable
+            _logger.info(f"{name} initialized successfully")
+            return result
+        except asyncio.TimeoutError:
+            _logger.warning(f"{name} initialization timed out after {timeout}s; continuing without it")
+        except Exception as exc:
+            _logger.warning(f"{name} initialization failed: {exc}; continuing without it")
+        return None
+
+    async def _safe_init_core(coro_or_callable, name, timeout=2.0):
+        """Always-run variant for core components."""
+        return await _safe_init(coro_or_callable, name, timeout=timeout, addon=False)
+
     # Teams client 在第一次使用时会创建，此处不提前初始化。
 
     # Initialize L4 Storage Layer (7-Layer Architecture - Phase 1)
@@ -439,7 +621,7 @@ async def lifespan(app: FastAPI):
     from core.storage.l4.storage_manager import init_l4_storage_manager  # noqa: E402
 
     try:
-        init_l4_storage_manager(L4_STORAGE_CONFIG)
+        await _safe_init(lambda: init_l4_storage_manager(L4_STORAGE_CONFIG), "L4 Storage Layer", timeout=5.0)
         _logger.info("L4 Storage Layer initialized successfully")
     except Exception as e:
         _logger.info(f"L4 Storage Layer initialization failed (continuing without it): {e}")
@@ -450,8 +632,8 @@ async def lifespan(app: FastAPI):
     from core.analysis.l2.rag_engine import init_rag_engine  # noqa: E402
 
     try:
-        init_rag_engine(L2_ANALYSIS_CONFIG.get("rag", {}))
-        init_model_router(L2_ANALYSIS_CONFIG.get("model_router", {}))
+        await _safe_init(lambda: init_rag_engine(L2_ANALYSIS_CONFIG.get("rag", {})), "RAG engine", timeout=5.0)
+        await _safe_init(lambda: init_model_router(L2_ANALYSIS_CONFIG.get("model_router", {})), "Model router", timeout=5.0)
         _logger.info("L2 Analysis Layer initialized successfully")
     except Exception as e:
         _logger.info(f"L2 Analysis Layer initialization failed (continuing without it): {e}")
@@ -465,11 +647,15 @@ async def lifespan(app: FastAPI):
     from core.interface.l5.mcp_interface import init_mcp_interface  # noqa: E402
 
     try:
-        init_mcp_interface(L5_INTERFACE_CONFIG.get("mcp", {}))
-        init_graphql_interface(L5_INTERFACE_CONFIG.get("graphql", {}))
+        await _safe_init(lambda: init_mcp_interface(L5_INTERFACE_CONFIG.get("mcp", {})), "MCP interface", timeout=5.0)
+        await _safe_init(lambda: init_graphql_interface(L5_INTERFACE_CONFIG.get("graphql", {})), "GraphQL interface", timeout=5.0)
 
-        # Start gRPC server in background
-        _grpc_server = AIOpsGrpcServer(host="0.0.0.0", port=50051)
+        # Start gRPC server in background (configurable host, default 127.0.0.1)
+        grpc_cfg = L5_INTERFACE_CONFIG.get("grpc", {})
+        _grpc_server = AIOpsGrpcServer(
+            host=grpc_cfg.get("host", "127.0.0.1"),
+            port=grpc_cfg.get("port", 50051),
+        )
         asyncio.create_task(_grpc_server.start())
         _logger.info("gRPC server started on port 50051")
 
@@ -485,8 +671,8 @@ async def lifespan(app: FastAPI):
     from core.integration.l7.itSM_integration import init_itsm_integration  # noqa: E402
 
     try:
-        init_itsm_integration(L7_INTEGRATION_CONFIG.get("itsm", {}))
-        init_collaboration_integration(L7_INTEGRATION_CONFIG.get("collaboration", {}))
+        await _safe_init(lambda: init_itsm_integration(L7_INTEGRATION_CONFIG.get("itsm", {})), "ITSM integration", timeout=5.0)
+        await _safe_init(lambda: init_collaboration_integration(L7_INTEGRATION_CONFIG.get("collaboration", {})), "Collaboration integration", timeout=5.0)
         _logger.info("L7 Integration Layer initialized successfully")
     except Exception as e:
         _logger.info(f"L7 Integration Layer initialization failed (continuing without it): {e}")
@@ -497,10 +683,10 @@ async def lifespan(app: FastAPI):
     from core.processing.l3.workflow_engine import init_workflow_engine  # noqa: E402
 
     try:
-        workflow_engine = init_workflow_engine(L3_PROCESSING_CONFIG.get("workflow_engine", {}))
+        workflow_engine = await _safe_init(lambda: init_workflow_engine(L3_PROCESSING_CONFIG.get("workflow_engine", {})), "Workflow engine", timeout=5.0)
         workflow_engine.create_incident_response_workflow()
 
-        causal_graph = init_causal_graph(L3_PROCESSING_CONFIG.get("causal_graph", {}))
+        causal_graph = await _safe_init(lambda: init_causal_graph(L3_PROCESSING_CONFIG.get("causal_graph", {})), "Causal graph", timeout=5.0)
         if L3_PROCESSING_CONFIG.get("causal_graph", {}).get("auto_build", True):
             causal_graph.build_system_topology()
 
@@ -525,7 +711,7 @@ async def lifespan(app: FastAPI):
     from core.execution.l6.optimized_executor import init_optimized_executor  # noqa: E402
 
     try:
-        init_optimized_executor(L6_EXECUTION_CONFIG)
+        await _safe_init(lambda: init_optimized_executor(L6_EXECUTION_CONFIG), "Optimized executor", timeout=5.0)
         _logger.info("L6 Execution Layer initialized successfully")
     except Exception as e:
         _logger.info(f"L6 Execution Layer initialization failed (continuing without it): {e}")
@@ -533,7 +719,14 @@ async def lifespan(app: FastAPI):
     # 🔧 P0 Enhancement: Initialize enhanced components in 7-Layer Architecture
     try:
         # Initialize OpenTelemetry for APM monitoring (L5 Interface Layer)
-        from config import OTEL_COLLECTOR_ENDPOINT  # noqa: F401
+        from config import (  # noqa: E402
+            ENVIRONMENT,
+            LOKI_ENABLED,
+            LOKI_URL,
+            OTEL_COLLECTOR_ENDPOINT,
+            TEMPO_ENABLED,
+            TEMPO_URL,
+        )
         from core.telemetry import (  # noqa: E402
             instrument_kafka,
             setup_trace_propagation,
@@ -541,13 +734,19 @@ async def lifespan(app: FastAPI):
         )
         from core.telemetry.fastapi import setup_fastapi_telemetry  # noqa: E402
 
-        telemetry_initialized = setup_fastapi_telemetry(
+        # Prefer Tempo endpoint when enabled, otherwise fall back to the generic
+        # OTLP collector endpoint. This supports real Tempo/Jaeger + Prometheus.
+        otlp_endpoint = TEMPO_URL if TEMPO_ENABLED and TEMPO_URL else OTEL_COLLECTOR_ENDPOINT
+
+        telemetry_initialized = await _safe_init(lambda: setup_fastapi_telemetry(
             app=app,
             service_name="aiops-agent",
             instrument_http=True,
             instrument_db=True,
             enable_redis_instrumentation=True,
-        )
+            otlp_endpoint=otlp_endpoint,
+            environment=ENVIRONMENT,
+        ), "OpenTelemetry", timeout=5.0)
         if telemetry_initialized:
             # Setup automatic tracing middleware
             setup_tracing_middleware(app)
@@ -558,6 +757,15 @@ async def lifespan(app: FastAPI):
             _logger.info("OpenTelemetry initialized for APM monitoring (L5 Layer)")
         else:
             _logger.info("OpenTelemetry initialization returned False")
+
+        # Wire structured logs to Loki when enabled
+        if LOKI_ENABLED and LOKI_URL:
+            from core.structured_logging import setup_loki_logging  # noqa: E402
+
+            if await _safe_init(lambda: setup_loki_logging(LOKI_URL, service_name="aiops-agent"), "Loki log shipping", timeout=5.0):
+                _logger.info(f"Loki log shipping enabled for {LOKI_URL}")
+            else:
+                _logger.info("Loki log shipping not available")
     except Exception as e:
         _logger.info(f"OpenTelemetry initialization failed: {e}")
 
@@ -580,7 +788,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize database optimization manager (Phase 4)
-        db_opt_manager = get_database_optimization_manager()
+        db_opt_manager = await _safe_init(lambda: get_database_optimization_manager(), "Database Optimization Manager", timeout=2.0)
         optimization_result = db_opt_manager.run_comprehensive_optimization()
         _logger.info(
             f"Database optimization manager initialized: {optimization_result['overall_status']}"
@@ -590,21 +798,21 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize API performance optimizer (Phase 4)
-        _api_perf_optimizer = get_api_performance_optimizer()  # noqa: F841
+        _api_perf_optimizer = await _safe_init(lambda: get_api_performance_optimizer(), "Api Performance Optimizer", timeout=2.0)  # noqa: F841
         _logger.info("API performance optimizer initialized (Phase 4)")
     except Exception as e:
         _logger.info(f"API performance optimizer initialization failed: {e}")
 
     try:
         # Initialize system resource optimizer (Phase 4)
-        _sys_resource_optimizer = get_system_resource_optimizer()  # noqa: F841
+        _sys_resource_optimizer = await _safe_init(lambda: get_system_resource_optimizer(), "System Resource Optimizer", timeout=2.0)  # noqa: F841
         _logger.info("System resource optimizer initialized (Phase 4)")
     except Exception as e:
         _logger.info(f"System resource optimizer initialization failed: {e}")
 
     try:
         # Initialize service mesh manager (Long-term Phase 1)
-        _service_mesh_manager = get_service_mesh_manager()  # noqa: F841
+        _service_mesh_manager = await _safe_init(lambda: get_service_mesh_manager(), "Service Mesh Manager", timeout=2.0)  # noqa: F841
         _logger.info("Service mesh manager initialized (Long-term Phase 1)")
     except Exception as e:
         _logger.info(f"Service mesh manager initialization failed: {e}")
@@ -618,98 +826,98 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize service discovery manager (Long-term Phase 1)
-        service_discovery_manager = get_service_discovery_manager()  # noqa: F841
+        service_discovery_manager = await _safe_init(lambda: get_service_discovery_manager(), "Service Discovery Manager", timeout=2.0)  # noqa: F841
         _logger.info("Service discovery manager initialized (Long-term Phase 1)")
     except Exception as e:
         _logger.info(f"Service discovery manager initialization failed: {e}")
 
     try:
         # Initialize service monitoring manager (Long-term Phase 1)
-        service_monitoring_manager = get_service_monitoring_manager()  # noqa: F841
+        service_monitoring_manager = await _safe_init(lambda: get_service_monitoring_manager(), "Service Monitoring Manager", timeout=2.0)  # noqa: F841
         _logger.info("Service monitoring manager initialized (Long-term Phase 1)")
     except Exception as e:
         _logger.info(f"Service monitoring manager initialization failed: {e}")
 
     try:
         # Initialize plugin system manager (Long-term Phase 4)
-        plugin_system_manager = get_plugin_system_manager()  # noqa: F841
+        plugin_system_manager = await _safe_init(lambda: get_plugin_system_manager(), "Plugin System Manager", timeout=2.0)  # noqa: F841
         _logger.info("Plugin system manager initialized (Long-term Phase 4)")
     except Exception as e:
         _logger.info(f"Plugin system manager initialization failed: {e}")
 
     try:
         # Initialize plugin development SDK (Long-term Phase 4)
-        plugin_sdk = get_plugin_sdk()  # noqa: F841
+        plugin_sdk = await _safe_init(lambda: get_plugin_sdk(), "Plugin Sdk", timeout=2.0)  # noqa: F841
         _logger.info("Plugin development SDK initialized (Long-term Phase 4)")
     except Exception as e:
         _logger.info(f"Plugin development SDK initialization failed: {e}")
 
     try:
         # Initialize plugin marketplace manager (Long-term Phase 4)
-        marketplace_manager = get_marketplace_manager()  # noqa: F841
+        marketplace_manager = await _safe_init(lambda: get_marketplace_manager(), "Marketplace Manager", timeout=2.0)  # noqa: F841
         _logger.info("Plugin marketplace manager initialized (Long-term Phase 4)")
     except Exception as e:
         _logger.info(f"Plugin marketplace manager initialization failed: {e}")
 
     try:
         # Initialize plugin ecosystem manager (Long-term Phase 4)
-        ecosystem_manager = get_ecosystem_manager()  # noqa: F841
+        ecosystem_manager = await _safe_init(lambda: get_ecosystem_manager(), "Ecosystem Manager", timeout=2.0)  # noqa: F841
         _logger.info("Plugin ecosystem manager initialized (Long-term Phase 4)")
     except Exception as e:
         _logger.info(f"Plugin ecosystem manager initialization failed: {e}")
 
     try:
         # Initialize i18n manager (Long-term Phase 3)
-        i18n_manager = get_i18n_manager()  # noqa: F841
+        i18n_manager = await _safe_init(lambda: get_i18n_manager(), "I18N Manager", timeout=2.0)  # noqa: F841
         _logger.info("I18n manager initialized (Long-term Phase 3)")
     except Exception as e:
         _logger.info(f"I18n manager initialization failed: {e}")
 
     try:
         # Initialize localization resource manager (Long-term Phase 3)
-        resource_manager = get_resource_manager()  # noqa: F841
+        resource_manager = await _safe_init(lambda: get_resource_manager(), "Resource Manager", timeout=2.0)  # noqa: F841
         _logger.info("Localization resource manager initialized (Long-term Phase 3)")
     except Exception as e:
         _logger.info(f"Localization resource manager initialization failed: {e}")
 
     try:
         # Initialize localization adapter (Long-term Phase 3)
-        localization_adapter = get_localization_adapter()  # noqa: F841
+        localization_adapter = await _safe_init(lambda: get_localization_adapter(), "Localization Adapter", timeout=2.0)  # noqa: F841
         _logger.info("Localization adapter initialized (Long-term Phase 3)")
     except Exception as e:
         _logger.info(f"Localization adapter initialization failed: {e}")
 
     try:
         # Initialize test framework manager (Short-term Phase 2)
-        test_framework_manager = get_test_framework_manager()  # noqa: F841
+        test_framework_manager = await _safe_init(lambda: get_test_framework_manager(), "Test Framework Manager", timeout=2.0)  # noqa: F841
         _logger.info("Test framework manager initialized (Short-term Phase 2)")
     except Exception as e:
         _logger.info(f"Test framework manager initialization failed: {e}")
 
     try:
         # Initialize test coverage manager (Short-term Phase 2)
-        coverage_manager = get_coverage_manager()  # noqa: F841
+        coverage_manager = await _safe_init(lambda: get_coverage_manager(), "Coverage Manager", timeout=2.0)  # noqa: F841
         _logger.info("Test coverage manager initialized (Short-term Phase 2)")
     except Exception as e:
         _logger.info(f"Test coverage manager initialization failed: {e}")
 
     try:
         # Initialize test automation manager (Short-term Phase 2)
-        automation_manager = get_automation_manager()  # noqa: F841
+        automation_manager = await _safe_init(lambda: get_automation_manager(), "Automation Manager", timeout=2.0)  # noqa: F841
         _logger.info("Test automation manager initialized (Short-term Phase 2)")
     except Exception as e:
         _logger.info(f"Test automation manager initialization failed: {e}")
 
     try:
         # Initialize documentation manager (Short-term Phase 3)
-        doc_manager = get_documentation_manager()  # noqa: F841
+        doc_manager = await _safe_init(lambda: get_documentation_manager(), "Documentation Manager", timeout=2.0)  # noqa: F841
         _logger.info("Documentation manager initialized (Short-term Phase 3)")
     except Exception as e:
         _logger.info(f"Documentation manager initialization failed: {e}")
 
     try:
         # Initialize documentation generator (Short-term Phase 3)
-        doc_generator = get_documentation_generator()  # noqa: F841
+        doc_generator = await _safe_init(lambda: get_documentation_generator(), "Documentation Generator", timeout=2.0)  # noqa: F841
         _logger.info("Documentation generator initialized (Short-term Phase 3)")
     except Exception as e:
         _logger.info(f"Documentation generator initialization failed: {e}")
@@ -720,7 +928,7 @@ async def lifespan(app: FastAPI):
 
         # Create global cache instance
         global _enhanced_cache
-        _enhanced_cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
+        _enhanced_cache = await _safe_init(lambda: MultiLevelCache(memory_ttl=60, redis_ttl=3600), "Enhanced multi-level cache", timeout=5.0)
         _logger.info("Enhanced multi-level cache initialized (L4 Layer)")
     except Exception as e:
         _logger.info(f"Enhanced cache initialization failed: {e}")
@@ -731,21 +939,21 @@ async def lifespan(app: FastAPI):
 
     # P0-4: Setup memory monitoring
     try:
-        await setup_memory_monitoring()
+        await _safe_init(setup_memory_monitoring(), "Memory monitoring", timeout=5.0)
         _logger.info("Memory monitoring initialized (P0-4)")
     except Exception as e:
         _logger.info(f"Memory monitoring initialization failed: {e}")
 
     # P0-5: Setup error recovery mechanism
     try:
-        await setup_error_recovery()
+        await _safe_init(setup_error_recovery(), "Error recovery", timeout=5.0)
         _logger.info("Error recovery mechanism initialized (P0-5)")
     except Exception as e:
         _logger.info(f"Error recovery initialization failed: {e}")
 
     # P1-1: Setup dependency injection container
     try:
-        await setup_dependency_injection()
+        await _safe_init(setup_dependency_injection(), "Dependency injection", timeout=5.0)
         _logger.info("Dependency injection container initialized (P1-1)")
     except Exception as e:
         _logger.info(f"Dependency injection initialization failed: {e}")
@@ -755,14 +963,14 @@ async def lifespan(app: FastAPI):
 
     # P1-3: Setup business metrics monitoring
     try:
-        await setup_business_metrics()
+        await _safe_init(setup_business_metrics(), "Business metrics", timeout=5.0)
         _logger.info("Business metrics monitoring initialized (P1-3)")
     except Exception as e:
         _logger.info(f"Business metrics initialization failed: {e}")
 
     # P1-4: Setup frontend cache strategies
     try:
-        setup_cache_headers_middleware()
+        await _safe_init(lambda: setup_cache_headers_middleware(), "Cache headers middleware", timeout=5.0)
         _logger.info("Frontend cache strategies configured (P1-4)")
     except Exception as e:
         _logger.info(f"Frontend cache strategy setup failed: {e}")
@@ -772,49 +980,49 @@ async def lifespan(app: FastAPI):
 
     # P2-1: Setup data lifecycle management
     try:
-        await setup_data_lifecycle()
+        await _safe_init(setup_data_lifecycle(), "Data lifecycle", timeout=5.0)
         _logger.info("Data lifecycle management initialized (P2-1)")
     except Exception as e:
         _logger.info(f"Data lifecycle initialization failed: {e}")
 
     # P2-2: Setup API governance
     try:
-        await setup_api_governance()
+        await _safe_init(setup_api_governance(), "API governance", timeout=5.0)
         _logger.info("API governance initialized (P2-2)")
     except Exception as e:
         _logger.info(f"API governance initialization failed: {e}")
 
         # Phase 1: Validate module initialization order
     try:
-        validate_initialization_order()
+        await _safe_init(lambda: validate_initialization_order(), "Module initialization order validation", timeout=5.0)
         _logger.info("Module initialization order validated successfully")
     except Exception as e:
         _logger.info(f"Module initialization validation failed: {e}")
 
     # Phase 1: Check module health
     try:
-        health_status = await check_all_modules_health()
+        health_status = await _safe_init(check_all_modules_health(), "Module health check", timeout=5.0)
         _logger.info(f"Module health check: {health_status}")
     except Exception as e:
         _logger.info(f"Module health check failed: {e}")
 
     # P2-3: Setup disaster recovery drill
     try:
-        await setup_disaster_recovery()
+        await _safe_init(setup_disaster_recovery(), "Disaster recovery", timeout=5.0)
         _logger.info("Disaster recovery drill configured (P2-3)")
     except Exception as e:
         _logger.info(f"Disaster recovery setup failed: {e}")
 
     # P2-4: Setup accessibility support
     try:
-        await setup_accessibility_support()
+        await _safe_init(setup_accessibility_support(), "Accessibility support", timeout=5.0)
         _logger.info("Accessibility support initialized (P2-4)")
     except Exception as e:
         _logger.info(f"Accessibility support setup failed: {e}")
 
     # P2-5: Setup chaos engineering (disabled by default)
     try:
-        await setup_chaos_engineering()
+        await _safe_init(setup_chaos_engineering(), "Chaos engineering", timeout=5.0)
         _logger.info("Chaos engineering configured (P2-5, disabled by default)")
     except Exception as e:
         _logger.info(f"Chaos engineering setup failed: {e}")
@@ -828,35 +1036,35 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Kafka Stream Processor
-        kafka_processor = get_kafka_processor()  # noqa: F841
+        kafka_processor = await _safe_init(lambda: get_kafka_processor(), "Kafka Processor", timeout=2.0)  # noqa: F841
         _logger.info("Kafka Stream Processor initialized")
 
         # Initialize Flink Job Manager
-        flink_manager = get_flink_job_manager()  # noqa: F841
+        flink_manager = await _safe_init(lambda: get_flink_job_manager(), "Flink Job Manager", timeout=2.0)  # noqa: F841
         _logger.info("Flink Job Manager initialized")
 
         # Initialize Distributed Storage Manager
-        storage_manager = get_distributed_storage_manager()  # noqa: F841
+        storage_manager = await _safe_init(lambda: get_distributed_storage_manager(), "Distributed Storage Manager", timeout=2.0)  # noqa: F841
         _logger.info("Distributed Storage Manager initialized")
 
         # Initialize Config Center
-        config_center = get_config_center()  # noqa: F841
+        config_center = await _safe_init(lambda: get_config_center(), "Config Center", timeout=2.0)  # noqa: F841
         _logger.info("Config Center initialized")
 
         # Initialize Service Discovery
-        service_discovery = get_service_discovery()  # noqa: F841
+        service_discovery = await _safe_init(lambda: get_service_discovery(), "Service Discovery", timeout=2.0)  # noqa: F841
         _logger.info("Service Discovery initialized")
 
         # Initialize Monitoring Infrastructure
-        monitoring = get_monitoring_infrastructure()  # noqa: F841
+        monitoring = await _safe_init(lambda: get_monitoring_infrastructure(), "Monitoring Infrastructure", timeout=2.0)  # noqa: F841
         _logger.info("Monitoring Infrastructure initialized")
 
         # Initialize L1-L2 Data Flow Integrator
-        data_flow_integrator = get_l1l2_data_flow_integrator()
+        data_flow_integrator = await _safe_init(lambda: get_l1l2_data_flow_integrator(), "L1L2 Data Flow Integrator", timeout=2.0)
         _logger.info("L1-L2 Data Flow Integrator initialized")
 
         # Start Data Flow
-        data_flow_integrator.start_data_flow()
+        await _safe_init(lambda: data_flow_integrator.start_data_flow(), "L1-L2 Data Flow start", timeout=5.0)
         _logger.info("L1-L2 Data Flow started")
 
         _logger.info("Phase 1 Infrastructure Enhancement initialized successfully")
@@ -870,36 +1078,36 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Enhanced Causal Analyzer (L2 Analysis Layer)
-        enhanced_causal_analyzer = get_enhanced_causal_analyzer()  # noqa: F841
+        enhanced_causal_analyzer = await _safe_init(lambda: get_enhanced_causal_analyzer(), "Enhanced Causal Analyzer", timeout=2.0)  # noqa: F841
         _logger.info("Enhanced Causal Analyzer initialized (L2 Layer)")
 
         # Initialize Fault Tolerant Executor (L6 Execution Layer)
-        fault_tolerant_executor = get_fault_tolerant_executor()  # noqa: F841
+        fault_tolerant_executor = await _safe_init(lambda: get_fault_tolerant_executor(), "Fault Tolerant Executor", timeout=2.0)  # noqa: F841
         _logger.info("Fault Tolerant Executor initialized (L6 Layer)")
 
         # Initialize Read-Write Router (Database Layer)
-        read_write_router = get_read_write_router()  # noqa: F841
+        read_write_router = await _safe_init(lambda: get_read_write_router(), "Read Write Router", timeout=2.0)  # noqa: F841
         _logger.info("Read-Write Router initialized (Database Layer)")
 
         # Initialize Enhanced WebSocket Manager (Communication Layer)
-        enhanced_websocket_manager = get_enhanced_websocket_manager()  # noqa: F841
+        enhanced_websocket_manager = await _safe_init(lambda: get_enhanced_websocket_manager(), "Enhanced Websocket Manager", timeout=2.0)  # noqa: F841
         _logger.info("Enhanced WebSocket Manager initialized (Communication Layer)")
 
         # Initialize L2-L3 Workflow Integrator
-        l2l3_workflow_integrator = get_l2l3_workflow_integrator()  # noqa: F841
+        l2l3_workflow_integrator = await _safe_init(lambda: get_l2l3_workflow_integrator(), "L2L3 Workflow Integrator", timeout=2.0)  # noqa: F841
         _logger.info("L2-L3 Workflow Integrator initialized (L2-L3 Integration)")
 
         # Initialize L3-L4 Storage Integrator
-        l3l4_storage_integrator = get_l3l4_storage_integrator()  # noqa: F841
+        l3l4_storage_integrator = await _safe_init(lambda: get_l3l4_storage_integrator(), "L3L4 Storage Integrator", timeout=2.0)  # noqa: F841
         _logger.info("L3-L4 Storage Integrator initialized (L3-L4 Integration)")
 
         # Initialize Enhanced Auth Integration
-        enhanced_auth_integration = get_enhanced_auth_integration()  # noqa: F841
+        enhanced_auth_integration = await _safe_init(lambda: get_enhanced_auth_integration(), "Enhanced Auth Integration", timeout=2.0)  # noqa: F841
         _logger.info("Enhanced Auth Integration initialized (Security Layer)")
 
         # Initialize WebSocket Integrator
-        websocket_integrator = get_websocket_integrator()
-        await websocket_integrator.start()
+        websocket_integrator = await _safe_init(lambda: get_websocket_integrator(), "Websocket Integrator", timeout=2.0)
+        await _safe_init(lambda: websocket_integrator.start(), "WebSocket Integrator start", timeout=5.0)
         _logger.info("WebSocket Integrator started and running (Real-time Integration)")
 
         _logger.info("Phase 2 Core Function Enhancement and Integration initialized successfully")
@@ -914,46 +1122,46 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Model Fine-Tuner (AI Enhancement)
-        model_fine_tuner = get_model_fine_tuner()  # noqa: F841
+        model_fine_tuner = await _safe_init(lambda: get_model_fine_tuner(), "Model Fine Tuner", timeout=2.0)  # noqa: F841
         _logger.info("Model Fine-Tuner initialized (AI Enhancement)")
 
         # Initialize Frontend Performance Optimizer (Performance Layer)
-        frontend_performance_optimizer = get_frontend_performance_optimizer()  # noqa: F841
+        frontend_performance_optimizer = await _safe_init(lambda: get_frontend_performance_optimizer(), "Frontend Performance Optimizer", timeout=2.0)  # noqa: F841
         _logger.info("Frontend Performance Optimizer initialized (Performance Layer)")
 
         # Initialize Kubernetes Deployment Manager (Deployment Layer)
-        kubernetes_deployment_manager = get_kubernetes_deployment_manager()  # noqa: F841
+        kubernetes_deployment_manager = await _safe_init(lambda: get_kubernetes_deployment_manager(), "Kubernetes Deployment Manager", timeout=2.0)  # noqa: F841
         _logger.info("Kubernetes Deployment Manager initialized (Deployment Layer)")
 
         # Initialize CI/CD Pipeline Manager (Automation Layer)
-        cicd_pipeline_manager = get_cicd_pipeline_manager()  # noqa: F841
+        cicd_pipeline_manager = await _safe_init(lambda: get_cicd_pipeline_manager(), "Cicd Pipeline Manager", timeout=2.0)  # noqa: F841
         _logger.info("CI/CD Pipeline Manager initialized (Automation Layer)")
 
         # Initialize L4-L5 Data Integrator (Real-time Data Integration)
-        l4l5_data_integrator = get_l4l5_data_integrator()
-        await l4l5_data_integrator.start_realtime_processing()
+        l4l5_data_integrator = await _safe_init(lambda: get_l4l5_data_integrator(), "L4L5 Data Integrator", timeout=2.0)
+        await _safe_init(lambda: l4l5_data_integrator.start_realtime_processing(), "L4-L5 Data Integrator start", timeout=5.0)
         _logger.info("L4-L5 Data Integrator initialized and started (L4-L5 Integration)")
 
         # Initialize L5-L6 Execution Integrator (Intelligent Execution Integration)
-        l5l6_execution_integrator = get_l5l6_execution_integrator()
-        await l5l6_execution_integrator.start_execution_processor()
+        l5l6_execution_integrator = await _safe_init(lambda: get_l5l6_execution_integrator(), "L5L6 Execution Integrator", timeout=2.0)
+        await _safe_init(lambda: l5l6_execution_integrator.start_execution_processor(), "L5-L6 Execution Integrator start", timeout=5.0)
         _logger.info("L5-L6 Execution Integrator initialized and started (L5-L6 Integration)")
 
         # Initialize L6-L7 Frontend Integrator (Frontend Presentation Integration)
-        l6l7_frontend_integrator = get_l6l7_frontend_integrator()
-        await l6l7_frontend_integrator.start_event_processor()
-        await l6l7_frontend_integrator.start_auto_refresh()
+        l6l7_frontend_integrator = await _safe_init(lambda: get_l6l7_frontend_integrator(), "L6L7 Frontend Integrator", timeout=2.0)
+        await _safe_init(lambda: l6l7_frontend_integrator.start_event_processor(), "L6-L7 Frontend Integrator start", timeout=5.0)
+        await _safe_init(lambda: l6l7_frontend_integrator.start_auto_refresh(), "L6-L7 Frontend Integrator auto refresh", timeout=5.0)
         _logger.info("L6-L7 Frontend Integrator initialized and started (L6-L7 Integration)")
 
         # Initialize Third-Party Service Integrator (External Service Integration)
-        third_party_service_integrator = get_third_party_service_integrator()
-        await third_party_service_integrator.start_health_check_loop()
+        third_party_service_integrator = await _safe_init(lambda: get_third_party_service_integrator(), "Third Party Service Integrator", timeout=2.0)
+        await _safe_init(lambda: third_party_service_integrator.start_health_check_loop(), "Third-party service integrator health check", timeout=5.0)
         _logger.info(
             "Third-Party Service Integrator initialized and started (External Service Integration)"
         )
 
         # Initialize CI/CD Integration Manager (Deployment Automation Integration)
-        cicd_integration_manager = get_cicd_integration_manager()  # noqa: F841
+        cicd_integration_manager = await _safe_init(lambda: get_cicd_integration_manager(), "Cicd Integration Manager", timeout=2.0)  # noqa: F841
         _logger.info("CI/CD Integration Manager initialized (Deployment Automation Integration)")
 
         _logger.info(
@@ -970,41 +1178,41 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Compliance Manager (Security Compliance Layer)
-        compliance_manager = get_compliance_manager()
-        await compliance_manager.start_auto_check_loop()
+        compliance_manager = await _safe_init(lambda: get_compliance_manager(), "Compliance Manager", timeout=2.0)
+        await _safe_init(lambda: compliance_manager.start_auto_check_loop(), "Compliance manager auto check", timeout=5.0)
         _logger.info("Compliance Manager initialized and started (Security Compliance Layer)")
 
         # Initialize Security Testing System (Security Testing Layer)
-        security_testing_system = get_security_testing_system()
-        await security_testing_system.start_auto_scan_loop()
+        security_testing_system = await _safe_init(lambda: get_security_testing_system(), "Security Testing System", timeout=2.0)
+        await _safe_init(lambda: security_testing_system.start_auto_scan_loop(), "Security testing auto scan", timeout=5.0)
         _logger.info("Security Testing System initialized and started (Security Testing Layer)")
 
         # Initialize Vulnerability Manager (Vulnerability Management Layer)
-        vulnerability_manager = get_vulnerability_manager()
-        await vulnerability_manager.start_sla_monitoring()
+        vulnerability_manager = await _safe_init(lambda: get_vulnerability_manager(), "Vulnerability Manager", timeout=2.0)
+        await _safe_init(lambda: vulnerability_manager.start_sla_monitoring(), "Vulnerability SLA monitoring", timeout=5.0)
         _logger.info(
             "Vulnerability Manager initialized and started (Vulnerability Management Layer)"
         )
 
         # Initialize Security Audit System (Security Audit Layer)
-        security_audit_system = get_security_audit_system()  # noqa: F841
+        security_audit_system = await _safe_init(lambda: get_security_audit_system(), "Security Audit System", timeout=2.0)  # noqa: F841
         _logger.info("Security Audit System initialized (Security Audit Layer)")
 
         # Initialize Security System Integrator (Security Integration Layer)
-        security_system_integrator = get_security_system_integrator()
-        await security_system_integrator.start_auto_health_check()
+        security_system_integrator = await _safe_init(lambda: get_security_system_integrator(), "Security System Integrator", timeout=2.0)
+        await _safe_init(lambda: security_system_integrator.start_auto_health_check(), "Security system integrator health check", timeout=5.0)
         _logger.info(
             "Security System Integrator initialized and started (Security Integration Layer)"
         )
 
         # Initialize Audit Integration Manager (Audit Integration Layer)
-        audit_integration_manager = get_audit_integration_manager()
-        await audit_integration_manager.start_auto_collection()
+        audit_integration_manager = await _safe_init(lambda: get_audit_integration_manager(), "Audit Integration Manager", timeout=2.0)
+        await _safe_init(lambda: audit_integration_manager.start_auto_collection(), "Audit integration auto collection", timeout=5.0)
         _logger.info("Audit Integration Manager initialized and started (Audit Integration Layer)")
 
         # Initialize Data Integration Manager (Data Integration Layer)
-        data_integration_manager = get_data_integration_manager()
-        await data_integration_manager.start_auto_sync()
+        data_integration_manager = await _safe_init(lambda: get_data_integration_manager(), "Data Integration Manager", timeout=2.0)
+        await _safe_init(lambda: data_integration_manager.start_auto_sync(), "Data integration auto sync", timeout=5.0)
         _logger.info("Data Integration Manager initialized and started (Data Integration Layer)")
 
         _logger.info(
@@ -1021,39 +1229,39 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Performance Optimizer (Optimization Layer)
-        performance_optimizer = get_performance_optimizer()  # noqa: F841
+        performance_optimizer = await _safe_init(lambda: get_performance_optimizer(), "Performance Optimizer", timeout=2.0)  # noqa: F841
         # Auto-optimization is started in __init__ via _start_background_monitoring
         # await performance_optimizer.start_auto_optimization()
         _logger.info("Performance Optimizer initialized and started (Optimization Layer)")
 
         # Initialize Integration Testing System (Testing Layer)
-        integration_testing_system = get_integration_testing_system()
-        await integration_testing_system.start_auto_run()
+        integration_testing_system = await _safe_init(lambda: get_integration_testing_system(), "Integration Testing System", timeout=2.0)
+        await _safe_init(lambda: integration_testing_system.start_auto_run(), "Integration testing auto run", timeout=5.0)
         _logger.info("Integration Testing System initialized and started (Testing Layer)")
 
         # Initialize Integration Monitoring System (Monitoring Layer)
-        integration_monitoring_system = get_integration_monitoring_system()
-        await integration_monitoring_system.start_monitoring()
+        integration_monitoring_system = await _safe_init(lambda: get_integration_monitoring_system(), "Integration Monitoring System", timeout=2.0)
+        await _safe_init(lambda: integration_monitoring_system.start_monitoring(), "Integration monitoring start", timeout=5.0)
         _logger.info("Integration Monitoring System initialized and started (Monitoring Layer)")
 
         # Initialize Documentation Manager (Documentation Layer)
-        documentation_manager = get_documentation_manager()  # noqa: F841
+        documentation_manager = await _safe_init(lambda: get_documentation_manager(), "Documentation Manager", timeout=2.0)  # noqa: F841
         _logger.info("Documentation Manager initialized (Documentation Layer)")
 
         # Initialize User Training System (Training Layer)
-        user_training_system = get_user_training_system()  # noqa: F841
+        user_training_system = await _safe_init(lambda: get_user_training_system(), "User Training System", timeout=2.0)  # noqa: F841
         _logger.info("User Training System initialized (Training Layer)")
 
         # Initialize Integration Test Validator (Validation Layer)
-        integration_test_validator = get_integration_test_validator()  # noqa: F841
+        integration_test_validator = await _safe_init(lambda: get_integration_test_validator(), "Integration Test Validator", timeout=2.0)  # noqa: F841
         _logger.info("Integration Test Validator initialized (Validation Layer)")
 
         # Initialize Performance Integration Tester (Performance Testing Layer)
-        performance_integration_tester = get_performance_integration_tester()  # noqa: F841
+        performance_integration_tester = await _safe_init(lambda: get_performance_integration_tester(), "Performance Integration Tester", timeout=2.0)  # noqa: F841
         _logger.info("Performance Integration Tester initialized (Performance Testing Layer)")
 
         # Initialize Integration Documentation Manager (Integration Documentation Layer)
-        integration_documentation_manager = get_integration_documentation_manager()  # noqa: F841
+        integration_documentation_manager = await _safe_init(lambda: get_integration_documentation_manager(), "Integration Documentation Manager", timeout=2.0)  # noqa: F841
         _logger.info(
             "Integration Documentation Manager initialized "  # noqa: E501
             "(Integration Documentation Layer)"
@@ -1074,7 +1282,7 @@ async def lifespan(app: FastAPI):
         from core.ai_enhancement import get_ai_enhancer  # noqa: E402
 
         global _ai_enhancer
-        _ai_enhancer = get_ai_enhancer()
+        _ai_enhancer = await _safe_init(lambda: get_ai_enhancer(), "Ai Enhancer", timeout=2.0)
         _logger.info("AI enhancement module initialized (L2 Layer)")
     except Exception as e:
         _logger.info(f"AI enhancement initialization failed: {e}")
@@ -1101,7 +1309,7 @@ async def lifespan(app: FastAPI):
     # Get L4 storage manager once for all components
     from core.storage.l4.storage_manager import get_l4_storage_manager  # noqa: E402
 
-    l4_storage = get_l4_storage_manager()
+    l4_storage = await _safe_init(lambda: get_l4_storage_manager(), "L4 Storage Manager", timeout=2.0)
 
     try:
         # Initialize JWT AuthService (already used in authentication.py, ensure it's available)
@@ -1159,7 +1367,7 @@ async def lifespan(app: FastAPI):
         from core.plugin_marketplace import PluginMarketplace  # noqa: E402
 
         _plugin_marketplace = PluginMarketplace(storage=l4_storage)
-        if _plugin_marketplace.initialize():
+        if await _safe_init(lambda: _plugin_marketplace.initialize(), "Plugin Marketplace initialize", timeout=5.0):
             _logger.info("Plugin Marketplace initialized successfully")
         else:
             _logger.info("Plugin Marketplace initialization failed")
@@ -1177,24 +1385,22 @@ async def lifespan(app: FastAPI):
 
         if storage_config.get("loki", {}).get("enabled", False):
             _loki_storage = LokiStorage(storage_config.get("loki", {}))
-            if _loki_storage.initialize():
+            if await _safe_init(lambda: _loki_storage.initialize(), "Loki Storage initialize", timeout=5.0):
                 _logger.info("Loki Storage initialized successfully")
 
         if storage_config.get("tempo", {}).get("enabled", False):
             _tempo_storage = TempoStorage(storage_config.get("tempo", {}))
-            if _tempo_storage.initialize():
+            if await _safe_init(lambda: _tempo_storage.initialize(), "Tempo Storage initialize", timeout=5.0):
                 _logger.info("Tempo Storage initialized successfully")
 
         if storage_config.get("victoriametrics", {}).get("enabled", False):
             _victoriametrics_storage = VictoriaMetricsStorage(
                 storage_config.get("victoriametrics", {})
             )
-            if _victoriametrics_storage.initialize():
+            if await _safe_init(lambda: _victoriametrics_storage.initialize(), "VictoriaMetrics Storage initialize", timeout=5.0):
                 _logger.info("VictoriaMetrics Storage initialized successfully")
     except Exception as e:
-        _logger.info(
-            f"Storage implementations initialization failed (continuing without it): {e}"
-        )
+        _logger.info(f"Storage implementations initialization failed (continuing without it): {e}")
 
     _logger.info("Application startup completed.")
     # 启动异常检测后台任务
@@ -1215,16 +1421,16 @@ async def lifespan(app: FastAPI):
     # 关闭所有复用的 http 客户端资源
     try:
         await _notify_get_http_client().aclose()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
     try:
         await _ai_get_http_client().aclose()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
     try:
         await _stats_get_http_client().aclose()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
     # 关闭 Slack 与 Teams 客户端（若已创建）
     try:
         await close_slack_client()
@@ -1238,7 +1444,7 @@ async def lifespan(app: FastAPI):
     try:
         from core.storage.l4.storage_manager import get_l4_storage_manager  # noqa: E402
 
-        l4_manager = get_l4_storage_manager()
+        l4_manager = await _safe_init(lambda: get_l4_storage_manager(), "L4 Storage Manager", timeout=2.0)
         if l4_manager:
             l4_manager.close()
             _logger.info("L4 Storage Layer closed successfully")
@@ -1249,7 +1455,7 @@ async def lifespan(app: FastAPI):
     try:
         from core.analysis.l2.rag_engine import get_rag_engine  # noqa: E402
 
-        rag_engine = get_rag_engine()
+        rag_engine = await _safe_init(lambda: get_rag_engine(), "Rag Engine", timeout=2.0)
         if rag_engine:
             rag_engine.close()
             _logger.info("L2 Analysis Layer closed successfully")
@@ -1291,16 +1497,16 @@ async def lifespan(app: FastAPI):
         from core.interface.l5.graphql_interface import get_graphql_interface  # noqa: E402
         from core.interface.l5.mcp_interface import get_mcp_interface  # noqa: E402
 
-        mcp_interface = get_mcp_interface()  # noqa: F841
-        graphql_interface = get_graphql_interface()  # noqa: F841
+        mcp_interface = await _safe_init(lambda: get_mcp_interface(), "Mcp Interface", timeout=2.0)  # noqa: F841
+        graphql_interface = await _safe_init(lambda: get_graphql_interface(), "Graphql Interface", timeout=2.0)  # noqa: F841
 
         # Stop gRPC server
         if _grpc_server:
             try:
                 await _grpc_server.stop()
                 _logger.info("gRPC server stopped successfully")
-            except Exception:
-                pass
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
 
         # Note: These interfaces don't have explicit close methods
         _logger.info("L5 Interface Layer closed successfully")
@@ -1314,8 +1520,8 @@ async def lifespan(app: FastAPI):
         )
         from core.integration.l7.itSM_integration import get_itsm_integration  # noqa: E402
 
-        itsm_integration = get_itsm_integration()  # noqa: F841
-        collaboration_integration = get_collaboration_integration()  # noqa: F841
+        itsm_integration = await _safe_init(lambda: get_itsm_integration(), "Itsm Integration", timeout=2.0)  # noqa: F841
+        collaboration_integration = await _safe_init(lambda: get_collaboration_integration(), "Collaboration Integration", timeout=2.0)  # noqa: F841
         # Note: These integrations don't have explicit close methods
         _logger.info("L7 Integration Layer closed successfully")
     except Exception as exc:  # pragma: no cover
@@ -1335,7 +1541,7 @@ async def lifespan(app: FastAPI):
     try:
         from core.execution.l6.optimized_executor import get_optimized_executor  # noqa: E402
 
-        executor = get_optimized_executor()
+        executor = await _safe_init(lambda: get_optimized_executor(), "Optimized Executor", timeout=2.0)
         if executor:
             executor.clear_cache()
         _logger.info("L6 Execution Layer closed successfully")
@@ -1389,10 +1595,14 @@ setup_api_response_middleware(app)
 # 🔧 P0 Security: Add input validation middleware
 add_input_validation_middleware(app)
 
+# 🔧 P0/P1: Access control and concurrency/session limit middlewares
+add_access_control_middleware(app)
+add_concurrency_middleware(app)
+
 # 🔧 P1-3: Security Middleware Initialization
 # Enable MFA and TLS enforcement
 mfa_manager.enable_mfa()
-tls_enforcer._enforce_tls = False  # Set to True in production
+tls_enforcer._enforce_tls = os.getenv("AIOPS_ENFORCE_TLS", "false").lower() == "true"
 
 
 # Add security middleware
@@ -1465,108 +1675,120 @@ app.add_middleware(
 )
 
 # ------------------------
-# 路由注册（保持原有顺序，新增 Teams 在最后，Windows 修复在 repair 前后，RAG 在适当位置）
+# 路由注册（Core vs Add-ons）
 # ------------------------
-app.include_router(metrics_router)
-app.include_router(alert_router)
-app.include_router(root_cause_router)  # P1-2: 根因智能分析路由
-app.include_router(advanced_ai_router)  # P1-3: 高级AI能力路由
-app.include_router(enterprise_router)  # P1-4: 企业功能路由
-app.include_router(integration_router)  # P1-5: 集成生态路由
-app.include_router(frontend_enhancement_router)  # P1-6: 前端增强路由
-app.include_router(chaos_router)
-app.include_router(workflow_router)
-app.include_router(ai_router)
-app.include_router(topology_router)
-app.include_router(topology_view_router)  # <-- 新增全链路拓扑视图页面路由
-app.include_router(workflow_visualization_router)  # <-- 新增工作流可视化页面路由
-app.include_router(repair_scripts_router)  # <-- 修复脚本资源路由（独立资源）
-app.include_router(unified_repair_router)  # <-- 统一修复路由（替代各平台独立路由）
-app.include_router(log_router)
-app.include_router(stats_router)
-app.include_router(notify_router)
-# app.include_router(k8s_router)，修复功能已合并
-# app.include_router(cloud_router)，修复功能已合并
-app.include_router(cloud_router)
+# Core routers are always mounted. Add-on routers are only mounted when
+# ENABLE_ADDONS is true and the relevant pack flag is true.
+
+CORE_ROUTERS = [
+    alert_router,
+    alert_webhook_router,
+    autoheal_router,
+    audit_router,
+    audit_center_router,
+    health_router,
+    hitl_approval_router,
+    linux_router,
+    macos_router,
+    repair_scripts_router,
+    unified_repair_router,
+    windows_repair_router,
+    guard_router,
+    api_performance_router,
+    cost_router,
+    user_router,
+    sso_router,
+    slack_router,
+    teams_router,
+    websocket_router,
+    sse_router,
+    stats_router,
+]
+
+ADDON_ROUTERS = [
+    # AI Plus Pack
+    (ai_router, LLM_ROUTER_ENABLED),
+    (advanced_ai_router, LLM_ROUTER_ENABLED),
+    (ai_feedback_router, LLM_ROUTER_ENABLED),
+    (root_cause_router, LLM_ROUTER_ENABLED),
+    (rag_router, RAG_ENABLED),
+    (rag_history_router, RAG_ENABLED),
+    (qdrant_router, RAG_ENABLED),
+    # Observability & Topology Pack
+    (metrics_router, METRICS_ENABLED),
+    (topology_router, TOPOLOGY_ENABLED),
+    (topology_view_router, TOPOLOGY_ENABLED),
+    (service_mesh_router, TOPOLOGY_ENABLED),
+    (service_discovery_router, TOPOLOGY_ENABLED),
+    (service_monitoring_router, TOPOLOGY_ENABLED),
+    (realtime_router, TOPOLOGY_ENABLED),
+    (tracing_router, TRACING_ENABLED),
+    (apm_router, TRACING_ENABLED),
+    (log_router, LOG_AGGREGATION_ENABLED),
+    # SRE Operations Pack
+    (workflow_router, WORKFLOW_ENABLED),
+    (workflow_visualization_router, WORKFLOW_ENABLED),
+    (hitl_router, INCIDENT_RESPONSE_ENABLED),
+    (priority_router, INCIDENT_RESPONSE_ENABLED),
+    (batch_router, INCIDENT_RESPONSE_ENABLED),
+    (notify_router, INCIDENT_RESPONSE_ENABLED),
+    # Multi-Cloud & Integrations Pack
+    (integration_router, INTEGRATIONS_ENABLED),
+    (itsm_router, INTEGRATIONS_ENABLED),
+    (dashboard_router, INTEGRATIONS_ENABLED),
+    # Security & Compliance Pack
+    (enterprise_router, SECURITY_SCANNING_ENABLED),
+    (backup_router, SECURITY_SCANNING_ENABLED),
+    # Infrastructure & Plugin Ecosystem Pack
+    (chaos_router, PLUGINS_ENABLED),
+    (cloud_router, PLUGINS_ENABLED),
+    (mcp_router, MCP_ENABLED),
+    (plugin_router, PLUGINS_ENABLED),
+    (plugin_sdk_router, PLUGINS_ENABLED),
+    (plugin_development_router, PLUGINS_ENABLED),
+    (plugin_marketplace_router, PLUGINS_ENABLED),
+    (plugin_ecosystem_router, PLUGINS_ENABLED),
+    (infrastructure_router, PLUGINS_ENABLED),
+    (grpc_router, PLUGINS_ENABLED),
+    (grpc_service_router, PLUGINS_ENABLED),
+    (database_optimization_router, PLUGINS_ENABLED),
+    (system_resource_router, PLUGINS_ENABLED),
+    (test_framework_router, PLUGINS_ENABLED),
+    (test_coverage_router, PLUGINS_ENABLED),
+    (test_automation_router, PLUGINS_ENABLED),
+    # I18n & Localization
+    (i18n_router, I18N_ENABLED),
+    (localization_resource_router, I18N_ENABLED),
+    (localization_adapter_router, I18N_ENABLED),
+    # Documentation & Tooling Pack
+    (documentation_router, DOC_GENERATION_ENABLED),
+    (doc_generator_router, DOC_GENERATION_ENABLED),
+    (frontend_enhancement_router, DOC_GENERATION_ENABLED),
+    (graphql_router, GRAPHQL_ENABLED),
+]
+
+for router in CORE_ROUTERS:
+    app.include_router(router)
+
 if k8s_router:
     app.include_router(k8s_router)
-app.include_router(autoheal_router)
-app.include_router(ai_feedback_router)
-app.include_router(itsm_router)
-app.include_router(slack_router)
-app.include_router(mcp_router)
-app.include_router(teams_router)  # <-- 新增 Teams 路由
-# windows_repair_router 与 unified_repair_router 共存，提供平台级独立入口
-app.include_router(windows_repair_router)
-app.include_router(rag_router)  # <-- 新增 RAG 语义搜索路由
-app.include_router(rag_history_router)  # <-- 新增 RAG 历史搜索页面路由
-app.include_router(audit_router)  # <-- 新增审计日志导出 & 报告路由
-app.include_router(dashboard_router)  # <-- 新增仪表盘总览页面路由
-app.include_router(hitl_approval_router)  # <-- 新增 HITL 审批中心页面路由
-app.include_router(audit_center_router)  # <-- 新增审计中心页面路由
-app.include_router(sso_router)  # <-- SSO 登录路由
-app.include_router(tracing_router)  # <-- 新增追踪可视化路由
-app.include_router(database_optimization_router)  # <-- 新增数据库优化路由
-app.include_router(api_performance_router)  # <-- 新增API性能优化路由
-app.include_router(system_resource_router)  # <-- 新增系统资源优化路由
-app.include_router(service_mesh_router)  # <-- 新增服务网格路由
-app.include_router(grpc_service_router)  # <-- 新增gRPC服务路由
-app.include_router(service_discovery_router)  # <-- 新增服务发现路由
-app.include_router(service_monitoring_router)  # <-- 新增服务监控路由
-app.include_router(plugin_sdk_router)  # <-- 新增插件系统路由
-app.include_router(plugin_development_router)  # <-- 新增插件开发SDK路由
-app.include_router(plugin_marketplace_router)  # <-- 新增插件市场路由
-app.include_router(plugin_ecosystem_router)  # <-- 新增插件生态路由
-app.include_router(i18n_router)  # <-- 新增国际化路由
-app.include_router(localization_resource_router)  # <-- 新增本地化资源路由
-app.include_router(localization_adapter_router)  # <-- 新增本地化适配路由
-app.include_router(test_framework_router)  # <-- 新增测试框架路由
-app.include_router(test_coverage_router)  # <-- 新增测试覆盖率路由
-app.include_router(test_automation_router)  # <-- 新增测试自动化路由
-app.include_router(documentation_router)  # <-- 新增文档管理路由
-app.include_router(doc_generator_router)  # <-- 新增文档生成路由
-app.include_router(realtime_router)  # <-- 实时通信 Hook 路由
+
+for router, flag in ADDON_ROUTERS:
+    if router and ENABLE_ADDONS and flag:
+        app.include_router(router)
+
+# Phase 7: Apply global API documentation enhancements (description, codeSamples, error responses)
+try:
+    from api.router_enhancer import enhance_app_routes  # noqa: E402
+
+    enhance_app_routes(app)
+    _logger.info(
+        "API route documentation enhanced with description, codeSamples and error responses"
+    )
+except Exception as e:
+    _logger.info(f"API route documentation enhancement failed: {e}")
 
 
-# ------------------------
-# 应用生命周期（启动 / 关闭）
-# ------------------------
-
-# from core.teams_adapter import close_teams_client  # Temporarily disabled - module not found
-
-# 🔧 已迁移到 lifespan 上下文管理器，移除弃用的 @app.on_event
-# Phase 3 集成: GraphQL 和 gRPC 路由
-# app.include_router(graphql_router)  # Temporarily disabled - strawberry import error
-app.include_router(grpc_router)
-# P2 集成路由注册
-app.include_router(macos_router)
-app.include_router(qdrant_router)
-# Phase 4 集成: 优先级和 HITL 路由
-app.include_router(priority_router)
-app.include_router(hitl_router)
-# 🔧 P1 Enhancement: APM监控路由注册
-app.include_router(apm_router)
-# 🔧 P1-6: 备份和恢复路由注册
-app.include_router(backup_router)
-# Phase 1: New routers
-app.include_router(websocket_router)
-app.include_router(batch_router)
-app.include_router(sse_router)
-# P0 基础设施路由 (企业级生产必需)
-app.include_router(health_router)
-app.include_router(user_router)
-app.include_router(guard_router)
-app.include_router(plugin_router)
-app.include_router(cost_router)
-app.include_router(linux_router)
-# Phase 1: Infrastructure Enhancement Router
-app.include_router(infrastructure_router)
-
-
-# Phase 3 集成: GraphQL 路由
-app.include_router(graphql_router)
-
-# Phase 2: Service Worker endpoint
 @app.get("/sw.js")
 async def service_worker():
     from fastapi.responses import Response  # noqa: E402

@@ -8,6 +8,7 @@ It is intentionally dependency-free so it can be exercised without LangGraph ins
 
 import asyncio
 import time
+from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -59,7 +60,7 @@ class WorkflowEdge:
         return bool(self.condition(ctx))
 
 
-class WorkflowNode:
+class WorkflowNode(ABC):
     """Base class for workflow nodes."""
 
     node_type: str = "base"
@@ -68,8 +69,8 @@ class WorkflowNode:
         self.name = name
         self.config = kwargs
 
-    async def execute(self, ctx: WorkflowContext) -> Any:
-        raise NotImplementedError
+    @abstractmethod
+    async def execute(self, ctx: WorkflowContext) -> Any: ...
 
 
 class LLMNode(WorkflowNode):

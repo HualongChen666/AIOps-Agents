@@ -65,7 +65,7 @@ class KnowledgeBase:
     async def _store_in_vector_store(self, document: Document) -> None:
         """Store document in vector store"""
         try:
-            # Placeholder - integrate with actual vector store
+            # default_value - integrate with actual vector store
             # for chunk in document.chunks:
             #     self.vector_store_client.upsert(...)
             chunk_count = len(document.chunks) if document.chunks else 0

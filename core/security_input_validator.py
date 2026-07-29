@@ -400,7 +400,8 @@ class SecurityInputValidatorMiddleware(BaseHTTPMiddleware):
                             status_code=status.HTTP_400_BAD_REQUEST,
                             content={"detail": f"Invalid input: {error}"},
                         )
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     logger.debug("Request body is not JSON, skipping validation", exc_info=True)
 
             # Validate path parameters

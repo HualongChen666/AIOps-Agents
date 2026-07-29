@@ -314,16 +314,16 @@ class RunbookGenerator:
 
         else:
             # 降级：返回占位响应
-            logger.warning("LLM client not available, using placeholder response")
+            logger.warning("LLM client not available, using fallback response")
             return json.dumps(
                 {
-                    "problem_summary": "Placeholder - LLM not available",
+                    "problem_summary": "Fallback - LLM not available",
                     "root_cause_analysis": "Unable to analyze without LLM",
                     "immediate_actions": ["Check system logs", "Monitor metrics"],
                     "long_term_solutions": ["Implement monitoring", "Add alerts"],
                     "verification_steps": ["Verify metrics return to normal"],
                     "rollback_plan": ["Revert changes if issues occur"],
-                    "risk_assessment": "Low risk - placeholder runbook",
+                    "risk_assessment": "Low risk - fallback runbook",
                 }
             )
 

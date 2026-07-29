@@ -11,13 +11,19 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 # Mock problematic imports before importing router
 sys.modules["config"] = MagicMock()
 sys.modules["config"].INTERNAL_API_KEY = ""
 sys.modules["core.command_guard"] = MagicMock()
 sys.modules["core.compliance"] = MagicMock()
 
-from api.audit_router import audit_report, export_audit
+from api.audit_router import audit_report, export_audit  # isort: skip
+
+# isort: on
+import api.audit_router
+
+api.audit_router.INTERNAL_API_KEY = ""
 
 
 @pytest.fixture

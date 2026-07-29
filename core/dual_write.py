@@ -111,7 +111,7 @@ class DualWriteStrategy:
             # Call existing SQLite storage logic
             pass
 
-            # This is a placeholder - actual implementation depends on metrics_history API
+            # This is a default_value - actual implementation depends on metrics_history API
             # metrics_history.add_metric(metric_data)
 
             self._stats["sqlite_writes"] += 1

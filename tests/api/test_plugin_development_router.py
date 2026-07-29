@@ -8,7 +8,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-sys.modules["core.plugin_development_sdk"] = MagicMock()
 from api.plugin_development_router import (
     generate_plugin_code,
     generate_plugin_config,
@@ -16,6 +15,8 @@ from api.plugin_development_router import (
     get_available_templates,
     get_sdk_status,
 )
+
+sys.modules["core.plugin_development_sdk"] = MagicMock()
 
 
 @pytest.fixture

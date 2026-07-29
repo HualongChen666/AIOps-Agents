@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """测试数据库引擎模块"""
 
 import pytest
@@ -262,7 +263,8 @@ class TestDBEngineAsyncFunctions:
                 # 函数应该返回一个alert_id
                 assert result is not None
                 assert isinstance(result, str)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 
@@ -282,7 +284,8 @@ class TestDBEngineAsyncFunctions:
                 result = await async_query_alerts(limit=10)
                 # 函数应该返回一个列表
                 assert isinstance(result, list)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 
@@ -303,7 +306,8 @@ class TestDBEngineAsyncFunctions:
                 result = await async_count_alerts()
                 # 函数应该返回一个整数
                 assert isinstance(result, int)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 

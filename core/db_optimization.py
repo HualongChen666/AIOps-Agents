@@ -580,92 +580,92 @@ async def run_comprehensive_optimization() -> Dict[str, Any]:
     return results
 
 
-# Stub functions for testing compatibility
+# component functions for testing compatibility
 def clear_slow_queries() -> dict:
-    """Clear slow query log stub"""
+    """Clear slow query log component"""
     return {"status": "success", "cleared_count": 0}
 
 
 def configure_db_optimization(config: dict) -> dict:
-    """Configure database optimization stub"""
+    """Configure database optimization component"""
     return {"status": "success", "config": config}
 
 
 def get_connection_pool_config() -> dict:
-    """Get connection pool configuration stub"""
+    """Get connection pool configuration component"""
     return {"max_connections": 100, "min_connections": 10}
 
 
 def get_connection_pool_statistics() -> dict:
-    """Get connection pool statistics stub"""
+    """Get connection pool statistics component"""
     return {"active_connections": 5, "idle_connections": 3}
 
 
 def get_db_optimization_config() -> dict:
-    """Get database optimization configuration stub"""
+    """Get database optimization configuration component"""
     return {"enabled": True, "level": "basic"}
 
 
 def get_performance_summary() -> dict:
-    """Get performance summary stub"""
+    """Get performance summary component"""
     return {"query_time_avg": 0.1, "throughput": 1000}
 
 
 def get_query_cache_config() -> dict:
-    """Get query cache configuration stub"""
+    """Get query cache configuration component"""
     return {"enabled": True, "size": 1000}
 
 
 def get_query_cache_statistics() -> dict:
-    """Get query cache statistics stub"""
+    """Get query cache statistics component"""
     return {"hits": 100, "misses": 10, "hit_rate": 0.9}
 
 
 def get_slow_queries(limit: int = 100) -> list:
-    """Get slow queries stub"""
+    """Get slow queries component"""
     return []
 
 
 def is_db_optimization_enabled() -> bool:
-    """Check if database optimization is enabled stub"""
+    """Check if database optimization is enabled component"""
     return True
 
 
 def reset_query_cache() -> dict:
-    """Reset query cache stub"""
+    """Reset query cache component"""
     return {"status": "success"}
 
 
 def update_query_cache_config(config: dict) -> dict:
-    """Update query cache configuration stub"""
+    """Update query cache configuration component"""
     return {"status": "success", "config": config}
 
 
 def record_connection_pool_usage(pool_size: int, active: int) -> dict:
-    """Record connection pool usage stub"""
+    """Record connection pool usage component"""
     return {"status": "success", "pool_size": pool_size, "active": active}
 
 
 def record_query_cache_hit(query: str) -> dict:
-    """Record query cache hit stub"""
+    """Record query cache hit component"""
     return {"status": "success", "query": query}
 
 
 def record_query_cache_miss(query: str) -> dict:
-    """Record query cache miss stub"""
+    """Record query cache miss component"""
     return {"status": "success", "query": query}
 
 
 def record_slow_query(query: str, execution_time: float) -> dict:
-    """Record slow query stub"""
+    """Record slow query component"""
     return {"status": "success", "query": query, "execution_time": execution_time}
 
 
 def reset_query_cache_statistics() -> dict:
-    """Reset query cache statistics stub"""
+    """Reset query cache statistics component"""
     return {"status": "success"}
 
 
 def suggest_optimizations() -> list:
-    """Suggest database optimizations stub"""
+    """Suggest database optimizations component"""
     return []

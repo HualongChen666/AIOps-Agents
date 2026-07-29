@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import requests
+
 YOUR_WORKFLOW_ID = ""
 workflow_id = "YOUR_WORKFLOW_ID"
-import requests
 
 # 示例：Get workflow
 # 使用 GET 方法请求 /workflows/{workflow_id}

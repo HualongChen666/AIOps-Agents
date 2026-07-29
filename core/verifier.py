@@ -104,13 +104,14 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import logging
 import re
 import shlex
 import time
 from typing import Any, Optional, TypedDict
 
-from config import DEFAULT_HOST, LINUX_HOSTS, VERIFY_CONFIG
+from config import DEFAULT_HOST, LINUX_HOSTS, SNAPSHOT_CONFIG, VERIFY_CONFIG
 from core.ai_engine import observe
 from core.rag_engine import upsert_verify_record
 
@@ -140,10 +141,14 @@ _METRIC_WAIT_SAFETY_BUFFER_SEC = 2.0
 _CONFIDENCE_SERVICE_STATUS = 0.95
 _CONFIDENCE_PROCESS_CHECK = 0.95
 _CONFIDENCE_METRIC_THRESHOLD = 0.75
+_CONFIDENCE_DISK_USAGE = 0.85
+_CONFIDENCE_NETWORK_CHECK = 0.75
+_CONFIDENCE_K8S_STATUS = 0.85
 # [FIX] VFB5:LLM 生成命令置信度上限,供未来 _verify_custom_command 启用 LLM 时使用
 _CONFIDENCE_CUSTOM_COMMAND_MAX = 0.70  # noqa: F841  V6 预留扩展点
 
 # [FIX] VFB2:script_key -> 策略映射(已移除 AI_DYNAMIC,改由启发式推断)
+# P1-2: 补齐 disk/network/k8s 验证策略
 _SCRIPT_STRATEGY_MAP: dict[str, str] = {
     # Linux 重启服务
     "restart_service": "service_status",
@@ -152,14 +157,20 @@ _SCRIPT_STRATEGY_MAP: dict[str, str] = {
     # 内存释放类(对比 metrics_history.memory)
     "free_cache": "metric_threshold",
     "free_memory": "metric_threshold",
-    # 磁盘清理类(无法对比 metrics_history,降级为 none)
-    "clear_temp": "none",
-    "clear_tmp": "none",
-    "clear_logs": "none",
-    "clear_event_log": "none",
+    # 磁盘清理/检查类 -> disk_usage
+    "disk_high_script": "disk_usage",
+    "clear_temp": "disk_usage",
+    "clear_tmp": "disk_usage",
+    "clear_logs": "disk_usage",
+    "clear_event_log": "disk_usage",
+    "check_disk": "disk_usage",
+    # 网络类 -> network_check
+    "flush_dns": "network_check",
+    "network_timeout": "network_check",
+    # K8s Pod 崩溃类 -> k8s_status
+    "k8s_pod_crash": "k8s_status",
+    "kubernetes_pod_crash": "k8s_status",
     # 其他只读/无指标类
-    "flush_dns": "none",
-    "check_disk": "none",
     "sfc_scan": "none",
     "clean_zombies": "none",
     # [FIX] VFB2 修复:AI_DYNAMIC 不在此映射中,
@@ -178,9 +189,35 @@ _VALID_PLATFORMS = frozenset(["windows", "linux"])
 # service_name 严格白名单(对齐 linux_repair / repair_engine)
 _SERVICE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.@]+$")
 
+# P1-2: mount_point / drive / target 校验(避免命令注入)
+_MOUNT_POINT_PATTERN = re.compile(r"^(/[a-zA-Z0-9_./-]*|[A-Z]:?\\?)$")
+_TARGET_PATTERN = re.compile(r"^[a-zA-Z0-9_\-.]+$")
+_K8S_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-.]+$|")
+
 # [FIX] VFB7:systemctl is-active 的合法成功状态 + 中间态(返回 None 跳过)
 _SYSTEMCTL_ACTIVE_STATES = frozenset(["active"])
 _SYSTEMCTL_TRANSIENT_STATES = frozenset(["activating", "reloading", "deactivating"])
+
+
+# ============================================================
+# O13: verification wait helpers (Pod Ready / service startup)
+# ============================================================
+def _verification_wait_timeout() -> float:
+    """Return configured max wait time for startup/readiness polling."""
+    wait = float(SNAPSHOT_CONFIG.get("verify_wait_timeout", 60.0))
+    total = float(VERIFY_CONFIG.get("timeout_sec", 60.0))
+    # Keep at least 1s margin for command execution within the overall timeout
+    return max(1.0, min(wait, total - 1.0))
+
+
+def _verification_poll_interval() -> float:
+    """Return configured polling interval for startup/readiness checks."""
+    return float(SNAPSHOT_CONFIG.get("verify_poll_interval", 5.0))
+
+
+def _verification_wait_params() -> tuple[float, float]:
+    """Return (max_wait_seconds, poll_interval_seconds)."""
+    return _verification_wait_timeout(), _verification_poll_interval()
 
 
 # ============================================================
@@ -424,6 +461,45 @@ def _select_strategy(
                     logger.debug("VFB2: AI_DYNAMIC 启发式命中 metric_threshold")
                     return "metric_threshold"
 
+                # P1-2: disk cleanup / df / du / get-volume -> disk_usage
+                if any(
+                    k in cmd_text
+                    for k in (
+                        "clear_temp",
+                        "clear_tmp",
+                        "clear_logs",
+                        "rm /tmp",
+                        "rm -rf /tmp",
+                        "clean_temp",
+                        "df ",
+                        "du ",
+                        "get-volume",
+                        "get-disk",
+                    )
+                ):
+                    logger.debug("P1-2: AI_DYNAMIC 启发式命中 disk_usage")
+                    return "disk_usage"
+
+                # P1-2: network / dns / ping / nslookup / ipconfig -> network_check
+                if any(
+                    k in cmd_text
+                    for k in (
+                        "ping ",
+                        "nslookup",
+                        "flushdns",
+                        "ipconfig",
+                        "get-netadapter",
+                        "get-netipaddress",
+                    )
+                ):
+                    logger.debug("P1-2: AI_DYNAMIC 启发式命中 network_check")
+                    return "network_check"
+
+                # P1-2: kubectl -> k8s_status
+                if "kubectl" in cmd_text:
+                    logger.debug("P1-2: AI_DYNAMIC 启发式命中 k8s_status")
+                    return "k8s_status"
+
         # AI_DYNAMIC 启发式失败 -> custom_command(默认 skipped,除非启用 LLM)
         return "custom_command"
 
@@ -460,6 +536,16 @@ async def _dispatch_verification(
 
     if strategy == "custom_command":
         return await _verify_custom_command(alert, params, platform, ai_runbook)
+
+    # P1-2: 新增 disk/network/k8s 验证策略
+    if strategy == "disk_usage":
+        return await _verify_disk_usage(alert, params, platform, ai_runbook)
+
+    if strategy == "network_check":
+        return await _verify_network_check(alert, params, platform, ai_runbook)
+
+    if strategy == "k8s_status":
+        return await _verify_k8s_status(alert, params, platform, ai_runbook)
 
     return _build_skipped_result(
         strategy="skipped",
@@ -542,56 +628,75 @@ async def _verify_service_status(
             error_msg=f"验证命令被护栏拦截: {guard_reason}",
         )
 
-    # 执行验证
-    try:
+    # 执行验证(带轮询,服务启动或重启可能需要时间达到 active/running)
+    max_wait, interval = _verification_wait_params()
+    start = time.monotonic()
+    verified: Optional[bool] = None
+    last_output = ""
+    last_output_clean = ""
+    recommendation = ""
+
+    while True:
+        try:
+            if platform == "linux":
+                output = await _execute_linux_verify_command(alert, verify_cmd)
+            else:
+                output = await _execute_windows_verify_command(verify_cmd)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(
+                "VFB1: service_status 执行异常 | "
+                f"host={alert.get('host', DEFAULT_HOST)} | "
+                f"service={service_name} | platform={platform} | "
+                f"{type(e).__name__}: {e}",
+                exc_info=True,
+            )
+            return _build_error_result(
+                strategy="service_status",
+                error_msg=f"执行异常 ({type(e).__name__}): {str(e)[:100]}",
+            )
+
+        last_output = output
+        output_clean = (output or "").strip().lower()
+        last_output_clean = output_clean
+
         if platform == "linux":
-            output = await _execute_linux_verify_command(alert, verify_cmd)
+            if output_clean in _SYSTEMCTL_ACTIVE_STATES:
+                verified = True
+                recommendation = f"服务 {service_name} 已成功运行"
+                break
+            if output_clean in _SYSTEMCTL_TRANSIENT_STATES:
+                verified = None
+                recommendation = f"服务 {service_name} 处于中间态({output_clean}),继续轮询"
+            else:
+                verified = False
+                recommendation = (
+                    f"服务 {service_name} 未处于运行状态(实际={output_clean!r}),建议人工排查"
+                )
+                break
         else:
-            output = await _execute_windows_verify_command(verify_cmd)
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        # [FIX] VFB1 + VFB10:补充上下文 + exc_info
-        logger.error(
-            "VFB1: service_status 执行异常 | "
-            f"host={alert.get('host', DEFAULT_HOST)} | "
-            f"service={service_name} | platform={platform} | "
-            f"{type(e).__name__}: {e}",
-            exc_info=True,
-        )
-        return _build_error_result(
-            strategy="service_status",
-            error_msg=f"执行异常 ({type(e).__name__}): {str(e)[:100]}",
-        )
+            if output_clean == "running":
+                verified = True
+                recommendation = f"服务 {service_name} 已成功运行"
+                break
+            if output_clean in ("startpending", "continuepending"):
+                verified = None
+                recommendation = f"服务 {service_name} 处于启动中状态({output_clean}),继续轮询"
+            else:
+                verified = False
+                recommendation = (
+                    f"服务 {service_name} 未处于 Running 状态(实际={output_clean!r}),建议人工排查"
+                )
+                break
 
-    # [FIX] VFB7 [P1]:解析结果(增加中间态识别)
-    output_clean = (output or "").strip().lower()
-
-    if platform == "linux":
-        if output_clean in _SYSTEMCTL_ACTIVE_STATES:
-            verified: Optional[bool] = True
-            recommendation = f"服务 {service_name} 已成功运行"
-        elif output_clean in _SYSTEMCTL_TRANSIENT_STATES:
-            # [FIX] VFB7:中间态返回 None,避免误判
-            verified = None
-            recommendation = f"服务 {service_name} 处于中间态({output_clean}),建议稍后人工复查"
-        else:
-            verified = False
-            recommendation = (
-                f"服务 {service_name} 未处于运行状态(实际={output_clean!r}),建议人工排查"
-            )
-    else:  # windows
-        if output_clean == "running":
-            verified = True
-            recommendation = f"服务 {service_name} 已成功运行"
-        elif output_clean in ("startpending", "continuepending"):
-            verified = None
-            recommendation = f"服务 {service_name} 处于启动中状态({output_clean}),建议稍后人工复查"
-        else:
-            verified = False
-            recommendation = (
-                f"服务 {service_name} 未处于 Running 状态(实际={output_clean!r}),建议人工排查"
-            )
+        elapsed = time.monotonic() - start
+        if elapsed + interval > max_wait:
+            break
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            raise
 
     return VerifyResult(
         verified=verified,
@@ -599,10 +704,12 @@ async def _verify_service_status(
         confidence=_CONFIDENCE_SERVICE_STATUS,
         evidence={
             "command": verify_cmd[:_EVIDENCE_CMD_MAX],
-            "output": str(output)[:_EVIDENCE_OUTPUT_MAX],
+            "output": str(last_output)[:_EVIDENCE_OUTPUT_MAX],
             "service_name": service_name,
             "expected": "active" if platform == "linux" else "Running",
-            "actual": output_clean,
+            "actual": last_output_clean,
+            "waited_sec": round(time.monotonic() - start, 3),
+            "max_wait_sec": max_wait,
         },
         duration_sec=0.0,  # 由主入口填充
         error_msg="",
@@ -726,6 +833,392 @@ async def _verify_process_check(
             if verified
             else (f"[WARNING] 进程 PID {pid_int} 仍存活,可能权限不足或被父进程重启,建议人工介入")
         ),
+    )
+
+
+# ============================================================
+# 策略 2.5:disk_usage(新增, P1-2)
+# ============================================================
+async def _verify_disk_usage(
+    alert: dict[str, Any],
+    params: dict[str, Any],
+    platform: str,
+    ai_runbook: Optional[dict[str, Any]] = None,
+) -> VerifyResult:
+    """验证磁盘清理后挂载点/驱动器使用率是否低于阈值。"""
+    mount_point = (params.get("mount_point") or "").strip() if isinstance(params, dict) else ""
+
+    if not mount_point and isinstance(ai_runbook, dict):
+        for cmd in ai_runbook.get("commands", []):
+            cmd_str = str(cmd)
+            m = re.search(r"(?:rm\s+-rf|clear_temp|clear_logs|clean)\s+(/\S+)", cmd_str)
+            if m:
+                mount_point = m.group(1)
+                break
+            m2 = re.search(r"([A-Za-z]:)\\\\?", cmd_str)
+            if m2:
+                mount_point = m2.group(1).upper() + "\\"
+                break
+
+    if not mount_point:
+        mount_point = "/"
+
+    if not _MOUNT_POINT_PATTERN.match(mount_point):
+        return _build_error_result(
+            strategy="disk_usage",
+            error_msg=f"非法挂载点/驱动器: {mount_point!r}",
+        )
+
+    if platform == "linux":
+        verify_cmd = f"df -P {shlex.quote(mount_point)}"
+    else:
+        drive = mount_point[0].upper()
+        verify_cmd = (
+            f"Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID='{drive}:'\" | "
+            "Select-Object Size,FreeSpace | ForEach-Object {{ "
+            f"'{drive} ' + $_.Size + ' ' + $_.FreeSpace }}"
+        )
+
+    guard_ok, guard_reason = _check_command_with_guard(verify_cmd)
+    if not guard_ok:
+        return _build_error_result(
+            strategy="disk_usage",
+            error_msg=f"验证命令被护栏拦截: {guard_reason}",
+        )
+
+    try:
+        if platform == "linux":
+            output = await _execute_linux_verify_command(alert, verify_cmd)
+        else:
+            output = await _execute_windows_verify_command(verify_cmd)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.error(
+            "P1-2 disk_usage 执行异常 | host=%s | mount=%s | %s: %s",
+            alert.get("host", DEFAULT_HOST),
+            mount_point,
+            type(e).__name__,
+            e,
+            exc_info=True,
+        )
+        return _build_error_result(
+            strategy="disk_usage",
+            error_msg=f"执行异常 ({type(e).__name__}): {str(e)[:100]}",
+        )
+
+    usage_percent: Optional[float] = None
+    if platform == "linux":
+        lines = [line.strip() for line in (output or "").splitlines() if line.strip()]
+        if len(lines) >= 2:
+            parts = lines[-1].split()
+            if len(parts) >= 5:
+                try:
+                    usage_percent = float(parts[4].replace("%", ""))
+                except (TypeError, ValueError):
+                    pass
+    else:
+        parts = (output or "").split()
+        if len(parts) >= 3:
+            try:
+                total = float(parts[1])
+                free = float(parts[2])
+                if total > 0:
+                    usage_percent = (total - free) / total * 100.0
+            except (TypeError, ValueError):
+                pass
+
+    if usage_percent is None:
+        return _build_error_result(
+            strategy="disk_usage",
+            error_msg=f"无法解析磁盘输出: {str(output)[:200]!r}",
+        )
+
+    threshold = 90.0
+    if isinstance(params, dict) and params.get("threshold") is not None:
+        try:
+            threshold = float(params["threshold"])
+        except (TypeError, ValueError):
+            threshold = 90.0
+    verified = usage_percent <= threshold
+
+    return VerifyResult(
+        verified=verified,
+        strategy="disk_usage",
+        confidence=_CONFIDENCE_DISK_USAGE,
+        evidence={
+            "command": verify_cmd[:_EVIDENCE_CMD_MAX],
+            "output": str(output)[:_EVIDENCE_OUTPUT_MAX],
+            "mount_point": mount_point,
+            "usage_percent": round(usage_percent, 2),
+            "threshold": threshold,
+        },
+        duration_sec=0.0,
+        error_msg="",
+        recommendation=(
+            f"磁盘使用率 {usage_percent:.1f}% 低于阈值 {threshold}%"
+            if verified
+            else f"磁盘使用率 {usage_percent:.1f}% 仍高于阈值 {threshold}%, 建议人工清理"
+        ),
+    )
+
+
+# ============================================================
+# 策略 2.6:network_check(新增, P1-2)
+# ============================================================
+async def _verify_network_check(
+    alert: dict[str, Any],
+    params: dict[str, Any],
+    platform: str,
+    ai_runbook: Optional[dict[str, Any]] = None,
+) -> VerifyResult:
+    """验证网络修复后目标是否可达。"""
+    target = (params.get("target") or "").strip() if isinstance(params, dict) else ""
+    if not target:
+        target = (alert.get("host") or "").strip()
+
+    if not target and isinstance(ai_runbook, dict):
+        for cmd in ai_runbook.get("commands", []):
+            cmd_str = str(cmd)
+            m = re.search(
+                r"(?:ping|nslookup|Test-Connection|targetname)\s+['\"]?([a-zA-Z0-9_.:-]+)['\"]?",
+                cmd_str,
+                re.IGNORECASE,
+            )
+            if m:
+                target = m.group(1)
+                break
+
+    if not target:
+        return _build_skipped_result(
+            strategy="skipped",
+            recommendation="无法提取网络验证目标,跳过",
+        )
+
+    if not _TARGET_PATTERN.match(target):
+        return _build_error_result(
+            strategy="network_check",
+            error_msg=f"非法网络目标: {target!r}",
+        )
+
+    if platform == "linux":
+        verify_cmd = f"ping -c 1 -W 2 {shlex.quote(target)}"
+    else:
+        verify_cmd = (
+            f"Test-Connection -TargetName '{target}' -Count 1 -ErrorAction SilentlyContinue; "
+            "if ($?) { 'UP' } else { 'DOWN' }"
+        )
+
+    guard_ok, guard_reason = _check_command_with_guard(verify_cmd)
+    if not guard_ok:
+        return _build_error_result(
+            strategy="network_check",
+            error_msg=f"验证命令被护栏拦截: {guard_reason}",
+        )
+
+    try:
+        if platform == "linux":
+            output = await _execute_linux_verify_command(alert, verify_cmd)
+        else:
+            output = await _execute_windows_verify_command(verify_cmd)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.error(
+            "P1-2 network_check 执行异常 | target=%s | %s: %s",
+            target,
+            type(e).__name__,
+            e,
+            exc_info=True,
+        )
+        return _build_error_result(
+            strategy="network_check",
+            error_msg=f"执行异常 ({type(e).__name__}): {str(e)[:100]}",
+        )
+
+    output_clean = (output or "").strip().lower()
+    if platform == "linux":
+        verified = (
+            "1 received" in output_clean
+            or "0% packet loss" in output_clean
+            or "1 packets received" in output_clean
+        )
+    else:
+        verified = "up" in output_clean
+
+    return VerifyResult(
+        verified=verified,
+        strategy="network_check",
+        confidence=_CONFIDENCE_NETWORK_CHECK,
+        evidence={
+            "command": verify_cmd[:_EVIDENCE_CMD_MAX],
+            "output": str(output)[:_EVIDENCE_OUTPUT_MAX],
+            "target": target,
+        },
+        duration_sec=0.0,
+        error_msg="",
+        recommendation=(
+            f"目标 {target} 网络可达"
+            if verified
+            else f"目标 {target} 仍不可达,建议检查网络/防火墙配置"
+        ),
+    )
+
+
+# ============================================================
+# 策略 2.7:k8s_status(新增, P1-2)
+# ============================================================
+async def _verify_k8s_status(
+    alert: dict[str, Any],
+    params: dict[str, Any],
+    platform: str,
+    ai_runbook: Optional[dict[str, Any]] = None,
+) -> VerifyResult:
+    """验证 K8s Pod/Deployment 修复后状态为 Running/Active。"""
+    resource = (params.get("resource") or "pod").strip() if isinstance(params, dict) else "pod"
+    name = (params.get("name") or "").strip() if isinstance(params, dict) else ""
+    namespace = (
+        (params.get("namespace") or "default").strip() if isinstance(params, dict) else "default"
+    )
+
+    if not name and isinstance(ai_runbook, dict):
+        for cmd in ai_runbook.get("commands", []):
+            cmd_str = str(cmd)
+            m = re.search(
+                r"kubectl\s+(?:get|describe|rollout\s+status)\s+\S+\s+([a-zA-Z0-9_\-.]+)",
+                cmd_str,
+            )
+            if m:
+                name = m.group(1)
+                break
+
+    if not name:
+        return _build_skipped_result(
+            strategy="skipped",
+            recommendation="无法提取 K8s 资源名,跳过",
+        )
+
+    if not _K8S_NAME_PATTERN.match(name):
+        return _build_error_result(
+            strategy="k8s_status",
+            error_msg=f"非法 K8s 资源名: {name!r}",
+        )
+
+    # K8s 操作仅在 Linux 主控节点执行
+    if platform != "linux":
+        return _build_skipped_result(
+            strategy="k8s_status",
+            recommendation="K8s 验证当前仅支持 Linux 控制平台",
+        )
+
+    # Use JSON output so we can inspect both phase and Ready condition.
+    verify_cmd = f"kubectl get {resource} {name} -n {namespace} -o json"
+
+    guard_ok, guard_reason = _check_command_with_guard(verify_cmd)
+    if not guard_ok:
+        return _build_error_result(
+            strategy="k8s_status",
+            error_msg=f"验证命令被护栏拦截: {guard_reason}",
+        )
+
+    max_wait, interval = _verification_wait_params()
+    start = time.monotonic()
+    verified: Optional[bool] = None
+    last_output = ""
+    last_phase = ""
+    last_ready = False
+    recommendation = ""
+
+    while True:
+        try:
+            output = await _execute_linux_verify_command(alert, verify_cmd)
+            last_output = output
+            try:
+                data = json.loads(output)
+            except json.JSONDecodeError:
+                # Plain text fallback for test/utility mock outputs.
+                data = {}
+                plain = output.strip().lower()
+                if plain:
+                    data["status"] = {"phase": plain}
+            phase = str(data.get("status", {}).get("phase", "")).lower()
+            last_phase = phase
+            conditions = data.get("status", {}).get("conditions", [])
+            ready_cond = next(
+                (c for c in conditions if str(c.get("type", "")).lower() == "ready"), None
+            )
+            last_ready = (
+                str(ready_cond.get("status", "")).lower() == "true"
+                if isinstance(ready_cond, dict)
+                else False
+            )
+            # When conditions are absent, treat a known good phase as ready.
+            if not conditions and phase in ("running", "completed", "succeeded"):
+                last_ready = True
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(
+                "P1-2 k8s_status 执行异常 | resource=%s/%s | ns=%s | %s: %s",
+                resource,
+                name,
+                namespace,
+                type(e).__name__,
+                e,
+                exc_info=True,
+            )
+            return _build_error_result(
+                strategy="k8s_status",
+                error_msg=f"执行异常 ({type(e).__name__}): {str(e)[:100]}",
+            )
+
+        if phase == "running" and last_ready:
+            verified = True
+            recommendation = f"K8s {resource}/{name} 状态正常: Running 且 Ready"
+            break
+
+        if phase in ("failed", "unknown"):
+            verified = False
+            recommendation = f"K8s {resource}/{name} 状态异常: {phase}, 建议人工排查"
+            break
+
+        # Pending / ContainerCreating / PodScheduled etc. are transient.
+        if phase == "succeeded" and resource in ("pod", "pods"):
+            verified = True
+            recommendation = f"K8s {resource}/{name} 已完成: Succeeded"
+            break
+
+        verified = None
+        recommendation = (
+            f"K8s {resource}/{name} 尚未 Ready(phase={phase}, ready={last_ready}),继续轮询"
+        )
+
+        elapsed = time.monotonic() - start
+        if elapsed + interval > max_wait:
+            break
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            raise
+
+    return VerifyResult(
+        verified=verified,
+        strategy="k8s_status",
+        confidence=_CONFIDENCE_K8S_STATUS,
+        evidence={
+            "command": verify_cmd[:_EVIDENCE_CMD_MAX],
+            "output": str(last_output)[:_EVIDENCE_OUTPUT_MAX],
+            "resource": resource,
+            "name": name,
+            "namespace": namespace,
+            "phase": last_phase,
+            "ready": last_ready,
+            "waited_sec": round(time.monotonic() - start, 3),
+            "max_wait_sec": max_wait,
+        },
+        duration_sec=0.0,
+        error_msg="",
+        recommendation=recommendation,
     )
 
 

@@ -4,6 +4,7 @@ Reranking with Cross-Encoder
 Implements result refinement using cross-encoder models
 """
 
+from abc import ABC, abstractmethod
 from typing import List
 
 from loguru import logger
@@ -11,16 +12,17 @@ from loguru import logger
 from .retriever import RetrievalResult
 
 
-class Reranker:
+class Reranker(ABC):
     """
     Base reranker interface
     """
 
+    @abstractmethod
     async def rerank(
         self, query: str, results: List[RetrievalResult], top_k: int
     ) -> List[RetrievalResult]:
         """Rerank retrieval results"""
-        raise NotImplementedError
+        ...
 
 
 class CrossEncoderReranker(Reranker):
@@ -171,7 +173,7 @@ class MMRReranker(Reranker):
 
     def _compute_similarity(self, chunk1, chunk2) -> float:
         """Compute similarity between chunks"""
-        # Placeholder - use cosine similarity of embeddings
+        # default_value - use cosine similarity of embeddings
         if chunk1.embedding and chunk2.embedding:
             pass
 

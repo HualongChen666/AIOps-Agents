@@ -9,15 +9,14 @@ import pytest  # noqa: F401
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-# Mock authentication模块
+# isort: off
+# Mock authentication and collector modules before importing router
 sys.modules["core.authentication"] = Mock()
 # Use a real dependency with no params so FastAPI doesn't inject "args"/"kwargs"
 sys.modules["core.authentication"].get_current_active_user = lambda: {"role": "admin"}
 sys.modules["core.authentication"].role_required = Mock(return_value=lambda: {"role": "admin"})
 
-# Mock log_collector和es_logger模块 with AsyncMock so await works
+# Mock log_collector and es_logger modules with AsyncMock so await works
 sample_log = [{"time": "2026-07-02T10:30:00Z", "level": "Error", "message": "test"}]
 sys.modules["core.log_collector"] = Mock()
 sys.modules["core.log_collector"].get_system_errors = AsyncMock(return_value=sample_log)
@@ -38,7 +37,12 @@ sys.modules["core.api_helpers"] = Mock()
 sys.modules["core.api_helpers"].VALID_HOSTNAME_PATTERN = Mock()
 sys.modules["core.api_helpers"].VALID_HOSTNAME_PATTERN.match = Mock(return_value=True)
 
-from api.log_router import router
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from api.log_router import router  # isort: skip
+
+# isort: on
+
 
 test_app = FastAPI()
 test_app.include_router(router)

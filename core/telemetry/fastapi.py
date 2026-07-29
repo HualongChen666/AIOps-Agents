@@ -63,6 +63,10 @@ def setup_fastapi_telemetry(
     instrument_db: bool = True,
     enable_redis_instrumentation: bool = True,
     db_engine=None,
+    otlp_endpoint: str = "localhost:4317",
+    environment: str = "production",
+    jaeger_host: str = "localhost",
+    jaeger_port: int = 6831,
 ) -> bool:
     """
     Set up complete telemetry for FastAPI application
@@ -74,6 +78,10 @@ def setup_fastapi_telemetry(
         instrument_db: Whether to instrument SQLAlchemy
         enable_redis_instrumentation: Whether to instrument Redis
         db_engine: SQLAlchemy engine (if instrument_db is True)
+        otlp_endpoint: OTLP collector endpoint (Tempo / Prometheus OTLP / Jaeger)
+        environment: Deployment environment label
+        jaeger_host: Jaeger agent host
+        jaeger_port: Jaeger agent port
 
     Returns:
         bool: True if setup successful, False otherwise
@@ -82,7 +90,14 @@ def setup_fastapi_telemetry(
     try:
         from core.telemetry import initialize_telemetry
 
-        if not initialize_telemetry(service_name=service_name):
+        if not initialize_telemetry(
+            service_name=service_name,
+            otlp_endpoint=otlp_endpoint,
+            environment=environment,
+            enable_jaeger=True,
+            jaeger_host=jaeger_host,
+            jaeger_port=jaeger_port,
+        ):
             logger.warning("OpenTelemetry initialization failed")
             return False
     except ImportError:

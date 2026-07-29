@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # tests/unit/test_plugin_system_unit.py
 # 插件系统模块单元测试
+import logging
 from datetime import datetime, timedelta  # noqa: F401
 from unittest.mock import MagicMock, Mock, patch  # noqa: F401
 
@@ -64,7 +65,8 @@ class TestPluginSystemManager:
             # 在实际实现中，这里会动态加载插件模块
             loaded_plugins[plugin_info["name"]] = plugin_info
             load_success = True
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             load_success = False
 
         # 验证插件加载

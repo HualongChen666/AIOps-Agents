@@ -822,3 +822,53 @@ class PerformanceRegression(Base):
             self.id}, regression_id='{
             self.regression_id}', component='{
             self.component}')>"
+
+
+class Snapshot(Base):
+    """操作前/后状态快照表（用于回滚与审计）"""
+
+    __tablename__ = "snapshots"
+
+    id = Column(String(100), primary_key=True)
+
+    # 关联告警与修复
+    alert_id = Column(String(100), nullable=False, index=True)
+    repair_record_id = Column(String(100), nullable=True, index=True)
+
+    # 操作类型: pod_restart, config_mod, scale, network_policy,
+    #           service_restart, process_kill, disk_cleanup, network_fix, generic
+    operation_type = Column(String(50), nullable=False, index=True)
+
+    # 加密后的 JSON 内容
+    pre_state = Column(Text, nullable=False)
+    post_state = Column(Text, nullable=True)
+    rollback_plan = Column(Text, nullable=True)
+
+    # 快照状态: pending / success / failed / rollback_failed
+    status = Column(String(20), default="pending", nullable=False, index=True)
+
+    # 保留策略
+    retention_days = Column(Integer, nullable=False, default=7)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 错误信息
+    error_message = Column(Text, nullable=True)
+
+    # 创建时间
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_snapshots_alert_id", "alert_id"),
+        Index("idx_snapshots_repair_record_id", "repair_record_id"),
+        Index("idx_snapshots_operation_type", "operation_type"),
+        Index("idx_snapshots_status", "status"),
+        Index("idx_snapshots_expires_at", "expires_at"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<Snapshot(id='{self.id}', alert_id='{self.alert_id}', "
+            f"operation_type='{self.operation_type}', status='{self.status}')>"
+        )

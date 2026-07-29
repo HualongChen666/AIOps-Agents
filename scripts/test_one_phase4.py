@@ -22,9 +22,14 @@ def main() -> int:
         "--tb=short",
         "--timeout=120",
     ]
-    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    proc = subprocess.run(
+        cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
     out = ROOT / "verify_logs" / f"test_{SERVICE}.txt"
-    out.write_text(f"returncode: {proc.returncode}\n\nSTDOUT:\n{proc.stdout}\n\nSTDERR:\n{proc.stderr}", encoding="utf-8")
+    out.write_text(
+        f"returncode: {proc.returncode}\n\nSTDOUT:\n{proc.stdout}\n\nSTDERR:\n{proc.stderr}",
+        encoding="utf-8",
+    )
     print(f"returncode: {proc.returncode}")
     print(proc.stdout[-2000:] if len(proc.stdout) > 2000 else proc.stdout)
     return proc.returncode

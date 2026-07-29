@@ -4,6 +4,7 @@ HITL API Router
 Phase 4 集成: HITL（人在回路）路由
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -17,7 +18,9 @@ router = APIRouter(prefix="/hitl", tags=["hitl"])
 try:
     from core.hitl import (
         ApprovalHistory,
+        ApprovalNotifier,
         ApprovalStep,
+        ApprovalTimeoutHandler,
         ApprovalWorkflow,
         ConditionalApproval,
         MultiLevelApprover,
@@ -28,11 +31,21 @@ except ImportError:
     HITL_AVAILABLE = False
     logger.warning("Phase 4 HITL not available")
 
+try:
+    from core.agent.subagent import SubAgentDispatcher
+
+    SUBAGENT_AVAILABLE = True
+except ImportError:
+    SUBAGENT_AVAILABLE = False
+    SubAgentDispatcher = None  # type: ignore[misc,assignment]
+
 
 _approval_workflow: Optional[ApprovalWorkflow] = None
 _multi_level_approver: Optional[MultiLevelApprover] = None
 _conditional_approval: Optional[ConditionalApproval] = None
 _approval_history: Optional[ApprovalHistory] = None
+_approval_timeout_handler: Optional[ApprovalTimeoutHandler] = None
+_approval_notifier: Optional[ApprovalNotifier] = None
 
 if HITL_AVAILABLE:
     try:
@@ -40,10 +53,15 @@ if HITL_AVAILABLE:
         _multi_level_approver = MultiLevelApprover(_approval_workflow)
         _conditional_approval = ConditionalApproval()
         _approval_history = ApprovalHistory()
+        _approval_notifier = ApprovalNotifier()
+        _approval_notifier.auto_configure_from_env()
+        _approval_timeout_handler = ApprovalTimeoutHandler(_approval_workflow, _approval_notifier)
         logger.info("Phase 4 HITL components initialized")
     except Exception as e:
         logger.error(f"Failed to initialize HITL components: {e}")
         HITL_AVAILABLE = False
+        _approval_notifier = None
+        _approval_timeout_handler = None
 
 
 @router.get(
@@ -110,6 +128,17 @@ async def create_approval_request(request_data: Dict[str, Any]) -> Dict[str, Any
             context=request_data.get("context", {}),
         )
 
+        if _approval_timeout_handler is not None:
+            _approval_timeout_handler.start_monitoring(request.request_id)
+
+        if _approval_notifier is not None and request.steps:
+            first_step = request.steps[0]
+            notify_result = _approval_notifier.send_approval_request(
+                first_step.approver, request.to_dict()
+            )
+            if asyncio.iscoroutine(notify_result):
+                await notify_result
+
         return request.to_dict()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Request creation failed: {str(e)}")
@@ -148,6 +177,9 @@ async def approve_step(
         success = _approval_workflow.approve_step(request_id, step_id, approver, comment)
         if not success:
             raise HTTPException(status_code=400, detail="Approval failed")
+
+        if _approval_timeout_handler is not None:
+            _approval_timeout_handler.stop_monitoring(request_id)
 
         return {"status": "approved", "request_id": request_id, "step_id": step_id}
     except Exception as e:
@@ -188,6 +220,9 @@ async def reject_step(
         if not success:
             raise HTTPException(status_code=400, detail="Rejection failed")
 
+        if _approval_timeout_handler is not None:
+            _approval_timeout_handler.stop_monitoring(request_id)
+
         return {"status": "rejected", "request_id": request_id, "step_id": step_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rejection failed: {str(e)}")
@@ -224,3 +259,58 @@ async def get_approval_status(request_id: str) -> Dict[str, Any]:
         return _approval_workflow.get_request_status(request_id) or {}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+
+
+@router.post(
+    "/takeover/{request_id}",
+    summary="人工接管/取消审批工作流",
+    responses={
+        200: {"description": "接管成功"},
+        404: {"description": "请求不存在"},
+        503: {"description": "HITL不可用"},
+    },
+)
+async def manual_takeover(request_id: str, reason: str = "manual takeover") -> Dict[str, Any]:
+    """人工接管：取消活跃的审批工作流并把状态标记为已接管"""
+    if not HITL_AVAILABLE or not _approval_workflow:
+        raise HTTPException(status_code=503, detail="HITL not available")
+
+    try:
+        if _approval_timeout_handler is not None:
+            _approval_timeout_handler.stop_monitoring(request_id)
+
+        success = _approval_workflow.cancel_request(request_id, reason=reason)
+        if not success:
+            raise HTTPException(status_code=404, detail="Request not found or not active")
+        return {"request_id": request_id, "status": "taken_over", "reason": reason}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Takeover failed: {str(e)}")
+
+
+@router.post(
+    "/interrupt/{agent_id}",
+    summary="中断运行中的子代理",
+    responses={
+        200: {"description": "中断请求已发送"},
+        404: {"description": "子代理不存在"},
+        503: {"description": "子代理调度器不可用"},
+    },
+)
+async def interrupt_agent(agent_id: str) -> Dict[str, Any]:
+    """中断/终止指定子代理的执行"""
+    if not SUBAGENT_AVAILABLE or SubAgentDispatcher is None:
+        raise HTTPException(status_code=503, detail="SubAgent dispatcher not available")
+
+    try:
+        # O12: support both module-level dispatcher and a default singleton
+        dispatcher = getattr(SubAgentDispatcher, "_instance", None) or SubAgentDispatcher()
+        terminated = dispatcher.terminate(agent_id)
+        if not terminated:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        return {"agent_id": agent_id, "status": "interrupted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Interrupt failed: {str(e)}")

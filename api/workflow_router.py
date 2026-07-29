@@ -172,8 +172,8 @@ async def simulate_workflow(wf_key: str, request: Request):
             # 🔧 WR4:发送初始心跳,验证连接
             try:
                 yield (f"data: " f'{json.dumps({"type": "heartbeat", "msg": "connected"})}' f"\n\n")
-            except Exception:
-                pass  # nosec B110
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
 
             try:
                 async for event in simulate_workflow_stream(wf_key):
@@ -229,8 +229,8 @@ async def simulate_workflow(wf_key: str, request: Request):
                         ensure_ascii=False,
                     )
                     yield f"data: {error_payload}\n\n"
-                except Exception:
-                    pass  # nosec B110 连 error 事件都推送失败时静默退出
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
 
             finally:
                 logger.debug(f"SSE 仿真释放并发配额 | operator={operator_ip} | wf_key='{wf_key}'")

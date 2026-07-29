@@ -11,9 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.grpc_service_manager"] = MagicMock()
-
 from api.grpc_service_router import (
     create_alert_service,
     create_grpc_service,
@@ -21,6 +18,9 @@ from api.grpc_service_router import (
     export_proto_file,
     get_grpc_status,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.grpc_service_manager"] = MagicMock()
 
 
 @pytest.fixture

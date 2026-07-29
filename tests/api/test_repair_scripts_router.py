@@ -8,11 +8,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.repair_scripts_router import list_all_scripts, list_platform_scripts
+
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.platform_strategies"] = MagicMock()
-
-from api.repair_scripts_router import list_all_scripts, list_platform_scripts
 
 
 @pytest.fixture

@@ -50,6 +50,39 @@ class ToolRegistry:
         )
         logger.info(f"Registered tool: {name}")
 
+    @staticmethod
+    def _validate_arguments(tool: Tool, arguments: Dict[str, Any]) -> None:
+        """Validate arguments against the tool's input schema."""
+        if not isinstance(arguments, dict):
+            raise ValueError("Arguments must be a dictionary")
+
+        schema = tool.input_schema or {}
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+
+        for key in required:
+            if key not in arguments:
+                raise ValueError(f"Missing required argument: {key}")
+
+        for key, value in arguments.items():
+            if key not in properties:
+                raise ValueError(f"Unexpected argument: {key}")
+            prop = properties[key]
+            prop_type = prop.get("type")
+            if prop_type == "string" and not isinstance(value, str):
+                raise ValueError(f"Argument '{key}' must be a string")
+            if prop_type == "integer" and not isinstance(value, int):
+                raise ValueError(f"Argument '{key}' must be an integer")
+            if prop_type == "array" and not isinstance(value, list):
+                raise ValueError(f"Argument '{key}' must be an array")
+            if prop_type == "boolean" and not isinstance(value, bool):
+                raise ValueError(f"Argument '{key}' must be a boolean")
+            allowed = prop.get("enum")
+            if allowed is not None and value not in allowed:
+                raise ValueError(f"Argument '{key}' must be one of {allowed}, got {value!r}")
+            if isinstance(value, str) and len(value) > 4096:
+                raise ValueError(f"Argument '{key}' exceeds maximum length of 4096")
+
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
         Call a tool
@@ -67,6 +100,7 @@ class ToolRegistry:
         tool = self._tools[name]
 
         try:
+            self._validate_arguments(tool, arguments)
             result = await tool.execute(arguments)
             return {"content": result, "isError": False}
         except Exception as e:
@@ -94,94 +128,100 @@ class ToolRegistry:
 async def execute_command_handler(arguments: Dict[str, Any]) -> str:
     """Execute system command with security validation
 
-    🔧 P0 Security Fix: Added command validation to prevent command injection
-    - Only allows whitelisted safe commands
-    - Validates command structure and arguments
-    - Prevents shell metacharacters and dangerous operations
+    🔧 P0 Security Fix: Restricted command whitelist and arguments
+    - Only allows a small set of read-only commands
+    - Each command has a strict argument allow-list regex
+    - Blocks shell metacharacters, absolute paths, path traversal, and
+      recursive/network/privilege flags
     """
     import re
     import shlex
     import subprocess  # nosec B404
 
     command = arguments.get("command")
-    if not command:
-        raise ValueError("Command is required")
-
-    # 🔧 P0 Security: Command validation
-    # Define whitelist of safe commands (no shell metacharacters)
-    SAFE_COMMANDS = {
-        "echo",
-        "date",
-        "hostname",
-        "whoami",
-        "pwd",
-        "ls",
-        "dir",
-        "df",
-        "free",
-        "uptime",
-        "uname",
-        "arch",
-        "nproc",
-    }
+    if not isinstance(command, str) or not command.strip():
+        raise ValueError("Command is required and must be a non-empty string")
+    if len(command) > 512:
+        raise ValueError("Command exceeds maximum length of 512")
 
     # Parse command safely
     try:
-        # Use shlex to parse command safely
         parts = shlex.split(command)
-        if not parts:
-            raise ValueError("Invalid command format")
+    except ValueError as exc:
+        raise ValueError(f"Invalid command format: {exc}") from exc
+    if not parts:
+        raise ValueError("Invalid command format")
 
-        base_command = parts[0].strip().lower()
+    base_command = parts[0].strip().lower()
 
-        # Check if command is in whitelist
-        if base_command not in SAFE_COMMANDS:
-            raise ValueError(
-                f"Command '{base_command}' is not in the allowed safe commands list. "
-                f"Allowed commands: {', '.join(sorted(SAFE_COMMANDS))}"
-            )
+    # SAFE_COMMANDS: command -> regex that each argument must match.
+    # Removed "ls"/"dir" because they inherently accept arbitrary paths.
+    SAFE_COMMANDS = {
+        "echo": r"^.*$",
+        "date": r"^$",
+        "hostname": r"^$",
+        "whoami": r"^$",
+        "pwd": r"^$",  # nosec B105
+        "df": r"^(-h|--help)?$",
+        "free": r"^(-h|--help)?$",
+        "uptime": r"^$",
+        "uname": r"^$",
+        "arch": r"^$",
+        "nproc": r"^$",
+    }
 
-        # Validate no shell metacharacters in arguments
-        for arg in parts[1:]:
-            # Check for dangerous patterns
-            dangerous_patterns = [
-                r"[;&|`$()]",  # Shell metacharacters
-                r"\.\./",  # Path traversal
-                r">",  # Output redirection
-                r"<",  # Input redirection
-            ]
-            for pattern in dangerous_patterns:
-                if re.search(pattern, arg):
-                    raise ValueError(f"Argument contains dangerous pattern: {arg}")
-
-        # Execute using list form (no shell=True)
-        result = subprocess.run(
-            parts,
-            capture_output=True,
-            text=True,
-            shell=False,  # nosec B603
-            timeout=30,  # Add timeout for safety
+    if base_command not in SAFE_COMMANDS:
+        raise ValueError(
+            f"Command '{base_command}' is not in the allowed safe commands list. "
+            f"Allowed commands: {', '.join(sorted(SAFE_COMMANDS))}"
         )
 
-        return f"stdout: {result.stdout}\nstderr: {result.stderr}\nreturncode: {result.returncode}"
+    arg_pattern = SAFE_COMMANDS[base_command]
+    recursive_flags = {"-R", "-r", "--recursive"}
 
-    except subprocess.TimeoutExpired:
-        raise ValueError("Command execution timed out (30s limit)")
-    except ValueError as e:
-        raise ValueError(f"Command validation failed: {e}")
-    except Exception as e:
-        raise ValueError(f"Command execution failed: {e}")
+    for arg in parts[1:]:
+        # Reject shell metacharacters and redirections.
+        if re.search(r"[;&|`$()<>]", arg):
+            raise ValueError(f"Argument contains dangerous characters: {arg}")
+        # Reject path traversal and absolute paths.
+        if ".." in arg or arg.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", arg):
+            raise ValueError(f"Argument contains path traversal or absolute path: {arg}")
+        # Reject recursive flags.
+        if arg in recursive_flags:
+            raise ValueError(f"Recursive flag '{arg}' is not allowed")
+        # Reject anything not matching the command-specific argument allow-list.
+        if not re.match(arg_pattern, arg):
+            raise ValueError(f"Argument '{arg}' is not allowed for command '{base_command}'")
+
+    # Execute using list form (no shell=True)
+    result = subprocess.run(
+        parts,
+        capture_output=True,
+        text=True,
+        shell=False,  # nosec B603
+        timeout=30,  # Add timeout for safety
+    )
+
+    return f"stdout: {result.stdout}\nstderr: {result.stderr}\n"  f"returncode: {result.returncode}"
 
 
 async def get_metrics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Get system metrics"""
-    # Placeholder - integrate with actual metrics collector
+    if arguments:
+        raise ValueError("get_metrics does not accept any arguments")
+    # default_value - integrate with actual metrics collector
     return {"cpu_usage": 45.2, "memory_usage": 68.3, "disk_usage": 52.1}
 
 
 async def check_alerts_handler(arguments: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Check active alerts"""
-    # Placeholder - integrate with actual alert engine
+    level = arguments.get("level")
+    if level is not None:
+        if not isinstance(level, str):
+            raise ValueError("level must be a string")
+        if level.lower() not in {"info", "warning", "error", "critical"}:
+            raise ValueError("level must be one of info, warning, error, critical")
+    # default_value - integrate with actual alert engine
     return [
         {
             "id": "alert-1",
@@ -217,7 +257,13 @@ def register_default_tools(registry: ToolRegistry) -> None:
         description="Check active alerts",
         input_schema={
             "type": "object",
-            "properties": {"level": {"type": "string", "description": "Alert level filter"}},
+            "properties": {
+                "level": {
+                    "type": "string",
+                    "description": "Alert level filter",
+                    "enum": ["info", "warning", "error", "critical"],
+                }
+            },
         },
         handler=check_alerts_handler,
     )

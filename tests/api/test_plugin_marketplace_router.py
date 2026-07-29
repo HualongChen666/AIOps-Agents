@@ -8,7 +8,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-sys.modules["core.plugin_marketplace_manager"] = MagicMock()
 from api.plugin_marketplace_router import (
     add_plugin_review,
     approve_plugin,
@@ -18,6 +17,8 @@ from api.plugin_marketplace_router import (
     publish_plugin,
     reject_plugin,
 )
+
+sys.modules["core.plugin_marketplace_manager"] = MagicMock()
 
 
 @pytest.fixture

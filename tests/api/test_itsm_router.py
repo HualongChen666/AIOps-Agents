@@ -11,10 +11,10 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.itsm_router import create_incident, resolve_incident
+
 # Mock problematic imports before importing router
 sys.modules["core.itsm_engine"] = MagicMock()
-
-from api.itsm_router import create_incident, resolve_incident
 
 
 @pytest.fixture

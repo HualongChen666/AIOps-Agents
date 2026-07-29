@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Health Check Module
 ===================
@@ -92,7 +93,8 @@ async def check_database_health() -> Dict[str, Any]:
                 """))
                 size_bytes = result.scalar()
                 db_size_mb = size_bytes / (1024 * 1024) if size_bytes else 0
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             logger.debug("Size query failed, but connection is still healthy", exc_info=True)
 
         # Check against thresholds

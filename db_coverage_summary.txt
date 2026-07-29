@@ -1,6 +1,0 @@
-core\database.py: 100.00% (2/2)
-core\database_cache_optimizer.py: 89.47% (284/305)
-core\database_connection_optimizer.py: 84.31% (368/424)
-core\database_optimization_manager.py: 68.90% (97/132)
-core\database_query_optimizer.py: 83.18% (305/348)
-Combined: 87.20% (1056/1211)

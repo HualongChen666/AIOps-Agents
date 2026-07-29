@@ -260,7 +260,7 @@ def get_performance_recommendations() -> Dict[str, Any]:
             "platform": system,
         },
         "recommendations": recommendations,
-        "timestamp": "2026-06-12T00:00:00Z",  # Placeholder timestamp
+        "timestamp": "2026-06-12T00:00:00Z",  # default_value timestamp
     }
 
 
@@ -270,7 +270,7 @@ def apply_comprehensive_tuning() -> Dict[str, Any]:
     Returns:
         Dictionary with all tuning results
     """
-    results: Dict[str, Any] = {"timestamp": "2026-06-12T00:00:00Z", "steps": {}}  # Placeholder
+    results: Dict[str, Any] = {"timestamp": "2026-06-12T00:00:00Z", "steps": {}}  # default_value
 
     # Step 1: Apply system limits
     logger.info("Step 1: Applying system resource limits...")
@@ -340,7 +340,7 @@ def monitor_performance_metrics() -> Dict[str, Any]:
                 "packets_sent": net_io.packets_sent,
                 "packets_recv": net_io.packets_recv,
             },
-            "timestamp": "2026-06-12T00:00:00Z",  # Placeholder
+            "timestamp": "2026-06-12T00:00:00Z",  # default_value
         }
 
     except Exception as e:

@@ -18,7 +18,7 @@ from config import INTERNAL_API_KEY  # Internal API key for protected routes
 from core.command_guard import get_audit_log
 from core.compliance import mask_sensitive_dict
 
-router = APIRouter(prefix="/api/audit", tags=["Audit Export & Report"])
+router = APIRouter(prefix="/api/v1/audit", tags=["Audit Export & Report"])
 
 
 def _verify_internal_key(request: Request) -> None:
@@ -188,3 +188,22 @@ async def audit_report(
         "sample": logs[:5],
     }
     return JSONResponse(content=report)
+
+
+@router.get(
+    "",
+    summary="获取审计日志",
+    description="返回最近的审计日志记录",
+    responses={
+        200: {"description": "审计日志列表(JSON)"},
+        403: {"description": "权限不足(需要X-Internal-Key)"},
+    },
+)
+async def list_audit(
+    request: Request,
+    limit: int = Query(100, ge=1, le=5000, description="返回记录数量上限"),
+) -> JSONResponse:
+    """返回最近的审计日志（JSON 列表）。"""
+    _verify_internal_key(request)
+    logs = get_audit_log(limit=limit)
+    return JSONResponse(content=logs)

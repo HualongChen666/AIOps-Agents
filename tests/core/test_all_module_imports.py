@@ -9,7 +9,6 @@ an optional dependency is missing) are skipped rather than failing the suite.
 """
 
 import importlib
-import sys
 from pathlib import Path
 from types import ModuleType
 from typing import List
@@ -31,7 +30,9 @@ def _discover_core_modules() -> List[str]:
         rel = path.relative_to(ROOT)
         parts = rel.with_suffix("").parts
         # Exclude backups and tests within core (if any)
-        if any(part.endswith(".bak") or part == "backup" or part.startswith("test_") for part in parts):
+        if any(
+            part.endswith(".bak") or part == "backup" or part.startswith("test_") for part in parts
+        ):
             continue
         modules.append(".".join(parts))
     return modules

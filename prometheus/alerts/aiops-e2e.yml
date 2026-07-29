@@ -1,0 +1,30 @@
+groups:
+  - name: software
+    interval: 10s
+    rules:
+      - alert: MemoryHigh
+        expr: vector(1) > 0
+        for: 0s
+        labels:
+          severity: warning
+          __name__: memory_high
+          platform: linux
+          instance: e2e-host
+        annotations:
+          summary: "Memory usage high (E2E)"
+          description: "Memory usage exceeds 85% on e2e-host"
+
+  - name: hardware
+    interval: 10s
+    rules:
+      - alert: IPMISensorCritical
+        expr: vector(1) > 0
+        for: 0s
+        labels:
+          severity: critical
+          __name__: ipmi_temperature
+          platform: linux
+          instance: bmc-e2e
+        annotations:
+          summary: "IPMI sensor critical (E2E)"
+          description: "BMC temperature critical on bmc-e2e"

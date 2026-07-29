@@ -11,11 +11,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.apm_router import get_apm_metrics, get_application_health, reset_apm_metrics
+
 # Mock problematic imports before importing router
 sys.modules["core.telemetry_core"] = MagicMock()
 sys.modules["core.health_check"] = MagicMock()
-
-from api.apm_router import get_apm_metrics, get_application_health, reset_apm_metrics
 
 
 @pytest.fixture

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from services.alert_service.schemas import Alert, ClassificationRule
+from services.alert_service.schemas import Alert, AlertSeverity, ClassificationRule
 
 
 class Classifier:
@@ -36,6 +36,18 @@ class Classifier:
         category, priority = self._keyword_classify(alert.title + " " + alert.description)
         alert.category = category
         alert.priority = priority
+
+        # Critical business-impact override: ensure CRITICAL severity on high-impact
+        # categories jumps to the front of the priority queue without over-classifying
+        # lower-severity alerts.
+        if (
+            alert.level == AlertSeverity.CRITICAL
+            and alert.category in ("database", "payment", "auth", "security")
+            and alert.priority != "P0"
+        ):
+            alert.priority = "P0"
+            alert.tags["priority_override"] = "critical_business_impact"
+
         return alert
 
     def _match(self, alert: Alert, conditions: Dict[str, Any]) -> bool:
@@ -58,7 +70,7 @@ class Classifier:
         if any(k in lower for k in ("cpu", "memory", "disk", "load")):
             return "performance", "P3"
         if any(k in lower for k in ("database", "db", "postgres", "sql")):
-            return "database", "P2"
+            return "database", "P1"
         if any(k in lower for k in ("network", "dns", "ping", "latency")):
             return "network", "P2"
         return "system", "P3"

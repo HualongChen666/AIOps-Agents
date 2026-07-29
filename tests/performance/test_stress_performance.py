@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # tests/performance/test_stress_performance.py
 # 压力测试
+import logging
 import asyncio
 import time
 
@@ -28,8 +29,8 @@ class TestStressAPI:
                 await client.get("/health")
                 req_time = time.time() - req_start
                 request_times.append(req_time)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
             await asyncio.sleep(interval)
 
         time.time() - start_time
@@ -93,9 +94,13 @@ class TestStressDatabase:
     """数据库压力测试"""
 
     @pytest.mark.asyncio
-    async def test_sustained_database_load(self, test_db_session):
+    async def test_sustained_database_load(self, test_db_engine):
         """测试持续数据库负载"""
         from sqlalchemy import select
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from sqlalchemy.orm import sessionmaker
+
+        async_session = sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
 
         duration = 20  # 20秒
         interval = 0.05  # 每50ms执行一次查询
@@ -107,11 +112,12 @@ class TestStressDatabase:
         for _ in range(num_queries):
             query_start = time.time()
             try:
-                await test_db_session.execute(select(1))
+                async with async_session() as session:
+                    await session.execute(select(1))
                 query_time = time.time() - query_start
                 query_times.append(query_time)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
             await asyncio.sleep(interval)
 
         time.time() - start_time
@@ -124,15 +130,23 @@ class TestStressDatabase:
         assert avg_query_time < 0.1, f"Average query time too high under load: {avg_query_time}s"
 
     @pytest.mark.asyncio
-    async def test_database_connection_pool_exhaustion(self, test_db_session):
+    async def test_database_connection_pool_exhaustion(self, test_db_engine):
         """测试数据库连接池耗尽"""
         from sqlalchemy import select
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from sqlalchemy.orm import sessionmaker
+
+        async_session = sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
+
+        async def query_one():
+            async with async_session() as session:
+                await session.execute(select(1))
 
         # 尝试大量并发查询
         num_queries = 200
         start_time = time.time()
 
-        tasks = [test_db_session.execute(select(1)) for _ in range(num_queries)]
+        tasks = [query_one() for _ in range(num_queries)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         end_time = time.time()
@@ -172,8 +186,8 @@ class TestStressCache:
                     await test_redis_client.get(f"key_{i % 100}")
                 op_time = time.time() - op_start
                 op_times.append(op_time)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
             await asyncio.sleep(interval)
 
         time.time() - start_time
@@ -197,7 +211,8 @@ class TestStressCache:
         for i in range(num_keys):
             try:
                 await test_redis_client.set(f"key_{i}", "x" * key_size)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 内存不足，停止
                 break
 
@@ -377,7 +392,8 @@ class TestResourceExhaustion:
             with ThreadPoolExecutor(max_workers=max_threads) as executor:
                 futures = [executor.submit(blocking_task, i) for i in range(max_threads)]
                 results = [f.result() for f in futures]
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 线程耗尽
             pass
 

@@ -8,7 +8,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-sys.modules["core.plugin_ecosystem_manager"] = MagicMock()
 from api.plugin_ecosystem_router import (
     get_developer_stats,
     get_ecosystem_status,
@@ -16,6 +15,8 @@ from api.plugin_ecosystem_router import (
     record_activity,
     register_developer,
 )
+
+sys.modules["core.plugin_ecosystem_manager"] = MagicMock()
 
 
 @pytest.fixture

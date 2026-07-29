@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 LLM Inference Performance Tests
 LLM推理性能测试（OpenAI、Anthropic模型）
@@ -177,7 +178,8 @@ class TestLLMPerformance:
                 try:
                     await asyncio.sleep(0.1)
                     return {"success": True, "attempts": attempts + 1}
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     attempts += 1
                     await asyncio.sleep(0.1)
             return {"success": False, "attempts": attempts}
@@ -320,7 +322,8 @@ class TestLLMQualityMetrics:
         for _ in range(total):
             try:
                 benchmark.pedantic(inference_with_errors)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 errors += 1
 
         error_rate = errors / total

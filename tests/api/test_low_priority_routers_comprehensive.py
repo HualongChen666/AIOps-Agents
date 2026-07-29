@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # tests/api/test_low_priority_routers_comprehensive.py
 # 低优先级路由全面测试 (38个路由)
+import logging
 import os
 import sys
 from unittest.mock import Mock
@@ -222,7 +223,8 @@ class TestLowPriorityRoutersComprehensive:
                     module_name = router_file.replace(".py", "")
                     __import__(f"api.{module_name}", fromlist=["router"])
                     imported_count += 1
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     # 即使导入失败也继续测试其他路由
                     pass
 

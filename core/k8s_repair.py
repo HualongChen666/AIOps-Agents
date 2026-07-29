@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 import subprocess  # nosec B404
 import time
 from collections import deque
@@ -102,6 +103,40 @@ def _sanitize_param(value: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 有状态 Pod 检查
+# ---------------------------------------------------------------------------
+def _inspect_pod_state(namespace: str, pod: str) -> Dict[str, Any]:
+    """查询 Pod 的 owner kind 与 PVC 挂载情况，失败时返回 error 字段。"""
+    try:
+        kubectl_path = shutil.which("kubectl")
+        if kubectl_path is None:
+            return {"error": "kubectl executable not found in PATH"}
+        proc = subprocess.run(
+            [kubectl_path, "get", "pod", pod, "-n", namespace, "-o", "json"],
+            shell=False,  # nosec B603
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if proc.returncode != 0:
+            return {"error": proc.stderr.strip()[:200]}
+        data = json.loads(proc.stdout)
+        owner_kind = ""
+        for ref in data.get("metadata", {}).get("ownerReferences", []) or []:
+            if ref.get("controller"):
+                owner_kind = ref.get("kind", "")
+                break
+        has_pvc = False
+        for vol in data.get("spec", {}).get("volumes", []) or []:
+            if vol.get("persistentVolumeClaim"):
+                has_pvc = True
+                break
+        return {"owner_kind": owner_kind, "has_pvc": has_pvc}
+    except Exception as e:  # pragma: no cover
+        return {"error": str(e)[:200]}
+
+
+# ---------------------------------------------------------------------------
 # 命令渲染
 # ---------------------------------------------------------------------------
 def _render_command(tmpl: str, params: Dict[str, Any]) -> str:
@@ -125,6 +160,34 @@ async def execute_repair(
 
     # 参数渲染
     full_cmd = _render_command(script["command"], params)
+
+    # 删除 Pod 前检查是否为 StatefulSet 或挂载 PVC
+    if script_key == "delete_pod":
+        namespace = params.get("namespace")
+        pod = params.get("pod")
+        if namespace and pod:
+            inspection = await asyncio.to_thread(_inspect_pod_state, namespace, pod)
+            if "error" not in inspection:
+                owner_kind = inspection.get("owner_kind", "")
+                has_pvc = inspection.get("has_pvc", False)
+                if owner_kind == "StatefulSet" or has_pvc:
+                    reason = f"Refusing to delete pod {pod}: owner={owner_kind}, has_pvc={has_pvc}"
+                    record_audit(host, script_key, full_cmd, "blocked", reason)
+                    return {
+                        "host": host,
+                        "script": script_key,
+                        "blocked": True,
+                        "output": "",
+                        "error": reason,
+                        "return_code": -1,
+                    }
+            else:
+                _logger.warning(
+                    "Could not inspect pod state for %s/%s: %s",
+                    namespace,
+                    pod,
+                    inspection["error"],
+                )
 
     # 护栏审查
     risk = analyze_command(full_cmd)

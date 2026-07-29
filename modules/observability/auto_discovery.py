@@ -19,6 +19,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from core.observability_query import DEFAULT_MAX_LLM_ITEMS
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,10 +98,11 @@ class ServiceRelation:
 class AutoDiscoveryEngine:
     """自动发现引擎"""
 
-    def __init__(self):
+    def __init__(self, max_resources: int = DEFAULT_MAX_LLM_ITEMS):
         self.discovered_resources: Dict[str, DiscoveredResource] = {}
         self.service_relations: List[ServiceRelation] = []
         self.discovery_plugins: Dict[str, Any] = {}
+        self.max_resources = max(max_resources, 1)
         self._initialize_plugins()
 
     def _initialize_plugins(self):
@@ -151,12 +154,20 @@ class AutoDiscoveryEngine:
         # 识别关键业务流程
         critical_flows = self._identify_critical_flows()
 
+        resources = [r.to_dict() for r in self.discovered_resources.values()]
+        truncated = len(resources) > self.max_resources
+        if truncated:
+            resources = resources[: self.max_resources]
+            logger.warning("Auto-discovery truncated output to %s resources", self.max_resources)
+
         return {
-            "resources": [r.to_dict() for r in self.discovered_resources.values()],
-            "relations": [r.to_dict() for r in self.service_relations],
+            "resources": resources,
+            "relations": [r.to_dict() for r in self.service_relations[: self.max_resources]],
             "topology": self._get_topology_summary(),
             "critical_flows": critical_flows,
             "discovery_timestamp": datetime.now().isoformat(),
+            "_truncated": truncated,
+            "_max_resources": self.max_resources,
         }
 
     def _discover_kubernetes(self, **kwargs):
@@ -167,15 +178,27 @@ class AutoDiscoveryEngine:
             logger.warning("Kubernetes client not available")
             return
 
+        read_only = kwargs.get("read_only", True)
+        if not read_only:
+            logger.warning(
+                "Kubernetes discovery is using non-read_only credentials; "
+                "set read_only=True to enforce least privilege."
+            )
+
+        max_items = kwargs.get("max_items", self.max_resources)
+        timeout_seconds = kwargs.get("timeout_seconds", 30)
+
         try:
             config.load_kube_config()
             v1 = client.CoreV1Api()
 
-            # 发现 Services
-            services = v1.list_service_for_all_namespaces()
+            # 发现 Services (带分页与超时)
+            services = v1.list_service_for_all_namespaces(
+                limit=max_items,
+                timeout_seconds=timeout_seconds,
+            )
             for svc in services.items:
                 resource_id = f"k8s-service-{svc.metadata.namespace}-{svc.metadata.name}"
-
                 self.discovered_resources[resource_id] = DiscoveredResource(
                     id=resource_id,
                     name=svc.metadata.name,
@@ -189,11 +212,14 @@ class AutoDiscoveryEngine:
                     tags=["kubernetes", "service"],
                 )
 
-            # 发现 Pods
-            pods = v1.list_pod_for_all_namespaces()
+            # 发现 Pods (带分页与超时)
+            remaining = max(1, max_items - len(self.discovered_resources))
+            pods = v1.list_pod_for_all_namespaces(
+                limit=remaining,
+                timeout_seconds=timeout_seconds,
+            )
             for pod in pods.items:
                 resource_id = f"k8s-pod-{pod.metadata.namespace}-{pod.metadata.name}"
-
                 self.discovered_resources[resource_id] = DiscoveredResource(
                     id=resource_id,
                     name=pod.metadata.name,

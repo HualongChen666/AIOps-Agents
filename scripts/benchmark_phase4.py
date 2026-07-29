@@ -33,12 +33,15 @@ def benchmark(service_name: str) -> dict:
     n = 1000
     metrics = MetricsCollector(f"{service_name.replace('_', '-')}-bench")
     service = Service(redis_url="", metrics=metrics)
+
     async def _run() -> None:
         coros = [
-            getattr(service, op)({
-                "config": {"i": i},
-                "idempotency_key": f"bench-{i}",
-            })
+            getattr(service, op)(
+                {
+                    "config": {"i": i},
+                    "idempotency_key": f"bench-{i}",
+                }
+            )
             for i in range(n)
         ]
         await asyncio.gather(*coros)

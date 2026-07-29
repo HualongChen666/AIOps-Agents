@@ -8,15 +8,15 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.test_framework_manager"] = MagicMock()
-
 from api.test_framework_router import (
     create_test_suite,
     generate_test_file,
     get_framework_status,
     get_test_suites,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.test_framework_manager"] = MagicMock()
 
 
 @pytest.fixture

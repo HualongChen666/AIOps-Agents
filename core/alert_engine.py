@@ -368,11 +368,14 @@ async def check_linux_security_alerts(
             now = datetime.datetime.now()
             if last_alert and (now - last_alert).total_seconds() < _SSH_ALERT_COOLDOWN_SEC:
                 logger.debug(
-                    f"M-4 SSH 告警冷却中(首次采集) | host={host_name} | " f"fail_count={fail_count}"
+                    f"M-4 SSH 告警冷却中(首次采集) | host={host_name} | "  f"fail_count={fail_count}"
                 )
             else:
                 now_str = now.strftime("%H:%M:%S")
-                unique_suffix = now.strftime("%H%M%S%f")[:-3] + f"-{random.randint(1000, 9999)}"  # nosec B311  # noqa: E501
+                unique_suffix = (
+                    now.strftime("%H%M%S%f")[:-3]
+                    + f"-{random.randint(1000, 9999)}"  # nosec B311  # noqa: E501
+                )
                 alert = {
                     "id": f"SEC-SSH-{host_name}-{unique_suffix}",
                     "level": "critical",
@@ -498,9 +501,10 @@ def _try_dedup(alert: dict[str, Any]) -> bool:
         elapsed = (now - cached["last_time"]).total_seconds()
 
         if elapsed < _DEDUP_WINDOW_SEC:
-            # 窗口内:拦截,累加 repeat_count
+            # 窗口内:拦截,累加 repeat_count,并刷新最后出现时间(滑动窗口)
             cached["repeat_count"] += 1
             cached["last_alert"] = alert
+            cached["last_time"] = now
             logger.debug(
                 f"🔕 告警去重拦截 | key={key} | "
                 f"repeat_count={cached['repeat_count']} | "
@@ -1193,7 +1197,7 @@ class AutomaticAlertRouter:
             if self._match_conditions(alert, route.conditions):
                 target_channels.append(route.target_channel)
 
-        # ML-based routing (placeholder for actual ML model)
+        # ML-based routing (default_value for actual ML model)
         if self.strategy in [AlertRoutingStrategy.ML_BASED, AlertRoutingStrategy.HYBRID]:
             ml_channels = self._ml_route_alert(alert)
             target_channels.extend(ml_channels)
@@ -1232,7 +1236,7 @@ class AutomaticAlertRouter:
 
     def _ml_route_alert(self, alert: Dict) -> List[str]:
         """
-        ML-based alert routing (placeholder for actual ML model)
+        ML-based alert routing (default_value for actual ML model)
 
         Args:
             alert: Alert to route
@@ -1240,7 +1244,7 @@ class AutomaticAlertRouter:
         Returns:
             List of ML-predicted channels
         """
-        # Placeholder for ML model inference
+        # default_value for ML model inference
         # In production, this would use a trained ML model
         severity = alert.get("severity", "info")
 

@@ -13,7 +13,9 @@ subagent.py
 
 from __future__ import annotations
 
+import copy
 import logging
+import os
 import threading
 import time
 import uuid
@@ -26,7 +28,39 @@ from .executor import AutonomousExecutor, SafetyBoundary
 from .planner import TaskPlanner
 from .tools import ToolExecutor, ToolRegistry
 
+# Limit concurrent subagent sessions (sync because SubAgent.run is synchronous).
+_agent_session_semaphore = threading.BoundedSemaphore(
+    int(os.environ.get("AIOPS_MAX_AGENT_SESSIONS", "50"))
+)
+
+try:
+    from core.audit_logger import log_audit_event as _log_audit_event
+
+    AUDIT_AVAILABLE = True
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    AUDIT_AVAILABLE = False
+    _log_audit_event = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
+
+
+def _audit_subagent(
+    agent_id: str, action: str, status: str, details: Optional[Dict[str, Any]] = None
+) -> None:
+    """Best-effort audit wrapper for subagent operations."""
+    if AUDIT_AVAILABLE and _log_audit_event:
+        try:
+            _log_audit_event(
+                event_type="SUBAGENT_OPERATION",
+                user="system",
+                resource=agent_id,
+                action=action,
+                status=status,
+                details=details or {},
+            )
+        except Exception as exc:
+            logger.warning(f"Subagent audit failed: {exc}")
 
 
 # ----------------------------------------------------------------------
@@ -84,6 +118,10 @@ class SubAgent:
         planner: Optional[TaskPlanner] = None,
         tool_executor: Optional[ToolExecutor] = None,
         safety_boundary: Optional[SafetyBoundary] = None,
+        execution_mode: str = "hybrid",
+        max_subagent_depth: int = 3,
+        dry_run: bool = False,
+        default_timeout: Optional[float] = None,
     ):
         """
         Parameters
@@ -98,18 +136,33 @@ class SubAgent:
             工具执行器
         safety_boundary : SafetyBoundary, optional
             安全边界
+        execution_mode : str
+            子代理执行模式
+        max_subagent_depth : int
+            最大子代理递归深度
+        dry_run : bool
+            是否仅预演
+        default_timeout : float, optional
+            工具默认超时
         """
         self.agent_id = agent_id
         self.role = role
         self.status = SubAgentStatus.IDLE
         self.planner = planner or TaskPlanner()
         self.tool_executor = tool_executor or ToolExecutor(ToolRegistry())
+        self.tool_executor.dry_run = dry_run
+        if default_timeout is not None:
+            self.tool_executor.default_timeout = default_timeout
         self.safety_boundary = safety_boundary or SafetyBoundary()
         self.executor = AutonomousExecutor(
             self.planner,
             self.tool_executor,
             self.safety_boundary,
+            dry_run=dry_run,
         )
+        self.executor.execution_mode = execution_mode
+        self.executor.max_subagent_depth = max_subagent_depth
+        self.executor.dry_run = dry_run
         self._stop_event = threading.Event()
 
     def run(
@@ -117,6 +170,7 @@ class SubAgent:
         goal: str,
         context: Dict[str, Any],
         available_tools: List[str],
+        _depth: int = 0,
     ) -> SubAgentResult:
         """
         执行子任务
@@ -140,6 +194,7 @@ class SubAgent:
         start_time = time.time()
 
         logger.info(f"[subagent {self.agent_id}] start goal: {goal}")
+        _audit_subagent(self.agent_id, "run", "started", {"goal": goal})
 
         if self._stop_event.is_set():
             self.status = SubAgentStatus.TERMINATED
@@ -152,10 +207,17 @@ class SubAgent:
             )
 
         try:
-            result = self.executor.execute_plan(goal, context, available_tools)
+            with _agent_session_semaphore:
+                result = self.executor.execute_plan(goal, context, available_tools, _depth=_depth)
             self.status = SubAgentStatus.COMPLETED
             duration = time.time() - start_time
             logger.info(f"[subagent {self.agent_id}] completed in {duration:.2f}s")
+            _audit_subagent(
+                self.agent_id,
+                "run",
+                "success",
+                {"goal": goal, "duration": duration, "status": "completed"},
+            )
             return SubAgentResult(
                 agent_id=self.agent_id,
                 task_id=task_id,
@@ -167,6 +229,12 @@ class SubAgent:
         except Exception as exc:  # noqa: BLE001
             logger.error(f"[subagent {self.agent_id}] failed: {exc}")
             self.status = SubAgentStatus.FAILED
+            _audit_subagent(
+                self.agent_id,
+                "run",
+                "failure",
+                {"goal": goal, "error": str(exc)},
+            )
             return SubAgentResult(
                 agent_id=self.agent_id,
                 task_id=task_id,
@@ -179,6 +247,7 @@ class SubAgent:
     def terminate(self) -> None:
         """请求终止子代理"""
         self._stop_event.set()
+        _audit_subagent(self.agent_id, "terminate", "requested", {})
         logger.info(f"[subagent {self.agent_id}] termination requested")
 
     def is_terminated(self) -> bool:
@@ -208,6 +277,12 @@ class SubAgentDispatcher:
         self,
         max_workers: int = 5,
         subagent_factory: Type[SubAgent] = SubAgent,
+        safety_boundary: Optional[SafetyBoundary] = None,
+        execution_mode: str = "hybrid",
+        max_subagent_depth: int = 3,
+        dry_run: bool = False,
+        default_timeout: Optional[float] = None,
+        task_timeout: Optional[float] = 300,
     ):
         """
         Parameters
@@ -216,9 +291,27 @@ class SubAgentDispatcher:
             线程池最大并发数
         subagent_factory : Type[SubAgent]
             子代理工厂类
+        safety_boundary : SafetyBoundary, optional
+            父代理安全边界，子代理继承
+        execution_mode : str
+            子代理执行模式
+        max_subagent_depth : int
+            最大子代理递归深度
+        dry_run : bool
+            是否仅预演
+        default_timeout : float, optional
+            工具默认超时
+        task_timeout : float, optional
+            等待子代理结果的最大秒数
         """
         self.max_workers = max_workers
         self.subagent_factory = subagent_factory
+        self.safety_boundary = safety_boundary or SafetyBoundary()
+        self.execution_mode = execution_mode
+        self.max_subagent_depth = max_subagent_depth
+        self.dry_run = dry_run
+        self.default_timeout = default_timeout
+        self.task_timeout = task_timeout
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers,
             thread_name_prefix="subagent_",
@@ -234,8 +327,12 @@ class SubAgentDispatcher:
         planner: Optional[TaskPlanner] = None,
         tool_executor: Optional[ToolExecutor] = None,
         safety_boundary: Optional[SafetyBoundary] = None,
+        execution_mode: Optional[str] = None,
+        max_subagent_depth: Optional[int] = None,
+        dry_run: Optional[bool] = None,
+        default_timeout: Optional[float] = None,
     ) -> SubAgent:
-        """创建子代理"""
+        """创建子代理，默认继承调度器的安全边界、执行模式和深度限制。"""
         if agent_id is None:
             agent_id = f"subagent_{uuid.uuid4().hex[:8]}"
 
@@ -244,7 +341,13 @@ class SubAgentDispatcher:
             role=role,
             planner=planner,
             tool_executor=tool_executor,
-            safety_boundary=safety_boundary,
+            safety_boundary=safety_boundary or self.safety_boundary,
+            execution_mode=execution_mode or self.execution_mode,
+            max_subagent_depth=max_subagent_depth or self.max_subagent_depth,
+            dry_run=dry_run if dry_run is not None else self.dry_run,
+            default_timeout=(
+                default_timeout if default_timeout is not None else self.default_timeout
+            ),
         )
         self._subagents[agent_id] = subagent
         logger.info(f"[subagent dispatcher] created {agent_id} role={role}")
@@ -258,6 +361,7 @@ class SubAgentDispatcher:
         role: str = "worker",
         agent_id: Optional[str] = None,
         wait: bool = True,
+        _depth: int = 0,
     ) -> SubAgentResult | Future:
         """
         分派一个子任务
@@ -276,6 +380,8 @@ class SubAgentDispatcher:
             指定子代理 ID
         wait : bool
             是否等待结果
+        _depth : int
+            当前子代理递归深度
 
         Returns
         -------
@@ -285,6 +391,19 @@ class SubAgentDispatcher:
         context = context or {}
         available_tools = available_tools or []
 
+        # Copy-on-write: each subagent gets its own deep copy of context plus a
+        # per-subagent session id so memory/state cannot leak between sessions.
+        isolated_context = copy.deepcopy(context)
+        if "session_id" not in isolated_context or not isolated_context["session_id"]:
+            isolated_context["session_id"] = str(uuid.uuid4())
+        isolated_context["parent_session_id"] = context.get("session_id")
+
+        _audit_subagent(
+            agent_id or "pending",
+            "dispatch",
+            "started",
+            {"goal": goal, "role": role, "wait": wait, "_depth": _depth},
+        )
         subagent = self.create_subagent(
             role=role,
             agent_id=agent_id,
@@ -292,14 +411,15 @@ class SubAgentDispatcher:
         future = self._executor.submit(
             subagent.run,
             goal,
-            context,
+            isolated_context,
             available_tools,
+            _depth + 1,
         )
         self._futures[subagent.agent_id] = future
 
         if wait:
             try:
-                result = future.result()
+                result = future.result(timeout=self.task_timeout)
             except Exception as exc:  # noqa: BLE001
                 result = SubAgentResult(
                     agent_id=subagent.agent_id,
@@ -307,14 +427,34 @@ class SubAgentDispatcher:
                     status="failed",
                     error=str(exc),
                 )
+                _audit_subagent(
+                    subagent.agent_id,
+                    "dispatch",
+                    "failure",
+                    {"goal": goal, "error": str(exc)},
+                )
+            else:
+                _audit_subagent(
+                    subagent.agent_id,
+                    "dispatch",
+                    "success",
+                    {"goal": goal, "status": result.status},
+                )
             self._results[subagent.agent_id] = result
             return result
 
+        _audit_subagent(
+            subagent.agent_id,
+            "dispatch",
+            "pending",
+            {"goal": goal, "role": role},
+        )
         return future
 
     def dispatch_batch(
         self,
         tasks: List[Dict[str, Any]],
+        _depth: int = 0,
     ) -> List[SubAgentResult]:
         """
         批量分派任务
@@ -323,6 +463,8 @@ class SubAgentDispatcher:
         ----------
         tasks : List[Dict[str, Any]]
             每个任务包含 goal, context, available_tools, role 等
+        _depth : int
+            当前子代理递归深度
 
         Returns
         -------
@@ -339,12 +481,18 @@ class SubAgentDispatcher:
             role = task.get("role", "worker")
             agent_id = task.get("agent_id")
 
+            isolated_context = copy.deepcopy(context)
+            if "session_id" not in isolated_context or not isolated_context["session_id"]:
+                isolated_context["session_id"] = str(uuid.uuid4())
+            isolated_context["parent_session_id"] = context.get("session_id")
+
             subagent = self.create_subagent(role=role, agent_id=agent_id)
             future = self._executor.submit(
                 subagent.run,
                 goal,
-                context,
+                isolated_context,
                 available_tools,
+                _depth + 1,
             )
             futures.append(future)
             agent_ids.append(subagent.agent_id)
@@ -352,7 +500,7 @@ class SubAgentDispatcher:
         results: List[SubAgentResult] = []
         for agent_id, future in zip(agent_ids, futures):
             try:
-                result = future.result()
+                result = future.result(timeout=self.task_timeout)
             except Exception as exc:  # noqa: BLE001
                 result = SubAgentResult(
                     agent_id=agent_id,
@@ -368,9 +516,17 @@ class SubAgentDispatcher:
     def dispatch_parallel(
         self,
         tasks: List[Dict[str, Any]],
+        _depth: int = 0,
     ) -> Dict[str, SubAgentResult]:
         """
         并行分派任务，返回完成顺序的迭代器结果
+
+        Parameters
+        ----------
+        tasks : List[Dict[str, Any]]
+            每个任务包含 goal, context, available_tools, role 等
+        _depth : int
+            当前子代理递归深度
 
         Returns
         -------
@@ -386,12 +542,18 @@ class SubAgentDispatcher:
             role = task.get("role", "worker")
             agent_id = task.get("agent_id")
 
+            isolated_context = copy.deepcopy(context)
+            if "session_id" not in isolated_context or not isolated_context["session_id"]:
+                isolated_context["session_id"] = str(uuid.uuid4())
+            isolated_context["parent_session_id"] = context.get("session_id")
+
             subagent = self.create_subagent(role=role, agent_id=agent_id)
             future = self._executor.submit(
                 subagent.run,
                 goal,
-                context,
+                isolated_context,
                 available_tools,
+                _depth + 1,
             )
             future_to_agent[future] = subagent.agent_id
 
@@ -399,7 +561,7 @@ class SubAgentDispatcher:
         for future in as_completed(future_to_agent):
             agent_id = future_to_agent[future]
             try:
-                result = future.result()
+                result = future.result(timeout=self.task_timeout)
             except Exception as exc:  # noqa: BLE001
                 result = SubAgentResult(
                     agent_id=agent_id,

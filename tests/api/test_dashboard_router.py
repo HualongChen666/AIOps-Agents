@@ -11,11 +11,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.dashboard_router import summary
+
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.authentication"].role_required = Mock(return_value=lambda: {"role": "user"})
-
-from api.dashboard_router import summary
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ class TestDashboardRouter:
         response = client.get("/dashboard/summary")
         assert response.status_code == 200
         data = response.json()
-        assert data["message"] == "Dashboard placeholder"
+        assert data["message"] == "Dashboard default_value"
         assert isinstance(data["message"], str)
 
     def test_summary_content_type(self, client):

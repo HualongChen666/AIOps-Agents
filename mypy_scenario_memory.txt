@@ -1,7 +1,0 @@
-﻿python : There are no .py[i] files in directory 'tests\services\scenario_memory_service'
-At line:1 char:32
-+ ... NG='utf-8'; python -m mypy services/scenario_memory_service tests/ser ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (There are no .p...memory_service':String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 

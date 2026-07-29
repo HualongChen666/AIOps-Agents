@@ -35,17 +35,19 @@ class TestRiskLevel:
     """Test cases for RiskLevel enum."""
 
     def test_risk_level_enum_values(self):
-        """Test that RiskLevel enum has correct values."""
-        assert RiskLevel.LOW.value == 1
-        assert RiskLevel.MEDIUM.value == 2
-        assert RiskLevel.HIGH.value == 3
-        assert RiskLevel.CRITICAL.value == 4
+        """Test that RiskLevel enum uses the unified command_guard string values."""
+        assert RiskLevel.LOW.value == "low"
+        assert RiskLevel.MEDIUM.value == "medium"
+        assert RiskLevel.HIGH.value == "high"
+        assert RiskLevel.BLOCKED.value == "blocked"
+        assert RiskLevel.SAFE.value == "safe"
 
     def test_risk_level_enum_comparison(self):
-        """Test RiskLevel enum comparison using value attribute."""
-        assert RiskLevel.LOW.value < RiskLevel.MEDIUM.value
-        assert RiskLevel.MEDIUM.value < RiskLevel.HIGH.value
-        assert RiskLevel.HIGH.value < RiskLevel.CRITICAL.value
+        """Test RiskLevel enum names and existence."""
+        assert RiskLevel.LOW.name == "LOW"
+        assert RiskLevel.MEDIUM.name == "MEDIUM"
+        assert RiskLevel.HIGH.name == "HIGH"
+        assert RiskLevel.BLOCKED.name == "BLOCKED"
 
 
 # ============================================================
@@ -244,10 +246,10 @@ class TestTrustMechanism:
         mechanism = TrustMechanism(initial_trust=0.5)
         assert mechanism.can_auto_execute("check", RiskLevel.LOW) is True
 
-    def test_can_auto_execute_critical_risk(self):
-        """Test can_auto_execute with CRITICAL risk."""
+    def test_can_auto_execute_blocked_risk(self):
+        """Test can_auto_execute with BLOCKED risk."""
         mechanism = TrustMechanism(initial_trust=1.0)
-        assert mechanism.can_auto_execute("delete", RiskLevel.CRITICAL) is False
+        assert mechanism.can_auto_execute("delete", RiskLevel.BLOCKED) is False
 
 
 # ============================================================

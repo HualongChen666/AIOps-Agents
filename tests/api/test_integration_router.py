@@ -11,12 +11,15 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 # Mock problematic imports before importing router
 sys.modules["core.integration_manager"] = MagicMock()
 sys.modules["core.integration_manager"].INTEGRATION_AVAILABLE = True
 sys.modules["core.integration_manager"].integration_manager = MagicMock()
 
 from api.integration_router import router
+
+# isort: on
 
 
 @pytest.fixture

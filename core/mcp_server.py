@@ -35,7 +35,11 @@ class RepairRequest(BaseModel):
     user: str
     comment: Optional[str] = None
 
-    model_config = {"json_schema_extra": {"example": {"alert_id": "example", "user": "example", "comment": "example"}}}
+    model_config = {
+        "json_schema_extra": {
+            "example": {"alert_id": "example", "user": "example", "comment": "example"}
+        }
+    }
 
 
 class SearchRequest(BaseModel):
@@ -57,7 +61,11 @@ class ApproveRequest(BaseModel):
     approved: bool
     comment: Optional[str] = None
 
-    model_config = {"json_schema_extra": {"example": {"repair_id": "example", "approved": True, "comment": "example"}}}
+    model_config = {
+        "json_schema_extra": {
+            "example": {"repair_id": "example", "approved": True, "comment": "example"}
+        }
+    }
 
 
 @router.post("/get_host_health")

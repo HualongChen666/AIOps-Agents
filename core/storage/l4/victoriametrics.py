@@ -4,13 +4,24 @@ L4 Storage Layer - VictoriaMetrics Adapter
 Provides metrics storage backend using VictoriaMetrics (Prometheus-compatible)
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, cast
 
 import httpx
 from loguru import logger
 
 from core.base.storage import BaseStorage
+from core.observability_query import (
+    DEFAULT_MAX_PROMQL_SAMPLES,
+    QueryCache,
+    align_time_window,
+    cached_query,
+    limit_range_samples,
+    make_cache_key,
+    parse_duration_to_seconds,
+    validate_promql,
+    with_query_timeout,
+)
 
 
 class VictoriaMetricsStorage(BaseStorage):
@@ -27,7 +38,15 @@ class VictoriaMetricsStorage(BaseStorage):
 
         self.base_url = config.get("base_url", "http://localhost:8428")
         self.timeout = config.get("timeout", 30)
+        self.max_samples = config.get("max_samples", DEFAULT_MAX_PROMQL_SAMPLES)
+        self.read_only = config.get("read_only")
         self._client: Optional[httpx.AsyncClient] = None
+        self._query_cache = QueryCache()
+        if self.read_only is None:
+            logger.warning(
+                "VictoriaMetrics storage created without explicit read_only flag; "
+                "set read_only=True in production to enforce read-only credentials."
+            )
 
     def initialize(self) -> bool:
         """Initialize VictoriaMetrics client"""
@@ -77,6 +96,10 @@ class VictoriaMetricsStorage(BaseStorage):
         Returns:
             True if successful
         """
+        if self.read_only is True:
+            logger.warning("VictoriaMetrics write rejected: storage is configured as read_only")
+            return False
+
         if not self._is_initialized or not self._client:
             logger.warning("VictoriaMetrics not initialized")
             return False
@@ -111,6 +134,12 @@ class VictoriaMetricsStorage(BaseStorage):
 
         return None
 
+    async def _safe_query_key(self, query: Dict[str, Any]) -> str:
+        """Build a cache-safe query key that is stable within a time bucket."""
+        base = dict(query)
+        base.pop("time", None)
+        return make_cache_key("vm", self.base_url, base)
+
     async def retrieve(self, key: str) -> Optional[Any]:
         """
         Retrieve latest metric value from VictoriaMetrics
@@ -127,8 +156,14 @@ class VictoriaMetricsStorage(BaseStorage):
 
         try:
             query = self._parse_metric_query(key)
+            validate_promql(query)
             params = self._build_query_params(query)
-            return await self._execute_query(params)
+            cache_key = make_cache_key("vm_retrieve", self.base_url, key, params["time"] // 60)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(self._execute_query(params)),
+            )
 
         except Exception as e:
             logger.error(f"Error retrieving from VictoriaMetrics: {e}")
@@ -151,12 +186,37 @@ class VictoriaMetricsStorage(BaseStorage):
         return "start" in query and "end" in query
 
     def _build_range_query_params(self, promql_query: str, query: Dict[str, Any]) -> tuple:
-        """Build parameters for range query"""
+        """Build parameters for range query and enforce max samples."""
+        start = query.get("start")
+        end = query.get("end")
+        step = query.get("step", "60")
+
+        if isinstance(start, datetime):
+            start_dt = start
+        elif start is not None:
+            start_dt = datetime.fromtimestamp(int(start), tz=timezone.utc)
+        else:
+            start_dt = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+        if isinstance(end, datetime):
+            end_dt = end
+        elif end is not None:
+            end_dt = datetime.fromtimestamp(int(end), tz=timezone.utc)
+        else:
+            end_dt = datetime.now(timezone.utc)
+
+        step_seconds = limit_range_samples(
+            start_dt,
+            end_dt,
+            parse_duration_to_seconds(step),
+            self.max_samples,
+        )
+
         params = {
             "query": promql_query,
-            "start": query.get("start"),
-            "end": query.get("end"),
-            "step": query.get("step", "60"),
+            "start": int(start_dt.timestamp()),
+            "end": int(end_dt.timestamp()),
+            "step": step_seconds,
         }
         return params, "/api/v1/query_range"
 
@@ -198,18 +258,29 @@ class VictoriaMetricsStorage(BaseStorage):
             logger.warning("VictoriaMetrics not initialized")
             return []
 
-        try:
-            promql_query = query.get("query", "")
-            if not promql_query:
-                return []
+        promql_query = query.get("query", "")
+        if not promql_query:
+            return []
 
-            # Determine if range query or instant query
+        try:
+            validate_promql(promql_query)
+        except ValueError as exc:
+            logger.warning("Invalid PromQL query rejected: %s", exc)
+            return []
+
+        try:
+            cache_key = await self._safe_query_key(query)
+
             if self._is_range_query(query):
                 params, endpoint = self._build_range_query_params(promql_query, query)
             else:
                 params, endpoint = self._build_instant_query_params(promql_query, query)
 
-            return await self._execute_promql_query(endpoint, params)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(self._execute_promql_query(endpoint, params)),
+            )
 
         except Exception as e:
             logger.error(f"Error querying VictoriaMetrics: {e}")
@@ -230,6 +301,15 @@ class VictoriaMetricsStorage(BaseStorage):
         Returns:
             List of time series results
         """
+        try:
+            validate_promql(query)
+        except ValueError as exc:
+            logger.warning("Invalid PromQL query rejected: %s", exc)
+            return []
+
+        start, end = align_time_window(end=end, duration_seconds=(end - start).total_seconds())
+        step = limit_range_samples(start, end, step, self.max_samples)
+
         query_params = {
             "query": query,
             "start": int(start.timestamp()),

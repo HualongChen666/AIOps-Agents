@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -105,7 +106,8 @@ async def api_response_middleware(request: Request, call_next):
                 status_code=response.status_code,
                 headers=dict(response.headers),
             )
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 解析失败，返回原响应
             return response
 

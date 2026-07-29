@@ -47,6 +47,8 @@ async def lifespan(app: FastAPI):
         repository=repo,
         mq=message_queue,
         window_seconds=settings.aggregator_window_seconds,
+        max_concurrent=settings.pipeline_max_concurrent,
+        max_retries=settings.pipeline_max_retries,
     )
     app.state.pipeline = pipeline
     app.state.start_time = time.time()

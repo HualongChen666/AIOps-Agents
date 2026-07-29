@@ -159,7 +159,7 @@ def test_router_rule_and_default():
     assert router.route(a) == "immediate"
 
     b = alert_factory(level=AlertSeverity.WARNING, category="database")
-    assert router.route(b) == "infrastructure_team"
+    assert router.route(b) == "team:infrastructure"
 
 
 # ---------------------------------------------------------------------------

@@ -8,14 +8,14 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.root_cause_intelligence"] = MagicMock()
-
 from api.root_cause_router import (
     get_historical_patterns,
     get_root_cause_statistics,
     get_topology_structure,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.root_cause_intelligence"] = MagicMock()
 
 
 @pytest.fixture

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """Extended smoke tests for active core modules.
 
 Tries to call public functions and methods with type-aware dummy arguments.
@@ -119,8 +120,8 @@ def _value_for_type(tp: Any) -> Any:
                 continue
             try:
                 return _value_for_type(arg)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
         return None
 
     # List, Sequence
@@ -164,8 +165,8 @@ def _value_for_type(tp: Any) -> Any:
     if isinstance(tp, type) and issubclass(tp, enum.Enum):
         try:
             return list(tp)[0]
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
         return None
 
     # Built-in scalar types
@@ -184,8 +185,8 @@ def _value_for_type(tp: Any) -> Any:
         try:
             if hasattr(tp, "model_construct"):
                 return tp.model_construct()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
         try:
             sig = inspect.signature(tp.__init__)
             kwargs: Dict[str, Any] = {}
@@ -198,12 +199,12 @@ def _value_for_type(tp: Any) -> Any:
                     continue
                 kwargs[name] = _value_for_type(param.annotation)
             return tp(**kwargs)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
         try:
             return tp()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
 
     # Fallback: MagicMock for unknown/custom classes so methods can still be called
     return MagicMock()
@@ -223,7 +224,8 @@ def _generate_args(
 
     try:
         hints = get_type_hints(callable_obj, globalns=module.__dict__, localns={})
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         hints = {}
 
     kwargs: Dict[str, Any] = {}
@@ -240,7 +242,8 @@ def _generate_args(
         try:
             annotation = hints.get(name, param.annotation)
             kwargs[name] = _value_for_type(annotation)
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             return None
     return kwargs
 
@@ -255,15 +258,16 @@ ASYNC_TIMEOUT_SECONDS = 1
 def _call_or_run(obj: Callable[..., Any], kwargs: Dict[str, Any]) -> None:
     try:
         result = obj(**kwargs)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         return
     if inspect.iscoroutine(result):
         try:
             asyncio.run(asyncio.wait_for(result, timeout=ASYNC_TIMEOUT_SECONDS))
         except (RuntimeError, asyncio.TimeoutError):
             pass
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
 
 
 def _try_call(obj: Callable[..., Any], module: ModuleType) -> None:
@@ -272,8 +276,8 @@ def _try_call(obj: Callable[..., Any], module: ModuleType) -> None:
         return
     try:
         _call_or_run(obj, kwargs)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
 
 
 def _can_instantiate(cls: type, module: ModuleType) -> bool:

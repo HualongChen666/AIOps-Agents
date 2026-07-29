@@ -1,3 +1,10 @@
+---
+pack: core
+enabled_by: N/A (always on)
+docker_profile: core
+core_dependency: True
+---
+
 # Alert Microservice
 
 告警服务微服务化实现，按 `docs/document/task_list.md` 任务 24 设计。

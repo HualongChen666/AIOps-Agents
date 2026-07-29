@@ -1,0 +1,46 @@
+groups:
+  - name: hardware
+    rules:
+      - alert: CPU_Temperature_High
+        expr: ipmi_temperature_celsius > 80
+        for: 2m
+        labels:
+          severity: critical
+          category: hardware
+          platform: linux
+        annotations:
+          summary: "CPU temperature high on {{ $labels.instance }}"
+          description: "CPU temperature is {{ $value }}C, above threshold 80C."
+
+      - alert: Disk_SMART_Failing
+        expr: smart_reallocated_sectors > 0 or smart_pending_sectors > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: hardware
+          platform: linux
+        annotations:
+          summary: "SMART failure predicted on {{ $labels.device }}"
+          description: "SMART reallocated/pending sectors detected on {{ $labels.device }}."
+
+      - alert: RAID_Degraded
+        expr: raid_degraded == 1
+        for: 0m
+        labels:
+          severity: critical
+          category: hardware
+          platform: linux
+        annotations:
+          summary: "RAID volume degraded on {{ $labels.instance }}"
+          description: "A RAID volume has entered degraded state."
+
+      - alert: Power_Supply_Failed
+        expr: ipmi_power_state{status!="ok"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          category: hardware
+          platform: linux
+        annotations:
+          summary: "Power supply failure on {{ $labels.instance }}"
+          description: "IPMI power state indicates a failed or degraded PSU."

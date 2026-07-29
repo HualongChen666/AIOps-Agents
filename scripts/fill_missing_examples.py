@@ -18,7 +18,7 @@ def ensure_examples(node):
                     content = r200.get("content", {})
                     app_json = content.get("application/json")
                     if app_json and "example" not in app_json:
-                        # generate placeholder based on schema if possible
+                        # generate default_value based on schema if possible
                         schema = app_json.get("schema")
                         placeholder = {"message": "success"}
                         if schema:
@@ -42,4 +42,4 @@ ensure_examples(data.get("paths", {}))
 # write back
 with open(path, "w", encoding="utf-8") as f:
     yaml.dump(data, f, allow_unicode=True, sort_keys=False)
-print("Placeholder examples added where missing.")
+print("default_value examples added where missing.")

@@ -1,3 +1,10 @@
+---
+pack: core
+enabled_by: N/A (always on)
+docker_profile: core
+core_dependency: True
+---
+
 # Agent Orchestration Service
 
 Microservice for multi-agent collaboration and task orchestration.

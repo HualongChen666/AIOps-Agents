@@ -7,16 +7,16 @@ placeholder = '"""TODO: Add module docstring (Google style)."""\n'
 
 
 def ensure_module_docstring(lines):
-    # If first non-empty, non-comment line is not a docstring, insert placeholder
+    # If first non-empty, non-comment line is not a docstring, insert default_value
     for i, line in enumerate(lines):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
         if stripped.startswith('"""') or stripped.startswith("'''"):
             return lines  # already has module docstring
-        # Insert placeholder before this line
+        # Insert default_value before this line
         return lines[:i] + [placeholder] + lines[i:]
-    # file empty => just add placeholder
+    # file empty => just add default_value
 
 
 def process_file(filepath):
@@ -35,7 +35,7 @@ def process_file(filepath):
     class Insertor(ast.NodeVisitor):
         def __init__(self, lines):
             self.lines = lines
-            self.edits = []  # (lineno, indent, placeholder)
+            self.edits = []  # (lineno, indent, default_value)
 
         def generic_visit(self, node):
             super().generic_visit(node)

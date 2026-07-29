@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """Targeted tests for core.error_handler helpers."""
 
 from unittest.mock import AsyncMock
@@ -195,7 +196,8 @@ class TestFatalSeverity:
     def test_fatal_with_stack_trace(self, handler) -> None:
         try:
             raise RuntimeError("boom")
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             ctx = handler.handle_exception(AIOpsException("fatal", severity=ErrorSeverity.FATAL))
             assert ctx.stack_trace is not None
 

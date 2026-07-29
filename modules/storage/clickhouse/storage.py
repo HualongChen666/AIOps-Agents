@@ -10,6 +10,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from core.observability_query import (
+    DEFAULT_MAX_LLM_ITEMS,
+    QueryCache,
+    build_clickhouse_query,
+    cached_query,
+    make_cache_key,
+    validate_clickhouse_identifier,
+    validate_clickhouse_metric_name,
+    with_query_timeout,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,9 +74,18 @@ class ClickHouseStorage:
         self.s3_endpoint = self.config.get("s3_endpoint", "https://s3.amazonaws.com")
         self.aws_access_key = self.config.get("aws_access_key")
         self.aws_secret_key = self.config.get("aws_secret_key")
+        self.read_only = self.config.get("read_only")
+        self.max_query_rows = self.config.get("max_query_rows", DEFAULT_MAX_LLM_ITEMS)
+
+        if self.read_only is None:
+            logger.warning(
+                "ClickHouse storage created without explicit read_only flag; "
+                "set read_only=True in production to enforce read-only credentials."
+            )
 
         self._is_initialized = False
         self._is_connected = False
+        self._query_cache = QueryCache()
 
         # Storage tiers
         self._tiers = {
@@ -218,16 +238,17 @@ class ClickHouseStorage:
 
         logger.info("Configured S3 storage volumes")
 
-    def _execute_query(self, query: str) -> None:
+    def _execute_query(self, query: str, params: Optional[List[Any]] = None) -> None:
         """
         Execute ClickHouse query
 
         Args:
             query: SQL query
+            params: Optional parameter values for the query
         """
         # This would use ClickHouse client
-        # Placeholder implementation
-        logger.debug(f"Executing query: {query[:100]}...")  # noqa: F541
+        # default_value implementation
+        logger.debug(f"Executing query: {query[:100]}... params={params!r:50}")  # noqa: F541
 
     async def store_metric(
         self,
@@ -248,20 +269,25 @@ class ClickHouseStorage:
         Returns:
             True if successful
         """
+        if self.read_only is True:
+            logger.warning("ClickHouse write rejected: storage is configured as read_only")
+            return False
+
         try:
             if not self._is_initialized:
                 raise RuntimeError("ClickHouse storage not initialized")
 
+            validate_clickhouse_metric_name(metric_name)
             ts = timestamp or datetime.now()
             labels_json = json.dumps(labels)
 
             query = f"""  # noqa: F541
             INSERT INTO {self.database}.metrics
             (timestamp, metric_name, metric_value, labels)
-            VALUES ('{ts}', '{metric_name}', {metric_value}, '{labels_json}')
+            VALUES (?, ?, ?, ?)
             """
 
-            self._execute_query(query)
+            self._execute_query(query, params=[ts, metric_name, metric_value, labels_json])
             logger.debug(f"Stored metric: {metric_name}")  # noqa: F541
             return True
 
@@ -296,19 +322,23 @@ class ClickHouseStorage:
             if not self._is_initialized:
                 raise RuntimeError("ClickHouse storage not initialized")
 
+            if self.read_only is True:
+                logger.warning("ClickHouse write rejected: storage is configured as read_only")
+                return False
+
             ts = timestamp or datetime.now()
             metadata_json = json.dumps(metadata)
 
             query = f"""  # noqa: F541
             INSERT INTO {self.database}.anomalies
             (timestamp, anomaly_id, service, severity, description, metadata)
-            VALUES (  # noqa: E501
-                '{ts}', '{anomaly_id}', '{service}', '{severity}',  # noqa: E501
-                '{description}', '{metadata_json}'
-            )
+            VALUES (?, ?, ?, ?, ?, ?)
             """
 
-            self._execute_query(query)
+            self._execute_query(
+                query,
+                params=[ts, anomaly_id, service, severity, description, metadata_json],
+            )
             logger.debug(f"Stored anomaly: {anomaly_id}")  # noqa: F541
             return True
 
@@ -335,6 +365,10 @@ class ClickHouseStorage:
         Returns:
             True if successful
         """
+        if self.read_only is True:
+            logger.warning("ClickHouse write rejected: storage is configured as read_only")
+            return False
+
         try:
             if not self._is_initialized:
                 raise RuntimeError("ClickHouse storage not initialized")
@@ -345,10 +379,10 @@ class ClickHouseStorage:
             query = f"""  # noqa: F541
             INSERT INTO {self.database}.events
             (timestamp, event_type, source, data)
-            VALUES ('{ts}', '{event_type}', '{source}', '{data_json}')
+            VALUES (?, ?, ?, ?)
             """
 
-            self._execute_query(query)
+            self._execute_query(query, params=[ts, event_type, source, data_json])
             logger.debug(f"Stored event: {event_type}")  # noqa: F541
             return True
 
@@ -379,24 +413,54 @@ class ClickHouseStorage:
             if not self._is_initialized:
                 raise RuntimeError("ClickHouse storage not initialized")
 
-            query = f"""  # noqa: F541
-            SELECT timestamp, metric_name, metric_value, labels
-            FROM {self.database}.metrics
-            WHERE metric_name = '{metric_name}'
-            AND timestamp >= '{start_time}'
-            AND timestamp <= '{end_time}'
-            """
+            validate_clickhouse_metric_name(metric_name)
+            validate_clickhouse_identifier("metrics")
+            validate_clickhouse_identifier("metric_name")
+            validate_clickhouse_identifier("timestamp")
 
+            columns = ["timestamp", "metric_name", "metric_value", "labels"]
+            where_columns = ["metric_name", "timestamp", "timestamp"]
+            where_values: List[Any] = [metric_name, start_time, end_time]
+
+            # Additional filters with validated key names (values parameterized)
+            extra_clauses: List[str] = []
             if filters:
                 for key, value in filters.items():
-                    query += f" AND labels['{key}'] = '{value}'"  # noqa: F541
+                    validate_clickhouse_identifier(key)
+                    extra_clauses.append(f" AND labels['{key}'] = ?")
+                    where_values.append(value)
 
-            query += " ORDER BY timestamp"
+            sql, params = build_clickhouse_query(
+                table="metrics",
+                columns=columns,
+                where_columns=where_columns,
+                where_values=where_values,
+                order_by="timestamp",
+                limit=self.max_query_rows,
+            )
+            # Prepend database to table in a safe way (validated identifiers)
+            validate_clickhouse_identifier(self.database)
+            sql = sql.replace("FROM metrics", f"FROM {self.database}.metrics", 1)
+            if extra_clauses:
+                for clause in extra_clauses:
+                    sql = sql.replace(" ORDER BY", f"{clause} ORDER BY", 1)
 
-            # This would execute query and return results
-            # Placeholder implementation
-            logger.debug(f"Querying metrics: {metric_name}")  # noqa: F541
-            return []
+            cache_key = make_cache_key(
+                "clickhouse_metrics",
+                self.database,
+                metric_name,
+                start_time,
+                end_time,
+                filters,
+                self.max_query_rows,
+            )
+
+            def _run():
+                logger.debug(f"Querying metrics: {metric_name}")  # noqa: F541
+                self._execute_query(sql, params=params)
+                return []
+
+            return await cached_query(self._query_cache, cache_key, with_query_timeout(_run()))
 
         except Exception as e:
             logger.error(f"Failed to query metrics: {e}")  # noqa: F541
@@ -425,24 +489,46 @@ class ClickHouseStorage:
             if not self._is_initialized:
                 raise RuntimeError("ClickHouse storage not initialized")
 
-            query = f"""  # noqa: F541
-            SELECT timestamp, anomaly_id, service, severity, description, metadata
-            FROM {self.database}.anomalies
-            WHERE timestamp >= '{start_time}'
-            AND timestamp <= '{end_time}'
-            """
+            columns = ["timestamp", "anomaly_id", "service", "severity", "description", "metadata"]
+            where_columns = ["timestamp", "timestamp"]
+            where_values: List[Any] = [start_time, end_time]
 
             if service:
-                query += f" AND service = '{service}'"  # noqa: F541
+                validate_clickhouse_identifier("service")
+                where_columns.append("service")
+                where_values.append(service)
             if severity:
-                query += f" AND severity = '{severity}'"  # noqa: F541
+                validate_clickhouse_identifier("severity")
+                where_columns.append("severity")
+                where_values.append(severity)
 
-            query += " ORDER BY timestamp"
+            sql, params = build_clickhouse_query(
+                table="anomalies",
+                columns=columns,
+                where_columns=where_columns,
+                where_values=where_values,
+                order_by="timestamp",
+                limit=self.max_query_rows,
+            )
+            validate_clickhouse_identifier(self.database)
+            sql = sql.replace("FROM anomalies", f"FROM {self.database}.anomalies", 1)
 
-            # This would execute query and return results
-            # Placeholder implementation
-            logger.debug("Querying anomalies")
-            return []
+            cache_key = make_cache_key(
+                "clickhouse_anomalies",
+                self.database,
+                start_time,
+                end_time,
+                service,
+                severity,
+                self.max_query_rows,
+            )
+
+            def _run():
+                logger.debug("Querying anomalies")
+                self._execute_query(sql, params=params)
+                return []
+
+            return await cached_query(self._query_cache, cache_key, with_query_timeout(_run()))
 
         except Exception as e:
             logger.error(f"Failed to query anomalies: {e}")  # noqa: F541
@@ -482,17 +568,24 @@ class ClickHouseStorage:
         Returns:
             Number of rows moved
         """
+        if self.read_only is True:
+            logger.warning("ClickHouse write rejected: storage is configured as read_only")
+            return 0
+
         try:
             if not self._is_initialized:
                 raise RuntimeError("ClickHouse storage not initialized")
 
+            validate_clickhouse_identifier(table)
+            validate_clickhouse_identifier(tier)
+
             query = f"""  # noqa: F541
             ALTER TABLE {self.database}.{table}
-            UPDATE tier = '{tier}'
-            WHERE timestamp < '{before_date}'
+            UPDATE tier = ?
+            WHERE timestamp < ?
             """
 
-            self._execute_query(query)
+            self._execute_query(query, params=[tier, before_date])
             logger.info(f"Moved data to {tier} tier in table {table}")  # noqa: F541
 
             # This would return actual count

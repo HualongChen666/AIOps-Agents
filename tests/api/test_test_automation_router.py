@@ -8,15 +8,15 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.test_automation_manager"] = MagicMock()
-
 from api.test_automation_router import (
     create_automation_job,
     generate_cicd_pipeline,
     get_automation_status,
     run_automation_job,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.test_automation_manager"] = MagicMock()
 
 
 @pytest.fixture

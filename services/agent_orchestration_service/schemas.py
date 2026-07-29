@@ -60,6 +60,8 @@ class AgentRequest(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     max_tokens: int = 512
     temperature: float = 0.2
+    session_id: Optional[str] = None
+    enable_memory: bool = True
 
 
 class AgentResult(BaseModel):

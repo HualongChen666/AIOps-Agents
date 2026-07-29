@@ -8,7 +8,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-sys.modules["core.localization_adapter"] = MagicMock()
 from api.localization_adapter_router import (
     format_currency,
     format_date,
@@ -19,6 +18,8 @@ from api.localization_adapter_router import (
     get_supported_locales,
     set_current_locale,
 )
+
+sys.modules["core.localization_adapter"] = MagicMock()
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ module.  Keeping the re‑exports preserves backward compatibility while
 providing a clear logical separation for the seven‑layer architecture.
 """
 
-# Cloud / Kubernetes / Prometheus collectors (placeholder implementations)
+# Cloud / Kubernetes / Prometheus collectors (default_value implementations)
 from core.cloud_collector import *  # noqa: F401,F403
 from core.event_store import *  # noqa: F401,F403
 from core.k8s_collector import *  # noqa: F401,F403

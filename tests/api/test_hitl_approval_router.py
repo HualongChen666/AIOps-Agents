@@ -9,9 +9,13 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 sys.modules["config"] = MagicMock()
 sys.modules["config"].BASE_DIR = Path("/tmp")
+
 from api.hitl_approval_router import hitl_approval_page
+
+# isort: on
 
 
 @pytest.fixture

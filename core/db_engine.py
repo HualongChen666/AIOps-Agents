@@ -26,9 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -65,7 +66,18 @@ except ImportError:
 # Configuration – PostgreSQL connection string.
 #   * ``POSTGRES_URL`` – Full asyncpg URL, e.g.
 #       postgresql+asyncpg://user:password@host:5432/database
+#   * ``USE_SQLITE`` – Set to ``true`` to use an on-disk SQLite database
+#       for local/e2e runs (default ``false``).
 # -----------------------------------------------------------------
+
+
+def _effective_database_url() -> str:
+    """Return the active database URL."""
+    if os.getenv("USE_SQLITE", "false").lower() in ("1", "true", "yes"):
+        default_path = os.path.abspath(os.getenv("SQLITE_PATH", "aiops_e2e.db"))
+        return os.getenv("SQLITE_URL", f"sqlite+aiosqlite:///{default_path}")
+    return cast(str, POSTGRES_URL)
+
 
 # Async engine – ``future=True`` enables 2.0 style SQLAlchemy core.
 # 🔧 P0-1 Enhancement: 使用优化的连接池配置
@@ -90,16 +102,24 @@ def _ensure_engine() -> Any:
     """创建并缓存异步引擎与 session factory。"""
     global _ENGINE, _AsyncSessionLocal
     if _ENGINE is None:
-        _ENGINE = create_async_engine(
-            POSTGRES_URL,
-            echo=CONNECTION_POOL_CONFIG.get("echo", False),
-            future=CONNECTION_POOL_CONFIG.get("future", True),
-            pool_size=CONNECTION_POOL_CONFIG.get("pool_size", 20),
-            max_overflow=CONNECTION_POOL_CONFIG.get("max_overflow", 40),
-            pool_timeout=CONNECTION_POOL_CONFIG.get("pool_timeout", 30),
-            pool_recycle=CONNECTION_POOL_CONFIG.get("pool_recycle", 3600),
-            pool_pre_ping=CONNECTION_POOL_CONFIG.get("pool_pre_ping", True),
-        )
+        db_url = _effective_database_url()
+        engine_kwargs = {
+            "echo": CONNECTION_POOL_CONFIG.get("echo", False),
+            "future": CONNECTION_POOL_CONFIG.get("future", True),
+        }
+        if db_url.startswith("sqlite"):
+            engine_kwargs["pool_pre_ping"] = True
+        else:
+            engine_kwargs.update(
+                {
+                    "pool_size": CONNECTION_POOL_CONFIG.get("pool_size", 20),
+                    "max_overflow": CONNECTION_POOL_CONFIG.get("max_overflow", 40),
+                    "pool_timeout": CONNECTION_POOL_CONFIG.get("pool_timeout", 30),
+                    "pool_recycle": CONNECTION_POOL_CONFIG.get("pool_recycle", 3600),
+                    "pool_pre_ping": CONNECTION_POOL_CONFIG.get("pool_pre_ping", True),
+                }
+            )
+        _ENGINE = create_async_engine(db_url, **engine_kwargs)
         _AsyncSessionLocal = async_sessionmaker(bind=_ENGINE, expire_on_commit=False)
     return _ENGINE
 
@@ -135,7 +155,8 @@ async def async_get_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             await session.rollback()
             raise
 
@@ -151,9 +172,13 @@ async def async_init_db() -> None:
     ``main.py`` inside the lifespan event) to ensure the PostgreSQL
     schema exists.  It is idempotent – repeated calls have no effect.
     """
+    db_url = _effective_database_url()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("✅ PostgreSQL async engine initialised | URL=%s", POSTGRES_URL)
+    logger.info(
+        "✅ Async database engine initialised | driver=%s",
+        "sqlite" if db_url.startswith("sqlite") else "postgresql",
+    )
 
 
 # -----------------------------------------------------------------
@@ -451,6 +476,43 @@ async def async_get_pending_approval(alert_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+async def async_get_approval_by_alert(alert_id: str) -> Optional[Dict[str, Any]]:
+    """异步获取告警对应的最新审批记录(任意状态),用于修复执行前二次校验。"""
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(PendingApproval)
+                .where(PendingApproval.alert_id == alert_id)
+                .order_by(PendingApproval.submitted_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            approval = result.scalar_one_or_none()
+
+            if approval:
+                return {
+                    "id": approval.id,
+                    "alert_id": approval.alert_id,
+                    "alert_json": approval.alert_json,
+                    "rule_name": approval.rule_name,
+                    "script_key": approval.script_key,
+                    "proposal": approval.proposal,
+                    "status": approval.status,
+                    "risk_level": approval.risk_level,
+                    "approver": approval.approver,
+                    "approved_at": (
+                        approval.approved_at.isoformat() if approval.approved_at else None
+                    ),
+                    "submitted_at": (
+                        approval.submitted_at.isoformat() if approval.submitted_at else None
+                    ),
+                }
+            return None
+    except Exception as e:
+        logger.error(f"❌ 获取审批记录失败 | alert_id={alert_id}: {e}", exc_info=True)
+        return None
+
+
 async def async_get_all_pending_approvals() -> List[Dict[str, Any]]:
     """异步获取所有待审批记录"""
     try:
@@ -489,7 +551,7 @@ async def async_update_approval_status(
     approver: Optional[str] = None,
     rejection_reason: Optional[str] = None,
 ) -> bool:
-    """异步更新审批状态"""
+    """异步更新审批状态（按 approval_id）"""
     try:
         async with AsyncSessionLocal() as session:
             stmt = select(PendingApproval).where(PendingApproval.id == approval_id)
@@ -507,6 +569,38 @@ async def async_update_approval_status(
             return False
     except Exception as e:
         logger.error(f"❌ 更新审批状态失败 | approval_id={approval_id}: {e}", exc_info=True)
+        return False
+
+
+async def async_update_approval_status_by_alert(
+    alert_id: str,
+    status: str,
+    approver: Optional[str] = None,
+    rejection_reason: Optional[str] = None,
+) -> bool:
+    """异步更新指定告警最新的审批记录状态"""
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(PendingApproval)
+                .where(PendingApproval.alert_id == alert_id)
+                .order_by(PendingApproval.submitted_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            approval = result.scalar_one_or_none()
+
+            if approval:
+                approval.status = status  # type: ignore[assignment]
+                approval.approver = approver  # type: ignore[assignment]
+                approval.approved_at = datetime.now()  # type: ignore[assignment]
+                approval.rejection_reason = rejection_reason  # type: ignore[assignment]
+                await session.commit()
+                logger.info(f"✅ 审批状态已更新 | alert_id={alert_id} | status={status}")
+                return True
+            return False
+    except Exception as e:
+        logger.error(f"❌ 更新审批状态失败 | alert_id={alert_id}: {e}", exc_info=True)
         return False
 
 
@@ -629,11 +723,19 @@ def get_all_pending_approvals() -> list[dict[str, Any]]:
 
 
 def update_approval_status(alert_id: str, status: str) -> None:
-    """同步API包装器 - 调用异步实现"""
+    """同步API包装器 - 调用异步实现(按 approval_id)"""
     try:
         asyncio.run(async_update_approval_status(alert_id, status))
     except Exception as e:
         logger.error(f"同步update_approval_status失败: {e}")
+
+
+def update_approval_status_by_alert(alert_id: str, status: str) -> None:
+    """同步API包装器 - 按 alert_id 更新最新审批状态"""
+    try:
+        asyncio.run(async_update_approval_status_by_alert(alert_id, status))
+    except Exception as e:
+        logger.error(f"同步update_approval_status_by_alert失败: {e}")
 
 
 # 保留兼容的insert_verify_record（用于验证记录）
@@ -657,17 +759,35 @@ def db_clear_alerts() -> int:
 # Backward‑compatibility stubs (synchronous API).
 # -----------------------------------------------------------------
 def get_connection(*_, **__):  # pragma: no cover
-    raise NotImplementedError(
-        "Synchronous SQLite connection is deprecated. "
-        "Use 'async_get_session' and 'async_init_db' instead."
-    )
+    """Backward-compatible synchronous wrapper returning an ``AsyncSession``.
+
+    .. deprecated::
+        Prefer ``async_get_session`` in new code. This function returns an
+        ``AsyncSession`` instance ready to be used inside an async context.
+    """
+    try:
+        return AsyncSessionLocal()
+    except Exception as exc:
+        logger.error(f"Failed to create async session: {exc}")
+        raise
 
 
 def init_db():  # pragma: no cover
-    raise NotImplementedError(
-        "Synchronous SQLite initialisation is deprecated. "
-        "Call 'async_init_db' during application start‑up."
-    )
+    """Backward-compatible synchronous wrapper that runs ``async_init_db``.
+
+    .. deprecated::
+        Prefer ``async_init_db`` during application start-up.
+    """
+    try:
+        import asyncio
+
+        return asyncio.run(async_init_db())
+    except RuntimeError:
+        # May be called from within an existing event loop during tests.
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(async_init_db())
 
 
 # Export symbols for external importers.
@@ -718,7 +838,7 @@ def _get_alert_repository():
 
         return AlertRepository, RepoAlertStatus
     except ImportError:
-        logger.warning("AlertRepository interface not found, using placeholder")
+        logger.warning("AlertRepository interface not found, using fallback")
         return None, None
 
 
@@ -816,29 +936,29 @@ class PostgreSQLAlertRepository:
         return await async_query_alerts(limit=limit)
 
 
-# Stub DatabaseEngine class for testing compatibility
+# component DatabaseEngine class for testing compatibility
 class DatabaseEngine:
-    """Stub DatabaseEngine class for testing compatibility"""
+    """component DatabaseEngine class for testing compatibility"""
 
     def __init__(self, connection_string: str = None):
-        """Initialize DatabaseEngine stub"""
+        """Initialize DatabaseEngine component"""
         self.connection_string = connection_string
         self.connected = False
 
     async def connect(self):
-        """Connect to database stub"""
+        """Connect to database component"""
         self.connected = True
 
     async def disconnect(self):
-        """Disconnect from database stub"""
+        """Disconnect from database component"""
         self.connected = False
 
     async def execute(self, query: str, params: dict = None):
-        """Execute query stub"""
+        """Execute query component"""
         return []
 
     async def fetchall(self, query: str, params: dict = None):
-        """Fetch all results stub"""
+        """Fetch all results component"""
         return []
 
 

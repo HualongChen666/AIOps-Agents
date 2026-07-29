@@ -8,7 +8,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-sys.modules["core.i18n_manager"] = MagicMock()
 from api.i18n_router import (
     format_currency,
     format_date,
@@ -19,6 +18,8 @@ from api.i18n_router import (
     set_current_locale,
     translate,
 )
+
+sys.modules["core.i18n_manager"] = MagicMock()
 
 
 @pytest.fixture

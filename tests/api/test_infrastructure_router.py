@@ -10,6 +10,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.infrastructure_router import router
+
 # Mock problematic imports before importing router
 sys.modules["core.config_center"] = MagicMock()
 sys.modules["core.distributed_storage"] = MagicMock()
@@ -18,8 +20,6 @@ sys.modules["core.kafka_stream_processor"] = MagicMock()
 sys.modules["core.l1l2_data_flow_integrator"] = MagicMock()
 sys.modules["core.monitoring_infrastructure"] = MagicMock()
 sys.modules["core.monitoring_system_integrator"] = MagicMock()
-
-from api.infrastructure_router import router
 
 
 @pytest.fixture

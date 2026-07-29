@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Analyze coverage report and identify active vs P2/placeholder low-coverage modules."""
+"""Analyze coverage report and identify active vs P2/default_value low-coverage modules."""
 
 import re
 from pathlib import Path

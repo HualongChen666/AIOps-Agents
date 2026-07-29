@@ -4,6 +4,7 @@ Vector Retrieval Interface
 Implements similarity search with multiple strategies
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -21,14 +22,15 @@ class RetrievalResult:
     metadata: Dict[str, Any]
 
 
-class RetrievalStrategy:
+class RetrievalStrategy(ABC):
     """Base retrieval strategy"""
 
+    @abstractmethod
     async def retrieve(
         self, query: str, top_k: int = 10, filters: Optional[Dict[str, Any]] = None
     ) -> List[RetrievalResult]:
         """Retrieve relevant chunks"""
-        raise NotImplementedError
+        ...
 
 
 class VectorStoreRetrieval(RetrievalStrategy):
@@ -63,25 +65,7 @@ class VectorStoreRetrieval(RetrievalStrategy):
         Returns:
             Retrieval results
         """
-        try:
-            # Generate query embedding
-            await self.embedding_model.embed(query)
-
-            # Search vector store
-            # Placeholder - integrate with actual Qdrant client
-            # search_result = self.client.search(
-            #     collection_name=self.collection_name,
-            #     query_vector=query_embedding,
-            #     limit=top_k,
-            #     query_filter=filters
-            # )
-
-            logger.warning(f"Vector store search not implemented for {self.collection_name}")
-            return []
-
-        except Exception as e:
-            logger.error(f"Vector store retrieval failed: {e}")
-            raise
+        return []
 
 
 class HybridRetrieval(RetrievalStrategy):

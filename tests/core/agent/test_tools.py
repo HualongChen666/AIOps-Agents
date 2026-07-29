@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Unit tests for core/agent/tools.py
 
@@ -791,8 +792,8 @@ class TestToolExecutor:
         executor.execute_tool("collect_metrics", target="system")
         try:
             executor.execute_tool("failing_tool")
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
 
         stats = executor.get_execution_statistics()
         assert stats["total"] == 2

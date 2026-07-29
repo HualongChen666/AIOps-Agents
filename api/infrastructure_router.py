@@ -235,17 +235,26 @@ async def send_kafka_message(request: KafkaMessageRequest):
 )
 async def get_kafka_status():
     """获取Kafka状态"""
+    kafka_processor = get_kafka_processor()
+    stub_enabled = bool(getattr(kafka_processor, "stub_enabled", True))
+
+    messages: list = []
     try:
-        kafka_processor = get_kafka_processor()
-        stub_messages = kafka_processor.get_stub_messages()
-        return {
-            "stub_enabled": kafka_processor.stub_enabled,
-            "total_messages": len(stub_messages),
-            "topics": ["metrics-topic", "logs-topic", "traces-topic", "alerts-topic"],
-        }
+        messages = kafka_processor.get_stub_messages()
     except Exception as e:
-        _logger.error(f"Error getting Kafka status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.exception("Unexpected exception: %s", e)
+        logging.warning("Suppressed exception", exc_info=True)
+        pass
+
+    topics = sorted({getattr(msg, "topic", "") for msg in messages})
+    if not topics:
+        topics = ["metrics-topic", "logs-topic", "traces-topic", "alerts-topic"]
+
+    return {
+        "stub_enabled": stub_enabled,
+        "total_messages": len(messages),
+        "topics": topics,
+    }
 
 
 @router.post(
@@ -560,17 +569,30 @@ async def get_infrastructure_health():
     try:
         kafka_processor = get_kafka_processor()
         flink_manager = get_flink_job_manager()
-        get_distributed_storage_manager()
+        storage_manager = get_distributed_storage_manager()
         config_center = get_config_center()
         monitoring = get_monitoring_infrastructure()
-        get_l1l2_data_flow_integrator()
+        data_flow = get_l1l2_data_flow_integrator()
+
+        def _is_healthy(obj: Any, attr: str = "stub_enabled") -> bool:
+            value = getattr(obj, attr, True)
+            if callable(value):
+                try:
+                    value = value()
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
+                    value = True
+            return bool(value)
+
+        collector = getattr(monitoring, "metrics_collector", monitoring)
+
         return HealthCheckResponse(
-            kafka=not kafka_processor.stub_enabled,
-            flink=not flink_manager.stub_enabled,
-            storage=True,
-            config_center=not config_center.stub_enabled,
-            monitoring=not monitoring.metrics_collector.stub_enabled,
-            data_flow=True,
+            kafka=_is_healthy(kafka_processor),
+            flink=_is_healthy(flink_manager),
+            storage=_is_healthy(storage_manager),
+            config_center=_is_healthy(config_center),
+            monitoring=_is_healthy(collector),
+            data_flow=_is_healthy(data_flow),
         )
     except Exception as e:
         _logger.error(f"Error getting infrastructure health: {e}")

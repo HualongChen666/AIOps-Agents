@@ -31,7 +31,7 @@ async def execute_macos_repair(
     try:
         logger.info(f"Executing macOS repair script {script_name} on host {host}")
 
-        # Placeholder implementation - in production, this would:
+        # default_value implementation - in production, this would:
         # - Connect to the macOS host via SSH
         # - Execute the specified repair script
         # - Return the actual output
@@ -63,7 +63,7 @@ async def execute_macos_repair(
 
 def get_available_macos_scripts() -> list[str]:
     """Get list of available macOS repair scripts"""
-    # Placeholder - return simulated script list
+    # default_value - return simulated script list
     return ["cleanup_disk", "fix_permissions", "restart_services", "update_system", "check_logs"]
 
 

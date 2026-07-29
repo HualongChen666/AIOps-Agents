@@ -342,7 +342,7 @@ class TestGraphToDictEdgeCases:
             from core.topology_engine import build_topology_graph, graph_to_dict
 
             # Create large graph
-            alerts = [{"source": f"Node{i}", "target": f"Node{i+1}"} for i in range(100)]
+            alerts = [{"source": f"Node{i}", "target": f"Node{i + 1}"} for i in range(100)]
             graph = build_topology_graph(alerts)
             result = graph_to_dict(graph)
 

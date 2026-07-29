@@ -485,7 +485,7 @@ class TestStubFunctions:
 
     @pytest.mark.asyncio
     async def test_send_email_notification(self):
-        """测试发送邮件通知（stub）"""
+        """测试发送邮件通知（component）"""
         try:
             from core.notify_engine import send_email_notification
 
@@ -497,7 +497,7 @@ class TestStubFunctions:
             pytest.skip(f"Cannot test send email notification: {e}")
 
     def test_get_notification_history(self):
-        """测试获取通知历史（stub）"""
+        """测试获取通知历史（component）"""
         try:
             from core.notify_engine import get_notification_history
 
@@ -746,7 +746,7 @@ class TestSendWecom:
 
     @pytest.mark.asyncio
     async def test_send_wecom_stub(self):
-        """测试企业微信推送（stub）"""
+        """测试企业微信推送（component）"""
         try:
             from core.notify_engine import _send_wecom
 
@@ -769,7 +769,7 @@ class TestSendDingtalk:
 
     @pytest.mark.asyncio
     async def test_send_dingtalk_stub(self):
-        """测试钉钉推送（stub）"""
+        """测试钉钉推送（component）"""
         try:
             from core.notify_engine import _send_dingtalk
 
@@ -792,7 +792,7 @@ class TestSendFeishu:
 
     @pytest.mark.asyncio
     async def test_send_feishu_stub(self):
-        """测试飞书推送（stub）"""
+        """测试飞书推送（component）"""
         try:
             from core.notify_engine import _send_feishu
 

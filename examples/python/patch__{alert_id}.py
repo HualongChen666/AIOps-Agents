@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import requests
+
 YOUR_ALERT_ID = ""
 alert_id = "YOUR_ALERT_ID"
-import requests
 
 # 示例：PATCH /{alert_id}
 # 使用 PATCH 方法请求 /{alert_id}

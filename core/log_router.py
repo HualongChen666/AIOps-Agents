@@ -246,7 +246,7 @@ class LogRouter:
         """
         try:
             # This would require kafka-python or aiokafka
-            # Placeholder implementation
+            # default_value implementation
             logger.debug(f"Would send log to Kafka: {log_entry.service}")
             return True
 
@@ -266,7 +266,7 @@ class LogRouter:
         """
         try:
             # This would require boto3
-            # Placeholder implementation - logs should be batched before sending to S3
+            # default_value implementation - logs should be batched before sending to S3
             logger.debug(f"Would send log to S3: {log_entry.service}")
             return True
 

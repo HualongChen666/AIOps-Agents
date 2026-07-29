@@ -363,8 +363,29 @@ class AutoHealOperator:
         try:
             pod_name = task["resource_name"]
 
-            # 策略1: 删除Pod让Deployment重新创建
+            # 策略1前: 先检查 Pod 是否属于 StatefulSet 或挂载 PVC
             assert self._k8s_client is not None
+            pod = self._k8s_client.read_namespaced_pod(name=pod_name, namespace=self.namespace)
+            owner_kind = ""
+            for ref in pod.metadata.owner_references or []:
+                if getattr(ref, "controller", False):
+                    owner_kind = getattr(ref, "kind", "")
+                    break
+            has_pvc = any(
+                bool(getattr(vol, "persistent_volume_claim", None))
+                for vol in (pod.spec.volumes or [])
+            )
+            if owner_kind == "StatefulSet" or has_pvc:
+                logger.warning(
+                    "Refusing to heal stateful/PVC pod %s (owner=%s, has_pvc=%s)",
+                    pod_name,
+                    owner_kind,
+                    has_pvc,
+                )
+                task["error"] = f"Stateful/PVC pod {pod_name} not eligible for auto-heal"
+                return False
+
+            # 策略1: 删除Pod让Deployment重新创建
             self._k8s_client.delete_namespaced_pod(
                 name=pod_name, namespace=self.namespace, body=client.V1DeleteOptions()
             )

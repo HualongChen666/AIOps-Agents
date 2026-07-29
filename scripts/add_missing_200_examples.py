@@ -7,7 +7,7 @@ openapi_path = pathlib.Path(r"C:\AIOps_Agent_bak\openapi.yaml")
 openapi = yaml.safe_load(openapi_path.read_text(encoding="utf-8"))
 
 
-# Define placeholder examples for missing endpoints
+# Define default_value examples for missing endpoints
 def placeholder(example_type="generic"):
     if example_type == "anomaly":
         return {

@@ -4,19 +4,21 @@ Context Fusion Strategies
 Imelligent context combination for RAG
 """
 
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
 from .retriever import RetrievalResult
 
 
-class FusionStrategy:
+class FusionStrategy(ABC):
     """Base fusion strategy"""
 
+    @abstractmethod
     def fuse(
         self, query: str, results: List[RetrievalResult], max_context_length: int = 4000
     ) -> str:
         """Fuse retrieval results into context"""
-        raise NotImplementedError
+        ...
 
 
 class ConcatenationFusion(FusionStrategy):
@@ -115,3 +117,16 @@ class RAGPipeline:
                 for r in results
             ],
         }
+
+    async def retrieve_and_generate(
+        self, query: str, top_k: int = 5, max_context_length: int = 4000
+    ) -> str:
+        """Retrieve relevant context and return the fused context string.
+
+        This helper exposes the RAG pipeline as a single async call that returns
+        the generated context, which is consumed by ``core.ai_engine``.
+        """
+        result = await self.query(
+            query=query, top_k=top_k, rerank=True, max_context_length=max_context_length
+        )
+        return str(result.get("context", ""))

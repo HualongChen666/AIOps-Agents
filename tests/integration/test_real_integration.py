@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 # tests/integration/test_real_integration.py
 # 真实集成测试 - 使用真实数据库、缓存、HTTP客户端
+import logging
 import os
 import sys
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.integration
@@ -420,8 +420,8 @@ class TestPerformanceIntegration:
             try:
                 info = await test_redis_client.info("memory")
                 assert info is not None
-            except Exception:
-                pass
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
             await test_redis_client.flushall()
         else:
             # Mock doesn't support memory info, just verify calls

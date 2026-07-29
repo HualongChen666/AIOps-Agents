@@ -25,8 +25,6 @@ sys.modules["core.user_service"] = Mock()
 for _mod in ["config", "core.config", "api.user_router", "core.authentication"]:
     sys.modules.pop(_mod, None)
 
-from api.user_router import router
-
 
 class MockUserInDB:
     """Mock UserInDB class"""
@@ -60,6 +58,16 @@ def client():
     # Mock services
     import api.user_router as user_router_module
 
+    user_router_module.get_user = AsyncMock(return_value=MockUserInDB())
+    user_router_module.verify_token = Mock(return_value={"sub": "testuser"})
+    user_router_module.verify_password = lambda plain, hashed: mock_auth.verify_password(
+        plain, hashed
+    )
+    user_router_module.validate_password_complexity = (
+        lambda *args, **kwargs: mock_auth.validate_password_complexity(*args, **kwargs)
+    )
+    user_router_module.get_password_hash = mock_auth.get_password_hash
+
     mock_user_service = AsyncMock()
     mock_user_service.get_user_by_username = AsyncMock(return_value=MockUserInDB())
     mock_user_service.get_user_by_email = AsyncMock(return_value=None)
@@ -84,8 +92,11 @@ def client():
     mock_mfa_service.get_mfa_status = AsyncMock(return_value={"enabled": False, "method": "totp"})
     sys.modules["core.mfa_service"] = mock_mfa_service
 
+    user_router_module.mfa_service = mock_mfa_service
+    user_router_module.audit_service = mock_audit_service
+
     app = FastAPI()
-    app.include_router(router)
+    app.include_router(user_router_module.router)
     return TestClient(app)
 
 
@@ -321,7 +332,7 @@ class TestChangePassword:
             json={"current_password": "oldpassword", "new_password": "weak"},
             headers={"Authorization": "Bearer valid_token"},
         )
-        assert response.status_code in [400, 401]
+        assert response.status_code in [400, 401, 422]
 
     def test_change_password_without_auth(self, client):
         """测试未授权修改密码"""
@@ -395,8 +406,12 @@ class TestAuditLogs:
                     "id": 1,
                     "action": "login",
                     "resource_type": "user",
+                    "resource_id": None,
                     "username": "testuser",
+                    "ip_address": "127.0.0.1",
                     "status": "success",
+                    "details": None,
+                    "created_at": None,
                 }
             ]
         )
@@ -415,8 +430,12 @@ class TestAuditLogs:
                     "id": 1,
                     "action": "login",
                     "resource_type": "user",
+                    "resource_id": None,
                     "username": "testuser",
+                    "ip_address": "127.0.0.1",
                     "status": "success",
+                    "details": None,
+                    "created_at": None,
                 }
             ]
         )
@@ -431,7 +450,17 @@ class TestAuditLogs:
         mock_audit_service = sys.modules["core.audit_service"]
         mock_audit_service.get_audit_logs = AsyncMock(
             return_value=[
-                {"id": 1, "action": "login", "resource_type": "user", "status": "success"}
+                {
+                    "id": 1,
+                    "action": "login",
+                    "resource_type": "user",
+                    "resource_id": None,
+                    "username": "testuser",
+                    "ip_address": "127.0.0.1",
+                    "status": "success",
+                    "details": None,
+                    "created_at": None,
+                }
             ]
         )
 

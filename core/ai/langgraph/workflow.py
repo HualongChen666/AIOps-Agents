@@ -4,6 +4,7 @@ LangGraph Workflow State Machine
 Implements state machine for AI workflow orchestration
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
@@ -50,16 +51,17 @@ class WorkflowContext:
 
 
 @dataclass
-class WorkflowNode:
+class WorkflowNode(ABC):
     """Base workflow node"""
 
     name: str
     node_type: str = "base"
     config: Dict[str, Any] = field(default_factory=dict)
 
+    @abstractmethod
     async def execute(self, context: WorkflowContext) -> Any:
         """Execute node logic"""
-        raise NotImplementedError
+        ...
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert node to dictionary"""

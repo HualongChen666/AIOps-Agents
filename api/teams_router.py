@@ -7,6 +7,7 @@
 - POST /api/teams/events           -> Teams 连接器回调（占位）
 """
 
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,6 +15,7 @@ from loguru import logger as _logger
 from pydantic import BaseModel, Field
 
 from core.authentication import get_current_active_user
+from core.chat_command_handler import handle_instruction
 from core.teams_adapter import post_interactive_message, post_message
 
 router = APIRouter(prefix="/api/teams", tags=["Microsoft Teams Integration"])
@@ -66,8 +68,17 @@ class TeamsInteractiveRequest(BaseModel):
                 "title": "Alert Acknowledgment",
                 "description": "High CPU on server-01. Please acknowledge.",
                 "actions": [
-                    {"title": "Acknowledge", "type": "Action.Submit", "action": "ack", "value": "ok"},
-                    {"title": "Open Dashboard", "type": "Action.OpenUrl", "url": "http://localhost:3000"},
+                    {
+                        "title": "Acknowledge",
+                        "type": "Action.Submit",
+                        "action": "ack",
+                        "value": "ok",
+                    },
+                    {
+                        "title": "Open Dashboard",
+                        "type": "Action.OpenUrl",
+                        "url": "http://localhost:3000",
+                    },
                 ],
                 "channel": "General",
                 "color": "ff0000",
@@ -143,7 +154,7 @@ async def send_teams_interactive_message(
 
 @router.post(
     "/events",
-    summary="Microsoft Teams 连接器回调",
+    summary="Microsoft Teams 连接器回调（支持工程师回复/按钮交互）",
     responses={
         200: {"description": "接收成功"},
         401: {"description": "未授权"},
@@ -151,6 +162,34 @@ async def send_teams_interactive_message(
     },
 )
 async def teams_events_callback(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """接收 Teams 连接器 / Power Automate 回传的 JSON 载荷（占位实现）"""
+    """接收 Teams 连接器 / Power Automate 回传的 JSON 载荷,解析工程师命令/按钮"""
     _logger.info(f"Received Teams callback payload with keys: {list(payload.keys())}")
+
+    # 处理 Adaptive Card 按钮提交
+    action_data = payload.get("value") or payload.get("action") or {}
+    if action_data:
+        action_type = str(action_data.get("action", "")).lower()
+        value = action_data.get("value", "")
+        if action_type == "approve":
+            return {"success": True, "action": {"type": "approve", "target": value}}
+        if action_type == "reject":
+            return {"success": True, "action": {"type": "reject", "target": value}}
+
+    # 处理普通文本消息
+    text = str(payload.get("text", payload.get("message", ""))).strip()
+    user_id = str(payload.get("from", payload.get("user_id", "")))
+    channel = str(payload.get("channel", payload.get("conversation", "")))
+    if text:
+        # 去除 @bot 提及
+        text = re.sub(r"<at>[^<]*</at>", "", text).strip()
+        parsed = handle_instruction(
+            text,
+            user_id=user_id,
+            user_name=user_id,
+            channel=f"teams:{channel}",
+            verified=True,
+        )
+        _logger.info(f"Teams command parsed: {parsed}")
+        return {"success": True, "action": parsed}
+
     return {"success": True, "message": "Callback received", "data": {}}

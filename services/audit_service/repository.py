@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -19,51 +20,51 @@ from services.audit_service.schemas import (
 )
 
 
-class AuditRepository:
+class AuditRepository(ABC):
     """Abstract audit repository."""
 
-    async def save_event(self, event: AuditEvent) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save_event(self, event: AuditEvent) -> str: ...
 
-    async def get_event(self, event_id: str) -> Optional[AuditEvent]:
-        raise NotImplementedError
+    @abstractmethod
+    async def get_event(self, event_id: str) -> Optional[AuditEvent]: ...
 
+    @abstractmethod
     async def list_events(
         self,
         tenant_id: Optional[str] = None,
         limit: int = 100,
-    ) -> List[AuditEvent]:
-        raise NotImplementedError
+    ) -> List[AuditEvent]: ...
 
-    async def save_log(self, log: OperationLog) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save_log(self, log: OperationLog) -> str: ...
 
-    async def list_logs(self, event_id: str) -> List[OperationLog]:
-        raise NotImplementedError
+    @abstractmethod
+    async def list_logs(self, event_id: str) -> List[OperationLog]: ...
 
-    async def save_report(self, report: AuditReport) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save_report(self, report: AuditReport) -> str: ...
 
-    async def list_reports(self, tenant_id: str, limit: int = 100) -> List[AuditReport]:
-        raise NotImplementedError
+    @abstractmethod
+    async def list_reports(self, tenant_id: str, limit: int = 100) -> List[AuditReport]: ...
 
-    async def save_blob(self, blob: EncryptedBlob) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save_blob(self, blob: EncryptedBlob) -> str: ...
 
-    async def get_blob(self, blob_id: str) -> Optional[EncryptedBlob]:
-        raise NotImplementedError
+    @abstractmethod
+    async def get_blob(self, blob_id: str) -> Optional[EncryptedBlob]: ...
 
-    async def save_policy(self, policy: RetentionPolicy) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save_policy(self, policy: RetentionPolicy) -> str: ...
 
-    async def get_policy(self, tenant_id: str) -> Optional[RetentionPolicy]:
-        raise NotImplementedError
+    @abstractmethod
+    async def get_policy(self, tenant_id: str) -> Optional[RetentionPolicy]: ...
 
-    async def save_saga(self, saga: SagaTransaction) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save_saga(self, saga: SagaTransaction) -> str: ...
 
-    async def get_saga(self, saga_id: str) -> Optional[SagaTransaction]:
-        raise NotImplementedError
+    @abstractmethod
+    async def get_saga(self, saga_id: str) -> Optional[SagaTransaction]: ...
 
 
 class InMemoryAuditRepository(AuditRepository):

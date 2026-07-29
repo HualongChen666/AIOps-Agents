@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 L6 Execution Layer - Fault Tolerant Executor (Phase 2)
 Enhanced execution engine with comprehensive fault tolerance and recovery mechanisms
@@ -136,7 +137,8 @@ class CircuitBreaker:
 
                 return result
 
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 self._record_failure()
                 raise
 

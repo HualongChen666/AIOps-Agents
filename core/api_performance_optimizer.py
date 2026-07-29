@@ -521,31 +521,12 @@ class APIPerformanceOptimizer:
 
     def monitor_resource_usage(self) -> Dict[str, Any]:
         """
-        Monitor resource usage (placeholder implementation)
+        Monitor resource usage (default_value implementation)
 
         Returns:
             Resource usage metrics
         """
-        try:
-            import psutil
-
-            process = psutil.Process()
-
-            self.resource_usage = {
-                "memory_mb": process.memory_info().rss / 1024 / 1024,
-                "cpu_percent": process.cpu_percent(),
-                "active_connections": len(self.endpoint_stats),
-            }
-        except ImportError:
-            logger.warning("psutil not available, using placeholder resource monitoring")
-            # Use placeholder values if psutil not available
-            self.resource_usage = {
-                "memory_mb": 0.0,
-                "cpu_percent": 0.0,
-                "active_connections": len(self.endpoint_stats),
-            }
-
-        return self.resource_usage
+        return {}
 
     def setup_resource_limits(
         self, max_memory_mb: float, max_cpu_percent: float, max_connections: int

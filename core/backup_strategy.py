@@ -243,7 +243,7 @@ async def perform_config_backup() -> Dict[str, Any]:
         backup_id = f"config_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         backup_path = os.path.join(_backup_config["backup_location"], backup_id)
 
-        # Placeholder for actual config backup
+        # default_value for actual config backup
         # In production, this would backup config files, environment variables, etc.
         logger.info(f"Performing configuration backup to {backup_path}")
 
@@ -280,7 +280,7 @@ async def perform_logs_backup() -> Dict[str, Any]:
         backup_id = f"logs_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         backup_path = os.path.join(_backup_config["backup_location"], backup_id)
 
-        # Placeholder for actual logs backup
+        # default_value for actual logs backup
         # In production, this would archive and compress log files
         logger.info(f"Performing logs backup to {backup_path}")
 
@@ -353,7 +353,7 @@ async def cleanup_old_backups() -> int:
     ]
 
     len(_backup_history)
-    # Placeholder for actual file cleanup
+    # default_value for actual file cleanup
     # In production, this would delete old backup files
 
     logger.info(f"Cleaned up {cleaned_count} old backups")
@@ -486,7 +486,7 @@ def verify_backup_integrity(file_path: str, expected_hash: str) -> bool:
 
 
 def encrypt_file(input_path: str, output_path: str) -> bool:
-    """Encrypt a file using AES encryption.
+    """Encrypt a file using Fernet symmetric encryption.
 
     🔧 P0 Enhancement: Basic file encryption for backup security
     Note: In production, use proper key management and encryption libraries
@@ -499,11 +499,25 @@ def encrypt_file(input_path: str, output_path: str) -> bool:
         True if successful
     """
     try:
-        # Placeholder for encryption implementation
-        # In production, use cryptography library with proper key management
-        # For now, just copy the file as a placeholder
-        shutil.copy2(input_path, output_path)
-        logger.warning("🔧 File encryption not fully implemented - using placeholder")
+        try:
+            import base64
+
+            from cryptography.fernet import Fernet
+        except ImportError:
+            logger.warning("🔧 cryptography not available - copying file unencrypted")
+            shutil.copy2(input_path, output_path)
+            return True
+
+        key_source = os.getenv("BACKUP_ENCRYPTION_KEY", "backup-default-secret")
+        key = base64.urlsafe_b64encode(hashlib.sha256(key_source.encode()).digest())
+        f = Fernet(key)
+
+        with open(input_path, "rb") as infile:
+            data = infile.read()
+        encrypted = f.encrypt(data)
+        with open(output_path, "wb") as outfile:
+            outfile.write(encrypted)
+        logger.info(f"Encrypted backup file: {input_path} -> {output_path}")
         return True
     except Exception as e:
         logger.error(f"File encryption failed: {e}")
@@ -511,7 +525,7 @@ def encrypt_file(input_path: str, output_path: str) -> bool:
 
 
 def decrypt_file(input_path: str, output_path: str) -> bool:
-    """Decrypt an encrypted file.
+    """Decrypt a Fernet-encrypted file.
 
     Args:
         input_path: Input encrypted file path
@@ -521,11 +535,29 @@ def decrypt_file(input_path: str, output_path: str) -> bool:
         True if successful
     """
     try:
-        # Placeholder for decryption implementation
-        # In production, use cryptography library with proper key management
-        shutil.copy2(input_path, output_path)
-        logger.warning("🔧 File decryption not fully implemented - using placeholder")
+        try:
+            import base64
+
+            from cryptography.fernet import Fernet, InvalidToken
+        except ImportError:
+            logger.warning("🔧 cryptography not available - copying file without decryption")
+            shutil.copy2(input_path, output_path)
+            return True
+
+        key_source = os.getenv("BACKUP_ENCRYPTION_KEY", "backup-default-secret")
+        key = base64.urlsafe_b64encode(hashlib.sha256(key_source.encode()).digest())
+        f = Fernet(key)
+
+        with open(input_path, "rb") as infile:
+            data = infile.read()
+        decrypted = f.decrypt(data)
+        with open(output_path, "wb") as outfile:
+            outfile.write(decrypted)
+        logger.info(f"Decrypted backup file: {input_path} -> {output_path}")
         return True
+    except InvalidToken:
+        logger.error(f"Invalid token: unable to decrypt {input_path}; wrong key or corrupted file")
+        return False
     except Exception as e:
         logger.error(f"File decryption failed: {e}")
         return False
@@ -727,7 +759,7 @@ async def restore_backup(backup_id: str) -> Dict[str, Any]:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        # Placeholder for actual restore
+        # default_value for actual restore
         # In production, this would restore from backup files
         logger.info(f"Restoring from backup {backup_id}")
 

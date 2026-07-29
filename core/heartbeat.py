@@ -44,14 +44,18 @@ try:
         "Service liveness metric – 1=up, 0=down",
         ["service"],
     )
-except Exception:  # pragma: no cover
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
     # 在极端缺少依赖的环境下提供 dummy 对象，防止 import 错误。
     class _DummyGauge:
         def labels(self, *_, **__):
             return self
 
         def set(self, *_, **__):
-            pass
+            import logging
+
+            logging.getLogger(__name__).info(f"{__name__}.set invoked")
+            return None
 
     _heartbeat_gauge = _DummyGauge()  # type: ignore[assignment]
 
@@ -78,7 +82,8 @@ class _HeartBeat:
             # 将 gauge 设为 1，Prometheus 抓取时即可看到该值。
             try:
                 _heartbeat_gauge.labels(service=_SERVICE_NAME).set(1)
-            except Exception:  # pragma: no cover
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 任何异常不应导致循环退出。
                 logger.debug("Heartbeat gauge update failed, continuing", exc_info=True)
             try:

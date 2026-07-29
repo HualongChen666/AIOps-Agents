@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """Smoke tests for top missing-coverage core modules.
 
 Reuses the safe dummy-argument helpers from test_low_coverage_method_smoke.py
@@ -7,13 +8,11 @@ and targets the active core modules with the most uncovered statements.
 
 import inspect
 from types import ModuleType
-from typing import Any, Callable, Dict
 
 import pytest
 
 from tests.core.test_low_coverage_method_smoke import (
     ACTIVE_MODULES,
-    _call_or_run,
     _generate_args,
     _is_long_running_method,
     _is_public,
@@ -61,7 +60,6 @@ TOP_MISSING_MODULES = [
 ]
 
 
-
 @pytest.mark.parametrize("module_name", TOP_MISSING_MODULES)
 def test_top_missing_module_method_smoke(module_name: str) -> None:
     import importlib
@@ -90,7 +88,8 @@ def test_top_missing_module_method_smoke(module_name: str) -> None:
                 if kwargs is None:
                     continue
                 instance = obj(**kwargs)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 continue
 
             for method_name, method in inspect.getmembers(instance):

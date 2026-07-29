@@ -31,7 +31,7 @@ try:
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
-    # Create stub types for when ML is not available
+    # Create component types for when ML is not available
     TfidfVectorizer = Any  # type: ignore
     DBSCAN = Any  # type: ignore
     cosine_similarity = Any  # type: ignore

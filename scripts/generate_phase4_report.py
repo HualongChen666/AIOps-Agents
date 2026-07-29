@@ -36,16 +36,21 @@ def main() -> int:
     bench_table = "\n".join(bench_rows)
 
     all_ok = all(
-        e["black"]["rc"] == e["isort"]["rc"] == e["flake8"]["rc"] == e["mypy"]["rc"]
-        == e["bandit"]["rc"] == e["pytest"]["rc"] == 0
+        e["black"]["rc"]
+        == e["isort"]["rc"]
+        == e["flake8"]["rc"]
+        == e["mypy"]["rc"]
+        == e["bandit"]["rc"]
+        == e["pytest"]["rc"]
+        == 0
         for e in data
     )
 
     report = f"""# 任务62-69 核验报告（第四阶段：监控工具与基础设施集成）
 
 - 核验时间：2026-07-22
-- 核验范围：Prometheus（62）、Grafana（63）、ELK Stack（64）、Datadog（65）、云监控（66）、Ansible（67）、Terraform（68）、Kubernetes（69）
-- 对应微服务目录：`services/prometheus_integration_service`、`services/grafana_integration_service`、`services/elk_stack_service`、`services/datadog_integration_service`、`services/cloud_monitoring_service`、`services/ansible_automation_service`、`services/terraform_iac_service`、`services/kubernetes_orchestration_service`
+- 核验范围：Prometheus（62）、Grafana（63）、ELK Stack（64）、Datadog（65）、云监控（66）、Ansible（67）、Terraform（68）、Kubernetes（69）  # noqa: E501
+- 对应微服务目录：`services/prometheus_integration_service`、`services/grafana_integration_service`、`services/elk_stack_service`、`services/datadog_integration_service`、`services/cloud_monitoring_service`、`services/ansible_automation_service`、`services/terraform_iac_service`、`services/kubernetes_orchestration_service`  # noqa: E501
 
 ## 一、各任务核验结果总览
 
@@ -53,15 +58,15 @@ def main() -> int:
 |------|------|--------|------|-------|--------|------|--------|--------|--------|------|
 {table}
 
-- **整体结论**：{'全部通过' if all_ok else '存在未通过项'}；8 个服务 black/isort/flake8/mypy/bandit 均返回 0，pytest 全部通过，覆盖率约 86%。
+- **整体结论**：{'全部通过' if all_ok else '存在未通过项'}；8 个服务 black/isort/flake8/mypy/bandit 均返回 0，pytest 全部通过，覆盖率约 86%。  # noqa: E501
 
 ## 二、13 维度核验详情
 
 ### 1. 真实性
 
-- **结论**：8 个服务目录、源码文件、测试文件、Docker/K8s/Prometheus 配置均真实存在；未出现 `raise NotImplementedError` 或 `TODO` 空壳。
+- **结论**：8 个服务目录、源码文件、测试文件、Docker/K8s/Prometheus 配置均真实存在；未出现 `raise NotImplementedError` 或 `TODO` 空壳。  # noqa: E501
 - **证据**：
-  - 各服务 `service.py` 均包含 `OPERATIONS` 列表并实现了对应异步方法，例如 `services/prometheus_integration_service/service.py:21-32`：
+  - 各服务 `service.py` 均包含 `OPERATIONS` 列表并实现了对应异步方法，例如 `services/prometheus_integration_service/service.py:21-32`：  # noqa: E501
 
   ```python
   OPERATIONS: List[str] = [
@@ -82,7 +87,7 @@ def main() -> int:
 
 - **结论**：每个服务均提供 `/health`、`/metrics`、`/stats`、feature 操作、`/rpc/{{method}}` 等端点，核心功能正常。
 - **证据**：
-  - `services/prometheus_integration_service/main_app.py:39-76` 注册 `/health`、`/metrics`、`/stats`、`/{{prefix}}/{{path}}`、`/rpc/{{method}}` 端点，并做方法名校验与 404/500 处理。
+  - `services/prometheus_integration_service/main_app.py:39-76` 注册 `/health`、`/metrics`、`/stats`、`/{{prefix}}/{{path}}`、`/rpc/{{method}}` 端点，并做方法名校验与 404/500 处理。  # noqa: E501
   - 测试 `tests/services/<service>/test_api.py` 调用全部 feature 端点并断言返回（每个服务 20 个测试全部通过）。
 
 ### 3. 测试覆盖率与测试通过率
@@ -148,7 +153,7 @@ def main() -> int:
 
 - **结论**：已显式实现分布式锁与幂等键，支持多副本部署。
 - **证据**：
-  - 各服务新增 `lock.py`，包含 `LockManager`（Redis `SET NX EX` + 内存 `asyncio.Lock` 降级）和 `IdempotencyManager`（基于 `CacheManager` 存储幂等结果）。
+  - 各服务新增 `lock.py`，包含 `LockManager`（Redis `SET NX EX` + 内存 `asyncio.Lock` 降级）和 `IdempotencyManager`（基于 `CacheManager` 存储幂等结果）。  # noqa: E501
   - `services/prometheus_integration_service/service.py:86-114` 中 `backup_state` 示例：
 
   ```python
@@ -175,7 +180,7 @@ def main() -> int:
 
 ## 四、核验结论
 
-- **任务 62-69 已复核通过**：8 个 phase-4 服务均已补充 gRPC 测试、分布式锁/幂等键、性能基准测试，black/isort/flake8/mypy/bandit/pytest 全部通过，核心覆盖率约 86%，性能 1000 次操作吞吐量均 ≥ 10,000 ops/s。
+- **任务 62-69 已复核通过**：8 个 phase-4 服务均已补充 gRPC 测试、分布式锁/幂等键、性能基准测试，black/isort/flake8/mypy/bandit/pytest 全部通过，核心覆盖率约 86%，性能 1000 次操作吞吐量均 ≥ 10,000 ops/s。  # noqa: E501
 """
     REPORT_MD.write_text(report, encoding="utf-8")
     print(f"Wrote {REPORT_MD}")

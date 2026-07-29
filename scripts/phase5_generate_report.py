@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import logging
 """Generate Phase-5 (tasks 70-78) verification report in Chinese."""
 
 import json
@@ -27,7 +28,7 @@ SERVICES = [
 
 def run_coverage_report(svc: str) -> tuple[str, str]:
     data_file = f".coverage_phase5_{svc}"
-    rc_file = ROOT / "temp" / f"coverage_{svc}.ini"
+    ROOT / "temp" / f"coverage_{svc}.ini"
     # Force per-service include to keep core/api files from polluting the report.
     report_rc_file = ROOT / "temp" / f"coverage_report_{svc}.ini"
     report_rc_file.write_text(
@@ -37,9 +38,11 @@ def run_coverage_report(svc: str) -> tuple[str, str]:
         encoding="utf-8",
     )
     cmd = [
-        str(ROOT / ".venv" / "Scripts" / "python.exe")
-        if (ROOT / ".venv" / "Scripts" / "python.exe").exists()
-        else "python",
+        (
+            str(ROOT / ".venv" / "Scripts" / "python.exe")
+            if (ROOT / ".venv" / "Scripts" / "python.exe").exists()
+            else "python"
+        ),
         "-m",
         "coverage",
         "report",
@@ -81,7 +84,8 @@ def extract_operations(svc: str) -> list[str]:
     try:
         ops = json.loads(match.group(1).replace("'", '"'))
         return ops
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         return []
 
 
@@ -142,13 +146,13 @@ def write_report(rows: list[dict]) -> None:
     lines = [
         "# Phase 5（任务 70-78）企业级功能微服务核验报告",
         "",
-        f"- 生成时间：自动",
-        f"- 数据来源：`temp/phase5_remaining.json`、`pytest`、`coverage`",
+        "- 生成时间：自动",
+        "- 数据来源：`temp/phase5_remaining.json`、`pytest`、`coverage`",
         "",
         "## 总体结论",
         "",
         "| 任务 | 微服务 | pytest | 用例数 | 失败 | 覆盖率 | black | isort | flake8 | mypy | bandit |",
-        "|------|--------|--------|--------|------|--------|-------|-------|--------|------|--------|",
+        "|------|--------|--------|--------|------|--------|-------|-------|--------|------|--------|",  # noqa: E501
     ]
     total_pass = 0
     all_pass = True
@@ -157,26 +161,51 @@ def write_report(rows: list[dict]) -> None:
         if r["pytest_rc"] != 0:
             all_pass = False
         total_pass += r["passed"]
-        fmt = lambda rc: "通过" if rc == 0 else "失败" if rc is not None else "未执行"
+
+        def fmt(rc):
+            return "通过" if rc == 0 else "失败" if rc is not None else "未执行"
+
         lines.append(
-            f"| {r['task']} | {r['service']} | {pytest_status} | {r['passed']} | {r['failed']} | {r['coverage']} | "
-            f"{fmt(r['black_rc'])} | {fmt(r['isort_rc'])} | {fmt(r['flake8_rc'])} | {fmt(r['mypy_rc'])} | {fmt(r['bandit_rc'])} |"
+            f"| {
+                r['task']} | {
+                r['service']} | {pytest_status} | {
+                r['passed']} | {
+                r['failed']} | {
+                    r['coverage']} | "
+            f"{fmt(r['black_rc'])} | {fmt(r['isort_rc'])} | {fmt(r['flake8_rc'])} | {fmt(r['mypy_rc'])} | {fmt(r['bandit_rc'])} |"  # noqa: E501
         )
     lines += [
         "",
         f"- **合计通过用例**：{total_pass} passed",
-        f"- **质量工具链**：black / isort / flake8 / mypy / bandit 全部通过" if all_pass else "- **质量工具链**：存在失败项",
-        "- **验收状态**：任务 70-78 已完成并核验通过" if all_pass else "- **验收状态**：部分任务未通过",
+        (
+            "- **质量工具链**：black / isort / flake8 / mypy / bandit 全部通过"
+            if all_pass
+            else "- **质量工具链**：存在失败项"
+        ),
+        (
+            "- **验收状态**：任务 70-78 已完成并核验通过"
+            if all_pass
+            else "- **验收状态**：部分任务未通过"
+        ),
         "",
     ]
 
     # per-task 13-dimension detail
     dimensions = [
         ("1. 需求对应", "service.py 中 OPERATIONS 列表直接映射任务子项"),
-        ("2. 目录结构", "services/<service>/ 包含 service.py、main_app.py、config.py、cache.py、metrics.py、retry.py、schemas.py、test 目录"),
+        (
+            "2. 目录结构",
+            "services/<service>/ 包含 service.py、main_app.py、config.py、cache.py、metrics.py、retry.py、schemas.py、test 目录",  # noqa: E501
+        ),
         ("3. 核心实现", "service.py 中 Service 类为各功能提供 async 方法"),
-        ("4. FastAPI 接口", "main_app.py 提供 /health、/metrics、/stats、/rpc/<method>、/<feature> 端点"),
-        ("5. 状态管理", "BASE_METHODS get_state / backup_state / restore_state / get_stats / list_methods"),
+        (
+            "4. FastAPI 接口",
+            "main_app.py 提供 /health、/metrics、/stats、/rpc/<method>、/<feature> 端点",
+        ),
+        (
+            "5. 状态管理",
+            "BASE_METHODS get_state / backup_state / restore_state / get_stats / list_methods",
+        ),
         ("6. 单元测试", "tests/services/<service>/test_core.py、test_api.py、test_coverage.py"),
         ("7. 测试覆盖率", "pytest --cov 输出 TOTAL 行"),
         ("8. 代码格式化", "black --check"),
@@ -201,12 +230,19 @@ def write_report(rows: list[dict]) -> None:
             "### 13 维度核验",
             "",
         ]
-        fmt = lambda rc: "通过" if rc == 0 else "失败" if rc is not None else "未执行"
+
+        def fmt(rc):
+            return "通过" if rc == 0 else "失败" if rc is not None else "未执行"
+
         for dim_name, evidence in dimensions:
             if "覆盖率" in dim_name:
                 evidence = f"`{r['coverage_line']}`"
             elif "单元测试" in dim_name:
-                evidence = f"pytest rc={r['pytest_rc']}, PASSED={r['passed']}, FAILED={r['failed']}" if r["pytest_rc"] is not None else evidence
+                evidence = (
+                    f"pytest rc={r['pytest_rc']}, PASSED={r['passed']}, FAILED={r['failed']}"
+                    if r["pytest_rc"] is not None
+                    else evidence
+                )
             elif "格式化" in dim_name:
                 evidence = f"black rc={r['black_rc']} — {fmt(r['black_rc'])}"
             elif "导入排序" in dim_name:
@@ -230,7 +266,12 @@ def write_report(rows: list[dict]) -> None:
     for r in rows:
         summary.append(
             f"{r['task']} {r['service']}: {r['passed']} passed, coverage {r['coverage']}, "
-            f"black={r['black_rc']} isort={r['isort_rc']} flake8={r['flake8_rc']} mypy={r['mypy_rc']} bandit={r['bandit_rc']}"
+            f"black={
+                r['black_rc']} isort={
+                r['isort_rc']} flake8={
+                r['flake8_rc']} mypy={
+                r['mypy_rc']} bandit={
+                    r['bandit_rc']}"
         )
     SUMMARY_TXT.write_text("\n".join(summary), encoding="utf-8")
 

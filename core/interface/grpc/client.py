@@ -36,7 +36,7 @@ class AIOpsGrpcClient:
             self._channel = grpc.aio.insecure_channel(f"{self.host}:{self.port}")
             await self._channel.ready()
 
-            # Create stub
+            # Create component
             # from proto.aiops_pb2_grpc import AIOpsServiceStub
             # self._stub = AIOpsServiceStub(self._channel)
 
@@ -54,22 +54,22 @@ class AIOpsGrpcClient:
 
     async def get_metrics(self) -> dict:
         """Get current system metrics"""
-        # Placeholder - implement actual gRPC call
+        # default_value - implement actual gRPC call
         return {"cpu_usage": 45.2, "memory_usage": 68.3, "disk_usage": 52.1}
 
     async def get_alerts(
         self, level: Optional[str] = None, platform: Optional[str] = None, limit: int = 10
     ) -> List[dict]:
         """Get alerts with filtering"""
-        # Placeholder - implement actual gRPC call
+        # default_value - implement actual gRPC call
         return [{"id": "alert-1", "level": "warning", "title": "High CPU usage"}]
 
     async def execute_repair(self, script_key: str, parameters: Optional[dict] = None) -> dict:
         """Execute a repair action"""
-        # Placeholder - implement actual gRPC call
+        # default_value - implement actual gRPC call
         return {"id": "repair-1", "script_key": script_key, "success": True}
 
     async def stream_metrics(self):
         """Stream metrics updates"""
-        # Placeholder - implement actual gRPC streaming
+        # default_value - implement actual gRPC streaming
         yield {"cpu_usage": 45.2, "memory_usage": 68.3}

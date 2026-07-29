@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """测试数据库查询优化模块"""
 
 import pytest
@@ -150,7 +151,8 @@ class TestOptimizeDatabaseQueries:
                 result = await optimize_database_queries()
                 # 函数应该返回一个字典
                 assert isinstance(result, dict)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 

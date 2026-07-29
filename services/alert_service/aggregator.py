@@ -29,23 +29,22 @@ class TimeWindowAggregator:
     def __init__(
         self,
         window_seconds: int = 300,
-        mode: str = "sliding",
+        mode: str = "tumbling",
         signature_fields: Optional[tuple] = None,
     ) -> None:
         self.window_seconds = window_seconds
         self.mode = mode
+        # Root-cause aggregation: group by incident type, not by individual host.
         self.signature_fields = signature_fields or (
-            "level",
             "category",
             "alert_type",
-            "host",
             "metric",
         )
         self._sliding: Dict[str, List[_WindowEntry]] = {}
         self._tumbling: Dict[str, Dict[int, List[Alert]]] = {}
 
     def _signature(self, alert: Alert) -> str:
-        return "|".join(str(getattr(alert, f, "") or "") for f in self.signature_fields)
+        return "|".join(str(getattr(alert, f, "") or "").lower() for f in self.signature_fields)
 
     def add(self, alert: Alert) -> List[Alert]:
         if self.mode == "tumbling":

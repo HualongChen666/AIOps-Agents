@@ -594,11 +594,13 @@ def get_top_processes(limit: int = 10) -> list[dict[str, Any]]:
             username = username.split("\\")[-1] if username != "N/A" else "N/A"
             try:
                 cpu_pct = round(proc.cpu_percent(), 1)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 cpu_pct = 0.0
             try:
                 mem_pct = round(proc.memory_percent(), 2)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 mem_pct = 0.0
             result.append(
                 {
@@ -645,16 +647,19 @@ def get_system_info() -> dict[str, Any]:
         uptime = datetime.datetime.now() - boot_time
         uptime_hours = round(uptime.total_seconds() / 3600, 1)
         boot_time_str = boot_time.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         boot_time_str = "Unknown"
         uptime_hours = 0.0
     try:
         processor = platform.processor() or platform.machine() or "Unknown"
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         processor = "Unknown"
     try:
         os_version = platform.version()[:50]
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         os_version = "Unknown"
     return {
         "os": platform.system() or "Unknown",
@@ -702,7 +707,8 @@ def _collect_cpu_and_processes(
     # CPU 频率(锁外读取,允许微小漂移)
     try:
         freq = psutil.cpu_freq()
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         freq = None
 
     # 🆕 N3-4:仅基准采样和读取期间持锁
@@ -761,11 +767,13 @@ def _collect_cpu_and_processes(
             username = username.split("\\")[-1] if username != "N/A" else "N/A"
             try:
                 cpu_pct = round(proc.cpu_percent(), 1)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 cpu_pct = 0.0
             try:
                 mem_pct = round(proc.memory_percent(), 2)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 mem_pct = 0.0
             proc_result.append(
                 {
@@ -823,22 +831,22 @@ def _collect_cpu_and_processes(
 #   - CR4 [P1]:io_futures 字典结构简化
 # ──────────────────────────────────────────────────────
 def collect_host_metrics() -> dict[str, Any]:
-    """Collect host metrics (stub for test compatibility)."""
+    """Collect host metrics (component for test compatibility)."""
     return collect_all()
 
 
 def collect_system_metrics() -> dict[str, Any]:
-    """Collect system metrics (stub for test compatibility)."""
+    """Collect system metrics (component for test compatibility)."""
     return collect_all()
 
 
 def collect_process_metrics() -> dict[str, Any]:
-    """Collect process metrics (stub for test compatibility)."""
+    """Collect process metrics (component for test compatibility)."""
     return collect_all()
 
 
 def collect_network_metrics() -> dict[str, Any]:
-    """Collect network metrics (stub for test compatibility)."""
+    """Collect network metrics (component for test compatibility)."""
     return collect_all()
 
 

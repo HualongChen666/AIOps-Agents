@@ -369,6 +369,109 @@ class ServiceMeshManager:
             logger.error(f"Error exporting configuration: {e}")
             raise
 
+    def generate_sidecar_injection_config(
+        self,
+        service_name: str,
+        namespace: str = "default",
+        port: int = 8080,
+        protocol: str = "http",
+    ) -> Dict[str, Any]:
+        """Generate Istio sidecar injection configuration for a service.
+
+        Produces a Sidecar CR that limits the egress listeners to the AIOps
+        service mesh, reducing memory footprint and providing explicit
+        sidecar configuration.
+
+        Args:
+            service_name: Name of the workload.
+            namespace: Kubernetes namespace.
+            port: Main application port.
+            protocol: Port protocol (http, grpc, tcp).
+
+        Returns:
+            Istio Sidecar resource as a dictionary.
+        """
+        sidecar = {
+            "apiVersion": "networking.istio.io/v1beta1",
+            "kind": "Sidecar",
+            "metadata": {"name": f"{service_name}-sidecar", "namespace": namespace},
+            "spec": {
+                "workloadSelector": {"labels": {"app": service_name}},
+                "egress": [
+                    {
+                        "hosts": [
+                            f"{namespace}/*",
+                            "istio-system/*",
+                        ],
+                        "port": {
+                            "number": port,
+                            "protocol": protocol.upper(),
+                            "name": f"{protocol}-{port}",
+                        },
+                    }
+                ],
+            },
+        }
+        logger.info(f"Generated sidecar injection config for {service_name}")
+        return sidecar
+
+    def inject_sidecar_to_deployment(
+        self,
+        deployment: Dict[str, Any],
+        sidecar_image: str = "istio/proxyv2:1.20.0",
+        hold_application_until_proxy_starts: bool = True,
+    ) -> Dict[str, Any]:
+        """Inject Istio sidecar container and pod annotations into a Deployment.
+
+        This mutates the supplied Deployment manifest in-place and returns it.
+        The injected sidecar uses the standard istio-proxy container with a
+        shared volume for Istio sockets.
+
+        Args:
+            deployment: Kubernetes Deployment manifest (dict).
+            sidecar_image: Istio proxy image to use.
+            hold_application_until_proxy_starts: If True, add the Istio
+                `holdApplicationUntilProxyStarts` annotation.
+
+        Returns:
+            The modified Deployment manifest.
+        """
+        template = deployment.setdefault("spec", {}).setdefault("template", {})
+        metadata = template.setdefault("metadata", {})
+        annotations = metadata.setdefault("annotations", {})
+        annotations["sidecar.istio.io/inject"] = "true"
+        if hold_application_until_proxy_starts:
+            annotations["proxy.istio.io/config"] = json.dumps(
+                {"holdApplicationUntilProxyStarts": True}
+            )
+
+        containers = template.setdefault("spec", {}).setdefault("containers", [])
+        if any(c.get("name") == "istio-proxy" for c in containers):
+            return deployment
+
+        containers.append(
+            {
+                "name": "istio-proxy",
+                "image": sidecar_image,
+                "args": ["proxy", "sidecar"],
+                "env": [
+                    {"name": "ISTIO_META_INTERCEPTION_MODE", "value": "REDIRECT"},
+                    {"name": "ISTIO_META_WORKLOAD_NAME", "value": deployment["metadata"]["name"]},
+                ],
+                "volumeMounts": [{"name": "istio-envoy", "mountPath": "/etc/istio/proxy"}],
+                "securityContext": {"runAsUser": 1337, "allowPrivilegeEscalation": False},
+            }
+        )
+
+        volumes = template["spec"].setdefault("volumes", [])
+        if not any(v.get("name") == "istio-envoy" for v in volumes):
+            volumes.append({"name": "istio-envoy", "emptyDir": {}})
+
+        logger.info(
+            f"Injected istio-proxy sidecar into deployment {deployment['metadata']['name']}"
+        )
+        return deployment
+
     def validate_config(self, config: Dict[str, Any]) -> bool:
         """
         Validate configuration

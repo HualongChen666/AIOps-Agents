@@ -1,3 +1,4 @@
+import logging
 """Verify project tasks 31-41 (services layer) across 13 dimensions."""
 
 import json
@@ -90,7 +91,8 @@ def gather_file_facts(svc: str) -> dict:
         facts["python_files"] += 1
         try:
             text = py.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             continue
         # crude counts; ignore docstrings and type stubs by counting raw occurrences
         facts["pass_lines"] += text.count("pass")

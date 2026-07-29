@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """测试数据库优化模块"""
 
 import pytest
@@ -296,7 +297,8 @@ class TestAsyncOptimizationFunctions:
                 result = await create_performance_indexes()
                 # 函数应该返回一个字典
                 assert isinstance(result, dict)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 
@@ -317,7 +319,8 @@ class TestAsyncOptimizationFunctions:
                 result = await analyze_query_performance()
                 # 函数应该返回一个字典
                 assert isinstance(result, dict)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 
@@ -338,7 +341,8 @@ class TestAsyncOptimizationFunctions:
                 result = await update_database_statistics()
                 # 函数应该返回一个字典
                 assert isinstance(result, dict)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 
@@ -359,7 +363,8 @@ class TestAsyncOptimizationFunctions:
                 result = await get_missing_indexes_suggestions()
                 # 函数应该返回一个列表
                 assert isinstance(result, list)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 
@@ -380,7 +385,8 @@ class TestAsyncOptimizationFunctions:
                 result = await optimize_database_configuration()
                 # 函数应该返回一个字典
                 assert isinstance(result, dict)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 可能会因为其他依赖失败，这是预期的
                 pass
 
@@ -411,7 +417,8 @@ class TestAsyncOptimizationFunctions:
                                 # 函数应该返回一个字典
                                 assert isinstance(result, dict)
                                 assert "steps" in result
-                            except Exception:
+                            except Exception as e:
+                                logging.exception("Unexpected exception: %s", e)
                                 # 可能会因为其他依赖失败，这是预期的
                                 pass
 
@@ -463,7 +470,7 @@ class TestStubFunctions:
         assert callable(suggest_optimizations)
 
     def test_clear_slow_queries_stub(self):
-        """测试clear_slow_queries stub"""
+        """测试clear_slow_queries component"""
         from core.db_optimization import clear_slow_queries
 
         result = clear_slow_queries()
@@ -471,7 +478,7 @@ class TestStubFunctions:
         assert "status" in result
 
     def test_configure_db_optimization_stub(self):
-        """测试configure_db_optimization stub"""
+        """测试configure_db_optimization component"""
         from core.db_optimization import configure_db_optimization
 
         result = configure_db_optimization({"enabled": True})
@@ -479,112 +486,112 @@ class TestStubFunctions:
         assert "status" in result
 
     def test_get_connection_pool_config_stub(self):
-        """测试get_connection_pool_config stub"""
+        """测试get_connection_pool_config component"""
         from core.db_optimization import get_connection_pool_config
 
         result = get_connection_pool_config()
         assert isinstance(result, dict)
 
     def test_get_connection_pool_statistics_stub(self):
-        """测试get_connection_pool_statistics stub"""
+        """测试get_connection_pool_statistics component"""
         from core.db_optimization import get_connection_pool_statistics
 
         result = get_connection_pool_statistics()
         assert isinstance(result, dict)
 
     def test_get_db_optimization_config_stub(self):
-        """测试get_db_optimization_config stub"""
+        """测试get_db_optimization_config component"""
         from core.db_optimization import get_db_optimization_config
 
         result = get_db_optimization_config()
         assert isinstance(result, dict)
 
     def test_get_performance_summary_stub(self):
-        """测试get_performance_summary stub"""
+        """测试get_performance_summary component"""
         from core.db_optimization import get_performance_summary
 
         result = get_performance_summary()
         assert isinstance(result, dict)
 
     def test_get_query_cache_config_stub(self):
-        """测试get_query_cache_config stub"""
+        """测试get_query_cache_config component"""
         from core.db_optimization import get_query_cache_config
 
         result = get_query_cache_config()
         assert isinstance(result, dict)
 
     def test_get_query_cache_statistics_stub(self):
-        """测试get_query_cache_statistics stub"""
+        """测试get_query_cache_statistics component"""
         from core.db_optimization import get_query_cache_statistics
 
         result = get_query_cache_statistics()
         assert isinstance(result, dict)
 
     def test_get_slow_queries_stub(self):
-        """测试get_slow_queries stub"""
+        """测试get_slow_queries component"""
         from core.db_optimization import get_slow_queries
 
         result = get_slow_queries()
         assert isinstance(result, list)
 
     def test_is_db_optimization_enabled_stub(self):
-        """测试is_db_optimization_enabled stub"""
+        """测试is_db_optimization_enabled component"""
         from core.db_optimization import is_db_optimization_enabled
 
         result = is_db_optimization_enabled()
         assert isinstance(result, bool)
 
     def test_reset_query_cache_stub(self):
-        """测试reset_query_cache stub"""
+        """测试reset_query_cache component"""
         from core.db_optimization import reset_query_cache
 
         result = reset_query_cache()
         assert isinstance(result, dict)
 
     def test_update_query_cache_config_stub(self):
-        """测试update_query_cache_config stub"""
+        """测试update_query_cache_config component"""
         from core.db_optimization import update_query_cache_config
 
         result = update_query_cache_config({"enabled": True})
         assert isinstance(result, dict)
 
     def test_record_connection_pool_usage_stub(self):
-        """测试record_connection_pool_usage stub"""
+        """测试record_connection_pool_usage component"""
         from core.db_optimization import record_connection_pool_usage
 
         result = record_connection_pool_usage(10, 5)
         assert isinstance(result, dict)
 
     def test_record_query_cache_hit_stub(self):
-        """测试record_query_cache_hit stub"""
+        """测试record_query_cache_hit component"""
         from core.db_optimization import record_query_cache_hit
 
         result = record_query_cache_hit("SELECT * FROM users")
         assert isinstance(result, dict)
 
     def test_record_query_cache_miss_stub(self):
-        """测试record_query_cache_miss stub"""
+        """测试record_query_cache_miss component"""
         from core.db_optimization import record_query_cache_miss
 
         result = record_query_cache_miss("SELECT * FROM users")
         assert isinstance(result, dict)
 
     def test_record_slow_query_stub(self):
-        """测试record_slow_query stub"""
+        """测试record_slow_query component"""
         from core.db_optimization import record_slow_query
 
         result = record_slow_query("SELECT * FROM users", 1000.0)
         assert isinstance(result, dict)
 
     def test_reset_query_cache_statistics_stub(self):
-        """测试reset_query_cache_statistics stub"""
+        """测试reset_query_cache_statistics component"""
         from core.db_optimization import reset_query_cache_statistics
 
         result = reset_query_cache_statistics()
         assert isinstance(result, dict)
 
     def test_suggest_optimizations_stub(self):
-        """测试suggest_optimizations stub"""
+        """测试suggest_optimizations component"""
         from core.db_optimization import suggest_optimizations
 
         result = suggest_optimizations()

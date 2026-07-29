@@ -34,7 +34,7 @@ class TestConfigDataClasses:
 
 
 class TestConsulConfigCenter:
-    """测试 ConsulConfigCenter（stub 模式）"""
+    """测试 ConsulConfigCenter（component 模式）"""
 
     def test_init_uses_stub(self):
         center = ConsulConfigCenter()
@@ -98,12 +98,12 @@ class TestConsulConfigCenter:
 
     def test_watch_config_stub(self, caplog):
         center = ConsulConfigCenter()
-        # Should not raise in stub mode
+        # Should not raise in component mode
         center.watch_config("key", lambda v: None)
 
 
 class TestServiceDiscovery:
-    """测试服务发现（stub 模式）"""
+    """测试服务发现（component 模式）"""
 
     def test_register_and_discover_service(self):
         center = ConsulConfigCenter()

@@ -29,7 +29,7 @@ class TestAlertRouterEnhanced:
 
     def test_get_alerts_default_limit(self):
         """测试使用默认限制获取告警"""
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             mock_get.return_value = {
                 "alerts": [
                     {"id": 1, "title": "CPU High", "severity": "critical"},
@@ -47,7 +47,7 @@ class TestAlertRouterEnhanced:
 
     def test_get_alerts_custom_limit(self):
         """测试使用自定义限制获取告警"""
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             mock_get.return_value = {
                 "alerts": [{"id": i, "title": f"Alert {i}"} for i in range(10)],
                 "total": 10,
@@ -74,7 +74,7 @@ class TestAlertRouterEnhanced:
 
     def test_get_alerts_empty_result(self):
         """测试空告警列表"""
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             mock_get.return_value = {"alerts": [], "total": 0}
 
             response = client.get("/api/v1/alerts/")
@@ -86,7 +86,7 @@ class TestAlertRouterEnhanced:
 
     def test_get_alerts_service_error(self):
         """测试告警服务错误处理"""
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             # 模拟服务返回错误响应而不是抛出异常
             mock_get.return_value = {"error": "Service unavailable", "status": "error"}
 
@@ -97,7 +97,7 @@ class TestAlertRouterEnhanced:
 
     def test_clear_alerts_success(self):
         """测试成功清空告警"""
-        with patch("core.alert_service.alert_service.clear_alerts") as mock_clear:
+        with patch("api.alert_router.alert_service.clear_alerts") as mock_clear:
             mock_clear.return_value = {
                 "success": True,
                 "cleared_count": 100,
@@ -113,7 +113,7 @@ class TestAlertRouterEnhanced:
 
     def test_clear_alerts_with_authentication(self):
         """测试需要认证的清空操作"""
-        with patch("core.alert_service.alert_service.clear_alerts") as mock_clear:
+        with patch("api.alert_router.alert_service.clear_alerts") as mock_clear:
             mock_clear.return_value = {"success": True, "cleared_count": 50}
 
             # 模拟远程IP请求
@@ -124,7 +124,7 @@ class TestAlertRouterEnhanced:
 
     def test_clear_alerts_error_handling(self):
         """测试清空告警错误处理"""
-        with patch("core.alert_service.alert_service.clear_alerts") as mock_clear:
+        with patch("api.alert_router.alert_service.clear_alerts") as mock_clear:
             # 模拟服务返回错误响应而不是抛出异常
             mock_clear.return_value = {"error": "Clear operation failed", "success": False}
 
@@ -135,7 +135,7 @@ class TestAlertRouterEnhanced:
 
     def test_clear_alerts_empty_database(self):
         """测试清空空数据库"""
-        with patch("core.alert_service.alert_service.clear_alerts") as mock_clear:
+        with patch("api.alert_router.alert_service.clear_alerts") as mock_clear:
             mock_clear.return_value = {
                 "success": True,
                 "cleared_count": 0,
@@ -150,7 +150,7 @@ class TestAlertRouterEnhanced:
 
     def test_alerts_pagination(self):
         """测试告警分页"""
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             # 模拟分页数据
             mock_get.return_value = {
                 "alerts": [{"id": i, "title": f"Alert {i}"} for i in range(1, 21)],
@@ -167,7 +167,7 @@ class TestAlertRouterEnhanced:
 
     def test_alerts_filtering(self):
         """测试告警过滤"""
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             # 模拟过滤结果
             mock_get.return_value = {
                 "alerts": [
@@ -184,7 +184,7 @@ class TestAlertRouterEnhanced:
 
     def test_alerts_response_format(self):
         """测试告警响应格式"""
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             mock_get.return_value = {
                 "alerts": [
                     {
@@ -221,13 +221,13 @@ class TestAlertRouterIntegration:
     def test_alert_lifecycle(self):
         """测试告警完整生命周期"""
         # 1. 获取告警列表
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             mock_get.return_value = {"alerts": [], "total": 0}
             response = client.get("/api/v1/alerts/")
             assert response.status_code == 200
 
         # 2. 清空告警
-        with patch("core.alert_service.alert_service.clear_alerts") as mock_clear:
+        with patch("api.alert_router.alert_service.clear_alerts") as mock_clear:
             mock_clear.return_value = {"success": True, "cleared_count": 0}
             response = client.delete("/api/v1/alerts/")
             assert response.status_code in [200, 401, 403]
@@ -238,7 +238,7 @@ class TestAlertRouterIntegration:
         results = []
 
         def make_request():
-            with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+            with patch("api.alert_router.alert_service.get_alerts") as mock_get:
                 mock_get.return_value = {"alerts": [], "total": 0}
                 response = client.get("/api/v1/alerts/")
                 results.append(response.status_code)
@@ -259,7 +259,7 @@ class TestAlertRouterSecurity:
 
     def test_clear_alerts_security_logging(self):
         """测试清空告警安全日志记录"""
-        with patch("core.alert_service.alert_service.clear_alerts") as mock_clear:
+        with patch("api.alert_router.alert_service.clear_alerts") as mock_clear:
             mock_clear.return_value = {
                 "success": True,
                 "cleared_count": 10,
@@ -278,7 +278,7 @@ class TestAlertRouterSecurity:
         # 发送多个快速请求
         responses = []
 
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             mock_get.return_value = {"alerts": [], "total": 0}
 
             for _ in range(10):
@@ -297,7 +297,7 @@ class TestAlertRouterPerformance:
     def test_get_alerts_performance(self):
         """测试获取告警性能"""
 
-        with patch("core.alert_service.alert_service.get_alerts") as mock_get:
+        with patch("api.alert_router.alert_service.get_alerts") as mock_get:
             # 模拟大量告警
             mock_get.return_value = {
                 "alerts": [{"id": i, "title": f"Alert {i}"} for i in range(1000)],
@@ -317,7 +317,7 @@ class TestAlertRouterPerformance:
     def test_clear_alerts_performance(self):
         """测试清空告警性能"""
 
-        with patch("core.alert_service.alert_service.clear_alerts") as mock_clear:
+        with patch("api.alert_router.alert_service.clear_alerts") as mock_clear:
             mock_clear.return_value = {"success": True, "cleared_count": 10000}
 
             start_time = time.time()

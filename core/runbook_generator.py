@@ -95,6 +95,7 @@
 #         同时修复 \" 转义字符串中括号深度计算可能错误的边界 case
 # ──────────────────────────────────────────────────────────────
 
+import hashlib
 import json
 import logging
 import re
@@ -103,12 +104,63 @@ from typing import Any, Optional  # 🔧 REV1 [P0]:补全 Optional 导入
 from config import VERIFY_CONFIG  # 🌟 N+2 自学习
 
 # 🆕 LFV5:复用 ai_engine 中初始化的 observe 装饰器
-from core.ai_engine import analyze, observe
+from core.ai_engine import RUNBOOK_SYSTEM_PROMPT, analyze, observe
 from core.command_guard import RiskLevel, analyze_command
 from core.db_engine import upsert_pending_approval
 from core.rag_engine import search_similar
 
 logger = logging.getLogger(__name__)
+
+# Red-team: PII redaction and prompt-injection moderation helpers
+try:
+    from core.data_privacy import anonymize_dict as _anonymize_dict
+    from core.data_privacy import anonymize_text as _anonymize_text
+
+    DATA_PRIVACY_AVAILABLE = True
+    anonymize_text = _anonymize_text
+    anonymize_dict = _anonymize_dict
+except ImportError:
+    DATA_PRIVACY_AVAILABLE = False
+
+    def anonymize_text(x):
+        return x  # type: ignore[assignment]
+
+    def anonymize_dict(x):
+        return x  # type: ignore[assignment]
+
+
+def _redact_text(text: Any) -> str:
+    if not isinstance(text, str):
+        text = str(text)
+    return str(anonymize_text(text))
+
+
+def _redact_value(value: Any) -> Any:
+    return anonymize_dict(value)
+
+
+try:
+    from core.audit_logger import log_audit_event as _log_audit_event
+
+    AUDIT_AVAILABLE = True
+    log_audit_event = _log_audit_event
+except ImportError:
+    AUDIT_AVAILABLE = False
+    log_audit_event = None  # type: ignore[assignment]
+
+
+def _default_moderate_content(*args: Any, **kwargs: Any) -> tuple[bool, list]:
+    return (True, [])
+
+
+try:
+    from core.content_moderation import moderate_content as _moderate_content
+
+    MODERATION_AVAILABLE = True
+    moderate_content = _moderate_content
+except ImportError:
+    MODERATION_AVAILABLE = False
+    moderate_content = _default_moderate_content
 
 
 # ============================================================
@@ -116,10 +168,12 @@ logger = logging.getLogger(__name__)
 # 🔧 Review 修复 3+5+6:明确要求 JSON only,不允许任何前后缀文字
 # ============================================================
 RUNBOOK_PROMPT_TEMPLATE = """请根据以下故障信息,生成一个**严格 JSON 格式**的修复方案。
+--- BEGIN USER INPUT ---
 【故障告警】
 {alert_desc}
 【系统快照】
 {metrics_snapshot}
+--- END USER INPUT ---
 【目标平台】{platform}
 【输出要求 — 必须严格遵守】
 1. 只输出一个完整的 JSON 对象,不要任何其他文字、不要 markdown 代码块标记
@@ -229,8 +283,16 @@ async def generate_repair_runbook(
     if platform not in ("windows", "linux"):
         platform = "windows"  # 兜底
 
+    # 必须提供 id,否则拒绝生成方案
+    raw_id = alert.get("id")
+    if raw_id is None or (isinstance(raw_id, str) and not raw_id.strip()):
+        return {
+            "success": False,
+            "error": "alert.id 不能为空",
+        }
+
     # 🔧 Review 修复 8:alert_id 强制转为字符串,避免 SQLite 类型问题
-    alert_id = str(alert.get("id") or f"AI-{platform}-NOID")
+    alert_id = str(raw_id)
     if not alert_id.strip():
         return {
             "success": False,
@@ -253,13 +315,15 @@ async def generate_repair_runbook(
     # ════════════════════════════════════════════════════════
 
     # ── 1. 构造 prompt ──
-    alert_desc = (
+    alert_desc_raw = (
         f"【级别】{alert.get('level', 'info')}\n"
         f"【标题】{alert.get('title', '')}\n"
         f"【详情】{alert.get('desc', '')}\n"
         f"【指标】{alert.get('metric', '')}={alert.get('value', 0)}"
     )
-    metrics_snapshot = _build_metrics_snapshot(rich_context)
+    # 🔧 S5: 对即将进入 prompt / 审计 / 数据库的告警描述做 PII 脱敏
+    alert_desc = _redact_text(alert_desc_raw)
+    metrics_snapshot = _redact_value(_build_metrics_snapshot(rich_context))
 
     # 🔧 REV4 [P1]:用 "\n" 显式分隔模板与历史经验段,防粘连
     # ---------- RAG 相似案例增强 ----------
@@ -267,11 +331,12 @@ async def generate_repair_runbook(
     if VERIFY_CONFIG.get("self_learning_enabled", True):
         try:
             # 使用告警描述作为查询文本，检索相似历史 Runbook
-            similar_results = search_similar(alert_desc, top_k=3)
+            redacted_search_query = _redact_text(alert_desc_raw)
+            similar_results = search_similar(redacted_search_query, top_k=3)
             if similar_results:
                 examples = []
                 for res in similar_results:
-                    payload = res.get("payload", {})
+                    payload = _redact_value(res.get("payload", {}))
                     summary = payload.get("summary", "")
                     cmds = payload.get("commands", [])
                     cmd_str = ", ".join(cmds) if isinstance(cmds, list) else str(cmds)
@@ -280,6 +345,7 @@ async def generate_repair_runbook(
                     similar_examples_prompt = f"\n【相似历史案例】\n{'\n'.join(examples)}\n"
         except Exception as e:
             logger.warning(f"RAG 相似案例查询异常(不影响主流程): {e}")
+
     prompt = (
         RUNBOOK_PROMPT_TEMPLATE.format(
             alert_desc=alert_desc,
@@ -287,21 +353,33 @@ async def generate_repair_runbook(
             platform=platform.upper(),
         )
         + "\n"
-        + similar_examples_prompt
-        + history_prompt_section
+        + _redact_text(similar_examples_prompt)
+        + _redact_text(history_prompt_section)
     )
+
+    # 🔧 S4: 在把 prompt 交给 LLM 前再做一层本地提示注入/违规内容检测
+    if MODERATION_AVAILABLE and moderate_content:
+        allowed, reasons = moderate_content(prompt)
+        if not allowed:
+            logger.warning(f"Runbook prompt 内容安全拦截: {reasons}")
+            return {
+                "success": False,
+                "alert_id": alert_id,
+                "error": f"Prompt content violation: {reasons}",
+            }
 
     logger.info(f"AI Runbook 生成开始 | alert_id={alert_id} | platform={platform}")
 
     # ── 2. 调用 LLM(走 ai_engine,自动享受规则降级)──
-    # 🔧 Review 修复 5:把 prompt 作为 query 传入,
-    #                  而非覆盖 ai_engine 的 SYSTEM_PROMPT
+    # 使用 RUNBOOK_SYSTEM_PROMPT 覆盖默认 SYSTEM_PROMPT,并跳过根因 JSON schema 校验
     try:
         raw_output = await analyze(
             query=prompt,
             metrics_snapshot=metrics_snapshot,
             platform=platform,
             rich_context=rich_context,
+            system_prompt=RUNBOOK_SYSTEM_PROMPT,
+            validate_json=False,
         )
     except Exception as e:
         logger.error(f"AI Runbook 生成异常: {e}", exc_info=True)
@@ -396,8 +474,10 @@ async def generate_repair_runbook(
         }
 
     # ── 7. 写入审批队列(db_engine 持久化)──
-    proposal_text = json.dumps(runbook, ensure_ascii=False, indent=2)
-    alert_json = json.dumps(alert, ensure_ascii=False)
+    # 🔧 S5: 持久化前对原始告警与方案做 PII 脱敏,避免把敏感信息写入 SQLite
+    proposal_text = json.dumps(_redact_value(runbook), ensure_ascii=False, indent=2)
+    alert_json = json.dumps(_redact_value(alert), ensure_ascii=False)
+    prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
     try:
         upsert_pending_approval(
             alert_id=alert_id,
@@ -429,6 +509,26 @@ async def generate_repair_runbook(
         f"needs_approval={needs_approval} | "
         f"commands_count={len(commands)}"
     )
+
+    # 🔧 O11: 记录 Runbook 生成/审批审计事件
+    if AUDIT_AVAILABLE and log_audit_event:
+        try:
+            log_audit_event(
+                event_type="RUNBOOK_GENERATED",
+                user="system",
+                resource=alert_id,
+                action="generate_repair_runbook",
+                status="success",
+                details={
+                    "prompt_hash": prompt_hash[:16],
+                    "worst_risk": worst_risk.value,
+                    "needs_approval": needs_approval,
+                    "command_count": len(commands),
+                    "runbook_summary": _redact_text(runbook.get("summary", "")),
+                },
+            )
+        except Exception as audit_err:
+            logger.warning(f"Runbook audit log failed: {audit_err}")
 
     return {
         "success": True,

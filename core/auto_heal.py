@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import platform
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -33,9 +34,22 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from core.ai_engine import analyze
+from core.command_guard import RiskLevel
+
+try:
+    from core.content_moderation import sanitize_for_llm
+except ImportError:
+
+    def sanitize_for_llm(text, *, max_length=2000, delimiter="---"):  # type: ignore[misc]
+        if not isinstance(text, str):
+            text = str(text)
+        return text[:max_length]
+
 
 # 项目内部依赖
 from core.db_engine import (
+    async_get_all_pending_approvals,
+    async_update_approval_status_by_alert,
     insert_repair_record,
     insert_verify_record,
     update_approval_status,
@@ -45,6 +59,91 @@ from core.rag_engine import search_similar
 
 # 日志
 _logger = logging.getLogger(__name__)
+
+# ============================================================
+# P1-3 + P1-4: 自愈失败跟踪 / 分布式锁 / 维护窗口
+# ============================================================
+_HEAL_FAILURE_TRACKER: Dict[str, Dict[str, Any]] = {}
+_HEAL_LOCKS: Dict[str, asyncio.Lock] = {}
+_FAILURE_ESCALATION_THRESHOLD = int(os.getenv("HEAL_FAILURE_ESCALATION_THRESHOLD", "3"))
+
+
+def _get_resource_key(alert: Dict[str, Any]) -> str:
+    """Derive a stable key for failure tracking and locking."""
+    return str(
+        alert.get("resource_id")
+        or alert.get("id")
+        or alert.get("host")
+        or alert.get("alert_id")
+        or "unknown"
+    )
+
+
+def _is_in_maintenance_window() -> tuple[bool, Optional[str]]:
+    """Check whether auto-heal is currently disabled by a maintenance window."""
+    mode = os.getenv("HEAL_MAINTENANCE_MODE", "false").lower()
+    if mode in ("1", "true", "yes"):
+        return True, "HEAL_MAINTENANCE_MODE enabled"
+
+    window = os.getenv("HEAL_MAINTENANCE_WINDOW", "").strip()
+    if window:
+        try:
+            start_s, end_s = window.split("-", 1)
+            start_t = datetime.strptime(start_s.strip(), "%H:%M").time()
+            end_t = datetime.strptime(end_s.strip(), "%H:%M").time()
+            now = datetime.now().time()
+            if start_t <= end_t:
+                in_window = start_t <= now <= end_t
+            else:
+                in_window = now >= start_t or now <= end_t
+            if in_window:
+                return True, f"maintenance window {window}"
+        except Exception as exc:
+            _logger.warning(f"Invalid HEAL_MAINTENANCE_WINDOW '{window}': {exc}")
+    return False, None
+
+
+def _should_escalate(alert: Dict[str, Any]) -> tuple[bool, Dict[str, Any]]:
+    """Return (escalated, failure_record) when repeated heal failures exceed the threshold."""
+    key = _get_resource_key(alert)
+    record = _HEAL_FAILURE_TRACKER.get(key, {"count": 0, "first_seen": None, "last_seen": None})
+    if record["count"] >= _FAILURE_ESCALATION_THRESHOLD:
+        return True, record
+    return False, record
+
+
+def _record_heal_failure(alert: Dict[str, Any]) -> None:
+    """Increment the failure counter for a given resource/alert."""
+    key = _get_resource_key(alert)
+    now = datetime.now(timezone.utc).isoformat()
+    record = _HEAL_FAILURE_TRACKER.setdefault(
+        key, {"count": 0, "first_seen": now, "last_seen": now}
+    )
+    record["count"] += 1
+    record["last_seen"] = now
+
+
+def _record_heal_success(alert: Dict[str, Any]) -> None:
+    """Clear failure history on a successful heal."""
+    key = _get_resource_key(alert)
+    _HEAL_FAILURE_TRACKER.pop(key, None)
+
+
+def _is_pending_approval_error(final_state: Any) -> bool:
+    """Heuristic: a run that stopped at approval is not a true heal failure."""
+    if not hasattr(final_state, "error") or not hasattr(final_state, "approval_status"):
+        return False
+    error = (final_state.error or "").lower()
+    if "approval" in error or final_state.approval_status in (None, "pending", "missing"):
+        return True
+    return False
+
+
+async def _acquire_heal_lock(resource_key: str) -> asyncio.Lock:
+    """Return an asyncio.Lock for the given resource (per-process distributed lock)."""
+    if resource_key not in _HEAL_LOCKS:
+        _HEAL_LOCKS[resource_key] = asyncio.Lock()
+    return _HEAL_LOCKS[resource_key]
 
 
 # ============================================================
@@ -61,15 +160,8 @@ class PlatformType(Enum):
 
 
 # ============================================================
-# P2 Enhancement: Risk Assessment
+# P2 Enhancement: Risk Assessment (Unified with command_guard)
 # ============================================================
-class RiskLevel(Enum):
-    """Risk levels for repair operations"""
-
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
 
 
 @dataclass
@@ -226,15 +318,19 @@ print("CPU repair rollback - no action needed for this repair type")
         return """
 # Memory High Usage Repair Script
 import gc
+import os
 import psutil
+import subprocess
 
 def repair_memory_high():
     # Force garbage collection
     gc.collect()
 
-    # Clear system caches (Linux)
+    # Clear system caches (Linux) without invoking a shell
     if os.name == 'posix':
-        os.system('sync && echo 3 > /proc/sys/vm/drop_caches')
+        subprocess.run(['sync'])
+        with open('/proc/sys/vm/drop_caches', 'w') as f:
+            f.write('3')
 
     # Log memory usage before and after
     mem = psutil.virtual_memory()
@@ -347,7 +443,7 @@ class RiskAssessmentEngine:
         confidence_score = 0.8
 
         # Base risk from script
-        if script.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+        if script.risk_level in [RiskLevel.HIGH, RiskLevel.BLOCKED]:
             risk_factors.append(f"High-risk operation: {script.risk_level.value}")
             approval_required = True
 
@@ -362,7 +458,8 @@ class RiskAssessmentEngine:
         current_hour = datetime.now().hour
         if 0 <= current_hour < 6:  # Off-peak hours
             mitigation_strategies.append("Scheduled during off-peak hours")
-            confidence_score += 0.1
+            # P0: off-peak no longer increases confidence; human coverage is low.
+            risk_factors.append("Scheduled during off-peak hours with reduced human coverage")
         elif 18 <= current_hour <= 22:  # Peak hours
             risk_factors.append("Scheduled during peak hours")
             confidence_score -= 0.1
@@ -376,8 +473,8 @@ class RiskAssessmentEngine:
         mitigation_strategies.append("Backup recommended before execution")
 
         # Determine final risk level
-        if len(risk_factors) >= 3 or script.risk_level == RiskLevel.CRITICAL:
-            final_risk = RiskLevel.CRITICAL
+        if len(risk_factors) >= 3 or script.risk_level == RiskLevel.BLOCKED:
+            final_risk = RiskLevel.BLOCKED
         elif len(risk_factors) >= 2 or script.risk_level == RiskLevel.HIGH:
             final_risk = RiskLevel.HIGH
         elif len(risk_factors) >= 1 or script.risk_level == RiskLevel.MEDIUM:
@@ -557,7 +654,7 @@ def _create_pending_approval(alert_id: int, rule_name: str, script_key: str, pro
             rule_name=rule_name,
             script_key=script_key,
             proposal=proposal,
-            alert_json=json.dumps({"alert_id": alert_id, "rule_name": rule_name}),
+            alert_json=json.dumps({"alert_id": str(alert_id), "rule_name": rule_name}),
         )
         _logger.info("Pending approval created for alert_id=%s", alert_id)
     except Exception as exc:
@@ -608,7 +705,7 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
     alert_id = asyncio.run(_create_alert_record(alert_payload))
 
     # ------------------------------------------------------------------
-    # 2️⃣ 根据告警获取修复脚本（这里用 placeholder 实现）
+    # 2️⃣ 根据告警获取修复脚本（这里用 default_value 实现）
     # ------------------------------------------------------------------
     rule_name = alert_payload.get("rule_name", "default_rule")
     script_key = f"{rule_name}_script"
@@ -661,19 +758,26 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
     runbook_text = ""
     if verify_result.get("needs_human"):
         # 使用 RAG 检索相关文档并让 LLM 生成 Runbook
+        alert_title = str(alert_payload.get("title", ""))[:200]
+        safe_alert_json = sanitize_for_llm(
+            json.dumps(alert_payload, ensure_ascii=False, default=str),
+            max_length=1500,
+            delimiter="",
+        )
         rag_context = search_similar(
-            query=alert_payload.get("title", ""),
+            query=alert_title,
             top_k=5,
         )
         # 把检索到的文档拼接成一个长文本（payload 内容）
         context_text = "\n\n".join([hit["payload"].get("content", "") for hit in rag_context])
+        safe_context = sanitize_for_llm(context_text, max_length=1500, delimiter="")
         prompt = (
             "You are an AI Ops assistant. Generate a concise Runbook to address the following alert:\n"  # noqa: E501
-            f"Alert Title: {alert_payload.get('title')}\n"
-            f"Alert Details: {json.dumps(alert_payload, ensure_ascii=False)}\n"
-            f"Relevant Context:\n{context_text}\n"
+            f"Alert Title: {alert_title}\n"
+            f"Alert Details: {safe_alert_json}\n"
+            f"Relevant Context:\n{safe_context}\n"
         )
-        runbook_text = analyze(prompt, rich_context=context_text)
+        runbook_text = analyze(prompt, rich_context=safe_context)
 
         # 写入 PendingApproval（待人工审核）
         _create_pending_approval(
@@ -689,7 +793,7 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
     # 8️⃣ 返回统一响应
     # ------------------------------------------------------------------
     response = {
-        "alert_id": alert_id,
+        "alert_id": str(alert_id),
         "repair_id": repair_id,
         "verify_id": verify_id,
         "runbook": runbook_text,
@@ -726,27 +830,187 @@ def simulate_verify(alert: Dict[str, Any], repair_result: Dict[str, Any]) -> Dic
     return {"passed": True, "message": "Verification passed"}
 
 
-# Stub functions for test compatibility
+# component functions for test compatibility
 def trigger_auto_heal(alert: Dict[str, Any]) -> Dict[str, Any]:
     """Trigger auto-heal process."""
     return handle_alert(alert)
 
 
 async def try_auto_heal(alert: Dict[str, Any]) -> Dict[str, Any]:
-    """Async wrapper used by core.alert_engine."""
-    return trigger_auto_heal(alert)
+    """Async wrapper used by core.alert_engine.
+
+    Routes the alert through the new ``heal_graph.run_heal`` workflow,
+    which handles analysis, runbook generation, approval, execution,
+    verification and rollback in a single pipeline.
+    Includes P1-3 failure escalation and P1-4 maintenance-window/lock checks.
+    """
+    # P1-4: maintenance window guard
+    in_maintenance, maintenance_reason = _is_in_maintenance_window()
+    if in_maintenance:
+        _logger.warning("try_auto_heal skipped: %s", maintenance_reason)
+        return {
+            "healed": False,
+            "alert_id": alert.get("id"),
+            "maintenance": True,
+            "error": f"Auto-heal disabled: {maintenance_reason}",
+        }
+
+    # P1-3: repeated failure escalation
+    escalated, failure_record = _should_escalate(alert)
+    if escalated:
+        _logger.error(
+            "try_auto_heal escalated after %s consecutive failures for %s",
+            failure_record["count"],
+            _get_resource_key(alert),
+        )
+        return {
+            "healed": False,
+            "alert_id": alert.get("id"),
+            "escalated": True,
+            "error": (
+                f"Heal escalated after {failure_record['count']} consecutive failures; "
+                "manual intervention required"
+            ),
+            "failure_record": failure_record,
+        }
+
+    resource_key = _get_resource_key(alert)
+    lock = await _acquire_heal_lock(resource_key)
+    async with lock:
+        try:
+            from core.heal_graph import HealState, run_heal
+
+            state = HealState(alert=alert)
+            final_state = await run_heal(state)
+        except Exception as exc:  # pragma: no cover
+            _logger.error("heal_graph.run_heal failed: %s", exc, exc_info=True)
+            _record_heal_failure(alert)
+            return {
+                "healed": False,
+                "alert_id": alert.get("id"),
+                "error": f"heal_graph.run_heal failed: {exc}",
+            }
+
+    verification = final_state.verification or {}
+    healed = bool(final_state.fix_applied and verification.get("passed"))
+
+    result: Dict[str, Any] = {
+        "healed": healed,
+        "alert_id": alert.get("id"),
+        "fix_applied": final_state.fix_applied,
+        "error": final_state.error,
+        "verification": verification,
+        "approval_status": final_state.approval_status,
+        "rule": "AI_DYNAMIC",
+        "runbook": final_state.runbook,
+    }
+
+    if healed:
+        _record_heal_success(alert)
+    elif _is_pending_approval_error(final_state):
+        # Approval-required is not a failure; do not increment counter.
+        pass
+    else:
+        _record_heal_failure(alert)
+        updated = _HEAL_FAILURE_TRACKER.get(resource_key, {"count": 0})
+        if updated.get("count", 0) >= _FAILURE_ESCALATION_THRESHOLD:
+            result["escalated"] = True
+            result["error"] = (
+                f"Heal escalated after {updated['count']} consecutive failures; "
+                "manual intervention required"
+            )
+
+    _logger.info("try_auto_heal completed: %s", result)
+    return result
 
 
-def approve_repair(alert_id: int) -> Dict[str, Any]:
-    """Approve a pending repair."""
-    return {"status": "approved", "alert_id": alert_id}
+async def approve_repair(alert_id: int | str, approver: str = "") -> Dict[str, Any]:
+    """Approve a pending repair and persist the decision."""
+    alert_id_str = str(alert_id).strip()
+    try:
+        if async_update_approval_status_by_alert is not None:
+            await async_update_approval_status_by_alert(alert_id_str, "approved", approver=approver)
+        _logger.info("Repair approved | alert_id=%s | approver=%s", alert_id_str, approver)
+        return {
+            "success": True,
+            "status": "approved",
+            "alert_id": alert_id_str,
+            "approver": approver,
+        }
+    except Exception as exc:
+        _logger.error("Failed to approve repair: %s", exc, exc_info=True)
+        return {
+            "success": False,
+            "status": "error",
+            "alert_id": alert_id_str,
+            "approver": approver,
+            "error": str(exc),
+        }
 
 
-def reject_repair(alert_id: int | str, reason: str = "") -> Dict[str, Any]:
-    """Reject a pending repair."""
-    return {"status": "rejected", "alert_id": alert_id, "reason": reason}
+async def reject_repair(
+    alert_id: int | str,
+    reason: str = "",
+    approver: str = "",
+    rejection_reason: str = "",
+) -> Dict[str, Any]:
+    """Reject a pending repair and persist the decision."""
+    alert_id_str = str(alert_id).strip()
+    rr = rejection_reason or reason
+    try:
+        if async_update_approval_status_by_alert is not None:
+            await async_update_approval_status_by_alert(
+                alert_id_str,
+                "rejected",
+                approver=approver,
+                rejection_reason=rr,
+            )
+        _logger.info(
+            "Repair rejected | alert_id=%s | approver=%s | reason=%s", alert_id_str, approver, rr
+        )
+        return {
+            "success": True,
+            "status": "rejected",
+            "alert_id": alert_id_str,
+            "approver": approver,
+            "reason": rr,
+        }
+    except Exception as exc:
+        _logger.error("Failed to reject repair: %s", exc, exc_info=True)
+        return {
+            "success": False,
+            "status": "error",
+            "alert_id": alert_id_str,
+            "approver": approver,
+            "reason": rr,
+            "error": str(exc),
+        }
 
 
-def get_pending_approvals() -> List[Dict[str, Any]]:
-    """Get all pending approvals."""
-    return []
+async def get_pending_approvals() -> List[Dict[str, Any]]:
+    """Get all pending approvals from the database and merge with in-memory fallback."""
+    db_approvals: List[Dict[str, Any]] = []
+    try:
+        if async_get_all_pending_approvals is not None:
+            db_approvals = await async_get_all_pending_approvals()
+    except Exception as exc:
+        _logger.error("Failed to get pending approvals from DB: %s", exc, exc_info=True)
+
+    try:
+        from core.approval_store import get_pending_only_snapshot
+
+        memory_approvals = get_pending_only_snapshot()
+    except Exception as exc:
+        _logger.debug("Failed to load in-memory approvals: %s", exc)
+        return db_approvals
+
+    if not memory_approvals:
+        return db_approvals
+
+    # Merge memory fallback: use alert_id as key to avoid duplicates
+    merged = {str(a.get("alert_id") or a.get("id") or idx): a for idx, a in enumerate(db_approvals)}
+    for alert_id, info in memory_approvals.items():
+        if alert_id not in merged:
+            merged[alert_id] = {"alert_id": alert_id, **info}
+
+    return list(merged.values())

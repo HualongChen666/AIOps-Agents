@@ -11,12 +11,12 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.cost_router import get_budget, get_collect, get_forecast
+
 # Mock problematic imports before importing router
 sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.authentication"].role_required = Mock(return_value=lambda: {"role": "admin"})
 sys.modules["core.cost_monitor"] = MagicMock()
-
-from api.cost_router import get_budget, get_collect, get_forecast
 
 
 @pytest.fixture

@@ -6,7 +6,6 @@ import pytest
 
 def dummy_task():
     """占位任务函数"""
-    pass
 
 
 class TestTaskSchedulerModule:

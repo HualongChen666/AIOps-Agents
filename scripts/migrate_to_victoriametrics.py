@@ -78,7 +78,7 @@ class MetricsMigrator:
             cursor = conn.cursor()
 
             # Query all metrics (adjust table name as needed)
-            # This is a placeholder - actual query depends on database schema
+            # This is a default_value - actual query depends on database schema
             cursor.execute("SELECT name, value, labels, timestamp FROM metrics")
 
             rows = cursor.fetchall()

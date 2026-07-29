@@ -1,0 +1,134 @@
+---
+# Istio control-plane operator for the aiops namespace.
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: aiops-istio-control-plane
+  namespace: istio-system
+spec:
+  profile: default
+  components:
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2048Mi
+          limits:
+            cpu: 2000m
+            memory: 4096Mi
+  meshConfig:
+    enableAutoMtls: true
+    defaultConfig:
+      holdApplicationUntilProxyStarts: true
+  values:
+    global:
+      proxy:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+
+---
+# Automatic sidecar injection for the aiops namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiops
+  labels:
+    istio-injection: enabled
+
+---
+# Strict mTLS across the aiops namespace.
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: aiops-default-strict-mtls
+  namespace: aiops
+spec:
+  mtls:
+    mode: STRICT
+
+---
+# Default allow-nothing AuthorizationPolicy for aiops.
+# Individual services should create allow policies based on their identities.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: aiops-default-deny
+  namespace: aiops
+spec:
+  {}
+
+---
+# VirtualService for the aiops-agent backend (internal traffic).
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: aiops-agent-vs
+  namespace: aiops
+spec:
+  hosts:
+    - aiops-agent
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: aiops-agent
+            port:
+              number: 8080
+          weight: 100
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: gateway-error,connect-failure,refused-stream
+
+---
+# DestinationRule defining subsets and traffic policies for aiops-agent.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: aiops-agent-dr
+  namespace: aiops
+spec:
+  host: aiops-agent
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+
+---
+# Sidecar resource limiting egress to the aiops namespace and istio-system.
+apiVersion: networking.istio.io/v1beta1
+kind: Sidecar
+metadata:
+  name: aiops-agent-sidecar
+  namespace: aiops
+spec:
+  workloadSelector:
+    labels:
+      app: aiops-agent
+  egress:
+    - hosts:
+        - "aiops/*"
+        - "istio-system/*"

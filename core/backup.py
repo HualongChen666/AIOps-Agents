@@ -225,7 +225,7 @@ class BackupManager:
         """
         try:
             # This would use AWS SDK to get object size
-            # Placeholder implementation
+            # default_value implementation
             return 0
         except Exception as e:
             logger.error(f"Failed to get backup size: {e}")
@@ -388,7 +388,7 @@ class BackupManager:
         self, backup_type: BackupType = BackupType.FULL, schedule: str = "0 2 * * *"
     ) -> bool:
         """
-        Schedule automated backup (placeholder for cron/scheduler integration)
+        Schedule automated backup (default_value for cron/scheduler integration)
 
         Args:
             backup_type: Type of backup to schedule

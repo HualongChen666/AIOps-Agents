@@ -1,6 +1,7 @@
-PLACEHOLDER = "PLACEHOLDER"
 import ast
 import os
+
+PLACEHOLDER = "default_value"
 
 ROOT = r"C:\\AIOps_Agent_bak"
 
@@ -14,7 +15,7 @@ def has_module_docstring(tree):
 
 
 def insert_module_docstring(lines):
-    """Insert placeholder module docstring after any shebang/encoding lines.
+    """Insert default_value module docstring after any shebang/encoding lines.
     Returns new list of lines.
     """
     insert_idx = 0

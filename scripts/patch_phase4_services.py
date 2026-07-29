@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Patch phase-4 services with gRPC tests, distributed locks, idempotency and performance benchmarks."""
+"""Patch phase-4 services with gRPC tests, distributed locks, idempotency and performance benchmarks."""  # noqa: E501
 
 from __future__ import annotations
 
 import importlib.util
-import sys
 from pathlib import Path
 from typing import Any, Dict
 
@@ -220,7 +219,7 @@ from .metrics import MetricsCollector
 from .retry import RetryEngine
 
 
-BASE_METHODS: List[str] = ["get_state", "backup_state", "restore_state", "get_stats", "list_methods"]
+BASE_METHODS: List[str] = ["get_state", "backup_state", "restore_state", "get_stats", "list_methods"]  # noqa: E501
 OPERATIONS: List[str] = [
 <<OPERATIONS_LIST>>
 ]
@@ -292,7 +291,7 @@ class <<CLASS>>:
                     "success": True,
                     "status": "idempotent",
                     "config": config,
-                    "result": {"snapshot": config.get("name", "default") if isinstance(config, dict) else "default"},
+                    "result": {"snapshot": config.get("name", "default") if isinstance(config, dict) else "default"},  # noqa: E501
                     "message": "backup_state already processed",
                 }
             name = config.get("name", "default") if isinstance(config, dict) else "default"
@@ -323,7 +322,7 @@ class <<CLASS>>:
                     "success": True,
                     "status": "idempotent",
                     "config": config,
-                    "result": {"snapshot": config.get("name", "default") if isinstance(config, dict) else "default"},
+                    "result": {"snapshot": config.get("name", "default") if isinstance(config, dict) else "default"},  # noqa: E501
                     "message": "restore_state already processed",
                 }
             name = config.get("name", "default") if isinstance(config, dict) else "default"
@@ -685,7 +684,9 @@ def patch() -> None:
 
         write_file(test_dir / "test_grpc.py", gen.apply_placeholders(TEST_GRPC_PY, info))
         write_file(test_dir / "test_lock.py", gen.apply_placeholders(TEST_LOCK_PY, info))
-        write_file(test_dir / "test_performance.py", gen.apply_placeholders(TEST_PERFORMANCE_PY, info))
+        write_file(
+            test_dir / "test_performance.py", gen.apply_placeholders(TEST_PERFORMANCE_PY, info)
+        )
 
         print(f"Patched {service_dir} and {test_dir}")
 

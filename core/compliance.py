@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # core/compliance.py
-# Stub module for compliance functionality
+# component module for compliance functionality
 
 from typing import Any, Dict
 

@@ -18,6 +18,10 @@ from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# E2E 默认使用本地 SQLite,避免依赖 PostgreSQL
+os.environ.setdefault("USE_SQLITE", "true")
+os.environ.setdefault("SQLITE_PATH", os.path.join(tempfile.gettempdir(), "aiops_e2e.db"))
+
 # E2E测试标记
 pytestmark = pytest.mark.e2e
 
@@ -97,6 +101,23 @@ async def cleanup_test_cache():
 def app_port():
     """获取应用端口"""
     return int(os.getenv("E2E_APP_PORT", "8000"))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def init_e2e_sqlite():
+    """初始化 e2e SQLite 数据库(只运行一次)。"""
+    db_path = os.environ.get("SQLITE_PATH")
+    if db_path and os.path.exists(db_path):
+        os.remove(db_path)
+    from core.db_engine import async_init_db
+
+    asyncio.run(async_init_db())
+    yield
+    if db_path and os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+        except OSError:
+            pass
 
 
 # 跳过E2E测试的配置

@@ -1,17 +1,117 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
+import sqlite3
 import time
 from threading import Lock
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
+
+from core.authentication import get_current_active_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai/feedback", tags=["AI反馈闭环"])
 _STATS_CACHE_TTL_SEC = 5
 _stats_cache: dict = {"all": {"data": None, "ts": 0.0}, "today": {"data": None, "ts": 0.0}}
 _stats_cache_lock = Lock()
+
+
+# Persistent feedback store via SQLite
+# Use in-memory DB when running under pytest to keep tests deterministic.
+_FEEDBACK_DB_PATH = os.environ.get(
+    "AI_FEEDBACK_DB_PATH",
+    ":memory:" if os.environ.get("PYTEST_CURRENT_TEST") else "data/ai_feedback.db",
+)
+_feedback_lock = Lock()
+
+
+def _init_feedback_db() -> None:
+    """初始化 SQLite 反馈表（幂等）。"""
+    if _FEEDBACK_DB_PATH != ":memory:":
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(_FEEDBACK_DB_PATH)), exist_ok=True)
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
+            logging.warning("Suppressed exception", exc_info=True)
+            pass
+    conn = sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS ai_feedback (
+            feedback_id TEXT PRIMARY KEY,
+            feedback_type TEXT NOT NULL,
+            analysis_text TEXT,
+            query_text TEXT,
+            platform TEXT,
+            stage_name TEXT,
+            comment TEXT,
+            rich_context INTEGER,
+            operator_ip TEXT,
+            created_at TEXT NOT NULL
+        )
+        """)
+    conn.commit()
+    conn.close()
+
+
+def _insert_feedback(record: dict[str, Any]) -> None:
+    with _feedback_lock:
+        conn = sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
+        try:
+            conn.execute(
+                """
+                INSERT INTO ai_feedback (
+                    feedback_id, feedback_type, analysis_text, query_text, platform,
+                    stage_name, comment, rich_context, operator_ip, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["feedback_id"],
+                    record["feedback_type"],
+                    record["analysis_text"],
+                    record["query_text"],
+                    record["platform"],
+                    record["stage_name"],
+                    record["comment"],
+                    1 if record.get("rich_context") else 0,
+                    record["operator_ip"],
+                    record["created_at"],
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def _fetch_feedback(
+    today_only: bool = False, feedback_type: Optional[str] = None
+) -> list[dict[str, Any]]:
+    import datetime
+
+    today_str = datetime.date.today().isoformat()
+    sql = "SELECT * FROM ai_feedback WHERE 1=1"
+    params: list[Any] = []
+    if today_only:
+        sql += " AND created_at LIKE ?"
+        params.append(f"{today_str}%")
+    if feedback_type:
+        sql += " AND feedback_type = ?"
+        params.append(feedback_type)
+    sql += " ORDER BY created_at DESC"
+    conn = sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
+    try:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(sql, params).fetchall()
+        records = [dict(row) for row in rows]
+        for r in records:
+            r["rich_context"] = bool(r.get("rich_context"))
+        return records
+    finally:
+        conn.close()
+
+
+_init_feedback_db()
 
 
 def _get_cached_stats(today_only: bool) -> Optional[dict]:
@@ -31,6 +131,21 @@ def _set_cached_stats(today_only: bool, data: dict) -> None:
     with _stats_cache_lock:
         _stats_cache[cache_key]["data"] = dict(data)
         _stats_cache[cache_key]["ts"] = time.monotonic()
+
+
+def _compute_feedback_stats(today_only: bool = False) -> dict[str, Any]:
+    """统计反馈总数、正负样本数及准确率。"""
+    records = _fetch_feedback(today_only=today_only)
+    total = len(records)
+    positive = sum(1 for r in records if r.get("feedback_type") == "positive")
+    negative = sum(1 for r in records if r.get("feedback_type") == "negative")
+    accuracy = round((positive / total) * 100, 2) if total else 0.0
+    return {
+        "total": total,
+        "positive": positive,
+        "negative": negative,
+        "accuracy": accuracy,
+    }
 
 
 def _invalidate_stats_cache() -> None:
@@ -98,7 +213,11 @@ class FeedbackRequest(BaseModel):
         (500): {"description": "反馈记录失败"},
     },
 )
-async def submit_feedback(req: FeedbackRequest, request: Request) -> dict[str, Any]:
+async def submit_feedback(
+    req: FeedbackRequest,
+    request: Request,
+    _: Any = Depends(get_current_active_user),
+) -> dict[str, Any]:
     """
     用户对 AI 分析结果点击👍或👎后调用此接口
     反馈数据写入 SQLite,供 stats_engine 计算真实 RCA 准确率
@@ -113,10 +232,27 @@ async def submit_feedback(req: FeedbackRequest, request: Request) -> dict[str, A
         f" comment_len={len(req.comment)}"
     )
     try:
-        logger.warning("insert_feedback not implemented, returning placeholder feedback_id")
-        feedback_id = "placeholder_id"
+        import datetime
+        import uuid
+
+        feedback_id = str(uuid.uuid4())
+        record: dict[str, Any] = {
+            "feedback_id": feedback_id,
+            "feedback_type": req.feedback_type,
+            "analysis_text": req.analysis_text,
+            "query_text": req.query_text,
+            "platform": req.platform,
+            "stage_name": req.stage_name,
+            "comment": req.comment,
+            "rich_context": req.rich_context,
+            "operator_ip": operator_ip,
+            "created_at": datetime.datetime.utcnow().isoformat(),
+        }
+        _insert_feedback(record)
+
         _invalidate_stats_cache()
-        stats = {"total": 0, "positive": 0, "negative": 0}
+        stats = _compute_feedback_stats(today_only=False)
+        logger.info(f"反馈已记录 | feedback_id={feedback_id} | operator={operator_ip}")
         return {
             "status": "ok",
             "feedback_id": feedback_id,
@@ -160,7 +296,7 @@ async def feedback_stats(
         logger.debug(f"反馈统计命中缓存 | today_only={today_only}")
         return cached
     try:
-        stats = {"total": 0, "positive": 0, "negative": 0}
+        stats = _compute_feedback_stats(today_only=today_only)
         _set_cached_stats(today_only, stats)
         logger.debug(
             f"反馈统计查询 | today_only={today_only} | total={stats['total']} |"
@@ -206,17 +342,7 @@ async def recent_feedback(
     🔧 FB5 [P2]:增加 feedback_type 参数(只看 👎 便于排查 AI 问题)
     """
     try:
-        query_limit = limit * 3 if today_only or feedback_type else limit
-        query_limit = min(query_limit, 600)
-        records: list[dict[str, Any]] = []
-        filtered = records
-        if today_only:
-            import datetime
-
-            today_str = datetime.date.today().isoformat()
-            filtered = [r for r in filtered if str(r.get("created_at", "")).startswith(today_str)]
-        if feedback_type:
-            filtered = [r for r in filtered if r.get("feedback_type") == feedback_type]
+        filtered = _fetch_feedback(today_only=today_only, feedback_type=feedback_type)
         filtered = filtered[:limit]
         logger.debug(
             f"最近反馈查询 | limit={limit} | today_only={today_only} | type={feedback_type} |"

@@ -740,15 +740,26 @@ class ThreeLevelCache:
             return None
 
     def _set_db_cache(self, key: str, value: Any, ttl: float) -> None:
-        """Store value in database cache (implementation placeholder)"""
-        # This would be implemented with actual database storage
-        # For now, it's a placeholder for the L3 cache layer
+        """Store value in database cache (in-memory L3 fallback with TTL)."""
+        if not hasattr(self, "_db_cache"):
+            self._db_cache: Dict[str, Any] = {}
+        import time
+
+        self._db_cache[key] = {"value": value, "expires_at": time.time() + ttl}
 
     def _get_db_cache(self, key: str) -> Optional[Any]:
-        """Get value from database cache (implementation placeholder)"""
-        # This would be implemented with actual database storage
-        # For now, it's a placeholder for the L3 cache layer
-        return None
+        """Get value from database cache (in-memory L3 fallback with TTL)."""
+        import time
+
+        if not hasattr(self, "_db_cache"):
+            return None
+        entry = self._db_cache.get(key)
+        if entry is None:
+            return None
+        if time.time() > entry.get("expires_at", 0):
+            self._db_cache.pop(key, None)
+            return None
+        return entry.get("value")
 
     def invalidate(
         self,
@@ -780,8 +791,10 @@ class ThreeLevelCache:
             self._trigger_invalidation_event(event, key, metadata)
 
     def _invalidate_db_cache(self, key: str) -> None:
-        """Invalidate value in database cache (implementation placeholder)"""
-        # This would be implemented with actual database storage
+        """Invalidate value in database cache (in-memory L3 fallback)."""
+        if not hasattr(self, "_db_cache"):
+            return
+        self._db_cache.pop(key, None)
 
     def invalidate_pattern(self, pattern: str) -> int:
         """Invalidate cache entries matching pattern"""
@@ -827,8 +840,10 @@ class ThreeLevelCache:
                     logger.error(f"Database cache clear failed: {e}")
 
     def _clear_db_cache(self) -> None:
-        """Clear database cache (implementation placeholder)"""
-        # This would be implemented with actual database storage
+        """Clear database cache (in-memory L3 fallback)."""
+        if not hasattr(self, "_db_cache"):
+            return
+        self._db_cache.clear()
 
     def get_stats(self) -> Dict[str, Any]:
         """Get comprehensive cache statistics"""

@@ -11,6 +11,14 @@ import httpx
 from loguru import logger
 
 from core.base.storage import BaseStorage
+from core.observability_query import (
+    DEFAULT_MAX_LLM_ITEMS,
+    QueryCache,
+    cached_query,
+    make_cache_key,
+    validate_logql,
+    with_query_timeout,
+)
 
 
 class LokiStorage(BaseStorage):
@@ -27,7 +35,15 @@ class LokiStorage(BaseStorage):
 
         self.base_url = config.get("base_url", "http://localhost:3100")
         self.timeout = config.get("timeout", 30)
+        self.max_limit = config.get("max_limit", DEFAULT_MAX_LLM_ITEMS)
+        self.read_only = config.get("read_only")
         self._client: Optional[httpx.AsyncClient] = None
+        self._query_cache = QueryCache()
+        if self.read_only is None:
+            logger.warning(
+                "Loki storage created without explicit read_only flag; "
+                "set read_only=True in production to enforce read-only credentials."
+            )
 
     def initialize(self) -> bool:
         """Initialize Loki client"""
@@ -82,6 +98,10 @@ class LokiStorage(BaseStorage):
         Returns:
             True if successful
         """
+        if self.read_only is True:
+            logger.warning("Loki write rejected: storage is configured as read_only")
+            return False
+
         if not self._is_initialized or not self._client:
             logger.warning("Loki not initialized")
             return False
@@ -114,20 +134,25 @@ class LokiStorage(BaseStorage):
 
         try:
             query = f'{{stream="{key}"}}'
+            try:
+                validate_logql(query)
+            except ValueError as exc:
+                logger.warning("Invalid LogQL in retrieve rejected: %s", exc)
+                return None
+
             params: Dict[str, str | int] = {
                 "query": query,
                 "limit": 100,
                 "time": int(datetime.now().timestamp() * 1e9),
             }
 
-            response = await self._client.get("/loki/api/v1/query", params=params)
-
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "success":
-                    return data.get("data", {}).get("result", [])
-
-            return None
+            cache_key = make_cache_key("loki_retrieve", self.base_url, key)
+            result = await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(self._execute_loki_query(params, endpoint="/loki/api/v1/query")),
+            )
+            return result if result else None
 
         except Exception as e:
             logger.error(f"Error retrieving from Loki: {e}")
@@ -151,7 +176,8 @@ class LokiStorage(BaseStorage):
         if not logql_query:
             return {}
 
-        params = {"query": logql_query, "limit": query.get("limit", 100)}
+        limit = min(int(query.get("limit", 100)), self.max_limit)
+        params = {"query": logql_query, "limit": limit}
 
         if "start" in query:
             params["start"] = query["start"]
@@ -160,12 +186,23 @@ class LokiStorage(BaseStorage):
 
         return params
 
-    async def _execute_loki_query(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _execute_loki_query(
+        self, params: Dict[str, Any], endpoint: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Execute Loki query and parse response"""
         if self._client is None:
             logger.warning("Loki client not initialized")
             return []
-        response = await self._client.get("/loki/api/v1/query", params=params)
+
+        # Range queries must hit the range endpoint.
+        if endpoint is None:
+            endpoint = (
+                "/loki/api/v1/query_range"
+                if "start" in params and "end" in params
+                else "/loki/api/v1/query"
+            )
+
+        response = await self._client.get(endpoint, params=params)
 
         if response.status_code == 200:
             data = response.json()
@@ -193,12 +230,27 @@ class LokiStorage(BaseStorage):
             logger.warning("Loki not initialized")
             return []
 
+        logql_query = query.get("query", "")
+        if not logql_query:
+            return []
+
+        try:
+            validate_logql(logql_query)
+        except ValueError as exc:
+            logger.warning("Invalid LogQL query rejected: %s", exc)
+            return []
+
         try:
             params = self._build_query_params(query)
             if not params:
                 return []
 
-            return await self._execute_loki_query(params)
+            cache_key = make_cache_key("loki_query", self.base_url, params)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(self._execute_loki_query(params)),
+            )
 
         except Exception as e:
             logger.error(f"Error querying Loki: {e}")
@@ -219,6 +271,13 @@ class LokiStorage(BaseStorage):
         Returns:
             List of log entries
         """
+        try:
+            validate_logql(query)
+        except ValueError as exc:
+            logger.warning("Invalid LogQL query rejected: %s", exc)
+            return []
+
+        limit = min(int(limit), self.max_limit)
         query_params = {
             "query": query,
             "start": int(start.timestamp() * 1e9),
@@ -265,7 +324,12 @@ class LokiStorage(BaseStorage):
 
         try:
             params = self._build_labels_params(stream)
-            return await self._fetch_labels(params)
+            cache_key = make_cache_key("loki_labels", self.base_url, stream, params)
+            return await cached_query(
+                self._query_cache,
+                cache_key,
+                with_query_timeout(self._fetch_labels(params)),
+            )
 
         except Exception as e:
             logger.error(f"Error getting labels from Loki: {e}")

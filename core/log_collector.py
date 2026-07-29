@@ -215,7 +215,8 @@ def _execute_powershell_with_timeout(
         if proc is not None:
             try:
                 proc.kill()
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 logger.debug("Failed to kill PowerShell process", exc_info=True)
         return None, None, None
 

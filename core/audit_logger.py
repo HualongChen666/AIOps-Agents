@@ -5,11 +5,25 @@ This module provides centralized audit logging for security events,
 user actions, and system operations required for enterprise compliance.
 """
 
+import contextvars
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from loguru import logger
+
+# Trace ID propagation: set at alert ingestion and read by every audit log call.
+TRACE_ID: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("trace_id", default=None)
+
+
+def set_trace_id(trace_id: Optional[str]) -> None:
+    """Set the current trace id for the calling context."""
+    TRACE_ID.set(trace_id)
+
+
+def get_trace_id() -> Optional[str]:
+    """Return the current trace id or None."""
+    return TRACE_ID.get()
 
 # Audit event types
 AUDIT_EVENT_TYPES = {
@@ -45,13 +59,18 @@ def log_audit_event(
         ip_address: IP address of the user
         status: Status of the operation (success, failure, denied)
     """
+    trace_id = get_trace_id()
+    enriched_details = (details or {}).copy()
+    if trace_id is not None:
+        enriched_details["trace_id"] = trace_id
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event_type": event_type,
         "user": user,
         "resource": resource,
         "action": action,
-        "details": details or {},
+        "trace_id": trace_id,
+        "details": enriched_details,
         "ip_address": ip_address,
         "status": status,
     }
@@ -171,4 +190,7 @@ __all__ = [
     "log_alert_generated",
     "log_data_access",
     "AUDIT_EVENT_TYPES",
+    "set_trace_id",
+    "get_trace_id",
+    "TRACE_ID",
 ]

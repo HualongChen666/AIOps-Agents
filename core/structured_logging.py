@@ -102,7 +102,8 @@ class StructuredLogger:
                 context_data = get_logging_context().to_dict()
                 context_dict = cast(Dict[str, Any], log_entry["context"])
                 context_dict.update(context_data)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 loguru_logger.debug("Context injection failed, continuing", exc_info=True)
 
         # Add request ID if available (legacy support)
@@ -289,3 +290,64 @@ def setup_logging(log_dir: str = "logs", log_level: str = "INFO"):
     )
 
     loguru_logger.info("Structured logging initialized")
+
+
+def setup_loki_logging(loki_url: str, service_name: str = "aiops-agent") -> bool:
+    """
+    Ship structured logs to a Grafana Loki instance.
+
+    Adds a Loguru sink that batches log records and pushes them to Loki's
+    /loki/api/v1/push endpoint. If the push fails, the error is silently ignored
+    so that application logging is never blocked by network issues.
+
+    Args:
+        loki_url: Base URL of the Loki instance (e.g. http://localhost:3100).
+        service_name: Service label attached to every log stream.
+
+    Returns:
+        True if the sink was registered, False otherwise.
+    """
+    try:
+        import urllib.request
+        from urllib.error import URLError
+
+        endpoint = f"{loki_url.rstrip('/')}/loki/api/v1/push"
+
+        def loki_sink(message: str) -> None:
+            """Best-effort Loki log shipper."""
+            try:
+                record = (
+                    message.record if hasattr(message, "record") else None
+                )  # type: ignore[union-attr]
+                ts_ns = str(int(time.time() * 1_000_000_000))
+                labels = {"service_name": service_name, "level": "INFO"}
+                if record and hasattr(record, "level"):
+                    labels["level"] = record.level.name  # type: ignore[union-attr]
+                payload = {
+                    "streams": [
+                        {
+                            "stream": labels,
+                            "values": [[ts_ns, message.strip()]],
+                        }
+                    ]
+                }
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(
+                    endpoint,
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=2) as resp:  # nosec B310
+                    resp.read()
+            except URLError:
+                logging.warning("Suppressed exception", exc_info=True)
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
+                logging.warning("Suppressed exception", exc_info=True)
+
+        loguru_logger.add(loki_sink, level="INFO", format="{message}")
+        return True
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
+        return False

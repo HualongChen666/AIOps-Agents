@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -11,30 +12,30 @@ from loguru import logger
 from services.repair_service.schemas import RepairStatus, RepairTask
 
 
-class RepairRepository:
+class RepairRepository(ABC):
     """Abstract repair task repository."""
 
-    async def save(self, task: RepairTask) -> str:
-        raise NotImplementedError
+    @abstractmethod
+    async def save(self, task: RepairTask) -> str: ...
 
-    async def get(self, task_id: str) -> Optional[RepairTask]:
-        raise NotImplementedError
+    @abstractmethod
+    async def get(self, task_id: str) -> Optional[RepairTask]: ...
 
+    @abstractmethod
     async def list(
         self,
         limit: int = 100,
         status: Optional[RepairStatus] = None,
-    ) -> List[RepairTask]:
-        raise NotImplementedError
+    ) -> List[RepairTask]: ...
 
-    async def update(self, task_id: str, data: Dict[str, Any]) -> bool:
-        raise NotImplementedError
+    @abstractmethod
+    async def update(self, task_id: str, data: Dict[str, Any]) -> bool: ...
 
-    async def delete(self, task_id: str) -> bool:
-        raise NotImplementedError
+    @abstractmethod
+    async def delete(self, task_id: str) -> bool: ...
 
-    async def count(self) -> int:
-        raise NotImplementedError
+    @abstractmethod
+    async def count(self) -> int: ...
 
 
 class InMemoryRepairRepository(RepairRepository):

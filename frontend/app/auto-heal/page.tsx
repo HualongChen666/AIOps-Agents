@@ -167,11 +167,10 @@ export default function AutoHealPage() {
               <button
                 key={tab.key}
                 onClick={() => setSelectedTab(tab.key)}
-                className={`px-4 py-2 rounded-lg font-medium transition ${
-                  selectedTab === tab.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition ${selectedTab === tab.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 {tab.label} ({tab.count})
               </button>
@@ -219,11 +218,10 @@ export default function AutoHealPage() {
                   </TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(task.status)}>
-                      {task.status === 'pending' ? '待审批' : 
-                       task.status === 'approved' ? '已批准' : 
-                       task.status === 'rejected' ? '已拒绝' : 
-                       task.status === 'executing' ? '执行中' : 
-                       task.status === 'completed' ? '已完成' : '失败'}
+                      {task.status === 'pending' ? '待审批' :
+                        task.status === 'approved' ? '已批准' :
+                          task.status === 'rejected' ? '已拒绝' :
+                            task.status === 'completed' ? '已完成' : '失败'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-gray-500">
@@ -245,9 +243,9 @@ export default function AutoHealPage() {
                         <Button
                           size="sm"
                           onClick={() => handleExecute(task.id)}
-                          disabled={task.status === 'executing'}
+                          disabled={false}
                         >
-                          {task.status === 'executing' ? '执行中...' : '执行'}
+                          执行
                         </Button>
                       )}
                       {task.status === 'completed' && (

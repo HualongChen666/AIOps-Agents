@@ -116,7 +116,7 @@ from core.authentication import get_current_active_user
 from core.cache_helpers import ParametricTTLCache, TTLCache
 from core.collector import collect_all, get_top_processes
 from core.metrics_history import metrics_history
-from core.stats_engine import get_real_summary
+from core.stats_engine import get_decision_accuracy, get_real_summary
 
 # Phase 1 集成: 双写策略和指标转换器
 try:
@@ -170,7 +170,7 @@ async def get_dashboard_metrics() -> dict[str, Any]:
     logger.debug("请求仪表盘指标卡片数据")
     try:
         # 获取摘要数据
-        summary = get_real_summary()
+        summary = await get_real_summary()
 
         # 转换为前端期望的格式
         metrics = [
@@ -277,7 +277,7 @@ async def _collect_system_snapshot() -> dict[str, Any]:
         系统快照数据
     """
     system_snapshot = await asyncio.to_thread(collect_all)
-    summary = await asyncio.to_thread(get_real_summary)
+    summary = await get_real_summary()
     response = {**system_snapshot, "summary": summary}
 
     # Phase 1 集成: 双写到 VictoriaMetrics
@@ -574,7 +574,7 @@ async def get_summary() -> dict[str, Any]:
     """
     logger.debug("请求总览大盘摘要数据")
     try:
-        summary = get_real_summary()
+        summary = await get_real_summary()
         logger.debug(
             "摘要数据获取成功 | "
             f"总告警={summary.get('total_alerts', 'N/A')} | "
@@ -594,6 +594,28 @@ async def get_summary() -> dict[str, Any]:
 # 🔧 MRV4 [P1]:简化冗余的 except 类型
 # 🔧 RESTful:改为 DELETE 方法
 # ============================================================
+@router.get(
+    "/agent/feedback-accuracy",
+    summary="AI 反馈准确率",
+    responses={200: {"description": "反馈准确率"}},
+)
+async def get_feedback_accuracy() -> dict[str, Any]:
+    """返回 AI 反馈闭环的统计（total / positive / negative / accuracy）。"""
+    from api.ai_feedback_router import _compute_feedback_stats
+
+    return _compute_feedback_stats(today_only=False)
+
+
+@router.get(
+    "/agent/decision-accuracy",
+    summary="Agent 决策准确率",
+    responses={200: {"description": "决策准确率指标"}},
+)
+async def get_decision_accuracy_endpoint() -> dict[str, Any]:
+    """返回 Agent 决策准确率（precision / recall / f1_score / accuracy）。"""
+    return get_decision_accuracy()
+
+
 @router.delete(
     "/cache",
     summary="清空快照缓存(维护用)",

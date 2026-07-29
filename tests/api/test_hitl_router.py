@@ -11,9 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.hitl"] = MagicMock()
-
 from api.hitl_router import (
     approve_step,
     create_approval_request,
@@ -21,6 +18,9 @@ from api.hitl_router import (
     hitl_health,
     reject_step,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.hitl"] = MagicMock()
 
 
 @pytest.fixture

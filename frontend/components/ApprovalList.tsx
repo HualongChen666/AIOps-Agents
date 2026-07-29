@@ -22,15 +22,15 @@ export const ApprovalList: React.FC = () => {
   const { data, isLoading, error, refetch } = useQuery<PendingApproval[]>({
     queryKey: ['approvals'],
     queryFn: async () => {
-      const resp = await api.get<PendingApproval[]>('/api/v1/approvals/pending');
-      return resp.data;
+      const resp = await api.get<{ items?: PendingApproval[] }>('/api/v1/approvals/pending');
+      return resp.data.items || [];
     },
     refetchInterval: 30_000,
   });
 
   const handleApprove = async (id: string) => {
     try {
-      await api.post(`/api/v1/approvals/${id}/approve`);
+      await api.patch(`/api/v1/approvals/${id}`);
       refetch();
     } catch (error) {
       console.error('Failed to approve:', error);
@@ -39,7 +39,7 @@ export const ApprovalList: React.FC = () => {
 
   const handleReject = async (id: string, reason: string) => {
     try {
-      await api.post(`/api/v1/approvals/${id}/reject`, { reason });
+      await api.post('/api/v1/approvals/reject', { alert_id: id, reason });
       refetch();
     } catch (error) {
       console.error('Failed to reject:', error);

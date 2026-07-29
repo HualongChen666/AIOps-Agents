@@ -11,11 +11,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.batch_router import batch_get_alerts, batch_get_metrics
+
 # Mock problematic imports before importing router
 sys.modules["core.alert_engine"] = MagicMock()
 sys.modules["core.collector"] = MagicMock()
-
-from api.batch_router import batch_get_alerts, batch_get_metrics
 
 
 @pytest.fixture

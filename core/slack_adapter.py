@@ -154,7 +154,8 @@ def verify_slack_signature(timestamp: str, signature: str, body: bytes) -> bool:
         return False
     try:
         req_ts = int(timestamp)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         _logger.warning("Slack 请求时间戳无效: %s", timestamp)
         return False
     # 防止旧请求 (5 分钟窗口)

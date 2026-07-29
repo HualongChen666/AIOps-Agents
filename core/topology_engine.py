@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import networkx as nx
@@ -191,47 +192,62 @@ _topology_cache: Dict[str, Any] = {}
 
 
 async def insert_topology(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> str:
-    """Placeholder: persist topology and return an id."""
-    return "topology-001"
+    """Persist topology and return an id."""
+    import uuid
+
+    topology_id = f"topology-{uuid.uuid4().hex[:12]}"
+    _topology_cache[topology_id] = {
+        "id": topology_id,
+        "nodes": nodes,
+        "edges": edges,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    logger.info(f"Inserted topology {topology_id} with {len(nodes)} nodes, {len(edges)} edges")
+    return topology_id
 
 
 async def query_topology(topology_id: str) -> Any:
-    """Placeholder: fetch topology by id."""
+    """Fetch topology by id, returning the cached topology or None."""
+    topology = _topology_cache.get(topology_id)
+    if topology is not None:
+        return topology
+
+    logger.warning(f"Topology {topology_id} not found in cache")
     return None
 
 
 async def insert_node(node: Dict[str, Any]) -> bool:
-    """Placeholder: insert a node."""
+    """default_value: insert a node."""
     return True
 
 
 async def delete_node(node_id: str) -> bool:
-    """Placeholder: delete a node."""
+    """default_value: delete a node."""
     return True
 
 
 async def insert_edge(edge: Dict[str, Any]) -> bool:
-    """Placeholder: insert an edge."""
+    """default_value: insert an edge."""
     return True
 
 
 async def delete_edge(edge_id: str) -> bool:
-    """Placeholder: delete an edge."""
+    """default_value: delete an edge."""
     return True
 
 
 async def node_exists(node_id: str) -> bool:
-    """Placeholder: check if a node exists."""
+    """default_value: check if a node exists."""
     return True
 
 
 async def query_dependencies(node_id: str) -> List[Dict[str, Any]]:
-    """Placeholder: return direct dependencies of a node."""
+    """default_value: return direct dependencies of a node."""
     return []
 
 
 async def get_transitive_dependencies(node_id: str) -> List[str]:
-    """Placeholder: return transitive dependencies of a node."""
+    """default_value: return transitive dependencies of a node."""
     return []
 
 

@@ -381,8 +381,51 @@ class UIExperienceSupport:
                 logger.error(f"Topology update loop error: {e}")
 
     async def _update_topology_data(self):
-        """更新拓扑数据"""
-        # 模拟拓扑更新
+        """更新拓扑数据（初始化为示例服务拓扑并刷新时间戳）。"""
+        # 若拓扑为空，初始化一个示例三层拓扑
+        if not self.topology_nodes:
+            self.topology_nodes = {
+                "frontend": TopologyNode(
+                    id="frontend",
+                    label="Frontend Service",
+                    type="service",
+                    position={"x": 0, "y": 0},
+                    properties={"role": "web"},
+                ),
+                "api": TopologyNode(
+                    id="api",
+                    label="API Service",
+                    type="service",
+                    position={"x": 100, "y": 0},
+                    properties={"role": "api"},
+                ),
+                "db": TopologyNode(
+                    id="db",
+                    label="Database",
+                    type="database",
+                    position={"x": 100, "y": 100},
+                    properties={"role": "storage"},
+                ),
+                "cache": TopologyNode(
+                    id="cache",
+                    label="Cache",
+                    type="cache",
+                    position={"x": 0, "y": 100},
+                    properties={"role": "cache"},
+                ),
+            }
+            self.topology_edges = [
+                TopologyEdge(source="frontend", target="api", label="HTTP", type="calls"),
+                TopologyEdge(source="api", target="db", label="SQL", type="reads"),
+                TopologyEdge(source="api", target="cache", label="Redis", type="reads"),
+            ]
+
+        # 刷新节点时间戳与状态
+        import time
+
+        for node in self.topology_nodes.values():
+            node.properties["last_updated"] = time.time()
+            node.status = node.properties.get("status", "healthy")
 
     async def _broadcast_topology_update(self):
         """广播拓扑更新"""

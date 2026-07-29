@@ -30,8 +30,14 @@ def _is_configured() -> bool:
     return bool(TEAMS_WEBHOOK_URL)
 
 
-def _build_message(text: str, title: Optional[str] = None, color: Optional[str] = None) -> Dict[str, Any]:
-    message: Dict[str, Any] = {"@type": "MessageCard", "@context": "https://schema.org/extensions", "text": text}
+def _build_message(
+    text: str, title: Optional[str] = None, color: Optional[str] = None
+) -> Dict[str, Any]:
+    message: Dict[str, Any] = {
+        "@type": "MessageCard",
+        "@context": "https://schema.org/extensions",
+        "text": text,
+    }
     if title:
         message["title"] = title
     if color:
@@ -83,7 +89,10 @@ def _build_adaptive_card(
                     {
                         "type": "Action.Submit",
                         "title": action.get("title", action.get("text", "Submit")),
-                        "data": {"action": action.get("action", "submit"), "value": action.get("value")},
+                        "data": {
+                            "action": action.get("action", "submit"),
+                            "value": action.get("value"),
+                        },
                     }
                 )
         adaptive_card["attachments"][0]["content"]["actions"] = ms_actions
@@ -144,7 +153,6 @@ async def post_interactive_message(
 
 async def close_teams_client() -> None:
     """Close the Teams HTTP client singleton."""
-    global _HTTP_CLIENT
     if _HTTP_CLIENT and not _HTTP_CLIENT.is_closed:
         await _HTTP_CLIENT.aclose()
         _logger.info("Teams HTTP client closed")

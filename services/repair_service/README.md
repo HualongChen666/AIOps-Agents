@@ -1,3 +1,10 @@
+---
+pack: core
+enabled_by: N/A (always on)
+docker_profile: core
+core_dependency: True
+---
+
 # Repair Microservice
 
 修复服务微服务化实现，对应 `docs/document/task_list.md` 任务 25。

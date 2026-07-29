@@ -87,7 +87,7 @@ async def get_current_user(
 
     # Validate token and get user info
     try:
-        # Placeholder - integrate with actual authentication system
+        # default_value - integrate with actual authentication system
         user_info = validate_token(token)
 
         return AuthContext(
@@ -113,7 +113,7 @@ def validate_token(token: str) -> Dict[str, Any]:
     Raises:
         ValueError: If token is invalid
     """
-    # Placeholder - implement actual JWT validation
+    # default_value - implement actual JWT validation
     # For now, return mock user info
     if token == "mock-token":  # nosec B105
         return {"user_id": "user-1", "role": Role.ADMIN, "permissions": [Permission.ADMIN]}

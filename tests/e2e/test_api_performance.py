@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 E2E Test: API Performance
 真实E2E测试：API性能测试场景，不使用Mock
@@ -119,7 +120,8 @@ class TestAPIPerformance:
                     "http://localhost:8000/api/v1/health/ping", timeout=5.0
                 )
                 return response.status_code
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 return 500
 
         # 发送负载测试

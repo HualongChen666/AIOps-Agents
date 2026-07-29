@@ -11,9 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.documentation_generator"] = MagicMock()
-
 from api.doc_generator_router import (
     generate_document,
     get_generated_document,
@@ -22,6 +19,9 @@ from api.doc_generator_router import (
     list_generated_documents,
     save_generated_document,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.documentation_generator"] = MagicMock()
 
 
 @pytest.fixture

@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import List
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,8 +35,7 @@ def _discover_api_modules() -> List[str]:
         rel = path.relative_to(ROOT)
         parts = rel.with_suffix("").parts
         if any(
-            part.endswith(".bak") or part == "backup" or part.startswith("test_")
-            for part in parts
+            part.endswith(".bak") or part == "backup" or part.startswith("test_") for part in parts
         ):
             continue
         modules.append(".".join(parts))

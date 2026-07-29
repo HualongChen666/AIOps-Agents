@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import logging
 """Run core/api/infrastructure tests in isolated pytest sessions.
 
 This avoids cross-module ``sys.modules`` pollution between ``tests/api``
@@ -18,7 +19,8 @@ from pathlib import Path
 
 try:
     from coverage import Coverage
-except Exception:
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
     Coverage = None
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -113,8 +115,12 @@ def _combine_and_report() -> None:
         except Exception as exc:
             print(f"XML report failed: {exc}")
     else:
-        subprocess.run([sys.executable, "-m", "coverage", "combine", "-q", *phase_files], check=False)
-        subprocess.run([sys.executable, "-m", "coverage", "json", "-o", "coverage.json"], check=False)
+        subprocess.run(
+            [sys.executable, "-m", "coverage", "combine", "-q", *phase_files], check=False
+        )
+        subprocess.run(
+            [sys.executable, "-m", "coverage", "json", "-o", "coverage.json"], check=False
+        )
         subprocess.run([sys.executable, "-m", "coverage", "html", "-d", "htmlcov"], check=False)
         subprocess.run([sys.executable, "-m", "coverage", "xml", "-o", "coverage.xml"], check=False)
 

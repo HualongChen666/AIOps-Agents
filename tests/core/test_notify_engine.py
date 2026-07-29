@@ -478,7 +478,7 @@ class TestSendAlertNotification:
         result = await send_alert_notification(
             {"level": "critical", "title": "t", "desc": "d", "raw_time": "now"}
         )
-        assert "wecom" in result
+        assert "wecom" in result["channels_sent"]
 
 
 class TestNotificationHistory:

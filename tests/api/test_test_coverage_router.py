@@ -8,15 +8,15 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.test_coverage_manager"] = MagicMock()
-
 from api.test_coverage_router import (
     add_module_coverage,
     get_coverage_report,
     get_coverage_status,
     get_module_coverage,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.test_coverage_manager"] = MagicMock()
 
 
 @pytest.fixture

@@ -100,7 +100,7 @@ def verify_service(svc: str, task: str, base_env: dict[str, str]) -> dict:
 
     cov_ini = ROOT / "temp" / f"coverage_{svc}.ini"
     cov_ini.write_text(
-        f"[run]\ndata_file = {data_file}\nsource = {src_dir}\nbranch = True\nrelative_files = True\n"
+        f"[run]\ndata_file = {data_file}\nsource = {src_dir}\nbranch = True\nrelative_files = True\n"  # noqa: E501
         f"[report]\ninclude = {src_dir}/*\nskip_covered = False\n",
         encoding="utf-8",
     )
@@ -150,16 +150,20 @@ def verify_service(svc: str, task: str, base_env: dict[str, str]) -> dict:
         ]
         rc2, out2 = run("pytest", pytest_cmd, base_env, timeout=40)
         passed = parse_passed(out2)
-        svc_res["commands"].append({"name": "pytest", "returncode": rc2, "output": out2[:4000], "passed": passed})
+        svc_res["commands"].append(
+            {"name": "pytest", "returncode": rc2, "output": out2[:4000], "passed": passed}
+        )
     else:
-        svc_res["commands"].append({
-            "name": "pytest+coverage",
-            "returncode": rc,
-            "output": out[:4000],
-            "passed": passed,
-            "total_coverage": total_line,
-            "coverage_pct": cov_pct,
-        })
+        svc_res["commands"].append(
+            {
+                "name": "pytest+coverage",
+                "returncode": rc,
+                "output": out[:4000],
+                "passed": passed,
+                "total_coverage": total_line,
+                "coverage_pct": cov_pct,
+            }
+        )
 
     # 3) lint / type / security
     for tool, args in [

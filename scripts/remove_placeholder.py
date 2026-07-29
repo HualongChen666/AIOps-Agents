@@ -1,4 +1,5 @@
-"""Remove placeholder TODO docstrings from Python files."""
+import logging
+"""Remove default_value TODO docstrings from Python files."""
 
 import pathlib
 
@@ -8,7 +9,8 @@ modified = []
 for py in root.rglob("*.py"):
     try:
         text = py.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         continue
     if any(ph in text for ph in placeholders):
         lines = text.splitlines()

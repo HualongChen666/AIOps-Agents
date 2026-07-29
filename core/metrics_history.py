@@ -25,6 +25,16 @@ except (ImportError, AttributeError):
     HISTORY_MAX_POINTS = 60  # 默认保留 60 个数据点(约 2 分钟)
     logger.info(f"config.py 中未找到 HISTORY_MAX_POINTS,使用默认值: {HISTORY_MAX_POINTS}")
 
+# 防御测试环境中被 mock 为非整数（含 MagicMock(spec=int) 导致比较异常）
+try:
+    if not isinstance(HISTORY_MAX_POINTS, int) or HISTORY_MAX_POINTS < 1:
+        HISTORY_MAX_POINTS = 60
+        logger.warning(f"HISTORY_MAX_POINTS 非法,使用默认值: {HISTORY_MAX_POINTS}")
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    HISTORY_MAX_POINTS = 60
+    logger.warning(f"HISTORY_MAX_POINTS 非法,使用默认值: {HISTORY_MAX_POINTS}")
+
 
 # ============================================================
 # 模块级常量
@@ -50,10 +60,8 @@ class MetricsHistory:
     def __init__(self, maxlen: int = HISTORY_MAX_POINTS):
         # 防御:maxlen 类型与范围
         if not isinstance(maxlen, int) or maxlen < 1:
-            logger.warning(
-                f"MetricsHistory 收到非法 maxlen={maxlen!r},已使用默认 {HISTORY_MAX_POINTS}"
-            )
-            maxlen = HISTORY_MAX_POINTS
+            logger.warning(f"MetricsHistory 收到非法 maxlen={maxlen!r},已使用默认 60")
+            maxlen = 60
 
         self._lock = Lock()
         self._maxlen = maxlen

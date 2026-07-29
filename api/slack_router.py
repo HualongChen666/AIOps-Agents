@@ -7,6 +7,7 @@
 - POST /api/slack/events → Slack Events API回调端点
 """
 
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -14,6 +15,7 @@ from loguru import logger as _logger
 from pydantic import BaseModel, Field
 
 from core.authentication import get_current_active_user
+from core.chat_command_handler import handle_instruction
 from core.slack_adapter import post_interactive_message, post_message, verify_slack_signature
 
 router = APIRouter(prefix="/api/slack", tags=["Slack Integration"])
@@ -108,7 +110,7 @@ async def send_slack_interactive_message(
 
 @router.post(
     "/events",
-    summary="Slack Events API回调端点",
+    summary="Slack Events API回调端点（支持工程师回复消息）",
     responses={
         (200): {"description": "处理成功"},
         (403): {"description": "签名验证失败"},
@@ -119,8 +121,8 @@ async def slack_events_callback(
     request: Request,
     x_slack_signature: Optional[str] = Header(None, alias="X-Slack-Signature"),
     x_slack_timestamp: Optional[str] = Header(None, alias="X-Slack-Timestamp"),
-) -> Dict[str, str]:
-    """处理Slack Events API的回调请求"""
+) -> Dict[str, Any]:
+    """处理 Slack Events API 的回调请求,支持工程师通过回复消息指导 Agent"""
     try:
         body = await request.body()
         if x_slack_timestamp is None or x_slack_signature is None:
@@ -130,8 +132,41 @@ async def slack_events_callback(
         event_data = await request.json()
         if event_data.get("type") == "url_verification":
             return {"challenge": event_data.get("challenge")}
-        event_type = event_data.get("event", {}).get("type")
+
+        event = event_data.get("event") or {}
+        event_type = event.get("type")
         _logger.info(f"Received Slack event: {event_type}")
+
+        # 处理消息/mention/按钮
+        if event_type in ("message", "app_mention"):
+            text = event.get("text", "")
+            user = event.get("user", "")
+            channel = event.get("channel", "")
+            # 提取用户说的话（去除 @bot 部分）
+            text = re.sub(r"<@\w+>", "", text).strip()
+            parsed = handle_instruction(
+                text,
+                user_id=user,
+                user_name=user,
+                channel=f"slack:{channel}",
+                verified=True,
+            )
+            _logger.info(f"Slack command parsed: {parsed}")
+            # 如有需要,可在此将 parsed action 投递到消息队列由 agent 执行
+            return {"status": "ok", "action": parsed}
+
+        if event_type == "block_actions":
+            # 审批按钮点击
+            actions = event.get("actions", [])
+            for action in actions:
+                action_id = action.get("action_id", "")
+                value = action.get("value", "")
+                if action_id.startswith("approve_"):
+                    return {"status": "ok", "action": {"type": "approve", "target": value}}
+                if action_id.startswith("reject_"):
+                    return {"status": "ok", "action": {"type": "reject", "target": value}}
+            return {"status": "ok", "action": "ignored"}
+
         return {"status": "ok"}
     except HTTPException:
         raise

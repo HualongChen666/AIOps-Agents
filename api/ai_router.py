@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from core.ai_engine import analyze
+from core.ai_engine import (
+    RootCauseAnalysisResponse,
+    _fallback_schema_error_json,
+    analyze,
+)
+from core.ai_service import ai_context_service
 from core.collector import collect_all, get_cached_snapshot
 
 logger = logging.getLogger(__name__)
@@ -128,17 +134,11 @@ def _extract_gather_result(result: Any, name: str, expected_type: type) -> Any:
 
 async def _collect_rich_context(snapshot: Optional[dict] = None) -> dict[str, Any]:
     """
-    🆕 N3 优化版:4 个数据源并行采集
+    🆕 N3 优化版:复用核心 AIContextService 采集 11 个诊断维度。
 
-    改造要点:
-      1. 4 个数据源 asyncio.gather 并行(原串行)
-      2. 各数据源独立 2s 超时(原共享 8s)
-      3. 优先复用 get_cached_snapshot()(N3-1 缓存)
-      4. return_exceptions=True 确保单个失败不中断
-      5. 🔧 AIRV1:gather 结果统一通过 _extract_gather_result 解析
-      6. 🔧 AIRV2:手动检测 CancelledError 并 reraise
-
-    总耗时:从 sum(各源) 降到 max(各源) ≈ 2s
+    在 core.ai_service 已实现的并行/超时/异常处理基础上,额外用本地更熟悉的
+    stats_engine 和 SQLite 修复记录覆盖 stats 与 recent_repairs,保持与前端/运行
+    看板的口径一致。
 
     Args:
         snapshot: 调用方传入的快照(可选)
@@ -147,117 +147,40 @@ async def _collect_rich_context(snapshot: Optional[dict] = None) -> dict[str, An
     Returns:
         rich_context dict(失败的字段为默认空值)
     """
-    rich_context: dict[str, Any] = {
-        "top_processes": [],
-        "recent_alerts": [],
-        "recent_repairs": [],
-        "stats": {},
-    }
-
-    async def _fetch_processes():
-        try:
-            src = snapshot
-            if not src or not isinstance(src, dict):
-                src = get_cached_snapshot()
-            if src and isinstance(src, dict):
-                top_procs = src.get("top_processes", [])
-                return top_procs[:5] if isinstance(top_procs, list) else []
-        except Exception as e:
-            logger.warning(f"N3 富上下文:进程数据提取失败 {e}")
-        return []
-
-    async def _fetch_alerts():
-        try:
-            from core.alert_engine import alert_history
-
-            recent_alerts = list(alert_history)[:10]
-            cleaned = []
-            for a in recent_alerts:
-                if not isinstance(a, dict):
-                    continue
-                level = a.get("level", "info")
-                if not isinstance(level, str):
-                    level = str(level) if level is not None else "info"
-                cleaned.append(
-                    {
-                        "level": level,
-                        "title": str(a.get("title", ""))[:200],
-                        "desc": str(a.get("desc", ""))[:500],
-                        "raw_time": str(a.get("raw_time", ""))[:32],
-                        "metric": str(a.get("metric", ""))[:64],
-                        "value": _safe_alert_value(a.get("value", 0)),
-                    }
-                )
-            return cleaned
-        except Exception as e:
-            logger.warning(f"N3 富上下文:告警历史读取失败 {e}")
-        return []
-
-    async def _fetch_repairs():
-        try:
-            return await asyncio.to_thread(_get_recent_repairs)
-        except Exception as e:
-            logger.warning(f"N3 富上下文:修复记录读取失败 {e}")
-        return []
-
-    async def _fetch_stats():
-        try:
-            from core.stats_engine import get_real_summary
-
-            summary = await asyncio.to_thread(get_real_summary)
-            return {
-                "current_anomalies": summary.get("current_anomalies", 0),
-                "heal_rate": summary.get("heal_rate", 0),
-                "total_alerts": summary.get("total_alerts", 0),
-                "mttr": summary.get("mttr", 0),
-            }
-        except Exception as e:
-            logger.warning(f"N3 富上下文:统计摘要读取失败 {e}")
-        return {}
-
-    async def _with_timeout(coro, name: str):
-        """为单个数据源添加独立超时"""
-        try:
-            return await asyncio.wait_for(coro, timeout=_RICH_CONTEXT_PER_SOURCE_TIMEOUT_SEC)
-        except asyncio.TimeoutError:
-            logger.warning(f"N3 富上下文:{name} 超时(>{_RICH_CONTEXT_PER_SOURCE_TIMEOUT_SEC}s)")
-            return None
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.warning(f"N3 富上下文:{name} 异常: {e}")
-            return None
-
     try:
-        results = await asyncio.gather(
-            _with_timeout(_fetch_processes(), "进程"),
-            _with_timeout(_fetch_alerts(), "告警"),
-            _with_timeout(_fetch_repairs(), "修复"),
-            _with_timeout(_fetch_stats(), "统计"),
-            return_exceptions=True,
-        )
-        for idx, r in enumerate(results):
-            if isinstance(r, asyncio.CancelledError):
-                logger.info(f"N3 富上下文采集被取消(检测点 idx={idx})")
-                raise r
-        top_procs = _extract_gather_result(results[0], "进程", list)
-        if top_procs is not None:
-            rich_context["top_processes"] = top_procs
-        recent_alerts = _extract_gather_result(results[1], "告警", list)
-        if recent_alerts is not None:
-            rich_context["recent_alerts"] = recent_alerts
-        recent_repairs = _extract_gather_result(results[2], "修复", list)
-        if recent_repairs is not None:
-            rich_context["recent_repairs"] = recent_repairs
-        stats = _extract_gather_result(results[3], "统计", dict)
-        if stats is not None:
-            rich_context["stats"] = stats
+        rich_context = await ai_context_service.collect_rich_context(snapshot)
     except asyncio.CancelledError:
-        logger.info("N3 富上下文采集被取消(外层 except 捕获)")
         raise
     except Exception as e:
-        logger.warning(f"N3 富上下文 gather 异常,返回部分结果: {e}")
-    return rich_context
+        logger.warning(f"N3 富上下文服务采集失败,降级到空上下文: {e}")
+        rich_context = {
+            "top_processes": [],
+            "recent_alerts": [],
+            "recent_repairs": [],
+            "stats": {},
+        }
+
+    # 使用 stats_engine 提供更准确的汇总口径
+    try:
+        from core.stats_engine import get_real_summary
+
+        summary = await get_real_summary()
+        rich_context["stats"] = {
+            "current_anomalies": summary.get("current_anomalies", 0),
+            "heal_rate": summary.get("heal_rate", 0),
+            "total_alerts": summary.get("total_alerts", 0),
+            "mttr": summary.get("mttr", 0),
+        }
+    except Exception as e:
+        logger.warning(f"N3 富上下文:统计摘要读取失败 {e}")
+
+    # 使用持久化修复记录替代内存历史
+    try:
+        rich_context["recent_repairs"] = await asyncio.to_thread(_get_recent_repairs)
+    except Exception as e:
+        logger.warning(f"N3 富上下文:修复记录读取失败 {e}")
+
+    return cast(dict[str, Any], rich_context)
 
 
 def _get_recent_repairs() -> list[dict[str, Any]]:
@@ -323,7 +246,7 @@ async def _collect_snapshot_with_cache() -> Optional[dict[str, Any]]:
         snapshot = await asyncio.to_thread(collect_all) or {}
     else:
         logger.debug("N3-C: AI 分析复用引擎层采集缓存")
-    return snapshot
+    return cast(Optional[dict[str, Any]], snapshot)
 
 
 def _build_context_summary(rich_context: Optional[dict[str, Any]]) -> dict[str, Any]:
@@ -492,12 +415,28 @@ async def ai_analyze(req: AnalyzeRequest, request: Request) -> dict[str, Any]:
             metrics_snapshot=metrics_ctx,
             platform=req.platform,
             rich_context=rich_context,
+            validate_json=True,
         )
     except asyncio.CancelledError:
+        raise
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"AI 引擎调用异常: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"AI 引擎调用失败: {str(e)[:200]}")
+
+    # Schema 校验：使用 Pydantic RootCauseAnalysisResponse 校验 analyze 输出
+    if isinstance(result, str):
+        try:
+            parsed = json.loads(result)
+            RootCauseAnalysisResponse.model_validate(parsed)
+            analysis_payload = parsed
+        except Exception as exc:
+            logger.error(f"AI 返回结果不符合 RootCauseAnalysisResponse schema: {exc}")
+            analysis_payload = json.loads(_fallback_schema_error_json())
+    else:
+        analysis_payload = result
+
     result_length = len(result) if isinstance(result, str) else 0
     logger.info(
         f"AI 分析完成 | operator={operator_ip} | platform={req.platform} |"
@@ -505,7 +444,7 @@ async def ai_analyze(req: AnalyzeRequest, request: Request) -> dict[str, Any]:
     )
     return {
         "status": "ok",
-        "analysis": result,
+        "analysis": analysis_payload,
         "metrics_context": metrics_ctx,
         "platform": req.platform,
         "context_summary": _build_context_summary(rich_context),

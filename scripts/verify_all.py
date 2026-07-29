@@ -21,12 +21,21 @@ def main():
     for p, methods in paths.items():
         for method, details in methods.items():
             resp = details.get("responses", {})
-            r200 = resp.get("200")
+            success = None
+            success_code = None
+            for code in ("200", "201", "202", "204"):
+                if code in resp:
+                    success = resp[code]
+                    success_code = code
+                    break
+            # 204 No Content responses are allowed to have no content
+            if success and success_code == "204" and not success.get("content"):
+                continue
             if not (
-                r200
-                and r200.get("content")
-                and r200["content"].get("application/json")
-                and "example" in r200["content"]["application/json"]
+                success
+                and success.get("content")
+                and success["content"].get("application/json")
+                and "example" in success["content"]["application/json"]
             ):
                 missing_example.append((p, method))
             if not details.get("description"):
@@ -46,10 +55,8 @@ def main():
         text = file.read_text(encoding="utf-8")
         if "class" in text and "BaseModel" in text:
             # Pydantic v2 uses model_config + json_schema_extra; v1 uses class Config + schema_extra
-            has_example_config = (
-                'model_config' in text and 'json_schema_extra' in text
-            ) or (
-                'class Config' in text and 'schema_extra' in text
+            has_example_config = ("model_config" in text and "json_schema_extra" in text) or (
+                "class Config" in text and "schema_extra" in text
             )
             if not has_example_config:
                 missing_model_examples.append(str(file))

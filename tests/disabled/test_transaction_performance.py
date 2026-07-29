@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Transaction Performance Tests
 事务处理性能测试
@@ -433,7 +434,8 @@ class TestTransactionConcurrency:
 
             try:
                 await asyncio.gather(transaction1(), transaction2())
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 死锁会被检测到
                 pass
 

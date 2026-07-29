@@ -10,10 +10,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.authentication"] = MagicMock()
-sys.modules["core.notify_engine"] = MagicMock()
-
 from api.notify_router import (
     get_notify_config,
     notify_health,
@@ -21,6 +17,10 @@ from api.notify_router import (
     send_manual_notify,
     send_test_notify,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.authentication"] = MagicMock()
+sys.modules["core.notify_engine"] = MagicMock()
 
 
 @pytest.fixture

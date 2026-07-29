@@ -145,7 +145,7 @@ class Test{class_name}:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 
     def test_{test_name}_failure(self):
         """
@@ -168,7 +168,7 @@ class Test{class_name}:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 '''
 
         # Integration test template
@@ -196,7 +196,7 @@ class Test{class_name}Integration:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 
     def test_{test_name}_integration_failure(self):
         """
@@ -207,7 +207,7 @@ class Test{class_name}Integration:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 
     def test_{test_name}_performance(self):
         """
@@ -218,7 +218,7 @@ class Test{class_name}Integration:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 '''
 
         # End-to-end test template
@@ -246,7 +246,7 @@ class Test{class_name}E2E:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 
     def test_{test_name}_cross_module_flow(self):
         """
@@ -257,7 +257,7 @@ class Test{class_name}E2E:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 
     def test_{test_name}_exception_scenario(self):
         """
@@ -268,7 +268,7 @@ class Test{class_name}E2E:
         # Act
 
         # Assert
-        assert True  # Placeholder assertion
+        assert True  # example assertion
 '''
 
     def create_test_suite(

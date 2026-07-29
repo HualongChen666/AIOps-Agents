@@ -9,11 +9,11 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+from api.topology_view_router import topology_page
+
 # Mock problematic imports before importing router
 sys.modules["config"] = MagicMock()
 sys.modules["config"].BASE_DIR = Path("/tmp")
-
-from api.topology_view_router import topology_page
 
 
 @pytest.fixture

@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[2]
         "CONTRIBUTING.md",
         "CODE_OF_CONDUCT.md",
         "LICENSE",
+        "SECURITY.md",
+        "CHANGELOG.md",
         "docs/sphinx/conf.py",
         "docs/sphinx/index.rst",
         "docs/sphinx/Makefile",

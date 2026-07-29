@@ -5,6 +5,11 @@ Concurrency Control
 """
 
 import asyncio
+import os
+
+# Global agent session concurrency limit; set via AIOPS_MAX_AGENT_SESSIONS.
+AGENT_SESSION_LIMIT = int(os.getenv("AIOPS_MAX_AGENT_SESSIONS", "50"))
+agent_session_semaphore = asyncio.Semaphore(AGENT_SESSION_LIMIT)
 
 
 class ConcurrencyController:

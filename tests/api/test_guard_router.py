@@ -10,14 +10,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["config"] = MagicMock()
-sys.modules["config"].ALLOWED_LOCAL_IPS = ["127.0.0.1"]
-sys.modules["config"].GUARD_DEFAULT_HOST = "localhost"
-sys.modules["config"].INTERNAL_API_KEY = ""
-sys.modules["config"].TRUST_PROXY_HEADER = ""
-sys.modules["core.command_guard"] = MagicMock()
-
 from api.guard_router import (
     check_allowed,
     check_command,
@@ -26,6 +18,14 @@ from api.guard_router import (
     get_audit_stats,
     rewrite_command,
 )
+
+# Mock problematic imports before importing router
+sys.modules["config"] = MagicMock()
+sys.modules["config"].ALLOWED_LOCAL_IPS = ["127.0.0.1"]
+sys.modules["config"].GUARD_DEFAULT_HOST = "localhost"
+sys.modules["config"].INTERNAL_API_KEY = ""
+sys.modules["config"].TRUST_PROXY_HEADER = ""
+sys.modules["core.command_guard"] = MagicMock()
 
 
 @pytest.fixture

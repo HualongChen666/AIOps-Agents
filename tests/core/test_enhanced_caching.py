@@ -15,7 +15,7 @@ from core.enhanced_caching import (
 
 
 class FakeRedis:
-    """A minimal in-memory Redis stub for testing."""
+    """A minimal in-memory Redis component for testing."""
 
     def __init__(self, *args, **kwargs):
         self.store = {}

@@ -618,7 +618,8 @@ async def _run_ssh_command(
         if conn is not None:
             try:
                 await conn.close()
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 logging.getLogger(__name__).debug("Failed to close SSH connection", exc_info=True)
 
 
@@ -629,7 +630,8 @@ def _normalize_ssh_output(raw_output: Any) -> str:
     elif isinstance(raw_output, bytes):
         try:
             return raw_output.decode("utf-8", errors="replace")
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             return repr(raw_output)
     elif isinstance(raw_output, str):
         return raw_output

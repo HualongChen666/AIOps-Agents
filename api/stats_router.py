@@ -112,7 +112,7 @@ class RepairRecordRequest(BaseModel):
     summary="获取真实统计摘要数据",
     responses={(200): {"description": "统计摘要数据"}, (500): {"description": "统计数据计算失败"}},
 )
-def get_summary() -> dict[str, Any]:
+async def get_summary() -> dict[str, Any]:
     """
     返回总览大盘真实统计数据,替换前端随机模拟值
     对应:
@@ -134,7 +134,7 @@ def get_summary() -> dict[str, Any]:
             return dict(_summary_cache["data"])
     logger.debug("请求真实统计摘要数据")
     try:
-        summary = get_real_summary()
+        summary = await get_real_summary()
         with _summary_cache_lock:
             _summary_cache["data"] = dict(summary)
             _summary_cache["ts"] = time.monotonic()
@@ -157,7 +157,7 @@ def get_summary() -> dict[str, Any]:
         (500): {"description": "记录失败"},
     },
 )
-def record_repair_result(
+async def record_repair_result(
     payload: RepairRecordRequest,
     request: Request,
     x_internal_key: Optional[str] = Header(default=None, alias="X-Internal-Key"),
@@ -195,7 +195,7 @@ def record_repair_result(
             "platform": payload.platform,
             "output": payload.output,
         }
-        record_repair(repair_data)
+        await record_repair(repair_data)
         with _summary_cache_lock:
             _summary_cache["data"] = None
             _summary_cache["ts"] = 0.0

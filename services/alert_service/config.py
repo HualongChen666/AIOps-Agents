@@ -22,7 +22,12 @@ class AlertServiceSettings(BaseSettings):
     use_in_memory: bool = True
 
     # Aggregation
-    aggregator_window_seconds: int = 5
+    aggregator_window_seconds: int = 30
+
+    # Rate limiting
+    collector_max_alerts_per_second: int = 1000
+    pipeline_max_concurrent: int = 20
+    pipeline_max_retries: int = 3
 
     # Prometheus
     enable_prometheus: bool = True

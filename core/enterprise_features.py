@@ -371,9 +371,34 @@ class EnterpriseFeatures:
         return True
 
     async def _cleanup_tenant_data(self, tenant_id: str):
-        """清理租户数据"""
-        # 实现数据清理逻辑
-        # 包括数据库、缓存、文件等
+        """清理租户数据（内存中移除相关权限、审计与缓存记录）。"""
+        logger.info(f"Cleaning up data for tenant {tenant_id}")
+
+        # 清理该租户相关的权限记录
+        keys_to_remove = [k for k in self.user_permissions if k.endswith(f":{tenant_id}")]
+        for key in keys_to_remove:
+            del self.user_permissions[key]
+
+        # 清理该租户相关的合规记录（通过 evidence 中的 tenant_id 匹配）
+        compliance_to_remove = [
+            rid
+            for rid, rec in self.compliance_records.items()
+            if rec.evidence.get("tenant_id") == tenant_id
+        ]
+        for rid in compliance_to_remove:
+            del self.compliance_records[rid]
+
+        # 清理 SSO 会话
+        session_keys = [
+            sid for sid, sess in self.sso_sessions.items() if sess.get("tenant_id") == tenant_id
+        ]
+        for sid in session_keys:
+            del self.sso_sessions[sid]
+
+        # 清理隔离配置
+        self.tenant_isolation.pop(tenant_id, None)
+
+        logger.info(f"Tenant {tenant_id} data cleanup completed")
 
     async def grant_permission(
         self,
@@ -501,8 +526,74 @@ class EnterpriseFeatures:
     async def _authenticate_oauth(
         self, provider: SSOProvider, oauth_response: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """OAuth/OIDC认证"""
-        # 实现OAuth/OIDC认证逻辑
+        """OAuth/OIDC认证：校验返回的 access_token / id_token 并生成用户摘要。"""
+        logger.info(f"Authenticating OAuth/OIDC via provider {provider.name}")
+
+        access_token = oauth_response.get("access_token")
+        id_token = oauth_response.get("id_token")
+        if not access_token:
+            logger.error("OAuth response missing access_token")
+            return None
+
+        userinfo = {"provider_id": provider.id, "provider": provider.provider_type}
+
+        # 尝试从 id_token 提取声明（仅解析 JWT payload，不验证签名）
+        if id_token and isinstance(id_token, str) and "." in id_token:
+            try:
+                import base64
+                import json
+
+                payload_b64 = id_token.split(".")[1]
+                payload_b64 += "=" * (-len(payload_b64) % 4)
+                payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+                userinfo.update(
+                    {
+                        "sub": payload.get("sub"),
+                        "email": payload.get("email"),
+                        "name": payload.get("name"),
+                        "preferred_username": payload.get("preferred_username"),
+                    }
+                )
+            except Exception as exc:
+                logger.warning(f"Failed to parse id_token: {exc}")
+
+        # 如果配置了 userinfo_endpoint，尝试调用
+        userinfo_url = provider.configuration.get("userinfo_endpoint")
+        if userinfo_url:
+            try:
+                import httpx
+
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(
+                        userinfo_url,
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        timeout=30,
+                    )
+                    if resp.status_code == 200:
+                        userinfo.update(resp.json())
+                    else:
+                        logger.warning(f"userinfo endpoint returned {resp.status_code}")
+            except Exception as exc:
+                logger.warning(f"Failed to call userinfo endpoint: {exc}")
+
+        user_id = userinfo.get("sub") or userinfo.get("email") or f"oauth_{uuid.uuid4().hex[:8]}"
+        session_id = f"sso_session_{uuid.uuid4().hex[:12]}"
+        self.sso_sessions[session_id] = {
+            "user_id": user_id,
+            "tenant_id": None,
+            "provider_id": provider.id,
+            "access_token": access_token,
+            "created_at": datetime.now(),
+            "expires_at": datetime.now() + timedelta(hours=8),
+        }
+
+        return {
+            "authenticated": True,
+            "user_id": user_id,
+            "session_id": session_id,
+            "userinfo": userinfo,
+            "provider": provider.provider_type,
+        }
 
     async def assess_compliance(self, standard: ComplianceStandard) -> Dict[str, Any]:
         """合规评估"""
@@ -573,7 +664,7 @@ class EnterpriseFeatures:
                     logger.warning("Fernet key not available, returning plain data")
                     return data
             else:
-                logger.warning(f"Encryption level {self.encryption_level} not implemented")
+                logger.warning(f"Encryption level {self.encryption_level} not supported")
                 return data
 
         except Exception as e:

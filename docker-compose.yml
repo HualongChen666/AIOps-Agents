@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   aiops-agent:
@@ -11,6 +11,21 @@ services:
       - PYTHONPATH=/app
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
+      - ENABLE_ADDONS=false
+      - RAG_ENABLED=false
+      - LLM_ROUTER_ENABLED=false
+      - TOPOLOGY_ENABLED=false
+      - TRACING_ENABLED=false
+      - LOG_AGGREGATION_ENABLED=false
+      - INCIDENT_RESPONSE_ENABLED=false
+      - WORKFLOW_ENABLED=false
+      - INTEGRATIONS_ENABLED=false
+      - SECURITY_SCANNING_ENABLED=false
+      - PENETRATION_TESTING_ENABLED=false
+      - PLUGINS_ENABLED=false
+      - SHARDING_ENABLED=false
+      - I18N_ENABLED=false
+      - DOC_GENERATION_ENABLED=false
     volumes:
       - ./core:/app/core
       - ./api:/app/api
@@ -83,8 +98,8 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
     networks:
       - aiops-network
     restart: unless-stopped

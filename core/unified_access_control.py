@@ -7,12 +7,14 @@ Integrates RBAC and ABAC for comprehensive access control.
 Provides policy management, permission checking, and audit logging.
 """
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 from core.abac import ABACEngine, ActionType, Environment, Resource, ResourceType, Subject
@@ -329,6 +331,12 @@ def setup_default_access_policies():
         Dictionary with setup results
     """
     try:
+        if unified_access_control.access_rules:
+            return {
+                "status": "already_initialized",
+                "rules_added": 0,
+                "active_rules": len(unified_access_control.access_rules),
+            }
         # Add default access rules
         admin_rule = AccessRule(
             id="rule_admin_full",
@@ -375,3 +383,38 @@ def setup_default_access_policies():
     except Exception as e:
         logger.error(f"Default access policies setup failed: {e}")
         return {"status": "error", "error": str(e)}
+
+
+def add_access_control_middleware(
+    app: FastAPI,
+    resource: str = "service",
+    action: str = "read",
+) -> None:
+    """Add a global ABAC middleware (disabled by default; enable with AIOPS_ENFORCE_ABAC=true)."""
+    enforce = os.getenv("AIOPS_ENFORCE_ABAC", "false").lower() == "true"
+
+    @app.middleware("http")
+    async def access_control_middleware(request: Request, call_next):
+        if enforce:
+            user = getattr(request.state, "user", None)
+            if not user:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Authentication required"},
+                )
+            subject = Subject(
+                id=user.get("id", "unknown"),
+                type=user.get("type", "user"),
+                attributes=user.get("attributes", {}),
+                roles=set(user.get("roles", [])),
+                groups=set(user.get("groups", [])),
+            )
+            granted = unified_access_control.check_access(
+                subject=subject, resource=resource, action=action
+            )
+            if not granted:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": f"Access denied to {resource}:{action}"},
+                )
+        return await call_next(request)

@@ -10,7 +10,7 @@ from core.models import User
 
 
 class FakeResult:
-    """Minimal SQLAlchemy result stub for UserService tests."""
+    """Minimal SQLAlchemy result component for UserService tests."""
 
     def __init__(
         self,
@@ -33,7 +33,7 @@ class FakeResult:
 
 
 class FakeSession:
-    """Minimal async session stub driven by a queue of FakeResult objects."""
+    """Minimal async session component driven by a queue of FakeResult objects."""
 
     def __init__(self, result: FakeResult = None):
         self._result = result if result is not None else FakeResult()

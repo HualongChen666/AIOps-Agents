@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 E2E Test: Error Recovery and Retry
 真实E2E测试：错误恢复和重试机制测试，不使用Mock
@@ -43,7 +44,8 @@ class TestErrorRecoveryAndRetry:
             response, attempts = await make_request_with_retry()
             assert response.status_code == 200
             assert attempts <= 3
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             pytest.skip("API timeout retry test failed")
 
     @pytest.mark.asyncio
@@ -86,7 +88,8 @@ class TestErrorRecoveryAndRetry:
             result, attempts = await db_operation_with_retry()
             assert result is not None
             assert attempts <= 5
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             pytest.skip("Database connection retry test failed")
 
     @pytest.mark.asyncio
@@ -117,7 +120,8 @@ class TestErrorRecoveryAndRetry:
                         circuit_open = True
                     return None, "failure"
 
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 failure_count += 1
                 if failure_count >= 5:
                     circuit_open = True
@@ -154,13 +158,15 @@ class TestErrorRecoveryAndRetry:
                     if fallback_response.status_code == 200:
                         return fallback_response.json(), "fallback"
 
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 降级到备用端点
                 try:
                     fallback_response = await http_client.get(fallback_endpoint, timeout=5.0)
                     if fallback_response.status_code == 200:
                         return fallback_response.json(), "fallback"
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     return None, "failed"
 
             return None, "failed"
@@ -191,7 +197,8 @@ class TestErrorRecoveryAndRetry:
                     if response.status_code == 200:
                         return response, attempt + 1
 
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     if attempt < max_retries - 1:
                         delay = 2**attempt  # 指数退避: 1, 2, 4, 8秒
                         retry_delays.append(delay)
@@ -210,7 +217,8 @@ class TestErrorRecoveryAndRetry:
                 total_delay = sum(retry_delays)
                 assert total_delay < (end_time - start_time + 2)  # 允许2秒误差
 
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             pytest.skip("Exponential backoff test failed")
 
     @pytest.mark.asyncio
@@ -227,7 +235,8 @@ class TestErrorRecoveryAndRetry:
                         "http://localhost:8000/api/v1/health/ping", timeout=10.0
                     )
                     return response.status_code == 200
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     return False
 
         # 发送20个请求，但只有5个并发执行

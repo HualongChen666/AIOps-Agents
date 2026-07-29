@@ -1,0 +1,82 @@
+---
+# Ansible playbook for deploying AIOps Agent infrastructure.
+# Run: ansible-playbook -i inventory.ini infra/ansible/site.yml
+- name: Deploy AIOps Agent integration infrastructure
+  hosts: all
+  become: yes
+  vars:
+    aiops_user: aiops
+    aiops_home: /opt/aiops
+    compose_file: "{{ aiops_home }}/infrastructure/integration-test.yml"
+
+  tasks:
+    - name: Ensure Docker is installed
+      package:
+        name: docker-ce
+        state: present
+      ignore_errors: true
+
+    - name: Ensure Docker Compose plugin is available
+      command: docker compose version
+      register: compose_version
+      ignore_errors: true
+      changed_when: false
+
+    - name: Create AIOps application directory
+      file:
+        path: "{{ aiops_home }}"
+        state: directory
+        owner: "{{ aiops_user }}"
+        group: "{{ aiops_user }}"
+        mode: '0755'
+
+    - name: Copy integration compose file
+      copy:
+        src: "../../../infrastructure/integration-test.yml"
+        dest: "{{ compose_file }}"
+        owner: "{{ aiops_user }}"
+        group: "{{ aiops_user }}"
+        mode: '0644'
+
+    - name: Pull required images
+      command: >
+        docker compose -f {{ compose_file }} pull
+      changed_when: true
+
+    - name: Start integration services
+      command: >
+        docker compose -f {{ compose_file }} up -d --wait
+      changed_when: true
+
+    - name: Wait for PostgreSQL Pgpool to be healthy
+      ansible.builtin.uri:
+        url: "http://localhost:5432"
+      register: pgpool_status
+      until: pgpool_status is succeeded
+      retries: 30
+      delay: 5
+      ignore_errors: true
+
+    - name: Verify Redis Cluster
+      command: >
+        docker compose -f {{ compose_file }} exec -T redis-node-0
+        redis-cli -a testpass -p 6379 CLUSTER INFO
+      changed_when: false
+      ignore_errors: true
+
+    - name: Verify Qdrant cluster health
+      ansible.builtin.uri:
+        url: "http://localhost:6333/healthz"
+        status_code: 200
+      register: qdrant_status
+      until: qdrant_status is succeeded
+      retries: 30
+      delay: 5
+      ignore_errors: true
+
+    - name: Verify Kafka broker
+      command: >
+        docker compose -f {{ compose_file }} exec -T kafka
+        kafka-broker-api-versions.sh --bootstrap-server localhost:9092
+      changed_when: false
+      ignore_errors: true

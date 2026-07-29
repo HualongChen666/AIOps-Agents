@@ -7,14 +7,12 @@ import pytest
 class TestVerifierModule:
     """测试验证器模块"""
 
-    @pytest.mark.skip(reason="SQLAlchemy metadata conflict")
     def test_verifier_module_exists(self):
         """测试验证器模块存在"""
         from core import verifier
 
         assert verifier is not None
 
-    @pytest.mark.skip(reason="SQLAlchemy metadata conflict")
     def test_verifier_has_functions(self):
         """测试验证器模块有函数"""
         from core import verifier

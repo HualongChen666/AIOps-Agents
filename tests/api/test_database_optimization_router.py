@@ -11,9 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-sys.modules["core.database_optimization_manager"] = MagicMock()
-
 from api.database_optimization_router import (
     analyze_slow_queries,
     get_database_metrics,
@@ -23,6 +20,9 @@ from api.database_optimization_router import (
     run_optimization,
     setup_query_cache,
 )
+
+# Mock problematic imports before importing router
+sys.modules["core.database_optimization_manager"] = MagicMock()
 
 
 @pytest.fixture

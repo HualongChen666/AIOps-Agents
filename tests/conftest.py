@@ -8,6 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
+collect_ignore_glob = ["*_out.txt"]
 
 # Force all threads created during tests to be daemon threads so that
 # pytest-xdist worker processes can exit even when modules leave background
@@ -36,6 +37,8 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: marks tests as integration tests")
     config.addinivalue_line("markers", "unit: marks tests as unit tests")
     config.addinivalue_line("markers", "e2e: marks tests as end-to-end tests")
+    config.addinivalue_line("markers", "core: core functionality, always run")
+    config.addinivalue_line("markers", "addons: requires ENABLE_ADDONS=true")
 
     # pytest-xdist配置
     if hasattr(config, "workerinput"):
@@ -48,6 +51,71 @@ def pytest_configure(config):
         import logging
 
         logging.info("Running in main process (controller)")
+
+
+def pytest_collection_modifyitems(config, items):
+    """自动给测试用例打 core / addons 标记。"""
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).parent
+    ext_dir = root.parent / "extensions" / "addons"
+    addon_names = set()
+    if ext_dir.exists():
+        for pack in ext_dir.iterdir():
+            if pack.is_dir():
+                addon_names.update(d.name for d in pack.iterdir() if d.is_dir())
+
+    # 从 main.py ADDON_ROUTERS 解析 add-on api router 变量名，生成对应测试文件名
+    addon_api_tests = set()
+    main_py = root.parent / "main.py"
+    if main_py.exists():
+        text = main_py.read_text(encoding="utf-8")
+        match = re.search(r"ADDON_ROUTERS\s*=\s*\[(.*?)\]", text, re.DOTALL)
+        if match:
+            addon_api_tests = {
+                f"test_{name}.py"
+                for name in re.findall(
+                    r"^\s*\(\s*(\w+)\s*,\s*\w+\s*\)\s*,?$",
+                    match.group(1),
+                    re.MULTILINE,
+                )
+            }
+
+    core_service_names = {
+        "alert_service",
+        "agent_orchestration_service",
+        "repair_service",
+        "audit_service",
+    }
+
+    for item in items:
+        try:
+            path = pathlib.Path(str(item.fspath))
+            relpath = path.relative_to(root)
+        except (ValueError, AttributeError):
+            continue
+        parts = relpath.parts
+        mark = None
+        if parts and parts[0] == "api":
+            mark = "addons" if path.name in addon_api_tests else "core"
+        elif parts and parts[0] in ("core", "e2e"):
+            mark = "core"
+        elif parts and (
+            parts[0] == "addons"
+            or (parts[0] == "services" and len(parts) > 1 and parts[1] in addon_names)
+        ):
+            mark = "addons"
+        elif parts and parts[0] == "services" and len(parts) > 1 and parts[1] in core_service_names:
+            mark = "core"
+        if mark and mark not in item.keywords:
+            item.add_marker(getattr(pytest.mark, mark))
+
+
+def pytest_runtest_setup(item):
+    """未启用 ENABLE_ADDONS 时跳过 addons 测试。"""
+    if "addons" in item.keywords and os.getenv("ENABLE_ADDONS", "").lower() != "true":
+        pytest.skip("ENABLE_ADDONS is not true")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -545,14 +613,42 @@ async def test_redis_client():
         await redis_client.flushall()
         await redis_client.close()
     except ImportError:
-        # 如果fakeredis不可用，使用mock
-        from unittest.mock import AsyncMock
+        # 如果fakeredis不可用，使用轻量级内存异步Redis fake
+        import asyncio
 
-        mock_redis = AsyncMock()
-        mock_redis.get = AsyncMock(return_value=None)
-        mock_redis.set = AsyncMock(return_value=True)
-        mock_redis.delete = AsyncMock(return_value=True)
-        mock_redis.exists = AsyncMock(return_value=False)
-        mock_redis.flushall = AsyncMock(return_value=True)
-        mock_redis.close = AsyncMock()
-        yield mock_redis
+        class AsyncFakeRedis:
+            """轻量级异步内存Redis fake，支持get/set/delete/exists/flushall/close。"""
+
+            def __init__(self):
+                self._data: dict[str, str] = {}
+                self._lock = asyncio.Lock()
+
+            async def get(self, key: str):
+                async with self._lock:
+                    return self._data.get(key)
+
+            async def set(self, key: str, value: str, *args, **kwargs):
+                async with self._lock:
+                    self._data[key] = str(value)
+                return True
+
+            async def delete(self, key: str):
+                async with self._lock:
+                    return 1 if self._data.pop(key, None) is not None else 0
+
+            async def exists(self, key: str):
+                async with self._lock:
+                    return 1 if key in self._data else 0
+
+            async def flushall(self):
+                async with self._lock:
+                    self._data.clear()
+                return True
+
+            async def close(self):
+                pass
+
+        redis_client = AsyncFakeRedis()
+        yield redis_client
+        await redis_client.flushall()
+        await redis_client.close()

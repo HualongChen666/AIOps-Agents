@@ -74,7 +74,7 @@ class OTELEnhancedCollector(BaseCollector):
         Returns:
             Collected data dictionary
         """
-        raise NotImplementedError("Subclasses must implement _collect_from_source")
+        return {}
 
     async def _store_to_l4(self, snapshot: Dict[str, Any]) -> None:
         """

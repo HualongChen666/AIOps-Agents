@@ -2,6 +2,7 @@
 """测试 core/log_collector 的日志采集、清理和解析逻辑"""
 
 import json
+import subprocess
 from unittest.mock import MagicMock
 
 import pytest
@@ -91,9 +92,6 @@ class TestExecutePowershellWithTimeout:
         proc.communicate = MagicMock(return_value=("stdout", "stderr"))
         monkeypatch.setattr("subprocess.Popen", MagicMock(return_value=proc))
         assert _execute_powershell_with_timeout("cmd") == (proc, "stdout", "stderr")
-
-
-import subprocess
 
 
 class TestRunPsJson:

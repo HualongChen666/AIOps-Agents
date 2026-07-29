@@ -15,11 +15,11 @@ Key Features:
 - Fine-grained alert suppression management
 """
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -114,7 +114,7 @@ class AlertIntelligenceEngine:
         self, alerts: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Perform intelligent alert aggregation using ML clustering
+        Perform intelligent alert aggregation using ML clustering and cascade detection.
 
         Args:
             alerts: List of raw alerts to process
@@ -138,6 +138,9 @@ class AlertIntelligenceEngine:
 
         # Apply noise reduction
         filtered_alerts = await self._apply_noise_reduction(clustered_alerts)
+
+        # Detect cascade failures across aggregated alerts
+        filtered_alerts = await self._detect_cascade_alerts(filtered_alerts)
 
         # Update historical patterns
         self._update_patterns(alerts)
@@ -502,6 +505,88 @@ class AlertIntelligenceEngine:
                 return False
 
         return True
+
+    async def _detect_cascade_alerts(
+        self, aggregated_alerts: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Detect cascade failures by finding common upstream dependencies.
+
+        If multiple alerts share a common ancestor in the topology graph, mark
+        them as part of a cascade and annotate a likely common root.
+        """
+        if len(aggregated_alerts) < 2:
+            return aggregated_alerts
+
+        source_hosts = []
+        for alert in aggregated_alerts:
+            hosts = [alert.get("host", alert.get("source", "unknown"))]
+            for child in alert.get("aggregated_alerts", []):
+                child_host = child.get("host", child.get("source"))
+                if child_host:
+                    hosts.append(child_host)
+            source_hosts.extend(list(set(hosts)))
+
+        source_hosts = list(set(source_hosts))
+        if len(source_hosts) < 2:
+            return aggregated_alerts
+
+        # Compute common ancestors (upstream dependencies) across source hosts
+        common_ancestors: Optional[Set[str]] = None
+        for host in source_hosts:
+            ancestors = self._get_all_ancestors(host)
+            if common_ancestors is None:
+                common_ancestors = ancestors
+            else:
+                common_ancestors &= ancestors
+
+        if not common_ancestors:
+            return aggregated_alerts
+
+        # Pick the ancestor with the most dependents as the common root
+        common_root = max(
+            common_ancestors,
+            key=lambda node: self._count_dependents(node),
+            default=None,
+        )
+        if not common_root:
+            return aggregated_alerts
+
+        logger.info(f"Cascade detected with common root: {common_root}")
+        for alert in aggregated_alerts:
+            alert["is_cascade"] = True
+            alert["cascade_root"] = common_root
+
+        return aggregated_alerts
+
+    def _get_all_ancestors(self, node: str, max_depth: int = 5) -> Set[str]:
+        """Return all transitive upstream dependencies of a node."""
+        ancestors: Set[str] = set()
+        if node not in self.topology_graph:
+            return ancestors
+
+        queue: deque[tuple[str, int]] = deque([(node, 0)])
+        visited: Set[str] = {node}
+
+        while queue:
+            current, depth = queue.popleft()
+            if depth >= max_depth:
+                continue
+            for dep in self.topology_graph.get(current, []):
+                if dep in visited:
+                    continue
+                visited.add(dep)
+                ancestors.add(dep)
+                queue.append((dep, depth + 1))
+
+        return ancestors
+
+    def _count_dependents(self, node: str) -> int:
+        """Count how many nodes depend on the given node."""
+        count = 0
+        for source, deps in self.topology_graph.items():
+            if node in deps:
+                count += 1
+        return count
 
     def add_routing_rule(self, rule: Dict[str, Any]) -> None:
         """Add a custom routing rule"""

@@ -3,6 +3,7 @@ import React from 'react';
 interface CardProps {
   className?: string;
   children: React.ReactNode;
+  onClick?: () => void;
 }
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(

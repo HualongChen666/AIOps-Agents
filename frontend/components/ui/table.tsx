@@ -3,6 +3,8 @@ import React from 'react';
 interface TableProps {
   className?: string;
   children: React.ReactNode;
+  colSpan?: number;
+  rowSpan?: number;
 }
 
 export const Table = React.forwardRef<HTMLTableElement, TableProps>(

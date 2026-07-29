@@ -56,7 +56,7 @@ class TestKnowledgeBase:
         kb = KnowledgeBase("test_kb", mock_pipeline, vector_store_client=mock_vector_store)
         doc = await kb.add_document("doc1", "Hello world")
         assert doc.id == "doc1"
-        mock_vector_store.upsert.assert_not_called()  # placeholder does not call upsert
+        mock_vector_store.upsert.assert_not_called()  # default_value does not call upsert
 
     @pytest.mark.asyncio
     async def test_delete_document(self, mock_pipeline):

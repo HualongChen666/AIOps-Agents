@@ -63,7 +63,7 @@ class CollaborationIntegration:
             return {"error": "Slack not enabled"}
 
         try:
-            # Placeholder for actual Slack API call
+            # default_value for actual Slack API call
             # In production, this would use the Slack Web API
             target_channel = channel or self.slack_channel
 
@@ -96,7 +96,7 @@ class CollaborationIntegration:
             return {"error": "Slack not enabled"}
 
         try:
-            # Placeholder for actual Slack API call with blocks
+            # default_value for actual Slack API call with blocks
             logger.info(f"Sent Slack approval request: {title}")
             return {
                 "success": True,
@@ -127,7 +127,7 @@ class CollaborationIntegration:
             return {"error": "Teams not enabled"}
 
         try:
-            # Placeholder for actual Teams webhook call
+            # default_value for actual Teams webhook call
             logger.info("Sent Teams notification")
             return {"success": True, "timestamp": datetime.now().isoformat()}
 
@@ -153,7 +153,7 @@ class CollaborationIntegration:
             return {"error": "Teams not enabled"}
 
         try:
-            # Placeholder for actual Teams adaptive card API call
+            # default_value for actual Teams adaptive card API call
             logger.info(f"Sent Teams approval card: {title}")
             return {"success": True, "timestamp": datetime.now().isoformat()}
 

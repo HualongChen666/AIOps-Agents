@@ -3,6 +3,16 @@
 
 import pytest
 
+from core.distributed_storage import (
+    DatabaseInstance,
+    DatabaseRole,
+    DatabaseType,
+    DistributedStorageManager,
+    ReadWriteRouter,
+    RedisClusterAdapter,
+    get_distributed_storage_manager,
+)
+
 
 class FakeRedis:
     """A fake Redis client for testing RedisClusterAdapter without network."""
@@ -50,17 +60,6 @@ def fake_redis(monkeypatch):
     monkeypatch.setattr("core.distributed_storage.REDIS_AVAILABLE", True)
     monkeypatch.setattr("core.distributed_storage.redis", FakeRedisModule)
     monkeypatch.setattr("core.distributed_storage.RedisCluster", FakeRedisModule.RedisCluster)
-
-
-from core.distributed_storage import (
-    DatabaseInstance,
-    DatabaseRole,
-    DatabaseType,
-    DistributedStorageManager,
-    ReadWriteRouter,
-    RedisClusterAdapter,
-    get_distributed_storage_manager,
-)
 
 
 class TestEnumsAndDataclass:
@@ -156,7 +155,7 @@ class TestReadWriteRouter:
 
 
 class TestRedisClusterAdapter:
-    """测试 Redis 集群适配器（stub 模式）"""
+    """测试 Redis 集群适配器（component 模式）"""
 
     def test_non_stub_operations(self):
         adapter = RedisClusterAdapter()

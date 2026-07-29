@@ -9,18 +9,21 @@ import pytest  # noqa: F401
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.ai_feedback_router import router
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
+# isort: off
 sys.modules["core.authentication"] = Mock()
-sys.modules["core.authentication"].get_current_active_user = Mock()
+sys.modules["core.authentication"].get_current_active_user = Mock(return_value={"user_id": "test"})
 sys.modules["core.authentication"].role_required = Mock(return_value=lambda: {"role": "admin"})
 sys.modules["core.ai_feedback"] = Mock()
 sys.modules["core.ai_feedback"].ai_feedback_service = Mock()
 
+from api.ai_feedback_router import get_current_active_user, router  # isort: skip
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# isort: on
+
 
 test_app = FastAPI()
+test_app.dependency_overrides[get_current_active_user] = lambda: {"user_id": "test"}
 test_app.include_router(router)
 client = TestClient(test_app)
 

@@ -36,13 +36,11 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({ onNodeClick }) => 
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
 
-  const { data, isLoading, error } = useQuery<TopologyData>(
-    ['topology'],
-    fetchTopology,
-    {
-      refetchInterval: 60_000, // 每分钟刷新一次
-    }
-  );
+  const { data, isLoading, error } = useQuery<TopologyData>({
+    queryKey: ['topology'],
+    queryFn: fetchTopology,
+    refetchInterval: 60_000,
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -82,8 +80,8 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({ onNodeClick }) => 
             n.status === 'critical'
               ? '#ef4444'
               : n.status === 'warning'
-              ? '#f59e0b'
-              : '#1f4b99',
+                ? '#f59e0b'
+                : '#1f4b99',
         },
       }));
       const edges = data.edges.map((e) => ({

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import importlib
 import os
 import pathlib
@@ -7,7 +8,31 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional  # noqa: F401
 from urllib.parse import quote_plus
 
+from dotenv import load_dotenv
+
 from loguru import logger
+
+# Load project-level .env (if present), then the committed ai_api.env for the test key.
+load_dotenv()
+load_dotenv("ai_api.env", override=True)
+
+try:
+    from core.llm_cost_monitor import (
+        DEFAULT_LLM_ROUTER_MODELS,
+        DEFAULT_LLM_ROUTER_TOKEN_COST_THRESHOLD,
+        LLMCostMonitor,
+    )
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    DEFAULT_LLM_ROUTER_MODELS = []
+    DEFAULT_LLM_ROUTER_TOKEN_COST_THRESHOLD = 20000
+
+    class LLMCostMonitor:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs):
+            self.budget_per_request = 0.5
+            self.max_cost_per_hour = 10.0
+            self.max_cost_per_day = 50.0
+
 
 # Optional watchdog for hot reload support
 try:
@@ -78,9 +103,44 @@ def _safe_float(
 
 
 # ============================================================
+# Add-on Feature Pack Switches
+# ============================================================
+ENABLE_ADDONS: bool = _safe_bool("ENABLE_ADDONS", default=False)
+
+# AI Plus Pack
+RAG_ENABLED: bool = _safe_bool("RAG_ENABLED", default=False)
+LLM_ROUTER_ENABLED: bool = _safe_bool("LLM_ROUTER_ENABLED", default=False)
+
+# Observability & Topology Pack
+TOPOLOGY_ENABLED: bool = _safe_bool("TOPOLOGY_ENABLED", default=False)
+TRACING_ENABLED: bool = _safe_bool("TRACING_ENABLED", default=False)
+LOG_AGGREGATION_ENABLED: bool = _safe_bool("LOG_AGGREGATION_ENABLED", default=False)
+
+# SRE Operations Pack
+INCIDENT_RESPONSE_ENABLED: bool = _safe_bool("INCIDENT_RESPONSE_ENABLED", default=False)
+WORKFLOW_ENABLED: bool = _safe_bool("WORKFLOW_ENABLED", default=False)
+
+# Multi-Cloud & Integrations Pack
+INTEGRATIONS_ENABLED: bool = _safe_bool("INTEGRATIONS_ENABLED", default=False)
+
+# Security & Compliance Pack
+SECURITY_SCANNING_ENABLED: bool = _safe_bool("SECURITY_SCANNING_ENABLED", default=False)
+PENETRATION_TESTING_ENABLED: bool = _safe_bool("PENETRATION_TESTING_ENABLED", default=False)
+
+# Infrastructure & Plugin Ecosystem Pack
+PLUGINS_ENABLED: bool = _safe_bool("PLUGINS_ENABLED", default=False)
+SHARDING_ENABLED: bool = _safe_bool("SHARDING_ENABLED", default=False)
+I18N_ENABLED: bool = _safe_bool("I18N_ENABLED", default=False)
+
+# Documentation & Tooling Pack
+DOC_GENERATION_ENABLED: bool = _safe_bool("DOC_GENERATION_ENABLED", default=False)
+
+
+# ============================================================
 # Environment Detection
 # ============================================================
 environment = os.getenv("ENVIRONMENT", "development")
+ENVIRONMENT: str = environment
 
 # ============================================================
 # Microsoft Teams Configuration (Incoming Webhook)
@@ -107,28 +167,15 @@ OTEL_COLLECTOR_ENDPOINT: str = os.getenv("OTEL_COLLECTOR_ENDPOINT", "http://loca
 # ============================================================
 # LLM Router Configuration (Cost Optimization)
 # ============================================================
-LLM_ROUTER_MODELS = [
-    {
-        "provider": "openai",
-        "model": "gpt-4o-mini",
-        "max_tokens": 128000,
-        "cost_per_1k": 0.015,
-    },
-    {
-        "provider": "openai",
-        "model": "gpt-3.5-turbo",
-        "max_tokens": 16384,
-        "cost_per_1k": 0.005,
-    },
-    {
-        "provider": "minimax",
-        "model": "MiniMax-Text-01",
-        "max_tokens": 12000,
-        "cost_per_1k": 0.02,
-    },
-]
+# 成本相关配置已迁移到 core.llm_cost_monitor.py；这里保持向后兼容的别名。
+LLM_ROUTER_MODELS = DEFAULT_LLM_ROUTER_MODELS
+LLM_ROUTER_TOKEN_COST_THRESHOLD = DEFAULT_LLM_ROUTER_TOKEN_COST_THRESHOLD
 
-LLM_ROUTER_TOKEN_COST_THRESHOLD = 20000
+# 复用 LLMCostMonitor 的环境变量解析能力，生成 config 模块的预算常量
+_llm_cost_monitor_for_config = LLMCostMonitor()
+LLM_BUDGET_PER_REQUEST: float = _llm_cost_monitor_for_config.budget_per_request
+LLM_MAX_COST_PER_HOUR: float = _llm_cost_monitor_for_config.max_cost_per_hour
+LLM_MAX_COST_PER_DAY: float = _llm_cost_monitor_for_config.max_cost_per_day
 
 # ============================================================
 # Redis Configuration
@@ -159,8 +206,9 @@ else:
     if not POSTGRES_PASSWORD:
         POSTGRES_PASSWORD = "postgres"
 
-POSTGRES_URL: str = (
-    f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"  # noqa: E501  # noqa: E501
+POSTGRES_URL: str = os.getenv(
+    "POSTGRES_URL",
+    f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
 )
 
 # ============================================================
@@ -348,7 +396,37 @@ VERIFY_CONFIG: dict[str, Any] = {
     "min_samples_for_learning": _safe_int(
         "VERIFY_MIN_SAMPLES_FOR_LEARNING", default=3, min_val=1, max_val=10
     ),
+    "timeout_sec": _safe_float("VERIFY_TIMEOUT_SEC", default=60.0, min_val=5.0, max_val=300.0),
+    "wait_timeout_sec": _safe_float(
+        "VERIFY_WAIT_TIMEOUT_SEC", default=60.0, min_val=5.0, max_val=300.0
+    ),
+    "poll_interval_sec": _safe_float(
+        "VERIFY_POLL_INTERVAL_SEC", default=5.0, min_val=1.0, max_val=60.0
+    ),
+    "metric_wait_sec": _safe_float(
+        "VERIFY_METRIC_WAIT_SEC", default=5.0, min_val=2.0, max_val=30.0
+    ),
 }
+
+# ============================================================
+# Snapshot / Rollback Configuration
+# ============================================================
+SNAPSHOT_CONFIG: dict[str, Any] = {
+    "enabled": _safe_bool("SNAPSHOT_ENABLED", default=True),
+    "retention_days": _safe_int("SNAPSHOT_RETENTION_DAYS", default=7, min_val=1, max_val=365),
+    "verify_wait_timeout": _safe_float(
+        "SNAPSHOT_VERIFY_WAIT_TIMEOUT", default=60.0, min_val=5.0, max_val=300.0
+    ),
+    "verify_poll_interval": _safe_float(
+        "SNAPSHOT_VERIFY_POLL_INTERVAL", default=5.0, min_val=1.0, max_val=60.0
+    ),
+    "rollback_approval_required": _safe_bool("SNAPSHOT_ROLLBACK_APPROVAL_REQUIRED", default=True),
+    "rollback_failure_escalation_enabled": _safe_bool(
+        "SNAPSHOT_ROLLBACK_FAILURE_ESCALATION_ENABLED", default=True
+    ),
+    "encryption_enabled": _safe_bool("SNAPSHOT_ENCRYPTION_ENABLED", default=True),
+}
+SNAPSHOT_ENCRYPTION_KEY: str = os.getenv("SNAPSHOT_ENCRYPTION_KEY", "").strip()
 
 # ============================================================
 # K8S Configuration
@@ -527,7 +605,6 @@ L4_STORAGE_CONFIG: dict[str, Any] = {
 # ============================================================
 LANGGRAPH_ENABLED: bool = _safe_bool("LANGGRAPH_ENABLED", default=False)
 
-RAG_ENABLED: bool = _safe_bool("RAG_ENABLED", default=False)
 RAG_COLLECTION_NAME: str = os.getenv("RAG_COLLECTION_NAME", "aiops_knowledge").strip()
 RAG_EMBEDDING_MODEL: str = os.getenv("RAG_EMBEDDING_MODEL", "all-MiniLM-L6-v2").strip()
 RAG_RETRIEVAL_LIMIT: int = _safe_int("RAG_RETRIEVAL_LIMIT", default=5, min_val=1, max_val=20)
@@ -560,6 +637,9 @@ MCP_ENABLED: bool = _safe_bool("MCP_ENABLED", default=False)
 GRAPHQL_ENABLED: bool = _safe_bool("GRAPHQL_ENABLED", default=False)
 GRAPHQL_PATH: str = os.getenv("GRAPHQL_PATH", "/graphql").strip()
 
+GRPC_HOST: str = os.getenv("AIOPS_GRPC_HOST", "127.0.0.1").strip()
+GRPC_PORT: int = _safe_int("AIOPS_GRPC_PORT", default=50051, min_val=1, max_val=65535)
+
 L5_INTERFACE_CONFIG: dict[str, Any] = {
     "mcp": {
         "enabled": MCP_ENABLED,
@@ -567,6 +647,11 @@ L5_INTERFACE_CONFIG: dict[str, Any] = {
     "graphql": {
         "enabled": GRAPHQL_ENABLED,
         "path": GRAPHQL_PATH,
+    },
+    "grpc": {
+        "enabled": _safe_bool("AIOPS_GRPC_ENABLED", default=False),
+        "host": GRPC_HOST,
+        "port": GRPC_PORT,
     },
 }
 
@@ -946,8 +1031,15 @@ def validate_config() -> Dict[str, Any]:
 
     # Database connectivity validation
     try:
-        # Validate PostgreSQL URL format
-        if not POSTGRES_URL.startswith(("postgresql://", "postgresql+asyncpg://")):
+        # Validate database URL format (PostgreSQL or SQLite for dev/testing)
+        if not POSTGRES_URL.startswith(
+            (
+                "postgresql://",
+                "postgresql+asyncpg://",
+                "sqlite:///",
+                "sqlite+aiosqlite:///",
+            )
+        ):
             validation_results["errors"].append(f"Invalid POSTGRES_URL format: {POSTGRES_URL}")
             validation_results["is_valid"] = False
     except Exception as e:
@@ -1390,13 +1482,18 @@ if WATCHDOG_AVAILABLE:
 else:
 
     class ConfigReloadHandler:  # type: ignore[no-redef]
-        """Stub handler when watchdog is not available."""
+        """component handler when watchdog is not available."""
 
         def __init__(self, config_module_name: str = "config"):
             logger.warning("[config hot-reload] Watchdog not available, hot reload disabled")
 
         def set_reload_callback(self, callback):
-            """Stub method."""
+            """Register a callback to be invoked after a successful config reload."""
+            if callback is not None and not callable(callback):
+                logger.warning("[config hot-reload] set_reload_callback requires a callable")
+                return
+            self.reload_callback = callback
+            logger.info("[config hot-reload] Reload callback registered")
 
 
 _config_reload_observer = None

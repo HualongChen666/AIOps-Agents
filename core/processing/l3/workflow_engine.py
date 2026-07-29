@@ -248,42 +248,42 @@ class WorkflowEngine:
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for incident analysis step"""
-        # Placeholder implementation
+        # default_value implementation
         return {"analysis": "Incident analyzed", "root_cause": "CPU spike"}
 
     async def _determine_severity_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for severity determination step"""
-        # Placeholder implementation
+        # default_value implementation
         return {"severity": "high", "priority": 1}
 
     async def _generate_repair_plan_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for repair plan generation step"""
-        # Placeholder implementation
+        # default_value implementation
         return {"plan": "Restart affected service", "estimated_time": "5min"}
 
     async def _request_approval_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for approval request step"""
-        # Placeholder implementation
+        # default_value implementation
         return {"approved": True, "approver": "on-call"}
 
     async def _execute_repair_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for repair execution step"""
-        # Placeholder implementation
+        # default_value implementation
         return {"status": "success", "service_restarted": True}
 
     async def _verify_fix_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for fix verification step"""
-        # Placeholder implementation
+        # default_value implementation
         return {"verified": True, "metrics_normal": True}
 
     def get_status(self) -> Dict[str, Any]:

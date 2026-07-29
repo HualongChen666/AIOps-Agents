@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # tests/api/test_plugin_router.py
 # 插件路由API测试
+import logging
 import os
 import sys
 import time
@@ -64,7 +65,8 @@ class TestPluginRouter:
                 response = client.post("/api/plugins/plugin1/run")
                 # 可能返回401（未认证）或其他状态码
                 assert response.status_code in [200, 401, 403, 404, 500]
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 如果序列化或其他错误，至少验证端点存在
                 assert True
 
@@ -87,7 +89,8 @@ class TestPluginRouter:
             try:
                 response = client.post("/api/plugins/plugin1/run")
                 assert response.status_code in [200, 401, 403, 404, 500]
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 assert True
 
     def test_run_plugin_exception(self):
@@ -99,7 +102,8 @@ class TestPluginRouter:
             try:
                 response = client.post("/api/plugins/plugin1/run")
                 assert response.status_code in [200, 401, 403, 404, 500]
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 assert True
 
 
@@ -121,7 +125,8 @@ class TestPluginRouterSecurity:
 
                 # 验证端点可以访问（即使返回权限错误）
                 assert response.status_code in [200, 401, 403]
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 如果端点不存在或其他错误，至少验证端点定义
                 assert True  # 测试通过
 
@@ -161,6 +166,7 @@ class TestPluginRouterPerformance:
                 # 响应时间应该在合理范围内（< 2秒）
                 assert response_time < 2.0
                 assert response.status_code in [200, 401, 403]
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 # 如果序列化失败，至少验证性能
                 assert True

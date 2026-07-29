@@ -257,7 +257,8 @@ class TechDebtMonitor:
                 return {"success": True, "vulnerability_count": 0, "vulnerabilities": []}
         except subprocess.TimeoutExpired:
             return {"success": False, "error": "Safety scan timed out"}
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             logger.error("Safety scan failed")
             return {"success": False, "error": "Unknown error"}
 

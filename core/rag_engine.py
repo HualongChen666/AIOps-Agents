@@ -17,6 +17,7 @@
 
 import json
 import logging
+import os
 from typing import Any, Dict, List, cast
 
 from config import QDRANT_URL
@@ -32,6 +33,9 @@ _qmodels: Any | None = None
 QdrantClient: Any | None = None
 SentenceTransformer: Any | None = None
 _COLLECTION_NAME = "verify_records"
+_DEFAULT_EMBEDDING_MODEL = os.environ.get("AIOPS_EMBEDDING_MODEL", "BAAI/bge-large-zh-v1.5")
+_FALLBACK_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+_RETRIEVAL_SCORE_THRESHOLD = float(os.environ.get("RAG_SCORE_THRESHOLD", "0.55"))
 
 
 def _get_client() -> Any:
@@ -61,14 +65,16 @@ def _get_model() -> Any:
 
         SentenceTransformer = _SentenceTransformer
     if _model is None:
-        try:
-            # BGE‑large‑zh‑embedding 是常用的中英文双语模型，维度 1024；
-            # 若网络不可达会抛异常，业务层会捕获并记录。
-            _model = SentenceTransformer("intfloat/multilingual-e5-large", local_files_only=True)
-            logger.info("[RAG] SentenceTransformer 模型加载完成")
-        except Exception as e:
-            logger.error("[RAG] 加载 SentenceTransformer 失败: %s", e)
-            raise
+        # Try primary Chinese/ops model, then fallback to ensure availability
+        for model_name in (_DEFAULT_EMBEDDING_MODEL, _FALLBACK_EMBEDDING_MODEL):
+            try:
+                _model = SentenceTransformer(model_name, local_files_only=True)
+                logger.info("[RAG] SentenceTransformer 模型加载完成: %s", model_name)
+                break
+            except Exception as e:
+                logger.warning("[RAG] 加载 SentenceTransformer %s 失败: %s", model_name, e)
+        if _model is None:
+            raise RuntimeError("[RAG] 无法加载任何 SentenceTransformer 模型")
     return _model
 
 
@@ -88,7 +94,8 @@ def _ensure_collection(dim: int) -> None:
     qm = _get_qmodels()
     try:
         client.get_collection(_COLLECTION_NAME)
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         # 创建 collection，使用 HNSW 索引，metric 为 cosine
         client.create_collection(
             collection_name=_COLLECTION_NAME,
@@ -141,7 +148,8 @@ def upsert_verify_record(record_id: int, payload: Dict[str, Any]) -> None:
             if isinstance(val, dict):
                 try:
                     val_str = json.dumps(val, ensure_ascii=False)
-                except Exception:
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
                     val_str = str(val)
             else:
                 val_str = str(val)
@@ -180,12 +188,16 @@ class AIOpsRAG:
         return search_similar(query, top_k=top_k)
 
 
-def search_similar(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+def search_similar(
+    query: str, top_k: int = 5, score_threshold: float = 0.0
+) -> List[Dict[str, Any]]:
     """基于语义相似度检索历史验证记录。
 
     返回列表中每项包含原始 `payload` 与相似度分数 `score`。
+    当 `score_threshold` 为 0 时使用环境变量 `RAG_SCORE_THRESHOLD` 默认值。
     """
     try:
+        threshold = score_threshold or _RETRIEVAL_SCORE_THRESHOLD
         vectors = _embed([query])
         # SECURITY: Check if vectors is empty to avoid IndexError
         if not vectors or not vectors[0]:
@@ -198,7 +210,7 @@ def search_similar(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
             query_vector=vectors[0],
             limit=top_k,
             with_payload=True,
-            score_threshold=0.0,
+            score_threshold=threshold,
         )
         results = []
         for point in raw:

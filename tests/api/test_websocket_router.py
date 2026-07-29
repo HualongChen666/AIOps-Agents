@@ -9,11 +9,11 @@ import pytest
 from fastapi import APIRouter, FastAPI, WebSocketDisconnect
 from fastapi.testclient import TestClient
 
+from api.websocket_router import manager, websocket_metrics, websocket_realtime
+
 # Mock problematic imports before importing router
 sys.modules["core.websocket_manager"] = MagicMock()
 sys.modules["core.collector"] = MagicMock()
-
-from api.websocket_router import manager, websocket_metrics, websocket_realtime
 
 
 @pytest.fixture

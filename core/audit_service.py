@@ -32,6 +32,32 @@ from sqlalchemy import and_, func, select
 from core.db_engine import AsyncSessionLocal
 from core.models import AuditLog
 
+try:
+    from core.data_privacy import anonymize_dict
+
+    DATA_PRIVACY_AVAILABLE = True
+except ImportError:
+    DATA_PRIVACY_AVAILABLE = False
+    anonymize_dict = None
+
+try:
+    from core.audit_logger import log_audit_event as _structured_log_audit_event
+
+    AUDIT_LOGGER_AVAILABLE = True
+except ImportError:
+    AUDIT_LOGGER_AVAILABLE = False
+    _structured_log_audit_event = None
+
+
+def _redact_details(details: Optional[Any], metadata: Optional[Dict[str, Any]]) -> tuple:
+    """Remove PII/sensitive values before storing audit logs."""
+    if DATA_PRIVACY_AVAILABLE and anonymize_dict:
+        redacted_details = anonymize_dict(details) if details is not None else None
+        redacted_metadata = anonymize_dict(metadata) if metadata is not None else {}
+        return redacted_details, redacted_metadata
+    return details, metadata or {}
+
+
 # 🔧 P0 Security Enhancement: Sensitive operations that require additional monitoring
 SENSITIVE_OPERATIONS: Set[str] = {
     "login",
@@ -106,15 +132,18 @@ class AuditService:
             if metadata is None:
                 metadata = {}
 
+            # 🔧 S5: redact PII/sensitive values before persistence
+            redacted_details, redacted_metadata = _redact_details(details, metadata)
+
             # Create integrity hash for the log entry
             integrity_data = (
                 f"{action}:{resource_type}:{resource_id}:{username}:"
-                f"{status}:{details}:{datetime.now().isoformat()}"
+                f"{status}:{redacted_details}:{datetime.now().isoformat()}"
             )
             integrity_hash = hashlib.sha256(integrity_data.encode()).hexdigest()
-            metadata["_integrity_hash"] = integrity_hash
-            metadata["_is_sensitive"] = is_sensitive
-            metadata["_is_security_event"] = is_security_event
+            redacted_metadata["_integrity_hash"] = integrity_hash
+            redacted_metadata["_is_sensitive"] = is_sensitive
+            redacted_metadata["_is_security_event"] = is_security_event
 
             async with AsyncSessionLocal() as session:
                 audit_log = AuditLog(
@@ -125,8 +154,8 @@ class AuditService:
                     username=username,
                     ip_address=ip_address,
                     success=(status == "success"),
-                    error_message=details,
-                    changes=metadata,
+                    error_message=redacted_details,
+                    changes=redacted_metadata,
                 )
                 session.add(audit_log)
                 await session.commit()
@@ -155,6 +184,24 @@ class AuditService:
                         f"审计日志已记录 | action={action} |"
                         f" resource={resource_type}:{resource_id} | "
                         f"user={username} | status={status}"
+                    )
+
+                # 同时输出结构化 JSON 审计日志（磁盘侧），实现数据库与文件双通道统一
+                if AUDIT_LOGGER_AVAILABLE and _structured_log_audit_event:
+                    _structured_log_audit_event(
+                        event_type=action,
+                        user=username or str(user_id) or "system",
+                        resource=f"{resource_type}:{resource_id}" if resource_id else resource_type,
+                        action=action,
+                        details={
+                            "user_id": user_id,
+                            "status": status,
+                            "is_sensitive": is_sensitive,
+                            "is_security_event": is_security_event,
+                            "audit_log_id": int(audit_log.id) if audit_log.id else None,
+                        },
+                        ip_address=ip_address,
+                        status=status,
                     )
 
                 return int(audit_log.id) if audit_log.id is not None else 1
@@ -351,7 +398,7 @@ class AuditService:
             return {}
 
     @staticmethod
-    async def cleanup_old_logs(days_to_keep: int = 90) -> int:
+    async def cleanup_old_logs(days_to_keep: int = 30) -> int:
         """清理旧的审计日志 with enhanced safety checks.
 
         🔧 P0 Security Enhancement:
@@ -555,78 +602,79 @@ def verify_log_integrity(log_entry: Any) -> bool:
     if isinstance(log_entry, dict):
         return bool(log_entry.get("hash"))
 
-    # 其他情况退化为原有异步数据库校验(通过 AuditService 实例方法)
+    # 其他情况退化为对象 truthiness 校验（实际数据库校验请使用 verify_log_integrity_db）
     return bool(log_entry)
 
-    @staticmethod
-    async def verify_log_integrity_db(log_id: int) -> bool:
-        """异步数据库完整性校验(保持原有实现)."""
-        try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(AuditLog).where(AuditLog.id == log_id)
-                result = await session.execute(stmt)
-                log_entry = result.scalar_one_or_none()
 
-                if not log_entry:
-                    return False
+async def verify_log_integrity_db(log_id: int) -> bool:
+    """异步数据库完整性校验(保持原有实现)."""
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(AuditLog).where(AuditLog.id == log_id)
+            result = await session.execute(stmt)
+            log_entry = result.scalar_one_or_none()
 
-                # Get integrity hash from metadata
-                metadata = getattr(log_entry, "metadata", None) or log_entry.changes or {}
-                stored_hash = metadata.get("_integrity_hash")
+            if not log_entry:
+                return False
 
-                if not stored_hash:
-                    logger.warning(f"审计日志 {log_id} 缺少完整性哈希")
-                    return False
+            # Get integrity hash from metadata
+            metadata = getattr(log_entry, "metadata", None) or log_entry.changes or {}
+            stored_hash = metadata.get("_integrity_hash")
 
-                # Recalculate hash
-                status = getattr(log_entry, "status", None) or (
-                    "success" if log_entry.success else "failure"
-                )
-                integrity_data = (
-                    f"{log_entry.action}:{log_entry.resource_type}:"
-                    f"{log_entry.resource_id}:{log_entry.username}:"
-                    f"{status}:{log_entry.error_message}:"
-                    f"{log_entry.created_at.isoformat()}"
-                )
-                calculated_hash = hashlib.sha256(integrity_data.encode()).hexdigest()
+            if not stored_hash:
+                logger.warning(f"审计日志 {log_id} 缺少完整性哈希")
+                return False
 
-                # Compare hashes
-                if stored_hash != calculated_hash:
-                    logger.error(f"审计日志 {log_id} 完整性验证失败 - 可能被篡改")
-                    return False
+            # Recalculate hash
+            status = getattr(log_entry, "status", None) or (
+                "success" if log_entry.success else "failure"
+            )
+            integrity_data = (
+                f"{log_entry.action}:{log_entry.resource_type}:"
+                f"{log_entry.resource_id}:{log_entry.username}:"
+                f"{status}:{log_entry.error_message}:"
+                f"{log_entry.created_at.isoformat()}"
+            )
+            calculated_hash = hashlib.sha256(integrity_data.encode()).hexdigest()
 
-                return True
+            # Compare hashes
+            if stored_hash != calculated_hash:
+                logger.error(f"审计日志 {log_id} 完整性验证失败 - 可能被篡改")
+                return False
 
-        except Exception as e:
-            logger.error(f"验证日志完整性失败: {e}", exc_info=True)
-            return False
+            return True
 
-    async def cleanup_old_audit_logs(self, days_to_keep: int = 30) -> int:
-        """清理旧的审计日志
+    except Exception as e:
+        logger.error(f"验证日志完整性失败: {e}", exc_info=True)
+        return False
 
-        Args:
-            days_to_keep: 保留天数
 
-        Returns:
-            删除的日志数量
-        """
-        try:
-            from datetime import timedelta
+async def cleanup_old_audit_logs(days_to_keep: int = 30) -> int:
+    """清理旧的审计日志
 
-            cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+    Args:
+        days_to_keep: 保留天数
 
-            async with AsyncSessionLocal() as session:
-                from sqlalchemy import delete
+    Returns:
+        删除的日志数量
+    """
+    try:
+        from datetime import timedelta
 
-                stmt = delete(AuditLog).where(AuditLog.created_at < cutoff_date)
-                result = await session.execute(stmt)
-                await session.commit()
-                count = result.rowcount  # type: ignore
-                logger.info(f"清理了 {count} 条旧审计日志（保留 {days_to_keep} 天）")
-                return int(count)
-        except Exception as e:
-            logger.error(f"清理旧审计日志失败: {e}", exc_info=True)
-            return 0
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import delete
+
+            stmt = delete(AuditLog).where(AuditLog.created_at < cutoff_date)
+            result = await session.execute(stmt)
+            await session.commit()
+            count = result.rowcount  # type: ignore
+            logger.info(f"清理了 {count} 条旧审计日志（保留 {days_to_keep} 天）")
+            return int(count)
+    except Exception as e:
+        logger.error(f"清理旧审计日志失败: {e}", exc_info=True)
+        return 0
 
 
 # 默认审计服务实例

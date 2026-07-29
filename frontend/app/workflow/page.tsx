@@ -127,9 +127,8 @@ export default function WorkflowPage() {
             {workflows.length > 0 ? workflows.map((workflow) => (
               <div
                 key={workflow.id}
-                className={`p-4 border-2 rounded-lg cursor-pointer transition ${
-                  selectedWorkflow === workflow.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
-                }`}
+                className={`p-4 border-2 rounded-lg cursor-pointer transition ${selectedWorkflow === workflow.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                  }`}
                 onClick={() => setSelectedWorkflow(workflow.id)}
               >
                 <div className="flex items-center justify-between">
@@ -228,7 +227,7 @@ export default function WorkflowPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-medium">容量自动扩容流程</div>
-                  <div className="text-sm text-gray-500">触发: 内存使用率 > 85%</div>
+                  <div className="text-sm text-gray-500">触发: 内存使用率 {'>'} 85%</div>
                 </div>
                 <div className="text-right">
                   <Badge className="bg-green-100 text-green-800">成功</Badge>

@@ -8,7 +8,7 @@ Provides standardized protocol for AI agent integration
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 
 
@@ -126,6 +126,8 @@ class MCPInterface:
             tool = self._tools[tool_name]
             handler = tool["handler"]
 
+            params = self._validate_tool_params(tool_name, params)
+
             try:
                 # Call the tool handler
                 if tool_name == "get_host_health":
@@ -163,6 +165,53 @@ class MCPInterface:
                 "features": ["tool_execution", "tool_discovery", "async_execution"],
                 "timestamp": datetime.now().isoformat(),
             }
+
+    def _validate_tool_params(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """校验 L5 MCP 工具的输入参数类型和必填项。"""
+        tool = self._tools[tool_name]
+        schema = tool["parameters"]
+        validated: Dict[str, Any] = {}
+
+        for name, spec in schema.items():
+            required = spec.get("required", False)
+            param_type = spec.get("type")
+            if required and name not in params:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Missing required parameter '{name}' for tool '{tool_name}'",
+                )
+
+        for name, value in params.items():
+            if name not in schema:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Unexpected parameter '{name}' for tool '{tool_name}'",
+                )
+            spec = schema[name]
+            param_type = spec.get("type")
+            if param_type == "string" and not isinstance(value, str):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Parameter '{name}' must be a string",
+                )
+            if param_type == "integer" and (isinstance(value, bool) or not isinstance(value, int)):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Parameter '{name}' must be an integer",
+                )
+            if param_type == "boolean" and not isinstance(value, bool):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Parameter '{name}' must be a boolean",
+                )
+            if param_type == "array" and not isinstance(value, list):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Parameter '{name}' must be an array",
+                )
+            validated[name] = value
+
+        return validated
 
     def get_router(self) -> APIRouter:
         """Get the MCP router"""

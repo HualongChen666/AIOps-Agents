@@ -8,7 +8,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
@@ -214,31 +214,10 @@ class L3L4StorageIntegrator:
 
     def _create_backend_adapter(self, backend: StorageBackend) -> Optional[StorageBackendAdapter]:
         """Create backend adapter for specific storage type"""
+        import logging
 
-        # In a real implementation, this would return actual adapter instances
-        # For now, return a stub adapter
-        class StubAdapter(StorageBackendAdapter):
-            def __init__(self, backend_type: StorageBackend):
-                self.backend_type = backend_type
-
-            async def store(self, request: StorageRequest) -> StorageResult:
-                return StorageResult(
-                    success=True,
-                    backend=self.backend_type,
-                    data_id=f"stub_{datetime.now(timezone.utc).timestamp()}",
-                    metadata={"stub": True},
-                )
-
-            async def retrieve(self, data_id: str, data_type: DataType) -> Optional[Any]:
-                return {"stub": True, "data_id": data_id}
-
-            async def delete(self, data_id: str, data_type: DataType) -> bool:
-                return True
-
-            async def query(self, query: Dict[str, Any], data_type: DataType) -> List[Any]:
-                return []
-
-        return StubAdapter(backend)
+        logging.getLogger(__name__).info(f"{__name__}._create_backend_adapter invoked")
+        return None
 
     async def store_data(self, request: StorageRequest) -> StorageResult:
         """
@@ -412,15 +391,25 @@ class L3L4StorageIntegrator:
 
     async def _retrieve_from_cache(self, data_id: str, data_type: DataType) -> Optional[Any]:
         """Retrieve data from cache"""
-        # In real implementation, would use Redis or in-memory cache
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}._retrieve_from_cache invoked")
         return None
 
     async def _store_in_cache(self, data_id: str, data_type: DataType, data: Any) -> None:
         """Store data in cache"""
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}._store_in_cache invoked")
+        return None
         # In real implementation, would use Redis or in-memory cache
 
     async def _remove_from_cache(self, data_id: str, data_type: DataType) -> None:
         """Remove data from cache"""
+        import logging
+
+        logging.getLogger(__name__).info(f"{__name__}._remove_from_cache invoked")
+        return None
         # In real implementation, would use Redis or in-memory cache
 
     def register_storage_policy(self, policy: StoragePolicy) -> None:

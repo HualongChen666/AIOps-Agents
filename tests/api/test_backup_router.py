@@ -11,13 +11,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-# Mock problematic imports before importing router
-mock_disaster_recovery = MagicMock()
-mock_dr_instance = Mock()
-mock_dr_instance.backup_database.return_value = "/backups/db_backup_20260702.sql"
-mock_disaster_recovery.DisasterRecovery.return_value = mock_dr_instance
-sys.modules["disaster_recovery"] = mock_disaster_recovery
-
 from api.backup_router import (
     backup_configuration,
     backup_database,
@@ -27,6 +20,13 @@ from api.backup_router import (
     list_backups,
     restore_database,
 )
+
+# Mock problematic imports before importing router
+mock_disaster_recovery = MagicMock()
+mock_dr_instance = Mock()
+mock_dr_instance.backup_database.return_value = "/backups/db_backup_20260702.sql"
+mock_disaster_recovery.DisasterRecovery.return_value = mock_dr_instance
+sys.modules["disaster_recovery"] = mock_disaster_recovery
 
 
 @pytest.fixture

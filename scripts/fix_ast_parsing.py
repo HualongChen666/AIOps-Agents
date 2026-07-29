@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import ast
 import pathlib
 
@@ -12,7 +13,8 @@ for p in root.rglob("*.py"):
         source = p.read_text(encoding="utf-8")
         ast.parse(source)
         continue
-    except Exception:
+    except Exception as e:
+        logging.exception("Unexpected exception: %s", e)
         # Try to add utf-8 coding comment if missing
         lines = source.splitlines()
         has_coding = any("coding" in line for line in lines[:2])

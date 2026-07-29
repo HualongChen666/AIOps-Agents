@@ -87,7 +87,7 @@ def check_mcp_servers(config):
                 print(f"    📝 环境变量: {len(env)} 个")  # noqa: F541
                 for key, value in env.items():
                     # 检查是否为占位符
-                    placeholder_patterns = ["YOUR_", "your_", "PLACEHOLDER"]
+                    placeholder_patterns = ["YOUR_", "your_", "default_value"]
                     is_placeholder = any(pattern in str(value) for pattern in placeholder_patterns)
 
                     if is_placeholder:
@@ -134,7 +134,7 @@ def check_skills_directory():
 
 
 def check_permissions(config):
-    """检查权限配置"""
+    """检查权限配置，验证最小权限原则"""
     if not config or "permissions" not in config:
         print("⚠️  未配置权限")
         return True
@@ -142,15 +142,40 @@ def check_permissions(config):
     permissions = config["permissions"]
     print(f"\n🔒 权限配置:")  # noqa: F541
 
+    allowed = permissions.get("allow", [])
+    denied = permissions.get("deny", [])
+    asked = permissions.get("ask", [])
+
     if "allow" in permissions:
-        print(f"  ✅ 允许: {len(permissions['allow'])} 条规则")  # noqa: F541
+        print(f"  ✅ 允许: {len(allowed)} 条规则")  # noqa: F541
 
     if "deny" in permissions:
-        print(f"  ❌ 拒绝: {len(permissions['deny'])} 条规则")  # noqa: F541
+        print(f"  ❌ 拒绝: {len(denied)} 条规则")  # noqa: F541
 
     if "ask" in permissions:
-        print(f"  ❓ 询问: {len(permissions['ask'])} 条规则")  # noqa: F541
+        print(f"  ❓ 询问: {len(asked)} 条规则")  # noqa: F541
 
+    # 最小权限校验
+    errors = []
+    if "mcp__filesystem__*" in allowed:
+        errors.append("    filesystem MCP 使用全通配符，权限过大")
+
+    fs_write_denied = any(p.startswith("mcp__filesystem__write_") for p in denied)
+    fs_delete_denied = any(p.startswith("mcp__filesystem__delete_") for p in denied)
+    if not fs_write_denied or not fs_delete_denied:
+        errors.append("    filesystem MCP 未显式拒绝写/删操作")
+
+    if "mcp__postgres__execute_sql" in allowed:
+        errors.append("    mcp__postgres__execute_sql 仍在 allow 中")
+    elif "mcp__postgres__execute_sql" not in asked:
+        errors.append("    mcp__postgres__execute_sql 未配置为 ask")
+
+    if errors:
+        for e in errors:
+            print(f"  ❌ {e}")  # noqa: F541
+        return False
+
+    print("  ✅ 最小权限策略检查通过")  # noqa: F541
     return True
 
 

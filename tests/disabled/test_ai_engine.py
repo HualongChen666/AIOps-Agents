@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # tests/test_ai_engine.py
 # AI 引擎单元测试
+import logging
 import asyncio
 from datetime import datetime  # noqa: F401
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: F401
@@ -232,7 +233,8 @@ class TestLLMRouter:
             router = get_llm_router()
             # 验证路由器存在或为None
             assert router is not None or True
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 如果路由器不可用，跳过测试
             pass
 
@@ -245,7 +247,8 @@ class TestLLMRouter:
             router = get_llm_router()
             # 验证路由器存在或为None
             assert router is not None or True
-        except Exception:
+        except Exception as e:
+            logging.exception("Unexpected exception: %s", e)
             # 如果路由器不可用，跳过测试
             pass
 

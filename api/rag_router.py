@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Placeholder RAG router.
+"""default_value RAG router.
 
 Provides a single endpoint to perform semantic search via the ``core.rag_engine``
-placeholder implementation.
+default_value implementation.
 """
 
 from fastapi import APIRouter, Depends, HTTPException

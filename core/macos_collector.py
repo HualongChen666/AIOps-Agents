@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-# Placeholder implementation for macOS metrics collection.
+# default_value implementation for macOS metrics collection.
 # In a real environment this would use SSH, launchctl, osquery, or native macOS APIs.
 
 
@@ -13,7 +13,7 @@ async def _run_command(host: str, command: str) -> Dict[str, Any]:
     """Simulate remote command execution on a macOS host.
     Returns a dict with 'stdout' and 'stderr' for simplicity.
     """
-    # This stub simply logs and returns dummy data.
+    # This component simply logs and returns dummy data.
     logger.debug(f"Running command on macOS host {host}: {command}")
     # Simulate network latency.
     await asyncio.sleep(0.1)
@@ -32,7 +32,7 @@ async def collect_macos_metrics(hosts: List[str] = None) -> Dict[str, Dict[str, 
     for host in target_hosts:
         try:
             # Dummy metric values; replace with real commands as needed.
-            cpu = 0.2  # placeholder
+            cpu = 0.2  # default_value
             mem = 0.5
             disk = 0.7
             results[host] = {

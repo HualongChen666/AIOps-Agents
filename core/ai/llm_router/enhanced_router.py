@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Enhanced LLM Router
 Integrates capability evaluation, cost optimization, and load balancing
@@ -8,9 +9,18 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from core.ai.token_budget import prompt_fits, select_model_that_fits
+
 from .capability_evaluator import CapabilityEvaluator, TaskType
 from .cost_optimizer import CostOptimizer, RoutingDecision
 from .load_balancer import LoadBalancer
+
+try:
+    from core.error_recovery.core import RetryConfig, retry_with_policy
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    RetryConfig = None  # type: ignore
+    retry_with_policy = None  # type: ignore
 
 
 class EnhancedLLMRouter:
@@ -257,9 +267,8 @@ class EnhancedLLMRouter:
     ) -> Dict[str, Any]:
         """Route the prompt to the best model and generate a response.
 
-        If a valid API key (``AI_API_KEY`` or ``OPENAI_API_KEY``) is present,
-        the selected model is called through an OpenAI-compatible client.
-        Otherwise, or if the call fails, a deterministic fallback result is
+        Enforces per-request and hourly/daily cost budgets.  If the budget is
+        exceeded or the call fails, a deterministic fallback result is
         returned so that the AI engine can continue without warnings.
 
         Returns:
@@ -268,51 +277,105 @@ class EnhancedLLMRouter:
         import os
         import time
 
+        from config import AI_CONFIG
+
         from .capability_evaluator import TaskType
 
         decision = await self.route_request(prompt, task_type=TaskType.GENERAL)
         model_name = decision.model_name
 
+        # Enforce model context window; if the routed model cannot hold the
+        # prompt + max_new_tokens, fallback to the cheapest fitting model.
+        full_prompt = f"{system}\n{prompt}" if system else prompt
+        model_config = self._find_model_config(model_name) or {}
+        context_window = model_config.get("context_window") or model_config.get("max_tokens", 0)
+        if (
+            context_window
+            and not prompt_fits(full_prompt, max_new_tokens, context_window, model_name)[0]
+        ):
+            fitting = select_model_that_fits(
+                full_prompt,
+                max_new_tokens,
+                self.model_configs,
+                preferred_model=model_name,
+            )
+            if fitting:
+                model_name = fitting.get("model") or fitting.get("name", model_name)
+                logger.warning(
+                    f"Model {decision.model_name} context window exceeded; "
+                    f"falling back to {model_name}"
+                )
+            else:
+                logger.error("No configured model fits the prompt; using fallback")
+                return self._fallback_result(prompt, model_name)
+
+        # Budget guard: refuse expensive calls before spending money.
+        if not self.cost_optimizer.check_budget(decision.estimated_cost):
+            logger.warning(f"Cost budget would be exceeded for {model_name}; using fallback")
+            return self._fallback_result(prompt, model_name)
+
         api_key = os.getenv("AI_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
         if not api_key:
-            from config import AI_CONFIG
-
             api_key = AI_CONFIG.get("api_key", "") or ""
 
-        if api_key:
-            try:
-                from config import AI_CONFIG
-                from openai import AsyncOpenAI
+        if not api_key:
+            return self._fallback_result(prompt, model_name)
 
-                base_url = AI_CONFIG.get("base_url")
-                client = AsyncOpenAI(
-                    api_key=api_key,
-                    base_url=base_url if base_url else None,
-                    timeout=AI_CONFIG.get("timeout", 30),
+        # Cap max_new_tokens to the configured model/token limit.
+        model_config = self._find_model_config(model_name) or {}
+        model_max_tokens = model_config.get("max_tokens", AI_CONFIG.get("max_new_tokens", 2000))
+        max_new_tokens = min(int(max_new_tokens), int(model_max_tokens))
+
+        async def _call_once() -> tuple[Any, float]:
+            from openai import AsyncOpenAI
+
+            base_url = AI_CONFIG.get("base_url")
+            client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url if base_url else None,
+                timeout=AI_CONFIG.get("timeout", 30),
+            )
+            messages = []
+            if system:
+                messages.append({"role": "system", "content": system})
+            messages.append({"role": "user", "content": prompt})
+
+            start = time.monotonic()
+            response = await client.chat.completions.create(
+                model=model_name,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=temperature,
+                max_tokens=max_new_tokens,
+                **kwargs,
+            )
+            latency = time.monotonic() - start
+            return response, latency
+
+        try:
+            if retry_with_policy is not None and RetryConfig is not None:
+                retry_config = RetryConfig(
+                    max_attempts=AI_CONFIG.get("max_retries", 2) + 1,
+                    base_delay=1.0,
+                    max_delay=10.0,
+                    retryable_exceptions=[Exception],
                 )
-                messages = []
-                if system:
-                    messages.append({"role": "system", "content": system})
-                messages.append({"role": "user", "content": prompt})
+                response, latency = await retry_with_policy(_call_once, retry_config)
+            else:
+                response, latency = await _call_once()
 
-                start = time.monotonic()
-                response = await client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,  # type: ignore[arg-type]
-                    temperature=temperature,
-                    max_tokens=max_new_tokens,
-                    **kwargs,
-                )
-                latency = time.monotonic() - start
-
-                content = response.choices[0].message.content or ""
-                usage: Dict[str, Any] = response.usage.model_dump() if response.usage else {}
-                self.record_success(model_name, latency=latency)
-                return {"content": content, "model": model_name, "usage": usage}
-            except Exception as e:
-                logger.warning(f"LLM generation failed for {model_name}: {e}, using fallback")
-
-        return self._fallback_result(prompt, model_name)
+            content = response.choices[0].message.content or ""
+            usage: Dict[str, Any] = response.usage.model_dump() if response.usage else {}
+            prompt_tokens = usage.get("prompt_tokens", self.cost_optimizer.estimate_tokens(prompt))
+            completion_tokens = usage.get("completion_tokens", 0)
+            actual_cost = self.cost_optimizer.estimate_cost(
+                model_name, prompt_tokens, completion_tokens
+            )
+            self.record_success(model_name, latency=latency, actual_cost=actual_cost)
+            return {"content": content, "model": model_name, "usage": usage}
+        except Exception as e:
+            logger.warning(f"LLM generation failed for {model_name}: {e}, using fallback")
+            self.record_failure(model_name, str(e))
+            return self._fallback_result(prompt, model_name)
 
     def _fallback_result(self, prompt: str, model_name: str) -> Dict[str, Any]:
         """Return a deterministic fallback result when no API key is configured."""

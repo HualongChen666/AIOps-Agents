@@ -12,11 +12,14 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
+# isort: off
 # Mock problematic imports before importing router
 sys.modules["config"] = MagicMock()
 sys.modules["config"].BASE_DIR = Path("/tmp")
 
 from api.rag_history_router import rag_history_page
+
+# isort: on
 
 
 @pytest.fixture

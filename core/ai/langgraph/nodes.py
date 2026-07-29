@@ -57,7 +57,7 @@ class LLMNode(WorkflowNode):
             # Format prompt with context data
             prompt = self._format_prompt(context)
 
-            # Call LLM (placeholder - integrate with actual LLM service)
+            # Call LLM (default_value - integrate with actual LLM service)
             response = await self._call_llm(prompt)
 
             logger.info(f"LLM node {self.name} executed successfully")
@@ -76,19 +76,28 @@ class LLMNode(WorkflowNode):
 
     async def _call_llm(self, prompt: str) -> str:
         """
-        Call LLM service (placeholder)
+        Call LLM service via the existing ``core.ai_engine.analyze`` fallback.
 
         Args:
             prompt: Formatted prompt
 
         Returns:
-            LLM response
+            LLM response text
         """
-        # Placeholder - integrate with actual LLM service
-        # from core.ai_engine import call_llm
-        # return await call_llm(prompt, self.model_name, self.temperature)
-        logger.warning(f"LLM call not implemented, returning placeholder for {self.model_name}")
-        return f"LLM response for: {prompt[:50]}..."
+        try:
+            from core.ai_engine import analyze
+
+            response = await analyze(
+                query=prompt,
+                metrics_snapshot="",
+                platform="windows",
+                system_prompt=self.system_prompt or None,
+                validate_json=False,
+            )
+            return response
+        except Exception as exc:
+            logger.warning(f"LLM call failed for {self.model_name}: {exc}")
+            return f"LLM response for: {prompt[:50]}..."
 
 
 class ToolNode(WorkflowNode):

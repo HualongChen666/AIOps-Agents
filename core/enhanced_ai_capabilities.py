@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 Enhanced AI Capabilities Module
 增强AI能力模块
@@ -41,6 +42,71 @@ try:
 except ImportError:
     PROPHET_AVAILABLE = False
     logger.warning("Prophet not available for time series prediction")
+
+
+async def _fit_model(
+    model: Any,
+    samples: List[Tuple[Dict[str, Any], Any]],
+    incremental: bool = False,
+    knowledge_accumulator: Optional[Dict[str, List[Any]]] = None,
+) -> None:
+    """Generic helper to fit or partial-fit a scikit-learn style model with dict samples."""
+    if not samples:
+        return
+
+    X = [s[0] for s in samples]
+    y = [s[1] for s in samples]
+
+    if not ML_AVAILABLE:
+        if knowledge_accumulator is not None:
+            knowledge_accumulator[str(id(model))].append(samples)
+        logger.warning("ML not available; learning samples stored for later replay")
+        return
+
+    try:
+        from sklearn.feature_extraction import DictVectorizer
+        from sklearn.preprocessing import LabelEncoder
+
+        vec = getattr(model, "_aiops_vectorizer", None)
+        if vec is None:
+            vec = DictVectorizer(sparse=False)
+            X_vec = vec.fit_transform(X)
+            setattr(model, "_aiops_vectorizer", vec)
+        else:
+            X_vec = vec.transform(X)
+
+        le = getattr(model, "_aiops_label_encoder", None)
+        if le is None:
+            le = LabelEncoder()
+            le.fit(y)
+            setattr(model, "_aiops_label_encoder", le)
+        y_enc = le.transform(y)
+
+        import numpy as np
+
+        if hasattr(model, "partial_fit") and incremental:
+            if "Classifier" in type(model).__name__:
+                classes = getattr(model, "classes_", None)
+                if classes is None:
+                    classes = np.unique(y_enc)
+                model.partial_fit(X_vec, y_enc, classes=classes)
+            else:
+                model.partial_fit(X_vec, y_enc)
+        elif hasattr(model, "fit"):
+            if "Forest" in type(model).__name__ or "Regressor" in type(model).__name__:
+                model.fit(X_vec, y_enc)
+            else:
+                try:
+                    model.fit(X_vec, y_enc)
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
+                    model.fit(X_vec)
+        else:
+            logger.warning(f"Model {type(model).__name__} does not support fit/partial_fit")
+    except Exception as exc:
+        logger.error(f"Model training failed: {exc}")
+        if knowledge_accumulator is not None:
+            knowledge_accumulator[str(id(model))].append(samples)
 
 
 class PredictionType(Enum):
@@ -448,18 +514,26 @@ class EnhancedAICapabilities:
 
     async def _online_learning(self, model: Any, samples: List[Tuple[Dict[str, Any], Any]]) -> None:
         """在线学习"""
-        # 实现增量学习逻辑
-        # 对于某些模型（如sklearn），可能需要部分拟合
+        logger.info(f"Online learning on {type(model).__name__} with {len(samples)} samples")
+        await _fit_model(
+            model, samples, incremental=True, knowledge_accumulator=self.knowledge_accumulator
+        )
 
     async def _batch_learning(self, model: Any, samples: List[Tuple[Dict[str, Any], Any]]) -> None:
         """批量学习"""
-        # 实现批量重新训练逻辑
+        logger.info(f"Batch learning on {type(model).__name__} with {len(samples)} samples")
+        await _fit_model(
+            model, samples, incremental=False, knowledge_accumulator=self.knowledge_accumulator
+        )
 
     async def _transfer_learning(
         self, model: Any, samples: List[Tuple[Dict[str, Any], Any]]
     ) -> None:
-        """迁移学习"""
-        # 实现迁移学习逻辑
+        """迁移学习：在新样本上重新训练预训练模型。"""
+        logger.info(f"Transfer learning on {type(model).__name__} with {len(samples)} samples")
+        await _fit_model(
+            model, samples, incremental=False, knowledge_accumulator=self.knowledge_accumulator
+        )
 
     async def _evaluate_model_performance(self, model_id: str) -> float:
         """评估模型性能"""

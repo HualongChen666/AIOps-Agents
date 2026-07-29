@@ -5,13 +5,14 @@
 # 依赖 elasticsearch[async] >= 8.13.0
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union  # noqa: F401
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast  # noqa: F401
 
 try:
     from elasticsearch import AsyncElasticsearch, NotFoundError
 
     ElasticsearchClient = AsyncElasticsearch
-except Exception:
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
     AsyncElasticsearch = None
     ElasticsearchClient = None
 
@@ -20,11 +21,21 @@ except Exception:
 
 
 from config import ELASTICSEARCH_URL
+from core.observability_query import (
+    DEFAULT_MAX_LLM_ITEMS,
+    QueryCache,
+    cached_query,
+    make_cache_key,
+    prepare_for_llm,
+    validate_es_query_string,
+    with_query_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
 # 单例客户端
 _es_client: Optional[Any] = None  # type: ignore[misc]
+_es_query_cache = QueryCache()
 
 
 def get_es_client():
@@ -32,7 +43,7 @@ def get_es_client():
     global _es_client
     if _es_client is None:
         es_url = ELASTICSEARCH_URL
-        _es_client = AsyncElasticsearch([es_url])
+        _es_client = AsyncElasticsearch([es_url], request_timeout=30)
         logger.info(f"Elasticsearch client initialized | url={es_url}")
     return _es_client
 
@@ -69,22 +80,44 @@ async def es_search_logs(
         包含 _source 的日志列表
     """
     client = get_es_client()
+    # Validate the free-text query to mitigate query_string injection.
+    try:
+        validate_es_query_string(query)
+    except ValueError as exc:
+        logger.warning("Invalid Elasticsearch query rejected: %s", exc)
+        return []
+
+    size = min(int(size), DEFAULT_MAX_LLM_ITEMS)
+    from_ = max(0, int(from_))
+
     body = {
         "query": {
             "query_string": {
                 "query": query,
                 "default_field": "message",
                 "default_operator": "AND",
+                "allow_leading_wildcard": False,
             }
         },
         "from": from_,
         "size": size,
         "sort": [{"@timestamp": {"order": "desc"}}],
     }
-    try:
-        resp = await client.search(index=index, body=body)
+
+    async def _search() -> List[Dict[str, Any]]:
+        resp = await client.search(index=index, body=body, request_timeout=30)
         hits = resp.get("hits", {}).get("hits", [])
         return [hit.get("_source", {}) for hit in hits]
+
+    try:
+        cache_key = make_cache_key("es_search", index, query, size, from_)
+        results = await cached_query(
+            _es_query_cache,
+            cache_key,
+            with_query_timeout(_search()),
+        )
+        # Redact PII and bound token volume before downstream/API/LLM consumption.
+        return cast(List[Dict[str, Any]], prepare_for_llm(results))
     except NotFoundError:
         logger.warning(f"Elasticsearch index not found: {index}")
         return []

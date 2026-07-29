@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import requests
+
 YOUR_ANOMALY_ID = ""
 anomaly_id = "YOUR_ANOMALY_ID"
-import requests
 
 # 示例：Get anomaly
 # 使用 GET 方法请求 /anomalies/{anomaly_id}

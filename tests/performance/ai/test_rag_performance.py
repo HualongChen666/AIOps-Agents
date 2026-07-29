@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
+import asyncio
+
+import pytest
+
 i = ""
 """
 RAG System Performance Tests
 RAG系统性能测试（检索+生成端到端延迟）
 """
-
-import asyncio
-
-import pytest
 
 
 class TestRAGPerformance:

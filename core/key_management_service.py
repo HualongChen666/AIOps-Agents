@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 """
 密钥管理服务
 Key Management Service
@@ -116,7 +117,8 @@ class FileKeyBackend(KeyBackend):
                 import stat
 
                 os.chmod(self.file_path, stat.S_IRUSR | stat.S_IWUSR)
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception: %s", e)
                 logger.debug("chmod not supported on this platform", exc_info=True)
 
             logger.debug(f"Saved {len(self._keys)} keys to {self.file_path}")

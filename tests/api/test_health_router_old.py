@@ -13,6 +13,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.health_router import router
+
 # 完全禁用配置加载
 os.environ.setdefault("AIOPS_SKIP_CONFIG", "true")
 
@@ -24,7 +26,6 @@ sys.modules["core.authentication"] = MagicMock()
 sys.modules["core.authorization"] = MagicMock()
 
 # Import router after mocking dependencies
-from api.health_router import router
 
 
 @pytest.fixture

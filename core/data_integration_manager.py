@@ -552,7 +552,11 @@ class DataIntegrationManager:
 
             for i in range(num_records):
                 await self.ingest_data(
-                    source.source_id, {"data": f"sample_data_{i}", "value": random.randint(1, 100)}  # nosec B311  # noqa: E501
+                    source.source_id,
+                    {
+                        "data": f"sample_data_{i}",
+                        "value": random.randint(1, 100),  # nosec B311
+                    },  # nosec B311  # noqa: E501
                 )
 
             return {

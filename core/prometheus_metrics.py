@@ -108,6 +108,25 @@ class PrometheusMetricsExporter:
             "aiops_system_memory_usage_percent", "System memory usage percentage", ["host"]
         )
 
+        # 队列、会话与实时连接指标
+        self.queue_depth = Gauge(
+            "aiops_queue_depth",
+            "Current number of messages in a queue",
+            ["queue_name"],
+        )
+
+        self.active_sessions = Gauge(
+            "aiops_active_sessions_total",
+            "Total number of active user sessions",
+            ["session_type"],
+        )
+
+        self.websocket_connections = Gauge(
+            "aiops_websocket_connections_total",
+            "Total number of active WebSocket connections",
+            ["channel"],
+        )
+
         # 应用信息
         self.app_info = Info("aiops_app_info", "AIOps Agent application information")
 
@@ -235,6 +254,18 @@ class PrometheusMetricsExporter:
         """记录系统资源"""
         self.system_cpu_usage.labels(host=host).set(cpu_usage)
         self.system_memory_usage.labels(host=host).set(memory_usage)
+
+    def record_queue_depth(self, queue_name: str, depth: int) -> None:
+        """记录队列深度"""
+        self.queue_depth.labels(queue_name=queue_name).set(depth)
+
+    def record_active_sessions(self, session_type: str, count: int) -> None:
+        """记录活跃会话数"""
+        self.active_sessions.labels(session_type=session_type).set(count)
+
+    def record_websocket_connections(self, channel: str, count: int) -> None:
+        """记录 WebSocket 连接数"""
+        self.websocket_connections.labels(channel=channel).set(count)
 
     def set_app_info(self, info: Dict[str, Any]):
         """设置应用信息"""
