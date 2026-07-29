@@ -4,6 +4,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg?style=flat-square)
 ![Docker Compose](https://img.shields.io/badge/docker--compose-ready-2496ED.svg?style=flat-square)
+![Coverage](https://img.shields.io/badge/coverage-0%25-red.svg?style=flat-square)
 
 > **Self-hosted AI SRE that turns Prometheus alerts into approved, verified, auditable repairs for software and hardware incidents.**
 
