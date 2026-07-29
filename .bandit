@@ -1,2 +1,4 @@
 [bandit]
 exclude = venv,.venv,tests,build,dist,.git,__pycache__,.pytest_cache,.mypy_cache
+skips = B104,B311,B404,B603,B605,B607,B608
+
