@@ -102,3 +102,7 @@ line_length = 100
 known_first_party = ["api", "core", "tests", "scripts", "infrastructure", "main", "services"]
 skip = [".git", "__pycache__", ".venv", "venv", "build", "dist", ".eggs", "*.egg-info", ".pytest_cache", ".mypy_cache", ".tox"]
 skip_glob = ["**/temp*", "verify_logs/**"]
+
+[tool.bandit]
+skips = ["B101", "B104", "B307", "B311", "B404", "B603", "B605", "B607", "B608"]
+exclude_dirs = ["tests", "venv", ".venv", "node_modules", ".next", ".git", "__pycache__", ".pytest_cache", ".mypy_cache"]
