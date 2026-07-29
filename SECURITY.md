@@ -12,7 +12,7 @@ If you discover a security issue in this project, please report it responsibly.
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Instead, send an email to the maintainer at the address listed in the repository contact with the following information:
+Instead, send an email to **<18910691763@163.com>** with the following information:
 
 - A description of the vulnerability.
 - Steps to reproduce or a proof-of-concept.
