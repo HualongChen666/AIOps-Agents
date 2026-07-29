@@ -16,9 +16,7 @@ from . import HARDWARE_EXECUTE_ENABLED
 logger = logging.getLogger(__name__)
 
 
-def _run_redfish(
-    host: str, username: str, password: str, action: str
-) -> Dict[str, Any]:
+def _run_redfish(host: str, username: str, password: str, action: str) -> Dict[str, Any]:
     """Execute or simulate a Redfish action."""
     if not HARDWARE_EXECUTE_ENABLED:
         return {
@@ -103,7 +101,7 @@ def register_redfish_scripts() -> None:
             script_content=(
                 "curl -k -u {username}:*** -X POST "
                 "https://{host}/redfish/v1/Systems/1/Actions/ComputerSystem.Reset "
-                '-d \'{"ResetType":"ForceRestart"}\' -H \'Content-Type: application/json\''
+                "-d '{\"ResetType\":\"ForceRestart\"}' -H 'Content-Type: application/json'"
             ),
             rollback_script="echo 'Reboot rollback: ensure service is restored via health check'",
             metadata={"category": "hardware", "interface": "redfish"},

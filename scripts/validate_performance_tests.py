@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import logging
+
 """
 Validate Performance Tests
 性能测试验证脚本

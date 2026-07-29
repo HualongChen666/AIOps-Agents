@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """测试数据库引擎模块"""
 
 import pytest

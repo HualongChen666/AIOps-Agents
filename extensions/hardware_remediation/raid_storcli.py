@@ -50,7 +50,9 @@ def show_rebuild() -> Dict[str, Any]:
     return _run_storcli(["/c0", "/eall", "/sall", "show", "rebuild"])
 
 
-def start_rebuild(controller: str = "c0", enclosure: str = "e252", slot: str = "s0") -> Dict[str, Any]:
+def start_rebuild(
+    controller: str = "c0", enclosure: str = "e252", slot: str = "s0"
+) -> Dict[str, Any]:
     return _run_storcli([f"/{controller}", f"/{enclosure}", f"/{slot}", "start", "rebuild"])
 
 

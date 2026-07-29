@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """
 Unit tests for core/ai/rag/vectorizer.py
 

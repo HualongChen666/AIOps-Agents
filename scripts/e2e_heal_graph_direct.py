@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Direct end-to-end test of the backend heal_graph business loop."""
+
 import asyncio
 import json
 import os
@@ -56,9 +57,17 @@ async def main():
             {
                 "approval_status": state1.approval_status,
                 "error": state1.error,
-                "runbook_source": state1.runbook.get("source") if isinstance(state1.runbook, dict) else None,
-                "runbook_worst_risk": state1.runbook.get("worst_risk") if isinstance(state1.runbook, dict) else None,
-                "runbook_commands": state1.runbook.get("runbook", {}).get("commands") if isinstance(state1.runbook, dict) else None,
+                "runbook_source": (
+                    state1.runbook.get("source") if isinstance(state1.runbook, dict) else None
+                ),
+                "runbook_worst_risk": (
+                    state1.runbook.get("worst_risk") if isinstance(state1.runbook, dict) else None
+                ),
+                "runbook_commands": (
+                    state1.runbook.get("runbook", {}).get("commands")
+                    if isinstance(state1.runbook, dict)
+                    else None
+                ),
             },
             default=str,
             ensure_ascii=False,
@@ -101,6 +110,7 @@ async def main():
     AsyncSessionLocal = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
     async with AsyncSessionLocal() as session:
         from core.models import RepairRecord
+
         result = await session.execute(select(RepairRecord))
         rows = result.scalars().all()
         for row in rows:

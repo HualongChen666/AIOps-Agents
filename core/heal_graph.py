@@ -72,6 +72,7 @@ try:
     from langgraph.graph import END, StateGraph
 except Exception as e:
     logging.exception("Unexpected exception: %s", e)
+
     # Define minimal stubs so the module can be imported without LangGraph.
     class END:  # type: ignore
         pass
@@ -554,6 +555,7 @@ async def invoke_agent(state: HealState) -> HealState:
         rich_context["confidence"] = 0.8
         state.analysis = rich_context
         from core.phase3_metrics import LLM_COST_PER_INCIDENT
+
         LLM_COST_PER_INCIDENT.labels(model="default").inc(0.001)
         _audit(
             "ANALYSIS_GENERATED",
@@ -607,13 +609,11 @@ async def generate_runbook(state: HealState) -> HealState:
                 elif any(k in metric or k in title or k in desc for k in ("smart",)):
                     script_key = "smart_test"
                 elif any(
-                    k in metric or k in title or k in desc
-                    for k in ("cordon", "drain", "uncordon")
+                    k in metric or k in title or k in desc for k in ("cordon", "drain", "uncordon")
                 ):
                     script_key = "k8s_drain"
                 elif any(
-                    k in metric or k in title or k in desc
-                    for k in ("node", "k8s", "kubernetes")
+                    k in metric or k in title or k in desc for k in ("node", "k8s", "kubernetes")
                 ):
                     script_key = "k8s_drain"
                 else:
@@ -743,9 +743,11 @@ async def apply_fix(state: HealState) -> HealState:
                     script_key=str(alert.get("metric") or "unknown"),
                     proposal=json.dumps(state.runbook, ensure_ascii=False, default=str),
                     alert_json=json.dumps(alert, ensure_ascii=False, default=str),
-                    risk_level=str(state.runbook.get("worst_risk", "medium")).lower()
-                    if isinstance(state.runbook, dict)
-                    else "medium",
+                    risk_level=(
+                        str(state.runbook.get("worst_risk", "medium")).lower()
+                        if isinstance(state.runbook, dict)
+                        else "medium"
+                    ),
                     host=alert.get("host"),
                     platform=str(alert.get("platform", "windows")),
                 )
@@ -773,6 +775,7 @@ async def apply_fix(state: HealState) -> HealState:
                 {"reason": "awaiting human approval", "status": status},
             )
             from core.phase3_metrics import HEAL_PENDING_APPROVAL
+
             HEAL_PENDING_APPROVAL.labels(alert_id=str(alert_id)).inc()
             # HITL: notify on-call operators if notification is configured.
             if NOTIFY_AVAILABLE and _send_alert_notification is not None:
@@ -1049,6 +1052,7 @@ async def evaluate(state: HealState) -> HealState:
         state.verification = verification
         passed = bool(state.verification.get("passed"))
         from core.phase3_metrics import VERIFY_PASSED, VERIFY_FAILED
+
         strategy = state.verification.get("strategy") or "unknown"
         (VERIFY_PASSED if passed else VERIFY_FAILED).labels(strategy=str(strategy)).inc()
         _audit(
@@ -1264,14 +1268,18 @@ async def complete(state: HealState) -> HealState:
                 repair_time=datetime.now(timezone.utc).isoformat(),
                 repair_duration_sec=float(verification.get("duration_sec", 0.0) or 0.0),
                 rule_name=str(state.alert.get("metric") or "unknown") if state.alert else "unknown",
-                script_key=str(state.alert.get("metric") or "unknown") if state.alert else "unknown",
+                script_key=(
+                    str(state.alert.get("metric") or "unknown") if state.alert else "unknown"
+                ),
                 platform=str(state.alert.get("platform", "windows")) if state.alert else "windows",
                 output=json.dumps(state.repair_result, ensure_ascii=False, default=str),
                 alert_id=str(alert_id) if alert_id else None,
                 host=state.alert.get("host") if state.alert else None,
-                risk=str(state.runbook.get("worst_risk", "low")).lower()
-                if isinstance(state.runbook, dict)
-                else "low",
+                risk=(
+                    str(state.runbook.get("worst_risk", "low")).lower()
+                    if isinstance(state.runbook, dict)
+                    else "low"
+                ),
                 params=state.runbook if isinstance(state.runbook, dict) else None,
             )
         except Exception as repair_record_exc:

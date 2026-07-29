@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """测试真实集成模块"""
 
 import pytest

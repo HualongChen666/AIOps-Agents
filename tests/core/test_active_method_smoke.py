@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """Extended smoke tests for active core modules.
 
 Tries to call public functions and methods with type-aware dummy arguments.

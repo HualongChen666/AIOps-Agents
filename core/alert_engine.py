@@ -368,7 +368,7 @@ async def check_linux_security_alerts(
             now = datetime.datetime.now()
             if last_alert and (now - last_alert).total_seconds() < _SSH_ALERT_COOLDOWN_SEC:
                 logger.debug(
-                    f"M-4 SSH 告警冷却中(首次采集) | host={host_name} | "  f"fail_count={fail_count}"
+                    f"M-4 SSH 告警冷却中(首次采集) | host={host_name} | " f"fail_count={fail_count}"
                 )
             else:
                 now_str = now.strftime("%H:%M:%S")

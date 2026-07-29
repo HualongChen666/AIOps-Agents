@@ -38,7 +38,7 @@ def retry_with_backoff(
                     except exceptions as exc:
                         if attempt == max_retries:
                             raise
-                        delay = base_delay * (2 ** attempt)
+                        delay = base_delay * (2**attempt)
                         logger.warning(
                             "%s failed (attempt %s/%s): %s. Retrying in %ss",
                             func.__name__,
@@ -66,7 +66,7 @@ def retry_with_backoff(
                     except exceptions as exc:
                         if attempt == max_retries:
                             raise
-                        delay = base_delay * (2 ** attempt)
+                        delay = base_delay * (2**attempt)
                         logger.warning(
                             "%s failed (attempt %s/%s): %s. Retrying in %ss",
                             func.__name__,
@@ -149,7 +149,9 @@ class CircuitBreaker:
         return result
 
 
-def circuit_breaker(failure_threshold: int = 5, recovery_timeout: float = 60.0, name: str = "circuit") -> Callable[[F], F]:
+def circuit_breaker(
+    failure_threshold: int = 5, recovery_timeout: float = 60.0, name: str = "circuit"
+) -> Callable[[F], F]:
     """Circuit breaker decorator (sync/async)."""
     cb = CircuitBreaker(failure_threshold, recovery_timeout, name)
 
@@ -189,7 +191,11 @@ def fallback_on_error(
                 except exceptions as exc:
                     if log_warning:
                         logger.warning("%s failed (%s), using fallback", func.__name__, exc)
-                    return await fallback(*args, **kwargs) if _is_async(fallback) else fallback(*args, **kwargs)
+                    return (
+                        await fallback(*args, **kwargs)
+                        if _is_async(fallback)
+                        else fallback(*args, **kwargs)
+                    )
 
             return async_wrapper  # type: ignore[return-value]
         else:

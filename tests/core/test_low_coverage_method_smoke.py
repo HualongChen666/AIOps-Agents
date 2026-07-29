@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """Smoke tests for low-coverage core modules not already covered by other suites.
 
 Tries to call public functions and methods with type-aware dummy arguments.

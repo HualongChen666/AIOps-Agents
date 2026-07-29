@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """
 Root Cause Intelligence Module
 ==============================

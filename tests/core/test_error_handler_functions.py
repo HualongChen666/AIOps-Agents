@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """Targeted tests for core.error_handler helpers."""
 
 from unittest.mock import AsyncMock

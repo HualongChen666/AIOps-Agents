@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """Smoke tests for top missing-coverage core modules.
 
 Reuses the safe dummy-argument helpers from test_low_coverage_method_smoke.py

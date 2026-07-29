@@ -19,6 +19,8 @@ def _verify_internal_key(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Missing X-Internal-Key header")
     if provided_key != INTERNAL_API_KEY:
         raise HTTPException(status_code=403, detail="Invalid X-Internal-Key")
+
+
 try:
     from core.db_engine import async_update_approval_status_by_alert
 except Exception as e:

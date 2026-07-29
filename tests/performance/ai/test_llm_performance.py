@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """
 LLM Inference Performance Tests
 LLM推理性能测试（OpenAI、Anthropic模型）

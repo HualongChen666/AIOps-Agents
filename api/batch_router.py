@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """
 Batch API Router
 批量API路由

@@ -55,10 +55,7 @@ async def receive_alert(provider: str, payload: Any = Body(...)) -> WebhookRespo
     if provider_impl is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                f"Unknown alert provider: {provider}. "
-                f"Available: {list_alert_providers()}"
-            ),
+            detail=(f"Unknown alert provider: {provider}. " f"Available: {list_alert_providers()}"),
         )
 
     if not PROCESS_AVAILABLE or process_alert is None:

@@ -46,15 +46,11 @@ class AgentClient:
 
     def approve(self, alert_id: str | int) -> dict[str, Any]:
         """Approve a pending repair for an alert."""
-        response = self._client.patch(
-            f"/api/v1/approvals/{alert_id}", headers=self._headers()
-        )
+        response = self._client.patch(f"/api/v1/approvals/{alert_id}", headers=self._headers())
         response.raise_for_status()
         return response.json()
 
-    def reject(
-        self, alert_id: str | int, reason: str = "用户驳回"
-    ) -> dict[str, Any]:
+    def reject(self, alert_id: str | int, reason: str = "用户驳回") -> dict[str, Any]:
         """Reject a pending repair for an alert."""
         response = self._client.post(
             "/api/v1/approvals/reject",

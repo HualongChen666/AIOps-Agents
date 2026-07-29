@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+
 """Ruff runner with Windows App Control fallback.
 
 Attempts to run ``ruff``. If the compiled ruff binary is blocked by Windows

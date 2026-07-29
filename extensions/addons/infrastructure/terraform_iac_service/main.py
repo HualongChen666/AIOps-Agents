@@ -53,10 +53,18 @@ async def info() -> InfoResponse:
 @app.post("/invoke", response_model=InvokeResponse)
 async def invoke(req: InvokeRequest) -> InvokeResponse:
     """Execute a domain-specific action."""
-    logger.info("[%s] invoke action=%s payload_keys=%s", SERVICE_NAME, req.action, list(req.payload.keys()))
-    return InvokeResponse(success=True, service=SERVICE_NAME, action=req.action, result={"received": True, "payload": req.payload})
+    logger.info(
+        "[%s] invoke action=%s payload_keys=%s", SERVICE_NAME, req.action, list(req.payload.keys())
+    )
+    return InvokeResponse(
+        success=True,
+        service=SERVICE_NAME,
+        action=req.action,
+        result={"received": True, "payload": req.payload},
+    )
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=PORT)

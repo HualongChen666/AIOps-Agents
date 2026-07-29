@@ -1,6 +1,7 @@
 # flake8: noqa
 # isort: skip_file
 import logging
+
 """Append targeted # nosec comments for bandit low-severity false positives.
 
 This script reads the latest bandit text report and inserts ``# nosec Bxxx``

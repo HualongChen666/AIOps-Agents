@@ -202,7 +202,7 @@ async def execute_command_handler(arguments: Dict[str, Any]) -> str:
         timeout=30,  # Add timeout for safety
     )
 
-    return f"stdout: {result.stdout}\nstderr: {result.stderr}\n"  f"returncode: {result.returncode}"
+    return f"stdout: {result.stdout}\nstderr: {result.stderr}\n" f"returncode: {result.returncode}"
 
 
 async def get_metrics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:

@@ -25,6 +25,7 @@ def get_trace_id() -> Optional[str]:
     """Return the current trace id or None."""
     return TRACE_ID.get()
 
+
 # Audit event types
 AUDIT_EVENT_TYPES = {
     "LOGIN": "user_login",

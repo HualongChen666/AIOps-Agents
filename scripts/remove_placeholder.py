@@ -1,4 +1,5 @@
 import logging
+
 """Remove default_value TODO docstrings from Python files."""
 
 import pathlib

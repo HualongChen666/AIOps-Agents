@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 """End-to-end test: Prometheus alert -> approval -> repair -> audit."""
 import json
 import os
@@ -19,7 +20,7 @@ if hasattr(sys.stderr, "reconfigure"):
 # local SQLite DB and does not require an AI API key.
 os.environ["POSTGRES_URL"] = "sqlite+aiosqlite:///e2e.db"
 os.environ["INTERNAL_API_KEY"] = "e2e-test-key"
-os.environ["HEAL_EXECUTE_ENABLED"] = "false"      # simulate repairs
+os.environ["HEAL_EXECUTE_ENABLED"] = "false"  # simulate repairs
 os.environ["HARDWARE_EXECUTE_ENABLED"] = "false"  # simulate hardware repairs
 # config.py now loads ai_api.env (AI_ENABLED=true / AI_TIMEOUT=5) so AI path is attempted.
 # main.py lifespan uses _safe_init timeouts, no need for DISABLE_OPTIONAL_LAYERS.

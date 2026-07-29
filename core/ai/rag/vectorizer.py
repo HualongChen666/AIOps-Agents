@@ -146,7 +146,6 @@ class EmbeddingModel(ABC):
         """Generate embedding for text"""
         ...
 
-
     async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for batch of texts"""
         embeddings = []

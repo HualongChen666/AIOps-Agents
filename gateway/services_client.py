@@ -81,7 +81,9 @@ async def process_alert(alert: Dict[str, Any]) -> Any:
     return await _try_auto_heal(alert)
 
 
-async def approve_and_execute(alert_id: str, alert: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+async def approve_and_execute(
+    alert_id: str, alert: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Approve and run the repair workflow via repair_service (remote) or core.heal_graph (local)."""
     if _is_remote() and os.getenv("REPAIR_SERVICE_URL"):
         try:
@@ -162,9 +164,7 @@ async def _remote_call(
 
 async def remote_rag_query(query: str, top_k: int = 5) -> Any:
     """Query the RAG add-on service."""
-    return await _remote_call(
-        "RAG_SERVICE_URL", "POST", "/query", {"query": query, "top_k": top_k}
-    )
+    return await _remote_call("RAG_SERVICE_URL", "POST", "/query", {"query": query, "top_k": top_k})
 
 
 async def remote_llm_route(prompt: str, models: Optional[List[str]] = None) -> Any:

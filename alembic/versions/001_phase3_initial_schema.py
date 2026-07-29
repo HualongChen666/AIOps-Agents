@@ -122,7 +122,9 @@ def upgrade() -> None:
     )
     op.create_index("ix_hardware_remediation_alert_id", "hardware_remediation_log", ["alert_id"])
     op.create_index("ix_hardware_remediation_action", "hardware_remediation_log", ["action"])
-    op.create_index("ix_hardware_remediation_created_at", "hardware_remediation_log", ["created_at"])
+    op.create_index(
+        "ix_hardware_remediation_created_at", "hardware_remediation_log", ["created_at"]
+    )
 
 
 def downgrade() -> None:

@@ -1,4 +1,5 @@
 import logging
+
 """Verify project tasks 37-41 (services layer) across 13 dimensions."""
 
 import json

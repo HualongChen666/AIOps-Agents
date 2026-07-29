@@ -46,6 +46,7 @@ try:
     )
 except Exception as e:
     logging.exception("Unexpected exception: %s", e)
+
     # 在极端缺少依赖的环境下提供 dummy 对象，防止 import 错误。
     class _DummyGauge:
         def labels(self, *_, **__):

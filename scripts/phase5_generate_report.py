@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import logging
+
 """Generate Phase-5 (tasks 70-78) verification report in Chinese."""
 
 import json

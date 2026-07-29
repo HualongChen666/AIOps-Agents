@@ -25,9 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 config = context.config
 
 # 设置数据库URL，允许通过环境变量覆盖（用于本地 SQLite 测试或 CI）
-config.set_main_option(
-    "sqlalchemy.url", os.getenv("ALEMBIC_DATABASE_URL", POSTGRES_URL)
-)
+config.set_main_option("sqlalchemy.url", os.getenv("ALEMBIC_DATABASE_URL", POSTGRES_URL))
 
 # 解释配置文件的日志配置
 if config.config_file_name is not None:

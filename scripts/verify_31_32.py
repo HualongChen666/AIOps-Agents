@@ -1,4 +1,5 @@
 import logging
+
 """Verify tasks 31-32 with coverage and all tooling."""
 
 import json

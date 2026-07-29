@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+
 """Validate Phase 1 functional completeness.
 
 Checks:
