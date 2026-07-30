@@ -27,6 +27,7 @@ build/
 *.py,cover
 .coverage
 coverage.*
+!docs/coverage.svg
 htmlcov/
 .tox/
 .nox/
