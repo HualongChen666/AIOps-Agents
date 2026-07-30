@@ -265,7 +265,8 @@ class Workflow:
         history: List[Dict[str, Any]] = []
 
         try:
-            assert self.start_node is not None
+            if self.start_node is None:
+                raise ValueError("start_node must be set before running the workflow")
             current_nodes: List[str] = [self.start_node]
             visited: Set[str] = set()
 
