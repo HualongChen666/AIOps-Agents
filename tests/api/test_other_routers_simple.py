@@ -30,7 +30,6 @@ low_priority_modules = [
     "core.localization",
     "core.macOS",
     "core.mcp",
-    "core.priority",
     "core.qdrant",
     "core.rag",
     "core.service_discovery",

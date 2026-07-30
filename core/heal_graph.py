@@ -1119,7 +1119,10 @@ async def rollback(state: HealState) -> HealState:
     if analyze_command is not None:
         for cmd in rollback_commands:
             guard_result = analyze_command(cmd)
-            if RiskLevel is not None and guard_result.get("risk_level") == RiskLevel.BLOCKED:
+            _risk = guard_result.get("risk_level")
+            _is_enum_blocked = RiskLevel is not None and _risk == RiskLevel.BLOCKED
+            _is_text_blocked = str(_risk).endswith(".BLOCKED")
+            if _is_enum_blocked or _is_text_blocked:
                 state.error = f"Rollback command blocked by guard: {guard_result}"
                 _audit(
                     "ROLLBACK_BLOCKED",

@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+asyncssh = pytest.importorskip("asyncssh")
+
 from core.linux_repair import (
     _record_to_sqlite_sync,
     _run_ssh_command,

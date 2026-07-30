@@ -40,7 +40,6 @@ low_priority_modules = [
     "core.plugin_ecosystem",
     "core.plugin_marketplace",
     "core.plugin_sdk",
-    "core.priority",
     "core.qdrant",
     "core.rag_history",
     "core.rag",

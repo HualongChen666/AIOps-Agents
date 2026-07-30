@@ -4,17 +4,13 @@ Priority Router Tests
 业务影响优先级路由API基础测试
 """
 
-import sys
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from api.priority_router import assess_impact, get_sla_status, priority_health, rank_alerts
-
-# Mock problematic imports before importing router
-sys.modules["core.priority"] = MagicMock()
 
 
 @pytest.fixture

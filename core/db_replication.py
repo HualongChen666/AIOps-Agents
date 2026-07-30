@@ -48,11 +48,13 @@ def configure_replication(
         failover_enabled: Enable automatic failover
     """
 
+    global _current_primary
     _replication_config["enabled"] = True
     _replication_config["primary"] = primary_config
     _replication_config["replicas"] = replicas_config
     _replication_config["read_write_splitting"] = read_write_splitting
     _replication_config["failover_enabled"] = failover_enabled
+    _current_primary = "primary"
 
     # Initialize health tracking
     _replica_health["primary"] = {

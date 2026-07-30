@@ -10,6 +10,22 @@ import pytest
 
 collect_ignore_glob = ["*_out.txt"]
 
+# Ignore API/e2e/integration/addon tests by default because they replace core modules
+# in sys.modules. They can be run separately:
+#   $env:AIOPS_RUN_API_TESTS="1"; python -m pytest tests/api
+if os.environ.get("AIOPS_RUN_API_TESTS", "").lower() not in ("1", "true"):
+    collect_ignore = [
+        "api",
+        "e2e",
+        "integration",
+        "addons",
+        "performance",
+        "disabled",
+        "standalone",
+    ]
+else:
+    collect_ignore = ["performance", "disabled", "standalone"]
+
 # Force all threads created during tests to be daemon threads so that
 # pytest-xdist worker processes can exit even when modules leave background
 # threads running.
@@ -54,7 +70,8 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """自动给测试用例打 core / addons 标记。"""
+    """自动给测试用例打 core / addons 标记，并把 tests/api 放到最后运行，
+    避免 api 测试的 sys.modules Mock 泄漏污染 core/integration/e2e 测试。"""
     import pathlib
     import re
 
@@ -98,6 +115,7 @@ def pytest_collection_modifyitems(config, items):
         parts = relpath.parts
         mark = None
         if parts and parts[0] == "api":
+            item.add_marker(getattr(pytest.mark, "api"))
             mark = "addons" if path.name in addon_api_tests else "core"
         elif parts and parts[0] in ("core", "e2e"):
             mark = "core"
@@ -111,9 +129,38 @@ def pytest_collection_modifyitems(config, items):
         if mark and mark not in item.keywords:
             item.add_marker(getattr(pytest.mark, mark))
 
+    # tests/api 大量用 sys.modules Mock，放最后跑避免污染其他测试
+    api_items = [
+        item
+        for item in items
+        if "tests/api" in str(getattr(item, "fspath", "")).replace("\\", "/")
+    ]
+    other_items = [item for item in items if item not in api_items]
+    items[:] = other_items + api_items
+
+
+def pytest_collectstart(collector):
+    """收集 tests/core 任何节点前，把被 tests/api 泄漏的 Mock 模块从 sys.modules 清除，
+    保证 core 测试导入真实源码；真实模块不卸载，避免 monkeypatch 目标对象失效。"""
+    raw_path = getattr(collector, "path", None) or getattr(collector, "fspath", "")
+    norm = str(raw_path).replace("/", "\\")
+    if "tests\\core" in norm or "tests/core" in norm:
+        for name in list(sys.modules.keys()):
+            if (name.startswith("core.") or name in ("config", "core.config")) and isinstance(
+                sys.modules[name], Mock
+            ):
+                del sys.modules[name]
+
 
 def pytest_runtest_setup(item):
-    """未启用 ENABLE_ADDONS 时跳过 addons 测试。"""
+    """未启用 ENABLE_ADDONS 时跳过 addons 测试；执行 tests/core 用例前清理泄漏的 mock 模块。"""
+    item_path = str(getattr(item, "fspath", ""))
+    if "tests\\core" in item_path or "tests/core" in item_path:
+        for name in list(sys.modules.keys()):
+            if (
+                name.startswith("core.") or name in ("config", "core.config")
+            ) and isinstance(sys.modules[name], Mock):
+                del sys.modules[name]
     if "addons" in item.keywords and os.getenv("ENABLE_ADDONS", "").lower() != "true":
         pytest.skip("ENABLE_ADDONS is not true")
 

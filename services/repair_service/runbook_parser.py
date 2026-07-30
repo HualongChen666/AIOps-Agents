@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -88,7 +89,7 @@ class RunbookParser:
     @staticmethod
     def render_command(command: str, params: Dict[str, Any]) -> str:
         """Render command template with params, similar to repair_engine."""
-        return ""
+        return re.sub(r"\{(\w+)\}", lambda m: str(params.get(m.group(1), m.group(0))), command)
 
     @staticmethod
     def validate(runbook: RepairRunbook) -> List[str]:

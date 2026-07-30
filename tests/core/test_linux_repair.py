@@ -14,13 +14,13 @@ def cleanup_db():
     lr.clear_linux_repair_history()
     try:
         os.remove("linux_repair_history.db")
-    except FileNotFoundError:
+    except (FileNotFoundError, PermissionError):
         pass
     yield
     lr.clear_linux_repair_history()
     try:
         os.remove("linux_repair_history.db")
-    except FileNotFoundError:
+    except (FileNotFoundError, PermissionError):
         pass
 
 

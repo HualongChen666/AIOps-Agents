@@ -292,34 +292,33 @@ def _record_to_sqlite_sync(
         import json
         import sqlite3
 
-        conn = sqlite3.connect("linux_repair_history.db")
-        cursor = conn.cursor()
-        cursor.execute(
-            "CREATE TABLE IF NOT EXISTS linux_repair_history ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "host TEXT, script_key TEXT, rule_name TEXT, params TEXT, "
-            "output TEXT, success INTEGER, timestamp TEXT)"
-        )
-        params = record.get("params", {})
-        if not isinstance(params, dict):
-            params = {}
-        cursor.execute(
-            "INSERT INTO linux_repair_history "
-            "(host, script_key, rule_name, params, output, success, timestamp) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                record.get("host", ""),
-                record.get("script_key", ""),
-                record.get("rule_name", ""),
-                json.dumps(params),
-                record.get("output", "")[:_OUTPUT_TRUNCATE_LEN],
-                int(bool(record.get("success", False))),
-                record.get("timestamp", datetime.datetime.now().isoformat()),
-            ),
-        )
-        conn.commit()
-        conn.close()
-        return True
+        with sqlite3.connect("linux_repair_history.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "CREATE TABLE IF NOT EXISTS linux_repair_history ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "host TEXT, script_key TEXT, rule_name TEXT, params TEXT, "
+                "output TEXT, success INTEGER, timestamp TEXT)"
+            )
+            params = record.get("params", {})
+            if not isinstance(params, dict):
+                params = {}
+            cursor.execute(
+                "INSERT INTO linux_repair_history "
+                "(host, script_key, rule_name, params, output, success, timestamp) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    record.get("host", ""),
+                    record.get("script_key", ""),
+                    record.get("rule_name", ""),
+                    json.dumps(params),
+                    record.get("output", "")[:_OUTPUT_TRUNCATE_LEN],
+                    int(bool(record.get("success", False))),
+                    record.get("timestamp", datetime.datetime.now().isoformat()),
+                ),
+            )
+            conn.commit()
+            return True
     except Exception as err:
         logger.error(f"BUG-FIX-23: Linux 修复记录写入 SQLite 失败 (不影响修复结果): {err}")
         return False

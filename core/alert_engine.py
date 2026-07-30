@@ -58,18 +58,16 @@ from core.stats_engine import record_alert_noise, record_ingestion
 # BUSINESS_SLA does not exist in config, using default values if needed
 BUSINESS_SLA = {"cpu": 90, "memory": 90, "disk": 90}  # Default SLA thresholds
 
-# Module-level alert repository (lazy-loaded; can be patched by tests)
+# Module-level alert repository attribute; tests may patch core.alert_engine.alert_repository
 alert_repository: Any = None
 
 
 def _get_alert_repository() -> Any:
-    """Lazily load alert repository; allows test patches to override."""
-    global alert_repository
-    if alert_repository is None:
-        from core.db_engine import alert_repository as _real_repo
-
-        alert_repository = _real_repo
-    return alert_repository
+    """Return current alert repository; supports core.db_engine or core.alert_engine patches."""
+    if alert_repository is not None:
+        return alert_repository
+    from core.db_engine import alert_repository as db_alert_repository
+    return db_alert_repository
 
 
 # P0-3: Import business metrics collector

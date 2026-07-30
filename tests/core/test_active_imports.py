@@ -6,7 +6,9 @@ baseline of coverage.  Tests are parametric and skip modules that cannot be
 imported in this environment (e.g. OS-specific or optional dependencies).
 """
 
+import sys
 from types import ModuleType
+from unittest.mock import Mock
 
 import pytest
 
@@ -74,6 +76,10 @@ ACTIVE_MODULES = [
 def test_active_module_imports(module_name: str) -> None:
     """Each listed module should be importable without raising."""
     import importlib
+
+    existing = sys.modules.get(module_name)
+    if isinstance(existing, Mock):
+        del sys.modules[module_name]
 
     try:
         mod = importlib.import_module(module_name)

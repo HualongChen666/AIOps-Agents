@@ -8,6 +8,8 @@ from core.health_check import perform_health_checks
 
 sys.path.insert(0, "C://AIOps_Agent_bak")
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.asyncio
 async def test_health_checks():

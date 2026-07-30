@@ -50,13 +50,13 @@ class TestAlertService:
 class TestQueryOptimization:
     """查询优化测试"""
 
-    def test_batch_query_optimizer(self):
+    async def test_batch_query_optimizer(self):
         """测试批量查询优化器"""
         optimizer = BatchQueryOptimizer()
 
         # 测试批量获取逻辑
         test_ids = [1, 2, 3, 4, 5]
-        result = optimizer.batch_get_by_ids(
+        result = await optimizer.batch_get_by_ids(
             session=None, model=None, ids=test_ids, id_field="id"  # Mock session  # Mock model
         )
 

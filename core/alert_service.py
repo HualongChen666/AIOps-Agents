@@ -34,9 +34,9 @@ class AlertService:
         """
         cache_key = f"alerts_{limit}"
 
-        # 尝试从缓存获取
+        # 尝试从缓存获取（仅当缓存中的 total 与当前 alert_history 长度一致时才命中，避免返回过期数据）
         cached_result = query_cache.get(cache_key)
-        if cached_result is not None:
+        if cached_result is not None and cached_result.get("total") == len(alert_history):
             logger.debug(f"告警查询缓存命中: {cache_key}")
             return cached_result  # type: ignore[no-any-return]
 
