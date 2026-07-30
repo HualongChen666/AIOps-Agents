@@ -7,6 +7,9 @@ import sys
 from unittest.mock import Mock
 
 import pytest  # noqa: F401
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -68,7 +71,7 @@ class TestLowPriorityRoutersComprehensive:
     def test_all_router_files_exist(self):
         """测试所有38个低优先级路由文件存在"""
 
-        api_dir = "C:/AIOps_Agent_bak/api"
+        api_dir = PROJECT_ROOT / "api"
         router_files = [
             "batch_router.py",
             "chaos_router.py",
@@ -125,7 +128,7 @@ class TestLowPriorityRoutersComprehensive:
     def test_router_structure_validation(self):
         """测试路由结构验证"""
 
-        api_dir = "C:/AIOps_Agent_bak/api"
+        api_dir = PROJECT_ROOT / "api"
 
         # 随机选择几个路由进行结构验证
         sample_routers = [
@@ -160,7 +163,7 @@ class TestLowPriorityRoutersComprehensive:
     def test_total_router_count(self):
         """测试总路由数量"""
 
-        api_dir = "C:/AIOps_Agent_bak/api"
+        api_dir = PROJECT_ROOT / "api"
         all_router_files = [f for f in os.listdir(api_dir) if f.endswith("_router.py")]
 
         # 验证总路由数量
@@ -209,7 +212,7 @@ class TestLowPriorityRoutersComprehensive:
     def test_router_import_capability(self):
         """测试路由导入能力"""
 
-        api_dir = "C:/AIOps_Agent_bak/api"
+        api_dir = PROJECT_ROOT / "api"
 
         # 尝试导入几个简单的路由
         simple_routers = ["batch_router.py", "chaos_router.py", "cost_router.py"]

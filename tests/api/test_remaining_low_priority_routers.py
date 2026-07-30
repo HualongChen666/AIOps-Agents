@@ -6,6 +6,9 @@ import sys
 from unittest.mock import Mock
 
 import pytest  # noqa: F401
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -68,7 +71,7 @@ class TestRemainingLowPriorityRouters:
     def test_router_files_exist(self):
         """测试路由文件存在"""
 
-        api_dir = "C:/AIOps_Agent_bak/api"
+        api_dir = PROJECT_ROOT / "api"
         router_files = [
             "batch_router.py",
             "chaos_router.py",
@@ -123,7 +126,7 @@ class TestRemainingLowPriorityRouters:
     def test_router_count(self):
         """测试路由数量"""
 
-        api_dir = "C:/AIOps_Agent_bak/api"
+        api_dir = PROJECT_ROOT / "api"
         router_files = [f for f in os.listdir(api_dir) if f.endswith("_router.py")]
 
         # 验证有足够多的路由文件

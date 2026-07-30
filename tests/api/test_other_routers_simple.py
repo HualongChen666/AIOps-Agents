@@ -4,6 +4,9 @@
 import os
 import sys
 from unittest.mock import Mock
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -63,7 +66,7 @@ class TestOtherRouters:
         """测试路由结构"""
         # 验证API路由文件存在
 
-        api_dir = "C:/AIOps_Agent_bak/api"
+        api_dir = PROJECT_ROOT / "api"
         router_files = [
             "batch_router.py",
             "chaos_router.py",
