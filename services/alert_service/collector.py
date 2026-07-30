@@ -256,10 +256,11 @@ def _from_grafana(payload: Dict[str, Any], now: datetime) -> Alert:
         instance = "unknown"
 
     value: Optional[float] = None
-    try:
-        value = float(raw_value)
-    except (ValueError, TypeError):
-        value = None
+    if raw_value is not None:
+        try:
+            value = float(raw_value)
+        except (ValueError, TypeError):
+            value = None
 
     severity = _extract_severity(message) or "warning"
     alert_id = f"grafana-{title}-{instance}-{now.isoformat()}"
@@ -301,10 +302,11 @@ def _from_zabbix(payload: Dict[str, Any], now: datetime) -> Alert:
     )
     value_raw = payload.get("value")
     value: Optional[float] = None
-    try:
-        value = float(value_raw)
-    except (ValueError, TypeError):
-        value = None
+    if value_raw is not None:
+        try:
+            value = float(value_raw)
+        except (ValueError, TypeError):
+            value = None
 
     severity = _extract_severity(message) or str(payload.get("severity", "warning"))
     alert_id = f"zabbix-{name}-{host}-{now.isoformat()}"

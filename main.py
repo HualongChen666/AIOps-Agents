@@ -15,6 +15,7 @@ import asyncio
 import os
 import traceback
 import warnings
+import inspect
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -72,57 +73,57 @@ from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
 
 # Add-on routers are loaded only when their pack flag is enabled
-advanced_ai_router = None
-ai_feedback_router = None
-ai_router = None
-root_cause_router = None
-apm_router = None
-tracing_router = None
-backup_router = None
-enterprise_router = None
-batch_router = None
-hitl_router = None
-notify_router = None
-priority_router = None
-chaos_router = None
-cloud_router = None
-database_optimization_router = None
-grpc_router = None
-grpc_service_router = None
-infrastructure_router = None
-mcp_router = None
-plugin_development_router = None
-plugin_ecosystem_router = None
-plugin_marketplace_router = None
-plugin_router = None
-plugin_sdk_router = None
-system_resource_router = None
-test_automation_router = None
-test_coverage_router = None
-test_framework_router = None
-graphql_router = None
-dashboard_router = None
-integration_router = None
-itsm_router = None
-doc_generator_router = None
-documentation_router = None
-frontend_enhancement_router = None
-i18n_router = None
-localization_adapter_router = None
-localization_resource_router = None
-log_router = None
-metrics_router = None
-qdrant_router = None
-rag_history_router = None
-rag_router = None
-realtime_router = None
-service_discovery_router = None
-service_mesh_router = None
-service_monitoring_router = None
-topology_router = None
-topology_view_router = None
-workflow_router = None
-workflow_visualization_router = None
+advanced_ai_router: Any = None
+ai_feedback_router: Any = None
+ai_router: Any = None
+root_cause_router: Any = None
+apm_router: Any = None
+tracing_router: Any = None
+backup_router: Any = None
+enterprise_router: Any = None
+batch_router: Any = None
+hitl_router: Any = None
+notify_router: Any = None
+priority_router: Any = None
+chaos_router: Any = None
+cloud_router: Any = None
+database_optimization_router: Any = None
+grpc_router: Any = None
+grpc_service_router: Any = None
+infrastructure_router: Any = None
+mcp_router: Any = None
+plugin_development_router: Any = None
+plugin_ecosystem_router: Any = None
+plugin_marketplace_router: Any = None
+plugin_router: Any = None
+plugin_sdk_router: Any = None
+system_resource_router: Any = None
+test_automation_router: Any = None
+test_coverage_router: Any = None
+test_framework_router: Any = None
+graphql_router: Any = None
+dashboard_router: Any = None
+integration_router: Any = None
+itsm_router: Any = None
+doc_generator_router: Any = None
+documentation_router: Any = None
+frontend_enhancement_router: Any = None
+i18n_router: Any = None
+localization_adapter_router: Any = None
+localization_resource_router: Any = None
+log_router: Any = None
+metrics_router: Any = None
+qdrant_router: Any = None
+rag_history_router: Any = None
+rag_router: Any = None
+realtime_router: Any = None
+service_discovery_router: Any = None
+service_mesh_router: Any = None
+service_monitoring_router: Any = None
+topology_router: Any = None
+topology_view_router: Any = None
+workflow_router: Any = None
+workflow_visualization_router: Any = None
 
 if ENABLE_ADDONS:
     if LLM_ROUTER_ENABLED:
@@ -603,7 +604,7 @@ async def lifespan(app: FastAPI):
                 result = await asyncio.wait_for(
                     asyncio.to_thread(coro_or_callable), timeout=timeout
                 )
-                if asyncio.isawaitable(result):
+                if inspect.isawaitable(result):
                     result = await asyncio.wait_for(result, timeout=timeout)
             else:
                 result = coro_or_callable

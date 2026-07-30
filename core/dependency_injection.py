@@ -308,6 +308,8 @@ def setup_core_services():
         def create_ai_engine_service():
             from core.ai_engine import get_llm_router
 
+            if get_llm_router is None:
+                raise RuntimeError("LLM router is not available")
             return get_llm_router()
 
         di_container.register_factory("ai_engine", create_ai_engine_service, singleton=True)

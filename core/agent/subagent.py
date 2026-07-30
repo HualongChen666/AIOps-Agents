@@ -49,7 +49,7 @@ def _audit_subagent(
     agent_id: str, action: str, status: str, details: Optional[Dict[str, Any]] = None
 ) -> None:
     """Best-effort audit wrapper for subagent operations."""
-    if AUDIT_AVAILABLE and _log_audit_event:
+    if AUDIT_AVAILABLE and callable(_log_audit_event):
         try:
             _log_audit_event(
                 event_type="SUBAGENT_OPERATION",

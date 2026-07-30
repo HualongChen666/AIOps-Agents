@@ -27,7 +27,7 @@ class UserService:
             async with AsyncSessionLocal() as session:
                 stmt = select(User).where(User.username == username)
                 result = await session.execute(stmt)
-                return result.scalar_one_or_none()
+                return cast(Optional[User], result.scalar_one_or_none())
         except Exception as e:
             logger.error(f"获取用户失败 | username={username}: {e}", exc_info=True)
             return None
@@ -39,7 +39,7 @@ class UserService:
             async with AsyncSessionLocal() as session:
                 stmt = select(User).where(User.email == email)
                 result = await session.execute(stmt)
-                return result.scalar_one_or_none()
+                return cast(Optional[User], result.scalar_one_or_none())
         except Exception as e:
             logger.error(f"获取用户失败 | email={email}: {e}", exc_info=True)
             return None
@@ -51,7 +51,7 @@ class UserService:
             async with AsyncSessionLocal() as session:
                 stmt = select(User).where(User.id == user_id)
                 result = await session.execute(stmt)
-                return result.scalar_one_or_none()
+                return cast(Optional[User], result.scalar_one_or_none())
         except Exception as e:
             logger.error(f"获取用户失败 | user_id={user_id}: {e}", exc_info=True)
             return None

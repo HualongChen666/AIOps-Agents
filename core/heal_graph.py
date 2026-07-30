@@ -168,7 +168,7 @@ try:
 except Exception as e:
     logging.exception("Unexpected exception: %s", e)
     analyze_command = None  # type: ignore[assignment]
-    RiskLevel = None  # type: ignore[assignment]
+    RiskLevel = None  # type: ignore[assignment,misc]
     record_audit = None  # type: ignore[assignment]
 
 try:
@@ -214,7 +214,7 @@ def _audit(
     action: str, resource: str, status: str, details: Optional[Dict[str, Any]] = None
 ) -> None:
     """Best-effort audit helper for heal graph events."""
-    if AUDIT_AVAILABLE and _log_audit_event:
+    if AUDIT_AVAILABLE and callable(_log_audit_event):
         try:
             _log_audit_event(
                 event_type=action,
@@ -228,7 +228,7 @@ def _audit(
             logger.warning(f"Audit write failed: {exc}")
     # Mirror high-level events into command_guard in-memory audit log so that
     # GET /api/v1/audit returns the full alert-to-repair chain.
-    if record_audit:
+    if callable(record_audit):
         try:
             record_audit(
                 host=str(resource),
@@ -236,7 +236,7 @@ def _audit(
                 risk_level=str(status),
                 result=str(status),
                 executor="heal_graph",
-                trace_id=(_get_trace_id() if _get_trace_id else None),
+                trace_id=(_get_trace_id() if callable(_get_trace_id) else None),
             )
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
@@ -288,7 +288,7 @@ def _is_alert_resolved(alert: Dict[str, Any]) -> bool:
         try:
             metrics = _metrics_history.to_dict()
             values = metrics.get(metric, [])
-            if values:
+            if values and threshold is not None:
                 latest = float(values[-1])
                 threshold = float(threshold)
                 if operator in ("<", "lt"):
@@ -1395,7 +1395,7 @@ async def run_heal(state: HealState) -> HealState:
         trace_id = uuid.uuid4().hex
         if state.alert is not None:
             state.alert["trace_id"] = trace_id
-    if _set_trace_id:
+    if callable(_set_trace_id):
         _set_trace_id(trace_id)
     HEAL_TOTAL.labels(script_key=script_key).inc()
     try:

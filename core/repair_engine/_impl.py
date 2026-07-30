@@ -342,7 +342,7 @@ def _record_to_sqlite_sync(
             "platform": "windows",
             "output": output[:_OUTPUT_TRUNCATE_LEN] if output else "",
         }
-        stats_record_repair(repair_data)
+        asyncio.run(stats_record_repair(repair_data))
         return True
     except Exception as stats_err:
         logger.error(f"BUG-FIX-23: Windows 修复记录写入 SQLite 失败 (不影响修复结果): {stats_err}")

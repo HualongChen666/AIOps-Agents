@@ -125,9 +125,9 @@ class SlackAlertChannel(AlertChannel):
             }
             requests.post(
                 self.webhook_url,
-                json=payload,
+                json=payload,  # type: ignore[arg-type]
                 timeout=10,
-            )  # type: ignore[arg-type]
+            )
         except Exception as e:
             print(f"发送Slack告警失败: {e}")
 

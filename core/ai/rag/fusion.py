@@ -4,21 +4,19 @@ Context Fusion Strategies
 Imelligent context combination for RAG
 """
 
-from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
 from .retriever import RetrievalResult
 
 
-class FusionStrategy(ABC):
+class FusionStrategy:
     """Base fusion strategy"""
 
-    @abstractmethod
     def fuse(
         self, query: str, results: List[RetrievalResult], max_context_length: int = 4000
     ) -> str:
         """Fuse retrieval results into context"""
-        ...
+        raise NotImplementedError
 
 
 class ConcatenationFusion(FusionStrategy):

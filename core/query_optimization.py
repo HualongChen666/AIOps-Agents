@@ -23,7 +23,7 @@ class BatchQueryOptimizer:
     """批量查询优化器，解决N+1查询问题"""
 
     @staticmethod
-    def batch_get_by_ids(
+    async def batch_get_by_ids(
         session: AsyncSession, model: Type[T], ids: List[Any], id_field: str = "id"
     ) -> Dict[Any, T]:
         """
@@ -40,6 +40,10 @@ class BatchQueryOptimizer:
         """
         if not ids or session is None or model is None:
             return {}
+        stmt = select(model).where(getattr(model, id_field).in_(ids))
+        result = await session.execute(stmt)
+        rows = result.scalars().all()
+        return {getattr(obj, id_field): obj for obj in rows}
 
     @staticmethod
     async def batch_get_relations(

@@ -163,7 +163,7 @@ class RedisClusterAdapter:
     def delete(self, key: str) -> bool:
         """删除值"""
         if not self.stub_enabled and self._client is not None:
-            return self._client.delete(key) == 1
+            return bool(self._client.delete(key) == 1)
         return self._store.pop(key, None) is not None
 
     def exists(self, key: str) -> bool:

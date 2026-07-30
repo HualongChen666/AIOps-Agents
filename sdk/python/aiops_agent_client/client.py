@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import httpx
 
@@ -35,20 +35,21 @@ class AgentClient:
             "/api/v1/alerts/prometheus", json=payload, headers=self._headers()
         )
         response.raise_for_status()
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
     def list_approvals(self) -> list[dict[str, Any]]:
         """List pending approvals."""
         response = self._client.get("/api/v1/approvals/pending", headers=self._headers())
         response.raise_for_status()
         data = response.json()
-        return data.get("items", data) if isinstance(data, dict) else data
+        items = data.get("items", data) if isinstance(data, dict) else data
+        return cast(list[dict[str, Any]], items)
 
     def approve(self, alert_id: str | int) -> dict[str, Any]:
         """Approve a pending repair for an alert."""
         response = self._client.patch(f"/api/v1/approvals/{alert_id}", headers=self._headers())
         response.raise_for_status()
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
     def reject(self, alert_id: str | int, reason: str = "用户驳回") -> dict[str, Any]:
         """Reject a pending repair for an alert."""
@@ -58,7 +59,7 @@ class AgentClient:
             headers=self._headers(),
         )
         response.raise_for_status()
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
     def get_audit(self, limit: int = 100) -> list[dict[str, Any]]:
         """Fetch recent audit events."""
@@ -66,13 +67,13 @@ class AgentClient:
             "/api/v1/audit", params={"limit": limit}, headers=self._headers()
         )
         response.raise_for_status()
-        return response.json()
+        return cast(list[dict[str, Any]], response.json())
 
     def get_health(self) -> dict[str, Any]:
         """Health check."""
         response = self._client.get("/health", headers=self._headers())
         response.raise_for_status()
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
     def close(self) -> None:
         self._client.close()

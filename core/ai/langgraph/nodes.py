@@ -4,7 +4,7 @@ LangGraph Node Implementations
 Implements various node types for AI workflows
 """
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from loguru import logger
 
@@ -94,7 +94,7 @@ class LLMNode(WorkflowNode):
                 system_prompt=self.system_prompt or None,
                 validate_json=False,
             )
-            return response
+            return cast(str, response)
         except Exception as exc:
             logger.warning(f"LLM call failed for {self.model_name}: {exc}")
             return f"LLM response for: {prompt[:50]}..."

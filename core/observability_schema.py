@@ -66,7 +66,7 @@ class LogRecord(BaseModel):
 
     model_config = {
         "from_attributes": True,
-        "json_encoders": {"datetime": lambda v: v.isoformat(timespec="milliseconds") + "Z"},
+        "json_encoders": {_dt.datetime: lambda v: v.isoformat(timespec="milliseconds") + "Z"},
     }
 
 

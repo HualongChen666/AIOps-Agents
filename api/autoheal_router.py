@@ -547,7 +547,7 @@ async def _execute_ai_propose_workflow(alert: dict, alert_id: str, operator_ip: 
     result = await _generate_runbook(alert, rich_context, alert_id, operator_ip)
     result = _validate_runbook_result(result)
     try:
-        result["pending_count"] = len(get_pending_approvals())  # type: ignore
+        result["pending_count"] = len(await get_pending_approvals())
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
     return result

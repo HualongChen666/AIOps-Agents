@@ -344,7 +344,7 @@ class ApprovalWorkflow:
 
     def _interrupt_associated_agent(self, request: ApprovalRequest) -> bool:
         """Terminate any running subagent associated with this request."""
-        if not SUBAGENT_AVAILABLE or not SubAgentDispatcher:
+        if not SUBAGENT_AVAILABLE or not callable(SubAgentDispatcher):
             return False
         agent_id = request.context.get("agent_id") if request.context else None
         if not agent_id:

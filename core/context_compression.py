@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import copy
 import json
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, cast
 
 from core.ai.token_budget import estimate_tokens
 
@@ -188,9 +188,11 @@ def compress_prompt_text(
     ]
 
     # Split into sections; keep a small buffer for join overhead.
-    sections = text.split("\n\n")
+    sections: List[Optional[str]] = cast(List[Optional[str]], text.split("\n\n"))
     protected_idx: Set[int] = set()
     for i, sec in enumerate(sections):
+        if sec is None:
+            continue
         first_line = sec.split("\n", 1)[0].strip().lower()
         for p in prefixes:
             if first_line.startswith(p.lower()):
@@ -199,15 +201,16 @@ def compress_prompt_text(
 
     # First pass: summarize non-protected long sections.
     for i, sec in enumerate(sections):
-        if i in protected_idx:
+        if sec is None or i in protected_idx:
             continue
         if estimate_tokens(sec, model) <= 80:
             continue
         lines = sec.split("\n")
         if len(lines) > 4:
             sections[i] = lines[0] + f"\n... ({len(lines) - 2} lines summarized) ...\n" + lines[-1]
-        if estimate_tokens("\n\n".join(sections), model) <= max_tokens:
-            return "\n\n".join(sections)
+        current = "\n\n".join([s for s in sections if s is not None])
+        if estimate_tokens(current, model) <= max_tokens:
+            return current
 
     # Second pass: drop non-protected sections starting from the middle.
     order = list(range(len(sections)))

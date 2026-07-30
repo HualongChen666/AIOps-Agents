@@ -167,7 +167,7 @@ class Alert(BaseModel):
     @field_validator("title", "description", mode="before")
     @classmethod
     def _reject_malicious_content(cls, v: Any) -> Any:
-        if not isinstance(v, str) or not _moderate_content:
+        if not isinstance(v, str) or not callable(_moderate_content):
             return v
         allowed, reasons = _moderate_content(v)
         if not allowed:

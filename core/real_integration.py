@@ -43,7 +43,7 @@ def apply_real_integrations():
         )
 
         # 替换engine
-        db_engine_module.engine = new_engine
+        db_engine_module.engine = new_engine  # type: ignore[assignment]
         # Note: In SQLAlchemy 2.0, async_sessionmaker doesn't have bind attribute
         # The engine is passed during creation, so we need to recreate the session maker
         # For now, we'll just update the engine variable

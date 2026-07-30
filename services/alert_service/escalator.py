@@ -111,7 +111,7 @@ class Escalator:
             return None
 
         ctx = context or {}
-        payload = {
+        payload: Dict[str, Any] = {
             "alert": alert.model_dump(mode="json") if hasattr(alert, "model_dump") else dict(alert),
             "escalation_target": target,
             "next_levels": self.chain.levels,

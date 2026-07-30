@@ -112,7 +112,7 @@ class EnhancedMetricsCollector:
 
     def get_stub_metrics(self) -> Dict[str, List[MetricData]]:
         """获取stub指标（用于测试）"""
-        return []
+        return {}
 
 
 class EnhancedLogCollector:

@@ -146,7 +146,9 @@ class AlertPipeline:
         self.deduplicator.fingerprint(alert)
 
         if alert.status != AlertStatus.RESOLVED:
-            is_flapping = self.flapping_detector.update(alert.fingerprint, alert.status.value)
+            is_flapping = self.flapping_detector.update(
+                alert.fingerprint or alert.id, alert.status.value
+            )
             if is_flapping:
                 alert.tags["is_flapping"] = True
                 alert.priority = "P0"

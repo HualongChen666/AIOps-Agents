@@ -4,7 +4,7 @@ OpenTelemetry Telemetry Module for AIOps Agent
 Provides initialization and utilities for tracing, metrics, and logging
 """
 
-from typing import Optional
+from typing import Optional, cast
 
 from loguru import logger
 from opentelemetry import metrics, trace
@@ -49,7 +49,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 # APM metrics functions (simple implementations for test compatibility)
-_apm_metrics: dict[str, int | str] = {
+_apm_metrics: dict[str, int | float | str] = {
     "request_count": 0,
     "error_count": 0,
     "slow_request_count": 0,
@@ -76,7 +76,8 @@ def record_apm_metric(metric_name: str, value: float = 1.0, tags: Optional[dict]
     # Avoid modifying the tags parameter
     _ = tags
     if metric_name in ("request_count", "error_count", "slow_request_count"):
-        _apm_metrics[metric_name] = (_apm_metrics.get(metric_name, 0) or 0) + value
+        current = cast(int, _apm_metrics.get(metric_name, 0) or 0)
+        _apm_metrics[metric_name] = current + value
 
 
 def reset_apm_metrics() -> None:

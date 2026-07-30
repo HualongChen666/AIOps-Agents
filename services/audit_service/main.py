@@ -28,6 +28,8 @@ async def health() -> Dict[str, str]:
 @app.get("/logs")
 async def list_logs(limit: Optional[int] = Query(100, ge=1, le=5000)) -> List[Dict[str, Any]]:
     """Return recent audit logs."""
+    if limit is None:
+        limit = 100
     logs = await asyncio.to_thread(get_audit_log, limit)
     return logs if isinstance(logs, list) else []
 

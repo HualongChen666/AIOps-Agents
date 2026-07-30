@@ -180,7 +180,7 @@ async def _collect_rich_context(snapshot: Optional[dict] = None) -> dict[str, An
     except Exception as e:
         logger.warning(f"N3 富上下文:修复记录读取失败 {e}")
 
-    return cast(dict[str, Any], rich_context)
+    return rich_context
 
 
 def _get_recent_repairs() -> list[dict[str, Any]]:

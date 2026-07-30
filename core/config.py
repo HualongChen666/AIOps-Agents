@@ -14,6 +14,8 @@ import os
 # with the config/ directory.
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _spec = importlib.util.spec_from_file_location("config", os.path.join(_root, "config.py"))
+if _spec is None or _spec.loader is None:
+    raise ImportError("Failed to load top-level config.py")
 _config = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_config)  # type: ignore[union-attr]
 for _name in dir(_config):

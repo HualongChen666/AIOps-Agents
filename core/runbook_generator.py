@@ -358,7 +358,7 @@ async def generate_repair_runbook(
     )
 
     # 🔧 S4: 在把 prompt 交给 LLM 前再做一层本地提示注入/违规内容检测
-    if MODERATION_AVAILABLE and moderate_content:
+    if MODERATION_AVAILABLE and callable(moderate_content):
         allowed, reasons = moderate_content(prompt)
         if not allowed:
             logger.warning(f"Runbook prompt 内容安全拦截: {reasons}")
@@ -511,7 +511,7 @@ async def generate_repair_runbook(
     )
 
     # 🔧 O11: 记录 Runbook 生成/审批审计事件
-    if AUDIT_AVAILABLE and log_audit_event:
+    if AUDIT_AVAILABLE and callable(log_audit_event):
         try:
             log_audit_event(
                 event_type="RUNBOOK_GENERATED",

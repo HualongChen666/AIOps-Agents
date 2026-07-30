@@ -498,7 +498,7 @@ class RootCauseIntelligenceEngine:
         if not candidate_scores:
             return [source_node]
 
-        best_root = max(candidate_scores, key=candidate_scores.get)
+        best_root = max(candidate_scores, key=lambda node: candidate_scores[node])
 
         # Reconstruct shortest path from source to the selected root
         path: List[str] = []

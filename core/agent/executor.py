@@ -20,7 +20,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ..command_guard import RiskLevel
 from .behavior_monitor import get_behavior_monitor
@@ -49,7 +49,7 @@ def _audit_executor(
     details: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Best-effort audit wrapper for agent execution events."""
-    if AUDIT_AVAILABLE and _log_audit_event:
+    if AUDIT_AVAILABLE and callable(_log_audit_event):
         try:
             _log_audit_event(
                 event_type="AGENT_EXECUTION",
@@ -718,7 +718,7 @@ class AutonomousExecutor:
 
             anomaly = self.behavior_monitor.check_anomaly(self.agent_id)
             if anomaly:
-                result["behavior_alert"] = anomaly
+                result["behavior_alert"] = cast(Any, anomaly)
                 results.append(result)
                 break
 

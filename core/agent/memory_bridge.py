@@ -13,7 +13,7 @@ import asyncio
 import hashlib
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +169,7 @@ class MemoryBridge:
             }
 
         try:
-            return _run_async(_save())
+            return cast(Optional[Dict[str, Any]], _run_async(_save()))
         except Exception as exc:
             logger.warning(f"Failed to save experience: {exc}")
             return None

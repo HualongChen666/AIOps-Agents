@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import httpx
 
@@ -84,7 +84,7 @@ async def process_alert(alert: Dict[str, Any]) -> Any:
 async def approve_and_execute(
     alert_id: str, alert: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """Approve and run the repair workflow via repair_service (remote) or core.heal_graph (local)."""
+    """Approve and run the repair workflow via repair_service or core.heal_graph."""
     if _is_remote() and os.getenv("REPAIR_SERVICE_URL"):
         try:
             base = os.environ["REPAIR_SERVICE_URL"].rstrip("/")
@@ -108,7 +108,7 @@ async def approve_and_execute(
                 return {"success": False, "error": "repair_service did not return a task_id"}
             approved = await client.post(f"{base}/repairs/{task_id}/approve")
             approved.raise_for_status()
-            return approved.json()
+            return cast(dict[str, Any], approved.json())
         except Exception as exc:
             logger.warning(f"remote repair_service call failed, falling back: {exc}")
 

@@ -29,7 +29,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncGenerator, Dict, List, Optional, cast
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -76,7 +76,7 @@ def _effective_database_url() -> str:
     if os.getenv("USE_SQLITE", "false").lower() in ("1", "true", "yes"):
         default_path = os.path.abspath(os.getenv("SQLITE_PATH", "aiops_e2e.db"))
         return os.getenv("SQLITE_URL", f"sqlite+aiosqlite:///{default_path}")
-    return cast(str, POSTGRES_URL)
+    return POSTGRES_URL
 
 
 # Async engine – ``future=True`` enables 2.0 style SQLAlchemy core.

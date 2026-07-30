@@ -121,7 +121,7 @@ class KafkaStreamProcessor:
                             yield KafkaMessage(
                                 topic=t.topic,
                                 key=(
-                                    (record.key or "").decode("utf-8")
+                                    record.key.decode("utf-8")
                                     if isinstance(record.key, bytes)
                                     else str(record.key or "")
                                 ),

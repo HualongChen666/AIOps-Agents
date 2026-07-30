@@ -342,15 +342,15 @@ async def build_pre_state(
             )
 
     elif operation_type == "network_policy":
-        namespace = "default"
-        resource_name: Optional[str] = None
+        np_namespace = "default"
+        np_resource_name: Optional[str] = None
         for cmd in commands:
-            namespace = _parse_namespace(cmd)
+            np_namespace = _parse_namespace(cmd)
             parsed = _extract_k8s_resource(cmd)
             if parsed:
-                resource_name = parsed[1]
+                np_resource_name = parsed[1]
         captured.append(
-            await _capture_network_policy_state(resource_name, namespace, platform, host)
+            await _capture_network_policy_state(np_resource_name, np_namespace, platform, host)
         )
 
     elif operation_type == "service_restart":

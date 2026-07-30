@@ -90,6 +90,8 @@ class TempoStorage(BaseStorage):
 
     async def _fetch_trace(self, key: str) -> Optional[Any]:
         """Internal trace fetch that parses the response before caching."""
+        if self._client is None:
+            return None
         response = await self._client.get(f"/api/traces/{key}")
         if response.status_code == 200:
             return response.json()
@@ -184,7 +186,7 @@ class TempoStorage(BaseStorage):
         Returns:
             List of matching traces
         """
-        if not self._is_initialized or not self._client:
+        if not self._is_initialized or self._client is None:
             logger.warning("Tempo not initialized")
             return []
 
@@ -198,11 +200,11 @@ class TempoStorage(BaseStorage):
                 validate_tempoql(tempo_query)
 
             cache_key = make_cache_key("tempo_query", self.base_url, params)
-            return await cached_query(
+            return cast(List[Dict[str, Any]], await cached_query(
                 self._query_cache,
                 cache_key,
                 with_query_timeout(self._execute_tempo_query(params)),
-            )
+            ))
 
         except ValueError as exc:
             logger.warning("Invalid TempoQL query rejected: %s", exc)
@@ -292,11 +294,13 @@ class TempoStorage(BaseStorage):
         Returns:
             List of service names
         """
-        if not self._is_initialized or not self._client:
+        if not self._is_initialized or self._client is None:
             logger.warning("Tempo not initialized")
             return []
 
         async def _fetch_services() -> List[str]:
+            if self._client is None:
+                return []
             response = await self._client.get("/api/services")
             if response.status_code == 200:
                 data = response.json()
@@ -306,11 +310,11 @@ class TempoStorage(BaseStorage):
 
         try:
             cache_key = make_cache_key("tempo_services", self.base_url)
-            return await cached_query(
+            return cast(List[str], await cached_query(
                 self._query_cache,
                 cache_key,
                 with_query_timeout(_fetch_services()),
-            )
+            ))
 
         except Exception as e:
             logger.error(f"Error getting services from Tempo: {e}")
@@ -326,11 +330,13 @@ class TempoStorage(BaseStorage):
         Returns:
             List of operation names
         """
-        if not self._is_initialized or not self._client:
+        if not self._is_initialized or self._client is None:
             logger.warning("Tempo not initialized")
             return []
 
         async def _fetch_operations() -> List[str]:
+            if self._client is None:
+                return []
             response = await self._client.get(f"/api/services/{service_name}/operations")
             if response.status_code == 200:
                 data = response.json()
@@ -340,11 +346,11 @@ class TempoStorage(BaseStorage):
 
         try:
             cache_key = make_cache_key("tempo_operations", self.base_url, service_name)
-            return await cached_query(
+            return cast(List[str], await cached_query(
                 self._query_cache,
                 cache_key,
                 with_query_timeout(_fetch_operations()),
-            )
+            ))
 
         except Exception as e:
             logger.error(f"Error getting operations from Tempo: {e}")

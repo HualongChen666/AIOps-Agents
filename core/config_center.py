@@ -161,7 +161,7 @@ class ConsulConfigCenter:
 
         try:
             if self.consul_client:
-                return self.consul_client.kv.delete(key)
+                return bool(self.consul_client.kv.delete(key))
         except Exception as e:
             _logger.error(f"Failed to delete config {key}: {e}")
         return False

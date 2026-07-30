@@ -7,7 +7,7 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 from loguru import logger
 
@@ -20,6 +20,7 @@ class _DedupEntry:
     last_seen: float
     repeat_count: int = 0
     alert_id: str = ""
+    last_alert: Optional[Alert] = None
 
 
 class Deduplicator:

@@ -276,11 +276,11 @@ class VictoriaMetricsStorage(BaseStorage):
             else:
                 params, endpoint = self._build_instant_query_params(promql_query, query)
 
-            return await cached_query(
+            return cast(List[Dict[str, Any]], await cached_query(
                 self._query_cache,
                 cache_key,
                 with_query_timeout(self._execute_promql_query(endpoint, params)),
-            )
+            ))
 
         except Exception as e:
             logger.error(f"Error querying VictoriaMetrics: {e}")
@@ -308,7 +308,7 @@ class VictoriaMetricsStorage(BaseStorage):
             return []
 
         start, end = align_time_window(end=end, duration_seconds=(end - start).total_seconds())
-        step = limit_range_samples(start, end, step, self.max_samples)
+        step = int(limit_range_samples(start, end, step, self.max_samples))
 
         query_params = {
             "query": query,

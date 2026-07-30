@@ -4,7 +4,6 @@ Vector Retrieval Interface
 Implements similarity search with multiple strategies
 """
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -22,15 +21,14 @@ class RetrievalResult:
     metadata: Dict[str, Any]
 
 
-class RetrievalStrategy(ABC):
+class RetrievalStrategy:
     """Base retrieval strategy"""
 
-    @abstractmethod
     async def retrieve(
         self, query: str, top_k: int = 10, filters: Optional[Dict[str, Any]] = None
     ) -> List[RetrievalResult]:
         """Retrieve relevant chunks"""
-        ...
+        raise NotImplementedError
 
 
 class VectorStoreRetrieval(RetrievalStrategy):

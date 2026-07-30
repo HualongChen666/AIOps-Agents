@@ -64,6 +64,7 @@ class FlinkStreamJob:
 
     def __init__(self, config: FlinkJobConfig):
         """初始化Flink作业"""
+        self.config = config
         self._initialized = True
 
     def process_stream(self, stream_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -165,6 +166,8 @@ class FlinkJobManager:
 
     def __init__(self):
         """初始化Flink作业管理器"""
+        self.jobs: Dict[str, FlinkStreamJob] = {}
+        self.job_configs: Dict[str, FlinkJobConfig] = {}
         self._initialized = True
 
     def create_job(self, config: FlinkJobConfig) -> FlinkStreamJob:

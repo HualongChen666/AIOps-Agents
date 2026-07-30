@@ -62,6 +62,7 @@ try:
 except ImportError:  # pragma: no cover
     from typing import Any as ModelUsage  # type: ignore
 
+get_llm_router: Optional[Callable[[], Any]] = None
 try:
     from core.ai.llm_router import (  # type: ignore[attr-defined]  # noqa: E501
         get_llm_router as _get_llm_router_impl,
@@ -74,6 +75,8 @@ except (ImportError, AttributeError):
     logger.warning("LLM router not available, falling back to direct API calls")
     get_llm_router = None
 
+get_llm_cost_monitor: Optional[Callable[[], Any]] = None
+get_session_budget: Optional[Callable[..., Any]] = None
 try:
     from core.llm_cost_monitor import (  # type: ignore[attr-defined]  # noqa: E501
         get_llm_cost_monitor as _get_llm_cost_monitor_impl,
@@ -88,6 +91,8 @@ except (ImportError, AttributeError):
     logger.warning("LLM cost monitor not available, using default cost estimate")
     get_llm_cost_monitor = None
     get_session_budget = None
+moderate_content: Optional[Callable[..., Any]] = None
+sanitize_for_llm: Optional[Callable[..., Any]] = None
 try:
     from core.content_moderation import moderate_content as _moderate_content_impl
     from core.content_moderation import sanitize_for_llm as _sanitize_for_llm_impl
@@ -104,6 +109,8 @@ except ImportError:
         return text
 
 
+anonymize_text: Optional[Callable[[str], Any]] = None
+anonymize_dict: Optional[Callable[[Dict[str, Any]], Any]] = None
 try:
     from core.data_privacy import anonymize_dict as _anonymize_dict_impl
     from core.data_privacy import anonymize_text as _anonymize_text_impl
@@ -117,6 +124,7 @@ except ImportError:
     anonymize_text = None
     anonymize_dict = None
 
+log_audit_event: Optional[Callable[..., Any]] = None
 try:
     from core.audit_logger import log_audit_event as _log_audit_event_impl
 

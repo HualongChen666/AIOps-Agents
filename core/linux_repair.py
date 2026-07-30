@@ -221,15 +221,13 @@ async def _safe_record_audit(
     捕获所有异常,避免审计失败导致修复主流程崩溃
     """
     try:
-        result = record_audit(
+        record_audit(
             host=host,
             command=command,
             risk_level=risk_level,
             executor=executor,
             result=repair_status,
         )
-        if asyncio.iscoroutine(result):
-            await result
     except Exception as audit_err:
         logger.warning(
             f"审计日志写入失败(不影响修复主流程): {audit_err} | "

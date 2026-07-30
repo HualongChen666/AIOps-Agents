@@ -40,7 +40,7 @@ class ConnectionManager:
             self.active_connections[channel] = set()
         self.active_connections[channel].add(websocket)
         count = len(self.active_connections[channel])
-        if get_metrics_exporter:
+        if callable(get_metrics_exporter):
             try:
                 get_metrics_exporter().record_websocket_connections(channel, count)
             except Exception as e:
@@ -60,7 +60,7 @@ class ConnectionManager:
         if channel in self.active_connections:
             self.active_connections[channel].discard(websocket)
             count = len(self.active_connections[channel])
-            if get_metrics_exporter:
+            if callable(get_metrics_exporter):
                 try:
                     get_metrics_exporter().record_websocket_connections(channel, count)
                 except Exception as e:

@@ -789,7 +789,7 @@ async def _resolve_oncall_recipients(alert: dict[str, Any]) -> list[dict[str, An
             adapter.provider = config_oncall
             adapter.api_token = NOTIFY_CONFIG.get("oncall_api_token", "")
             adapter.api_base = NOTIFY_CONFIG.get("oncall_api_base", "")
-        contacts = await adapter.lookup(
+        contacts = await adapter.lookup_async(
             category=str(alert.get("category", "")),
             service=str(alert.get("service", alert.get("host", ""))),
             alert_type=str(alert.get("alert_type", alert.get("type", ""))),
@@ -897,7 +897,7 @@ async def _send_one_channel(
                 build_structured_alert_message(alert, fmt="text"), alert.get("channel", "#alerts")
             )
         elif channel == "teams":
-            url = config.get("teams_webhook") or os.getenv("TEAMS_WEBHOOK_URL", "")
+            url = str(config.get("teams_webhook") or os.getenv("TEAMS_WEBHOOK_URL", "") or "")
             result = await send_teams_notification(
                 build_structured_alert_message(alert, fmt="text"), url
             )
@@ -919,12 +919,16 @@ async def _send_one_channel(
         elif channel == "phone":
             recipient = ""
             if oncall_recipients:
-                recipient = next((c.get("phone") for c in oncall_recipients if c.get("phone")), "")
+                recipient = str(next(
+                    (c.get("phone") for c in oncall_recipients if c.get("phone")), ""
+                ))
             result = await _send_phone_notification(alert, config, recipient=recipient)
         elif channel == "sms":
             recipient = ""
             if oncall_recipients:
-                recipient = next((c.get("phone") for c in oncall_recipients if c.get("phone")), "")
+                recipient = str(next(
+                    (c.get("phone") for c in oncall_recipients if c.get("phone")), ""
+                ))
             result = await _send_sms_notification(alert, config, recipient=recipient)
         else:
             result = await _unsupported_channel(channel)

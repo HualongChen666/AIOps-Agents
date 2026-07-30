@@ -747,6 +747,8 @@ class IntegrationManager:
             cache_key = make_cache_key("prometheus_integration", url, query, time_range, step)
 
             async def _run_query() -> Dict[str, Any]:
+                if self.http_client is None:
+                    return {"error": "HTTP client not initialized"}
                 response = await with_query_timeout(
                     self.http_client.get(
                         f"{url}/api/v1/query_range",
@@ -762,11 +764,11 @@ class IntegrationManager:
                     return cast(Dict[str, Any], response.json())
                 return {"error": f"Prometheus query failed: {response.status_code}"}
 
-            return await cached_query(
+            return cast(Dict[str, Any], await cached_query(
                 self._observability_cache,
                 cache_key,
                 _run_query(),
-            )
+            ))
         except Exception as e:
             safe_error = sanitize_error_for_llm(e)
             logger.error(f"Prometheus query error for {integration_id}: {safe_error}")

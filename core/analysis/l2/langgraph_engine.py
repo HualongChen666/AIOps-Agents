@@ -141,7 +141,7 @@ class LangGraphAnalysisEngine:
                 loki_storage = l4_manager.get_loki()
 
                 # Collect metrics and logs in parallel with a shared time window.
-                coros = []
+                coros: List[Any] = []
                 if vm_storage:
                     coros.append(self._collect_metrics(vm_storage, state["input"], start, end))
                 else:

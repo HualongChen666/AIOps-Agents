@@ -596,14 +596,15 @@ class IntegrationEcosystem:
             headers["X-Signature"] = signature
 
         try:
-            if not self.http_session:
+            if self.http_session is None:
                 logger.error("HTTP session not available")
                 return False
 
+            http_session = self.http_session
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
                 None,
-                lambda: self.http_session.post(
+                lambda: http_session.post(
                     webhook_url, json=payload, headers=headers, timeout=10
                 ),
             )
@@ -795,9 +796,13 @@ class IntegrationEcosystem:
                 logger.warning("HTTP session not available")
                 return None
 
+            http_session = self.http_session
+            if http_session is None:
+                return None
+
             async def _run_query() -> Dict[str, Any]:
                 def _sync_query():
-                    return self.http_session.get(
+                    return http_session.get(
                         f"{base_url}/api/v1/query_range",
                         params={
                             "query": query,
@@ -815,11 +820,11 @@ class IntegrationEcosystem:
                 logger.error(f"Prometheus query failed: {response.status_code}")
                 return {"error": f"Prometheus query failed: {response.status_code}"}
 
-            return await cached_query(
+            return cast(Dict[str, Any] | None, await cached_query(
                 self._observability_cache,
                 cache_key,
                 with_query_timeout(_run_query()),
-            )
+            ))
 
         except Exception as e:
             safe_error = sanitize_error_for_llm(e)

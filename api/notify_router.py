@@ -382,7 +382,7 @@ async def get_oncall(
     """根据 category/service/team 查询 oncall 排班"""
     try:
         adapter = _notify_engine.get_oncall_adapter()
-        contacts = await adapter.lookup(
+        contacts = await adapter.lookup_async(
             category=category,
             service=service,
             team=team,

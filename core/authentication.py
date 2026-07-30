@@ -28,6 +28,7 @@ import os
 import re
 import secrets
 import uuid
+from typing import cast
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -152,18 +153,25 @@ class _CompatPwdContext:
         return "bcrypt"
 
     def hash(self, password: str) -> str:
-        if isinstance(password, str):
-            password = password.encode("utf-8")
-        password = password[: self._BCRYPT_MAX_BYTES]
-        return bcrypt.hashpw(password, bcrypt.gensalt()).decode("ascii")
+        password_bytes = (
+            password.encode("utf-8") if isinstance(password, str) else password
+        )
+        password_bytes = password_bytes[: self._BCRYPT_MAX_BYTES]
+        return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("ascii")
 
     def verify(self, plain_password: str, hashed_password: str) -> bool:
-        if isinstance(plain_password, str):
-            plain_password = plain_password.encode("utf-8")
-        plain_password = plain_password[: self._BCRYPT_MAX_BYTES]
-        if isinstance(hashed_password, str):
-            hashed_password = hashed_password.encode("ascii")
-        return bcrypt.checkpw(plain_password, hashed_password)
+        plain_password_bytes = (
+            plain_password.encode("utf-8")
+            if isinstance(plain_password, str)
+            else plain_password
+        )
+        hashed_password_bytes = (
+            hashed_password.encode("ascii")
+            if isinstance(hashed_password, str)
+            else hashed_password
+        )
+        plain_password_bytes = plain_password_bytes[: self._BCRYPT_MAX_BYTES]
+        return bcrypt.checkpw(plain_password_bytes, hashed_password_bytes)
 
 
 pwd_context = _CompatPwdContext()
@@ -465,7 +473,7 @@ def get_user_by_username(username: str) -> Optional[Any]:
         if inspect.iscoroutinefunction(get_user):
             user = asyncio.run(get_user(username))
         else:
-            user = get_user(username)
+            user = get_user(username)  # type: ignore[assignment]
         return user
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
@@ -793,7 +801,7 @@ class JWTAuthService(AuthService):
         user = authenticate_user(username, password)
         if not user:
             return None
-        return user.model_dump()
+        return cast(Dict[str, Any], user.model_dump())
 
 
 auth_service = JWTAuthService()

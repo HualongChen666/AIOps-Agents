@@ -127,7 +127,10 @@ def get_kubernetes_ca() -> Optional[str]:
 
 
 def _should_verify_ssl() -> bool:
-    return _get_env("AIOPS_KUBERNETES_VERIFY", "true").lower() in ("1", "true", "yes", "on")
+    verify = _get_env("AIOPS_KUBERNETES_VERIFY", "true")
+    if verify is None:
+        return True
+    return verify.lower() in ("1", "true", "yes", "on")
 
 
 def _get_http_client() -> Optional[Any]:
@@ -452,7 +455,7 @@ def query_kubernetes_pod(pod_name: str, namespace: str = "default") -> Dict[str,
     status = data.get("status", {})
     spec = data.get("spec", {})
     container_statuses = status.get("containerStatuses", [])
-    last_state = {}
+    last_state: dict[str, Any] = {}
     for cs in container_statuses:
         last_state.update(cs.get("lastState", {}).get("terminated", {}) or {})
     return {

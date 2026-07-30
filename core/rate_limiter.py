@@ -255,7 +255,7 @@ class SessionLimiter:
 
     def _update_session_metric(self) -> None:
         total = sum(self._sessions.values())
-        if get_metrics_exporter:
+        if callable(get_metrics_exporter):
             try:
                 get_metrics_exporter().record_active_sessions("user", total)
             except Exception as e:

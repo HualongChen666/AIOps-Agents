@@ -4,7 +4,6 @@ Reranking with Cross-Encoder
 Implements result refinement using cross-encoder models
 """
 
-from abc import ABC, abstractmethod
 from typing import List
 
 from loguru import logger
@@ -12,17 +11,16 @@ from loguru import logger
 from .retriever import RetrievalResult
 
 
-class Reranker(ABC):
+class Reranker:
     """
     Base reranker interface
     """
 
-    @abstractmethod
     async def rerank(
         self, query: str, results: List[RetrievalResult], top_k: int
     ) -> List[RetrievalResult]:
         """Rerank retrieval results"""
-        ...
+        raise NotImplementedError
 
 
 class CrossEncoderReranker(Reranker):

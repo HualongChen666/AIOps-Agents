@@ -11,6 +11,7 @@ category, service, or escalation policy.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.parse
 from dataclasses import dataclass, field
@@ -72,25 +73,6 @@ class OncallSchedule:
         """Synchronously find on-call contacts from local schedule."""
         return self._lookup_local(category, service, alert_type, team)
 
-    async def lookup_async(
-        self,
-        category: str = "",
-        service: str = "",
-        alert_type: str = "",
-        team: str = "",
-    ) -> list[OncallContact]:
-        """Asynchronously find on-call contacts; tries external API then local schedule."""
-        contacts: list[OncallContact] = []
-        if (
-            self.provider in ("pagerduty", "opsgenie", "victorops")
-            and self.api_base
-            and self.api_token
-        ):
-            contacts = await self._lookup_external(category, service, team)
-        if not contacts:
-            contacts = self._lookup_local(category, service, alert_type, team)
-        return contacts
-
     def _lookup_local(
         self,
         category: str = "",
@@ -143,7 +125,7 @@ class OncallAdapter:
         self._local_schedule.load_from_env()
 
     def _http_client(self) -> httpx.AsyncClient:
-        if _get_http_client:
+        if callable(_get_http_client):
             return _get_http_client()
         return httpx.AsyncClient(timeout=10.0)
 

@@ -236,7 +236,7 @@ async def execute_repair(
         "duration_sec": duration,
     }
     try:
-        record_repair(result_record)
+        await record_repair(result_record)
     except Exception as e:
         _logger.debug("Stats record failed for K8s repair %s on %s: %s", script_key, host, e)
     try:

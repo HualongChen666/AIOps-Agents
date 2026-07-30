@@ -265,6 +265,7 @@ class Workflow:
         history: List[Dict[str, Any]] = []
 
         try:
+            assert self.start_node is not None
             current_nodes: List[str] = [self.start_node]
             visited: Set[str] = set()
 

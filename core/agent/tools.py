@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 from . import observability_client
 
@@ -52,7 +52,7 @@ except Exception as e:
 
 def _audit_tool(tool_name: str, status: str, details: Optional[Dict[str, Any]] = None) -> None:
     """Best-effort audit wrapper for tool executions."""
-    if AUDIT_AVAILABLE and _log_audit_event:
+    if AUDIT_AVAILABLE and callable(_log_audit_event):
         try:
             _log_audit_event(
                 event_type="AGENT_TOOL_EXECUTED",
@@ -68,7 +68,7 @@ def _audit_tool(tool_name: str, status: str, details: Optional[Dict[str, Any]] =
 
 def _guard_command_param(param_name: str, value: Any) -> None:
     """Run command_guard over command-like string parameters before execution."""
-    if not COMMAND_GUARD_AVAILABLE or not _analyze_command:
+    if not COMMAND_GUARD_AVAILABLE or not callable(_analyze_command):
         return
     if not isinstance(value, str):
         return
@@ -392,9 +392,9 @@ class Tool:
                 fvalue = float(value)
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"Parameter '{name}' must be a number") from exc
-            min_v, max_v = _FLOAT_PARAM_RANGES.get(name, (float("-inf"), float("inf")))
-            if fvalue < min_v or fvalue > max_v:
-                raise ValueError(f"Parameter '{name}' must be between {min_v} and {max_v}")
+            fmin_v, fmax_v = _FLOAT_PARAM_RANGES.get(name, (float("-inf"), float("inf")))
+            if fvalue < fmin_v or fvalue > fmax_v:
+                raise ValueError(f"Parameter '{name}' must be between {fmin_v} and {fmax_v}")
             return
 
         # 列表参数 (also allow comma-separated string for some callers)
@@ -964,12 +964,12 @@ class ToolRegistry:
         """
         logger.info(f"Root cause analysis for {alert_id} using {method}")
         try:
-            from core.root_cause_intelligence import (
-                ROOT_CAUSE_INTELLIGENCE_AVAILABLE,
-                root_cause_intelligence_engine,
-            )
+            import core.root_cause_intelligence as _rci
 
-            if ROOT_CAUSE_INTELLIGENCE_AVAILABLE:
+            root_cause_intelligence_engine = getattr(
+                _rci, "root_cause_intelligence_engine", None
+            )
+            if root_cause_intelligence_engine is not None:
                 resolved_alert = (
                     dict(alert)
                     if alert
@@ -977,7 +977,7 @@ class ToolRegistry:
                 )
                 resolved_alert.setdefault("id", alert_id)
                 resolved_metrics = dict(metrics_data) if metrics_data else {}
-                resolved_context = {
+                resolved_context: Dict[str, Any] = {
                     "correlated_alerts": correlated_alerts or [],
                     "change_events": change_events or [],
                 }
@@ -993,7 +993,7 @@ class ToolRegistry:
                     candidates.append(
                         {
                             "root_cause": getattr(h, "root_cause", str(h)),
-                            "confidence": getattr(h, "confidence", 0.5),
+                            "confidence": float(getattr(h, "confidence", 0.5)),
                             "expected_observations_if_true": getattr(
                                 h, "expected_observations", []
                             ),
@@ -1007,7 +1007,9 @@ class ToolRegistry:
                     "alert_id": alert_id,
                     "method": method,
                     "candidates": candidates,
-                    "escalation_recommended": not any(c["confidence"] >= 0.75 for c in candidates),
+                    "escalation_recommended": not any(
+                        cast(float, c["confidence"]) >= 0.75 for c in candidates
+                    ),
                 }
         except Exception as e:
             logger.warning(f"Root cause engine invocation failed: {e}")
@@ -1800,7 +1802,9 @@ class ToolExecutor:
                 )
                 time.sleep(sleep_time)
 
-        raise last_exc  # pragma: no cover
+        if last_exc is None:
+            raise RuntimeError("No exception captured during retry")
+        raise last_exc
 
     def execute_tool(
         self,

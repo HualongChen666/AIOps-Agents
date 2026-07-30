@@ -34,7 +34,7 @@ except Exception as e:
         send_slack_notification,
         send_teams_notification,
         send_email_notification,
-    ) = (None, None, None, None, None, None)
+    ) = (None, None, None, None, None, None)  # type: ignore[assignment]
 
 
 @dataclass
@@ -279,17 +279,17 @@ class ApprovalNotifier:
             "raw_time": datetime.now().isoformat(),
         }
 
-        if platform == "wecom" and _send_wecom:
+        if platform == "wecom" and callable(_send_wecom):
             return await _send_wecom(alert_payload)
-        if platform == "dingtalk" and _send_dingtalk:
+        if platform == "dingtalk" and callable(_send_dingtalk):
             return await _send_dingtalk(alert_payload)
-        if platform == "feishu" and _send_feishu:
+        if platform == "feishu" and callable(_send_feishu):
             return await _send_feishu(alert_payload)
-        if platform == "teams" and send_teams_notification:
+        if platform == "teams" and callable(send_teams_notification):
             return await send_teams_notification(message, config.webhook_url)
-        if platform == "slack" and send_slack_notification:
+        if platform == "slack" and callable(send_slack_notification):
             return await send_slack_notification(message, config.channel or "#alerts")
-        if platform == "email" and send_email_notification:
+        if platform == "email" and callable(send_email_notification):
             to = config.address or recipient
             subject = request_data.get("title", "Approval Request")
             return await send_email_notification(

@@ -15,7 +15,7 @@ except Exception as e:
 
 
 def _record_queue_depth(queue_name: str, depth: int) -> None:
-    if get_metrics_exporter:
+    if callable(get_metrics_exporter):
         try:
             get_metrics_exporter().record_queue_depth(queue_name, depth)
         except Exception as e:

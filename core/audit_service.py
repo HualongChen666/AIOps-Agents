@@ -24,7 +24,7 @@ from __future__ import annotations
 import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, cast
 
 from loguru import logger
 from sqlalchemy import and_, func, select
@@ -38,7 +38,7 @@ try:
     DATA_PRIVACY_AVAILABLE = True
 except ImportError:
     DATA_PRIVACY_AVAILABLE = False
-    anonymize_dict = None
+    anonymize_dict = None  # type: ignore[assignment]
 
 try:
     from core.audit_logger import log_audit_event as _structured_log_audit_event
@@ -46,12 +46,12 @@ try:
     AUDIT_LOGGER_AVAILABLE = True
 except ImportError:
     AUDIT_LOGGER_AVAILABLE = False
-    _structured_log_audit_event = None
+    _structured_log_audit_event = None  # type: ignore[assignment]
 
 
 def _redact_details(details: Optional[Any], metadata: Optional[Dict[str, Any]]) -> tuple:
     """Remove PII/sensitive values before storing audit logs."""
-    if DATA_PRIVACY_AVAILABLE and anonymize_dict:
+    if DATA_PRIVACY_AVAILABLE and callable(anonymize_dict):
         redacted_details = anonymize_dict(details) if details is not None else None
         redacted_metadata = anonymize_dict(metadata) if metadata is not None else {}
         return redacted_details, redacted_metadata
@@ -187,7 +187,7 @@ class AuditService:
                     )
 
                 # 同时输出结构化 JSON 审计日志（磁盘侧），实现数据库与文件双通道统一
-                if AUDIT_LOGGER_AVAILABLE and _structured_log_audit_event:
+                if AUDIT_LOGGER_AVAILABLE and callable(_structured_log_audit_event):
                     _structured_log_audit_event(
                         event_type=action,
                         user=username or str(user_id) or "system",
@@ -459,7 +459,7 @@ class AuditService:
                 else:
                     logger.info("没有需要清理的审计日志")
 
-                return count
+                return cast(int, count)
         except Exception as e:
             logger.error(f"清理审计日志失败: {e}", exc_info=True)
             return 0

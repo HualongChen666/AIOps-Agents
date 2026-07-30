@@ -63,7 +63,7 @@ class Router:
         if team:
             return f"team:{team}"
         category = alert.category.lower()
-        if get_oncall_adapter:
+        if callable(get_oncall_adapter):
             try:
                 adapter = get_oncall_adapter()
                 contacts = adapter.lookup(

@@ -195,7 +195,7 @@ def _validate_bash_command(command: Any) -> List[str]:
     if not cmd_str or not cmd_str.strip():
         raise ValueError("empty command")
 
-    if COMMAND_GUARD_AVAILABLE and _analyze_command:
+    if COMMAND_GUARD_AVAILABLE and callable(_analyze_command):
         result = _analyze_command(cmd_str)
         level = result.get("risk_level")
         if level in (RiskLevel.BLOCKED, RiskLevel.HIGH):
@@ -320,9 +320,11 @@ def _bash(command: Any, cwd: Optional[str] = None, timeout: Optional[int] = None
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout.decode("utf-8") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = exc.stderr.decode("utf-8") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
         raise RuntimeError(
             f"Command timed out after {timeout}s: {args}\n"
-            f"stdout:\n{exc.stdout or ''}\nstderr:\n{exc.stderr or ''}"
+            f"stdout:\n{stdout}\nstderr:\n{stderr}"
         ) from exc
 
     output = {

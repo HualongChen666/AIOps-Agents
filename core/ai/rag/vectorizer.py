@@ -4,7 +4,6 @@ Document Vectorization Pipeline
 Handles document chunking and vector embedding generation
 """
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -34,13 +33,12 @@ class DocumentChunk:
     embedding: Optional[List[float]] = None
 
 
-class ChunkingStrategy(ABC):
+class ChunkingStrategy:
     """Base class for chunking strategies"""
 
-    @abstractmethod
     def chunk(self, document: Document) -> List[DocumentChunk]:
         """Split document into chunks"""
-        ...
+        raise NotImplementedError
 
 
 class FixedSizeChunking(ChunkingStrategy):
@@ -138,13 +136,12 @@ class SemanticChunking(ChunkingStrategy):
         return chunks
 
 
-class EmbeddingModel(ABC):
+class EmbeddingModel:
     """Base embedding model interface"""
 
-    @abstractmethod
     async def embed(self, text: str) -> List[float]:
         """Generate embedding for text"""
-        ...
+        raise NotImplementedError
 
     async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for batch of texts"""

@@ -96,7 +96,8 @@ class AIModuleHealth(ModuleHealthCheck):
         try:
             from core.ai_engine import get_llm_router
 
-            get_llm_router()
+            if get_llm_router is not None:
+                get_llm_router()
             return {"module": "ai_engine", "status": "healthy", "message": "AI engine operational"}
         except Exception as e:
             logger.error(f"AI engine health check failed: {e}")

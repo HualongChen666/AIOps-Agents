@@ -47,6 +47,7 @@ class CodingSubAgent(SubAgent):
         goal: str,
         context: Dict[str, Any],
         available_tools: List[str],
+        _depth: int = 0,
     ) -> SubAgentResult:
         """执行由 context 描述的工具调用。
 
