@@ -29,7 +29,9 @@ def check_dependencies():
     missing = []
     for name, check_cmd in dependencies:
         try:
-            result = subprocess_runner.run(check_cmd.split(), capture_output=True, text=True, timeout=5)
+            result = subprocess_runner.run(
+                check_cmd.split(), capture_output=True, text=True, timeout=5
+            )
             if result.returncode == 0:
                 print(f"✅ {name}: 已安装")
             else:
@@ -67,7 +69,10 @@ def validate_api_performance_tests():
         # 验证locustfile语法
         locust_cmd = shutil.which("locust") or "locust"
         result = subprocess_runner.run(
-            [locust_cmd, "-f", str(locustfile), "--check"], capture_output=True, text=True, timeout=30
+            [locust_cmd, "-f", str(locustfile), "--check"],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
 
         if result.returncode == 0:

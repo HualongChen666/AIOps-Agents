@@ -115,7 +115,11 @@ def _check_helm_dryrun() -> tuple[bool, str]:
             check=True,
             timeout=20,
         )
-    except (FileNotFoundError, subprocess_runner.CalledProcessError, subprocess_runner.TimeoutExpired):
+    except (
+        FileNotFoundError,
+        subprocess_runner.CalledProcessError,
+        subprocess_runner.TimeoutExpired,
+    ):
         return False, "helm not installed or unavailable"
 
     try:

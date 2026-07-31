@@ -324,8 +324,7 @@ def _bash(command: Any, cwd: Optional[str] = None, timeout: Optional[int] = None
         stdout = exc.stdout.decode("utf-8") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
         stderr = exc.stderr.decode("utf-8") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
         raise RuntimeError(
-            f"Command timed out after {timeout}s: {args}\n"
-            f"stdout:\n{stdout}\nstderr:\n{stderr}"
+            f"Command timed out after {timeout}s: {args}\n" f"stdout:\n{stdout}\nstderr:\n{stderr}"
         ) from exc
 
     output = {

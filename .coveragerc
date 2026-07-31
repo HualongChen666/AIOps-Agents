@@ -2,6 +2,9 @@
 source = 
 	core
 	api
+	services
+	aiops_agent
+
 omit = 
 	api\repair_router.py
 	*/.venv/*

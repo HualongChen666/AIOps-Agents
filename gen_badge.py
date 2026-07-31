@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate a coverage badge SVG from coverage.xml."""
+
 import xml.etree.ElementTree as ET
 from pathlib import Path
 

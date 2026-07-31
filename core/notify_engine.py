@@ -919,16 +919,16 @@ async def _send_one_channel(
         elif channel == "phone":
             recipient = ""
             if oncall_recipients:
-                recipient = str(next(
-                    (c.get("phone") for c in oncall_recipients if c.get("phone")), ""
-                ))
+                recipient = str(
+                    next((c.get("phone") for c in oncall_recipients if c.get("phone")), "")
+                )
             result = await _send_phone_notification(alert, config, recipient=recipient)
         elif channel == "sms":
             recipient = ""
             if oncall_recipients:
-                recipient = str(next(
-                    (c.get("phone") for c in oncall_recipients if c.get("phone")), ""
-                ))
+                recipient = str(
+                    next((c.get("phone") for c in oncall_recipients if c.get("phone")), "")
+                )
             result = await _send_sms_notification(alert, config, recipient=recipient)
         else:
             result = await _unsupported_channel(channel)

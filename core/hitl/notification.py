@@ -9,7 +9,7 @@ Handles approval notifications via Slack/Teams
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from loguru import logger
 
@@ -34,7 +34,14 @@ except Exception as e:
         send_slack_notification,
         send_teams_notification,
         send_email_notification,
-    ) = (None, None, None, None, None, None)  # type: ignore[assignment]
+    ) = (
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+    )
 
 
 @dataclass

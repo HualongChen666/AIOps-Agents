@@ -116,8 +116,12 @@ def _combine_and_report() -> None:
         subprocess_runner.run(
             [sys.executable, "-m", "coverage", "json", "-o", "coverage.json"], check=False
         )
-        subprocess_runner.run([sys.executable, "-m", "coverage", "html", "-d", "htmlcov"], check=False)
-        subprocess_runner.run([sys.executable, "-m", "coverage", "xml", "-o", "coverage.xml"], check=False)
+        subprocess_runner.run(
+            [sys.executable, "-m", "coverage", "html", "-d", "htmlcov"], check=False
+        )
+        subprocess_runner.run(
+            [sys.executable, "-m", "coverage", "xml", "-o", "coverage.xml"], check=False
+        )
 
     if Path("cov_summary.py").exists():
         subprocess_runner.run([sys.executable, "cov_summary.py"], check=False)

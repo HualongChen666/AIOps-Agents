@@ -246,11 +246,14 @@ class LokiStorage(BaseStorage):
                 return []
 
             cache_key = make_cache_key("loki_query", self.base_url, params)
-            return cast(List[Dict[str, Any]], await cached_query(
-                self._query_cache,
-                cache_key,
-                with_query_timeout(self._execute_loki_query(params)),
-            ))
+            return cast(
+                List[Dict[str, Any]],
+                await cached_query(
+                    self._query_cache,
+                    cache_key,
+                    with_query_timeout(self._execute_loki_query(params)),
+                ),
+            )
 
         except Exception as e:
             logger.error(f"Error querying Loki: {e}")
@@ -325,11 +328,14 @@ class LokiStorage(BaseStorage):
         try:
             params = self._build_labels_params(stream)
             cache_key = make_cache_key("loki_labels", self.base_url, stream, params)
-            return cast(List[str], await cached_query(
-                self._query_cache,
-                cache_key,
-                with_query_timeout(self._fetch_labels(params)),
-            ))
+            return cast(
+                List[str],
+                await cached_query(
+                    self._query_cache,
+                    cache_key,
+                    with_query_timeout(self._fetch_labels(params)),
+                ),
+            )
 
         except Exception as e:
             logger.error(f"Error getting labels from Loki: {e}")

@@ -764,11 +764,14 @@ class IntegrationManager:
                     return cast(Dict[str, Any], response.json())
                 return {"error": f"Prometheus query failed: {response.status_code}"}
 
-            return cast(Dict[str, Any], await cached_query(
-                self._observability_cache,
-                cache_key,
-                _run_query(),
-            ))
+            return cast(
+                Dict[str, Any],
+                await cached_query(
+                    self._observability_cache,
+                    cache_key,
+                    _run_query(),
+                ),
+            )
         except Exception as e:
             safe_error = sanitize_error_for_llm(e)
             logger.error(f"Prometheus query error for {integration_id}: {safe_error}")

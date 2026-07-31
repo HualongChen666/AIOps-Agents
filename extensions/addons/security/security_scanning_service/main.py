@@ -123,17 +123,12 @@ def _query_osv(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         findings: List[Dict[str, Any]] = []
         for vuln in vulns:
             aliases = vuln.get("aliases", [])
-            cve = next(
-                (a for a in aliases if a.startswith("CVE-")), ""
-            )
+            cve = next((a for a in aliases if a.startswith("CVE-")), "")
             findings.append(
                 {
                     "id": vuln.get("id"),
                     "target": package,
-                    "severity": (
-                        vuln.get("database_specific", {})
-                        .get("severity", "unknown")
-                    ),
+                    "severity": (vuln.get("database_specific", {}).get("severity", "unknown")),
                     "cve": cve,
                     "status": "open",
                     "service": SERVICE_NAME,
@@ -184,7 +179,9 @@ def _run(payload: Dict[str, Any]) -> Dict[str, Any]:
     content = payload.get("content") or payload.get("target")
     if isinstance(content, str):
         findings = _scan_content(content)
-        logger.info("[%s] scanned %s characters, %s findings", SERVICE_NAME, len(content), len(findings))
+        logger.info(
+            "[%s] scanned %s characters, %s findings", SERVICE_NAME, len(content), len(findings)
+        )
         return {"status": "scanned", "findings": findings, "service": SERVICE_NAME}
 
     item_id = payload.get("id")

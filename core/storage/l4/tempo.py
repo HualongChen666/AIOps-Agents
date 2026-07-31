@@ -200,11 +200,14 @@ class TempoStorage(BaseStorage):
                 validate_tempoql(tempo_query)
 
             cache_key = make_cache_key("tempo_query", self.base_url, params)
-            return cast(List[Dict[str, Any]], await cached_query(
-                self._query_cache,
-                cache_key,
-                with_query_timeout(self._execute_tempo_query(params)),
-            ))
+            return cast(
+                List[Dict[str, Any]],
+                await cached_query(
+                    self._query_cache,
+                    cache_key,
+                    with_query_timeout(self._execute_tempo_query(params)),
+                ),
+            )
 
         except ValueError as exc:
             logger.warning("Invalid TempoQL query rejected: %s", exc)
@@ -310,11 +313,14 @@ class TempoStorage(BaseStorage):
 
         try:
             cache_key = make_cache_key("tempo_services", self.base_url)
-            return cast(List[str], await cached_query(
-                self._query_cache,
-                cache_key,
-                with_query_timeout(_fetch_services()),
-            ))
+            return cast(
+                List[str],
+                await cached_query(
+                    self._query_cache,
+                    cache_key,
+                    with_query_timeout(_fetch_services()),
+                ),
+            )
 
         except Exception as e:
             logger.error(f"Error getting services from Tempo: {e}")
@@ -346,11 +352,14 @@ class TempoStorage(BaseStorage):
 
         try:
             cache_key = make_cache_key("tempo_operations", self.base_url, service_name)
-            return cast(List[str], await cached_query(
-                self._query_cache,
-                cache_key,
-                with_query_timeout(_fetch_operations()),
-            ))
+            return cast(
+                List[str],
+                await cached_query(
+                    self._query_cache,
+                    cache_key,
+                    with_query_timeout(_fetch_operations()),
+                ),
+            )
 
         except Exception as e:
             logger.error(f"Error getting operations from Tempo: {e}")

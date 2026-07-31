@@ -152,22 +152,16 @@ class _CompatPwdContext:
         return "bcrypt"
 
     def hash(self, password: str) -> str:
-        password_bytes = (
-            password.encode("utf-8") if isinstance(password, str) else password
-        )
+        password_bytes = password.encode("utf-8") if isinstance(password, str) else password
         password_bytes = password_bytes[: self._BCRYPT_MAX_BYTES]
         return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("ascii")
 
     def verify(self, plain_password: str, hashed_password: str) -> bool:
         plain_password_bytes = (
-            plain_password.encode("utf-8")
-            if isinstance(plain_password, str)
-            else plain_password
+            plain_password.encode("utf-8") if isinstance(plain_password, str) else plain_password
         )
         hashed_password_bytes = (
-            hashed_password.encode("ascii")
-            if isinstance(hashed_password, str)
-            else hashed_password
+            hashed_password.encode("ascii") if isinstance(hashed_password, str) else hashed_password
         )
         plain_password_bytes = plain_password_bytes[: self._BCRYPT_MAX_BYTES]
         return bcrypt.checkpw(plain_password_bytes, hashed_password_bytes)

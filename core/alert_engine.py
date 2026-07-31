@@ -67,6 +67,7 @@ def _get_alert_repository() -> Any:
     if alert_repository is not None:
         return alert_repository
     from core.db_engine import alert_repository as db_alert_repository
+
     return db_alert_repository
 
 

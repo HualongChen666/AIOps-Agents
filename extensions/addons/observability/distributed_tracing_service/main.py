@@ -120,9 +120,7 @@ def _query_traces(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
                         "operation": span.get("operationName"),
                         "duration_ms": span.get("duration", 0) // 1000,
                         "tags": {
-                            tag["key"]: tag["value"]
-                            for tag in span.get("tags", [])
-                            if "key" in tag
+                            tag["key"]: tag["value"] for tag in span.get("tags", []) if "key" in tag
                         },
                         "service": SERVICE_NAME,
                     }

@@ -32,9 +32,7 @@ __all__ = [
 def _resolve_cmd(args: tuple[Any, ...]) -> list[str]:
     """Validate and resolve the command to an absolute path."""
     if len(args) != 1:
-        raise ValueError(
-            "subprocess_runner expects a single command argument (string or sequence)"
-        )
+        raise ValueError("subprocess_runner expects a single command argument (string or sequence)")
 
     raw = args[0]
     if isinstance(raw, str):

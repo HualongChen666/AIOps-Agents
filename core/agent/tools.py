@@ -966,9 +966,7 @@ class ToolRegistry:
         try:
             import core.root_cause_intelligence as _rci
 
-            root_cause_intelligence_engine = getattr(
-                _rci, "root_cause_intelligence_engine", None
-            )
+            root_cause_intelligence_engine = getattr(_rci, "root_cause_intelligence_engine", None)
             if root_cause_intelligence_engine is not None:
                 resolved_alert = (
                     dict(alert)

@@ -604,9 +604,7 @@ class IntegrationEcosystem:
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
                 None,
-                lambda: http_session.post(
-                    webhook_url, json=payload, headers=headers, timeout=10
-                ),
+                lambda: http_session.post(webhook_url, json=payload, headers=headers, timeout=10),
             )
             return int(response.status_code) in (200, 201, 204)
         except Exception as e:
@@ -820,11 +818,14 @@ class IntegrationEcosystem:
                 logger.error(f"Prometheus query failed: {response.status_code}")
                 return {"error": f"Prometheus query failed: {response.status_code}"}
 
-            return cast(Dict[str, Any] | None, await cached_query(
-                self._observability_cache,
-                cache_key,
-                with_query_timeout(_run_query()),
-            ))
+            return cast(
+                Dict[str, Any] | None,
+                await cached_query(
+                    self._observability_cache,
+                    cache_key,
+                    with_query_timeout(_run_query()),
+                ),
+            )
 
         except Exception as e:
             safe_error = sanitize_error_for_llm(e)

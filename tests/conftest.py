@@ -142,9 +142,7 @@ def pytest_collection_modifyitems(config, items):
 
     # tests/api 大量用 sys.modules Mock，放最后跑避免污染其他测试
     api_items = [
-        item
-        for item in items
-        if "tests/api" in str(getattr(item, "fspath", "")).replace("\\", "/")
+        item for item in items if "tests/api" in str(getattr(item, "fspath", "")).replace("\\", "/")
     ]
     other_items = [item for item in items if item not in api_items]
     items[:] = other_items + api_items
@@ -168,9 +166,9 @@ def pytest_runtest_setup(item):
     item_path = str(getattr(item, "fspath", ""))
     if "tests\\core" in item_path or "tests/core" in item_path:
         for name in list(sys.modules.keys()):
-            if (
-                name.startswith("core.") or name in ("config", "core.config")
-            ) and isinstance(sys.modules[name], Mock):
+            if (name.startswith("core.") or name in ("config", "core.config")) and isinstance(
+                sys.modules[name], Mock
+            ):
                 del sys.modules[name]
     if "addons" in item.keywords and os.getenv("ENABLE_ADDONS", "").lower() != "true":
         pytest.skip("ENABLE_ADDONS is not true")
