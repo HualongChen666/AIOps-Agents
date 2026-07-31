@@ -14,12 +14,13 @@ This script will:
 
 import logging
 import re
-import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
+from core.security import subprocess_runner
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class CodeQualityImprover:
         logger.info("Analyzing flake8 issues...")
 
         try:
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 [sys.executable, "-m", "flake8", str(self.project_root), "--tee"],
                 capture_output=True,
                 text=True,
@@ -269,7 +270,7 @@ class CodeQualityImprover:
     def _run_black(self) -> Dict[str, Any]:
         """Run black formatter"""
         try:
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 [sys.executable, "-m", "black", str(self.project_root)],
                 capture_output=True,
                 text=True,
@@ -287,7 +288,7 @@ class CodeQualityImprover:
     def _run_isort(self) -> Dict[str, Any]:
         """Run isort import sorter"""
         try:
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 [sys.executable, "-m", "isort", str(self.project_root)],
                 capture_output=True,
                 text=True,

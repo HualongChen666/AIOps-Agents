@@ -10,10 +10,11 @@ It serves as a local validation tool and can be integrated into CI/CD pipelines.
 
 import argparse
 import os
-import subprocess
 import sys
 from datetime import datetime
 from typing import List, Tuple
+
+from core.security import subprocess_runner
 
 
 def run_pytest_collect() -> Tuple[int, str, str]:
@@ -24,14 +25,14 @@ def run_pytest_collect() -> Tuple[int, str, str]:
         Tuple of (exit_code, stdout, stderr)
     """
     try:
-        result = subprocess.run(
+        result = subprocess_runner.run(
             [sys.executable, "-m", "pytest", "--collect-only", "--tb=line"],
             capture_output=True,
             text=True,
             timeout=120,  # 2 minute timeout
         )
         return result.returncode, result.stdout, result.stderr
-    except subprocess.TimeoutExpired:
+    except subprocess_runner.TimeoutExpired:
         return -1, "", "Test collection timed out after 2 minutes"
     except Exception as e:
         return -1, "", f"Error running pytest collection: {str(e)}"

@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 """Run mypy on Phase 6 generated services."""
 
-import subprocess
 import sys
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 ROOT = Path("C:/AIOps_Agent_bak")
 NAMES = [
@@ -39,5 +40,5 @@ cmd = [
     "--ignore-missing-imports",
     "--no-error-summary",
 ]
-result = subprocess.run(cmd, cwd=str(ROOT))
+result = subprocess_runner.run(cmd, cwd=str(ROOT))
 sys.exit(result.returncode)

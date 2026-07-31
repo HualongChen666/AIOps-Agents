@@ -24,12 +24,12 @@ import datetime
 import logging
 import re
 import shutil
-import subprocess  # nosec B404
 from collections import deque
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from config import REPAIR_HOST
+from core.security import subprocess_runner
 
 logger = logging.getLogger(__name__)
 
@@ -544,7 +544,7 @@ def _run_powershell(command: str) -> Dict[str, Any]:
     前置 UTF-8 编码设置,根治中文系统乱码
     合并 stdout + stderr,不丢弃任何输出
 
-    🔧 RE2 [P0]:从 subprocess.run 改为 subprocess.Popen + communicate(timeout)
+    🔧 RE2 [P0]:从 subprocess_runner.run 改为 subprocess_runner.Popen + communicate(timeout)
                   超时时能 kill() 子进程,避免 PowerShell 后台僵尸进程
     🔧 RE11 [P2]:超时时间从 _PS_TIMEOUT_SEC 读取(可配置)
     """
@@ -553,10 +553,10 @@ def _run_powershell(command: str) -> Dict[str, Any]:
         utf8_prefix = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
         full_cmd = utf8_prefix + command
 
-        # 🔧 RE2:用 Popen + communicate(timeout) 替代 subprocess.run
+        # 🔧 RE2:用 Popen + communicate(timeout) 替代 subprocess_runner.run
         # 以便超时时能 kill 子进程
         powershell_path = shutil.which("powershell") or "powershell"
-        proc = subprocess.Popen(
+        proc = subprocess_runner.Popen(
             [
                 powershell_path,
                 "-NonInteractive",
@@ -567,8 +567,8 @@ def _run_powershell(command: str) -> Dict[str, Any]:
                 full_cmd,
             ],
             shell=False,  # nosec B603
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess_runner.PIPE,
+            stderr=subprocess_runner.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -577,14 +577,14 @@ def _run_powershell(command: str) -> Dict[str, Any]:
         try:
             stdout, stderr = proc.communicate(timeout=_PS_TIMEOUT_SEC)
             return_code = proc.returncode
-        except subprocess.TimeoutExpired:
+        except subprocess_runner.TimeoutExpired:
             # 🔧 RE2 [P0]:超时强制 kill,避免僵尸进程
             logger.error(f"PowerShell 执行超时(>{_PS_TIMEOUT_SEC}s),强制终止子进程")
             try:
                 proc.kill()
                 # 等待 kill 完成,清理 stdout/stderr 缓冲
                 stdout, stderr = proc.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
+            except subprocess_runner.TimeoutExpired:
                 logger.error("PowerShell 子进程 kill 后 5s 内仍未退出")
                 stdout = stderr = ""
             except Exception as kill_err:

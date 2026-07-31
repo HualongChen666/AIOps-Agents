@@ -2,7 +2,8 @@
 import ast
 import pathlib
 import shutil
-import subprocess
+
+from core.security import subprocess_runner
 
 ROOT = pathlib.Path(r"C:\\AIOps_Agent_bak")
 
@@ -12,7 +13,7 @@ def run_black(file_path: pathlib.Path):
         cmd = shutil.which("black")
         if not cmd:
             raise FileNotFoundError("black not found")
-        subprocess.run([cmd, str(file_path)], check=True, capture_output=True)
+        subprocess_runner.run([cmd, str(file_path)], check=True, capture_output=True)
     except Exception as e:
         print(f"Black failed on {file_path}: {e}")
 
@@ -27,7 +28,7 @@ def check_and_report(file_path: pathlib.Path):
             cmd = shutil.which("autopep8")
             if not cmd:
                 raise FileNotFoundError("autopep8 not found")
-            subprocess.run(
+            subprocess_runner.run(
                 [cmd, "--in-place", "--aggressive", "--aggressive", str(file_path)],
                 check=True,
                 capture_output=True,

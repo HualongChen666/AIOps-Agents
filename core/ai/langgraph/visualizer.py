@@ -144,10 +144,11 @@ class WorkflowVisualizer:
                 # Try to render to PNG if graphviz is available
                 try:
                     import shutil
-                    import subprocess  # nosec B404
+
+                    from core.security import subprocess_runner
 
                     dot_path = shutil.which("dot") or "dot"
-                    subprocess.run(
+                    subprocess_runner.run(
                         [dot_path, "-Tpng", output_path, "-o", output_path.replace(".dot", ".png")],
                         shell=False,  # nosec B603
                         check=True,

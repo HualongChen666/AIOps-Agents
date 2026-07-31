@@ -6,8 +6,9 @@ import logging
 
 import json
 import re
-import subprocess
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 ROOT = Path("C:/AIOps_Agent_bak")
 JSON_FILE = ROOT / "temp" / "phase5_remaining.json"
@@ -51,7 +52,7 @@ def run_coverage_report(svc: str) -> tuple[str, str]:
         f"--rcfile={report_rc_file}",
     ]
     try:
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             cmd,
             cwd=ROOT,
             capture_output=True,

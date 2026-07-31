@@ -12,11 +12,12 @@ Checks:
 
 import json
 import pathlib
-import subprocess
 import sys
 import time
 
 import yaml
+
+from core.security import subprocess_runner
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 
@@ -104,7 +105,7 @@ def _check_reports() -> list[str]:
 def _check_e2e_collection() -> dict:
     result = {"attempted": False, "returncode": None, "stderr": ""}
     try:
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             [sys.executable, "-m", "pytest", "tests/e2e", "--collect-only", "-q"],
             cwd=PROJECT_ROOT,
             capture_output=True,

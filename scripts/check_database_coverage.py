@@ -7,10 +7,11 @@
 """
 
 import json
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 
 def run_coverage_check():
@@ -48,7 +49,7 @@ def run_coverage_check():
     print(f"命令: {' '.join(cmd)}")
 
     try:
-        result = subprocess.run(
+        result = subprocess_runner.run(
             cmd,
             cwd="C:\\AIOps_Agent_bak",
             capture_output=True,
@@ -63,7 +64,7 @@ def run_coverage_check():
 
         return parse_coverage_json()
 
-    except subprocess.TimeoutExpired:
+    except subprocess_runner.TimeoutExpired:
         print("错误：覆盖率检查超时")
         return None
     except Exception as e:

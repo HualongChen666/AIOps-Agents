@@ -14,9 +14,10 @@ Usage:
 import glob
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 try:
     from coverage import Coverage
@@ -88,7 +89,7 @@ def run_phase(name: str, targets: list[str], extra: list[str]) -> int:
 
     print(f"\n=== Running {name} tests ===")
     print(" ".join(cmd))
-    return subprocess.call(cmd, env=env)
+    return subprocess_runner.call(cmd, env=env)
 
 
 def _combine_and_report() -> None:
@@ -116,17 +117,17 @@ def _combine_and_report() -> None:
         except Exception as exc:
             print(f"XML report failed: {exc}")
     else:
-        subprocess.run(
+        subprocess_runner.run(
             [sys.executable, "-m", "coverage", "combine", "-q", *phase_files], check=False
         )
-        subprocess.run(
+        subprocess_runner.run(
             [sys.executable, "-m", "coverage", "json", "-o", "coverage.json"], check=False
         )
-        subprocess.run([sys.executable, "-m", "coverage", "html", "-d", "htmlcov"], check=False)
-        subprocess.run([sys.executable, "-m", "coverage", "xml", "-o", "coverage.xml"], check=False)
+        subprocess_runner.run([sys.executable, "-m", "coverage", "html", "-d", "htmlcov"], check=False)
+        subprocess_runner.run([sys.executable, "-m", "coverage", "xml", "-o", "coverage.xml"], check=False)
 
     if Path("cov_summary.py").exists():
-        subprocess.run([sys.executable, "cov_summary.py"], check=False)
+        subprocess_runner.run([sys.executable, "cov_summary.py"], check=False)
 
     print(f"Combined {len(phase_files)} phase coverage data files")
 

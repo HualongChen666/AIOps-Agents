@@ -9,10 +9,11 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
+
+from core.security import subprocess_runner
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -114,7 +115,7 @@ def run(task_id: str) -> Dict[str, Any]:
     if not cmd:
         return {"status": "skipped", "error": f"unknown task {task_id}"}
 
-    result = subprocess.run(
+    result = subprocess_runner.run(
         cmd,
         cwd=ROOT,
         capture_output=True,

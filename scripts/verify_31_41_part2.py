@@ -4,9 +4,10 @@ import logging
 
 import json
 import os
-import subprocess
 import time
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 BASE = Path(__file__).resolve().parent.parent
 JSON_OUT = BASE / "verify_logs" / "tasks_31_41_part2_verification.json"
@@ -30,7 +31,7 @@ TASKS = [
 def run_cmd(cmd: list[str], timeout: int = 180) -> dict:
     start = time.time()
     try:
-        r = subprocess.run(
+        r = subprocess_runner.run(
             cmd,
             cwd=BASE,
             capture_output=True,
@@ -42,7 +43,7 @@ def run_cmd(cmd: list[str], timeout: int = 180) -> dict:
         stdout = r.stdout
         stderr = r.stderr
         rc = r.returncode
-    except subprocess.TimeoutExpired as exc:
+    except subprocess_runner.TimeoutExpired as exc:
         stdout = exc.stdout or ""
         stderr = exc.stderr or ""
         rc = -1

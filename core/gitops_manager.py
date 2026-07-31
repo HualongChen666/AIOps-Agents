@@ -18,18 +18,19 @@ gitops_manager.py
 import logging
 import os
 import shutil
-import subprocess  # nosec B404
 from typing import Optional
+
+from core.security import subprocess_runner
 
 logger = logging.getLogger(__name__)
 
 
-def _run_cmd(cmd: list[str]) -> subprocess.CompletedProcess:
+def _run_cmd(cmd: list[str]) -> subprocess_runner.CompletedProcess:
     """内部助手：执行外部命令并捕获 stdout / stderr。
     若命令不可用（FileNotFoundError）或返回非 0 退出码，记录错误并返回对应对象。
     """
     try:
-        result = subprocess.run(
+        result = subprocess_runner.run(
             cmd,
             capture_output=True,
             text=True,
@@ -51,7 +52,7 @@ def _run_cmd(cmd: list[str]) -> subprocess.CompletedProcess:
             "Command not found: %s – ensure the binary is installed and in PATH.", cmd[0]
         )
         # 返回一个伪对象，code 127 代表 command not found
-        return subprocess.CompletedProcess(cmd, 127, stdout="", stderr="command not found")
+        return subprocess_runner.CompletedProcess(cmd, 127, stdout="", stderr="command not found")
 
 
 def _ensure_kubeconfig() -> str:

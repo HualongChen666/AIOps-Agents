@@ -320,15 +320,14 @@ print("CPU repair rollback - no action needed for this repair type")
 import gc
 import os
 import psutil
-import subprocess
-
+from core.security import subprocess_runner
 def repair_memory_high():
     # Force garbage collection
     gc.collect()
 
     # Clear system caches (Linux) without invoking a shell
     if os.name == 'posix':
-        subprocess.run(['sync'])
+        subprocess_runner.run(['sync'])
         with open('/proc/sys/vm/drop_caches', 'w') as f:
             f.write('3')
 
@@ -370,7 +369,7 @@ def repair_disk_high():
         """Get service restart script content"""
         return """
 # Service Restart Repair Script
-import subprocess
+from core.security import subprocess_runner
 import platform
 
 def restart_service(service_name):
@@ -378,14 +377,14 @@ def restart_service(service_name):
 
     if system == 'linux':
         # Systemd-based systems
-        subprocess.run(['systemctl', 'restart', service_name], check=True)
+        subprocess_runner.run(['systemctl', 'restart', service_name], check=True)
     elif system == 'windows':
         # Windows services
-        subprocess.run(['net', 'stop', service_name], check=True)
-        subprocess.run(['net', 'start', service_name], check=True)
+        subprocess_runner.run(['net', 'stop', service_name], check=True)
+        subprocess_runner.run(['net', 'start', service_name], check=True)
     elif system == 'darwin':
         # macOS (launchctl)
-        subprocess.run(['launchctl', 'restart', service_name], check=True)
+        subprocess_runner.run(['launchctl', 'restart', service_name], check=True)
 
     return True
 """
@@ -394,7 +393,7 @@ def restart_service(service_name):
         """Get service restart rollback script"""
         return """
 # Service Restart Rollback Script
-import subprocess
+from core.security import subprocess_runner
 import platform
 
 def rollback_service_restart(service_name):
@@ -402,9 +401,9 @@ def rollback_service_restart(service_name):
 
     # Stop the service (reverses the restart)
     if system == 'linux':
-        subprocess.run(['systemctl', 'stop', service_name], check=True)
+        subprocess_runner.run(['systemctl', 'stop', service_name], check=True)
     elif system == 'windows':
-        subprocess.run(['net', 'stop', service_name], check=True)
+        subprocess_runner.run(['net', 'stop', service_name], check=True)
 
     return True
 """

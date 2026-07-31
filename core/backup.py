@@ -7,13 +7,13 @@ Provides automated backup and recovery using Wal-G for PostgreSQL and S3 for sto
 import json
 import logging
 import os
-import subprocess  # nosec B404
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from config import POSTGRES_DATABASE, POSTGRES_HOST, POSTGRES_PASSWORD, POSTGRES_PORT, POSTGRES_USER
+from core.security import subprocess_runner
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class BackupManager:
             os.environ["PGUSER"] = self.pg_user
 
             # Check Wal-G availability
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 [self.wal_g_path, "version"], capture_output=True, text=True, shell=False
             )  # nosec B603
 
@@ -177,7 +177,7 @@ class BackupManager:
                 cmd.append("--detail")
 
             # Execute backup
-            result = subprocess.run(  # nosec B603
+            result = subprocess_runner.run(  # nosec B603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -200,7 +200,7 @@ class BackupManager:
                 backup_info.error = result.stderr
                 logger.error(f"Backup failed: {backup_id} - {result.stderr}")
 
-        except subprocess.TimeoutExpired:
+        except subprocess_runner.TimeoutExpired:
             backup_info.status = BackupStatus.FAILED
             backup_info.end_time = datetime.now()
             backup_info.error = "Backup timeout"
@@ -265,7 +265,7 @@ class BackupManager:
                 cmd.extend(["--target-time", target_time.isoformat()])
 
             # Execute restore
-            result = subprocess.run(  # nosec B603
+            result = subprocess_runner.run(  # nosec B603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -280,7 +280,7 @@ class BackupManager:
                 logger.error(f"Restore failed: {backup_id} - {result.stderr}")
                 return False
 
-        except subprocess.TimeoutExpired:
+        except subprocess_runner.TimeoutExpired:
             logger.error(f"Restore timeout: {backup_id}")
             return False
         except Exception as e:
@@ -298,7 +298,7 @@ class BackupManager:
             # Build Wal-G list command
             cmd = [self.wal_g_path, "backup-list"]
 
-            result = subprocess.run(  # nosec B603
+            result = subprocess_runner.run(  # nosec B603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -341,7 +341,7 @@ class BackupManager:
                     backup_name = backup.get("backup_name")
                     cmd = [self.wal_g_path, "backup-delete", backup_name, "--confirm"]
 
-                    result = subprocess.run(  # nosec B603
+                    result = subprocess_runner.run(  # nosec B603
                         cmd,
                         capture_output=True,
                         text=True,

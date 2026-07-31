@@ -15,11 +15,12 @@ import json
 import logging
 import os
 import sqlite3
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
+
+from core.security import subprocess_runner
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -101,7 +102,7 @@ class TechDebtMonitor:
                 "--exclude",
                 "venv",
             ]
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 cmd,
                 cwd=self.project_root,
                 capture_output=True,
@@ -139,7 +140,7 @@ class TechDebtMonitor:
                     "severity_breakdown": {"HIGH": 0, "MEDIUM": 0, "LOW": 0},
                     "issues": [],
                 }
-        except subprocess.TimeoutExpired:
+        except subprocess_runner.TimeoutExpired:
             return {"success": False, "error": "Bandit scan timed out"}
         except Exception as e:
             logger.error(f"Bandit scan failed: {e}")
@@ -164,7 +165,7 @@ class TechDebtMonitor:
                 "--max-line-length=100",
                 "--statistics",
             ]
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 cmd,
                 cwd=self.project_root,
                 capture_output=True,
@@ -191,7 +192,7 @@ class TechDebtMonitor:
         logger.info("Running mypy scan...")
         try:
             cmd = [sys.executable, "-m", "mypy", "api", "core", "main.py"]
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 cmd,
                 cwd=self.project_root,
                 capture_output=True,
@@ -219,7 +220,7 @@ class TechDebtMonitor:
         try:
             # Use text format instead of JSON for better compatibility
             cmd = [sys.executable, "-m", "safety", "check"]
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 cmd,
                 cwd=self.project_root,
                 capture_output=True,
@@ -255,7 +256,7 @@ class TechDebtMonitor:
                     }
             else:
                 return {"success": True, "vulnerability_count": 0, "vulnerabilities": []}
-        except subprocess.TimeoutExpired:
+        except subprocess_runner.TimeoutExpired:
             return {"success": False, "error": "Safety scan timed out"}
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)

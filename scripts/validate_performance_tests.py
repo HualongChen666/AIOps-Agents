@@ -8,9 +8,10 @@ Validate Performance Tests
 """
 
 import shutil
-import subprocess
 import sys
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 
 def check_dependencies():
@@ -28,7 +29,7 @@ def check_dependencies():
     missing = []
     for name, check_cmd in dependencies:
         try:
-            result = subprocess.run(check_cmd.split(), capture_output=True, text=True, timeout=5)
+            result = subprocess_runner.run(check_cmd.split(), capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 print(f"✅ {name}: 已安装")
             else:
@@ -65,7 +66,7 @@ def validate_api_performance_tests():
 
         # 验证locustfile语法
         locust_cmd = shutil.which("locust") or "locust"
-        result = subprocess.run(
+        result = subprocess_runner.run(
             [locust_cmd, "-f", str(locustfile), "--check"], capture_output=True, text=True, timeout=30
         )
 
@@ -106,7 +107,7 @@ def validate_database_performance_tests():
 
         # 收集测试（不运行）
         pytest_cmd = shutil.which("pytest") or "pytest"
-        result = subprocess.run(
+        result = subprocess_runner.run(
             [pytest_cmd, "tests/performance/database/", "--collect-only"],
             capture_output=True,
             text=True,
@@ -149,7 +150,7 @@ def validate_ai_performance_tests():
 
         # 收集测试（不运行）
         pytest_cmd = shutil.which("pytest") or "pytest"
-        result = subprocess.run(
+        result = subprocess_runner.run(
             [pytest_cmd, "tests/performance/ai/", "--collect-only"],
             capture_output=True,
             text=True,
@@ -185,7 +186,7 @@ def validate_database_migration():
         print(f"✅ 迁移文件存在: {migration_file}")
 
         # 检查迁移语法
-        result = subprocess.run(
+        result = subprocess_runner.run(
             [sys.executable, "-m", "py_compile", str(migration_file)],
             capture_output=True,
             text=True,
@@ -228,7 +229,7 @@ def validate_performance_services():
 
         # 检查语法
         for service_file in service_files:
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 [sys.executable, "-m", "py_compile", service_file],
                 capture_output=True,
                 text=True,

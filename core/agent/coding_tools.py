@@ -17,9 +17,10 @@ import logging
 import os
 import re
 import shlex
-import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from core.security import subprocess_runner
 
 from .tools import Tool, ToolCategory, ToolExecutor, ToolRegistry
 
@@ -311,7 +312,7 @@ def _bash(command: Any, cwd: Optional[str] = None, timeout: Optional[int] = None
         timeout = max(1, min(int(timeout), _MAX_BASH_TIMEOUT))
 
     try:
-        result = subprocess.run(  # nosec B603
+        result = subprocess_runner.run(  # nosec B603
             args,
             cwd=str(resolved_cwd),
             capture_output=True,
@@ -319,7 +320,7 @@ def _bash(command: Any, cwd: Optional[str] = None, timeout: Optional[int] = None
             shell=False,
             timeout=timeout,
         )
-    except subprocess.TimeoutExpired as exc:
+    except subprocess_runner.TimeoutExpired as exc:
         stdout = exc.stdout.decode("utf-8") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
         stderr = exc.stderr.decode("utf-8") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
         raise RuntimeError(

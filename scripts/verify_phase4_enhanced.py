@@ -7,9 +7,10 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 ROOT = Path("C:/AIOps_Agent_bak")
 PYTHON = sys.executable
@@ -29,7 +30,7 @@ SERVICES = [
 
 
 def run(cmd: list[str]) -> tuple[int, str, str]:
-    proc = subprocess.run(
+    proc = subprocess_runner.run(
         cmd,
         cwd=ROOT,
         capture_output=True,

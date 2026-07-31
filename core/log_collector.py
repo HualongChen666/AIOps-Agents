@@ -16,8 +16,9 @@ import json
 import logging
 import re
 import shutil
-import subprocess  # nosec B404
 from typing import Any, Optional
+
+from core.security import subprocess_runner
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ async def search_logs(
 
 def _execute_powershell_with_timeout(
     command: str,
-) -> tuple[Optional[subprocess.Popen], Optional[str], Optional[str]]:
+) -> tuple[Optional[subprocess_runner.Popen], Optional[str], Optional[str]]:
     """执行PowerShell命令并处理超时
 
     Returns:
@@ -184,11 +185,11 @@ def _execute_powershell_with_timeout(
     proc = None
     try:
         powershell_path = shutil.which("powershell") or "powershell"
-        proc = subprocess.Popen(
+        proc = subprocess_runner.Popen(
             [powershell_path, "-NonInteractive", "-NoProfile", "-Command", command],
             shell=False,  # nosec B603
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess_runner.PIPE,
+            stderr=subprocess_runner.PIPE,
             text=True,
             encoding="utf-8-sig",
             errors="replace",
@@ -197,7 +198,7 @@ def _execute_powershell_with_timeout(
         try:
             stdout, stderr = proc.communicate(timeout=30)
             return proc, stdout, stderr
-        except subprocess.TimeoutExpired:
+        except subprocess_runner.TimeoutExpired:
             # 超时强制 kill,避免僵尸
             logger.error("PowerShell 执行超时(>30s),强制终止子进程")
             try:

@@ -9,7 +9,7 @@ import logging
 import json
 import os
 import re
-import subprocess
+from core.security import subprocess_runner
 import time
 from pathlib import Path
 
@@ -50,7 +50,7 @@ TASKS = [
 def run_cmd(cmd: list[str], timeout: int = 240) -> dict:
     start = time.time()
     try:
-        r = subprocess.run(
+        r = subprocess_runner.run(
             cmd,
             cwd=BASE,
             capture_output=True,
@@ -62,7 +62,7 @@ def run_cmd(cmd: list[str], timeout: int = 240) -> dict:
         stdout = r.stdout
         stderr = r.stderr
         rc = r.returncode
-    except subprocess.TimeoutExpired as exc:
+    except subprocess_runner.TimeoutExpired as exc:
         stdout = exc.stdout or ""
         stderr = exc.stderr or ""
         rc = -1

@@ -16,10 +16,11 @@ Checks:
 import asyncio
 import json
 import pathlib
-import subprocess
 import sys
 import time
 from typing import Any
+
+from core.security import subprocess_runner
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -27,7 +28,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 def _run(cmd: list[str], timeout: int = 120) -> dict:
     try:
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             cmd,
             cwd=PROJECT_ROOT,
             capture_output=True,

@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 """Quick pytest run for a single phase-4 service."""
 
-import subprocess
 import sys
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 ROOT = Path("C:/AIOps_Agent_bak")
 SERVICE = "prometheus_integration_service"
@@ -22,7 +23,7 @@ def main() -> int:
         "--tb=short",
         "--timeout=120",
     ]
-    proc = subprocess.run(
+    proc = subprocess_runner.run(
         cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     out = ROOT / "verify_logs" / f"test_{SERVICE}.txt"

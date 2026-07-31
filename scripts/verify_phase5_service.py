@@ -5,10 +5,11 @@
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 ROOT = Path("C:/AIOps_Agent_bak")
 PYTHON = sys.executable
@@ -54,7 +55,7 @@ def save_results(results: list[dict]) -> None:
 def run(name: str, cmd: list[str], env: dict[str, str], timeout: int = 55) -> tuple[int, str]:
     log(f"RUN {name}")
     try:
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             cmd,
             cwd=ROOT,
             env=env,
@@ -64,7 +65,7 @@ def run(name: str, cmd: list[str], env: dict[str, str], timeout: int = 55) -> tu
             errors="replace",
             timeout=timeout,
         )
-    except subprocess.TimeoutExpired as e:
+    except subprocess_runner.TimeoutExpired as e:
         out = (e.stdout or "") + "\n--- TIMEOUT STDERR ---\n" + (e.stderr or "")
         log(f"TIMEOUT {name} after {timeout}s")
         return 1, out

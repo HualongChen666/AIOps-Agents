@@ -14,8 +14,9 @@ Usage:
     python scripts/run_ruff.py check .
 """
 
-import subprocess
 import sys
+
+from core.security import subprocess_runner
 
 
 def ruff_available() -> bool:
@@ -27,14 +28,14 @@ def ruff_available() -> bool:
         logging.exception("Unexpected exception: %s", e)
         return False
     try:
-        rc = subprocess.run(
+        rc = subprocess_runner.run(
             [str(ruff_bin), "--version"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess_runner.DEVNULL,
+            stderr=subprocess_runner.DEVNULL,
             timeout=10,
         ).returncode
         return rc == 0
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess_runner.TimeoutExpired):
         return False
 
 
@@ -44,7 +45,7 @@ def run_ruff(args: list[str]) -> int:
     ruff_bin = find_ruff_bin()
     cmd = [str(ruff_bin)] + args
     print(f"Running ruff: {' '.join(cmd)}")
-    return subprocess.call(cmd)
+    return subprocess_runner.call(cmd)
 
 
 def run_fallback(targets: list[str]) -> int:
@@ -53,8 +54,8 @@ def run_fallback(targets: list[str]) -> int:
     flake8_cmd = [sys.executable, "-m", "flake8"] + targets
     isort_cmd = [sys.executable, "-m", "isort", "--check-only"] + targets
 
-    rc1 = subprocess.call(flake8_cmd)
-    rc2 = subprocess.call(isort_cmd)
+    rc1 = subprocess_runner.call(flake8_cmd)
+    rc2 = subprocess_runner.call(isort_cmd)
     return rc1 or rc2
 
 

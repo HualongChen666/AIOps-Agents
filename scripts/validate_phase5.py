@@ -11,11 +11,12 @@ cluster and is intended for offline CI validation of the generated artifacts.
 import json
 import pathlib
 import shutil
-import subprocess
 import sys
 import time
 
 import yaml
+
+from core.security import subprocess_runner
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 
@@ -107,18 +108,18 @@ def _check_helm_dryrun() -> tuple[bool, str]:
     """Attempt `helm template` or `helm install --dry-run` if helm is available."""
     try:
         helm_cmd = shutil.which("helm") or "helm"
-        subprocess.run(
+        subprocess_runner.run(
             [helm_cmd, "version"],
             capture_output=True,
             text=True,
             check=True,
             timeout=20,
         )
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess_runner.CalledProcessError, subprocess_runner.TimeoutExpired):
         return False, "helm not installed or unavailable"
 
     try:
-        result = subprocess.run(
+        result = subprocess_runner.run(
             [helm_cmd, "template", "aiops-agent", "./helm/aiops-agent"],
             cwd=PROJECT_ROOT,
             capture_output=True,

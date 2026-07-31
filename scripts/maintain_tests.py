@@ -8,10 +8,11 @@ AIOps Agent 测试维护脚本
 
 import json
 import os  # noqa: F401
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 # Windows控制台编码处理
 if sys.platform == "win32":
@@ -200,7 +201,7 @@ class TestMaintenance:
 
         try:
             # 运行单元测试收集
-            result = subprocess.run(
+            result = subprocess_runner.run(
                 [sys.executable, "-m", "pytest", "tests/unit/", "--collect-only"],
                 cwd=self.project_root,
                 capture_output=True,
@@ -232,7 +233,7 @@ class TestMaintenance:
 
             return collected_tests
 
-        except subprocess.TimeoutExpired:
+        except subprocess_runner.TimeoutExpired:
             print("   ⚠️  测试收集超时")
             self.results["checks"].append(
                 {"name": "quick_test_check", "status": "timeout", "error": "测试收集超时"}

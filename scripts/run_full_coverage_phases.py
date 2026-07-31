@@ -7,9 +7,10 @@ This avoids xdist coverage data-loss while keeping phases isolated.
 """
 
 import os
-import subprocess
 import sys
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 _ROOT = Path(__file__).resolve().parents[1]
 ROOT_TESTS = sorted(
@@ -64,7 +65,7 @@ def run_phase(name: str, targets: list[str]) -> int:
     env["PYTEST_ADDOPTS"] = ""
     print(f"\n=== Running {name} tests ===")
     print(" ".join(cmd))
-    return subprocess.call(cmd, env=env)
+    return subprocess_runner.call(cmd, env=env)
 
 
 def main() -> int:
@@ -86,7 +87,7 @@ def main() -> int:
     # Combine per-phase coverage data into the final .coverage file
     print("\n=== Combining coverage data ===")
     combine_cmd = [sys.executable, "-m", "coverage", "combine"]
-    subprocess.call(combine_cmd)
+    subprocess_runner.call(combine_cmd)
 
     # Generate combined coverage reports from accumulated data
     print("\n=== Generating coverage reports ===")
@@ -96,7 +97,7 @@ def main() -> int:
         [sys.executable, "-m", "coverage", "html", "-d", "htmlcov"],
         [sys.executable, "-m", "coverage", "report", "-m"],
     ):
-        subprocess.call(report_cmd)
+        subprocess_runner.call(report_cmd)
 
     print("\n=== Summary ===")
     any_failed = False

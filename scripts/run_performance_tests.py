@@ -12,9 +12,10 @@ Usage:
 import json
 import os
 import pathlib
-import subprocess
 import sys
 import time
+
+from core.security import subprocess_runner
 
 REPORT_DIR = pathlib.Path("performance_reports")
 REPORT_FILE = REPORT_DIR / "performance_report.json"
@@ -103,7 +104,7 @@ def main() -> int:
 
     print("Running performance tests...")
     print(" ".join(cmd))
-    pytest_exit_code = subprocess.call(cmd, env=env)
+    pytest_exit_code = subprocess_runner.call(cmd, env=env)
 
     print("\nRunning throughput micro-benchmark and generating report...")
     metrics = _benchmark_micro()

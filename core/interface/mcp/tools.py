@@ -136,7 +136,8 @@ async def execute_command_handler(arguments: Dict[str, Any]) -> str:
     """
     import re
     import shlex
-    import subprocess  # nosec B404
+
+    from core.security import subprocess_runner
 
     command = arguments.get("command")
     if not isinstance(command, str) or not command.strip():
@@ -194,7 +195,7 @@ async def execute_command_handler(arguments: Dict[str, Any]) -> str:
             raise ValueError(f"Argument '{arg}' is not allowed for command '{base_command}'")
 
     # Execute using list form (no shell=True)
-    result = subprocess.run(
+    result = subprocess_runner.run(
         parts,
         capture_output=True,
         text=True,

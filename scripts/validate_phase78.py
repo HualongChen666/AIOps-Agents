@@ -17,11 +17,12 @@ Checks:
 import json
 import os
 import pathlib
-import subprocess
 import sys
 import time
 
 import yaml
+
+from core.security import subprocess_runner
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 
@@ -57,7 +58,7 @@ def _check_open_source() -> list[str]:
 def _check_sphinx_build() -> dict:
     result = {"available": False, "ok": False, "message": ""}
     try:
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             [sys.executable, "-m", "sphinx", "--version"],
             capture_output=True,
             text=True,
@@ -73,7 +74,7 @@ def _check_sphinx_build() -> dict:
         return result
 
     try:
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             [
                 sys.executable,
                 "-m",
@@ -162,7 +163,7 @@ def _run_open_source_tests() -> dict:
     env = os.environ.copy()
     env["PYTEST_ADDOPTS"] = "--no-cov"
     try:
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             [sys.executable, "-m", "pytest", "tests/open_source", "-q"],
             cwd=PROJECT_ROOT,
             capture_output=True,

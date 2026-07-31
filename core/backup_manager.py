@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess  # nosec B404
 from typing import List
 
 from config import DATABASE_URL
+from core.security import subprocess_runner
 
 
-def _run_shell(command: str) -> subprocess.CompletedProcess:
+def _run_shell(command: str) -> subprocess_runner.CompletedProcess:
     """Execute a shell command synchronously and return CompletedProcess.
 
     🔧 P0 Security Fix: Changed from shell=True to parameterized execution
@@ -32,7 +32,7 @@ def _run_shell(command: str) -> subprocess.CompletedProcess:
     # Parse command safely
     parts = shlex.split(command)
     # Execute using list form (no shell=True)
-    return subprocess.run(
+    return subprocess_runner.run(
         parts,
         capture_output=True,
         text=True,
@@ -163,7 +163,7 @@ def list_backups() -> List[str]:
     command = f"{WALG_PATH} --bucket {S3_URL} backup-list"
     try:
         result = _run_shell(command)
-        if isinstance(result, subprocess.CompletedProcess):
+        if isinstance(result, subprocess_runner.CompletedProcess):
             output = result.stdout or ""
         else:
             output = str(result)

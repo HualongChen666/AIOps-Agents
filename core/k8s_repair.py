@@ -12,7 +12,7 @@
 - 护栏审查：使用 ``core.command_guard.analyze_command`` 检查是否属于 ``BLOCKED``
   （自杀/高危），若阻断写审计记录并返回 ``blocked=True``。
 - 审计写入：调用 ``core.command_guard.record_audit``，异常不影响业务。
-- 修复执行：使用 ``subprocess.run(['bash','-c', full_cmd], ...)`` 执行，捕获 stdout、stderr、返回码，
+- 修复执行：使用 ``subprocess_runner.run(['bash','-c', full_cmd], ...)`` 执行，捕获 stdout、stderr、返回码，
   统一返回结构。支持 ``async``（通过 ``asyncio.to_thread``）以及同步包装供 FastAPI 使用。
 - 结果写入 statistics、Loki、PID 防护（与 collector 类似），并记录历史（deque + Lock）。
 """
@@ -23,7 +23,6 @@ import asyncio
 import json
 import logging
 import shutil
-import subprocess  # nosec B404
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -37,6 +36,7 @@ from config import (  # noqa: F401
 )
 from core.command_guard import RiskLevel, analyze_command, record_audit, register_self_pid
 from core.loki_sink import push_to_loki
+from core.security import subprocess_runner
 from core.stats_engine import record_repair
 
 _logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ def _inspect_pod_state(namespace: str, pod: str) -> Dict[str, Any]:
         kubectl_path = shutil.which("kubectl")
         if kubectl_path is None:
             return {"error": "kubectl executable not found in PATH"}
-        proc = subprocess.run(
+        proc = subprocess_runner.run(
             [kubectl_path, "get", "pod", pod, "-n", namespace, "-o", "json"],
             shell=False,  # nosec B603
             capture_output=True,
@@ -205,7 +205,7 @@ async def execute_repair(
     # 执行命令（使用 bash）
     start_ts = time.time()
     proc = await asyncio.to_thread(
-        subprocess.run,
+        subprocess_runner.run,
         ["bash", "-c", full_cmd],
         capture_output=True,
         text=True,

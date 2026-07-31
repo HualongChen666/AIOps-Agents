@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 """Format all phase-4 service directories with black and isort."""
 
-import subprocess
 import sys
 from pathlib import Path
+
+from core.security import subprocess_runner
 
 ROOT = Path("C:/AIOps_Agent_bak")
 PYTHON = sys.executable
@@ -21,7 +22,7 @@ SERVICES = [
 
 
 def run(args):
-    return subprocess.run(
+    return subprocess_runner.run(
         [PYTHON, "-m"] + args,
         cwd=ROOT,
         capture_output=True,
