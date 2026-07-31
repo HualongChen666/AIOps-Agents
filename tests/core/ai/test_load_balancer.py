@@ -11,6 +11,7 @@ import time
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 from core.ai.llm_router.load_balancer import (
     CircuitBreaker,
     CircuitState,

@@ -15,6 +15,7 @@ from typing import List
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 ROOT = Path(__file__).resolve().parents[2]
 CORE_DIR = ROOT / "core"
 

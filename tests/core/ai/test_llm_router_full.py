@@ -7,6 +7,7 @@ import asyncio
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 from core.ai.llm_router.capability_evaluator import (
     CapabilityEvaluator,
     ModelCapability,

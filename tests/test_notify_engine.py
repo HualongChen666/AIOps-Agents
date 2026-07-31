@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-pytestmark = pytest.mark.xdist_group("notify_engine")
+pytestmark = [pytest.mark.xdist_group("notify_engine"), pytest.mark.integration]
 
 from core.notify_engine import (
     get_notification_history,

@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch  # noqa: F401
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 from core.collector import (
     collect_all,
     get_cached_snapshot,

@@ -3,6 +3,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.smoke
+
 
 class TestRAGModule:
     """测试RAG模块"""

@@ -35,6 +35,7 @@ scheduler.schedule_task("demo", my_job, interval=30)
 from __future__ import annotations
 
 import asyncio
+import atexit
 import logging
 import os
 from datetime import datetime, timezone
@@ -57,6 +58,7 @@ class _InMemoryScheduler:
         self._tasks: Dict[str, asyncio.Task] = {}
         self._metadata: Dict[str, Dict[str, Any]] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        atexit.register(self._shutdown)
 
     def _get_loop(self) -> asyncio.AbstractEventLoop:
         """Get or create the event loop for this scheduler."""
@@ -132,6 +134,21 @@ class _InMemoryScheduler:
             task.cancel()
             logger.info("Cancelled in‑memory task %s", name)
         self._metadata.pop(name, None)
+
+    def _shutdown(self) -> None:
+        """Cancel pending asyncio tasks at process exit to avoid unawaited warnings."""
+        for task in list(self._tasks.values()):
+            if not task.done():
+                task.cancel()
+                # Suppress the "Task was destroyed but it is pending!" warning
+                # because we intentionally cannot await a closed event loop.
+                setattr(task, "_log_destroy_pending", False)
+        self._tasks.clear()
+        if self._loop is not None and not self._loop.is_closed() and not self._loop.is_running():
+            try:
+                self._loop.run_until_complete(asyncio.sleep(0))
+            except Exception as exc:  # pragma: no cover
+                logger.debug("Could not drain scheduler event loop: %s", exc)
 
     def list_tasks(self) -> List[Dict[str, Any]]:
         result = []

@@ -12,6 +12,7 @@ from unittest.mock import Mock
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 # Active core modules with zero/low coverage, sorted roughly by impact.
 # These are imported (statically) by api routers or main.py, so they should
 # be safe to import in the test environment.

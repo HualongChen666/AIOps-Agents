@@ -3,6 +3,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 class TestMcpToolsModule:
     """测试MCP工具模块"""

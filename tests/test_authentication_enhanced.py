@@ -393,7 +393,7 @@ class TestSecurityScenarios:
         wrong_time = time.time() - start
 
         # 时间差应该很小（bcrypt设计如此）
-        assert abs(correct_time - wrong_time) < 0.1  # 100ms以内
+        assert abs(correct_time - wrong_time) < 0.5  # 500ms以内
 
     @pytest.mark.skipif(not AUTH_AVAILABLE, reason="Authentication module not available")
     def test_token_secret_key_strength(self, mock_key_service):

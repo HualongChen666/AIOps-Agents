@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 from core.ai.rag.fusion import (
     ConcatenationFusion,
     FusionStrategy,

@@ -5,6 +5,7 @@ Tests for core/ai/rag/reranker.py.
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 from core.ai.rag.reranker import CrossEncoderReranker, MMRReranker, Reranker, RerankingPipeline
 from core.ai.rag.retriever import RetrievalResult
 from core.ai.rag.vectorizer import DocumentChunk

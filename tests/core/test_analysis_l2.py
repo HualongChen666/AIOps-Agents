@@ -3,6 +3,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.smoke
+
 
 class TestAnalysisL2Module:
     """测试L2分析模块"""

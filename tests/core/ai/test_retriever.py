@@ -10,6 +10,7 @@ import asyncio
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 from core.ai.rag.retriever import (
     BM25Retrieval,
     HybridRetrieval,

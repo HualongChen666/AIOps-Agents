@@ -12,6 +12,7 @@ import asyncio
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 from core.ai.rag.vectorizer import (
     ChunkingStrategy,
     Document,

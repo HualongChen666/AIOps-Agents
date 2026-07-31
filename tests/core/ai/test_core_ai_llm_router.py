@@ -3,6 +3,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.smoke
+
 
 class TestLLMRouterModule:
     """测试LLM路由模块"""

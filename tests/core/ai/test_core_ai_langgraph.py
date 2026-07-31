@@ -3,6 +3,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.smoke
+
 
 class TestLangGraphModule:
     """测试LangGraph模块"""

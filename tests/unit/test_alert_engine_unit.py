@@ -71,6 +71,9 @@ class TestAlertEngine:
         """测试告警历史deque"""
         from core.alert_engine import ALERT_HISTORY_MAX, alert_history
 
+        # 清理并行/早期测试留下的状态
+        alert_history.clear()
+
         # 测试deque初始化
         assert isinstance(alert_history, deque)
         assert alert_history.maxlen == ALERT_HISTORY_MAX

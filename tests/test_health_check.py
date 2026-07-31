@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, patch  # noqa: F401
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 from core.health_check import (
     check_database_health,
     check_metrics_health,

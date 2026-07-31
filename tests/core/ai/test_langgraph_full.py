@@ -8,6 +8,7 @@ import types
 
 import pytest
 
+pytestmark = pytest.mark.smoke
 from core.ai.langgraph.dsl import define_workflow
 from core.ai.langgraph.executor import WorkflowExecutor, WorkflowOrchestrator
 from core.ai.langgraph.nodes import (
