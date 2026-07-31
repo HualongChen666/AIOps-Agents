@@ -53,4 +53,4 @@ jobs:
 
       - name: Run tests with pytest
         run: |
-          python -m pytest . --maxfail=3
+          python -m pytest . -n auto --no-cov --maxfail=3
