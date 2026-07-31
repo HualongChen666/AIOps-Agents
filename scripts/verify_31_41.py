@@ -78,7 +78,7 @@ def gather_file_facts(svc: str) -> dict:
         "has_k8s": False,
         "has_prometheus": False,
         "python_files": 0,
-        "pass_lines": 0,
+        "noop_lines": 0,
         "notimplemented_lines": 0,
         "todo_lines": 0,
     }
@@ -96,7 +96,7 @@ def gather_file_facts(svc: str) -> dict:
             logging.exception("Unexpected exception: %s", e)
             continue
         # crude counts; ignore docstrings and type stubs by counting raw occurrences
-        facts["pass_lines"] += text.count("pass")
+        facts["noop_lines"] += text.count("pass")
         facts["notimplemented_lines"] += text.count("NotImplementedError")
         facts["todo_lines"] += text.count("TODO") + text.count("FIXME")
     return facts
@@ -164,7 +164,7 @@ def render_markdown(results: list[dict]) -> str:
             f"prometheus={files['has_prometheus']}\n"
         )
         lines.append(
-            f"- **代码真实性**: python_files={files['python_files']}, pass_count={files['pass_lines']}, "
+            f"- **代码真实性**: python_files={files['python_files']}, pass_count={files['noop_lines']}, "
             f"NotImplementedError={files['notimplemented_lines']}, TODO={files['todo_lines']}\n"
         )
 

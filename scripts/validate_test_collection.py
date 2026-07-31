@@ -25,7 +25,7 @@ def run_pytest_collect() -> Tuple[int, str, str]:
     """
     try:
         result = subprocess.run(
-            ["python", "-m", "pytest", "--collect-only", "--tb=line"],
+            [sys.executable, "-m", "pytest", "--collect-only", "--tb=line"],
             capture_output=True,
             text=True,
             timeout=120,  # 2 minute timeout

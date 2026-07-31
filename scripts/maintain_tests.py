@@ -201,7 +201,7 @@ class TestMaintenance:
         try:
             # 运行单元测试收集
             result = subprocess.run(
-                ["python", "-m", "pytest", "tests/unit/", "--collect-only"],
+                [sys.executable, "-m", "pytest", "tests/unit/", "--collect-only"],
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,

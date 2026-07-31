@@ -10,6 +10,7 @@ cluster and is intended for offline CI validation of the generated artifacts.
 
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -105,8 +106,9 @@ def _check_service_mesh_manager() -> list[str]:
 def _check_helm_dryrun() -> tuple[bool, str]:
     """Attempt `helm template` or `helm install --dry-run` if helm is available."""
     try:
+        helm_cmd = shutil.which("helm") or "helm"
         subprocess.run(
-            ["helm", "version"],
+            [helm_cmd, "version"],
             capture_output=True,
             text=True,
             check=True,
@@ -117,7 +119,7 @@ def _check_helm_dryrun() -> tuple[bool, str]:
 
     try:
         result = subprocess.run(
-            ["helm", "template", "aiops-agent", "./helm/aiops-agent"],
+            [helm_cmd, "template", "aiops-agent", "./helm/aiops-agent"],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,

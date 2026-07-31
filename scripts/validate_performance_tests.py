@@ -7,6 +7,7 @@ Validate Performance Tests
 性能测试验证脚本
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -63,8 +64,9 @@ def validate_api_performance_tests():
         print(f"✅ Locust文件存在: {locustfile}")
 
         # 验证locustfile语法
+        locust_cmd = shutil.which("locust") or "locust"
         result = subprocess.run(
-            ["locust", "-f", str(locustfile), "--check"], capture_output=True, text=True, timeout=30
+            [locust_cmd, "-f", str(locustfile), "--check"], capture_output=True, text=True, timeout=30
         )
 
         if result.returncode == 0:
@@ -103,8 +105,9 @@ def validate_database_performance_tests():
             print(f"✅ 测试文件存在: {test_file}")
 
         # 收集测试（不运行）
+        pytest_cmd = shutil.which("pytest") or "pytest"
         result = subprocess.run(
-            ["pytest", "tests/performance/database/", "--collect-only"],
+            [pytest_cmd, "tests/performance/database/", "--collect-only"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -145,8 +148,9 @@ def validate_ai_performance_tests():
             print(f"✅ 测试文件存在: {test_file}")
 
         # 收集测试（不运行）
+        pytest_cmd = shutil.which("pytest") or "pytest"
         result = subprocess.run(
-            ["pytest", "tests/performance/ai/", "--collect-only"],
+            [pytest_cmd, "tests/performance/ai/", "--collect-only"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -182,7 +186,7 @@ def validate_database_migration():
 
         # 检查迁移语法
         result = subprocess.run(
-            ["python", "-m", "py_compile", str(migration_file)],
+            [sys.executable, "-m", "py_compile", str(migration_file)],
             capture_output=True,
             text=True,
             timeout=10,
@@ -225,7 +229,7 @@ def validate_performance_services():
         # 检查语法
         for service_file in service_files:
             result = subprocess.run(
-                ["python", "-m", "py_compile", service_file],
+                [sys.executable, "-m", "py_compile", service_file],
                 capture_output=True,
                 text=True,
                 timeout=10,

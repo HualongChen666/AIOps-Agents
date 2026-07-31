@@ -15,7 +15,9 @@ This script will:
 import logging
 import re
 import subprocess
+import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -70,7 +72,7 @@ class CodeQualityImprover:
 
         try:
             result = subprocess.run(
-                ["python", "-m", "flake8", str(self.project_root), "--tee"],
+                [sys.executable, "-m", "flake8", str(self.project_root), "--tee"],
                 capture_output=True,
                 text=True,
                 cwd=str(self.project_root),
@@ -268,7 +270,7 @@ class CodeQualityImprover:
         """Run black formatter"""
         try:
             result = subprocess.run(
-                ["python", "-m", "black", str(self.project_root)],
+                [sys.executable, "-m", "black", str(self.project_root)],
                 capture_output=True,
                 text=True,
                 cwd=str(self.project_root),
@@ -286,7 +288,7 @@ class CodeQualityImprover:
         """Run isort import sorter"""
         try:
             result = subprocess.run(
-                ["python", "-m", "isort", str(self.project_root)],
+                [sys.executable, "-m", "isort", str(self.project_root)],
                 capture_output=True,
                 text=True,
                 cwd=str(self.project_root),
@@ -311,9 +313,7 @@ class CodeQualityImprover:
             "issues_fixed": self.issues_fixed,
             "files_processed": self.files_processed,
             "project_root": str(self.project_root),
-            "timestamp": str(
-                subprocess.run(["date"], capture_output=True, text=True).stdout.strip()
-            ),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 

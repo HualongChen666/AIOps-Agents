@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import ast
 import pathlib
+import shutil
 import subprocess
 
 ROOT = pathlib.Path(r"C:\\AIOps_Agent_bak")
@@ -8,7 +9,10 @@ ROOT = pathlib.Path(r"C:\\AIOps_Agent_bak")
 
 def run_black(file_path: pathlib.Path):
     try:
-        subprocess.run(["black", str(file_path)], check=True, capture_output=True)
+        cmd = shutil.which("black")
+        if not cmd:
+            raise FileNotFoundError("black not found")
+        subprocess.run([cmd, str(file_path)], check=True, capture_output=True)
     except Exception as e:
         print(f"Black failed on {file_path}: {e}")
 
@@ -20,8 +24,11 @@ def check_and_report(file_path: pathlib.Path):
         print(f"SyntaxError in {file_path}: line {e.lineno}, offset {e.offset}, msg: {e.msg}")
         # 尝试使用 autopep8 自动修复（仅限可修复的格式问题）
         try:
+            cmd = shutil.which("autopep8")
+            if not cmd:
+                raise FileNotFoundError("autopep8 not found")
             subprocess.run(
-                ["autopep8", "--in-place", "--aggressive", "--aggressive", str(file_path)],
+                [cmd, "--in-place", "--aggressive", "--aggressive", str(file_path)],
                 check=True,
                 capture_output=True,
             )

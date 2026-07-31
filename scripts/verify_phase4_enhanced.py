@@ -53,7 +53,7 @@ def file_metrics(service_dir: Path) -> dict[str, int]:
         notimplemented_lines += text.count("NotImplementedError")
         todo_lines += len(re.findall(r"TODO|FIXME|XXX", text, re.IGNORECASE))
     return {
-        "pass_lines": pass_lines,
+        "noop_lines": pass_lines,
         "notimplemented_lines": notimplemented_lines,
         "todo_lines": todo_lines,
     }

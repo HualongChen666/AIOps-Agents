@@ -65,7 +65,7 @@ def gather_file_facts(svc: str) -> dict:
         "has_k8s": False,
         "has_prometheus": False,
         "python_files": 0,
-        "pass_lines": 0,
+        "noop_lines": 0,
         "notimplemented_lines": 0,
         "todo_lines": 0,
     }
@@ -82,7 +82,7 @@ def gather_file_facts(svc: str) -> dict:
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
             continue
-        facts["pass_lines"] += text.count("pass")
+        facts["noop_lines"] += text.count("pass")
         facts["notimplemented_lines"] += text.count("NotImplementedError")
         facts["todo_lines"] += text.count("TODO") + text.count("FIXME")
     return facts
