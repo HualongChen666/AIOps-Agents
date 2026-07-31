@@ -3,8 +3,8 @@
 # 其他路由简化测试
 import os
 import sys
-from unittest.mock import Mock
 from pathlib import Path
+from unittest.mock import Mock
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

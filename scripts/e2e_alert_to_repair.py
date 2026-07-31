@@ -25,12 +25,13 @@ os.environ["HARDWARE_EXECUTE_ENABLED"] = "false"  # simulate hardware repairs
 # config.py now loads ai_api.env (AI_ENABLED=true / AI_TIMEOUT=5) so AI path is attempted.
 # main.py lifespan uses _safe_init timeouts, no need for DISABLE_OPTIONAL_LAYERS.
 
-from sqlalchemy import create_engine
-from core.database import Base
-import core.models  # noqa: F401
-from main import app
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+
+import core.models  # noqa: F401
 from core.authentication import get_current_active_user
+from core.database import Base
+from main import app
 
 app.dependency_overrides[get_current_active_user] = lambda: {"username": "e2e", "role": "admin"}
 

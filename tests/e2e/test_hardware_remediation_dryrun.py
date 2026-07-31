@@ -9,6 +9,7 @@ dry-run unless ``HARDWARE_EXECUTE_ENABLED=true``.
 from __future__ import annotations
 
 import os
+
 import pytest
 
 os.environ.setdefault("HEAL_EXECUTE_ENABLED", "false")

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-import logging
 import ast
+import logging
 import pathlib
 
 root = pathlib.Path(r"C:\\AIOps_Agent_bak")

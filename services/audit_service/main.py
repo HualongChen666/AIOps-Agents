@@ -12,8 +12,8 @@ ROOT = Path(__file__).parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from fastapi import FastAPI, Query
 import uvicorn
+from fastapi import FastAPI, Query
 
 from core.command_guard import get_audit_log
 

@@ -9,9 +9,9 @@ non-critical sections are truncated.
 
 from __future__ import annotations
 
-import logging
 import copy
 import json
+import logging
 from typing import Any, Dict, List, Optional, Set, cast
 
 from core.ai.token_budget import estimate_tokens

@@ -4,10 +4,10 @@
 import logging
 import os
 import sys
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest  # noqa: F401
-from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

@@ -12,8 +12,8 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, generate_latest
+from pydantic import BaseModel, Field
 
 SERVICE_NAME = "metrics_monitoring_service"
 PORT = int(os.getenv("PORT", "8000"))

@@ -186,11 +186,9 @@ except Exception as e:
     async_upsert_pending_approval = None  # type: ignore[assignment]
 
 try:
-    from core.audit_logger import (
-        get_trace_id as _get_trace_id,
-        log_audit_event as _log_audit_event,
-        set_trace_id as _set_trace_id,
-    )
+    from core.audit_logger import get_trace_id as _get_trace_id
+    from core.audit_logger import log_audit_event as _log_audit_event
+    from core.audit_logger import set_trace_id as _set_trace_id
 
     AUDIT_AVAILABLE = True
 except Exception as e:
@@ -1051,7 +1049,7 @@ async def evaluate(state: HealState) -> HealState:
             verification["passed"] = True
         state.verification = verification
         passed = bool(state.verification.get("passed"))
-        from core.phase3_metrics import VERIFY_PASSED, VERIFY_FAILED
+        from core.phase3_metrics import VERIFY_FAILED, VERIFY_PASSED
 
         strategy = state.verification.get("strategy") or "unknown"
         (VERIFY_PASSED if passed else VERIFY_FAILED).labels(strategy=str(strategy)).inc()
@@ -1388,7 +1386,7 @@ async def run_heal(state: HealState) -> HealState:
     HealState
         The mutated state after the graph finishes.
     """
-    from core.phase3_metrics import HEAL_TOTAL, HEAL_SUCCESS, HEAL_FAILED
+    from core.phase3_metrics import HEAL_FAILED, HEAL_SUCCESS, HEAL_TOTAL
 
     script_key = str((state.alert or {}).get("metric", "unknown"))
     trace_id = (state.alert or {}).get("trace_id")

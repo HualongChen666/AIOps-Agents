@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # tests/test_ai_engine.py
 # AI 引擎单元测试
-import logging
 import asyncio
+import logging
 from datetime import datetime  # noqa: F401
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: F401
 

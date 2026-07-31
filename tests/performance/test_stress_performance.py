@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # tests/performance/test_stress_performance.py
 # 压力测试
-import logging
 import asyncio
+import logging
 import time
 
 import pytest

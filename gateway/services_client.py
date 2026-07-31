@@ -58,7 +58,8 @@ except Exception as e:
     _try_auto_heal = None  # type: ignore[assignment]
 
 try:
-    from core.heal_graph import HealState, run_heal as _run_heal
+    from core.heal_graph import HealState
+    from core.heal_graph import run_heal as _run_heal
 
     _HEAL_GRAPH_AVAILABLE = True
 except Exception as e:

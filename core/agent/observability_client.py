@@ -9,8 +9,8 @@ synchronous (tools run in threads) and validates queries through the existing
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import os
 import re
 import threading

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-import logging
 import importlib
+import logging
 import os
 import pathlib
 import time
@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional  # noqa: F401
 from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
-
 from loguru import logger
 
 # Load project-level .env (if present), then the committed ai_api.env for the test key.

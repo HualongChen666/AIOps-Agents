@@ -12,10 +12,10 @@ FastAPI 主入口文件 – 已在原项目中实现多个路由注册。
 """
 
 import asyncio
+import inspect
 import os
 import traceback
 import warnings
-import inspect
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -26,28 +26,6 @@ from fastapi.responses import JSONResponse
 from loguru import logger as _logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-
-from config import (
-    ENABLE_ADDONS,
-    RAG_ENABLED,
-    LLM_ROUTER_ENABLED,
-    TOPOLOGY_ENABLED,
-    TRACING_ENABLED,
-    LOG_AGGREGATION_ENABLED,
-    INCIDENT_RESPONSE_ENABLED,
-    WORKFLOW_ENABLED,
-    INTEGRATIONS_ENABLED,
-    SECURITY_SCANNING_ENABLED,
-    PENETRATION_TESTING_ENABLED,
-    PLUGINS_ENABLED,
-    SHARDING_ENABLED,
-    I18N_ENABLED,
-    DOC_GENERATION_ENABLED,
-    METRICS_ENABLED,
-    MCP_ENABLED,
-    GRAPHQL_ENABLED,
-    LOKI_ENABLED,
-)
 
 # Core routers are always imported and mounted
 from api.alert_router import router as alert_router
@@ -71,6 +49,27 @@ from api.unified_repair_router import router as unified_repair_router
 from api.user_router import router as user_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
+from config import (
+    DOC_GENERATION_ENABLED,
+    ENABLE_ADDONS,
+    GRAPHQL_ENABLED,
+    I18N_ENABLED,
+    INCIDENT_RESPONSE_ENABLED,
+    INTEGRATIONS_ENABLED,
+    LLM_ROUTER_ENABLED,
+    LOG_AGGREGATION_ENABLED,
+    LOKI_ENABLED,
+    MCP_ENABLED,
+    METRICS_ENABLED,
+    PENETRATION_TESTING_ENABLED,
+    PLUGINS_ENABLED,
+    RAG_ENABLED,
+    SECURITY_SCANNING_ENABLED,
+    SHARDING_ENABLED,
+    TOPOLOGY_ENABLED,
+    TRACING_ENABLED,
+    WORKFLOW_ENABLED,
+)
 
 # Add-on routers are loaded only when their pack flag is enabled
 advanced_ai_router: Any = None
@@ -192,6 +191,7 @@ if ENABLE_ADDONS:
         from api.doc_generator_router import router as doc_generator_router
         from api.documentation_router import router as documentation_router
         from api.frontend_enhancement_router import router as frontend_enhancement_router
+
 from core.accessibility_support import setup_accessibility_support
 from core.ai_engine import _get_http_client as _ai_get_http_client
 from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
