@@ -37,11 +37,11 @@ jobs:
 
       - name: Check import order with isort
         run: |
-          python -m isort --check-only . || true
+          python -m isort --check-only .
 
       - name: Lint with flake8
         run: |
-          python -m flake8 . || true
+          python -m flake8 .
 
       - name: Type check with mypy
         run: |

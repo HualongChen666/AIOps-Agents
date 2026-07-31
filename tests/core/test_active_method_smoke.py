@@ -266,11 +266,20 @@ def _call_or_run(obj: Callable[..., Any], kwargs: Dict[str, Any]) -> None:
         logging.exception("Unexpected exception: %s", e)
         return
     if inspect.iscoroutine(result):
+        loop = None
         try:
-            asyncio.run(asyncio.wait_for(result, timeout=ASYNC_TIMEOUT_SECONDS))
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(asyncio.wait_for(result, timeout=ASYNC_TIMEOUT_SECONDS))
         except BaseException as e:
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
+        finally:
+            if loop is not None:
+                try:
+                    loop.close()
+                except Exception as e:
+                    logging.exception("Unexpected exception: %s", e)
 
 
 def _try_call(obj: Callable[..., Any], module: ModuleType) -> None:
