@@ -7,6 +7,7 @@ import re
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -93,7 +94,63 @@ def _delete(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"deleted": item_id}
 
 
+def _query_osv(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Query OSV for real vulnerability data when OSV_API_URL or OSV_ENABLED is set."""
+    package = payload.get("package") or payload.get("name")
+    if not package:
+        return []
+
+    osv_url = os.environ.get("OSV_API_URL", "https://api.osv.dev")
+    if osv_url.lower() in ("false", "0", ""):
+        return []
+
+    try:
+        resp = httpx.post(
+            f"{osv_url.rstrip('/')}/v1/query",
+            json={
+                "package": {
+                    "name": package,
+                    "ecosystem": payload.get("ecosystem", "PyPI"),
+                }
+            },
+            timeout=float(os.environ.get("OSV_TIMEOUT", "10.0")),
+        )
+        if resp.status_code == 404:
+            return []
+        resp.raise_for_status()
+        data = resp.json()
+        vulns = data.get("vulns", [])
+        findings: List[Dict[str, Any]] = []
+        for vuln in vulns:
+            aliases = vuln.get("aliases", [])
+            cve = next(
+                (a for a in aliases if a.startswith("CVE-")), ""
+            )
+            findings.append(
+                {
+                    "id": vuln.get("id"),
+                    "target": package,
+                    "severity": (
+                        vuln.get("database_specific", {})
+                        .get("severity", "unknown")
+                    ),
+                    "cve": cve,
+                    "status": "open",
+                    "service": SERVICE_NAME,
+                    "aliases": aliases,
+                }
+            )
+        return findings
+    except Exception as exc:  # pragma: no cover
+        logger.warning("OSV query failed: %s", exc)
+        return []
+
+
 def _query(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if "package" in payload or "name" in payload:
+        external = _query_osv(payload)
+        if external:
+            return external
     results = []
     for item in store.values():
         d = item.model_dump()

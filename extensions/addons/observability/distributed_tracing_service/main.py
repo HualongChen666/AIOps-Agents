@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -92,7 +93,51 @@ def _delete(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"deleted": item_id}
 
 
+def _query_traces(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Query a real tracing backend (e.g. Jaeger / Tempo) if configured."""
+    backend = os.environ.get("TRACING_BACKEND_URL")
+    trace_id = payload.get("trace_id")
+    if not backend or not trace_id:
+        return []
+
+    try:
+        resp = httpx.get(
+            f"{backend.rstrip('/')}/api/traces/{trace_id}",
+            timeout=float(os.environ.get("TRACING_TIMEOUT", "5.0")),
+        )
+        if resp.status_code == 404:
+            return []
+        resp.raise_for_status()
+        data = resp.json()
+        traces = data.get("data", []) if isinstance(data, dict) else data
+        spans: List[Dict[str, Any]] = []
+        for trace in traces if isinstance(traces, list) else []:
+            for span in trace.get("spans", []):
+                spans.append(
+                    {
+                        "id": span.get("spanID"),
+                        "trace_id": trace.get("traceID"),
+                        "operation": span.get("operationName"),
+                        "duration_ms": span.get("duration", 0) // 1000,
+                        "tags": {
+                            tag["key"]: tag["value"]
+                            for tag in span.get("tags", [])
+                            if "key" in tag
+                        },
+                        "service": SERVICE_NAME,
+                    }
+                )
+        return spans
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Tracing backend query failed: %s", exc)
+        return []
+
+
 def _query(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if "trace_id" in payload:
+        external = _query_traces(payload)
+        if external:
+            return external
     results = []
     for item in store.values():
         d = item.model_dump()

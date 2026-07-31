@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -101,12 +102,49 @@ def _query(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     return results
 
 
+def _notify_external(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Notify an external incident webhook if INCIDENT_WEBHOOK_URL is set."""
+    url = os.environ.get("INCIDENT_WEBHOOK_URL")
+    if not url:
+        return {}
+    try:
+        resp = httpx.post(
+            url,
+            json={
+                "service": payload.get("service", "unknown"),
+                "severity": payload.get("severity", "critical"),
+                "title": payload.get("title", "Incident triggered"),
+                "description": payload.get("description", ""),
+                "incident_id": payload.get("id"),
+            },
+            timeout=float(os.environ.get("INCIDENT_TIMEOUT", "5.0")),
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Incident webhook notification failed: %s", exc)
+        return {"notified": False, "error": str(exc)}
+
+
 def _run(payload: Dict[str, Any]) -> Dict[str, Any]:
     item_id = payload.get("id")
+    notify_result = {}
+    if payload.get("escalate") and os.environ.get("INCIDENT_WEBHOOK_URL"):
+        notify_result = _notify_external(payload)
     if item_id and item_id in store:
         logger.info("[%s] ran %s id=%s", SERVICE_NAME, "incident", item_id)
-        return {"status": "executed", "id": item_id, "service": SERVICE_NAME}
-    return {"status": "noop", "service": SERVICE_NAME, "matched": len(store)}
+        return {
+            "status": "executed",
+            "id": item_id,
+            "service": SERVICE_NAME,
+            "notification": notify_result,
+        }
+    return {
+        "status": "noop",
+        "service": SERVICE_NAME,
+        "matched": len(store),
+        "notification": notify_result,
+    }
 
 
 def _evaluate(_: Dict[str, Any]) -> Dict[str, Any]:
