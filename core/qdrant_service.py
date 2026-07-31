@@ -7,6 +7,7 @@ This module serves as an interface between the application and Qdrant.
 """
 
 import logging
+import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -50,11 +51,18 @@ def get_qdrant_client() -> Optional[QdrantClient]:
     if not QDRANT_AVAILABLE:
         return None
 
+    if os.environ.get("QDRANT_DISABLED", "").lower() in ("1", "true"):
+        return None
+
     if _qdrant_client is None:
         try:
             from config import QDRANT_HOST, QDRANT_PORT
 
-            _qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+            _qdrant_client = QdrantClient(
+                host=QDRANT_HOST,
+                port=QDRANT_PORT,
+                timeout=int(float(os.environ.get("QDRANT_TIMEOUT", "2.0"))),
+            )
             logger.info(f"Qdrant client initialized: {QDRANT_HOST}:{QDRANT_PORT}")
         except Exception as e:
             logger.error(f"Failed to initialize Qdrant client: {e}")

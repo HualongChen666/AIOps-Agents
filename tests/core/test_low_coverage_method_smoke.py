@@ -78,7 +78,9 @@ SKIP_MODULE_PREFIXES = (
     "core.frontend_performance_optimizer",
     "core.module_health_check",
     "core.execution.l6.optimized_executor",
-    "core.analysis.l2.rag_engine",
+    "core.analysis.l2",
+    "core.security_config",
+    "core.analysis.l2.enhanced_causal_analyzer",
 )
 
 

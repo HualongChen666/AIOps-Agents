@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -91,7 +92,37 @@ def _delete(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"deleted": item_id}
 
 
+def _query_prometheus(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Query a real Prometheus server if PROMETHEUS_URL is configured."""
+    prom_url = os.environ.get("PROMETHEUS_URL")
+    query = payload.get("q") or payload.get("query")
+    if not prom_url or not query:
+        return []
+
+    try:
+        resp = httpx.get(
+            f"{prom_url.rstrip('/')}/api/v1/query",
+            params={"query": query},
+            timeout=float(os.environ.get("PROMETHEUS_TIMEOUT", "5.0")),
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", {}).get("result", [])
+        return [
+            {
+                "metric": item.get("metric", {}),
+                "value": item.get("value", []),
+                "service": SERVICE_NAME,
+            }
+            for item in data
+        ]
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Prometheus query failed: %s", exc)
+        return []
+
+
 def _query(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if "q" in payload or "query" in payload:
+        return _query_prometheus(payload)
     results = []
     for item in store.values():
         d = item.model_dump()

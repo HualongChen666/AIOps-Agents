@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -92,7 +93,42 @@ def _delete(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"deleted": item_id}
 
 
+def _query_github(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Look up a GitHub repository via the GitHub REST API if configured."""
+    token = os.environ.get("GITHUB_TOKEN")
+    owner = payload.get("owner")
+    name = payload.get("name") or payload.get("repo")
+    if not token or not owner or not name:
+        return []
+
+    try:
+        resp = httpx.get(
+            f"https://api.github.com/repos/{owner}/{name}",
+            headers={"Authorization": f"token {token}"},
+            timeout=float(os.environ.get("GITHUB_TIMEOUT", "5.0")),
+        )
+        if resp.status_code == 404:
+            return []
+        resp.raise_for_status()
+        data = resp.json()
+        return [
+            {
+                "id": data.get("id"),
+                "owner": owner,
+                "name": name,
+                "visibility": "public" if not data.get("private") else "private",
+                "stars": data.get("stargazers_count", 0),
+                "service": SERVICE_NAME,
+            }
+        ]
+    except Exception as exc:  # pragma: no cover
+        logger.warning("GitHub query failed: %s", exc)
+        return []
+
+
 def _query(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if "owner" in payload and ("name" in payload or "repo" in payload):
+        return _query_github(payload)
     results = []
     for item in store.values():
         d = item.model_dump()

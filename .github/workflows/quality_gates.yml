@@ -45,12 +45,12 @@ jobs:
 
       - name: Type check with mypy
         run: |
-          python -m mypy . || true
+          python -m mypy .
 
       - name: Security scan with bandit
         run: |
-          python -m bandit -r core api services aiops_agent sdk scripts --skip B101,B104,B105,B307,B311,B404,B603,B605,B607,B608
+          python -m bandit -r core api services aiops_agent sdk scripts
 
       - name: Run tests with pytest
         run: |
-          python -m pytest . --maxfail=3 || true
+          python -m pytest . --maxfail=3

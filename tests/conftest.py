@@ -8,6 +8,9 @@ from unittest.mock import Mock
 
 import pytest
 
+# Disable external service connections that can hang in smoke tests
+os.environ.setdefault("QDRANT_DISABLED", "1")
+
 collect_ignore_glob = ["*_out.txt"]
 
 # Ignore API/e2e/integration/addon tests by default because they replace core modules
@@ -55,6 +58,10 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "e2e: marks tests as end-to-end tests")
     config.addinivalue_line("markers", "core: core functionality, always run")
     config.addinivalue_line("markers", "addons: requires ENABLE_ADDONS=true")
+    config.addinivalue_line(
+        "markers",
+        "smoke: heavy module introspection smoke tests (run separately)",
+    )
 
     # pytest-xdist配置
     if hasattr(config, "workerinput"):
@@ -111,6 +118,9 @@ def pytest_collection_modifyitems(config, items):
             path = pathlib.Path(str(item.fspath))
             relpath = path.relative_to(root)
         except (ValueError, AttributeError):
+            continue
+        if "smoke" in path.name:
+            item.add_marker(getattr(pytest.mark, "smoke"))
             continue
         parts = relpath.parts
         mark = None

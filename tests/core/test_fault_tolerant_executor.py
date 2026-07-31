@@ -123,6 +123,7 @@ class TestFaultTolerantExecutor:
         executor = FaultTolerantExecutor(
             {
                 "default_timeout": 0.001,
+                "max_retries": 0,
                 "circuit_breaker_failure_threshold": 10,
             }
         )

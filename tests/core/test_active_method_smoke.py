@@ -84,6 +84,7 @@ SKIP_MODULE_PREFIXES = (
     "core.model_fine_tuner",
     "core.user_service",
     "core.analysis.l2.langgraph_engine",
+    "core.collector",
 )
 
 

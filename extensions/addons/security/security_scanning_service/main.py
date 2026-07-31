@@ -3,6 +3,7 @@
 
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -101,7 +102,34 @@ def _query(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     return results
 
 
+def _scan_content(content: str) -> List[Dict[str, Any]]:
+    """Scan text for hardcoded secrets and suspicious patterns."""
+    patterns = {
+        "aws_access_key": r"AKIA[0-9A-Z]{16}",
+        "private_key": r"-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
+        "api_token": r"[Tt]oken\s*[:=]\s*['\"][a-zA-Z0-9_\-]{20,}['\"]",
+        "password": r"[Pp]assword\s*[:=]\s*['\"][^'\"]{6,}['\"]",
+    }
+    findings: List[Dict[str, Any]] = []
+    for label, pattern in patterns.items():
+        for match in re.finditer(pattern, content):
+            findings.append(
+                {
+                    "type": label,
+                    "position": match.start(),
+                    "matched": content[match.start() : min(match.end() + 6, len(content))],
+                }
+            )
+    return findings
+
+
 def _run(payload: Dict[str, Any]) -> Dict[str, Any]:
+    content = payload.get("content") or payload.get("target")
+    if isinstance(content, str):
+        findings = _scan_content(content)
+        logger.info("[%s] scanned %s characters, %s findings", SERVICE_NAME, len(content), len(findings))
+        return {"status": "scanned", "findings": findings, "service": SERVICE_NAME}
+
     item_id = payload.get("id")
     if item_id and item_id in store:
         logger.info("[%s] ran %s id=%s", SERVICE_NAME, "vulnerability", item_id)
