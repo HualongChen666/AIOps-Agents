@@ -74,7 +74,10 @@ class TestExecutePowershellWithTimeout:
     def test_powershell_not_found(self, monkeypatch):
         from core.log_collector import _execute_powershell_with_timeout
 
-        monkeypatch.setattr("subprocess.Popen", MagicMock(side_effect=FileNotFoundError("no ps")))
+        monkeypatch.setattr(
+            "core.log_collector.subprocess_runner.Popen",
+            MagicMock(side_effect=FileNotFoundError("no ps")),
+        )
         assert _execute_powershell_with_timeout("cmd") == (None, None, None)
 
     def test_powershell_timeout(self, monkeypatch):
@@ -82,7 +85,9 @@ class TestExecutePowershellWithTimeout:
 
         proc = MagicMock()
         proc.communicate = MagicMock(side_effect=subprocess.TimeoutExpired("cmd", timeout=30))
-        monkeypatch.setattr("subprocess.Popen", MagicMock(return_value=proc))
+        monkeypatch.setattr(
+            "core.log_collector.subprocess_runner.Popen", MagicMock(return_value=proc)
+        )
         assert _execute_powershell_with_timeout("cmd") == (None, None, None)
 
     def test_powershell_success(self, monkeypatch):
@@ -90,7 +95,9 @@ class TestExecutePowershellWithTimeout:
 
         proc = MagicMock()
         proc.communicate = MagicMock(return_value=("stdout", "stderr"))
-        monkeypatch.setattr("subprocess.Popen", MagicMock(return_value=proc))
+        monkeypatch.setattr(
+            "core.log_collector.subprocess_runner.Popen", MagicMock(return_value=proc)
+        )
         assert _execute_powershell_with_timeout("cmd") == (proc, "stdout", "stderr")
 
 
@@ -100,7 +107,9 @@ class TestRunPsJson:
 
         proc = MagicMock()
         proc.communicate = MagicMock(return_value=(json.dumps([{"a": 1}]), ""))
-        monkeypatch.setattr("subprocess.Popen", MagicMock(return_value=proc))
+        monkeypatch.setattr(
+            "core.log_collector.subprocess_runner.Popen", MagicMock(return_value=proc)
+        )
         assert _run_ps_json("cmd") == [{"a": 1}]
 
     def test_run_ps_json_no_stdout(self, monkeypatch):
@@ -108,13 +117,17 @@ class TestRunPsJson:
 
         proc = MagicMock()
         proc.communicate = MagicMock(return_value=("", "err"))
-        monkeypatch.setattr("subprocess.Popen", MagicMock(return_value=proc))
+        monkeypatch.setattr(
+            "core.log_collector.subprocess_runner.Popen", MagicMock(return_value=proc)
+        )
         assert _run_ps_json("cmd") == []
 
     def test_run_ps_json_process_none(self, monkeypatch):
         from core.log_collector import _run_ps_json
 
-        monkeypatch.setattr("subprocess.Popen", MagicMock(side_effect=FileNotFoundError))
+        monkeypatch.setattr(
+            "core.log_collector.subprocess_runner.Popen", MagicMock(side_effect=FileNotFoundError)
+        )
         assert _run_ps_json("cmd") == []
 
 
