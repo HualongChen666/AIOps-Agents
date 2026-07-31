@@ -661,7 +661,7 @@ class MockCoverageReporter:
         self, registered_mocks: Dict[str, Dict[str, Any]], used_mocks: Dict[str, Dict[str, Any]]
     ) -> Dict[str, Any]:
         """计算方法覆盖率"""
-        method_stats = {
+        method_stats: Dict[str, Any] = {
             "total_registered_methods": 0,
             "total_used_methods": 0,
             "method_details": {},
@@ -880,7 +880,7 @@ class SmartMockManager:
             monitor: Mock监控器实例
         """
         self.monitor = monitor
-        self.usage_patterns: Dict[str, Dict[str, Any]] = {}
+        self.usage_patterns: Dict[str, Any] = {}
         self.performance_metrics: Dict[str, List[float]] = {}
         self.optimization_suggestions: List[str] = []
         self.anomaly_detection_enabled = True
@@ -889,7 +889,7 @@ class SmartMockManager:
     def analyze_usage_patterns(self) -> Dict[str, Any]:
         """分析mock使用模式"""
         stats = self.monitor.get_mock_stats()
-        patterns = {
+        patterns: Dict[str, Any] = {
             "high_frequency_mocks": [],
             "low_frequency_mocks": [],
             "burst_usage": [],
@@ -997,7 +997,11 @@ class SmartMockManager:
         if not self.auto_optimization_enabled:
             return {"enabled": False, "reason": "Auto-optimization disabled"}
 
-        optimizations = {"enabled": True, "changes": [], "performance_improvements": {}}
+        optimizations: Dict[str, Any] = {
+            "enabled": True,
+            "changes": [],
+            "performance_improvements": {},
+        }
 
         patterns = self.analyze_usage_patterns()
 
@@ -1282,7 +1286,7 @@ class MockConfigValidator:
         """验证命名规范"""
         import re
 
-        return bool(re.match(self.validation_rules["naming_convention"], name))
+        return bool(re.match(str(self.validation_rules["naming_convention"]), name))
 
     def _validate_return_value(self, config_name: str, return_value: Any) -> bool:
         """验证return_value"""

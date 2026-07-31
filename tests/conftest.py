@@ -40,7 +40,7 @@ def _patched_thread_init(self, *args, **kwargs):  # type: ignore[override]
     _original_thread_init(self, *args, **kwargs)
 
 
-threading.Thread.__init__ = _patched_thread_init
+setattr(threading.Thread, "__init__", _patched_thread_init)  # type: ignore[misc]
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -84,7 +84,7 @@ def pytest_collection_modifyitems(config, items):
 
     root = pathlib.Path(__file__).parent
     ext_dir = root.parent / "extensions" / "addons"
-    addon_names = set()
+    addon_names: set[str] = set()
     if ext_dir.exists():
         for pack in ext_dir.iterdir():
             if pack.is_dir():
@@ -663,10 +663,9 @@ async def test_db_engine():
 @pytest.fixture(scope="function")
 async def test_db_session(test_db_engine):
     """测试数据库会话fixture"""
-    from sqlalchemy.ext.asyncio import AsyncSession
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-    async_session = sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
         yield session
