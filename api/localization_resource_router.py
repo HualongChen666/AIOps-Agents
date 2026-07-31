@@ -146,9 +146,9 @@ async def add_translation(language: str, namespace: str, key: str, value: str):
                     "example": {
                         "status": "success",
                         "data": {
-                            "export_path": "/tmp/translations.json",
+                            "export_path": "/app/data/translations.json",
                             "count": 100,
-                        },  # nosec B108
+                        },
                         "timestamp": "2026-07-03T09:00:00Z",
                     }
                 }

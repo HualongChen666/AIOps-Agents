@@ -313,9 +313,10 @@ class ComplianceManager:
             await asyncio.sleep(0.5)
 
             # Simulate check result (random for demonstration)
-            import random
+            import secrets
 
-            is_compliant = random.random() > 0.3  # 70% chance of compliance  # nosec B311
+            _random = secrets.SystemRandom()
+            is_compliant = _random.random() > 0.3  # 70% chance of compliance
 
             status = ComplianceStatus.COMPLIANT if is_compliant else ComplianceStatus.NON_COMPLIANT
 

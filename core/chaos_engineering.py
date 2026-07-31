@@ -8,7 +8,9 @@ Chaos Engineering Module
 
 import asyncio
 import logging
-import random
+import secrets
+
+_random = secrets.SystemRandom()
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -159,7 +161,7 @@ class ChaosEngine:
         Returns:
             实验结果
         """
-        delay_ms = parameters.get("delay_ms", random.randint(100, 1000))  # nosec B311
+        delay_ms = parameters.get("delay_ms", _random.randint(100, 1000))
         delay_seconds = delay_ms / 1000.0
 
         logger.warning(f"Injecting {delay_ms}ms latency")
@@ -309,7 +311,7 @@ class ChaosEngine:
     async def _simulate_random_error(self) -> bool:
         """模拟随机错误"""
         logger.debug("Simulating random error")
-        await asyncio.sleep(random.uniform(0.2, 0.8))  # nosec B311
+        await asyncio.sleep(_random.uniform(0.2, 0.8))
         return True
 
     async def _check_system_health(self) -> bool:

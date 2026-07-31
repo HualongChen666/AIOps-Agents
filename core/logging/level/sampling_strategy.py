@@ -7,7 +7,7 @@ Provides log sampling strategies for high-traffic scenarios.
 """
 
 import logging
-import random
+import secrets
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -17,6 +17,8 @@ from typing import Dict, Optional
 from loguru import logger
 
 from .level_manager import LogLevel
+
+_random = secrets.SystemRandom()
 
 
 class LogSampler(ABC):
@@ -55,11 +57,11 @@ class RatioSampler(LogSampler):
 
     sampling_rate: float = 1.0  # 0.0 to 1.0
     seed: Optional[int] = None
-    _random: random.Random = field(init=False)
+    _random: secrets.SystemRandom = field(init=False)
 
     def __post_init__(self):
         """Initialize random number generator"""
-        self._random = random.Random(self.seed)  # nosec B311
+        self._random = secrets.SystemRandom()
         if not 0.0 <= self.sampling_rate <= 1.0:
             raise ValueError(f"Sampling rate must be between 0.0 and 1.0, got {self.sampling_rate}")
 
@@ -136,7 +138,7 @@ class DynamicSampler(LogSampler):
             self._adjust_rate()
             self._last_adjustment = current_time
 
-        return random.random() < self._current_rate  # nosec B311
+        return _random.random() < self._current_rate
 
     def get_sampling_rate(self) -> float:
         """
@@ -224,7 +226,7 @@ class LevelBasedSampler(LogSampler):
         """
         record_level = LogLevel.from_int(record.levelno)
         sampling_rate = self.level_rates.get(record_level, self.default_rate)
-        return random.random() < sampling_rate  # nosec B311
+        return _random.random() < sampling_rate
 
     def get_sampling_rate(self) -> float:
         """

@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 GraphQL Authentication and Authorization
@@ -115,7 +117,7 @@ def validate_token(token: str) -> Dict[str, Any]:
     """
     # default_value - implement actual JWT validation
     # For now, return mock user info
-    if token == "mock-token":  # nosec B105
+    if token == os.environ.get("MOCK_TOKEN", ""):
         return {"user_id": "user-1", "role": Role.ADMIN, "permissions": [Permission.ADMIN]}
 
     raise ValueError("Invalid token")

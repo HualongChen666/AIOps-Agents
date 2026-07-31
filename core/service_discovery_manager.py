@@ -5,7 +5,9 @@ Enterprise-grade service discovery and health management
 """
 
 import asyncio
-import random
+import secrets
+
+_random = secrets.SystemRandom()
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -252,7 +254,7 @@ class ServiceDiscoveryManager:
         Returns:
             Selected instance
         """
-        return random.choice(instances)  # nosec B311
+        return _random.choice(instances)
 
     def _least_connections_select(self, instances: List[ServiceInstance]) -> ServiceInstance:
         """
@@ -278,9 +280,9 @@ class ServiceDiscoveryManager:
         """
         total_weight = sum(inst.weight for inst in instances)
         if total_weight == 0:
-            return random.choice(instances)  # nosec B311
+            return _random.choice(instances)
 
-        rand = random.uniform(0, total_weight)  # nosec B311
+        rand = _random.uniform(0, total_weight)
         current = 0
 
         for inst in instances:
@@ -307,7 +309,7 @@ class ServiceDiscoveryManager:
             await asyncio.sleep(0.1)  # Simulate network delay
 
             # For demonstration, randomly mark as healthy
-            is_healthy = random.random() > 0.1  # 90% chance of being healthy  # nosec B311
+            is_healthy = _random.random() > 0.1  # 90% chance of being healthy
 
             instance.last_health_check = datetime.now(timezone.utc)
             instance.status = ServiceStatus.HEALTHY if is_healthy else ServiceStatus.UNHEALTHY

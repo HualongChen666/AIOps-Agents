@@ -105,8 +105,8 @@ async def get_available_templates():
                         "status": "success",
                         "data": {
                             "plugin_id": "plugin-123",
-                            "package_path": "/tmp/plugin-123.zip",
-                        },  # nosec B108
+                            "package_path": "/app/packages/plugin-123.zip",
+                        },
                         "timestamp": "2026-07-03T09:00:00Z",
                     }
                 }

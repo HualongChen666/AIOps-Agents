@@ -220,9 +220,10 @@ class AuditIntegrationManager:
             await asyncio.sleep(0.5)
 
             # Simulate some audit trails
-            import random
+            import secrets
 
-            num_trails = random.randint(0, 10)  # nosec B311
+            _random = secrets.SystemRandom()
+            num_trails = _random.randint(0, 10)
 
             for i in range(num_trails):
                 trail = AuditTrail(
@@ -235,7 +236,7 @@ class AuditIntegrationManager:
                     event_type=f"sample_event_{i}",
                     action=f"Sample action {i}",
                     details={"collected_from": source.source_name},
-                    priority=random.choice(list(AuditPriority)),  # nosec B311
+                    priority=_random.choice(list(AuditPriority)),
                 )
 
                 self.audit_trails.append(trail)

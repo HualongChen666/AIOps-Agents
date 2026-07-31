@@ -49,7 +49,7 @@ jobs:
 
       - name: Security scan with bandit
         run: |
-          python -m bandit -r core api services aiops_agent sdk scripts
+          python -m bandit -c bandit.yaml -r core api services aiops_agent sdk scripts
 
       - name: Run tests with pytest
         run: |

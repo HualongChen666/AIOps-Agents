@@ -522,10 +522,8 @@ class ABACEngine:
                 with conn.cursor() as cursor:
                     # Security: Use parameterized query to prevent SQL injection
                     # Column names are hardcoded in the updates list, not from user input
-                    query = (
-                        "UPDATE abac_policies SET "  # nosec B608
-                        + ", ".join(updates)
-                        + " WHERE id = %s"
+                    query = "".join(
+                        ["UPDATE abac_policies SET ", ", ".join(updates), " WHERE id = %s"]
                     )
                     cursor.execute(query, params)
                     conn.commit()

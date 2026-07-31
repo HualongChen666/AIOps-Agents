@@ -316,20 +316,21 @@ class SecurityTestingSystem:
             List of vulnerabilities
         """
         # Simulate vulnerability findings for demonstration
-        import random
+        import secrets
 
+        _random = secrets.SystemRandom()
         vulnerabilities = []
 
         # Randomly generate some vulnerabilities
-        num_vulns = random.randint(0, 5)  # nosec B311
+        num_vulns = _random.randint(0, 5)
 
         for i in range(num_vulns):
-            severity = random.choice(list(SeverityLevel))  # nosec B311
+            severity = _random.choice(list(SeverityLevel))
             vuln = Vulnerability(
                 vulnerability_id=f"VULN_{test.test_id.upper()}_{i}",
                 title=f"Sample vulnerability {i + 1}",
                 severity=severity,
-                cwe_id=f"CWE-{random.randint(79, 125)}",  # nosec B311
+                cwe_id=f"CWE-{_random.randint(79, 125)}",
                 description=f"Sample vulnerability found during {test.test_name}",
                 affected_component=test.target,
                 remediation="Apply security patch or configuration change",

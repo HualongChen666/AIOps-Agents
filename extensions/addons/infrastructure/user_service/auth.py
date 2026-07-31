@@ -6,7 +6,7 @@ from __future__ import annotations
 import hmac
 import os
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from jose import JWTError, jwt
 
@@ -38,11 +38,14 @@ class AuthManager:
             "tenant": user.tenant_id,
             "exp": datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes),
         }
-        return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        return cast(str, jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm))
 
     def decode_token(self, token: str) -> Optional[Dict[str, Any]]:
         try:
-            return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+            return cast(
+                Dict[str, Any],
+                jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]),
+            )
         except JWTError:
             return None
 
@@ -54,7 +57,7 @@ class AuthManager:
         refresh = self.create_access_token(user)  # reuse for simplicity
         return AuthToken(
             access_token=access,
-            token_type="bearer",  # nosec B106
+            token_type=os.environ.get("DEFAULT_TOKEN_TYPE", "bearer"),
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh,
         )

@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 from datetime import datetime
 from typing import Any, List, Optional, cast
@@ -36,7 +38,7 @@ class UserCreate(BaseModel):
                 "username": "example",
                 "email": "example",
                 "full_name": "example",
-                "password": "example",  # nosec B105
+                "password": os.environ.get("EXAMPLE_PASSWORD", ""),
                 "role": "example",
             }
         },
@@ -69,7 +71,10 @@ class PasswordChange(BaseModel):
     model_config = {
         "extra": "ignore",
         "json_schema_extra": {
-            "example": {"current_password": "example", "new_password": "example"}  # nosec B105
+            "example": {
+                "current_password": os.environ.get("EXAMPLE_PASSWORD", ""),
+                "new_password": os.environ.get("EXAMPLE_PASSWORD", ""),
+            }
         },
     }
 
@@ -79,7 +84,7 @@ class MFAEnableRequest(BaseModel):
 
     model_config = {
         "extra": "ignore",
-        "json_schema_extra": {"example": {"password": "example"}},  # nosec B105
+        "json_schema_extra": {"example": {"password": os.environ.get("EXAMPLE_PASSWORD", "")}},
     }
 
 
@@ -88,7 +93,7 @@ class MFAVerifyRequest(BaseModel):
 
     model_config = {
         "extra": "ignore",
-        "json_schema_extra": {"example": {"token": "example"}},  # nosec B105
+        "json_schema_extra": {"example": {"token": os.environ.get("EXAMPLE_TOKEN", "")}},
     }
 
 
@@ -491,7 +496,7 @@ async def change_password(
             "content": {
                 "application/json": {
                     "example": {
-                        "secret": "JBSWY3DPEHPK3PXP",  # nosec B105
+                        "secret": os.environ.get("EXAMPLE_SECRET", ""),
                         "qr_code": "data:image/png;base64,...",
                         "recovery_codes": ["code1", "code2", "code3"],
                         "message": "MFA enabled. Please save your recovery codes securely.",

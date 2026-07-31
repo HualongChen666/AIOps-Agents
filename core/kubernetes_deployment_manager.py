@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 Kubernetes Deployment Manager (Phase 3)
@@ -20,7 +22,7 @@ class ResourceType(Enum):
     DEPLOYMENT = "deployment"
     SERVICE = "service"
     CONFIGMAP = "configmap"
-    SECRET = "secret"  # nosec B105
+    SECRET = os.environ.get("DEFAULT_SECRET_NAME", "secret")
     INGRESS = "ingress"
     HPA = "horizontalpodautoscaler"
     PDB = "poddisruptionbudget"

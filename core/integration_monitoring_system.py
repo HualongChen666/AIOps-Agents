@@ -417,8 +417,9 @@ class IntegrationMonitoringSystem:
 
     async def _collect_metrics(self) -> None:
         """Collect metrics from all monitors"""
-        import random
+        import secrets
 
+        _random = secrets.SystemRandom()
         # Simulate metric collection
         for monitor in self.monitors.values():
             if not monitor.enabled:
@@ -426,19 +427,19 @@ class IntegrationMonitoringSystem:
 
             # Simulate random values
             if "cpu" in monitor.target:
-                value = random.uniform(20.0, 95.0)  # nosec B311
+                value = _random.uniform(20.0, 95.0)
             elif "memory" in monitor.target:
-                value = random.uniform(40.0, 90.0)  # nosec B311
+                value = _random.uniform(40.0, 90.0)
             elif "disk" in monitor.target:
-                value = random.uniform(30.0, 95.0)  # nosec B311
+                value = _random.uniform(30.0, 95.0)
             elif "latency" in monitor.target:
-                value = random.uniform(50.0, 800.0)  # nosec B311
+                value = _random.uniform(50.0, 800.0)
             elif "error_rate" in monitor.target:
-                value = random.uniform(0.0, 10.0)  # nosec B311
+                value = _random.uniform(0.0, 10.0)
             elif "health" in monitor.target:
-                value = 1.0 if random.random() > 0.1 else 0.0  # nosec B311
+                value = 1.0 if _random.random() > 0.1 else 0.0
             else:
-                value = random.uniform(0.0, 100.0)  # nosec B311
+                value = _random.uniform(0.0, 100.0)
 
             await self.record_metric(monitor.target, value)
 

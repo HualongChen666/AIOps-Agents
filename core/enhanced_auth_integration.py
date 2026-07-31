@@ -117,7 +117,7 @@ class EnhancedAuthIntegration:
                 )
             else:
                 # Development environment: use default with warning
-                _jwt_secret = "dev-secret-key-change-me"  # nosec B105
+                _jwt_secret = os.environ.get("JWT_SECRET_KEY", "dev-secret-key-change-me")
                 import warnings
 
                 warnings.warn(

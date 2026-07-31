@@ -718,9 +718,10 @@ def get_read_connection(  # noqa: E501
 
         # Select replica based on weight (simplified)
         total_weight = sum(r.weight for r in available_replicas)
-        import random
+        import secrets
 
-        rand = random.uniform(0, total_weight)  # nosec B311
+        _random = secrets.SystemRandom()
+        rand = _random.uniform(0, total_weight)
         cumulative = 0
         for replica in available_replicas:
             cumulative += replica.weight

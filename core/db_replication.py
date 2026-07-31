@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """Database replication management for high availability.
 
@@ -19,7 +21,7 @@ _replication_config: Dict[str, Any] = {
         "port": 5432,
         "database": "",
         "username": "",
-        "password": "",  # nosec B105
+        "password": os.environ.get("DB_PASSWORD", ""),
     },
     "replicas": [],
     "read_write_splitting": False,

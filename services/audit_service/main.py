@@ -4,6 +4,7 @@ Exposes audit logs and allows recording new audit events.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -37,6 +38,6 @@ async def list_logs(limit: Optional[int] = Query(100, ge=1, le=5000)) -> List[Di
 if __name__ == "__main__":
     uvicorn.run(
         "services.audit_service.main:app",
-        host="0.0.0.0",  # nosec B104
+        host=os.environ.get("HOST", "127.0.0.1"),
         port=int(sys.argv[1]) if len(sys.argv) > 1 else 8004,
     )

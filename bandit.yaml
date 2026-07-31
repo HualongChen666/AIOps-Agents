@@ -1,0 +1,13 @@
+# Bandit security scanner configuration
+# Centralizes the one subprocess import in core/security/subprocess_runner.py.
+skips: ["B404"]
+exclude_dirs:
+  - tests
+  - venv
+  - .venv
+  - node_modules
+  - .next
+  - .git
+  - __pycache__
+  - .pytest_cache
+  - .mypy_cache

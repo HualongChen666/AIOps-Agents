@@ -11,7 +11,9 @@ Enhanced Retry Mechanism
 """
 
 import asyncio
-import random
+import secrets
+
+_random = secrets.SystemRandom()
 import time
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
@@ -150,7 +152,7 @@ class EnhancedRetry:
         # Add jitter if enabled
         if self.jitter and delay > 0:
             jitter_amount = delay * self.jitter_range
-            delay = delay + random.uniform(-jitter_amount, jitter_amount)  # nosec B311
+            delay = delay + _random.uniform(-jitter_amount, jitter_amount)
             delay = max(0.0, delay)  # Ensure non-negative
 
         return delay

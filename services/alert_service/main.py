@@ -89,6 +89,6 @@ async def process_alert(alert: Dict[str, Any]) -> Dict[str, Any]:
 if __name__ == "__main__":
     uvicorn.run(
         "services.alert_service.main:app",
-        host="0.0.0.0",  # nosec B104
+        host=os.environ.get("HOST", "127.0.0.1"),
         port=int(sys.argv[1]) if len(sys.argv) > 1 else 8001,
     )

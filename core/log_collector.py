@@ -187,7 +187,7 @@ def _execute_powershell_with_timeout(
         powershell_path = shutil.which("powershell") or "powershell"
         proc = subprocess_runner.Popen(
             [powershell_path, "-NonInteractive", "-NoProfile", "-Command", command],
-            shell=False,  # nosec B603
+            shell=False,
             stdout=subprocess_runner.PIPE,
             stderr=subprocess_runner.PIPE,
             text=True,

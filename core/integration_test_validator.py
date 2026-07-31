@@ -292,9 +292,10 @@ class IntegrationTestValidator:
             await asyncio.sleep(2)  # Simulate validation
 
             # Simulate validation result (random for demonstration)
-            import random
+            import secrets
 
-            is_passed = random.random() > 0.15  # 85% chance of passing  # nosec B311
+            _random = secrets.SystemRandom()
+            is_passed = _random.random() > 0.15  # 85% chance of passing
 
             # Update execution
             execution.result = ValidationResult.PASSED if is_passed else ValidationResult.FAILED

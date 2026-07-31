@@ -36,7 +36,7 @@ def _run_shell(command: str) -> subprocess_runner.CompletedProcess:
         parts,
         capture_output=True,
         text=True,
-        shell=False,  # nosec B603
+        shell=False,
     )
 
 

@@ -546,17 +546,18 @@ class DataIntegrationManager:
             await asyncio.sleep(1)
 
             # Simulate some records
-            import random
+            import secrets
 
-            num_records = random.randint(0, 20)  # nosec B311
+            _random = secrets.SystemRandom()
+            num_records = _random.randint(0, 20)
 
             for i in range(num_records):
                 await self.ingest_data(
                     source.source_id,
                     {
                         "data": f"sample_data_{i}",
-                        "value": random.randint(1, 100),  # nosec B311
-                    },  # nosec B311  # noqa: E501
+                        "value": _random.randint(1, 100),
+                    },
                 )
 
             return {

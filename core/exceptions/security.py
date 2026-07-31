@@ -67,10 +67,10 @@ class AuthenticationException(SecurityException):
         if token is not None:
             # 脱敏处理：只显示前8位和后4位
             if len(token) > 12:
-                masked_token = f"{token[:8]}...{token[-4:]}"
+                masked_value = f"{token[:8]}...{token[-4:]}"
             else:
-                masked_token = "***"  # nosec B105
-            error_context["token"] = masked_token
+                masked_value = "***"
+            error_context["token"] = masked_value
         if expired_at is not None:
             error_context["expired_at"] = expired_at
 

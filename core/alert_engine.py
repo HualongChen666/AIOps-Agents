@@ -39,7 +39,9 @@ P2 Enhancement:
 import asyncio
 import datetime
 import json
-import random
+import secrets
+
+_random = secrets.SystemRandom()
 import statistics
 from collections import deque
 from dataclasses import dataclass
@@ -231,7 +233,7 @@ def _check_ssh_brute_force(
     now_str = now.strftime("%H:%M:%S")
 
     # 🔧 AL12 [P2]:毫秒精度 + 4 位随机后缀,杜绝同毫秒冲突
-    unique_suffix = now.strftime("%H%M%S%f")[:-3] + f"-{random.randint(1000, 9999)}"  # nosec B311
+    unique_suffix = now.strftime("%H%M%S%f")[:-3] + f"-{_random.randint(1000, 9999)}"
 
     alert = {
         "id": f"SEC-SSH-{host_name}-{unique_suffix}",
@@ -371,10 +373,7 @@ async def check_linux_security_alerts(
                 )
             else:
                 now_str = now.strftime("%H:%M:%S")
-                unique_suffix = (
-                    now.strftime("%H%M%S%f")[:-3]
-                    + f"-{random.randint(1000, 9999)}"  # nosec B311  # noqa: E501
-                )
+                unique_suffix = now.strftime("%H%M%S%f")[:-3] + f"-{_random.randint(1000, 9999)}"
                 alert = {
                     "id": f"SEC-SSH-{host_name}-{unique_suffix}",
                     "level": "critical",

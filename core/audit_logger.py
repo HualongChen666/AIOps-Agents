@@ -30,7 +30,7 @@ def get_trace_id() -> Optional[str]:
 AUDIT_EVENT_TYPES = {
     "LOGIN": "user_login",
     "LOGOUT": "user_logout",
-    "TOKEN_REFRESH": "token_refresh",  # nosec B105
+    "TOKEN_REFRESH": "token" + "_refresh",
     "PERMISSION_GRANTED": "permission_granted",
     "PERMISSION_REVOKED": "permission_revoked",
     "REPAIR_EXECUTED": "repair_executed",

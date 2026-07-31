@@ -113,7 +113,7 @@ def _inspect_pod_state(namespace: str, pod: str) -> Dict[str, Any]:
             return {"error": "kubectl executable not found in PATH"}
         proc = subprocess_runner.run(
             [kubectl_path, "get", "pod", pod, "-n", namespace, "-o", "json"],
-            shell=False,  # nosec B603
+            shell=False,
             capture_output=True,
             text=True,
             timeout=30,

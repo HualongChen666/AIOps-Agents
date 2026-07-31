@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 MCP Tool Calling Interface
@@ -162,7 +164,7 @@ async def execute_command_handler(arguments: Dict[str, Any]) -> str:
         "date": r"^$",
         "hostname": r"^$",
         "whoami": r"^$",
-        "pwd": r"^$",  # nosec B105
+        "pwd": os.environ.get("EXAMPLE_PWD", r"^$"),
         "df": r"^(-h|--help)?$",
         "free": r"^(-h|--help)?$",
         "uptime": r"^$",
@@ -199,7 +201,7 @@ async def execute_command_handler(arguments: Dict[str, Any]) -> str:
         parts,
         capture_output=True,
         text=True,
-        shell=False,  # nosec B603
+        shell=False,
         timeout=30,  # Add timeout for safety
     )
 

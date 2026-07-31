@@ -3,6 +3,7 @@
 Creates repair tasks and executes them after human approval.
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -90,6 +91,6 @@ async def approve_repair(repair_id: str) -> Dict[str, Any]:
 if __name__ == "__main__":
     uvicorn.run(
         "services.repair_service.main:app",
-        host="0.0.0.0",  # nosec B104
+        host=os.environ.get("HOST", "127.0.0.1"),
         port=int(sys.argv[1]) if len(sys.argv) > 1 else 8002,
     )

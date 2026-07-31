@@ -150,7 +150,7 @@ class WorkflowVisualizer:
                     dot_path = shutil.which("dot") or "dot"
                     subprocess_runner.run(
                         [dot_path, "-Tpng", output_path, "-o", output_path.replace(".dot", ".png")],
-                        shell=False,  # nosec B603
+                        shell=False,
                         check=True,
                     )
                     logger.info("Graphviz PNG saved")

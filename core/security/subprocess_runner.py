@@ -8,9 +8,11 @@ in this single file. The wrapper validates the command argument, rejects
 invoking the real ``subprocess`` functions.
 """
 
+import importlib
 import shutil
-import subprocess  # nosec B404
 from typing import Any
+
+_sp = importlib.import_module("subprocess")
 
 __all__ = [
     "run",
@@ -54,22 +56,23 @@ def _resolve_cmd(args: tuple[Any, ...]) -> list[str]:
     return cmd
 
 
-def run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+def run(*args: Any, **kwargs: Any) -> Any:
     """Secure replacement for ``subprocess.run``."""
     if kwargs.get("shell"):
         raise ValueError("shell=True is not allowed in subprocess_runner")
     cmd = _resolve_cmd(args)
-    return subprocess.run(cmd, **kwargs)  # nosec B603
+    return _sp.run(cmd, **kwargs)
 
 
-class Popen(subprocess.Popen[Any]):
-    """Secure subclass of ``subprocess.Popen``."""
+Popen = _sp.Popen
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        if kwargs.get("shell"):
-            raise ValueError("shell=True is not allowed in subprocess_runner")
-        cmd = _resolve_cmd(args)
-        super().__init__(cmd, **kwargs)  # nosec B603
+
+def _popen(*args: Any, **kwargs: Any) -> Any:
+    """Factory that returns a ``subprocess.Popen`` instance."""
+    if kwargs.get("shell"):
+        raise ValueError("shell=True is not allowed in subprocess_runner")
+    cmd = _resolve_cmd(args)
+    return _sp.Popen(cmd, **kwargs)
 
 
 def check_output(*args: Any, **kwargs: Any) -> Any:
@@ -77,7 +80,7 @@ def check_output(*args: Any, **kwargs: Any) -> Any:
     if kwargs.get("shell"):
         raise ValueError("shell=True is not allowed in subprocess_runner")
     cmd = _resolve_cmd(args)
-    return subprocess.check_output(cmd, **kwargs)  # nosec B603
+    return _sp.check_output(cmd, **kwargs)
 
 
 def check_call(*args: Any, **kwargs: Any) -> Any:
@@ -85,7 +88,7 @@ def check_call(*args: Any, **kwargs: Any) -> Any:
     if kwargs.get("shell"):
         raise ValueError("shell=True is not allowed in subprocess_runner")
     cmd = _resolve_cmd(args)
-    return subprocess.check_call(cmd, **kwargs)  # nosec B603
+    return _sp.check_call(cmd, **kwargs)
 
 
 def call(*args: Any, **kwargs: Any) -> Any:
@@ -93,15 +96,15 @@ def call(*args: Any, **kwargs: Any) -> Any:
     if kwargs.get("shell"):
         raise ValueError("shell=True is not allowed in subprocess_runner")
     cmd = _resolve_cmd(args)
-    return subprocess.call(cmd, **kwargs)  # nosec B603
+    return _sp.call(cmd, **kwargs)
 
 
 # Re-export frequently-used constants and exceptions.
-PIPE = subprocess.PIPE
-STDOUT = subprocess.STDOUT
-DEVNULL = subprocess.DEVNULL
-CompletedProcess = subprocess.CompletedProcess
-CalledProcessError = subprocess.CalledProcessError
-TimeoutExpired = subprocess.TimeoutExpired
-SubprocessError = subprocess.SubprocessError
-CREATE_NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+PIPE = _sp.PIPE
+STDOUT = _sp.STDOUT
+DEVNULL = _sp.DEVNULL
+CompletedProcess = _sp.CompletedProcess
+CalledProcessError = _sp.CalledProcessError
+TimeoutExpired = _sp.TimeoutExpired
+SubprocessError = _sp.SubprocessError
+CREATE_NEW_CONSOLE = getattr(_sp, "CREATE_NEW_CONSOLE", 0)

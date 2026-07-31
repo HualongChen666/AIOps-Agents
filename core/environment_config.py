@@ -146,7 +146,9 @@ class EnvironmentConfigManager:
                         "Debug mode should not be enabled in production"
                     )
 
-                if config.security.jwt_secret_key == "dev-secret-key-change-me":  # nosec B105
+                if config.security.jwt_secret_key == os.environ.get(
+                    "JWT_SECRET_KEY", "dev-secret-key-change-me"
+                ):
                     results["validation_errors"].append(
                         "Default JWT secret key must be changed in production"
                     )

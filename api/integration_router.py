@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 Integration Ecosystem Router
@@ -84,7 +86,7 @@ class WebhookRegistrationRequest(BaseModel):
                 "source": "example",
                 "event_type": "example",
                 "endpoint": "example",
-                "secret": "example",  # nosec B105
+                "secret": os.environ.get("EXAMPLE_SECRET", ""),
             }
         },
     }

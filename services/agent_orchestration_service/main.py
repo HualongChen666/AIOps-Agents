@@ -3,6 +3,7 @@
 Provides a single endpoint to run the full heal workflow for a given alert.
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -46,6 +47,6 @@ async def orchestrate(payload: OrchestratePayload) -> Dict[str, Any]:
 if __name__ == "__main__":
     uvicorn.run(
         "services.agent_orchestration_service.main:app",
-        host="0.0.0.0",  # nosec B104
+        host=os.environ.get("HOST", "127.0.0.1"),
         port=int(sys.argv[1]) if len(sys.argv) > 1 else 8003,
     )

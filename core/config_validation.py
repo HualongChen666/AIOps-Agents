@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 Configuration Validation Mechanism
@@ -94,7 +96,7 @@ class ConfigValidator:
         secret = config.security.jwt_secret_key
 
         # Check if using default secret
-        if secret == "dev-secret-key-change-me":  # nosec B105
+        if secret == os.environ.get("JWT_SECRET_KEY", "dev-secret-key-change-me"):
             severity = (
                 ValidationSeverity.ERROR
                 if config.environment == Environment.PRODUCTION

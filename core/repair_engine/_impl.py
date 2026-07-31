@@ -566,7 +566,7 @@ def _run_powershell(command: str) -> Dict[str, Any]:
                 "-Command",
                 full_cmd,
             ],
-            shell=False,  # nosec B603
+            shell=False,
             stdout=subprocess_runner.PIPE,
             stderr=subprocess_runner.PIPE,
             text=True,

@@ -312,7 +312,7 @@ def _bash(command: Any, cwd: Optional[str] = None, timeout: Optional[int] = None
         timeout = max(1, min(int(timeout), _MAX_BASH_TIMEOUT))
 
     try:
-        result = subprocess_runner.run(  # nosec B603
+        result = subprocess_runner.run(
             args,
             cwd=str(resolved_cwd),
             capture_output=True,

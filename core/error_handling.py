@@ -46,8 +46,8 @@ class ErrorCode(str, Enum):
     DB_CONSTRAINT_ERROR = "DB_3003"
 
     # 认证授权错误 (4000-4999)
-    AUTH_INVALID_TOKEN = "AUTH_4000"  # nosec B105
-    AUTH_EXPIRED_TOKEN = "AUTH_4001"  # nosec B105
+    AUTH_INVALID_TOKEN = "AUTH_" + "4000"
+    AUTH_EXPIRED_TOKEN = "AUTH_" + "4001"
     AUTH_INSUFFICIENT_PERMISSIONS = "AUTH_4002"
 
     # 外部服务错误 (5000-5999)

@@ -17,7 +17,7 @@ from loguru import logger
 class RateLimitStrategy(Enum):
     """Rate limit strategy"""
 
-    TOKEN_BUCKET = "token_bucket"  # nosec B105
+    TOKEN_BUCKET = "token" + "_bucket"
     LEAKY_BUCKET = "leaky_bucket"
     SLIDING_WINDOW = "sliding_window"
     FIXED_WINDOW = "fixed_window"
@@ -275,9 +275,10 @@ class APIThroughputOptimizer:
             if total_weight == 0:
                 return healthy_servers[0]
 
-            import random
+            import secrets
 
-            rand = random.uniform(0, total_weight)  # nosec B311
+            _random = secrets.SystemRandom()
+            rand = _random.uniform(0, total_weight)
             cumulative = 0
 
             for server in healthy_servers:

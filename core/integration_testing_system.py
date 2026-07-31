@@ -326,9 +326,10 @@ class IntegrationTestingSystem:
             await asyncio.sleep(2)  # Simulate test execution
 
             # Simulate test result (random for demonstration)
-            import random
+            import secrets
 
-            is_passed = random.random() > 0.2  # 80% chance of passing  # nosec B311
+            _random = secrets.SystemRandom()
+            is_passed = _random.random() > 0.2  # 80% chance of passing
 
             # Update execution
             execution.status = TestStatus.PASSED if is_passed else TestStatus.FAILED
@@ -336,7 +337,7 @@ class IntegrationTestingSystem:
             execution.duration = (execution.completed_at - execution.started_at).total_seconds()
             execution.passed = is_passed
             execution.failed = not is_passed
-            execution.coverage = random.uniform(70.0, 95.0)  # nosec B311
+            execution.coverage = _random.uniform(70.0, 95.0)
             execution.output = f"Test {'passed' if is_passed else 'failed'}"
 
             if is_passed:

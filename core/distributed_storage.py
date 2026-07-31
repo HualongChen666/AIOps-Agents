@@ -5,7 +5,9 @@
 """
 
 import logging
-import random
+import secrets
+
+_random = secrets.SystemRandom()
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -97,7 +99,7 @@ class ReadWriteRouter:
         if total_weight == 0:
             return available_slaves[0]
 
-        rand = random.randint(0, total_weight)  # nosec B311
+        rand = _random.randint(0, total_weight)
         current_weight = 0
         for slave in available_slaves:
             current_weight += slave.weight

@@ -248,16 +248,17 @@ class PerformanceIntegrationTester:
             await asyncio.sleep(3)  # Simulate ramp-up
 
             # Simulate metrics collection
-            import random
+            import secrets
 
+            _random = secrets.SystemRandom()
             response_times = []
             throughputs = []
             error_rates = []
 
             for _ in range(test.duration):
-                response_time = random.uniform(100.0, 800.0)  # nosec B311
-                throughput = random.uniform(50.0, 200.0)  # nosec B311
-                error_rate = random.uniform(0.0, 5.0)  # nosec B311
+                response_time = _random.uniform(100.0, 800.0)
+                throughput = _random.uniform(50.0, 200.0)
+                error_rate = _random.uniform(0.0, 5.0)
 
                 response_times.append(response_time)
                 throughputs.append(throughput)

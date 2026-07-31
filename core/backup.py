@@ -128,7 +128,7 @@ class BackupManager:
             # Check Wal-G availability
             result = subprocess_runner.run(
                 [self.wal_g_path, "version"], capture_output=True, text=True, shell=False
-            )  # nosec B603
+            )
 
             if result.returncode == 0:
                 self._is_initialized = True
@@ -177,7 +177,7 @@ class BackupManager:
                 cmd.append("--detail")
 
             # Execute backup
-            result = subprocess_runner.run(  # nosec B603
+            result = subprocess_runner.run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -265,11 +265,11 @@ class BackupManager:
                 cmd.extend(["--target-time", target_time.isoformat()])
 
             # Execute restore
-            result = subprocess_runner.run(  # nosec B603
+            result = subprocess_runner.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                shell=False,  # nosec B603
+                shell=False,
                 timeout=7200,  # 2 hour timeout
             )
 
@@ -298,7 +298,7 @@ class BackupManager:
             # Build Wal-G list command
             cmd = [self.wal_g_path, "backup-list"]
 
-            result = subprocess_runner.run(  # nosec B603
+            result = subprocess_runner.run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -341,11 +341,11 @@ class BackupManager:
                     backup_name = backup.get("backup_name")
                     cmd = [self.wal_g_path, "backup-delete", backup_name, "--confirm"]
 
-                    result = subprocess_runner.run(  # nosec B603
+                    result = subprocess_runner.run(
                         cmd,
                         capture_output=True,
                         text=True,
-                        shell=False,  # nosec B603
+                        shell=False,
                     )
 
                     if result.returncode == 0:

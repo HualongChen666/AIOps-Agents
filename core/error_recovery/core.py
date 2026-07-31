@@ -214,9 +214,10 @@ class RetryPolicy:
 
         # 添加随机抖动
         if self.config.jitter:
-            import random
+            import secrets
 
-            delay = delay * (0.5 + random.random() * 0.5)  # nosec B311
+            _random = secrets.SystemRandom()
+            delay = delay * (0.5 + _random.random() * 0.5)
 
         return delay
 

@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
 
+import httpx
 from loguru import logger as loguru_logger
 
 # Import logging context manager
@@ -308,9 +309,6 @@ def setup_loki_logging(loki_url: str, service_name: str = "aiops-agent") -> bool
         True if the sink was registered, False otherwise.
     """
     try:
-        import urllib.request
-        from urllib.error import URLError
-
         endpoint = f"{loki_url.rstrip('/')}/loki/api/v1/push"
 
         def loki_sink(message: str) -> None:
@@ -332,15 +330,13 @@ def setup_loki_logging(loki_url: str, service_name: str = "aiops-agent") -> bool
                     ]
                 }
                 data = json.dumps(payload).encode("utf-8")
-                req = urllib.request.Request(
+                httpx.post(
                     endpoint,
-                    data=data,
+                    content=data,
                     headers={"Content-Type": "application/json"},
-                    method="POST",
+                    timeout=2,
                 )
-                with urllib.request.urlopen(req, timeout=2) as resp:  # nosec B310
-                    resp.read()
-            except URLError:
+            except httpx.RequestError:
                 logging.warning("Suppressed exception", exc_info=True)
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)

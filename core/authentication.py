@@ -335,11 +335,11 @@ class Token(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "access_token": "example",
-                "token_type": "example",
-            }  # nosec B105  # noqa: E501
-        }  # nosec B105  # noqa: E501
-    }  # nosec B105  # noqa: E501
+                "access_token": os.environ.get("EXAMPLE_ACCESS_TOKEN", ""),
+                "token_type": os.environ.get("EXAMPLE_TOKEN_TYPE", ""),
+            },
+        },
+    }
 
 
 class TokenData(BaseModel):
@@ -818,7 +818,10 @@ async def login_for_access_token(username: str = Form(...), password: str = Form
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}  # nosec B105
+    return {
+        "access_token": access_token,
+        "token_type": os.environ.get("DEFAULT_TOKEN_TYPE", "bearer"),
+    }
 
 
 @router.post("/revoke")

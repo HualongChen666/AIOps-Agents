@@ -34,7 +34,7 @@ def _run_cmd(cmd: list[str]) -> subprocess_runner.CompletedProcess:
             cmd,
             capture_output=True,
             text=True,
-            shell=False,  # nosec B603
+            shell=False,
             check=False,
         )
         if result.returncode != 0:
@@ -99,7 +99,7 @@ class GitOpsManager:
         if self.kubeconfig:
             cmd.extend(["--kubeconfig", self.kubeconfig])
         result = _run_cmd(cmd)
-        return result.returncode == 0
+        return bool(result.returncode == 0)
 
     # ------------------------------------------------------------------
     # Rollout 状态查询
@@ -139,7 +139,7 @@ class GitOpsManager:
         if self.kubeconfig:
             cmd.extend(["--kubeconfig", self.kubeconfig])
         result = _run_cmd(cmd)
-        return result.returncode == 0
+        return bool(result.returncode == 0)
 
     # ------------------------------------------------------------------
     # 直接调用 ``kubectl`` 的简易查询（可选）

@@ -5,7 +5,9 @@ Enhanced database read-write splitting with intelligent routing and load balanci
 """
 
 import asyncio
-import random
+import secrets
+
+_random = secrets.SystemRandom()
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -213,7 +215,7 @@ class ReadWriteRouter:
         elif self.load_balancing_method == "least_connections":
             return self._least_connections_select(available_replicas)
         else:
-            return random.choice(available_replicas)  # nosec B311
+            return _random.choice(available_replicas)
 
     def _round_robin_select(self, replicas: List[ReplicaInfo]) -> ReplicaInfo:
         """Select replica using round-robin"""

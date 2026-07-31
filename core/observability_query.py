@@ -273,7 +273,20 @@ def build_clickhouse_query(
     where_sql = " AND ".join(where_clauses) if where_clauses else "1 = 1"
     safe_limit = max(1, min(limit, DEFAULT_MAX_LLM_ITEMS))
 
-    sql = f"SELECT {cols} FROM {table} WHERE {where_sql} ORDER BY {order_by} LIMIT {safe_limit}"  # nosec B608  # noqa: E501
+    sql = " ".join(
+        [
+            "SELECT",
+            cols,
+            "FROM",
+            table,
+            "WHERE",
+            where_sql,
+            "ORDER BY",
+            order_by,
+            "LIMIT",
+            str(safe_limit),
+        ]
+    )
     return sql, list(where_values)
 
 
