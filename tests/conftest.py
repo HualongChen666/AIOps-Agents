@@ -174,6 +174,22 @@ def pytest_runtest_setup(item):
         pytest.skip("ENABLE_ADDONS is not true")
 
 
+@pytest.fixture(autouse=True, scope="function")
+def _reset_module_level_state():
+    """Reset mutable module-level globals before each test to avoid cross-test leakage."""
+    try:
+        from core import alert_engine, api_performance
+
+        # Reset constants that some tests may have monkeypatched and not restored
+        alert_engine._DEDUP_CACHE_MAX = 200
+        alert_engine._DEDUP_WINDOW_SEC = 300
+        alert_engine._dedup_cache.clear()
+        api_performance.API_PERFORMANCE_STATS.clear()
+    except Exception:
+        pass
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
     """设置测试环境"""

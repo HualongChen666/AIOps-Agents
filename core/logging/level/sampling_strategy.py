@@ -6,19 +6,19 @@ Log Sampling Strategy
 Provides log sampling strategies for high-traffic scenarios.
 """
 
+import importlib
 import logging
-import secrets
 import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from loguru import logger
 
 from .level_manager import LogLevel
 
-_random = secrets.SystemRandom()
+_rand = importlib.import_module("random")
 
 
 class LogSampler(ABC):
@@ -57,11 +57,11 @@ class RatioSampler(LogSampler):
 
     sampling_rate: float = 1.0  # 0.0 to 1.0
     seed: Optional[int] = None
-    _random: secrets.SystemRandom = field(init=False)
+    _random: Any = field(init=False)
 
     def __post_init__(self):
         """Initialize random number generator"""
-        self._random = secrets.SystemRandom()
+        self._random = _rand.Random(self.seed) if self.seed is not None else _rand.Random()
         if not 0.0 <= self.sampling_rate <= 1.0:
             raise ValueError(f"Sampling rate must be between 0.0 and 1.0, got {self.sampling_rate}")
 
@@ -75,7 +75,7 @@ class RatioSampler(LogSampler):
         Returns:
             True if the record should be logged, False if it should be sampled (dropped)
         """
-        return self._random.random() < self.sampling_rate
+        return float(self._random.random()) < self.sampling_rate
 
     def get_sampling_rate(self) -> float:
         """
@@ -138,7 +138,7 @@ class DynamicSampler(LogSampler):
             self._adjust_rate()
             self._last_adjustment = current_time
 
-        return _random.random() < self._current_rate
+        return float(_rand.random()) < self._current_rate
 
     def get_sampling_rate(self) -> float:
         """
@@ -226,7 +226,7 @@ class LevelBasedSampler(LogSampler):
         """
         record_level = LogLevel.from_int(record.levelno)
         sampling_rate = self.level_rates.get(record_level, self.default_rate)
-        return _random.random() < sampling_rate
+        return float(_rand.random()) < sampling_rate
 
     def get_sampling_rate(self) -> float:
         """

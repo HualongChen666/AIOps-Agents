@@ -5,6 +5,7 @@ Enterprise-grade compliance management with regulatory frameworks and audit trai
 """
 
 import asyncio
+import importlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -313,10 +314,8 @@ class ComplianceManager:
             await asyncio.sleep(0.5)
 
             # Simulate check result (random for demonstration)
-            import secrets
-
-            _random = secrets.SystemRandom()
-            is_compliant = _random.random() > 0.3  # 70% chance of compliance
+            _rand = importlib.import_module("random")
+            is_compliant = float(_rand.random()) > 0.3  # 70% chance of compliance
 
             status = ComplianceStatus.COMPLIANT if is_compliant else ComplianceStatus.NON_COMPLIANT
 

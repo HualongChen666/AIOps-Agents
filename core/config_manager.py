@@ -157,7 +157,7 @@ class ConfigManager:
                     "Please set a strong, unique secret key via: "
                     "export JWT_SECRET_KEY=<your-secret-key>"
                 )
-            _jwt_secret = os.environ.get("JWT_SECRET_KEY", "dev-secret-key-change-me")
+            _jwt_secret = os.environ.get("JWT_SECRET_KEY") or "dev-secret-key-change-me"
             logger.warning(
                 "Using default JWT secret key! This is insecure for production. "
                 "Please set JWT_SECRET_KEY environment variable for production use."

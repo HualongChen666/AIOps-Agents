@@ -140,6 +140,14 @@ class _InMemoryScheduler:
         for task in list(self._tasks.values()):
             if not task.done():
                 task.cancel()
+                # Close the underlying coroutine so the interpreter does not warn
+                # about it being never awaited after the task is destroyed.
+                coro = task.get_coro()
+                if coro is not None and hasattr(coro, "close"):
+                    try:
+                        coro.close()
+                    except RuntimeError:
+                        pass
                 # Suppress the "Task was destroyed but it is pending!" warning
                 # because we intentionally cannot await a closed event loop.
                 setattr(task, "_log_destroy_pending", False)
