@@ -73,9 +73,11 @@ def run():
 
         webhook = r.json()
         results = webhook.get("results", [])
-        assert results, "No alerts were processed"
+        if not results:
+            raise ValueError("No alerts were processed")
         alert_id = results[0].get("alert_id")
-        assert alert_id, "alert_id missing from webhook response"
+        if not alert_id:
+            raise ValueError("alert_id missing from webhook response")
 
         # 2. Read pending approvals (HITL queue)
         r = client.get("/api/v1/approvals/pending", timeout=30)

@@ -6,6 +6,7 @@ Migrates historical metrics data from SQLite to VictoriaMetrics
 """
 
 import argparse
+import ast
 import asyncio
 import os
 import sqlite3
@@ -87,7 +88,7 @@ class MetricsMigrator:
                     {
                         "name": row[0],
                         "value": row[1],
-                        "labels": eval(row[2]) if isinstance(row[2], str) else row[2],
+                        "labels": ast.literal_eval(row[2]) if isinstance(row[2], str) else row[2],
                         "timestamp": row[3],
                     }
                 )
