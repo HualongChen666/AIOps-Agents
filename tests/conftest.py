@@ -121,6 +121,7 @@ def pytest_collection_modifyitems(config, items):
             continue
         if "smoke" in path.name:
             item.add_marker(getattr(pytest.mark, "smoke"))
+            item.add_marker(getattr(pytest.mark, "timeout")(5))
             continue
         parts = relpath.parts
         mark = None

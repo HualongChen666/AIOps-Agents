@@ -260,16 +260,17 @@ ASYNC_TIMEOUT_SECONDS = 1
 def _call_or_run(obj: Callable[..., Any], kwargs: Dict[str, Any]) -> None:
     try:
         result = obj(**kwargs)
-    except Exception as e:
+    except BaseException as e:
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
         logging.exception("Unexpected exception: %s", e)
         return
     if inspect.iscoroutine(result):
         try:
             asyncio.run(asyncio.wait_for(result, timeout=ASYNC_TIMEOUT_SECONDS))
-        except (RuntimeError, asyncio.TimeoutError):
-            pass
-        except Exception as e:
-            logging.exception("Unexpected exception: %s", e)
+        except BaseException as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
 
 
 def _try_call(obj: Callable[..., Any], module: ModuleType) -> None:
