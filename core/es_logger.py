@@ -7,14 +7,16 @@
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast  # noqa: F401
 
+logger = logging.getLogger(__name__)
+
 try:
     from elasticsearch import AsyncElasticsearch, NotFoundError
 
     ElasticsearchClient = AsyncElasticsearch
-except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
-    AsyncElasticsearch = None
-    ElasticsearchClient = None
+except (ImportError, ModuleNotFoundError) as e:
+    logger.warning("elasticsearch not available, ES logging disabled: %s", e)
+    AsyncElasticsearch = None  # type: ignore[assignment]
+    ElasticsearchClient = None  # type: ignore[assignment]
 
     # Define a dummy NotFoundError if elasticsearch is not available
     NotFoundError = Exception  # type: ignore[misc,assignment]

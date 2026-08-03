@@ -1018,9 +1018,11 @@ async def evaluate(state: HealState) -> HealState:
         repair_output = ""
         if isinstance(state.repair_result, dict):
             repair_output = json.dumps(state.repair_result, ensure_ascii=False, default=str)[:2000]
-        pre_snapshot = None
-        if isinstance(state.snapshot, dict) and isinstance(state.snapshot.get("metrics"), dict):
-            pre_snapshot = state.snapshot["metrics"]
+        if not isinstance(state.snapshot, dict):
+            state.snapshot = {}
+        if not isinstance(state.snapshot.get("metrics"), dict):
+            state.snapshot["metrics"] = _metrics_history.to_dict()
+        pre_snapshot = state.snapshot["metrics"]
         verify_res = await verify_repair(
             state.alert or {},
             script_key,

@@ -63,7 +63,8 @@ if (Test-Path $EnvFile) {
 }
 
 # 构建pytest命令
-$PytestCmd = "pytest tests/e2e/ -v -m e2e"
+$Env:AIOPS_RUN_API_TESTS = "1"
+$PytestCmd = "python -m pytest tests/e2e/ -v -m e2e -o 'addopts=--strict-markers --disable-warnings --tb=short -p no:unraisableexception'"
 
 if ($Verbose) {
     $PytestCmd = "$PytestCmd -s --log-cli-level=DEBUG"
@@ -82,7 +83,7 @@ Write-Host "Running E2E tests..." -ForegroundColor Green
 Write-Host "Command: $PytestCmd"
 Write-Host "=============================="
 
-$TestResult = & python -m pytest tests/e2e/ -v -m e2e
+$TestResult = & python -m pytest tests/e2e/ -v -m e2e -o 'addopts=--strict-markers --disable-warnings --tb=short -p no:unraisableexception' 
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "All E2E tests passed" -ForegroundColor Green

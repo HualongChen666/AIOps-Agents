@@ -82,7 +82,8 @@ else
 fi
 
 # 构建pytest命令
-PYTEST_CMD="pytest tests/e2e/ -v -m e2e"
+export AIOPS_RUN_API_TESTS=1
+PYTEST_CMD="python -m pytest tests/e2e/ -v -m e2e -o '\''addopts=--strict-markers --disable-warnings --tb=short -p no:unraisableexception'\''"
 
 if [ "$VERBOSE" = true ]; then
     PYTEST_CMD="$PYTEST_CMD -s --log-cli-level=DEBUG"
