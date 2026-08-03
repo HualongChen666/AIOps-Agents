@@ -28,6 +28,7 @@ build/
 .coverage
 coverage.*
 !docs/coverage.svg
+!coverage.svg
 htmlcov/
 .tox/
 .nox/
