@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 import core.notify_engine as _notify_engine
 from core.authentication import get_current_active_user
 from core.notify_engine import reload_notify_config, send_alert_notification
+from core.oncall_adapter import get_oncall_adapter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -381,7 +382,7 @@ async def get_oncall(
 ) -> dict[str, Any]:
     """根据 category/service/team 查询 oncall 排班"""
     try:
-        adapter = _notify_engine.get_oncall_adapter()
+        adapter = get_oncall_adapter()
         contacts = await adapter.lookup_async(
             category=category,
             service=service,
