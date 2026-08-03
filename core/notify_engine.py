@@ -35,13 +35,6 @@ try:
 except ImportError:  # pragma: no cover - optional in some environments
     aiohttp = None  # type: ignore[assignment]
 
-try:
-    from core.oncall_adapter import OncallAdapter, get_oncall_adapter
-except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
-    OncallAdapter = None  # type: ignore[misc,assignment]
-    get_oncall_adapter = None  # type: ignore[misc,assignment]
-
 __all__ = [
     "close_http_client",
     "reload_notify_config",
@@ -781,7 +774,9 @@ _LEVEL_WEIGHT: dict[str, int] = {
 # ──────────────────────────────────────────────────────
 async def _resolve_oncall_recipients(alert: dict[str, Any]) -> list[dict[str, Any]]:
     """查询 oncall 排班,返回当前值班人联系方式列表"""
-    if get_oncall_adapter is None:
+    try:
+        from core.oncall_adapter import get_oncall_adapter
+    except Exception:
         return []
     try:
         adapter = get_oncall_adapter()

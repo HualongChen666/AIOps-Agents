@@ -33,6 +33,8 @@ import inspect
 import json
 import logging
 import os
+
+logger = logging.getLogger(__name__)
 import re
 import traceback
 from dataclasses import dataclass, field
@@ -46,8 +48,8 @@ from .metrics_history import metrics_history as _metrics_history
 
 try:
     from core.stats_engine import record_decision, record_outcome
-except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
+except (ImportError, ModuleNotFoundError) as e:
+    logger.warning("core.stats_engine not available, metrics recording disabled: %s", e)
     record_decision = None  # type: ignore[assignment]
     record_outcome = None  # type: ignore[assignment]
 
@@ -57,8 +59,8 @@ try:
         save_snapshot,
         update_snapshot_status,
     )
-except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
+except (ImportError, ModuleNotFoundError) as e:
+    logger.warning("snapshot_store not available, checkpoint persistence disabled: %s", e)
     save_snapshot = None  # type: ignore[assignment]
     update_snapshot_status = None  # type: ignore[assignment]
     cleanup_expired_snapshots = None  # type: ignore[assignment]
@@ -70,8 +72,10 @@ _HEAL_METRIC_COUNTERS: Dict[str, Any] = {}
 try:
     from langgraph.checkpoint.sqlite import CheckpointSQLite
     from langgraph.graph import END, StateGraph
-except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
+except (ImportError, ModuleNotFoundError) as e:
+    logger.warning(
+        "LangGraph optional dependency not available, using built-in StateGraph fallback: %s", e
+    )
 
     # Define minimal stubs so the module can be imported without LangGraph.
     class END:  # type: ignore

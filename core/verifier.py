@@ -154,6 +154,8 @@ _SCRIPT_STRATEGY_MAP: dict[str, str] = {
     "restart_service": "service_status",
     # 进程终止类
     "kill_high_cpu": "process_check",
+    # CPU 高负载修复 -> metric_threshold
+    "cpu_high_script": "metric_threshold",
     # 内存释放类(对比 metrics_history.memory)
     "free_cache": "metric_threshold",
     "free_memory": "metric_threshold",
@@ -181,6 +183,8 @@ _SCRIPT_STRATEGY_MAP: dict[str, str] = {
 _SCRIPT_METRIC_MAP: dict[str, str] = {
     "free_cache": "memory",
     "free_memory": "memory",
+    # CPU 高负载修复对比 cpu 指标
+    "cpu_high_script": "cpu",
 }
 
 # 合法 platform

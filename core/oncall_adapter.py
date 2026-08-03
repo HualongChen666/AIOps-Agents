@@ -19,11 +19,7 @@ from typing import Any, Optional
 
 import httpx
 
-try:
-    from core.notify_engine import _get_http_client
-except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
-    _get_http_client = None  # type: ignore[assignment]
+from core.notify_engine import _get_http_client
 
 
 @dataclass

@@ -264,6 +264,13 @@ def export_snapshot(snapshot: Dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 def shutdown() -> None:
     """在进程退出前调用，确保 Exporter 正常关闭。"""
-    if _meter_provider is not None:
-        _meter_provider.shutdown()
-        _logger.info("OTel MeterProvider shutdown")
+    for provider, name in (
+        (_meter_provider, "MeterProvider"),
+        (_tracer_provider, "TracerProvider"),
+    ):
+        if provider is not None and hasattr(provider, "shutdown") and callable(provider.shutdown):
+            try:
+                provider.shutdown()
+                _logger.info("OTel %s shutdown", name)
+            except Exception as e:
+                _logger.warning("OTel %s shutdown failed: %s", name, e)
