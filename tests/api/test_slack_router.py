@@ -150,6 +150,38 @@ class TestSlackRouter:
             )
             assert response.status_code == 403
 
+    def test_send_slack_message_missing_text(self, client):
+        """测试缺少text字段"""
+        response = client.post("/api/slack/message", json={"channel": "#general"})
+        assert response.status_code == 422
+
+    def test_send_slack_interactive_message_missing_text(self, client):
+        """测试交互式消息缺少text字段"""
+        response = client.post("/api/slack/interactive", json={"actions": []})
+        assert response.status_code == 422
+
+    def test_slack_health_check_not_configured(self, client):
+        """测试Slack未配置时的健康检查"""
+        with (
+            patch("config.SLACK_BOT_TOKEN", None),
+            patch("config.SLACK_DEFAULT_CHANNEL", None),
+        ):
+            response = client.get("/api/slack/health")
+            assert response.status_code == 200
+            data = response.json()
+            # Just check response is valid, structure may vary
+            assert "status" in data or "configured" in data
+
+    def test_slack_events_callback_event_type(self, client):
+        """测试Slack事件回调处理事件类型"""
+        with patch("api.slack_router.verify_slack_signature", return_value=True):
+            response = client.post(
+                "/api/slack/events",
+                json={"type": "event_callback", "event": {"type": "message"}},
+                headers={"X-Slack-Signature": "sig", "X-Slack-Timestamp": "123"},
+            )
+            assert response.status_code in [200, 503]
+
     def test_slack_events_callback_server_error(self, client):
         """测试Slack事件回调处理异常"""
         with patch("api.slack_router.verify_slack_signature", side_effect=RuntimeError("boom")):
@@ -159,6 +191,89 @@ class TestSlackRouter:
                 headers={"X-Slack-Signature": "sig", "X-Slack-Timestamp": "123"},
             )
             assert response.status_code == 500
+
+    def test_slack_events_callback_block_actions_approve(self, client):
+        """测试Slack事件回调处理block_actions - approve"""
+        with patch("api.slack_router.verify_slack_signature", return_value=True):
+            response = client.post(
+                "/api/slack/events",
+                json={
+                    "type": "event_callback",
+                    "event": {
+                        "type": "block_actions",
+                        "actions": [
+                            {"action_id": "approve_123", "value": "alert-456"}
+                        ],
+                    },
+                },
+                headers={"X-Slack-Signature": "sig", "X-Slack-Timestamp": "123"},
+            )
+            assert response.status_code in [200, 503]
+
+    def test_slack_events_callback_block_actions_reject(self, client):
+        """测试Slack事件回调处理block_actions - reject"""
+        with patch("api.slack_router.verify_slack_signature", return_value=True):
+            response = client.post(
+                "/api/slack/events",
+                json={
+                    "type": "event_callback",
+                    "event": {
+                        "type": "block_actions",
+                        "actions": [
+                            {"action_id": "reject_123", "value": "alert-456"}
+                        ],
+                    },
+                },
+                headers={"X-Slack-Signature": "sig", "X-Slack-Timestamp": "123"},
+            )
+            assert response.status_code in [200, 503]
+
+    def test_slack_events_callback_block_actions_ignored(self, client):
+        """测试Slack事件回调处理block_actions - ignored"""
+        with patch("api.slack_router.verify_slack_signature", return_value=True):
+            response = client.post(
+                "/api/slack/events",
+                json={
+                    "type": "event_callback",
+                    "event": {
+                        "type": "block_actions",
+                        "actions": [{"action_id": "other", "value": "test"}],
+                    },
+                },
+                headers={"X-Slack-Signature": "sig", "X-Slack-Timestamp": "123"},
+            )
+            assert response.status_code in [200, 503]
+
+    def test_slack_events_callback_app_mention(self, client):
+        """测试Slack事件回调处理app_mention"""
+        with patch("api.slack_router.verify_slack_signature", return_value=True):
+            response = client.post(
+                "/api/slack/events",
+                json={
+                    "type": "event_callback",
+                    "event": {
+                        "type": "app_mention",
+                        "text": "<@U123> help me",
+                        "user": "U456",
+                        "channel": "C789",
+                    },
+                },
+                headers={"X-Slack-Signature": "sig", "X-Slack-Timestamp": "123"},
+            )
+            assert response.status_code in [200, 503]
+
+    def test_slack_events_callback_unknown_event_type(self, client):
+        """测试Slack事件回调处理未知事件类型"""
+        with patch("api.slack_router.verify_slack_signature", return_value=True):
+            response = client.post(
+                "/api/slack/events",
+                json={
+                    "type": "event_callback",
+                    "event": {"type": "unknown_type"},
+                },
+                headers={"X-Slack-Signature": "sig", "X-Slack-Timestamp": "123"},
+            )
+            assert response.status_code in [200, 503]
 
 
 if __name__ == "__main__":

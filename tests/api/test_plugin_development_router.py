@@ -103,6 +103,91 @@ class TestPluginDevelopmentRouter:
             response = client.get("/api/plugin-sdk/generate/config?template_type=collector")
             assert response.status_code == 200
 
+    def test_get_available_templates_error(self, client):
+        """测试获取模板失败"""
+        with patch("core.plugin_development_sdk.get_plugin_sdk") as mock_sdk:
+            mock_instance = Mock()
+            mock_instance.get_available_templates.side_effect = Exception("Templates error")
+            mock_sdk.return_value = mock_instance
+            response = client.get("/api/plugin-sdk/templates")
+            assert response.status_code == 500
+
+    def test_generate_plugin_package_error(self, client):
+        """测试生成插件包失败"""
+        with patch("core.plugin_development_sdk.get_plugin_sdk") as mock_sdk:
+            mock_instance = Mock()
+            mock_instance.create_plugin_package.side_effect = Exception("Package error")
+            mock_sdk.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-sdk/generate",
+                params={
+                    "template_type": "collector",
+                    "plugin_name": "TestPlugin",
+                    "class_name": "TestClass",
+                },
+            )
+            assert response.status_code == 500
+
+    def test_generate_plugin_code_error(self, client):
+        """测试生成插件代码失败"""
+        with patch("core.plugin_development_sdk.get_plugin_sdk") as mock_sdk:
+            mock_instance = Mock()
+            mock_instance.generate_plugin_code.side_effect = Exception("Code error")
+            mock_sdk.return_value = mock_instance
+            response = client.get(
+                "/api/plugin-sdk/generate/code",
+                params={
+                    "template_type": "collector",
+                    "plugin_name": "TestPlugin",
+                    "class_name": "TestClass",
+                },
+            )
+            assert response.status_code == 500
+
+    def test_generate_plugin_config_error(self, client):
+        """测试生成插件配置失败"""
+        with patch("core.plugin_development_sdk.get_plugin_sdk") as mock_sdk:
+            mock_instance = Mock()
+            mock_instance.generate_plugin_config.side_effect = Exception("Config error")
+            mock_sdk.return_value = mock_instance
+            response = client.get("/api/plugin-sdk/generate/config?template_type=collector")
+            assert response.status_code == 500
+
+    def test_get_sdk_status_response_structure(self, client):
+        """测试SDK状态响应结构"""
+        with patch("core.plugin_development_sdk.get_plugin_sdk") as mock_sdk:
+            mock_instance = Mock()
+            mock_instance.get_sdk_summary.return_value = {"sdk_version": "1.0.0", "available": True}
+            mock_sdk.return_value = mock_instance
+            response = client.get("/api/plugin-sdk/status")
+            assert response.status_code == 200
+            data = response.json()
+            assert "status" in data
+            assert "data" in data
+
+    def test_generate_plugin_package_response_structure(self, client):
+        """测试生成插件包响应结构"""
+        with patch("core.plugin_development_sdk.get_plugin_sdk") as mock_sdk:
+            mock_instance = Mock()
+            mock_instance.create_plugin_package.return_value = {
+                "plugin_name": "TestPlugin",
+                "version": "1.0.0",
+                "template_type": "collector",
+            }
+            mock_sdk.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-sdk/generate",
+                params={
+                    "template_type": "collector",
+                    "plugin_name": "TestPlugin",
+                    "class_name": "TestClass",
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "data" in data
+            assert "plugin_name" in data["data"]
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

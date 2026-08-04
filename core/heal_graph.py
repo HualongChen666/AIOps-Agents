@@ -49,7 +49,7 @@ from .metrics_history import metrics_history as _metrics_history
 try:
     from core.stats_engine import record_decision, record_outcome
 except (ImportError, ModuleNotFoundError) as e:
-    logger.warning("core.stats_engine not available, metrics recording disabled: %s", e)
+    logger.info("core.stats_engine not available, metrics recording disabled: %s", e)
     record_decision = None  # type: ignore[assignment]
     record_outcome = None  # type: ignore[assignment]
 
@@ -60,7 +60,7 @@ try:
         update_snapshot_status,
     )
 except (ImportError, ModuleNotFoundError) as e:
-    logger.warning("snapshot_store not available, checkpoint persistence disabled: %s", e)
+    logger.info("snapshot_store not available, checkpoint persistence disabled: %s", e)
     save_snapshot = None  # type: ignore[assignment]
     update_snapshot_status = None  # type: ignore[assignment]
     cleanup_expired_snapshots = None  # type: ignore[assignment]
@@ -72,10 +72,8 @@ _HEAL_METRIC_COUNTERS: Dict[str, Any] = {}
 try:
     from langgraph.checkpoint.sqlite import CheckpointSQLite
     from langgraph.graph import END, StateGraph
-except (ImportError, ModuleNotFoundError) as e:
-    logger.warning(
-        "LangGraph optional dependency not available, using built-in StateGraph fallback: %s", e
-    )
+except (ImportError, ModuleNotFoundError):
+    logger.info("LangGraph checkpointing not available; using built-in StateGraph fallback.")
 
     # Define minimal stubs so the module can be imported without LangGraph.
     class END:  # type: ignore
@@ -170,7 +168,7 @@ logger = logging.getLogger(__name__)
 try:
     from core.command_guard import RiskLevel, analyze_command, record_audit
 except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
+    logger.warning("command_guard import failed, risk analysis disabled: %s", e)
     analyze_command = None  # type: ignore[assignment]
     RiskLevel = None  # type: ignore[assignment,misc]
     record_audit = None  # type: ignore[assignment]
@@ -183,7 +181,7 @@ try:
         async_upsert_pending_approval,
     )
 except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
+    logger.warning("db_engine import failed, persistence disabled: %s", e)
     async_get_approval_by_alert = None  # type: ignore[assignment]
     async_insert_repair_record = None  # type: ignore[assignment]
     async_update_approval_status_by_alert = None  # type: ignore[assignment]
@@ -196,7 +194,7 @@ try:
 
     AUDIT_AVAILABLE = True
 except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
+    logger.warning("audit_logger import failed, audit trail disabled: %s", e)
     AUDIT_AVAILABLE = False
     _log_audit_event = None  # type: ignore[assignment]
     _get_trace_id = None  # type: ignore[assignment]
@@ -207,7 +205,7 @@ try:
 
     NOTIFY_AVAILABLE = True
 except Exception as e:
-    logging.exception("Unexpected exception: %s", e)
+    logger.info("notify_engine import failed, alert notifications disabled: %s", e)
     NOTIFY_AVAILABLE = False
     _send_alert_notification = None  # type: ignore[assignment]
 
@@ -1369,9 +1367,7 @@ def _build_graph() -> Any:
         if "checkpointer" in inspect.signature(graph.compile).parameters:
             return graph.compile(checkpointer=checkpoint)
     except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
-        logging.warning("Suppressed exception", exc_info=True)
-        pass
+        logger.info("LangGraph checkpointing disabled: %s", e)
     return graph.compile()
 
 

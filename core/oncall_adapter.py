@@ -19,8 +19,6 @@ from typing import Any, Optional
 
 import httpx
 
-from core.notify_engine import _get_http_client
-
 
 @dataclass
 class OncallContact:
@@ -121,6 +119,8 @@ class OncallAdapter:
         self._local_schedule.load_from_env()
 
     def _http_client(self) -> httpx.AsyncClient:
+        from core.notify_engine import _get_http_client
+
         if callable(_get_http_client):
             return _get_http_client()
         return httpx.AsyncClient(timeout=10.0)

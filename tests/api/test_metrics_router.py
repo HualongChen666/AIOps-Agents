@@ -14,6 +14,8 @@ from fastapi.testclient import TestClient
 from api.metrics_router import (
     clear_snapshot_cache,
     get_dashboard_metrics,
+    get_decision_accuracy_endpoint,
+    get_feedback_accuracy,
     get_history,
     get_processes,
     get_snapshot,
@@ -40,6 +42,12 @@ def client():
     test_router.add_api_route("/processes", get_processes, methods=["GET"])
     test_router.add_api_route("/summary", get_summary, methods=["GET"])
     test_router.add_api_route("/cache", clear_snapshot_cache, methods=["DELETE"])
+    test_router.add_api_route(
+        "/feedback-accuracy", get_feedback_accuracy, methods=["GET"]
+    )
+    test_router.add_api_route(
+        "/agent/decision-accuracy", get_decision_accuracy_endpoint, methods=["GET"]
+    )
     app.include_router(test_router)
     return TestClient(app)
 
@@ -309,6 +317,87 @@ class TestClearSnapshotCache:
             assert response.status_code == 200
             data = response.json()
             assert data["engine_cleared"] is False
+
+    def test_get_history_no_data(self, client):
+        """测试历史数据为空"""
+        with patch("api.metrics_router.metrics_history") as mock_history:
+            mock_history.to_dict.return_value = {}
+            mock_history._maxlen = 60
+
+            response = client.get("/api/v1/metrics/history")
+            assert response.status_code == 200
+            data = response.json()
+            assert "_meta" in data
+
+    def test_get_processes_no_limit(self, client):
+        """测试不带limit参数获取进程列表"""
+        with patch("api.metrics_router._processes_cache") as mock_cache:
+            mock_cache.get.return_value = {
+                "processes": [
+                    {"name": "python3", "pid": 1234, "cpu_percent": 85.2},
+                ]
+            }
+
+            response = client.get("/api/v1/metrics/processes")
+            assert response.status_code == 200
+
+    def test_get_summary_good_levels(self, client):
+        """测试摘要数据良好级别"""
+        with patch("api.metrics_router.get_real_summary") as mock_summary:
+            mock_summary.return_value = {
+                "total_alerts": 10,
+                "heal_rate": 95,
+                "mttd_min": 5,
+                "rca_accuracy": 98,
+            }
+
+            response = client.get("/api/v1/metrics/summary")
+            assert response.status_code == 200
+            data = response.json()
+            assert "total_alerts" in data
+
+    def test_get_snapshot_with_summary(self, client):
+        """测试快照包含摘要"""
+        with patch("api.metrics_router._snapshot_cache") as mock_cache:
+            mock_cache.get.return_value = {
+                "cpu": {"usage_percent": 45.2},
+                "summary": {"total_alerts": 5},
+            }
+
+            response = client.get("/api/v1/metrics/snapshot")
+            assert response.status_code == 200
+            data = response.json()
+            assert "summary" in data
+
+    def test_get_feedback_accuracy(self, client):
+        """测试获取反馈准确率"""
+        with patch("api.ai_feedback_router._compute_feedback_stats") as mock_stats:
+            mock_stats.return_value = {
+                "total": 100,
+                "positive": 80,
+                "negative": 20,
+                "accuracy": 0.8,
+            }
+
+            response = client.get("/api/v1/metrics/feedback-accuracy")
+            assert response.status_code == 200
+            data = response.json()
+            assert "total" in data
+
+    def test_get_decision_accuracy(self, client):
+        """测试获取决策准确率"""
+        with patch("api.metrics_router.get_decision_accuracy") as mock_accuracy:
+            mock_accuracy.return_value = {
+                "precision": 0.85,
+                "recall": 0.9,
+                "f1_score": 0.87,
+                "accuracy": 0.88,
+            }
+
+            response = client.get("/api/v1/metrics/agent/decision-accuracy")
+            assert response.status_code == 200
+            data = response.json()
+            assert "precision" in data
 
 
 if __name__ == "__main__":

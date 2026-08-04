@@ -5,6 +5,13 @@ import logging
 import json
 import os
 import sys
+import threading
+import warnings
+from datetime import datetime
+
+# Suppress known third-party deprecation warnings before importing TestClient.
+warnings.filterwarnings("ignore", message=".*httpx.*starlette.*testclient.*deprecated.*")
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API.*")
 
 # Make the repository root importable from scripts/
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +38,7 @@ from sqlalchemy import create_engine
 import core.models  # noqa: F401
 from core.authentication import get_current_active_user
 from core.database import Base
+from core.metrics_history import metrics_history
 from main import app
 
 app.dependency_overrides[get_current_active_user] = lambda: {"username": "e2e", "role": "admin"}
@@ -43,6 +51,13 @@ Base.metadata.create_all(engine)
 def run():
     with TestClient(app) as client:
         client.headers["X-Internal-Key"] = "e2e-test-key"
+
+        # Pre-seed CPU metrics so metric_threshold verification has enough samples.
+        for _ in range(3):
+            metrics_history.push(
+                cpu=92.0, memory=50.0, net_in=0.0, timestamp=datetime.now().strftime("%H:%M:%S")
+            )
+
         # 1. Ingest a Prometheus-style CPU alert
         payload = {
             "status": "firing",
@@ -89,7 +104,19 @@ def run():
             print(r.text)
 
         # 3. Approve and execute the repair
+        # While the repair is running, push lower CPU values into metrics_history
+        # so the metric_threshold verification sees a real drop.
+        def _drop_cpu():
+            for _ in range(5):
+                metrics_history.push(
+                    cpu=8.0, memory=50.0, net_in=0.0, timestamp=datetime.now().strftime("%H:%M:%S")
+                )
+
+        timer = threading.Timer(1.0, _drop_cpu)
+        timer.start()
+
         r = client.patch(f"/api/v1/approvals/{alert_id}", timeout=30)
+        timer.join()
         print("APPROVE status", r.status_code)
         try:
             print(json.dumps(r.json(), indent=2, ensure_ascii=False))

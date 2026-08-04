@@ -2,6 +2,11 @@
 import io
 import os
 import sys
+import warnings
+
+# Suppress known third-party deprecation warnings that are outside the project.
+warnings.filterwarnings("ignore", message=".*httpx.*starlette.*testclient.*deprecated.*")
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API.*")
 
 # Set UTF-8 encoding for all I/O operations
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")

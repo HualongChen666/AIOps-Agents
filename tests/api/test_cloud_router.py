@@ -123,6 +123,92 @@ class TestCloudRouter:
             data = response.json()
             assert isinstance(data, list)
 
+    def test_get_cloud_metrics_error(self, client):
+        """测试批量采集云平台指标失败"""
+        with patch("api.cloud_router.collect_all_cloud") as mock_collect:
+            mock_collect.side_effect = Exception("Collection failed")
+            response = client.get("/api/v1/platforms/cloud/metrics")
+            assert response.status_code == 500
+
+    def test_collect_one_error(self, client):
+        """测试手动触发单个云平台采集失败"""
+        with patch("api.cloud_router.collect_cloud") as mock_collect:
+            mock_collect.side_effect = Exception("Provider collection failed")
+            response = client.post(
+                "/api/v1/platforms/cloud/collect", json={"provider": "aws", "region": "us-east-1"}
+            )
+            assert response.status_code == 500
+
+    def test_collect_provider(self, client):
+        """测试采集指定云平台"""
+        with patch("api.cloud_router.collect_cloud") as mock_collect:
+            mock_collect.return_value = {"provider": "aws", "cpu": 45.2}
+            response = client.post("/api/v1/platforms/cloud/aws/collect")
+            assert response.status_code == 200
+            data = response.json()
+            assert "provider" in data
+
+    def test_provider_history(self, client):
+        """测试获取指定云平台采集历史"""
+        with patch("api.cloud_router.get_cloud_collect_history") as mock_history:
+            mock_history.return_value = [
+                {"provider": "aws", "timestamp": "2026-07-03T10:00:00Z"}
+            ]
+            response = client.get("/api/v1/platforms/cloud/aws/history")
+            assert response.status_code == 200
+            data = response.json()
+            assert isinstance(data, list)
+
+    def test_collect_provider_error(self, client):
+        """测试采集指定云平台失败"""
+        with patch("api.cloud_router.collect_cloud") as mock_collect:
+            mock_collect.side_effect = Exception("Provider collection failed")
+            response = client.post("/api/v1/platforms/cloud/aws/collect")
+            assert response.status_code == 500
+
+    def test_collect_provider_not_found(self, client):
+        """测试采集未配置的云平台"""
+        with patch("api.cloud_router.CLOUD_PROVIDERS", []):
+            response = client.post("/api/v1/platforms/cloud/unknown/collect")
+            assert response.status_code == 404
+
+    def test_provider_history_error(self, client):
+        """测试获取指定云平台采集历史失败"""
+        with patch("api.cloud_router.get_cloud_collect_history") as mock_history:
+            mock_history.side_effect = Exception("History fetch failed")
+            response = client.get("/api/v1/platforms/cloud/aws/history")
+            assert response.status_code == 500
+
+    def test_repair_provider_error(self, client):
+        """测试执行云平台修复操作失败"""
+        with patch("core.cloud_repair.execute_cloud_repair") as mock_repair:
+            mock_repair.side_effect = Exception("Repair failed")
+            response = client.post(
+                "/api/v1/platforms/cloud/aws/repair",
+                json={"action": "restart_instance", "params": {"instance_id": "i-12345678"}},
+            )
+            assert response.status_code == 500
+
+    def test_provider_repair_history_error(self, client):
+        """测试获取云平台修复历史失败"""
+        with patch("core.cloud_repair.get_cloud_repair_history") as mock_history:
+            mock_history.side_effect = Exception("Repair history fetch failed")
+            response = client.get("/api/v1/platforms/cloud/aws/repair/history")
+            assert response.status_code == 500
+
+    def test_get_provider_metrics_not_found(self, client):
+        """测试采集未配置的云平台指标"""
+        with patch("api.cloud_router.CLOUD_PROVIDERS", []):
+            response = client.get("/api/v1/platforms/cloud/unknown/metrics")
+            assert response.status_code == 404
+
+    def test_get_provider_metrics_error(self, client):
+        """测试采集指定云平台指标失败"""
+        with patch("api.cloud_router.collect_cloud") as mock_collect:
+            mock_collect.side_effect = Exception("Provider metrics collection failed")
+            response = client.get("/api/v1/platforms/cloud/aws/metrics")
+            assert response.status_code == 500
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

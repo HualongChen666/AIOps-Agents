@@ -136,6 +136,94 @@ class TestPluginMarketplaceRouter:
             )
             assert response.status_code == 200
 
+    def test_publish_plugin_error(self, client):
+        """测试发布插件失败"""
+        with patch("core.plugin_marketplace_manager.get_marketplace_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.publish_plugin.side_effect = Exception("Publish failed")
+            mock_manager.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-marketplace/publish",
+                params={
+                    "plugin_id": "plugin-123",
+                    "plugin_name": "TestPlugin",
+                    "version": "1.0.0",
+                    "description": "Test",
+                    "author": "TestAuthor",
+                    "plugin_code": "code",
+                    "quality": "community",
+                },
+                json={"config": {}},
+            )
+            assert response.status_code == 500
+
+    def test_approve_plugin_error(self, client):
+        """测试审批插件失败"""
+        with patch("core.plugin_marketplace_manager.get_marketplace_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.approve_plugin.side_effect = Exception("Approve failed")
+            mock_manager.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-marketplace/plugin/plugin-123/approve?reviewer=admin"
+            )
+            assert response.status_code == 500
+
+    def test_reject_plugin_error(self, client):
+        """测试拒绝插件失败"""
+        with patch("core.plugin_marketplace_manager.get_marketplace_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.reject_plugin.side_effect = Exception("Reject failed")
+            mock_manager.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-marketplace/plugin/plugin-123/reject?reason=quality"
+            )
+            assert response.status_code == 500
+
+    def test_download_plugin_error(self, client):
+        """测试下载插件失败"""
+        with patch("core.plugin_marketplace_manager.get_marketplace_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.download_plugin.side_effect = Exception("Download failed")
+            mock_manager.return_value = mock_instance
+            response = client.post("/api/plugin-marketplace/plugin/plugin-123/download")
+            assert response.status_code == 500
+
+    def test_get_plugin_listings_error(self, client):
+        """测试获取插件列表失败"""
+        with patch("core.plugin_marketplace_manager.get_marketplace_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.get_plugin_listings.side_effect = Exception("Listings failed")
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/plugin-marketplace/listings")
+            assert response.status_code == 500
+
+    def test_add_plugin_review_error(self, client):
+        """测试添加评论失败"""
+        with patch("core.plugin_marketplace_manager.get_marketplace_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.add_review.side_effect = Exception("Review failed")
+            mock_manager.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-marketplace/plugin/plugin-123/review",
+                params={"reviewer": "user", "rating": "5", "comment": "good"},
+            )
+            assert response.status_code == 500
+
+    def test_get_marketplace_status_response_structure(self, client):
+        """测试状态响应结构"""
+        with patch("core.plugin_marketplace_manager.get_marketplace_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.get_marketplace_summary.return_value = {
+                "total_plugins": 50,
+                "published_plugins": 40,
+            }
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/plugin-marketplace/status")
+            assert response.status_code == 200
+            data = response.json()
+            assert "status" in data
+            assert "data" in data
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

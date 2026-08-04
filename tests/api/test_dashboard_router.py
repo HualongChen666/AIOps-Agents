@@ -1,74 +1,53 @@
 # -*- coding: utf-8 -*-
-"""
-Dashboard Router Tests
-仪表盘路由API基础测试
-"""
+"""Real endpoint tests for api/dashboard_router.py."""
 
 import sys
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.dashboard_router import summary
+# Mock authentication dependency before importing the real router
+sys.modules["core.authentication"] = type(sys)("core.authentication")
+sys.modules["core.authentication"].role_required = lambda role: lambda: {"role": role}
 
-# Mock problematic imports before importing router
-sys.modules["core.authentication"] = MagicMock()
-sys.modules["core.authentication"].role_required = Mock(return_value=lambda: {"role": "user"})
+from api.dashboard_router import router  # noqa: E402
 
 
 @pytest.fixture
-def client():
-    """创建测试客户端（绕过认证）"""
+def client(monkeypatch):
+    monkeypatch.setattr("config.LINUX_HOSTS", ["host1", "host2"])
     app = FastAPI()
-    # Create a new router without authentication dependencies
-    test_router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-    test_router.add_api_route("/summary", summary, methods=["GET"])
-    app.include_router(test_router)
+    app.include_router(router)
     return TestClient(app)
 
 
 class TestDashboardRouter:
-    """测试仪表盘路由"""
+    """Tests the real /dashboard/summary endpoint."""
 
-    def test_summary_success(self, client):
-        """测试成功获取仪表盘摘要"""
+    def test_summary_success(self, client, monkeypatch):
+        """DB helpers return real numbers: summary is aggregated correctly."""
+        monkeypatch.setattr("core.db_engine.async_count_alerts", AsyncMock(return_value=5))
+        monkeypatch.setattr(
+            "core.db_engine.async_get_all_pending_approvals",
+            AsyncMock(return_value=["a", "b"]),
+        )
         response = client.get("/dashboard/summary")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-
-    def test_summary_response_structure(self, client):
-        """测试响应结构"""
-        response = client.get("/dashboard/summary")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert "message" in data
-
-    def test_summary_status_field(self, client):
-        """测试status字段值"""
-        response = client.get("/dashboard/summary")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "ok"
-        assert isinstance(data["status"], str)
-
-    def test_summary_message_field(self, client):
-        """测试message字段值"""
-        response = client.get("/dashboard/summary")
-        assert response.status_code == 200
-        data = response.json()
+        assert data["total_hosts"] == 2
+        assert data["healthy_hosts"] == 2
+        assert data["total_alerts"] == 5
+        assert data["pending_repairs"] == 2
         assert data["message"] == "Dashboard default_value"
-        assert isinstance(data["message"], str)
 
-    def test_summary_content_type(self, client):
-        """测试响应内容类型"""
+    def test_summary_db_unavailable(self, client):
+        """When DB helpers cannot be used, the endpoint still returns a valid summary."""
         response = client.get("/dashboard/summary")
         assert response.status_code == 200
-        assert "application/json" in response.headers.get("content-type", "")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["total_hosts"] == 2
+        assert data["message"] == "Dashboard default_value"

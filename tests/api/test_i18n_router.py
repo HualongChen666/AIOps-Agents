@@ -120,6 +120,66 @@ class TestI18nRouter:
             )
             assert response.status_code == 200
 
+    def test_get_supported_locales_error(self, client):
+        with patch("core.i18n_manager.get_i18n_manager") as mock_manager:
+            mock_manager.side_effect = Exception("Locales error")
+            response = client.get("/api/i18n/locales")
+            assert response.status_code == 500
+
+    def test_get_locale_info_not_found(self, client):
+        with patch("core.i18n_manager.get_i18n_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.get_supported_locales.return_value = ["en-US"]
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/i18n/locales/zh-CN")
+            # Router returns 200 even if locale not in supported list
+            assert response.status_code == 200
+
+    def test_set_current_locale_error(self, client):
+        with patch("core.i18n_manager.get_i18n_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.set_current_locale.side_effect = Exception("Set locale error")
+            mock_manager.return_value = mock_instance
+            response = client.post("/api/i18n/locale/set?locale_id=zh-CN")
+            assert response.status_code == 500
+
+    def test_translate_error(self, client):
+        with patch("core.i18n_manager.get_i18n_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.translate.side_effect = Exception("Translate error")
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/i18n/translate?key=welcome&namespace=common&language=zh-CN")
+            assert response.status_code == 500
+
+    def test_format_number_error(self, client):
+        with patch("core.i18n_manager.get_i18n_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.format_number.side_effect = Exception("Format error")
+            mock_instance.locales = {}
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/i18n/format/number?number=1234.56&locale=en-US")
+            assert response.status_code == 500
+
+    def test_format_currency_error(self, client):
+        with patch("core.i18n_manager.get_i18n_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.format_currency.side_effect = Exception("Currency error")
+            mock_instance.locales = {}
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/i18n/format/currency?amount=1234.56&locale=en-US")
+            assert response.status_code == 500
+
+    def test_format_date_error(self, client):
+        with patch("core.i18n_manager.get_i18n_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.format_date.side_effect = Exception("Date error")
+            mock_instance.locales = {}
+            mock_manager.return_value = mock_instance
+            response = client.get(
+                "/api/i18n/format/date?date_str=2026-07-03T09:00:00Z&locale=en-US"
+            )
+            assert response.status_code == 500
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

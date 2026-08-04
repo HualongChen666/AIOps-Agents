@@ -235,11 +235,11 @@ def shutdown_telemetry():
     """
     global _tracer_provider, _meter_provider
 
-    if _tracer_provider:
+    if _tracer_provider and hasattr(_tracer_provider, "shutdown"):
         _tracer_provider.shutdown()
         _tracer_provider = None
 
-    if _meter_provider:
+    if _meter_provider and hasattr(_meter_provider, "shutdown"):
         _meter_provider.shutdown()
         _meter_provider = None
 

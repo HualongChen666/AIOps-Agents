@@ -5,12 +5,15 @@
 提供错误告警功能，支持多种告警渠道。
 """
 
+import logging
 import smtplib
 from abc import ABC, abstractmethod
 from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
 
 from core.error_logging.handler import ErrorLogHandler
+
+logger = logging.getLogger(__name__)
 
 
 class AlertChannel(ABC):
@@ -80,7 +83,7 @@ class EmailAlertChannel(AlertChannel):
                 server.login(self.username, self.password)
                 server.send_message(msg)
         except Exception as e:
-            print(f"发送邮件告警失败: {e}")
+            logger.error("发送邮件告警失败: %s", e)
 
 
 class SlackAlertChannel(AlertChannel):
@@ -129,7 +132,7 @@ class SlackAlertChannel(AlertChannel):
                 timeout=10,
             )
         except Exception as e:
-            print(f"发送Slack告警失败: {e}")
+            logger.error("发送Slack告警失败: %s", e)
 
 
 class ErrorAlertManager:

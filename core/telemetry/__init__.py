@@ -248,8 +248,12 @@ def get_meter(name: str = "aiops-agent"):
 def shutdown_telemetry() -> None:
     """Shutdown OpenTelemetry SDK"""
     try:
-        trace.get_tracer_provider().shutdown()  # type: ignore
-        metrics.get_meter_provider().shutdown()  # type: ignore
+        tracer_provider = trace.get_tracer_provider()
+        if hasattr(tracer_provider, "shutdown"):
+            tracer_provider.shutdown()
+        meter_provider = metrics.get_meter_provider()
+        if hasattr(meter_provider, "shutdown"):
+            meter_provider.shutdown()
         logger.info("OpenTelemetry shutdown complete")
     except Exception as e:
         logger.error(f"Error shutting down OpenTelemetry: {e}")

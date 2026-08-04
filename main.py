@@ -595,6 +595,8 @@ async def lifespan(app: FastAPI):
         is_addon = addon if addon is not None else (name.lower() not in CORE_INIT_NAMES)
         if is_addon and not ENABLE_ADDONS:
             _logger.info(f"Add-on '{name}' skipped (ENABLE_ADDONS=false)")
+            if asyncio.iscoroutine(coro_or_callable):
+                coro_or_callable.close()
             return None
 
         try:
@@ -615,7 +617,10 @@ async def lifespan(app: FastAPI):
                 f"{name} initialization timed out after {timeout}s; continuing without it"
             )
         except Exception as exc:
-            _logger.warning(f"{name} initialization failed: {exc}; continuing without it")
+            if is_addon:
+                _logger.debug(f"{name} initialization failed: {exc}; continuing without it")
+            else:
+                _logger.warning(f"{name} initialization failed: {exc}; continuing without it")
         return None
 
     async def _safe_init_core(coro_or_callable, name, timeout=2.0):

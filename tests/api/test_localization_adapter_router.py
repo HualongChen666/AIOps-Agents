@@ -138,6 +138,84 @@ class TestLocalizationAdapterRouter:
             )
             assert response.status_code == 200
 
+    def test_get_supported_locales_error(self, client):
+        with patch("core.localization_adapter.get_localization_adapter") as mock_adapter:
+            mock_adapter.side_effect = Exception("Locales error")
+            response = client.get("/api/localization-adapter/locales")
+            assert response.status_code == 500
+
+    def test_set_current_locale_error(self, client):
+        with patch("core.localization_adapter.get_localization_adapter") as mock_adapter:
+            mock_instance = Mock()
+            mock_instance.set_current_locale.side_effect = Exception("Set locale error")
+            mock_adapter.return_value = mock_instance
+            response = client.post("/api/localization-adapter/locale/set?locale_id=zh-CN")
+            assert response.status_code == 500
+
+    def test_format_date_error(self, client):
+        with patch("core.localization_adapter.get_localization_adapter") as mock_adapter:
+            mock_instance = Mock()
+            mock_instance.format_date.side_effect = Exception("Format date error")
+            mock_adapter.return_value = mock_instance
+            response = client.get(
+                "/api/localization-adapter/format/date",
+                params={"date_str": "2026-07-03", "format_type": "short", "locale": "zh-CN"},
+            )
+            assert response.status_code == 500
+
+    def test_format_datetime_error(self, client):
+        with patch("core.localization_adapter.get_localization_adapter") as mock_adapter:
+            mock_instance = Mock()
+            mock_instance.format_datetime.side_effect = Exception("Format datetime error")
+            mock_adapter.return_value = mock_instance
+            response = client.get(
+                "/api/localization-adapter/format/datetime",
+                params={
+                    "datetime_str": "2026-07-03T09:00:00Z",
+                    "format_type": "full",
+                    "locale": "zh-CN",
+                },
+            )
+            assert response.status_code == 500
+
+    def test_format_number_error(self, client):
+        with patch("core.localization_adapter.get_localization_adapter") as mock_adapter:
+            mock_instance = Mock()
+            mock_instance.format_number.side_effect = Exception("Format number error")
+            mock_adapter.return_value = mock_instance
+            response = client.get(
+                "/api/localization-adapter/format/number",
+                params={"number": "1234.56", "format_type": "decimal", "locale": "en-US"},
+            )
+            assert response.status_code == 500
+
+    def test_format_currency_error(self, client):
+        with patch("core.localization_adapter.get_localization_adapter") as mock_adapter:
+            mock_instance = Mock()
+            mock_instance.format_currency.side_effect = Exception("Format currency error")
+            mock_adapter.return_value = mock_instance
+            response = client.get(
+                "/api/localization-adapter/format/currency",
+                params={"amount": "1234.56", "currency_code": "USD", "locale": "en-US"},
+            )
+            assert response.status_code == 500
+
+    def test_format_unit_error(self, client):
+        with patch("core.localization_adapter.get_localization_adapter") as mock_adapter:
+            mock_instance = Mock()
+            mock_instance.format_unit.side_effect = Exception("Format unit error")
+            mock_adapter.return_value = mock_instance
+            response = client.get(
+                "/api/localization-adapter/format/unit",
+                params={
+                    "value": "1.23",
+                    "unit": "km",
+                    "target_system": "metric",
+                    "locale": "en-US",
+                },
+            )
+            assert response.status_code == 500
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
