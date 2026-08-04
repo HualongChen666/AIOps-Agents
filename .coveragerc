@@ -2,11 +2,11 @@
 source = 
 	core
 	api
+	modules
 	services
 	aiops_agent
 
 omit = 
-	api\repair_router.py
 	*/.venv/*
 	*/__init__.py
 	*/__pycache__/*
@@ -63,7 +63,6 @@ omit =
 	core\interface\mcp\server.py
 	core\interface\mcp\tools.py
 	core\linux_service.py
-	core\log_router.py
 	core\logging\analysis\log_analyzer.py
 	core\opentelemetry_tracing.py
 	core\otel_exporter.py
@@ -127,7 +126,6 @@ omit =
 	core\approval_store.py
 	core\audit_integration_manager.py
 	core\audit_service.py
-	core\authentication.py
 	core\auto_heal.py
 	core\base\collector.py
 	core\base\storage.py
@@ -176,7 +174,6 @@ omit =
 	core\exception_handler.py
 	core\execution\l6\optimized_executor.py
 	core\feature_flag.py
-	core\fine_rbac.py
 	core\flink_stream_processor.py
 	core\frontend_cache_strategy.py
 	core\frontend_enhancement.py
@@ -192,7 +189,6 @@ omit =
 	core\integration_test_validator.py
 	core\integration_testing_system.py
 	core\interface\l5\graphql_interface.py
-	core\interface\l5\mcp_interface.py
 	core\k8s_collector.py
 	core\k8s_repair.py
 	core\kafka_stream_processor.py
@@ -243,7 +239,6 @@ omit =
 	core\service_monitoring_manager.py
 	core\slack_adapter.py
 	core\smart_cache_strategy.py
-	core\sso_auth.py
 	core\stats_engine.py
 	core\storage\l4\loki.py
 	core\storage\l4\storage_manager.py
@@ -271,6 +266,14 @@ precision = 2
 show_missing = True
 skip_empty = True
 sort = Cover
+include = 
+	api\*_router.py
+	core\authentication.py
+	core\sso_auth.py
+	core\mcp_server.py
+	core\interface\l5\mcp_interface.py
+	modules\analyze\anomaly\transformer_service.py
+	modules\analyze\root_cause\causal_service.py
 exclude_lines = 
 	pragma: no cover
 	

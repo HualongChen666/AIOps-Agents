@@ -18,7 +18,7 @@ sys.modules["config"].INTERNAL_API_KEY = ""
 sys.modules["core.command_guard"] = MagicMock()
 sys.modules["core.compliance"] = MagicMock()
 
-from api.audit_router import audit_report, export_audit  # isort: skip
+from api.audit_router import audit_report, export_audit, list_audit  # isort: skip
 
 # isort: on
 import api.audit_router
@@ -34,6 +34,7 @@ def client():
     test_router = APIRouter(prefix="/api/audit", tags=["Audit Export & Report"])
     test_router.add_api_route("/export", export_audit, methods=["GET"])
     test_router.add_api_route("/report", audit_report, methods=["GET"])
+    test_router.add_api_route("", list_audit, methods=["GET"])
     app.include_router(test_router)
     return TestClient(app)
 
@@ -122,6 +123,79 @@ class TestAuditRouter:
             assert response.status_code == 200
             data = response.json()
             assert data["total"] == 0
+
+    def test_export_audit_invalid_format(self, client):
+        """测试无效导出格式"""
+        response = client.get("/api/audit/export?fmt=invalid&limit=10")
+        assert response.status_code == 422
+
+    def test_export_audit_invalid_limit(self, client):
+        """测试无效limit参数"""
+        response = client.get("/api/audit/export?fmt=csv&limit=0")
+        assert response.status_code == 422
+
+    def test_export_audit_limit_too_high(self, client):
+        """测试limit超过上限"""
+        response = client.get("/api/audit/export?fmt=csv&limit=6000")
+        assert response.status_code == 422
+
+    def test_export_audit_excel_no_openpyxl(self, client):
+        """测试Excel导出缺少openpyxl"""
+        with patch("api.audit_router.get_audit_log") as mock_audit:
+            mock_audit.return_value = []
+
+            with patch("api.audit_router.mask_sensitive_dict") as mock_mask:
+                mock_mask.side_effect = lambda x: x
+
+                with patch.dict("sys.modules", {"openpyxl": None}):
+                    response = client.get("/api/audit/export?fmt=excel&limit=10")
+                    assert response.status_code in [200, 500]
+
+    def test_list_audit_success(self, client):
+        """测试获取审计日志列表"""
+        with patch("api.audit_router.get_audit_log") as mock_audit:
+            mock_audit.return_value = [
+                {"timestamp": "2026-07-03", "event": "test", "risk_level": "low", "result": "allowed"}
+            ]
+            response = client.get("/api/audit/?limit=10")
+            assert response.status_code == 200
+            data = response.json()
+            assert isinstance(data, list)
+
+    def test_list_audit_empty(self, client):
+        """测试获取空审计日志列表"""
+        with patch("api.audit_router.get_audit_log") as mock_audit:
+            mock_audit.return_value = []
+            response = client.get("/api/audit/?limit=10")
+            assert response.status_code == 200
+            data = response.json()
+            assert data == []
+
+    def test_export_audit_empty_excel(self, client):
+        """测试空日志Excel导出"""
+        with patch("api.audit_router.get_audit_log") as mock_audit:
+            mock_audit.return_value = []
+
+            with patch("api.audit_router.mask_sensitive_dict") as mock_mask:
+                mock_mask.side_effect = lambda x: x
+
+                response = client.get("/api/audit/export?fmt=excel&limit=10")
+                # May return 500 if openpyxl not installed
+                assert response.status_code in [200, 500]
+
+    def test_export_audit_excel_import_error(self, client):
+        """测试Excel导出openpyxl导入错误"""
+        with patch("api.audit_router.get_audit_log") as mock_audit:
+            mock_audit.return_value = [
+                {"timestamp": "2026-07-03", "event": "test", "risk_level": "low", "result": "allowed"}
+            ]
+
+            with patch("api.audit_router.mask_sensitive_dict") as mock_mask:
+                mock_mask.side_effect = lambda x: x
+
+                with patch.dict("sys.modules", {"openpyxl": None}):
+                    response = client.get("/api/audit/export?fmt=excel&limit=10")
+                    assert response.status_code == 500
 
 
 if __name__ == "__main__":

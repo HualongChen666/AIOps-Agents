@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "gitlab": {
+      "command": "C:\\Program Files\\Python312\\python.exe",
+      "args": ["C:\\Users\\Hualong_Chen\\AppData\\Roaming\\devin\\mcp-gitlab-launcher.py"],
+      "env": {
+        "GITLAB_API_URL": "https://gitlab.dell.com/api/v4",
+        "GITLAB_PERSONAL_ACCESS_TOKEN": ""
+      }
+    },
+    "filesystem": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\AIOps_Agent_bak"],
+      "env": {}
+    },
+    "postgres": {
+      "command": "C:\\Program Files\\nodejs\\npx.CMD",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost:5432/aiops"],
+      "env": {}
+    }
+  }
+}

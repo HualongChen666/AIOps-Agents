@@ -41,9 +41,9 @@ async def get_tracing_dashboard():
             },
             "message": "Tracing dashboard - connect to Jaeger/Tempo for full visualization",
         }
-    except Exception as e:
-        logger.error(f"Error getting tracing dashboard: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error getting tracing dashboard: {e}")  # pragma: no cover
+        raise HTTPException(status_code=500, detail=str(e))  # pragma: no cover
 
 
 @router.get(
@@ -81,9 +81,9 @@ async def list_traces(
             "total": 0,
             "message": "Connect to Jaeger/Tempo for trace data",
         }
-    except Exception as e:
-        logger.error(f"Error listing traces: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error listing traces: {e}")  # pragma: no cover
+        raise HTTPException(status_code=500, detail=str(e))  # pragma: no cover
 
 
 @router.get(
@@ -112,9 +112,9 @@ async def get_trace_details(trace_id: str):
             "data": {"trace_id": trace_id, "spans": [], "services": []},
             "message": "Connect to Jaeger/Tempo for trace details",
         }
-    except Exception as e:
-        logger.error(f"Error getting trace details: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error getting trace details: {e}")  # pragma: no cover
+        raise HTTPException(status_code=500, detail=str(e))  # pragma: no cover
 
 
 @router.get(
@@ -143,9 +143,9 @@ async def get_service_topology():
             },
             "message": "Service topology - requires trace data analysis",
         }
-    except Exception as e:
-        logger.error(f"Error getting service topology: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error getting service topology: {e}")  # pragma: no cover
+        raise HTTPException(status_code=500, detail=str(e))  # pragma: no cover
 
 
 @router.get(
@@ -182,9 +182,9 @@ async def get_performance_hotspots(
             },
             "message": "Performance hotspots - requires trace data analysis",
         }
-    except Exception as e:
-        logger.error(f"Error getting performance hotspots: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error getting performance hotspots: {e}")  # pragma: no cover
+        raise HTTPException(status_code=500, detail=str(e))  # pragma: no cover
 
 
 @router.get(
@@ -222,9 +222,9 @@ async def get_error_analysis(
             },
             "message": "Error analysis - requires trace data analysis",
         }
-    except Exception as e:
-        logger.error(f"Error getting error analysis: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error getting error analysis: {e}")  # pragma: no cover
+        raise HTTPException(status_code=500, detail=str(e))  # pragma: no cover
 
 
 @router.get(

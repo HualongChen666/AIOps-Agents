@@ -75,11 +75,12 @@ def _get_alert_repository() -> Any:
 
 # P0-3: Import business metrics collector
 try:
-    pass
+    from core.business_metrics import business_metrics_collector
 
     BUSINESS_METRICS_AVAILABLE = True
 except ImportError:
     BUSINESS_METRICS_AVAILABLE = False
+    business_metrics_collector = None  # type: ignore[assignment]
     logger.warning("Business metrics collector not available")
 
 # 🔧 N-1:导入 SQLite 持久化引擎

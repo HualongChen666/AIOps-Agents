@@ -70,6 +70,50 @@ class TestGRPCRouter:
         # Should return 503 since gRPC is not available, or 500 if it fails
         assert response.status_code in [200, 503, 500]
 
+    def test_start_grpc_server_error(self, client):
+        """测试启动gRPC服务器异常"""
+        # Mock gRPC available but start fails
+        import api.grpc_router as grpc_module
+        original_available = grpc_module.GRPC_AVAILABLE
+        original_server = grpc_module._grpc_server
+
+        grpc_module.GRPC_AVAILABLE = True
+        grpc_module._grpc_server = MagicMock()
+        grpc_module._grpc_server.start.side_effect = RuntimeError("Start failed")
+
+        try:
+            response = client.post("/grpc/start")
+            assert response.status_code == 500
+        finally:
+            grpc_module.GRPC_AVAILABLE = original_available
+            grpc_module._grpc_server = original_server
+
+    def test_stop_grpc_server_error(self, client):
+        """测试停止gRPC服务器异常"""
+        # Mock gRPC available but stop fails
+        import api.grpc_router as grpc_module
+        original_available = grpc_module.GRPC_AVAILABLE
+        original_server = grpc_module._grpc_server
+
+        grpc_module.GRPC_AVAILABLE = True
+        grpc_module._grpc_server = MagicMock()
+        grpc_module._grpc_server.stop.side_effect = RuntimeError("Stop failed")
+
+        try:
+            response = client.post("/grpc/stop")
+            assert response.status_code == 500
+        finally:
+            grpc_module.GRPC_AVAILABLE = original_available
+            grpc_module._grpc_server = original_server
+
+    def test_grpc_health_response_structure(self, client):
+        """测试健康检查响应结构"""
+        response = client.get("/grpc/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, dict)
+        assert len(data) == 3
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

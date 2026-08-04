@@ -147,6 +147,90 @@ class TestPluginSDKRouter:
             response = client.get("/api/plugin-system/plugin/plugin-404")
             assert response.status_code == 404
 
+    def test_define_plugin_interface_error(self, client):
+        """测试定义接口失败"""
+        with patch("core.plugin_system_manager.get_plugin_system_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.define_plugin_interface.side_effect = Exception("Interface error")
+            mock_manager.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-system/interface/define",
+                params={"interface_id": "data-collector", "interface_name": "Data Collector"},
+                json={"methods": {}, "events": {}},
+            )
+            assert response.status_code == 500
+
+    def test_get_interface_spec_error(self, client):
+        """测试获取接口规范失败"""
+        with patch("core.plugin_system_manager.get_plugin_system_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.generate_plugin_interface_spec.side_effect = Exception("Spec error")
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/plugin-system/interface/spec/data-collector")
+            assert response.status_code == 500
+
+    def test_register_plugin_error(self, client):
+        """测试注册插件失败"""
+        with patch("core.plugin_system_manager.get_plugin_system_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.register_plugin.side_effect = Exception("Register error")
+            mock_manager.return_value = mock_instance
+            response = client.post(
+                "/api/plugin-system/plugin/register",
+                params={
+                    "plugin_id": "plugin-123",
+                    "name": "TestPlugin",
+                    "version": "1.0.0",
+                    "description": "Test",
+                    "author": "TestAuthor",
+                    "plugin_type": "collector",
+                },
+            )
+            assert response.status_code == 500
+
+    def test_enable_plugin_error(self, client):
+        """测试启用插件失败"""
+        with patch("core.plugin_system_manager.get_plugin_system_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.enable_plugin.side_effect = Exception("Enable error")
+            mock_manager.return_value = mock_instance
+            response = client.post("/api/plugin-system/plugin/plugin-123/enable")
+            assert response.status_code == 500
+
+    def test_disable_plugin_error(self, client):
+        """测试禁用插件失败"""
+        with patch("core.plugin_system_manager.get_plugin_system_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.disable_plugin.side_effect = Exception("Disable error")
+            mock_manager.return_value = mock_instance
+            response = client.post("/api/plugin-system/plugin/plugin-123/disable")
+            assert response.status_code == 500
+
+    def test_list_plugins_error(self, client):
+        """测试列出插件失败"""
+        with patch("core.plugin_system_manager.get_plugin_system_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.list_plugins.side_effect = Exception("List error")
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/plugin-system/plugins")
+            assert response.status_code == 500
+
+    def test_get_system_status_response_structure(self, client):
+        """测试系统状态响应结构"""
+        with patch("core.plugin_system_manager.get_plugin_system_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.get_system_summary.return_value = {
+                "total_plugins": 10,
+                "active_plugins": 8,
+                "total_interfaces": 5,
+            }
+            mock_manager.return_value = mock_instance
+            response = client.get("/api/plugin-system/status")
+            assert response.status_code == 200
+            data = response.json()
+            assert "status" in data
+            assert "data" in data
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

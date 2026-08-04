@@ -16,6 +16,7 @@ from api.grpc_service_router import (
     create_grpc_service,
     create_monitoring_service,
     export_proto_file,
+    export_python_file,
     get_grpc_status,
 )
 
@@ -34,6 +35,7 @@ def client():
     test_router.add_api_route("/create/monitoring", create_monitoring_service, methods=["POST"])
     test_router.add_api_route("/create/alert", create_alert_service, methods=["POST"])
     test_router.add_api_route("/export/proto/{service_name}", export_proto_file, methods=["GET"])
+    test_router.add_api_route("/export/python/{service_name}", export_python_file, methods=["GET"])
     app.include_router(test_router)
     return TestClient(app)
 
@@ -140,6 +142,85 @@ class TestGRPCServiceRouter:
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
+
+    def test_export_python_file(self, client):
+        """测试导出Python实现文件"""
+        with patch("core.grpc_service_manager.get_grpc_service_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_service = Mock()
+            mock_service.python_content = "class UserService:"
+            mock_instance.services = {"UserService": mock_service}
+            mock_manager.return_value = mock_instance
+
+            response = client.get("/api/grpc-services/export/python/UserService")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "success"
+
+    def test_export_proto_file_not_found(self, client):
+        """测试导出不存在的服务proto文件"""
+        with patch("core.grpc_service_manager.get_grpc_service_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.services = {}
+            mock_manager.return_value = mock_instance
+
+            response = client.get("/api/grpc-services/export/proto/NonExistent")
+            assert response.status_code == 404
+
+    def test_create_grpc_service_error(self, client):
+        """测试创建gRPC服务失败"""
+        with (
+            patch("core.grpc_service_manager.get_grpc_service_manager") as mock_manager,
+            patch("core.grpc_service_manager.GRPCMethod") as mock_method,
+        ):
+            mock_instance = Mock()
+            mock_instance.create_service.side_effect = Exception("Create service error")
+            mock_manager.return_value = mock_instance
+            mock_method.return_value = Mock()
+
+            response = client.post(
+                "/api/grpc-services/create?service_name=UserService&package_name=user",
+                json={
+                    "methods": [
+                        {
+                            "method_name": "GetUser",
+                            "request_type": "UserRequest",
+                            "response_type": "UserResponse",
+                        }
+                    ]
+                },
+            )
+            assert response.status_code == 500
+
+    def test_create_monitoring_service_error(self, client):
+        """测试创建监控服务失败"""
+        with patch("core.grpc_service_manager.get_grpc_service_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.create_monitoring_service.side_effect = Exception("Create monitoring error")
+            mock_manager.return_value = mock_instance
+
+            response = client.post("/api/grpc-services/create/monitoring")
+            assert response.status_code == 500
+
+    def test_create_alert_service_error(self, client):
+        """测试创建告警服务失败"""
+        with patch("core.grpc_service_manager.get_grpc_service_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.create_alert_service.side_effect = Exception("Create alert error")
+            mock_manager.return_value = mock_instance
+
+            response = client.post("/api/grpc-services/create/alert")
+            assert response.status_code == 500
+
+    def test_export_python_file_not_found(self, client):
+        """测试导出不存在的服务Python文件"""
+        with patch("core.grpc_service_manager.get_grpc_service_manager") as mock_manager:
+            mock_instance = Mock()
+            mock_instance.services = {}
+            mock_manager.return_value = mock_instance
+
+            response = client.get("/api/grpc-services/export/python/NonExistent")
+            assert response.status_code == 404
 
 
 if __name__ == "__main__":

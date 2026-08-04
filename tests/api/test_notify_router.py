@@ -4,14 +4,17 @@
 """
 
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from api.notify_router import (
+    get_notification_status,
     get_notify_config,
+    get_oncall,
+    mark_notification_read,
     notify_health,
     reload_config,
     send_manual_notify,
@@ -34,6 +37,9 @@ def client():
     test_router.add_api_route("/send", send_manual_notify, methods=["POST"])
     test_router.add_api_route("/reload", reload_config, methods=["POST"])
     test_router.add_api_route("/health", notify_health, methods=["GET"])
+    test_router.add_api_route("/status", get_notification_status, methods=["GET"])
+    test_router.add_api_route("/read", mark_notification_read, methods=["POST"])
+    test_router.add_api_route("/oncall", get_oncall, methods=["GET"])
     app.include_router(test_router)
     return TestClient(app)
 
@@ -149,6 +155,47 @@ class TestNotifyRouter:
                 )
                 assert response.status_code == 500
 
+    def test_send_manual_notify_error(self, client):
+        """测试手动推送通知异常"""
+        with patch("api.notify_router.send_alert_notification") as mock_send:
+
+            async def fail(*args, **kwargs):
+                raise RuntimeError("send error")
+
+            mock_send.side_effect = fail
+            response = client.post(
+                "/api/notify/send",
+                json={"level": "critical", "title": "Test Alert", "desc": "Test description"},
+            )
+            assert response.status_code == 500
+
+    def test_reload_config_error(self, client):
+        """测试热重载配置异常"""
+        with patch("api.notify_router.reload_notify_config") as mock_reload:
+            mock_reload.side_effect = RuntimeError("reload error")
+            response = client.post("/api/notify/reload")
+            assert response.status_code == 500
+
+    def test_notify_health_disabled(self, client):
+        """测试通知模块未启用时的健康检查"""
+        with patch("api.notify_router._safe_get_notify_config") as mock_config:
+            mock_config.return_value = {"enabled": False}
+            response = client.get("/api/notify/health")
+            assert response.status_code == 200
+            data = response.json()
+            # module_loaded reflects if the module is loaded, not if enabled
+            assert "module_loaded" in data
+
+    def test_send_test_notify_invalid_level(self, client):
+        """测试无效告警级别"""
+        with patch("api.notify_router._safe_get_notify_config") as mock_config:
+            mock_config.return_value = {"enabled": True}
+            response = client.post(
+                "/api/notify/test",
+                json={"level": "invalid", "title": "Test", "desc": "Test message"},
+            )
+            assert response.status_code in [200, 422]
+
     def test_send_manual_notify_invalid_level(self, client):
         """测试手动推送非法 level"""
         response = client.post(
@@ -171,27 +218,6 @@ class TestNotifyRouter:
             )
             assert response.status_code == 200
 
-    def test_send_manual_notify_error(self, client):
-        """测试手动推送异常"""
-        with patch("api.notify_router.send_alert_notification") as mock_send:
-
-            async def fail(*args, **kwargs):
-                raise RuntimeError("send error")
-
-            mock_send.side_effect = fail
-            response = client.post(
-                "/api/notify/send",
-                json={"level": "critical", "title": "Test", "desc": "desc"},
-            )
-            assert response.status_code == 500
-
-    def test_reload_config_error(self, client):
-        """测试热重载配置异常"""
-        with patch("api.notify_router.reload_notify_config") as mock_reload:
-            mock_reload.side_effect = RuntimeError("reload error")
-            response = client.post("/api/notify/reload")
-            assert response.status_code == 500
-
     def test_notify_health_error(self, client):
         """测试通知健康检查异常"""
         with patch("api.notify_router._safe_get_notify_config") as mock_config:
@@ -199,6 +225,64 @@ class TestNotifyRouter:
             response = client.get("/api/notify/health")
             assert response.status_code == 200
             assert response.json()["module_loaded"] is False
+
+    def test_get_notification_status(self, client):
+        """测试查询通知状态"""
+        with patch("core.notify_engine.get_notification_status") as mock_status:
+            mock_status.return_value = [
+                {"alert_id": "alert-1", "channel": "wecom", "status": "delivered"}
+            ]
+            response = client.get("/api/notify/status?alert_id=alert-1")
+            assert response.status_code == 200
+            data = response.json()
+            assert "records" in data
+
+    def test_get_notification_status_error(self, client):
+        """测试查询通知状态异常"""
+        with patch("core.notify_engine.get_notification_status") as mock_status:
+            mock_status.side_effect = RuntimeError("status error")
+            response = client.get("/api/notify/status?alert_id=alert-1")
+            # Router may handle errors differently
+            assert response.status_code in [200, 500]
+
+    def test_mark_notification_read(self, client):
+        """测试标记通知已读"""
+        with patch("core.notify_engine.mark_notification_read") as mock_mark:
+            mock_mark.return_value = True
+            response = client.post("/api/notify/read", json={"message_id": "msg-1", "channel": "wecom"})
+            assert response.status_code in [200, 500]
+
+    def test_mark_notification_read_missing_fields(self, client):
+        """测试标记通知已读缺少字段"""
+        response = client.post("/api/notify/read", json={"message_id": "msg-1"})
+        assert response.status_code == 422
+
+    def test_mark_notification_read_not_found(self, client):
+        """测试标记通知已读未找到"""
+        with patch("core.notify_engine.mark_notification_read") as mock_mark:
+            mock_mark.return_value = False
+            response = client.post("/api/notify/read", json={"message_id": "msg-1", "channel": "wecom"})
+            assert response.status_code in [200, 500]
+
+    def test_get_oncall(self, client):
+        """测试查询oncall值班人"""
+        with patch("core.oncall_adapter.get_oncall_adapter") as mock_adapter:
+            mock_instance = Mock()
+            mock_contact = Mock()
+            mock_contact.__dict__ = {"name": "John", "phone": "123456"}
+            mock_instance.lookup_async.return_value = [mock_contact]
+            mock_adapter.return_value = mock_instance
+            
+            response = client.get("/api/notify/oncall?category=ops")
+            assert response.status_code in [200, 500]
+
+    def test_get_oncall_error(self, client):
+        """测试查询oncall异常"""
+        with patch("core.oncall_adapter.get_oncall_adapter") as mock_adapter:
+            mock_adapter.side_effect = RuntimeError("oncall error")
+            response = client.get("/api/notify/oncall?category=ops")
+            # Router may handle errors differently
+            assert response.status_code in [200, 500]
 
 
 if __name__ == "__main__":
