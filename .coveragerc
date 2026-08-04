@@ -266,14 +266,6 @@ precision = 2
 show_missing = True
 skip_empty = True
 sort = Cover
-include = 
-	api\*_router.py
-	core\authentication.py
-	core\sso_auth.py
-	core\mcp_server.py
-	core\interface\l5\mcp_interface.py
-	modules\analyze\anomaly\transformer_service.py
-	modules\analyze\root_cause\causal_service.py
 exclude_lines = 
 	pragma: no cover
 	
