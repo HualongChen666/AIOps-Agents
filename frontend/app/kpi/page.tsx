@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -21,31 +22,219 @@ interface KPIReport {
   createdAt: string;
 }
 
+interface DashboardMetricItem {
+  key: string;
+  value: number | string;
+  unit: string;
+  level?: string;
+}
+
+const targetByName: Record<string, number> = {
+  告警数量: 50,
+  自愈成功率: 85,
+  MTTD: 30,
+  MTTR: 30,
+  MTBF: 720,
+  告警响应时间: 10,
+  自动修复成功率: 85,
+  SLA达成率: 95,
+  'RCA准确率': 85,
+  决策准确率: 90,
+  反馈准确率: 90,
+  'CPU 使用率': 80,
+  '内存使用率': 80,
+  '磁盘使用率': 80,
+  系统可用性: 99.9,
+};
+
+const unitByName: Record<string, string> = {
+  告警数量: '个',
+  自愈成功率: '%',
+  MTTD: 'min',
+  MTTR: 'min',
+  MTBF: '小时',
+  告警响应时间: 'min',
+  自动修复成功率: '%',
+  SLA达成率: '%',
+  'RCA准确率': '%',
+  决策准确率: '%',
+  反馈准确率: '%',
+  'CPU 使用率': '%',
+  '内存使用率': '%',
+  '磁盘使用率': '%',
+  系统可用性: '%',
+};
+
+const parseMetricValue = (value: unknown): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/%/g, '').trim();
+    const parsed = parseFloat(cleaned);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
+const SERIES_COLORS: Record<string, string> = {
+  cpu: '#3b82f6',
+  memory: '#ef4444',
+  net_in: '#22c55e',
+};
+
 export default function KPIPage() {
   const [selectedPeriod, setSelectedPeriod] = useState('month');
-  const [kpiMetrics, setKpiMetrics] = useState<KPIMetric[]>([
-    { name: '系统可用性', value: 99.95, target: 99.9, unit: '%', trend: 'up' },
-    { name: 'MTTR', value: 15, target: 30, unit: '分钟', trend: 'down' },
-    { name: 'MTBF', value: 720, target: 720, unit: '小时', trend: 'stable' },
-    { name: '告警响应时间', value: 5, target: 10, unit: '分钟', trend: 'down' },
-    { name: '自动修复成功率', value: 87, target: 85, unit: '%', trend: 'up' },
-    { name: 'SLA达成率', value: 98.5, target: 95, unit: '%', trend: 'up' },
-  ]);
+  const [kpiMetrics, setKpiMetrics] = useState<KPIMetric[]>([]);
+  const [history, setHistory] = useState<Record<string, (number | string)[]>>({});
+  const [reports, setReports] = useState<KPIReport[]>([]);
 
-  const [reports, setReports] = useState<KPIReport[]>([
-    {
-      id: 'KPI-001',
-      name: '2024年1月KPI报告',
-      period: '2024-01',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'KPI-002',
-      name: '2023年12月KPI报告',
-      period: '2023-12',
-      createdAt: new Date(Date.now() - 2592000000).toISOString(),
-    },
-  ]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadKPIs = async () => {
+      try {
+        const [summaryRes, snapshotRes, decisionRes, feedbackRes, historyRes] = await Promise.all([
+          api.get('/api/v1/metrics/summary'),
+          api.get('/api/v1/metrics/snapshot'),
+          api.get('/api/v1/metrics/agent/decision-accuracy'),
+          api.get('/api/v1/metrics/agent/feedback-accuracy'),
+          api.get('/api/v1/metrics/history'),
+        ]);
+
+        if (cancelled) return;
+
+        const nextMetrics: KPIMetric[] = [];
+        const summary = summaryRes.data || {};
+
+        // 总览摘要：优先使用顶层字段，兼容嵌套 alerts/repairs/systems
+        const alertCount =
+          summary.total_alerts ?? summary.alerts?.total ?? 0;
+        const healRate =
+          summary.heal_rate ?? summary.repairs?.heal_rate ?? 0;
+        const mttd =
+          summary.mttd_min ?? summary.alerts?.mttd_min ?? 0;
+        const rcaAccuracy =
+          summary.rca_accuracy ?? summary.alerts?.rca_accuracy ?? 0;
+
+        if (alertCount !== undefined) {
+          nextMetrics.push({
+            name: '告警数量',
+            value: Number(alertCount) || 0,
+            target: targetByName['告警数量'],
+            unit: unitByName['告警数量'],
+            trend: 'stable',
+          });
+        }
+        if (healRate !== undefined) {
+          nextMetrics.push({
+            name: '自愈成功率',
+            value: parseMetricValue(healRate),
+            target: targetByName['自愈成功率'],
+            unit: unitByName['自愈成功率'],
+            trend: 'stable',
+          });
+        }
+        if (mttd !== undefined) {
+          nextMetrics.push({
+            name: 'MTTD',
+            value: parseMetricValue(mttd),
+            target: targetByName.MTTD,
+            unit: unitByName.MTTD,
+            trend: 'stable',
+          });
+        }
+        if (rcaAccuracy !== undefined) {
+          nextMetrics.push({
+            name: 'RCA准确率',
+            value: parseMetricValue(rcaAccuracy),
+            target: targetByName['RCA准确率'],
+            unit: unitByName['RCA准确率'],
+            trend: 'stable',
+          });
+        }
+
+        // 全量快照：CPU / 内存 / 磁盘
+        const snapshot = snapshotRes.data || {};
+        const cpu = snapshot.cpu?.usage_percent;
+        const memory = snapshot.memory?.usage_percent;
+        const disk = snapshot.disk?.usage_percent;
+
+        if (typeof cpu === 'number') {
+          nextMetrics.push({
+            name: 'CPU 使用率',
+            value: cpu,
+            target: targetByName['CPU 使用率'],
+            unit: unitByName['CPU 使用率'],
+            trend: 'stable',
+          });
+        }
+        if (typeof memory === 'number') {
+          nextMetrics.push({
+            name: '内存使用率',
+            value: memory,
+            target: targetByName['内存使用率'],
+            unit: unitByName['内存使用率'],
+            trend: 'stable',
+          });
+        }
+        if (typeof disk === 'number') {
+          nextMetrics.push({
+            name: '磁盘使用率',
+            value: disk,
+            target: targetByName['磁盘使用率'],
+            unit: unitByName['磁盘使用率'],
+            trend: 'stable',
+          });
+        }
+
+        // Agent 决策准确率
+        const decision = decisionRes.data || {};
+        const decisionMetrics = decision.metrics || decision;
+        if (decisionMetrics?.accuracy !== undefined) {
+          const accuracy = typeof decisionMetrics.accuracy === 'number' ? decisionMetrics.accuracy : 0;
+          nextMetrics.push({
+            name: '决策准确率',
+            value: accuracy <= 1 ? Math.round(accuracy * 10000) / 100 : parseMetricValue(accuracy),
+            target: targetByName['决策准确率'],
+            unit: unitByName['决策准确率'],
+            trend: 'stable',
+          });
+        }
+
+        // Agent 反馈准确率
+        const feedback = feedbackRes.data || {};
+        if (feedback?.accuracy !== undefined) {
+          nextMetrics.push({
+            name: '反馈准确率',
+            value: parseMetricValue(feedback.accuracy),
+            target: targetByName['反馈准确率'],
+            unit: unitByName['反馈准确率'],
+            trend: 'stable',
+          });
+        }
+
+        setKpiMetrics(nextMetrics);
+        setHistory(historyRes.data || {});
+
+        // 用当前快照时间生成一条动态 KPI 快照报告
+        const createdAt = new Date().toISOString();
+        setReports([
+          {
+            id: 'KPI-SNAP-001',
+            name: `${selectedPeriod}KPI实时快照`,
+            period: selectedPeriod,
+            createdAt,
+          },
+        ]);
+      } catch {
+        // api interceptor 已展示错误提示
+      }
+    };
+
+    loadKPIs();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPeriod]);
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
@@ -78,6 +267,33 @@ export default function KPIPage() {
     if (ratio >= 1) return 'bg-green-500';
     if (ratio >= 0.9) return 'bg-yellow-500';
     return 'bg-red-500';
+  };
+
+  const chartSeries = Object.entries(history).filter(
+    ([key, values]) =>
+      !key.startsWith('_') &&
+      key !== 'timestamps' &&
+      Array.isArray(values) &&
+      values.length > 0
+  );
+
+  const width = 300;
+  const height = 100;
+  const allValues = chartSeries.flatMap(([, values]) =>
+    (values as (number | string)[]).map((v) => parseMetricValue(v))
+  );
+  const maxValue = Math.max(1, ...allValues);
+
+  const buildPoints = (values: (number | string)[]) => {
+    const numbers = values.map((v) => parseMetricValue(v));
+    if (numbers.length === 1) return `${0},${height - (numbers[0] / maxValue) * height}`;
+    return numbers
+      .map((v, i) => {
+        const x = (i / (numbers.length - 1)) * width;
+        const y = height - (v / maxValue) * height;
+        return `${x},${y}`;
+      })
+      .join(' ');
   };
 
   return (
@@ -138,8 +354,39 @@ export default function KPIPage() {
           <CardTitle>KPI历史趋势</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">KPI历史趋势图 (使用ECharts渲染)</p>
+          <div className="h-64 bg-gray-50 rounded-lg flex flex-col items-center justify-center p-4">
+            {chartSeries.length === 0 ? (
+              <p className="text-gray-500">KPI历史趋势图 (使用ECharts渲染)</p>
+            ) : (
+              <>
+                <svg
+                  viewBox={`0 0 ${width} ${height}`}
+                  className="w-full h-full"
+                  preserveAspectRatio="none"
+                >
+                  {chartSeries.map(([key, values]) => (
+                    <polyline
+                      key={key}
+                      fill="none"
+                      stroke={SERIES_COLORS[key] || '#9ca3af'}
+                      strokeWidth={2}
+                      points={buildPoints(values as (number | string)[])}
+                    />
+                  ))}
+                </svg>
+                <ul className="flex gap-4 mt-2 text-sm">
+                  {chartSeries.map(([key]) => (
+                    <li key={key} className="flex items-center">
+                      <span
+                        className="inline-block w-3 h-3 rounded-full mr-1"
+                        style={{ backgroundColor: SERIES_COLORS[key] || '#9ca3af' }}
+                      />
+                      {key}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -18,7 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from core.authentication import get_current_active_user
+
 from core.workflow_engine import (
     WORKFLOW_DEFINITIONS,
     get_workflow_definitions,
@@ -27,7 +27,7 @@ from core.workflow_engine import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/api/v1/workflows", tags=["工作流"], dependencies=[Depends(get_current_active_user)]
+    prefix="/api/v1/workflows", tags=["工作流"]
 )
 
 

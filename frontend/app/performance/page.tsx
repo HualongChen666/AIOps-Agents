@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import api from '@/lib/api';
 
 // 虚拟列表组件示例
 function VirtualList({ items, itemHeight = 50, containerHeight = 400 }: { items: any[], itemHeight?: number, containerHeight?: number }) {
@@ -98,30 +99,56 @@ function LazyImage({ src, alt, placeholder }: { src: string, alt: string, placeh
 export default function PerformancePage() {
   const [workerResult, setWorkerResult] = useState<string>('');
   const [isCalculating, setIsCalculating] = useState(false);
-  const [serviceWorkerStatus, setServiceWorkerStatus] = useState<'unknown' | 'supported' | 'not-supported'>('unknown');
 
-  // 生成大量测试数据
-  const generateLargeDataset = useCallback((count: number) => {
-    return Array.from({ length: count }, (_, i) => ({
-      id: i,
-      name: `项目 ${i + 1}`,
-      status: i % 3 === 0 ? 'active' : 'inactive',
-      description: `这是第 ${i + 1} 个项目的描述信息`,
-    }));
+  const [metrics, setMetrics] = useState<any[]>([]);
+  const [processes, setProcesses] = useState<any[]>([]);
+  const [health, setHealth] = useState<any>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [loadingProcesses, setLoadingProcesses] = useState(true);
+  const [loadingHealth, setLoadingHealth] = useState(true);
+
+  // 加载真实的性能指标、Top 进程和健康状态
+  useEffect(() => {
+    let cancelled = false;
+    const loadData = async () => {
+      try {
+        const [metricsRes, processesRes, healthRes] = await Promise.all([
+          api.get('/api/v1/metrics/').catch(() => null),
+          api.get('/api/v1/metrics/processes', { params: { limit: 50 } }).catch(() => null),
+          api.get('/api/v1/health/detailed').catch(() => null),
+        ]);
+
+        if (cancelled) return;
+
+        setMetrics(metricsRes?.data?.metrics || []);
+        setProcesses((processesRes?.data?.processes || []).map((p: any, index: number) => ({
+          id: p.pid ?? index,
+          name: `${p.name || '未知'} (PID: ${p.pid ?? '-'})`,
+          status: (p.cpu_percent || 0) > 0 ? 'active' : 'inactive',
+          description: `CPU: ${(p.cpu_percent || 0).toFixed(1)}% | 内存: ${(p.memory_mb || 0).toFixed(0)} MB`,
+        })));
+        setHealth(healthRes?.data || null);
+      } finally {
+        setLoadingMetrics(false);
+        setLoadingProcesses(false);
+        setLoadingHealth(false);
+      }
+    };
+
+    loadData();
+    return () => { cancelled = true; };
   }, []);
-
-  const largeDataset = generateLargeDataset(10000);
 
   // Web Worker 示例
   const runHeavyCalculation = useCallback(() => {
     setIsCalculating(true);
-    
+
     const workerCode = `
       self.onmessage = function(e) {
         const result = heavyCalculation(e.data);
         self.postMessage(result);
       };
-      
+
       function heavyCalculation(n) {
         let sum = 0;
         for (let i = 0; i < n; i++) {
@@ -145,14 +172,14 @@ export default function PerformancePage() {
     worker.postMessage(10000);
   }, []);
 
-  // 检查 Service Worker 支持
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      setServiceWorkerStatus('supported');
-    } else {
-      setServiceWorkerStatus('not-supported');
+  const getLevelText = (level: string) => {
+    switch (level) {
+      case 'critical': return '严重';
+      case 'warning': return '警告';
+      case 'normal': return '正常';
+      default: return level;
     }
-  }, []);
+  };
 
   return (
     <div className="space-y-6">
@@ -161,60 +188,42 @@ export default function PerformancePage() {
         <Badge className="bg-blue-100 text-blue-800">技术展示</Badge>
       </div>
 
-      {/* 性能优化概览 */}
+      {/* 性能指标概览 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">虚拟列表</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-600">✓</p>
-            <p className="text-sm text-gray-500">已实现</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">懒加载</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-600">✓</p>
-            <p className="text-sm text-gray-500">已实现</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Web Worker</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-600">✓</p>
-            <p className="text-sm text-gray-500">已实现</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Service Worker</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-bold ${serviceWorkerStatus === 'supported' ? 'text-green-600' : 'text-red-600'}`}>
-              {serviceWorkerStatus === 'supported' ? '✓' : '✗'}
-            </p>
-            <p className="text-sm text-gray-500">
-              {serviceWorkerStatus === 'supported' ? '支持' : '不支持'}
-            </p>
-          </CardContent>
-        </Card>
+        {loadingMetrics ? (
+          <div className="md:col-span-4 text-sm text-gray-500">指标加载中...</div>
+        ) : (
+          metrics.map((m) => (
+            <Card key={m.key}>
+              <CardHeader>
+                <CardTitle className="text-sm">{m.key}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className={`text-2xl font-bold ${m.level === 'critical' ? 'text-red-600' : m.level === 'warning' ? 'text-yellow-600' : 'text-green-600'}`}>
+                  {m.value}
+                  <span className="text-sm font-normal text-gray-500 ml-1">{m.unit}</span>
+                </p>
+                <p className="text-sm text-gray-500">{getLevelText(m.level)}</p>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* 虚拟列表演示 */}
       <Card>
         <CardHeader>
-          <CardTitle>虚拟列表 (10,000 条数据)</CardTitle>
+          <CardTitle>Top 进程 ({processes.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 mb-4">
-            虚拟列表只渲染可见区域的元素，大幅提升大数据量列表的性能。
+            从 /api/v1/metrics/processes 获取的 CPU 占用最高的实时进程列表。
           </p>
-          <VirtualList items={largeDataset} itemHeight={60} containerHeight={400} />
+          {loadingProcesses ? (
+            <p className="text-sm text-gray-500">进程加载中...</p>
+          ) : (
+            <VirtualList items={processes} itemHeight={60} containerHeight={400} />
+          )}
         </CardContent>
       </Card>
 
@@ -272,28 +281,45 @@ export default function PerformancePage() {
         </CardContent>
       </Card>
 
-      {/* Service Worker 状态 */}
+      {/* 系统健康检查 */}
       <Card>
         <CardHeader>
-          <CardTitle>Service Worker 缓存</CardTitle>
+          <CardTitle>系统健康检查</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 mb-4">
-            Service Worker 可以缓存静态资源，实现离线访问和更快的加载速度。
+            从 /api/v1/health/detailed 获取的系统组件健康状态。
           </p>
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-medium">Service Worker 支持</span>
-              <Badge className={serviceWorkerStatus === 'supported' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                {serviceWorkerStatus === 'supported' ? '支持' : '不支持'}
-              </Badge>
+          {loadingHealth ? (
+            <p className="text-sm text-gray-500">健康状态加载中...</p>
+          ) : health ? (
+            <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">整体状态</span>
+                <Badge className={health.status === 'healthy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                  {health.status}
+                </Badge>
+              </div>
+              {health.metrics && (
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-gray-500">CPU</p>
+                    <p className="font-medium">{health.metrics.cpu_usage}%</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">内存</p>
+                    <p className="font-medium">{health.metrics.memory_usage}%</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">连接</p>
+                    <p className="font-medium">{health.metrics.active_connections}</p>
+                  </div>
+                </div>
+              )}
             </div>
-            <p className="text-sm text-gray-600">
-              {serviceWorkerStatus === 'supported'
-                ? '当前浏览器支持 Service Worker，可以注册 Service Worker 实现资源缓存和离线访问。'
-                : '当前浏览器不支持 Service Worker，无法使用 Service Worker 缓存功能。'}
-            </p>
-          </div>
+          ) : (
+            <p className="text-sm text-gray-500">无法获取健康状态</p>
+          )}
         </CardContent>
       </Card>
 

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import api from '@/lib/api';
 
 interface QueryTemplate {
   id: string;
@@ -62,12 +63,24 @@ export default function QueryPage() {
     },
   ]);
 
-  const executeQuery = () => {
+  const executeQuery = async () => {
     setIsExecuting(true);
-    setTimeout(() => {
-      setResult('查询结果示例数据...');
+    try {
+      const { data } = await api.post('/api/ai/analyze', {
+        query,
+        include_metrics: true,
+        platform: 'windows',
+      });
+      const analysisText =
+        typeof data.analysis === 'string'
+          ? data.analysis
+          : JSON.stringify(data.analysis, null, 2);
+      setResult(`分析结果:\n${analysisText}\n\n指标上下文:\n${data.metrics_context || ''}`);
+    } catch (err) {
+      setResult('查询失败，请稍后重试');
+    } finally {
       setIsExecuting(false);
-    }, 1000);
+    }
   };
 
   const applyTemplate = (template: QueryTemplate) => {

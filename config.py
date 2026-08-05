@@ -104,20 +104,20 @@ def _safe_float(
 # ============================================================
 # Add-on Feature Pack Switches
 # ============================================================
-ENABLE_ADDONS: bool = _safe_bool("ENABLE_ADDONS", default=False)
+ENABLE_ADDONS: bool = _safe_bool("ENABLE_ADDONS", default=True)
 
 # AI Plus Pack
-RAG_ENABLED: bool = _safe_bool("RAG_ENABLED", default=False)
-LLM_ROUTER_ENABLED: bool = _safe_bool("LLM_ROUTER_ENABLED", default=False)
+RAG_ENABLED: bool = _safe_bool("RAG_ENABLED", default=True)
+LLM_ROUTER_ENABLED: bool = _safe_bool("LLM_ROUTER_ENABLED", default=True)
 
 # Observability & Topology Pack
-TOPOLOGY_ENABLED: bool = _safe_bool("TOPOLOGY_ENABLED", default=False)
+TOPOLOGY_ENABLED: bool = _safe_bool("TOPOLOGY_ENABLED", default=True)
 TRACING_ENABLED: bool = _safe_bool("TRACING_ENABLED", default=False)
-LOG_AGGREGATION_ENABLED: bool = _safe_bool("LOG_AGGREGATION_ENABLED", default=False)
+LOG_AGGREGATION_ENABLED: bool = _safe_bool("LOG_AGGREGATION_ENABLED", default=True)
 
 # SRE Operations Pack
-INCIDENT_RESPONSE_ENABLED: bool = _safe_bool("INCIDENT_RESPONSE_ENABLED", default=False)
-WORKFLOW_ENABLED: bool = _safe_bool("WORKFLOW_ENABLED", default=False)
+INCIDENT_RESPONSE_ENABLED: bool = _safe_bool("INCIDENT_RESPONSE_ENABLED", default=True)
+WORKFLOW_ENABLED: bool = _safe_bool("WORKFLOW_ENABLED", default=True)
 
 # Multi-Cloud & Integrations Pack
 INTEGRATIONS_ENABLED: bool = _safe_bool("INTEGRATIONS_ENABLED", default=False)
@@ -127,9 +127,9 @@ SECURITY_SCANNING_ENABLED: bool = _safe_bool("SECURITY_SCANNING_ENABLED", defaul
 PENETRATION_TESTING_ENABLED: bool = _safe_bool("PENETRATION_TESTING_ENABLED", default=False)
 
 # Infrastructure & Plugin Ecosystem Pack
-PLUGINS_ENABLED: bool = _safe_bool("PLUGINS_ENABLED", default=False)
+PLUGINS_ENABLED: bool = _safe_bool("PLUGINS_ENABLED", default=True)
 SHARDING_ENABLED: bool = _safe_bool("SHARDING_ENABLED", default=False)
-I18N_ENABLED: bool = _safe_bool("I18N_ENABLED", default=False)
+I18N_ENABLED: bool = _safe_bool("I18N_ENABLED", default=True)
 
 # Documentation & Tooling Pack
 DOC_GENERATION_ENABLED: bool = _safe_bool("DOC_GENERATION_ENABLED", default=False)
@@ -150,7 +150,7 @@ TEAMS_DEFAULT_CHANNEL: str = os.getenv("TEAMS_DEFAULT_CHANNEL", "General").strip
 # ============================================================
 # Internal API Key for protected endpoints
 # ============================================================
-INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "").strip()
+INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "dev-internal-key-2026").strip()
 
 # ============================================================
 # Proxy configuration
@@ -215,7 +215,7 @@ POSTGRES_URL: str = os.getenv(
 # ============================================================
 QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost").strip()
 QDRANT_PORT: int = _safe_int("QDRANT_PORT", default=6333, min_val=1, max_val=65535)
-QDRANT_URL: str = f"http://{QDRANT_HOST}:{QDRANT_PORT}"
+QDRANT_URL: str = os.getenv("QDRANT_URL", f"http://{QDRANT_HOST}:{QDRANT_PORT}").strip()
 
 # ============================================================
 # Loki Log Aggregation Configuration

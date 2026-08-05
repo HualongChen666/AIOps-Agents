@@ -13,6 +13,10 @@ os.environ.setdefault("QDRANT_DISABLED", "1")
 
 collect_ignore_glob = ["*_out.txt"]
 
+# Per-module sys.modules snapshots for tests/api so that module-level
+# sys.modules mocks in one file are not overwritten by imports of another file.
+_api_module_snapshots: dict = {}
+
 # Ignore API/e2e/integration/addon tests by default because they replace core modules
 # in sys.modules. They can be run separately:
 #   $env:AIOPS_RUN_API_TESTS="1"; python -m pytest tests/api
@@ -148,6 +152,17 @@ def pytest_collection_modifyitems(config, items):
     items[:] = other_items + api_items
 
 
+def pytest_itemcollected(item):
+    """Snapshot sys.modules right after a tests/api test module is imported.
+    pytest_runtest_setup will restore this snapshot before each test of the
+    same module, preventing later imported api test modules from overwriting
+    the core.* / api.* / modules.* mocks this file set at import time."""
+    item_path = str(getattr(item, "fspath", ""))
+    if ("tests\\api" not in item_path and "tests/api" not in item_path) or item_path in _api_module_snapshots:
+        return
+    _api_module_snapshots[item_path] = dict(sys.modules)
+
+
 def pytest_collectstart(collector):
     """收集 tests/core 任何节点前，把被 tests/api 泄漏的 Mock 模块从 sys.modules 清除，
     保证 core 测试导入真实源码；真实模块不卸载，避免 monkeypatch 目标对象失效。"""
@@ -162,7 +177,8 @@ def pytest_collectstart(collector):
 
 
 def pytest_runtest_setup(item):
-    """未启用 ENABLE_ADDONS 时跳过 addons 测试；执行 tests/core 用例前清理泄漏的 mock 模块。"""
+    """未启用 ENABLE_ADDONS 时跳过 addons 测试；执行 tests/core 用例前清理泄漏的 mock 模块；
+    tests/api 用例开始前恢复该文件导入时的 sys.modules 快照，避免跨文件 sys.modules Mock 污染。"""
     item_path = str(getattr(item, "fspath", ""))
     if "tests\\core" in item_path or "tests/core" in item_path:
         for name in list(sys.modules.keys()):
@@ -170,6 +186,15 @@ def pytest_runtest_setup(item):
                 sys.modules[name], Mock
             ):
                 del sys.modules[name]
+    if "tests\\api" in item_path or "tests/api" in item_path:
+        snapshot = _api_module_snapshots.get(item_path)
+        if snapshot:
+            current_names = set(sys.modules.keys())
+            for name in current_names - snapshot.keys():
+                del sys.modules[name]
+            for name, mod in snapshot.items():
+                if sys.modules.get(name) is not mod:
+                    sys.modules[name] = mod
     if "addons" in item.keywords and os.getenv("ENABLE_ADDONS", "").lower() != "true":
         pytest.skip("ENABLE_ADDONS is not true")
 

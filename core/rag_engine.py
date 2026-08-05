@@ -18,9 +18,11 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
-from config import QDRANT_URL
+import httpx
+
+from config import AI_CONFIG, QDRANT_URL
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,10 @@ def _get_client() -> Any:
         _qmodels = qmodels
     if _client is None:
         try:
-            _client = QdrantClient(url=QDRANT_URL)
+            if QDRANT_URL == ":memory:":
+                _client = QdrantClient(":memory:")
+            else:
+                _client = QdrantClient(url=QDRANT_URL)
             logger.info("[RAG] Qdrant client 初始化完成 (url=%s)", QDRANT_URL)
         except Exception as e:
             logger.error("[RAG] Qdrant client 初始化失败: %s", e)
@@ -107,14 +112,37 @@ def _ensure_collection(dim: int) -> None:
 # ------------------------------------------------------------
 # 公共向量化函数
 # ------------------------------------------------------------
-def _embed(texts: List[str]) -> List[List[float]]:
-    """使用 SentenceTransformer 将文本列表转为向量。"""
-    model = _get_model()
-    embeddings = model.encode(texts, normalize_embeddings=True)
-    if hasattr(embeddings, "tolist"):
-        return cast(List[List[float]], embeddings.tolist())
-    # If it's already a list, ensure it's the right type
-    return cast(List[List[float]], embeddings)
+def _embed(texts: List[str], embed_type: str = "db") -> List[List[float]]:
+    """调用 MiniMax 国内版 embeddings API 将文本列表转为向量。"""
+    api_key = (AI_CONFIG.get("api_key") or os.environ.get("AI_API_KEY", "")).strip()
+    base_url = (AI_CONFIG.get("base_url") or os.environ.get("AI_BASE_URL", "https://api.minimaxi.com/v1")).strip().rstrip("/")
+    if not api_key:
+        raise RuntimeError("AI_API_KEY not configured")
+
+    model = os.environ.get("MINIMAX_EMBEDDING_MODEL", "embo-01")
+    url = f"{base_url}/embeddings"
+    group_id = os.environ.get("MINIMAX_GROUP_ID", "").strip()
+    if group_id:
+        url += f"?GroupId={group_id}"
+    try:
+        resp = httpx.post(
+            url,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": model, "type": embed_type, "texts": texts},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        base_resp = data.get("base_resp") or {}
+        if base_resp.get("status_code") not in (0, None):
+            raise RuntimeError(f"MiniMax embedding error: {base_resp}")
+        vectors = data.get("vectors")
+        if not vectors:
+            raise RuntimeError("No embedding vectors returned")
+        return cast(List[List[float]], vectors)
+    except Exception as e:
+        logger.error("[RAG] MiniMax API embedding failed: %s", e)
+        raise
 
 
 # ------------------------------------------------------------
@@ -155,7 +183,7 @@ def upsert_verify_record(record_id: int, payload: Dict[str, Any]) -> None:
                 val_str = str(val)
             search_parts.append(val_str)
         search_text = " ".join(search_parts)
-        vectors = _embed([search_text])
+        vectors = _embed([search_text], embed_type="db")
         # SECURITY: Check if vectors is empty to avoid IndexError
         if not vectors or not vectors[0]:
             raise ValueError("Embedding failed - empty vectors returned")
@@ -175,6 +203,59 @@ def upsert_verify_record(record_id: int, payload: Dict[str, Any]) -> None:
         logger.info("[RAG] Upsert verify record id=%s 成功", record_id)
     except Exception as e:
         logger.error("[RAG] Upsert verify record id=%s 失败: %s", record_id, e)
+
+
+# ------------------------------------------------------------
+# 对外 API – 通用知识写入
+# ------------------------------------------------------------
+def upsert_record(record_id: int, text: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    """将任意文本及 payload 写入 Qdrant，用于 knowledge-base 等通用语义检索。"""
+    try:
+        vectors = _embed([text], embed_type="db")
+        if not vectors or not vectors[0]:
+            raise ValueError("Embedding failed - empty vectors returned")
+        dim = len(vectors[0])
+        _ensure_collection(dim)
+        client = _get_client()
+        client.upsert(
+            collection_name=_COLLECTION_NAME,
+            points=[
+                _get_qmodels().PointStruct(
+                    id=record_id,
+                    vector=vectors[0],
+                    payload=payload or {"text": text},
+                )
+            ],
+        )
+        logger.info("[RAG] Upsert record id=%s 成功", record_id)
+    except Exception as e:
+        logger.error("[RAG] Upsert record id=%s 失败: %s", record_id, e)
+
+
+def upsert_records(records: List[Dict[str, Any]]) -> None:
+    """批量写入文本及 payload；一次性调用 MiniMax embedding，减少 API 次数。"""
+    try:
+        if not records:
+            return
+        texts = [r["text"] for r in records]
+        vectors = _embed(texts, embed_type="db")
+        if not vectors:
+            raise ValueError("Embedding failed - empty vectors returned")
+        dim = len(vectors[0])
+        _ensure_collection(dim)
+        client = _get_client()
+        points = [
+            _get_qmodels().PointStruct(
+                id=record.get("id") or (abs(hash(record["text"])) & ((1 << 63) - 1)),
+                vector=vector,
+                payload=record.get("payload") or {"text": record["text"]},
+            )
+            for record, vector in zip(records, vectors)
+        ]
+        client.upsert(collection_name=_COLLECTION_NAME, points=points)
+        logger.info("[RAG] Upsert %s records 成功", len(records))
+    except Exception as e:
+        logger.error("[RAG] Upsert records 失败: %s", e)
 
 
 # ------------------------------------------------------------
@@ -198,22 +279,22 @@ def search_similar(
     """
     try:
         threshold = score_threshold or _RETRIEVAL_SCORE_THRESHOLD
-        vectors = _embed([query])
+        vectors = _embed([query], embed_type="query")
         # SECURITY: Check if vectors is empty to avoid IndexError
         if not vectors or not vectors[0]:
             raise ValueError("Embedding failed - empty vectors returned")
         dim = len(vectors[0])
         _ensure_collection(dim)
         client = _get_client()
-        raw = client.search(  # type: ignore[attr-defined]
+        raw = client.query_points(
             collection_name=_COLLECTION_NAME,
-            query_vector=vectors[0],
+            query=vectors[0],
             limit=top_k,
             with_payload=True,
             score_threshold=threshold,
         )
         results = []
-        for point in raw:
+        for point in raw.points:
             results.append({"score": point.score, "payload": point.payload})
         logger.info("[RAG] search_similar query='%s' 返回 %d 条", query, len(results))
         return results
@@ -229,6 +310,8 @@ __all__ = [
     "AIOpsRAG",
     "search_similar",
     "upsert_verify_record",
+    "upsert_record",
+    "upsert_records",
 ]
 
 if __name__ == "__main__":

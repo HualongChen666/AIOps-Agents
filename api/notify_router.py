@@ -7,13 +7,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 import core.notify_engine as _notify_engine
-from core.authentication import get_current_active_user
+
 from core.notify_engine import reload_notify_config, send_alert_notification
 from core.oncall_adapter import get_oncall_adapter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/api/notify", tags=["告警通知"], dependencies=[Depends(get_current_active_user)]
+    prefix="/api/notify", tags=["告警通知"]
 )
 _REQUIRED_ALERT_FIELDS = frozenset(["level", "title", "desc"])
 

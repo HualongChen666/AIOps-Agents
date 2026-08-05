@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import api from '@/lib/api';
 
 interface SecurityAlert {
   id: string;
@@ -37,43 +37,43 @@ interface IncidentResponse {
   progress: number;
 }
 
+interface AuditStats {
+  total: number;
+  level_counts: Record<string, number>;
+  blocked_count: number;
+  high_count: number;
+  block_rate: number;
+}
+
+interface AuditLog {
+  command: string;
+  risk_level: string;
+  executor: string;
+  timestamp: string;
+  host?: string;
+  result?: string;
+}
+
+const riskSeverityMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
+  blocked: 'critical',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  safe: 'low',
+};
+
+const riskStatusMap: Record<string, 'open' | 'investigating' | 'resolved' | 'false-positive'> = {
+  blocked: 'open',
+  high: 'investigating',
+  medium: 'resolved',
+  low: 'resolved',
+  safe: 'resolved',
+};
+
 export default function SecurityEventsPage() {
   const [selectedTab, setSelectedTab] = useState('alerts');
   const [selectedAlert, setSelectedAlert] = useState<SecurityAlert | null>(null);
-
-  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([
-    {
-      id: 'SEC-001',
-      title: '检测到异常登录尝试',
-      severity: 'high',
-      type: 'Authentication',
-      source: 'Auth Service',
-      timestamp: new Date(Date.now() - 3600000),
-      status: 'investigating',
-      affectedAssets: 1,
-    },
-    {
-      id: 'SEC-002',
-      title: '发现SQL注入攻击',
-      severity: 'critical',
-      type: 'Injection',
-      source: 'API Gateway',
-      timestamp: new Date(Date.now() - 7200000),
-      status: 'open',
-      affectedAssets: 3,
-    },
-    {
-      id: 'SEC-003',
-      title: '端口扫描活动',
-      severity: 'medium',
-      type: 'Reconnaissance',
-      source: 'Firewall',
-      timestamp: new Date(Date.now() - 10800000),
-      status: 'resolved',
-      affectedAssets: 5,
-    },
-  ]);
-
+  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [threatIntel, setThreatIntel] = useState<ThreatIntel[]>([
     {
       id: 'TI-001',
@@ -94,7 +94,6 @@ export default function SecurityEventsPage() {
       recommendedAction: '加强监控',
     },
   ]);
-
   const [incidentResponses, setIncidentResponses] = useState<IncidentResponse[]>([
     {
       id: 'IR-001',
@@ -115,6 +114,34 @@ export default function SecurityEventsPage() {
       progress: 90,
     },
   ]);
+  const [stats, setStats] = useState<AuditStats | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [auditRes, statsRes] = await Promise.all([
+          api.get('/api/guard/audit', { params: { limit: 50 } }),
+          api.get('/api/guard/stats'),
+        ]);
+        const logs: AuditLog[] = auditRes.data?.logs || [];
+        const mappedAlerts: SecurityAlert[] = logs.map((log, index) => ({
+          id: `SEC-${String(index + 1).padStart(3, '0')}`,
+          title: log.command || '未知命令',
+          severity: riskSeverityMap[log.risk_level] || 'low',
+          type: `指令风险: ${log.risk_level || 'unknown'}`,
+          source: log.executor || 'unknown',
+          timestamp: log.timestamp ? new Date(log.timestamp) : new Date(),
+          status: riskStatusMap[log.risk_level] || 'investigating',
+          affectedAssets: 1,
+        }));
+        setSecurityAlerts(mappedAlerts);
+        setStats(statsRes.data);
+      } catch (error) {
+        // errors already toasted by api interceptor
+      }
+    };
+    loadData();
+  }, []);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -167,6 +194,13 @@ export default function SecurityEventsPage() {
     }
   };
 
+  const activeCount = securityAlerts.filter(
+    (a) => a.status === 'open' || a.status === 'investigating'
+  ).length;
+  const highCount = stats
+    ? (stats.high_count ?? 0) + (stats.blocked_count ?? 0)
+    : securityAlerts.filter((a) => a.severity === 'high' || a.severity === 'critical').length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -182,7 +216,7 @@ export default function SecurityEventsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-red-600">高</p>
-            <p className="text-xs text-gray-500">2个严重威胁</p>
+            <p className="text-xs text-gray-500">{highCount}个严重威胁</p>
           </CardContent>
         </Card>
         <Card>
@@ -190,7 +224,7 @@ export default function SecurityEventsPage() {
             <CardTitle className="text-sm">受影响资产</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-orange-600">12</p>
+            <p className="text-3xl font-bold text-orange-600">{stats?.total ?? securityAlerts.length}</p>
             <p className="text-xs text-gray-500">需要立即关注</p>
           </CardContent>
         </Card>
@@ -199,17 +233,17 @@ export default function SecurityEventsPage() {
             <CardTitle className="text-sm">活跃事件</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-blue-600">3</p>
+            <p className="text-3xl font-bold text-blue-600">{activeCount}</p>
             <p className="text-xs text-gray-500">正在处理中</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">本周事件</CardTitle>
+            <CardTitle className="text-sm">拦截率</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-gray-600">45</p>
-            <p className="text-xs text-gray-500">比上周+15%</p>
+            <p className="text-3xl font-bold text-gray-600">{stats ? `${stats.block_rate}%` : '-'}</p>
+            <p className="text-xs text-gray-500">{stats?.blocked_count ?? '-'} 条被拦截</p>
           </CardContent>
         </Card>
       </div>
@@ -265,9 +299,8 @@ export default function SecurityEventsPage() {
               {securityAlerts.map((alert) => (
                 <div
                   key={alert.id}
-                  className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${
-                    selectedAlert?.id === alert.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}
+                  className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedAlert?.id === alert.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
                   onClick={() => setSelectedAlert(alert)}
                 >
                   <div className="flex items-center justify-between mb-2">

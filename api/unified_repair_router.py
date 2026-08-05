@@ -13,7 +13,7 @@ from typing import Any, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.schemas import UnifiedRepairRequest
-from core.authentication import get_current_active_user
+
 
 # 🔧 重构:使用策略模式
 from core.platform_strategies import get_platform_strategy
@@ -23,7 +23,7 @@ PlatformType = Literal["windows", "linux", "docker", "k8s"]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/api/v1/repairs", tags=["统一修复"], dependencies=[Depends(get_current_active_user)]
+    prefix="/api/v1/repairs", tags=["统一修复"]
 )
 
 

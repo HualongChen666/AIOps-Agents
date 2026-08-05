@@ -30,63 +30,49 @@ export default function AnomalyPage() {
   const [selectedModel, setSelectedModel] = useState('prophet');
   const [confidence, setConfidence] = useState(95);
   const [anomalyData, setAnomalyData] = useState<AnomalyData[]>([]);
-  const [anomalyRecords, setAnomalyRecords] = useState<AnomalyRecord[]>([
-    {
-      id: 'AN-001',
-      timestamp: new Date().toISOString(),
-      metric: 'CPU使用率',
-      actualValue: 92,
-      predictedValue: 65,
-      deviation: 27,
-      confidence: 98,
-    },
-    {
-      id: 'AN-002',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      metric: '内存使用率',
-      actualValue: 88,
-      predictedValue: 60,
-      deviation: 28,
-      confidence: 95,
-    },
-    {
-      id: 'AN-003',
-      timestamp: new Date(Date.now() - 7200000).toISOString(),
-      metric: '磁盘IO',
-      actualValue: 4500,
-      predictedValue: 2000,
-      deviation: 125,
-      confidence: 92,
-    },
-  ]);
+  const [anomalyRecords, setAnomalyRecords] = useState<AnomalyRecord[]>([]);
 
-  // 生成模拟的时序数据
-  const generateAnomalyData = () => {
-    const data: AnomalyData[] = [];
-    for (let i = 0; i < 100; i++) {
-      const timestamp = new Date(Date.now() - (99 - i) * 3600000).toISOString();
-      const baseValue = 50 + Math.sin(i / 10) * 20;
-      const noise = (Math.random() - 0.5) * 10;
-      const value = baseValue + noise;
-      const predicted = baseValue;
-      const lowerBound = predicted - 15;
-      const upperBound = predicted + 15;
-      const isAnomaly = value < lowerBound || value > upperBound;
-      
-      data.push({ timestamp, value, predicted, lowerBound, upperBound, isAnomaly });
+  const loadAnomalyData = async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '';
+    try {
+      const [recordsRes, statsRes] = await Promise.all([
+        fetch('/api/v1/anomaly/records', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/v1/anomaly/statistics', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+
+      if (recordsRes.ok) {
+        const records: AnomalyRecord[] = await recordsRes.json();
+        setAnomalyRecords(records);
+      }
+
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        const chartData: AnomalyData[] = Object.entries(stats)
+          .filter(([key]) => key !== 'total')
+          .map(([metric, count]) => ({
+            timestamp: new Date().toISOString(),
+            value: Number(count),
+            predicted: 0,
+            lowerBound: 0,
+            upperBound: 0,
+            isAnomaly: Number(count) > 0,
+          }));
+        setAnomalyData(chartData);
+      }
+    } catch (err) {
+      console.error('Failed to load anomaly data:', err);
     }
-    setAnomalyData(data);
   };
 
   useEffect(() => {
-    generateAnomalyData();
+    loadAnomalyData();
   }, []);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">异常检测</h1>
-        <Button onClick={generateAnomalyData}>刷新数据</Button>
+        <Button onClick={loadAnomalyData}>刷新数据</Button>
       </div>
 
       {/* 模型选择 */}

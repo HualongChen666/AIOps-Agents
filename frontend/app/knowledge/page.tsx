@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import api from '@/lib/api';
 
 interface Runbook {
   id: string;
@@ -25,60 +26,94 @@ interface KnowledgeArticle {
   relevance: number;
 }
 
+function toStringValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number') return String(value);
+  return undefined;
+}
+
 export default function KnowledgePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [isSearching, setIsSearching] = useState(false);
 
-  const [runbooks, setRunbooks] = useState<Runbook[]>([
-    {
-      id: 'RB-001',
-      title: '数据库连接池耗尽处理',
-      category: '数据库',
-      author: '张三',
-      updatedAt: new Date().toISOString(),
-      tags: ['数据库', '连接池', '故障处理'],
-      aiRecommended: true,
-    },
-    {
-      id: 'RB-002',
-      title: 'API网关超时排查',
-      category: '网络',
-      author: '李四',
-      updatedAt: new Date(Date.now() - 86400000).toISOString(),
-      tags: ['API', '网关', '超时'],
-      aiRecommended: false,
-    },
-    {
-      id: 'RB-003',
-      title: '内存泄漏诊断流程',
-      category: '应用',
-      author: '王五',
-      updatedAt: new Date(Date.now() - 172800000).toISOString(),
-      tags: ['内存', '泄漏', '诊断'],
-      aiRecommended: true,
-    },
-  ]);
+  const [runbooks, setRunbooks] = useState<Runbook[]>([]);
+  const [aiRecommendations, setAiRecommendations] = useState<KnowledgeArticle[]>([]);
 
-  const [aiRecommendations, setAiRecommendations] = useState<KnowledgeArticle[]>([
-    {
-      id: 'KA-001',
-      title: '当前告警可能由数据库连接池耗尽引起',
-      content: '根据历史数据分析，当前告警模式与数据库连接池耗尽案例匹配度85%。建议检查连接池配置和慢查询。',
-      category: '故障诊断',
-      relevance: 0.85,
-    },
-    {
-      id: 'KA-002',
-      title: '推荐参考Runbook: 数据库连接池耗尽处理',
-      content: '该Runbook包含详细的排查步骤和解决方案，已成功解决23次类似问题。',
-      category: '解决方案',
-      relevance: 0.92,
-    },
-  ]);
+  function mapToArticle(result: any, idx: number): KnowledgeArticle {
+    const payload = result?.payload || {};
+    const title =
+      toStringValue(payload.title) ??
+      toStringValue(payload.script_key) ??
+      toStringValue(payload.alert_id) ??
+      toStringValue(payload.host) ??
+      `RAG 结果 ${idx + 1}`;
+    const raw = payload.comment ?? payload.evidence ?? payload;
+    const content = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+    const category =
+      toStringValue(payload.category) ??
+      toStringValue(payload.script_key) ??
+      toStringValue(payload.alert_id) ??
+      'RAG';
+    return {
+      id: `rag-article-${idx}`,
+      title,
+      content,
+      category,
+      relevance: typeof result.score === 'number' ? result.score : 0,
+    };
+  }
+
+  function mapToRunbook(result: any, idx: number): Runbook {
+    const payload = result?.payload || {};
+    const title =
+      toStringValue(payload.title) ??
+      toStringValue(payload.script_key) ??
+      toStringValue(payload.alert_id) ??
+      toStringValue(payload.host) ??
+      `RAG 结果 ${idx + 1}`;
+    const category =
+      toStringValue(payload.category) ??
+      toStringValue(payload.script_key) ??
+      toStringValue(payload.alert_id) ??
+      'RAG';
+    const author = toStringValue(payload.author) ?? toStringValue(payload.host) ?? 'RAG';
+    const tags = [payload.alert_id, payload.script_key, payload.host]
+      .map(toStringValue)
+      .filter((v): v is string => v !== undefined);
+    let updatedAt = new Date().toISOString();
+    if (payload.updated_at) {
+      const d = new Date(payload.updated_at);
+      if (!isNaN(d.getTime())) updatedAt = d.toISOString();
+    }
+    return {
+      id: `rag-runbook-${idx}`,
+      title,
+      category,
+      author,
+      updatedAt,
+      tags: tags.length > 0 ? tags : ['RAG'],
+      aiRecommended: (typeof result.score === 'number' ? result.score : 0) >= 0.8,
+    };
+  }
+
+  async function handleSearch() {
+    const query = searchQuery.trim();
+    if (!query) return;
+    setIsSearching(true);
+    try {
+      const { data } = await api.post('/api/v1/rag/search', { query, top_k: 10 });
+      const results = Array.isArray(data) ? data : [];
+      setAiRecommendations(results.slice(0, 3).map(mapToArticle));
+      setRunbooks(results.map(mapToRunbook));
+    } finally {
+      setIsSearching(false);
+    }
+  }
 
   const filteredRunbooks = runbooks.filter(rb => {
     const matchesSearch = rb.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         rb.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      rb.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesCategory = selectedCategory === 'all' || rb.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -123,6 +158,7 @@ export default function KnowledgePage() {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="搜索Runbook..."
               className="flex-1"
             />
@@ -135,6 +171,9 @@ export default function KnowledgePage() {
               <option value="网络">网络</option>
               <option value="应用">应用</option>
             </Select>
+            <Button onClick={handleSearch} disabled={isSearching}>
+              {isSearching ? '搜索中...' : '搜索'}
+            </Button>
           </div>
         </CardContent>
       </Card>

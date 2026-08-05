@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import api from '@/lib/api';
 
 interface Metric {
   id: string;
@@ -22,87 +23,125 @@ interface ChartConfig {
   timeRange: string;
 }
 
+interface Snapshot {
+  timestamp?: string;
+  cpu?: { usage_percent?: number };
+  memory?: { usage_percent?: number };
+  disk?: any;
+  network?: { recv_speed_mb?: number; sent_speed_mb?: number };
+  summary?: { total_alerts?: number; heal_rate?: number | string };
+}
+
+interface History {
+  cpu?: number[];
+  memory?: number[];
+  net_in?: number[];
+  timestamps?: string[];
+  _meta?: { size?: number; maxlen?: number };
+}
+
 export default function MetricsExplorerPage() {
+  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [chartType, setChartType] = useState<'line' | 'bar' | 'area' | 'pie'>('line');
   const [timeRange, setTimeRange] = useState('1h');
 
-  const metrics: Metric[] = [
-    {
-      id: 'M-001',
-      name: 'cpu_usage',
-      category: '性能',
-      unit: '%',
-      currentValue: 72.5,
-      trend: 'up',
-      description: 'CPU使用率',
-    },
-    {
-      id: 'M-002',
-      name: 'memory_usage',
-      category: '性能',
-      unit: '%',
-      currentValue: 65.3,
-      trend: 'stable',
-      description: '内存使用率',
-    },
-    {
-      id: 'M-003',
-      name: 'disk_io',
-      category: '存储',
-      unit: 'MB/s',
-      currentValue: 125.8,
-      trend: 'down',
-      description: '磁盘IO',
-    },
-    {
-      id: 'M-004',
-      name: 'network_in',
-      category: '网络',
-      unit: 'Mbps',
-      currentValue: 450.2,
-      trend: 'up',
-      description: '网络入流量',
-    },
-    {
-      id: 'M-005',
-      name: 'network_out',
-      category: '网络',
-      unit: 'Mbps',
-      currentValue: 320.5,
-      trend: 'stable',
-      description: '网络出流量',
-    },
-    {
-      id: 'M-006',
-      name: 'request_rate',
-      category: '业务',
-      unit: 'req/s',
-      currentValue: 1250,
-      trend: 'up',
-      description: '请求速率',
-    },
-    {
-      id: 'M-007',
-      name: 'error_rate',
-      category: '业务',
-      unit: '%',
-      currentValue: 0.5,
-      trend: 'down',
-      description: '错误率',
-    },
-    {
-      id: 'M-008',
-      name: 'response_time',
-      category: '业务',
-      unit: 'ms',
-      currentValue: 85,
-      trend: 'stable',
-      description: '响应时间',
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
 
-  const categories = ['性能', '存储', '网络', '业务'];
+    async function loadMetrics() {
+      try {
+        const [snapshotRes, historyRes] = await Promise.all([
+          api.get<Snapshot>('/api/v1/metrics/snapshot'),
+          api.get<History>('/api/v1/metrics/history'),
+        ]);
+
+        if (cancelled) return;
+
+        const snapshot = snapshotRes.data;
+        const history = historyRes.data;
+
+        function trend(series?: number[]): 'up' | 'down' | 'stable' {
+          if (!series || series.length < 2) return 'stable';
+          const last = series[series.length - 1];
+          const prev = series[series.length - 2];
+          if (last > prev + 0.01) return 'up';
+          if (last < prev - 0.01) return 'down';
+          return 'stable';
+        }
+
+        const diskItem = Array.isArray(snapshot.disk) ? snapshot.disk[0] : snapshot.disk;
+        const diskUsage = typeof diskItem?.usage_percent === 'number' ? diskItem.usage_percent : 0;
+
+        const derived: Metric[] = [
+          {
+            id: 'cpu',
+            name: 'cpu_usage',
+            category: '性能',
+            unit: '%',
+            currentValue: typeof snapshot.cpu?.usage_percent === 'number' ? snapshot.cpu.usage_percent : 0,
+            trend: trend(history.cpu),
+            description: 'CPU使用率',
+          },
+          {
+            id: 'memory',
+            name: 'memory_usage',
+            category: '性能',
+            unit: '%',
+            currentValue: typeof snapshot.memory?.usage_percent === 'number' ? snapshot.memory.usage_percent : 0,
+            trend: trend(history.memory),
+            description: '内存使用率',
+          },
+          {
+            id: 'disk',
+            name: 'disk_usage',
+            category: '存储',
+            unit: '%',
+            currentValue: diskUsage,
+            trend: 'stable',
+            description: '磁盘使用率',
+          },
+          {
+            id: 'network_in',
+            name: 'network_in',
+            category: '网络',
+            unit: 'MB/s',
+            currentValue: typeof snapshot.network?.recv_speed_mb === 'number' ? snapshot.network.recv_speed_mb : 0,
+            trend: trend(history.net_in),
+            description: '网络入流量',
+          },
+          {
+            id: 'network_out',
+            name: 'network_out',
+            category: '网络',
+            unit: 'MB/s',
+            currentValue: typeof snapshot.network?.sent_speed_mb === 'number' ? snapshot.network.sent_speed_mb : 0,
+            trend: 'stable',
+            description: '网络出流量',
+          },
+        ];
+
+        setMetrics(derived);
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.response?.data?.detail || err.message || '指标加载失败');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadMetrics();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const categories = Array.from(new Set(metrics.map((m) => m.category)));
 
   const handleMetricToggle = (metricId: string) => {
     setSelectedMetrics((prev) =>
@@ -165,37 +204,42 @@ export default function MetricsExplorerPage() {
             <CardTitle>指标浏览器</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {categories.map((category) => (
-                <div key={category}>
-                  <h4 className="font-medium text-sm mb-2">{category}</h4>
-                  <div className="space-y-2">
-                    {metrics
-                      .filter((m) => m.category === category)
-                      .map((metric) => (
-                        <div
-                          key={metric.id}
-                          className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${
-                            selectedMetrics.includes(metric.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                          }`}
-                          onClick={() => handleMetricToggle(metric.id)}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-medium text-sm">{metric.name}</span>
-                            <span className={`text-xs ${getTrendColor(metric.trend)}`}>
-                              {getTrendIcon(metric.trend)}
-                            </span>
+            {loading ? (
+              <div className="text-gray-500">加载中...</div>
+            ) : error ? (
+              <div className="text-red-600">{error}</div>
+            ) : (
+              <div className="space-y-4">
+                {categories.map((category) => (
+                  <div key={category}>
+                    <h4 className="font-medium text-sm mb-2">{category}</h4>
+                    <div className="space-y-2">
+                      {metrics
+                        .filter((m) => m.category === category)
+                        .map((metric) => (
+                          <div
+                            key={metric.id}
+                            className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedMetrics.includes(metric.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                              }`}
+                            onClick={() => handleMetricToggle(metric.id)}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-medium text-sm">{metric.name}</span>
+                              <span className={`text-xs ${getTrendColor(metric.trend)}`}>
+                                {getTrendIcon(metric.trend)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <span>{metric.currentValue} {metric.unit}</span>
+                              <span>{metric.description}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span>{metric.currentValue} {metric.unit}</span>
-                            <span>{metric.description}</span>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

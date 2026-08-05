@@ -32,7 +32,7 @@ router = APIRouter(prefix="/rag_history", tags=["RAG 历史搜索"])
 )
 async def rag_history_page() -> FileResponse:
     """返回 RAG 历史搜索 UI 页面（HTML）。"""
-    html_path = BASE_DIR / "static" / "rag_history_search.bak"
+    html_path = BASE_DIR / "static" / "rag_history_search.html"
     if not html_path.is_file():
         _logger.error("RAG 历史搜索页面文件未找到: %s", html_path)
         raise HTTPException(status_code=404, detail="RAG 历史搜索页面未部署")

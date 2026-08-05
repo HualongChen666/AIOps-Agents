@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from core.authentication import get_current_active_user
+
 
 # 🔧 重构:使用策略模式
 from core.platform_strategies import get_all_platform_strategies, get_platform_strategy
@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/v1/repair-scripts",
     tags=["修复脚本"],
-    dependencies=[Depends(get_current_active_user)],
 )
 
 

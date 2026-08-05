@@ -21,7 +21,7 @@ router = APIRouter(prefix="/topology", tags=["全链路拓扑视图"])
 @router.get("/", summary="全链路拓扑视图页面")
 async def topology_page() -> FileResponse:
     """返回静态的全链路拓扑 HTML 页面。"""
-    page_path = Path(BASE_DIR) / "static" / "topology.bak"
+    page_path = Path(BASE_DIR) / "static" / "topology.html"
     if not page_path.is_file():
         _logger.error("全链路拓扑页面文件缺失: %s", page_path)
         raise HTTPException(status_code=404, detail="Topology page not found")

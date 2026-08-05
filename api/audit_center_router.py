@@ -33,7 +33,7 @@ async def audit_center_page() -> FileResponse:
 
     若页面文件缺失，记录错误并抛出 404。
     """
-    page_path = BASE_DIR / "static" / "audit_center.bak"
+    page_path = BASE_DIR / "static" / "audit_center.html"
     if not page_path.is_file():
         _logger.error("审计中心页面未找到: %s", page_path)
         raise HTTPException(status_code=404, detail="Audit center page not found")

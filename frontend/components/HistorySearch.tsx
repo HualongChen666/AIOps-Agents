@@ -22,8 +22,21 @@ export const HistorySearch: React.FC = () => {
   const { data, isLoading, error } = useQuery<HistoryRecord[]>({
     queryKey: ['history'],
     queryFn: async () => {
-      const resp = await api.get<HistoryRecord[]>('/api/v1/history');
-      return resp.data;
+      const resp = await api.get<{ total: number; records: any[] }>('/api/v1/repairs/history');
+      const records = resp.data?.records || [];
+      return records.map((item: any) => ({
+        id: item.id || item.script_key || String(Date.now()),
+        type: 'repair' as const,
+        title: item.script_name || item.script_key || '修复操作',
+        description: item.output || item.error || String(item.script_key || ''),
+        severity: item.risk || 'low',
+        status: item.success ? 'success' : 'failure',
+        timestamp: item.time || item.executed_at || new Date().toISOString(),
+        metadata: {
+          return_code: item.return_code,
+          params: item.params,
+        },
+      }));
     },
     enabled: true,
   });
@@ -105,13 +118,12 @@ export const HistorySearch: React.FC = () => {
                   </div>
                 </div>
                 <span
-                  className={`px-2 py-1 text-xs font-medium rounded ${
-                    record.status === 'success'
+                  className={`px-2 py-1 text-xs font-medium rounded ${record.status === 'success'
                       ? 'bg-green-100 text-green-800'
                       : record.status === 'failure'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}
                 >
                   {record.status}
                 </span>

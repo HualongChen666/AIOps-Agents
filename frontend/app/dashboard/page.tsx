@@ -72,8 +72,8 @@ export default function DashboardPage() {
   const { data: repairHistory } = useQuery({
     queryKey: ['repair-history'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/repair/history');
-      return resp.data;
+      const resp = await api.get('/api/v1/repairs/history');
+      return { history: resp.data.records || resp.data.history || [] };
     },
     refetchInterval: 120000, // 120秒刷新
   });

@@ -22,7 +22,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger as _logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -49,6 +50,15 @@ from api.unified_repair_router import router as unified_repair_router
 from api.user_router import router as user_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
+from api.anomaly_router import router as anomaly_router
+from api.capacity_router import router as capacity_router
+from api.slo_router import router as slo_router
+from api.tenant_router import router as tenant_router
+from api.business_impact_router import router as business_impact_router
+from api.change_management_router import router as change_management_router
+from api.maturity_router import router as maturity_router
+from api.collaboration_router import router as collaboration_router
+from api.team_collaboration_router import router as team_collaboration_router
 from config import (
     DOC_GENERATION_ENABLED,
     ENABLE_ADDONS,
@@ -1670,6 +1680,15 @@ async def lifespan(app: FastAPI):
     # asyncio.create_task(core.anomaly_detector.schedule_anomaly_check())  #
     # Temporarily disabled - core.anomaly_detector not found
 
+    # 启动告警/指标采集后台循环,为 metrics/history 和 alerts 提供实时数据
+    try:
+        from core.alert_engine import alert_monitor_loop
+
+        asyncio.create_task(alert_monitor_loop())
+        _logger.info("Alert monitor loop started")
+    except Exception as e:
+        _logger.warning(f"Failed to start alert monitor loop: {e}")
+
     yield
 
     # Shutdown
@@ -1683,15 +1702,15 @@ async def lifespan(app: FastAPI):
         _logger.info(f"OpenTelemetry shutdown failed: {e}")
     # 关闭所有复用的 http 客户端资源
     try:
-        await _notify_get_http_client().aclose()
+        await _notify_get_http_client().close()
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
     try:
-        await _ai_get_http_client().aclose()
+        await _ai_get_http_client().close()
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
     try:
-        await _stats_get_http_client().aclose()
+        await _stats_get_http_client().close()
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
     # 关闭 Slack 与 Teams 客户端（若已创建）
@@ -1860,6 +1879,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.limiter = limiter
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> FileResponse:
+    return FileResponse("static/index.html")
+
+
 app.add_exception_handler(
     RateLimitExceeded, _rate_limit_exception_handler  # type: ignore[arg-type]
 )
@@ -1940,14 +1968,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:8000"
 ).split(",")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # 明确指定允许的域名
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
-    max_age=600,  # 预检请求缓存时间
-)
+# 注意：CORS中间件将在所有路由注册后添加，确保它最先执行
 
 # ------------------------
 # 路由注册（Core vs Add-ons）
@@ -1978,6 +1999,15 @@ CORE_ROUTERS = [
     websocket_router,
     sse_router,
     stats_router,
+    capacity_router,
+    anomaly_router,
+    slo_router,
+    tenant_router,
+    business_impact_router,
+    change_management_router,
+    maturity_router,
+    collaboration_router,
+    team_collaboration_router,
 ]
 
 ADDON_ROUTERS = [
@@ -2099,5 +2129,20 @@ async def run_dr_scenario_endpoint(scenario_name: str):
 
 # Setup unified exception handling
 setup_exception_handlers(app)
-# Add request tracking middleware
+
+# ------------------------
+# CORS 中间件（安全配置）
+# ------------------------
+# 注意：CORS中间件必须在最后添加，确保它最先执行
+# 这样可以避免其他中间件干扰CORS处理
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,  # 明确指定允许的域名
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=600,  # 预检请求缓存时间
+)
+
+# Add request tracking middleware (在CORS之后添加，最后执行)
 app.add_middleware(RequestTrackingMiddleware)

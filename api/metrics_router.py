@@ -112,7 +112,7 @@ from typing import Any, Optional  # 🔧 MRV5 [P1]:补全 Optional 导入
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from core.authentication import get_current_active_user
+
 from core.cache_helpers import ParametricTTLCache, TTLCache
 from core.collector import collect_all, get_top_processes
 from core.metrics_history import metrics_history
@@ -131,7 +131,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/api/v1/metrics", tags=["指标采集"], dependencies=[Depends(get_current_active_user)]
+    prefix="/api/v1/metrics", tags=["指标采集"]
 )
 
 

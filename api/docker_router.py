@@ -21,7 +21,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.schemas.repair import DockerRepairRequest
-from core.authentication import get_current_active_user
+
 from core.config import DOCKER_HOSTS
 from core.docker_collector import collect_docker
 from core.docker_repair import execute_repair_sync
@@ -32,7 +32,6 @@ _logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/v1/platforms/docker",
     tags=["Docker"],
-    dependencies=[Depends(get_current_active_user)],
 )
 
 

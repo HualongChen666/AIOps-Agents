@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from config import LINUX_HOSTS
 from core.api_helpers import VALID_HOSTNAME_PATTERN
-from core.authentication import get_current_active_user
+
 from core.es_logger import es_search_logs
 from core.log_collector import (
     get_application_errors,
@@ -32,7 +32,7 @@ from core.log_collector import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/api/v1/logs", tags=["事件日志"], dependencies=[Depends(get_current_active_user)]
+    prefix="/api/v1/logs", tags=["事件日志"]
 )
 
 # Elasticsearch 日志搜索路由（统一平台）

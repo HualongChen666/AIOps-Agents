@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import api from '@/lib/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -68,48 +69,70 @@ export default function AutoHealPage() {
   const [selectedTask, setSelectedTask] = useState<HealTask | null>(null);
   const [approvalComment, setApprovalComment] = useState('');
 
+  const loadTasks = async () => {
+    try {
+      const resp = await api.get('/api/v1/approvals/pending');
+      const items = resp.data?.items || [];
+      setTasks(
+        items.map((item: any) => ({
+          id: item.alert_id || item.id || String(Date.now()),
+          alertId: item.alert_id || item.id || '',
+          alertTitle: item.title || item.alert_id || '修复方案',
+          healPlan: item.proposal || item.heal_plan || item.description || '',
+          riskLevel: (item.risk_level || 'low') as 'low' | 'medium' | 'high',
+          status: (item.status || 'pending') as HealTask['status'],
+          createdAt: item.created_at || item.timestamp || new Date().toISOString(),
+          approver: item.approver || '',
+          approvalComment: item.approval_comment || '',
+        }))
+      );
+    } catch (err) {
+      console.error('加载待审批修复方案失败:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
   const filteredTasks = tasks.filter((task) => task.status === selectedTab);
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!selectedTask) return;
-    setTasks(
-      tasks.map((task) =>
-        task.id === selectedTask.id
-          ? { ...task, status: 'approved' as const, approver: 'admin', approvalComment }
-          : task
-      )
-    );
-    setSelectedTask(null);
-    setApprovalComment('');
+    try {
+      await api.patch(`/api/v1/approvals/${selectedTask.alertId}`);
+      await loadTasks();
+    } catch (err) {
+      console.error('批准失败:', err);
+    } finally {
+      setSelectedTask(null);
+      setApprovalComment('');
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedTask) return;
-    setTasks(
-      tasks.map((task) =>
-        task.id === selectedTask.id
-          ? { ...task, status: 'rejected' as const, approver: 'admin', approvalComment }
-          : task
-      )
-    );
-    setSelectedTask(null);
-    setApprovalComment('');
+    try {
+      await api.post('/api/v1/approvals/reject', {
+        alert_id: selectedTask.alertId,
+        reason: approvalComment || '人工驳回',
+      });
+      await loadTasks();
+    } catch (err) {
+      console.error('驳回失败:', err);
+    } finally {
+      setSelectedTask(null);
+      setApprovalComment('');
+    }
   };
 
-  const handleExecute = (taskId: string) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === taskId ? { ...task, status: 'executing' as const } : task
-      )
-    );
-    // 模拟执行
-    setTimeout(() => {
-      setTasks(
-        tasks.map((task) =>
-          task.id === taskId ? { ...task, status: 'completed' as const } : task
-        )
-      );
-    }, 3000);
+  const handleExecute = async (taskId: string) => {
+    try {
+      await api.patch(`/api/v1/approvals/${taskId}`);
+      await loadTasks();
+    } catch (err) {
+      console.error('执行失败:', err);
+    }
   };
 
   const getRiskColor = (risk: string) => {
@@ -156,7 +179,7 @@ export default function AutoHealPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">自动修复</h1>
-        <Button onClick={() => setTasks([...tasks])}>刷新</Button>
+        <Button onClick={loadTasks}>刷新</Button>
       </div>
 
       {/* 标签页 */}

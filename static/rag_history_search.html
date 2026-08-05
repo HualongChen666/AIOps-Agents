@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 历史搜索 | AIOps Agent</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a1f35;
+            --bg-card-hover: #242b45;
+            --border-color: rgba(255,255,255,0.08);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-cyan: #06b6d4;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .header {
+            height: 48px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 15px; font-weight: 600; color: var(--accent-cyan); }
+        .toolbar {
+            padding: 12px 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        input, select, button {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        input[type="text"] { min-width: 260px; }
+        button { cursor: pointer; transition: all 0.2s; }
+        button:hover { background: var(--bg-card-hover); border-color: var(--accent-cyan); }
+        .main { flex: 1; display: flex; overflow: hidden; }
+        .history { width: 240px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); padding: 16px; overflow-y: auto; flex-shrink: 0; }
+        .history h3 { font-size: 13px; color: var(--accent-cyan); margin-bottom: 10px; }
+        .history-item {
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            margin-bottom: 6px;
+            border: 1px solid transparent;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .history-item:hover { background: var(--bg-card); border-color: var(--border-color); }
+        .content { flex: 1; overflow: auto; padding: 20px; }
+        .result {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            min-height: 120px;
+            white-space: pre-wrap;
+        }
+        .result-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .result-item .score { font-size: 11px; color: var(--accent-cyan); margin-bottom: 6px; }
+        .result-item .text { font-size: 13px; color: var(--text-primary); line-height: 1.5; }
+        .message { color: var(--text-muted); font-size: 13px; padding: 20px; text-align: center; }
+        .error { color: var(--accent-red); }
+        .success { color: var(--accent-green); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>RAG 历史搜索</h1>
+        <div style="font-size:12px;color:var(--text-muted);" id="status">准备搜索</div>
+    </div>
+    <div class="toolbar">
+        <input type="text" id="tokenInput" placeholder="JWT Token (Authorization: Bearer)">
+        <input type="text" id="queryInput" placeholder="输入查询语句，例如：CPU 告警处理">
+        <select id="topKSelect">
+            <option value="3">Top 3</option>
+            <option value="5" selected>Top 5</option>
+            <option value="10">Top 10</option>
+        </select>
+        <button id="searchBtn">搜索</button>
+    </div>
+    <div class="main">
+        <div class="history" id="historyPanel">
+            <h3>历史搜索</h3>
+            <div id="historyList" class="message" style="padding:0;text-align:left;">暂无记录</div>
+        </div>
+        <div class="content">
+            <div id="result" class="result">输入查询语句并点击搜索</div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const tokenInput = document.getElementById('tokenInput');
+            const queryInput = document.getElementById('queryInput');
+            const topKSelect = document.getElementById('topKSelect');
+            const searchBtn = document.getElementById('searchBtn');
+            const resultEl = document.getElementById('result');
+            const statusEl = document.getElementById('status');
+            const historyList = document.getElementById('historyList');
+
+            const TOKEN_KEY = 'aiops-jwt-token';
+            const HISTORY_KEY = 'aiops-rag-history';
+            tokenInput.value = localStorage.getItem(TOKEN_KEY) || '';
+
+            function saveToken() { localStorage.setItem(TOKEN_KEY, tokenInput.value.trim()); }
+
+            function getHistory() {
+                try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+                catch (e) { return []; }
+            }
+
+            function addHistory(query) {
+                let h = getHistory().filter(i => i !== query);
+                h.unshift(query);
+                if (h.length > 20) h = h.slice(0, 20);
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+                renderHistory();
+            }
+
+            function renderHistory() {
+                const h = getHistory();
+                if (h.length === 0) { historyList.innerHTML = '暂无记录'; return; }
+                historyList.innerHTML = '';
+                h.forEach(q => {
+                    const div = document.createElement('div');
+                    div.className = 'history-item';
+                    div.textContent = q;
+                    div.title = q;
+                    div.addEventListener('click', () => { queryInput.value = q; search(); });
+                    historyList.appendChild(div);
+                });
+            }
+
+            function renderResults(list) {
+                if (!Array.isArray(list) || list.length === 0) {
+                    resultEl.textContent = '未找到相似记录';
+                    resultEl.className = 'result';
+                    return;
+                }
+                resultEl.innerHTML = '';
+                list.forEach((item, idx) => {
+                    const score = typeof item === 'object' ? (item.score != null ? item.score : item.similarity) : null;
+                    const text = typeof item === 'object' ? (item.text || item.content || item.query || JSON.stringify(item)) : item;
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerHTML = '<div class="score">#' + (idx + 1) + (score != null ? ' &nbsp; 相似度: ' + (typeof score === 'number' ? score.toFixed(4) : score) : '') + '</div>' +
+                                    '<div class="text">' + (text == null ? '' : String(text).replace(/</g, '&lt;')) + '</div>';
+                    resultEl.appendChild(div);
+                });
+                resultEl.className = 'result';
+            }
+
+            function search() {
+                saveToken();
+                const query = queryInput.value.trim();
+                if (!query) { statusEl.textContent = '查询不能为空'; return; }
+                const top_k = parseInt(topKSelect.value, 10);
+                const token = tokenInput.value.trim();
+                const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+                if (token) headers['Authorization'] = 'Bearer ' + token;
+
+                statusEl.textContent = '搜索中...';
+                fetch('/api/v1/rag/search', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ query: query, top_k: top_k })
+                })
+                .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+                .then(({ ok, status, data }) => {
+                    if (!ok) {
+                        statusEl.textContent = '搜索失败 ' + status;
+                        resultEl.textContent = '错误：' + (data.detail || JSON.stringify(data));
+                        resultEl.className = 'result error';
+                    } else {
+                        statusEl.textContent = '搜索完成';
+                        renderResults(data);
+                        addHistory(query);
+                    }
+                })
+                .catch(err => {
+                    statusEl.textContent = '请求异常';
+                    resultEl.textContent = '错误：' + err.message;
+                    resultEl.className = 'result error';
+                });
+            }
+
+            searchBtn.addEventListener('click', search);
+            queryInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+
+            renderHistory();
+        })();
+    </script>
+</body>
+</html>

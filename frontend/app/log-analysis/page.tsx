@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +24,27 @@ interface LogPattern {
   description: string;
 }
 
+function normalizeLevel(level?: string): LogEntry['level'] {
+  const raw = (level || '').toUpperCase();
+  if (raw === 'ERROR' || raw === 'ERR') return 'ERROR';
+  if (raw === 'WARNING' || raw === 'WARN' || raw === 'WRN') return 'WARN';
+  if (raw === 'INFORMATION' || raw === 'INFO' || raw === 'INF') return 'INFO';
+  if (raw === 'DEBUG' || raw === 'DBG') return 'DEBUG';
+  return 'INFO';
+}
+
+function mapBackendLog(item: any, index: number): LogEntry {
+  const timestamp = item.time || item['@timestamp'] || item.timestamp || new Date().toISOString();
+  return {
+    id: `LOG-${timestamp}-${index}`,
+    timestamp: new Date(timestamp),
+    level: normalizeLevel(item.level),
+    service: item.source || item.host || item.service || 'log',
+    message: item.message || '',
+    parsedFields: item.parsedFields,
+  };
+}
+
 export default function LogAnalysisPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState('');
@@ -39,22 +61,40 @@ export default function LogAnalysisPage() {
     scrollToBottom();
   }, [logs]);
 
-  // 管理实时日志流的定时器
+  // 初始加载 Windows 系统错误日志
+  useEffect(() => {
+    let cancelled = false;
+    const loadLogs = async () => {
+      try {
+        const { data } = await api.get('/api/v1/logs/system/errors', { params: { newest: 50 } });
+        const mapped = (data.logs || []).map((item: any, index: number) => mapBackendLog(item, index));
+        if (!cancelled) setLogs(mapped);
+      } catch {
+        // api 拦截器已处理错误提示
+      }
+    };
+    loadLogs();
+    return () => { cancelled = true; };
+  }, []);
+
+  // 实时流：定期拉取最新系统错误日志
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     let timeout: NodeJS.Timeout | null = null;
 
+    const fetchStream = async () => {
+      try {
+        const { data } = await api.get('/api/v1/logs/system/errors', { params: { newest: 20 } });
+        const mapped = (data.logs || []).map((item: any, index: number) => mapBackendLog(item, index));
+        setLogs(mapped);
+      } catch {
+        // api 拦截器已处理错误提示
+      }
+    };
+
     if (isStreaming) {
-      interval = setInterval(() => {
-        const newLog: LogEntry = {
-          id: `LOG-${Date.now()}`,
-          timestamp: new Date(),
-          level: ['INFO', 'WARN', 'ERROR', 'DEBUG'][Math.floor(Math.random() * 4)] as any,
-          service: ['web-service', 'api-gateway', 'database', 'cache'][Math.floor(Math.random() * 4)],
-          message: generateRandomLogMessage(),
-        };
-        setLogs((prev) => [...prev.slice(-99), newLog]);
-      }, 1000);
+      fetchStream();
+      interval = setInterval(fetchStream, 5000);
 
       // 10秒后自动停止
       timeout = setTimeout(() => {
@@ -77,47 +117,32 @@ export default function LogAnalysisPage() {
     setIsStreaming(false);
   };
 
-  const handleAnalyzePatterns = () => {
-    const detectedPatterns: LogPattern[] = [
-      {
-        id: 'PAT-001',
-        pattern: 'Connection timeout',
-        count: 15,
-        severity: 'high',
-        description: '检测到频繁的连接超时错误',
-      },
-      {
-        id: 'PAT-002',
-        pattern: 'Slow query',
-        count: 8,
-        severity: 'medium',
-        description: '检测到慢查询模式',
-      },
-      {
-        id: 'PAT-003',
-        pattern: 'Memory warning',
-        count: 5,
-        severity: 'medium',
-        description: '检测到内存警告模式',
-      },
-    ];
-    setPatterns(detectedPatterns);
-  };
-
-  const generateRandomLogMessage = () => {
-    const messages = [
-      'Request processed successfully',
-      'Connection established',
-      'Query executed in 25ms',
-      'Cache hit for key: user_123',
-      'Connection timeout after 30s',
-      'Slow query detected: SELECT * FROM users WHERE id = ?',
-      'Memory usage at 85%',
-      'Disk space warning: 90% full',
-      'API rate limit exceeded',
-      'Authentication failed for user test@example.com',
-    ];
-    return messages[Math.floor(Math.random() * messages.length)];
+  const handleAnalyzePatterns = async () => {
+    try {
+      const { data } = await api.get('/api/v1/logs/search', { params: { keyword: 'error', newest: 100 } });
+      const rawLogs: any[] = data.logs || [];
+      const counts = new Map<string, number>();
+      const severityMap = new Map<string, LogPattern['severity']>();
+      rawLogs.forEach((item) => {
+        const message = (item.message || '').toString().trim() || 'unknown';
+        counts.set(message, (counts.get(message) || 0) + 1);
+        if (normalizeLevel(item.level) === 'ERROR') {
+          severityMap.set(message, 'high');
+        } else if (!severityMap.has(message)) {
+          severityMap.set(message, normalizeLevel(item.level) === 'WARN' ? 'medium' : 'low');
+        }
+      });
+      const detectedPatterns: LogPattern[] = Array.from(counts.entries()).map(([message, count], index) => ({
+        id: `PAT-${index + 1}`,
+        pattern: message.length > 60 ? `${message.slice(0, 60)}...` : message,
+        count,
+        severity: severityMap.get(message) || 'medium',
+        description: `关键词 "error" 匹配到 ${count} 条相关日志`,
+      }));
+      setPatterns(detectedPatterns);
+    } catch {
+      // api 拦截器已处理错误提示
+    }
   };
 
   const getLevelColor = (level: string) => {

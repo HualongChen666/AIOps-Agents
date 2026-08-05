@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import api from '@/lib/api';
 
 interface CapacityForecast {
   metric: string;
@@ -26,67 +27,32 @@ interface ScalingRecommendation {
 
 export default function CapacityPage() {
   const [selectedTimeRange, setSelectedTimeRange] = useState('30d');
-  const [capacityForecasts, setCapacityForecasts] = useState<CapacityForecast[]>([
-    {
-      metric: 'CPU使用率',
-      currentValue: 65,
-      forecast7d: 72,
-      forecast30d: 85,
-      threshold: 80,
-      unit: '%',
-    },
-    {
-      metric: '内存使用率',
-      currentValue: 55,
-      forecast7d: 60,
-      forecast30d: 75,
-      threshold: 85,
-      unit: '%',
-    },
-    {
-      metric: '磁盘使用率',
-      currentValue: 45,
-      forecast7d: 50,
-      forecast30d: 70,
-      threshold: 80,
-      unit: '%',
-    },
-    {
-      metric: '网络带宽',
-      currentValue: 40,
-      forecast7d: 45,
-      forecast30d: 60,
-      threshold: 70,
-      unit: '%',
-    },
-  ]);
+  const [capacityForecasts, setCapacityForecasts] = useState<CapacityForecast[]>([]);
+  const [recommendations, setRecommendations] = useState<ScalingRecommendation[]>([]);
 
-  const [recommendations, setRecommendations] = useState<ScalingRecommendation[]>([
-    {
-      id: 'SR-001',
-      service: 'web-service',
-      action: 'scale-up',
-      reason: '预计7天后CPU使用率将超过80%',
-      priority: 'high',
-      estimatedCost: 150,
-    },
-    {
-      id: 'SR-002',
-      service: 'api-gateway',
-      action: 'no-action',
-      reason: '当前资源充足，未来30天内无需扩容',
-      priority: 'low',
-      estimatedCost: 0,
-    },
-    {
-      id: 'SR-003',
-      service: 'database',
-      action: 'scale-up',
-      reason: '预计30天后磁盘空间将不足',
-      priority: 'medium',
-      estimatedCost: 300,
-    },
-  ]);
+  useEffect(() => {
+    let mounted = true;
+
+    const loadData = async () => {
+      try {
+        const [forecastRes, recRes] = await Promise.all([
+          api.get('/api/v1/capacity/forecast'),
+          api.get('/api/v1/capacity/recommendations'),
+        ]);
+        if (!mounted) return;
+        setCapacityForecasts(forecastRes.data?.data ?? forecastRes.data ?? []);
+        setRecommendations(recRes.data?.data ?? recRes.data ?? []);
+      } catch (err) {
+        console.error('Failed to load capacity data:', err);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedTimeRange]);
 
   const getActionColor = (action: string) => {
     switch (action) {

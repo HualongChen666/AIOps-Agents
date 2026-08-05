@@ -69,7 +69,7 @@ export default function AICopilotPage() {
 
     // 🔧 修复: 使用真实 API 调用 AI 分析
     try {
-      const resp = await api.post('/api/v1/ai/analyze', {
+      const resp = await api.post('/api/ai/analyze', {
         query: input,
         include_metrics: true,
         include_rich_context: true,
@@ -78,7 +78,7 @@ export default function AICopilotPage() {
       const aiResponse: Message = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: resp.data.response || resp.data.answer || '分析完成',
+        content: resp.data.analysis || resp.data.response || resp.data.answer || '分析完成',
         timestamp: new Date(),
         actions: resp.data.actions ? resp.data.actions.map((action: any) => ({
           label: action.label,
@@ -155,11 +155,10 @@ export default function AICopilotPage() {
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg p-4 ${
-                        message.role === 'user'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 text-gray-900'
-                      }`}
+                      className={`max-w-[80%] rounded-lg p-4 ${message.role === 'user'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-900'
+                        }`}
                     >
                       <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                       {message.actions && message.actions.length > 0 && (

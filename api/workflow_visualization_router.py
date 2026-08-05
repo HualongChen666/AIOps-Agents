@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from config import BASE_DIR
+from core.workflow_engine import get_workflow_definitions
 
 _logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ async def workflow_visualization_page() -> FileResponse:
 
     若页面文件不存在则记录错误日志并抛出 404。
     """
-    html_path = BASE_DIR / "static" / "workflow_visualization.bak"
+    html_path = BASE_DIR / "static" / "workflow_visualization.html"
     if not html_path.is_file():
         _logger.error("Workflow visualization page not found: %s", html_path)
         raise HTTPException(status_code=404, detail="Workflow visualization page not found")
@@ -58,31 +59,68 @@ async def workflow_visualization_page() -> FileResponse:
         500: {"description": "获取失败"},
     },
 )
-async def get_workflow_structure():
-    """返回工作流结构的示例 JSON。
+async def get_workflow_structure(key: str | None = None):
+    """从 core.workflow_engine 的真实工作流定义生成可视化结构。
 
-    实际项目请调用 LangGraph 实例的 `graph.get_state()` 或类似方法获取真实数据。
+    未指定 key 时返回第一个工作流，支持通过 query 参数切换工作流。
     """
-    example_structure = {
-        "nodes": [
-            {"id": "start", "label": "Start", "type": "start"},
-            {"id": "fetch_alert", "label": "Fetch Alert", "type": "process"},
-            {"id": "check_sla", "label": "Check SLA", "type": "decision"},
-            {"id": "invoke_agent", "label": "Invoke Agent", "type": "process"},
-            {"id": "generate_runbook", "label": "Generate Runbook", "type": "process"},
-            {"id": "apply_fix", "label": "Apply Fix", "type": "process"},
-            {"id": "evaluate", "label": "Evaluate", "type": "decision"},
-            {"id": "complete", "label": "Complete", "type": "end"},
-        ],
-        "edges": [
-            {"source": "start", "target": "fetch_alert"},
-            {"source": "fetch_alert", "target": "check_sla"},
-            {"source": "check_sla", "target": "invoke_agent"},
-            {"source": "invoke_agent", "target": "generate_runbook"},
-            {"source": "generate_runbook", "target": "apply_fix"},
-            {"source": "apply_fix", "target": "evaluate"},
-            {"source": "evaluate", "target": "complete"},
-        ],
-        "metadata": {"description": "LangGraph 业务闭环工作流示例"},
+    try:
+        definitions = get_workflow_definitions()
+    except Exception as exc:
+        _logger.error("Failed to load workflow definitions: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="工作流定义加载失败") from exc
+
+    if not definitions:
+        raise HTTPException(status_code=404, detail="未找到工作流定义")
+
+    if key is None:
+        key = next(iter(definitions))
+    elif key not in definitions:
+        raise HTTPException(status_code=404, detail=f"未找到工作流: {key}")
+
+    wf = definitions[key]
+    steps = wf.get("steps", [])
+    if not isinstance(steps, list) or not steps:
+        _logger.error("Workflow '%s' has invalid steps: %s", key, steps)
+        raise HTTPException(status_code=500, detail=f"工作流 {key} 缺少 steps 定义")
+
+    nodes = []
+    for idx, step in enumerate(steps):
+        if isinstance(step, dict):
+            node_id = step.get("key") or f"step-{idx}"
+            label = step.get("title") or node_id
+            description = step.get("desc", "")
+        else:
+            node_id = str(step)
+            label = node_id
+            description = ""
+
+        if idx == 0:
+            node_type = "start"
+        elif idx == len(steps) - 1:
+            node_type = "end"
+        else:
+            node_type = "process"
+
+        nodes.append(
+            {
+                "id": node_id,
+                "label": label,
+                "description": description,
+                "type": node_type,
+            }
+        )
+
+    edges = []
+    for idx in range(len(nodes) - 1):
+        edges.append({"source": nodes[idx]["id"], "target": nodes[idx + 1]["id"]})
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "metadata": {
+            "workflow_key": key,
+            "workflow_name": wf.get("name", key),
+            "description": wf.get("description") or wf.get("name", key),
+        },
     }
-    return example_structure

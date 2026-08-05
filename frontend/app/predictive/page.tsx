@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -39,96 +40,11 @@ interface FailurePrediction {
 
 export default function PredictivePage() {
   const [selectedTimeRange, setSelectedTimeRange] = useState('30d');
-  const [deviceHealth, setDeviceHealth] = useState<DeviceHealth[]>([
-    {
-      id: 'DEV-001',
-      name: 'web-server-01',
-      type: '服务器',
-      healthScore: 85,
-      predictedFailure: '2024-03-15',
-      status: 'healthy',
-    },
-    {
-      id: 'DEV-002',
-      name: 'database-primary',
-      type: '数据库',
-      healthScore: 65,
-      predictedFailure: '2024-02-20',
-      status: 'warning',
-    },
-    {
-      id: 'DEV-003',
-      name: 'storage-array-01',
-      type: '存储',
-      healthScore: 45,
-      predictedFailure: '2024-02-10',
-      status: 'critical',
-    },
-  ]);
-
-  const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceTask[]>([
-    {
-      id: 'MT-001',
-      device: 'storage-array-01',
-      type: 'predictive',
-      scheduledDate: '2024-02-10',
-      priority: 'high',
-      status: 'pending',
-      estimatedDuration: '4小时',
-      description: '更换故障磁盘，重建RAID阵列',
-    },
-    {
-      id: 'MT-002',
-      device: 'database-primary',
-      type: 'preventive',
-      scheduledDate: '2024-02-20',
-      priority: 'medium',
-      status: 'pending',
-      estimatedDuration: '2小时',
-      description: '数据库索引优化和统计信息更新',
-    },
-    {
-      id: 'MT-003',
-      device: 'web-server-01',
-      type: 'preventive',
-      scheduledDate: '2024-03-01',
-      priority: 'low',
-      status: 'completed',
-      estimatedDuration: '1小时',
-      description: '系统补丁更新和安全加固',
-    },
-  ]);
-
-  const [failurePredictions, setFailurePredictions] = useState<FailurePrediction[]>([
-    {
-      deviceId: 'DEV-003',
-      deviceName: 'storage-array-01',
-      failureType: '磁盘故障',
-      probability: 85,
-      timeframe: '7天内',
-      confidence: 92,
-      recommendedActions: [
-        '立即备份关键数据',
-        '准备备用磁盘',
-        '安排维护窗口',
-        '通知相关团队',
-      ],
-    },
-    {
-      deviceId: 'DEV-002',
-      deviceName: 'database-primary',
-      failureType: '性能下降',
-      probability: 65,
-      timeframe: '30天内',
-      confidence: 78,
-      recommendedActions: [
-        '优化慢查询',
-        '增加缓存层',
-        '考虑读写分离',
-        '监控磁盘IO',
-      ],
-    },
-  ]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deviceHealth, setDeviceHealth] = useState<DeviceHealth[]>([]);
+  const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceTask[]>([]);
+  const [failurePredictions, setFailurePredictions] = useState<FailurePrediction[]>([]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -158,6 +74,115 @@ export default function PredictivePage() {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  useEffect(() => {
+    async function loadPredictiveData() {
+      const projectedDate = (days: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return d.toISOString().split('T')[0];
+      };
+
+      const buildDevice = (id: string, name: string, type: string, usage: number): DeviceHealth => {
+        const healthScore = Math.max(0, Math.min(100, Math.round(100 - usage)));
+        let status: DeviceHealth['status'] = 'healthy';
+        let failDays = 90;
+        if (healthScore < 50) {
+          status = 'critical';
+          failDays = 7;
+        } else if (healthScore < 70) {
+          status = 'warning';
+          failDays = 30;
+        }
+        return {
+          id,
+          name,
+          type,
+          healthScore,
+          predictedFailure: projectedDate(failDays),
+          status,
+        };
+      };
+
+      const [historyResult, aiResult] = await Promise.allSettled([
+        api.get('/api/v1/metrics/history'),
+        api.post('/api/ai/analyze', {
+          query: '请分析当前系统健康状态并给出预测性维护建议',
+          include_metrics: true,
+          include_rich_context: true,
+          platform: 'windows',
+        }),
+      ]);
+
+      if (historyResult.status === 'fulfilled') {
+        const historyData = historyResult.value.data || {};
+        const cpuArr = historyData.cpu || [];
+        const memoryArr = historyData.memory || [];
+        const netArr = historyData.net_in || [];
+
+        const devices: DeviceHealth[] = [];
+        if (cpuArr.length) devices.push(buildDevice('DEV-CPU', 'CPU', 'CPU', cpuArr[cpuArr.length - 1]));
+        if (memoryArr.length) devices.push(buildDevice('DEV-MEM', 'Memory', '内存', memoryArr[memoryArr.length - 1]));
+        if (netArr.length) devices.push(buildDevice('DEV-NET', 'Network', '网络', netArr[netArr.length - 1]));
+        setDeviceHealth(devices);
+      }
+
+      if (aiResult.status === 'fulfilled') {
+        const analysis = aiResult.value.data?.analysis || {};
+        const candidates = Array.isArray(analysis.candidates) ? analysis.candidates : [];
+
+        const predictions: FailurePrediction[] = candidates.map((c: any, i: number) => {
+          const actions = String(analysis.recommended_action || '')
+            .split(/[；;，,\n]/)
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+          if (analysis.multi_root_cause_note) {
+            actions.unshift(String(analysis.multi_root_cause_note));
+          }
+          return {
+            deviceId: `RC-${i + 1}`,
+            deviceName: String(c.root_cause || '未知组件'),
+            failureType: String(c.root_cause || '未知故障'),
+            probability: Math.round((c.confidence || 0) * 100),
+            timeframe: c.is_verifiable ? '已可验证' : '待验证',
+            confidence: Math.round(((analysis.data_assessment?.reliability_score ?? 0.8) * 100)),
+            recommendedActions: actions.length ? actions : ['关注并监控相关指标'],
+          };
+        });
+        setFailurePredictions(predictions);
+
+        const tasks: MaintenanceTask[] = predictions.map((p, i) => ({
+          id: `MT-${i + 1}`,
+          device: p.deviceName,
+          type: 'predictive' as MaintenanceTask['type'],
+          scheduledDate: projectedDate(p.probability > 70 ? 7 : p.probability > 40 ? 14 : 30),
+          priority: (p.probability > 70 ? 'high' : p.probability > 40 ? 'medium' : 'low') as MaintenanceTask['priority'],
+          status: 'pending' as MaintenanceTask['status'],
+          estimatedDuration: '2小时',
+          description: p.failureType,
+        }));
+        setMaintenanceTasks(tasks);
+      }
+
+      if (historyResult.status === 'rejected' && aiResult.status === 'rejected') {
+        setError('预测数据加载失败，请稍后重试');
+      } else {
+        setError(null);
+      }
+
+      setLoading(false);
+    }
+
+    loadPredictiveData();
+  }, []);
+
+  if (error) {
+    return (
+      <div className="p-6 text-red-600">
+        加载预测数据失败: {error}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -220,7 +245,11 @@ export default function PredictivePage() {
         </CardHeader>
         <CardContent>
           <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">设备健康趋势图 (使用ECharts渲染)</p>
+            {loading ? (
+              <p className="text-gray-500">加载预测数据中...</p>
+            ) : (
+              <p className="text-gray-500">设备健康趋势图 (使用ECharts渲染)</p>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -18,8 +18,8 @@ export default function OverviewPage() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      // Refresh logic here
-      await fetch('/api/v1/dashboard');
+      // Refresh health check
+      await fetch('/api/v1/health/ping');
       success("Dashboard refreshed successfully");
     } catch (err) {
       showError("Failed to refresh dashboard");
@@ -30,7 +30,7 @@ export default function OverviewPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch('/api/v1/dashboard')
+    fetch('/api/v1/health/ping')
       .then(res => res.json())
       .then(data => {
         setData(data);
@@ -76,12 +76,12 @@ export default function OverviewPage() {
         <QuickActions />
         <DashboardCards />
       </section>
-      
+
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <MetricsChart />
         <SystemHealth />
       </section>
-      
+
       <section>
         <AlertStream />
       </section>

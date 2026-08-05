@@ -1,25 +1,43 @@
-'use client'
+'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
+const API_BASE = '/api/v1/team-collaboration';
+
 interface TeamMember {
-  id: string;
-  name: string;
+  user_id: string;
+  username: string;
+  full_name: string;
   role: string;
-  avatar: string;
   status: 'online' | 'offline' | 'busy';
+  avatar?: string;
 }
 
-interface Comment {
+interface Team {
   id: string;
-  author: string;
-  content: string;
-  timestamp: Date;
-  mentions: string[];
+  name: string;
+  description: string;
+  members: TeamMember[];
+}
+
+interface Oncall {
+  primary: TeamMember | null;
+  secondary: TeamMember | null;
+  since: string;
+  until: string;
+  next_rotation_in_hours: number;
+}
+
+interface Handoff {
+  id: string;
+  from_name: string;
+  to_name: string | null;
+  notes: string;
+  created_at: string;
 }
 
 interface SharedDashboard {
@@ -31,87 +49,89 @@ interface SharedDashboard {
   description: string;
 }
 
-interface Workspace {
-  id: string;
-  name: string;
-  members: TeamMember[];
-  description: string;
-}
-
 export default function TeamCollaborationPage() {
   const [activeTab, setActiveTab] = useState<'workspace' | 'comments' | 'dashboards'>('workspace');
-  const [newComment, setNewComment] = useState('');
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [oncall, setOncall] = useState<Oncall | null>(null);
+  const [handoffs, setHandoffs] = useState<Handoff[]>([]);
+  const [sharedDashboards] = useState<SharedDashboard[]>([]);
   const [selectedDashboard, setSelectedDashboard] = useState<SharedDashboard | null>(null);
+  const [newComment, setNewComment] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([
-    {
-      id: 'WS-001',
-      name: 'AIOps运维团队',
-      members: [
-        { id: 'U-001', name: '张三', role: 'Team Lead', avatar: '👤', status: 'online' },
-        { id: 'U-002', name: '李四', role: 'DevOps Engineer', avatar: '👤', status: 'online' },
-        { id: 'U-003', name: '王五', role: 'SRE', avatar: '👤', status: 'busy' },
-        { id: 'U-004', name: '赵六', role: 'Developer', avatar: '👤', status: 'offline' },
-      ],
-      description: '负责AIOps平台的运维和监控',
-    },
-  ]);
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) || teams[0] || null;
 
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: 'C-001',
-      author: '张三',
-      content: '@李四 请检查一下数据库告警',
-      timestamp: new Date(Date.now() - 3600000),
-      mentions: ['李四'],
-    },
-    {
-      id: 'C-002',
-      author: '李四',
-      content: '已确认，正在处理中',
-      timestamp: new Date(Date.now() - 1800000),
-      mentions: [],
-    },
-  ]);
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/teams`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data: Team[]) => {
+        setTeams(data);
+        if (data.length > 0) {
+          setSelectedTeamId(data[0].id);
+        }
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const [sharedDashboards, setSharedDashboards] = useState<SharedDashboard[]>([
-    {
-      id: 'D-001',
-      name: '生产环境监控仪表盘',
-      owner: '张三',
-      lastModified: new Date(Date.now() - 86400000),
-      viewers: 12,
-      description: '生产环境关键指标监控',
-    },
-    {
-      id: 'D-002',
-      name: '成本分析仪表盘',
-      owner: '李四',
-      lastModified: new Date(Date.now() - 172800000),
-      viewers: 8,
-      description: '云资源成本分析',
-    },
-    {
-      id: 'D-003',
-      name: '告警中心仪表盘',
-      owner: '王五',
-      lastModified: new Date(Date.now() - 259200000),
-      viewers: 15,
-      description: '实时告警监控',
-    },
-  ]);
+  useEffect(() => {
+    if (!selectedTeamId) return;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      fetch(`${API_BASE}/teams/${selectedTeamId}/oncall`).then((res) =>
+        res.ok ? res.json() : null
+      ),
+      fetch(`${API_BASE}/teams/${selectedTeamId}/handoffs`).then((res) =>
+        res.ok ? res.json() : []
+      ),
+    ])
+      .then(([oncallData, handoffData]) => {
+        setOncall(oncallData);
+        setHandoffs(handoffData);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [selectedTeamId]);
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    const comment: Comment = {
-      id: `C-${Date.now()}`,
-      author: '当前用户',
-      content: newComment,
-      timestamp: new Date(),
-      mentions: newComment.match(/@(\S+)/g)?.map((m) => m.substring(1)) || [],
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedTeamId) return;
+    const mentions = newComment.match(/@(\S+)/g)?.map((m) => m.substring(1)) || [];
+    const body = {
+      from_user_id: 'system',
+      to_user_id: mentions[0] || undefined,
+      notes: newComment,
     };
-    setComments([...comments, comment]);
-    setNewComment('');
+    const res = await fetch(`${API_BASE}/teams/${selectedTeamId}/handoffs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setHandoffs((prev) => [created, ...prev]);
+      setNewComment('');
+    } else {
+      setError('提交交接记录失败');
+    }
+  };
+
+  const handleEscalate = async (incidentId: string) => {
+    if (!selectedTeamId) return;
+    const res = await fetch(`${API_BASE}/incidents/${incidentId}/escalate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team_id: selectedTeamId, reason: '手动升级' }),
+    });
+    if (!res.ok) {
+      setError('事件升级失败');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -140,12 +160,19 @@ export default function TeamCollaborationPage() {
     }
   };
 
+  const memberAvatar = (member: TeamMember) => {
+    if (member.avatar) return member.avatar;
+    return member.full_name ? member.full_name.charAt(0).toUpperCase() : '?';
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">团队协作</h1>
-        <Button>创建工作区</Button>
       </div>
+
+      {loading && <p className="text-sm text-gray-500">加载中...</p>}
+      {error && <p className="text-sm text-red-500">{error}</p>}
 
       <div className="flex gap-2 border-b">
         <Button
@@ -158,7 +185,7 @@ export default function TeamCollaborationPage() {
           variant={activeTab === 'comments' ? 'default' : 'ghost'}
           onClick={() => setActiveTab('comments')}
         >
-          讨论区
+          交接记录
         </Button>
         <Button
           variant={activeTab === 'dashboards' ? 'default' : 'ghost'}
@@ -170,26 +197,57 @@ export default function TeamCollaborationPage() {
 
       {activeTab === 'workspace' && (
         <div className="space-y-6">
-          {workspaces.map((workspace) => (
-            <Card key={workspace.id}>
+          {teams.map((team) => (
+            <Card key={team.id}>
               <CardHeader>
-                <CardTitle>{workspace.name}</CardTitle>
-                <p className="text-sm text-gray-500">{workspace.description}</p>
+                <CardTitle>{team.name}</CardTitle>
+                <p className="text-sm text-gray-500">{team.description}</p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {selectedTeamId === team.id && oncall && oncall.primary && (
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm font-medium text-blue-900">
+                        当前值班: {oncall.primary.full_name} ({oncall.primary.role})
+                      </p>
+                      {oncall.secondary && (
+                        <p className="text-xs text-blue-700 mt-1">
+                          备班: {oncall.secondary.full_name} | 下次轮班还有{' '}
+                          {oncall.next_rotation_in_hours} 小时
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEscalate(`INC-${Date.now()}`)}
+                        >
+                          手动升级事件
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div>
-                    <h4 className="font-medium mb-3">团队成员 ({workspace.members.length})</h4>
+                    <h4 className="font-medium mb-3">
+                      团队成员 ({team.members.length})
+                    </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {workspace.members.map((member) => (
-                        <div key={member.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                      {team.members.map((member) => (
+                        <div
+                          key={member.user_id}
+                          className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                        >
                           <div className="flex items-center gap-3 mb-2">
                             <div className="relative">
-                              <span className="text-2xl">{member.avatar}</span>
-                              <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${getStatusColor(member.status)}`} />
+                              <span className="text-2xl">{memberAvatar(member)}</span>
+                              <div
+                                className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${getStatusColor(
+                                  member.status
+                                )}`}
+                              />
                             </div>
                             <div>
-                              <p className="font-medium">{member.name}</p>
+                              <p className="font-medium">{member.full_name}</p>
                               <p className="text-xs text-gray-500">{member.role}</p>
                             </div>
                           </div>
@@ -201,11 +259,12 @@ export default function TeamCollaborationPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                      邀请成员
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      工作区设置
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedTeamId(team.id)}
+                    >
+                      查看值班表
                     </Button>
                   </div>
                 </div>
@@ -215,53 +274,45 @@ export default function TeamCollaborationPage() {
         </div>
       )}
 
-      {activeTab === 'comments' && (
+      {activeTab === 'comments' && selectedTeam && (
         <Card>
           <CardHeader>
-            <CardTitle>讨论区</CardTitle>
+            <CardTitle>交接记录 - {selectedTeam.name}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 mb-6">
-              {comments.map((comment) => (
-                <div key={comment.id} className="p-4 border border-gray-200 rounded-lg">
+              {handoffs.map((handoff) => (
+                <div key={handoff.id} className="p-4 border border-gray-200 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{comment.author}</span>
-                      <span className="text-xs text-gray-500">{comment.timestamp.toLocaleString()}</span>
+                      <span className="font-medium">{handoff.from_name}</span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(handoff.created_at).toLocaleString()}
+                      </span>
                     </div>
                   </div>
-                  <p className="text-sm mb-2">{comment.content}</p>
-                  {comment.mentions.length > 0 && (
+                  <p className="text-sm mb-2">{handoff.notes}</p>
+                  {handoff.to_name && (
                     <div className="flex gap-1">
-                      {comment.mentions.map((mention) => (
-                        <Badge key={mention} variant="outline" className="text-xs">
-                          @{mention}
-                        </Badge>
-                      ))}
+                      <Badge variant="outline" className="text-xs">
+                        @{handoff.to_name}
+                      </Badge>
                     </div>
                   )}
-                  <div className="flex gap-2 mt-3">
-                    <Button variant="ghost" size="sm" className="text-xs">
-                      回复
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-xs">
-                      引用
-                    </Button>
-                  </div>
                 </div>
               ))}
             </div>
             <div className="border-t pt-4">
               <div className="flex gap-2">
                 <Input
-                  placeholder="输入评论，使用 @提及成员..."
+                  placeholder="输入交接内容..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
                 />
                 <Button onClick={handleAddComment}>发送</Button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">提示：使用 @成员名 可以提及团队成员</p>
+              <p className="text-xs text-gray-500 mt-2">提示：输入内容后按回车发送交接记录</p>
             </div>
           </CardContent>
         </Card>
@@ -269,45 +320,43 @@ export default function TeamCollaborationPage() {
 
       {activeTab === 'dashboards' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sharedDashboards.map((dashboard) => (
-              <Card
-                key={dashboard.id}
-                className="cursor-pointer hover:shadow-lg transition"
-                onClick={() => setSelectedDashboard(dashboard)}
-              >
-                <CardHeader>
-                  <CardTitle className="text-lg">{dashboard.name}</CardTitle>
-                  <p className="text-sm text-gray-500">{dashboard.description}</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">所有者</span>
-                      <span>{dashboard.owner}</span>
+          {sharedDashboards.length === 0 ? (
+            <p className="text-sm text-gray-500">暂无共享仪表盘</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sharedDashboards.map((dashboard) => (
+                <Card
+                  key={dashboard.id}
+                  className="cursor-pointer hover:shadow-lg transition"
+                  onClick={() => setSelectedDashboard(dashboard)}
+                >
+                  <CardHeader>
+                    <CardTitle className="text-lg">{dashboard.name}</CardTitle>
+                    <p className="text-sm text-gray-500">{dashboard.description}</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">所有者</span>
+                        <span>{dashboard.owner}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">查看人数</span>
+                        <span>{dashboard.viewers}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">最后修改</span>
+                        <span>{dashboard.lastModified.toLocaleDateString()}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">查看人数</span>
-                      <span>{dashboard.viewers}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">最后修改</span>
-                      <span>{dashboard.lastModified.toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full mt-4">
-                    查看仪表盘
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-            <Card className="border-dashed flex items-center justify-center min-h-[200px] cursor-pointer hover:bg-gray-50 transition">
-              <div className="text-center">
-                <p className="text-4xl mb-2">+</p>
-                <p className="text-sm text-gray-500">共享仪表盘</p>
-              </div>
-            </Card>
-          </div>
+                    <Button variant="outline" size="sm" className="w-full mt-4">
+                      查看仪表盘
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {selectedDashboard && (
             <Card>
@@ -315,7 +364,7 @@ export default function TeamCollaborationPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle>仪表盘详情: {selectedDashboard.name}</CardTitle>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedDashboard(null)}>
-                    ✕
+                    ×
                   </Button>
                 </div>
               </CardHeader>
@@ -338,17 +387,6 @@ export default function TeamCollaborationPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">最后修改</label>
                       <p className="text-sm">{selectedDashboard.lastModified.toLocaleString()}</p>
                     </div>
-                  </div>
-                  <div className="flex gap-2 pt-4 border-t">
-                    <Button variant="outline" size="sm">
-                      编辑权限
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      复制仪表盘
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-red-600">
-                      删除
-                    </Button>
                   </div>
                 </div>
               </CardContent>

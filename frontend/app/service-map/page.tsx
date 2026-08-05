@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
+import api from '@/lib/api';
 
 interface ServiceNode {
   id: string;
@@ -26,106 +27,66 @@ interface ServiceDependency {
   traffic: number;
 }
 
+interface FullLinkNode {
+  id: string;
+  label: string;
+  pagerank?: number;
+}
+
+interface FullLinkEdge {
+  source: string;
+  target: string;
+  weight: number;
+}
+
+interface FullLinkResponse {
+  nodes: FullLinkNode[];
+  edges: FullLinkEdge[];
+}
+
 export default function ServiceMapPage() {
   const [selectedService, setSelectedService] = useState<ServiceNode | null>(null);
   const [viewMode, setViewMode] = useState<'topology' | 'dependencies' | 'traffic'>('topology');
+  const [services, setServices] = useState<ServiceNode[]>([]);
+  const [dependencies, setDependencies] = useState<ServiceDependency[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [services] = useState<ServiceNode[]>([
-    {
-      id: 'S-001',
-      name: 'web-frontend',
-      type: 'frontend',
-      status: 'healthy',
-      dependencies: ['api-gateway'],
-      metrics: { requests: 5000, errorRate: 0.1, latency: 45 },
-    },
-    {
-      id: 'S-002',
-      name: 'api-gateway',
-      type: 'backend',
-      status: 'healthy',
-      dependencies: ['user-service', 'order-service', 'product-service'],
-      metrics: { requests: 4500, errorRate: 0.2, latency: 80 },
-    },
-    {
-      id: 'S-003',
-      name: 'user-service',
-      type: 'backend',
-      status: 'warning',
-      dependencies: ['user-db', 'redis-cache'],
-      metrics: { requests: 1500, errorRate: 1.5, latency: 120 },
-    },
-    {
-      id: 'S-004',
-      name: 'order-service',
-      type: 'backend',
-      status: 'healthy',
-      dependencies: ['order-db', 'redis-cache', 'kafka-queue'],
-      metrics: { requests: 2000, errorRate: 0.3, latency: 95 },
-    },
-    {
-      id: 'S-005',
-      name: 'product-service',
-      type: 'backend',
-      status: 'healthy',
-      dependencies: ['product-db', 'redis-cache'],
-      metrics: { requests: 1000, errorRate: 0.1, latency: 70 },
-    },
-    {
-      id: 'S-006',
-      name: 'user-db',
-      type: 'database',
-      status: 'healthy',
-      dependencies: [],
-      metrics: { requests: 800, errorRate: 0, latency: 25 },
-    },
-    {
-      id: 'S-007',
-      name: 'order-db',
-      type: 'database',
-      status: 'critical',
-      dependencies: [],
-      metrics: { requests: 1200, errorRate: 5.2, latency: 350 },
-    },
-    {
-      id: 'S-008',
-      name: 'product-db',
-      type: 'database',
-      status: 'healthy',
-      dependencies: [],
-      metrics: { requests: 500, errorRate: 0, latency: 20 },
-    },
-    {
-      id: 'S-009',
-      name: 'redis-cache',
-      type: 'cache',
-      status: 'healthy',
-      dependencies: [],
-      metrics: { requests: 3000, errorRate: 0.1, latency: 5 },
-    },
-    {
-      id: 'S-010',
-      name: 'kafka-queue',
-      type: 'queue',
-      status: 'healthy',
-      dependencies: [],
-      metrics: { requests: 500, errorRate: 0, latency: 15 },
-    },
-  ]);
+  useEffect(() => {
+    api.get<FullLinkResponse>('/api/v1/topologies/full-link')
+      .then((res) => {
+        const { nodes, edges } = res.data;
+        const labelById = new Map<string, string>();
+        nodes.forEach((n) => labelById.set(n.id, n.label));
 
-  const [dependencies] = useState<ServiceDependency[]>([
-    { from: 'web-frontend', to: 'api-gateway', type: 'http', traffic: 5000 },
-    { from: 'api-gateway', to: 'user-service', type: 'http', traffic: 1500 },
-    { from: 'api-gateway', to: 'order-service', type: 'http', traffic: 2000 },
-    { from: 'api-gateway', to: 'product-service', type: 'http', traffic: 1000 },
-    { from: 'user-service', to: 'user-db', type: 'database', traffic: 800 },
-    { from: 'user-service', to: 'redis-cache', type: 'cache', traffic: 700 },
-    { from: 'order-service', to: 'order-db', type: 'database', traffic: 1200 },
-    { from: 'order-service', to: 'redis-cache', type: 'cache', traffic: 800 },
-    { from: 'order-service', to: 'kafka-queue', type: 'queue', traffic: 500 },
-    { from: 'product-service', to: 'product-db', type: 'database', traffic: 500 },
-    { from: 'product-service', to: 'redis-cache', type: 'cache', traffic: 500 },
-  ]);
+        const nodeDeps = new Map<string, string[]>();
+        edges.forEach((e) => {
+          const list = nodeDeps.get(e.source) ?? [];
+          list.push(labelById.get(e.target) ?? e.target);
+          nodeDeps.set(e.source, list);
+        });
+
+        setServices(
+          nodes.map((n) => ({
+            id: n.id,
+            name: n.label,
+            type: 'backend' as const,
+            status: 'healthy' as const,
+            dependencies: nodeDeps.get(n.id) ?? [],
+            metrics: { requests: 0, errorRate: 0, latency: 0 },
+          }))
+        );
+
+        setDependencies(
+          edges.map((e) => ({
+            from: labelById.get(e.source) ?? e.source,
+            to: labelById.get(e.target) ?? e.target,
+            type: 'http' as const,
+            traffic: e.weight,
+          }))
+        );
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -245,7 +206,11 @@ export default function ServiceMapPage() {
         </CardHeader>
         <CardContent>
           <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">服务拓扑图 (使用D3.js/Cytoscape.js渲染)</p>
+            {loading ? (
+              <p className="text-gray-500">加载中...</p>
+            ) : (
+              <p className="text-gray-500">服务拓扑图 (使用D3.js/Cytoscape.js渲染)</p>
+            )}
           </div>
           <div className="mt-4 flex gap-4 text-sm">
             <div className="flex items-center gap-2">
@@ -282,9 +247,8 @@ export default function ServiceMapPage() {
             {services.map((service) => (
               <div
                 key={service.id}
-                className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${
-                  selectedService?.id === service.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                }`}
+                className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedService?.id === service.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                  }`}
                 onClick={() => setSelectedService(service)}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -376,7 +340,7 @@ export default function ServiceMapPage() {
                 {selectedService.dependencies.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {selectedService.dependencies.map((depId) => {
-                      const depService = services.find(s => s.id === depId);
+                      const depService = services.find(s => s.name === depId);
                       return depService ? (
                         <Badge key={depId} variant="outline" className="cursor-pointer">
                           {depService.name}

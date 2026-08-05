@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import api from '@/lib/api';
 
 interface WorkflowNode {
   id: string;
@@ -32,41 +33,24 @@ interface Schedule {
   enabled: boolean;
 }
 
+interface BackendStep {
+  key: string;
+  title: string;
+  desc: string;
+}
+
+interface BackendWorkflow {
+  name: string;
+  nodes: number;
+  time: string;
+  rate: string;
+  steps: BackendStep[];
+}
+
 export default function WorkflowOrchestrationPage() {
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-
-  const [workflows, setWorkflows] = useState<Workflow[]>([
-    {
-      id: 'WF-001',
-      name: '自动扩容工作流',
-      description: '当CPU使用率超过80%时自动扩容',
-      status: 'active',
-      nodes: [
-        { id: 'N-001', type: 'start', name: '开始', description: '触发条件', position: { x: 100, y: 50 } },
-        { id: 'N-002', type: 'condition', name: 'CPU > 80%', description: '检查CPU使用率', position: { x: 100, y: 150 } },
-        { id: 'N-003', type: 'action', name: '扩容实例', description: '增加2个实例', position: { x: 100, y: 250 } },
-        { id: 'N-004', type: 'end', name: '结束', description: '流程结束', position: { x: 100, y: 350 } },
-      ],
-      triggers: ['CPU告警'],
-      lastRun: new Date(Date.now() - 3600000),
-    },
-    {
-      id: 'WF-002',
-      name: '告警通知工作流',
-      description: '发送告警通知到Slack和邮件',
-      status: 'active',
-      nodes: [
-        { id: 'N-005', type: 'start', name: '开始', description: '告警触发', position: { x: 100, y: 50 } },
-        { id: 'N-006', type: 'condition', name: '严重级别?', description: '判断告警级别', position: { x: 100, y: 150 } },
-        { id: 'N-007', type: 'action', name: '发送Slack', description: '发送到Slack', position: { x: 50, y: 250 } },
-        { id: 'N-008', type: 'action', name: '发送邮件', description: '发送邮件', position: { x: 150, y: 250 } },
-        { id: 'N-009', type: 'end', name: '结束', description: '流程结束', position: { x: 100, y: 350 } },
-      ],
-      triggers: ['告警事件'],
-      lastRun: new Date(Date.now() - 7200000),
-    },
-  ]);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
 
   const [schedules, setSchedules] = useState<Schedule[]>([
     {
@@ -84,6 +68,44 @@ export default function WorkflowOrchestrationPage() {
       enabled: true,
     },
   ]);
+
+  useEffect(() => {
+    let canceled = false;
+    async function loadWorkflows() {
+      try {
+        const { data } = await api.get<Record<string, BackendWorkflow>>('/api/v1/workflows/definitions');
+        if (canceled) return;
+        const definitions = data ?? {};
+        const mapped = Object.entries(definitions).map(([key, def], _idx) => {
+          const steps = def.steps ?? [];
+          const nodes: WorkflowNode[] = steps.map((step, i) => ({
+            id: step.key || `${key}-node-${i}`,
+            type: i === 0 ? 'start' : i === steps.length - 1 ? 'end' : 'action',
+            name: step.title,
+            description: step.desc,
+            position: { x: 100 + (i % 2) * 140, y: 50 + i * 90 },
+          }));
+          return {
+            id: key,
+            name: def.name || key,
+            description: `平均耗时 ${def.time || 'N/A'} · 成功率 ${def.rate || 'N/A'}`,
+            status: 'active' as const,
+            nodes,
+            triggers: [] as string[],
+            lastRun: new Date(),
+          };
+        });
+        setWorkflows(mapped);
+      } catch (error) {
+        // api interceptor already surfaces toast messages
+        console.error('加载工作流定义失败', error);
+      }
+    }
+    loadWorkflows();
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -132,9 +154,14 @@ export default function WorkflowOrchestrationPage() {
   };
 
   const handleToggleSchedule = (scheduleId: string) => {
-    setSchedules(schedules.map((s) => 
+    setSchedules(schedules.map((s) =>
       s.id === scheduleId ? { ...s, enabled: !s.enabled } : s
     ));
+  };
+
+  const handleRunSimulation = (workflow: Workflow) => {
+    // TODO: wire /api/v1/workflows/simulate/{workflow.id} SSE to drive node state and logs
+    console.log('TODO: run SSE simulation for', workflow.id);
   };
 
   return (
@@ -155,9 +182,8 @@ export default function WorkflowOrchestrationPage() {
               {workflows.map((workflow) => (
                 <div
                   key={workflow.id}
-                  className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${
-                    selectedWorkflow?.id === workflow.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}
+                  className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedWorkflow?.id === workflow.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
                   onClick={() => setSelectedWorkflow(workflow)}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -172,6 +198,9 @@ export default function WorkflowOrchestrationPage() {
                   </div>
                 </div>
               ))}
+              {workflows.length === 0 && (
+                <div className="text-sm text-gray-500">暂无工作流定义</div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -188,7 +217,7 @@ export default function WorkflowOrchestrationPage() {
                   <Button variant="outline" size="sm" onClick={() => setIsEditing(!isEditing)}>
                     {isEditing ? '完成编辑' : '编辑'}
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => handleRunSimulation(selectedWorkflow)}>
                     运行
                   </Button>
                 </div>

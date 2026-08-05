@@ -12,7 +12,7 @@ instance.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    const internalKey = process.env.NEXT_PUBLIC_INTERNAL_API_KEY;
+    const internalKey = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || localStorage.getItem('internal_key');
     if (internalKey) {
       config.headers['X-Internal-Key'] = internalKey;
     }

@@ -25,7 +25,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
-from core.authentication import get_current_active_user
+
 from core.cloud_collector import (
     CLOUD_PROVIDERS,
     collect_all_cloud,
@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/v1/platforms/cloud",
     tags=["Cloud"],
-    dependencies=[Depends(get_current_active_user)],
 )
 
 

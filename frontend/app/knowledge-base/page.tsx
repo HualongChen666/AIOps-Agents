@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,102 +24,87 @@ interface SearchResult {
   matchedTags: string[];
 }
 
+interface RAGItem {
+  score: number;
+  payload: Record<string, any>;
+}
+
+function payloadToRunbook(payload: any, fallbackId: string): Runbook {
+  const raw = payload || {};
+  const tags = Array.isArray(raw.tags)
+    ? raw.tags.map(String)
+    : raw.tags
+      ? [String(raw.tags)]
+      : [];
+  return {
+    id: raw.id ? String(raw.id) : fallbackId,
+    title: raw.title
+      ? String(raw.title)
+      : raw.name
+        ? String(raw.name)
+        : fallbackId,
+    category: raw.category ? String(raw.category) : '未分类',
+    description: raw.description
+      ? String(raw.description)
+      : raw.summary
+        ? String(raw.summary)
+        : '',
+    tags,
+    author: raw.author ? String(raw.author) : 'RAG',
+    lastUpdated: new Date(raw.lastUpdated || raw.updated_at || raw.timestamp || Date.now()),
+    content: raw.content
+      ? String(raw.content)
+      : JSON.stringify(raw, null, 2),
+  };
+}
+
 export default function KnowledgeBasePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedRunbook, setSelectedRunbook] = useState<Runbook | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-
-  const [runbooks, setRunbooks] = useState<Runbook[]>([
-    {
-      id: 'RB-001',
-      title: '数据库故障排查',
-      category: '故障处理',
-      description: '数据库连接失败、慢查询等常见问题的排查步骤',
-      tags: ['数据库', '故障', '排查'],
-      author: '张三',
-      lastUpdated: new Date(Date.now() - 86400000),
-      content: '1. 检查数据库连接状态\n2. 查看慢查询日志\n3. 分析索引使用情况\n4. 优化SQL语句',
-    },
-    {
-      id: 'RB-002',
-      title: '服务扩容流程',
-      category: '运维操作',
-      description: '服务扩容的标准操作流程和注意事项',
-      tags: ['扩容', '运维', '流程'],
-      author: '李四',
-      lastUpdated: new Date(Date.now() - 172800000),
-      content: '1. 评估当前负载\n2. 选择扩容方案\n3. 执行扩容操作\n4. 验证服务状态',
-    },
-    {
-      id: 'RB-003',
-      title: '告警响应SOP',
-      category: '告警处理',
-      description: '各类告警的标准响应流程和处理方法',
-      tags: ['告警', '响应', 'SOP'],
-      author: '王五',
-      lastUpdated: new Date(Date.now() - 259200000),
-      content: '1. 接收告警通知\n2. 确认告警级别\n3. 执行相应处理\n4. 记录处理结果',
-    },
-    {
-      id: 'RB-004',
-      title: 'API限流配置',
-      category: '配置管理',
-      description: 'API限流的配置方法和最佳实践',
-      tags: ['API', '限流', '配置'],
-      author: '赵六',
-      lastUpdated: new Date(Date.now() - 345600000),
-      content: '1. 确定限流策略\n2. 配置限流规则\n3. 监控限流效果\n4. 调整限流参数',
-    },
-    {
-      id: 'RB-005',
-      title: '日志分析技巧',
-      category: '日志分析',
-      description: '日志分析的方法和常用工具',
-      tags: ['日志', '分析', '工具'],
-      author: '张三',
-      lastUpdated: new Date(Date.now() - 432000000),
-      content: '1. 收集日志数据\n2. 使用日志分析工具\n3. 识别异常模式\n4. 生成分析报告',
-    },
-  ]);
+  const [runbooks, setRunbooks] = useState<Runbook[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const categories = ['all', '故障处理', '运维操作', '告警处理', '配置管理', '日志分析'];
 
-  const handleSearch = () => {
-    if (!searchQuery.trim()) {
+  const handleSearch = async () => {
+    const q = searchQuery.trim();
+    if (!q) {
       setSearchResults([]);
+      setRunbooks([]);
       return;
     }
 
-    const results: SearchResult[] = runbooks
-      .map((runbook) => {
-        const titleMatch = runbook.title.toLowerCase().includes(searchQuery.toLowerCase());
-        const descMatch = runbook.description.toLowerCase().includes(searchQuery.toLowerCase());
-        const tagMatches = runbook.tags.filter((tag) =>
-          tag.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-        const contentMatch = runbook.content.toLowerCase().includes(searchQuery.toLowerCase());
-
-        let relevance = 0;
-        if (titleMatch) relevance += 3;
-        if (descMatch) relevance += 2;
-        if (tagMatches.length > 0) relevance += tagMatches.length * 2;
-        if (contentMatch) relevance += 1;
-
+    setIsSearching(true);
+    try {
+      const { data } = await api.post<RAGItem[]>('/api/v1/rag/search', {
+        query: q,
+        top_k: 5,
+      });
+      const items = Array.isArray(data) ? data : [];
+      const mapped: SearchResult[] = items.map((item, index) => {
+        const runbook = payloadToRunbook(item.payload, `rag-${index}`);
+        const matchedTags = Array.isArray(item.payload?.matched_tags)
+          ? item.payload.matched_tags.map(String)
+          : runbook.tags;
         return {
           runbook,
-          relevance,
-          matchedTags: tagMatches,
+          relevance: Number(item.score) || 0,
+          matchedTags,
         };
-      })
-      .filter((result) => result.relevance > 0)
-      .sort((a, b) => b.relevance - a.relevance);
-
-    setSearchResults(results);
+      });
+      setSearchResults(mapped);
+      setRunbooks(mapped.map((result) => result.runbook));
+    } catch (err) {
+      setSearchResults([]);
+      setRunbooks([]);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleAIRecommend = () => {
-    // 模拟AI推荐
     const recommended = runbooks.slice(0, 3).map((runbook) => ({
       runbook,
       relevance: Math.floor(Math.random() * 3) + 2,
@@ -152,7 +138,9 @@ export default function KnowledgeBasePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             />
-            <Button onClick={handleSearch}>搜索</Button>
+            <Button onClick={handleSearch} disabled={isSearching}>
+              {isSearching ? '搜索中...' : '搜索'}
+            </Button>
             <Button variant="outline" onClick={handleAIRecommend}>
               AI推荐
             </Button>
@@ -162,7 +150,7 @@ export default function KnowledgeBasePage() {
           {searchResults.length > 0 && (
             <div className="space-y-3">
               <h4 className="font-medium">搜索结果</h4>
-              {searchResults.map((result, index) => (
+              {searchResults.map((result) => (
                 <div
                   key={result.runbook.id}
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition cursor-pointer"
@@ -211,9 +199,8 @@ export default function KnowledgeBasePage() {
               {filteredRunbooks.map((runbook) => (
                 <div
                   key={runbook.id}
-                  className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${
-                    selectedRunbook?.id === runbook.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}
+                  className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedRunbook?.id === runbook.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
                   onClick={() => setSelectedRunbook(runbook)}
                 >
                   <h4 className="font-medium text-sm mb-1">{runbook.title}</h4>

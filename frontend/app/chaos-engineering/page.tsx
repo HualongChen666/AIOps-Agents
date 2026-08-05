@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import api from '@/lib/api';
 
 interface ChaosExperiment {
   id: string;
@@ -45,58 +46,11 @@ interface FaultTemplate {
 export default function ChaosEngineeringPage() {
   const [selectedTab, setSelectedTab] = useState('experiments');
   const [selectedExperiment, setSelectedExperiment] = useState<ChaosExperiment | null>(null);
+  const [enabled, setEnabled] = useState(false);
 
-  const [experiments, setExperiments] = useState<ChaosExperiment[]>([
-    {
-      id: 'EXP-001',
-      name: 'CPU过载测试',
-      type: 'cpu-overload',
-      target: 'web-service',
-      status: 'completed',
-      duration: 300,
-      scheduledTime: new Date(Date.now() - 3600000),
-      impact: 'medium',
-    },
-    {
-      id: 'EXP-002',
-      name: '网络延迟注入',
-      type: 'network-latency',
-      target: 'api-gateway',
-      status: 'running',
-      duration: 600,
-      scheduledTime: new Date(Date.now() - 1800000),
-      impact: 'high',
-    },
-    {
-      id: 'EXP-003',
-      name: '磁盘故障模拟',
-      type: 'disk-failure',
-      target: 'database',
-      status: 'scheduled',
-      duration: 120,
-      scheduledTime: new Date(Date.now() + 3600000),
-      impact: 'high',
-    },
-  ]);
+  const [experiments, setExperiments] = useState<ChaosExperiment[]>([]);
 
-  const [experimentResults, setExperimentResults] = useState<ExperimentResult[]>([
-    {
-      id: 'RES-001',
-      experimentId: 'EXP-001',
-      startTime: new Date(Date.now() - 3600000),
-      endTime: new Date(Date.now() - 3300000),
-      duration: 300,
-      affectedServices: ['web-service', 'api-gateway'],
-      metrics: {
-        cpu: 95,
-        memory: 70,
-        latency: 250,
-        errorRate: 5,
-      },
-      recoveryTime: 45,
-      status: 'success',
-    },
-  ]);
+  const [experimentResults, setExperimentResults] = useState<ExperimentResult[]>([]);
 
   const [faultTemplates, setFaultTemplates] = useState<FaultTemplate[]>([
     {
@@ -129,6 +83,109 @@ export default function ChaosEngineeringPage() {
     },
   ]);
 
+  const mapBackendExperimentType = (backendType: string): string => {
+    switch (backendType) {
+      case 'latency_injection':
+      case 'network_partition':
+        return 'network-latency';
+      case 'resource_limitation':
+        return 'cpu-overload';
+      case 'fault_injection':
+        return 'disk-failure';
+      case 'service_failure':
+        return 'service-restart';
+      default:
+        return 'network-latency';
+    }
+  };
+
+  const mapBackendStatus = (backendStatus: string): ChaosExperiment['status'] => {
+    switch (backendStatus) {
+      case 'running':
+        return 'running';
+      case 'completed':
+        return 'completed';
+      case 'failed':
+        return 'failed';
+      default:
+        return 'scheduled';
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'cpu-overload':
+        return 'CPU过载';
+      case 'network-latency':
+        return '网络延迟';
+      case 'disk-failure':
+        return '磁盘故障';
+      case 'service-restart':
+        return '服务重启';
+      default:
+        return type;
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [statusRes, experimentsRes] = await Promise.all([
+          api.get('/api/v1/chaos/status'),
+          api.get('/api/v1/chaos/experiments?limit=20'),
+        ]);
+
+        const statusData = statusRes.data?.data ?? {};
+        setEnabled(Boolean(statusData.enabled));
+
+        const expList = experimentsRes.data?.data?.experiments ?? [];
+        const mappedExperiments: ChaosExperiment[] = expList.map((item: any, idx: number) => {
+          const type = mapBackendExperimentType(item.experiment);
+          const impact: ChaosExperiment['impact'] =
+            type === 'network-latency' || type === 'disk-failure' ? 'high' : 'medium';
+          return {
+            id: `EXP-${String(idx + 1).padStart(3, '0')}`,
+            name: getTypeLabel(type),
+            type: type as ChaosExperiment['type'],
+            target: item.target || 'unknown',
+            status: mapBackendStatus(item.status),
+            duration: Math.round(item.duration_seconds || 0),
+            scheduledTime: new Date(item.start_time || Date.now()),
+            impact,
+          };
+        });
+        setExperiments(mappedExperiments);
+
+        const mappedResults: ExperimentResult[] = expList.map((item: any, idx: number) => {
+          const resultStatus: ExperimentResult['status'] = item.success
+            ? 'success'
+            : item.status === 'partial'
+              ? 'partial'
+              : 'failed';
+          return {
+            id: `RES-${String(idx + 1).padStart(3, '0')}`,
+            experimentId: `EXP-${String(idx + 1).padStart(3, '0')}`,
+            startTime: new Date(item.start_time || Date.now()),
+            endTime: item.end_time ? new Date(item.end_time) : new Date(item.start_time || Date.now()),
+            duration: Math.round(item.duration_seconds || 0),
+            affectedServices: [],
+            metrics: {
+              cpu: 0,
+              memory: 0,
+              latency: 0,
+              errorRate: 0,
+            },
+            recoveryTime: 0,
+            status: resultStatus,
+          };
+        });
+        setExperimentResults(mappedResults);
+      } catch (error) {
+        // api interceptor already shows error toast
+      }
+    })();
+  }, []);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'running':
@@ -160,26 +217,16 @@ export default function ChaosEngineeringPage() {
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'cpu-overload':
-        return 'CPU过载';
-      case 'network-latency':
-        return '网络延迟';
-      case 'disk-failure':
-        return '磁盘故障';
-      case 'service-restart':
-        return '服务重启';
-      default:
-        return type;
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">混沌工程</h1>
-        <Button>创建实验</Button>
+        <div className="flex items-center gap-2">
+          <Badge className={enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+            {enabled ? '已启用' : '已禁用'}
+          </Badge>
+          <Button>创建实验</Button>
+        </div>
       </div>
 
       {/* 混沌实验概览 */}
@@ -275,9 +322,8 @@ export default function ChaosEngineeringPage() {
               {experiments.map((experiment) => (
                 <div
                   key={experiment.id}
-                  className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${
-                    selectedExperiment?.id === experiment.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}
+                  className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedExperiment?.id === experiment.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
                   onClick={() => setSelectedExperiment(experiment)}
                 >
                   <div className="flex items-center justify-between mb-2">

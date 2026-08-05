@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -22,62 +23,97 @@ interface Pattern {
   severity: 'low' | 'medium' | 'high';
 }
 
+function normalizeLevel(level?: string): LogEntry['level'] {
+  const raw = (level || '').toString().toLowerCase();
+  if (raw === 'error' || raw === 'err') return 'error';
+  if (raw === 'warning' || raw === 'warn' || raw === 'wrn') return 'warning';
+  if (raw === 'information' || raw === 'info' || raw === 'inf') return 'info';
+  if (raw === 'debug' || raw === 'dbg') return 'debug';
+  return 'info';
+}
+
+function mapBackendLog(item: any, index: number): LogEntry {
+  const timestamp = item.time || item['@timestamp'] || item.timestamp || new Date().toISOString();
+  return {
+    id: `LOG-${timestamp}-${index}`,
+    timestamp,
+    level: normalizeLevel(item.level),
+    service: item.source || item.host || item.service || 'log',
+    message: item.message || '',
+  };
+}
+
 export default function LogsAnalysisPage() {
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isStreaming, setIsStreaming] = useState(true);
 
-  const [logs, setLogs] = useState<LogEntry[]>([
-    {
-      id: 'LOG-001',
-      timestamp: new Date().toISOString(),
-      level: 'info',
-      service: 'web-service',
-      message: 'Request received: GET /api/users',
-    },
-    {
-      id: 'LOG-002',
-      timestamp: new Date(Date.now() - 1000).toISOString(),
-      level: 'warning',
-      service: 'database',
-      message: 'Slow query detected: SELECT * FROM users (duration: 2.5s)',
-    },
-    {
-      id: 'LOG-003',
-      timestamp: new Date(Date.now() - 2000).toISOString(),
-      level: 'error',
-      service: 'api-gateway',
-      message: 'Connection timeout: Unable to connect to backend service',
-    },
-  ]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [patterns, setPatterns] = useState<Pattern[]>([]);
 
-  const [patterns, setPatterns] = useState<Pattern[]>([
-    {
-      id: 'PAT-001',
-      name: '数据库慢查询',
-      count: 45,
-      severity: 'high',
-    },
-    {
-      id: 'PAT-002',
-      name: '连接超时',
-      count: 23,
-      severity: 'high',
-    },
-    {
-      id: 'PAT-003',
-      name: '内存警告',
-      count: 12,
-      severity: 'medium',
-    },
-  ]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadData = async () => {
+      try {
+        const [systemRes, applicationRes, searchRes] = await Promise.all([
+          api.get('/api/v1/logs/system/errors', { params: { newest: 50 } }).catch(() => ({ data: { logs: [] } })),
+          api.get('/api/v1/logs/application/errors', { params: { newest: 50 } }).catch(() => ({ data: { logs: [] } })),
+          api.get('/api/v1/logs/search', { params: { keyword: 'error', newest: 100 } }).catch(() => ({ data: { logs: [] } })),
+        ]);
+
+        const rawLogs = [
+          ...(systemRes.data?.logs || []),
+          ...(applicationRes.data?.logs || []),
+        ];
+
+        const searchRaw: any[] = searchRes.data?.logs || [];
+        const counts = new Map<string, number>();
+        const severityMap = new Map<string, Pattern['severity']>();
+
+        searchRaw.forEach((item: any) => {
+          const message = (item.message || '').toString().trim() || 'unknown';
+          const level = normalizeLevel(item.level);
+          counts.set(message, (counts.get(message) || 0) + 1);
+          if (level === 'error') {
+            severityMap.set(message, 'high');
+          } else if (!severityMap.has(message)) {
+            severityMap.set(message, level === 'warning' ? 'medium' : 'low');
+          }
+        });
+
+        const detectedPatterns: Pattern[] = Array.from(counts.entries())
+          .slice(0, 3)
+          .map(([message, count], index) => ({
+            id: `PAT-${index + 1}`,
+            name: message.length > 40 ? `${message.slice(0, 40)}...` : message,
+            count,
+            severity: severityMap.get(message) || 'medium',
+          }));
+
+        if (!cancelled) {
+          setLogs(rawLogs.map((item: any, index: number) => mapBackendLog(item, index)));
+          setPatterns(detectedPatterns);
+        }
+      } catch {
+        // api interceptor already shows error toast
+      }
+    };
+
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   const filteredLogs = logs.filter(log => {
     const matchesLevel = selectedLevel === 'all' || log.level === selectedLevel;
     const matchesSearch = log.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         log.service.toLowerCase().includes(searchQuery.toLowerCase());
+      log.service.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesLevel && matchesSearch;
   });
+
+  const totalLogs = logs.length;
+  const errorCount = logs.filter(l => l.level === 'error').length;
+  const warningCount = logs.filter(l => l.level === 'warning').length;
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -204,19 +240,19 @@ export default function LogsAnalysisPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="p-4 border border-gray-200 rounded-lg">
               <div className="text-sm text-gray-500 mb-1">总日志数</div>
-              <div className="text-2xl font-bold">12,345</div>
+              <div className="text-2xl font-bold">{totalLogs.toLocaleString()}</div>
             </div>
             <div className="p-4 border border-gray-200 rounded-lg">
               <div className="text-sm text-gray-500 mb-1">错误</div>
-              <div className="text-2xl font-bold text-red-600">234</div>
+              <div className="text-2xl font-bold text-red-600">{errorCount}</div>
             </div>
             <div className="p-4 border border-gray-200 rounded-lg">
               <div className="text-sm text-gray-500 mb-1">警告</div>
-              <div className="text-2xl font-bold text-yellow-600">567</div>
+              <div className="text-2xl font-bold text-yellow-600">{warningCount}</div>
             </div>
             <div className="p-4 border border-gray-200 rounded-lg">
               <div className="text-sm text-gray-500 mb-1">每秒速率</div>
-              <div className="text-2xl font-bold">45.2</div>
+              <div className="text-2xl font-bold">—</div>
             </div>
           </div>
         </CardContent>

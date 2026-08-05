@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,44 +33,28 @@ interface SLAReport {
 }
 
 export default function SLOPage() {
-  const [slos, setSlos] = useState<SLO[]>([
-    {
-      id: 'SLO-001',
-      name: 'API可用性',
-      service: 'api-gateway',
-      metric: 'availability',
-      target: 99.95,
-      current: 99.9,
-      window: '30d',
-      errorBudget: 87,
-      burnRate: 0.5,
-      status: 'healthy',
-    },
-    {
-      id: 'SLO-002',
-      name: '响应时间',
-      service: 'web-service',
-      metric: 'latency',
-      target: 95,
-      current: 92,
-      window: '7d',
-      errorBudget: 45,
-      burnRate: 1.8,
-      status: 'warning',
-    },
-    {
-      id: 'SLO-003',
-      name: '错误率',
-      service: 'database',
-      metric: 'error_rate',
-      target: 99.9,
-      current: 99.5,
-      window: '24h',
-      errorBudget: 20,
-      burnRate: 3.2,
-      status: 'critical',
-    },
-  ]);
+  const [slos, setSlos] = useState<SLO[]>([]);
+
+  const fetchSlos = async () => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '';
+      const res = await fetch('/api/v1/slo/', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSlos(data.slos || []);
+      } else {
+        console.error('Failed to load SLOs', res.status);
+      }
+    } catch (err) {
+      console.error('Error loading SLOs', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchSlos();
+  }, []);
 
   const [slaReports, setSlaReports] = useState<SLAReport[]>([
     {
@@ -128,22 +112,50 @@ export default function SLOPage() {
     return 'text-red-600';
   };
 
-  const handleCreateSLO = () => {
-    const slo: SLO = {
-      id: `SLO-${String(slos.length + 1).padStart(3, '0')}`,
-      name: newSLO.name,
-      service: newSLO.service,
-      metric: newSLO.metric,
-      target: newSLO.target,
-      current: newSLO.target,
-      window: newSLO.window,
-      errorBudget: 100,
-      burnRate: 0,
-      status: 'healthy',
-    };
-    setSlos([...slos, slo]);
-    setShowCreateDialog(false);
-    setNewSLO({ name: '', service: '', metric: '', target: 99.9, window: '30d' });
+  const handleCreateSLO = async () => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '';
+      const res = await fetch('/api/v1/slo/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: newSLO.name,
+          service: newSLO.service,
+          metric: newSLO.metric,
+          target: newSLO.target,
+          window: newSLO.window,
+        }),
+      });
+      if (res.ok) {
+        setShowCreateDialog(false);
+        setNewSLO({ name: '', service: '', metric: '', target: 99.9, window: '30d' });
+        await fetchSlos();
+      } else {
+        console.error('Failed to create SLO', res.status);
+      }
+    } catch (err) {
+      console.error('Error creating SLO', err);
+    }
+  };
+
+  const handleDeleteSLO = async (id: string) => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '';
+      const res = await fetch(`/api/v1/slo/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        await fetchSlos();
+      } else {
+        console.error('Failed to delete SLO', res.status);
+      }
+    } catch (err) {
+      console.error('Error deleting SLO', err);
+    }
   };
 
   return (
@@ -245,6 +257,9 @@ export default function SLOPage() {
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => setSelectedSLO(slo)}>
                         编辑
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleDeleteSLO(slo.id)}>
+                        删除
                       </Button>
                     </div>
                   </TableCell>

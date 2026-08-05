@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,103 +35,75 @@ interface RetentionPolicy {
   status: 'compliant' | 'non-compliant';
 }
 
+interface GuardStats {
+  total: number;
+  blocked_count: number;
+  high_count: number;
+  block_rate: number;
+}
+
+function mapGuardLogToAuditLog(raw: any, index: number): AuditLog {
+  const result = String(raw?.result ?? '');
+  const risk = String(raw?.risk_level ?? '');
+  const isFailure = /fail|block|error/i.test(result) || risk === 'blocked' || raw?.status === 'failure';
+  return {
+    id: String(raw?.trace_id ?? `log-${index}`),
+    timestamp: new Date(raw?.timestamp ?? Date.now()),
+    user: String(raw?.who ?? 'unknown'),
+    action: String(raw?.risk_level ?? raw?.result ?? 'UNKNOWN').toUpperCase(),
+    resource: String(raw?.where ?? 'unknown'),
+    details: String(raw?.what ?? ''),
+    ip: String(raw?.where ?? 'unknown'),
+    status: isFailure ? 'failure' : 'success',
+  };
+}
+
+function buildComplianceReport(stats: GuardStats): ComplianceReport {
+  const findings = (Number(stats?.high_count) || 0) + (Number(stats?.blocked_count) || 0);
+  let status: 'compliant' | 'non-compliant' | 'pending' = 'compliant';
+  if (findings > 0) {
+    status = findings < 5 ? 'pending' : 'non-compliant';
+  }
+  return {
+    id: 'CR-GUARD-001',
+    name: '高危指令审计合规报告',
+    type: 'SOC2',
+    status,
+    lastAudit: new Date(),
+    nextAudit: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    findings,
+  };
+}
+
 export default function ComplianceAuditPage() {
   const [selectedTab, setSelectedTab] = useState('logs');
   const [searchQuery, setSearchQuery] = useState('');
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [complianceReports, setComplianceReports] = useState<ComplianceReport[]>([]);
+  const [accessStats, setAccessStats] = useState<GuardStats>({
+    total: 0,
+    blocked_count: 0,
+    high_count: 0,
+    block_rate: 0,
+  });
 
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
-    {
-      id: 'LOG-001',
-      timestamp: new Date(Date.now() - 3600000),
-      user: 'admin',
-      action: 'UPDATE',
-      resource: 'SLO-001',
-      details: 'Updated SLO target from 99.9% to 99.95%',
-      ip: '192.168.1.100',
-      status: 'success',
-    },
-    {
-      id: 'LOG-002',
-      timestamp: new Date(Date.now() - 7200000),
-      user: 'user1',
-      action: 'DELETE',
-      resource: 'Alert-123',
-      details: 'Deleted alert rule',
-      ip: '192.168.1.101',
-      status: 'success',
-    },
-    {
-      id: 'LOG-003',
-      timestamp: new Date(Date.now() - 10800000),
-      user: 'admin',
-      action: 'CREATE',
-      resource: 'Tenant-004',
-      details: 'Created new tenant',
-      ip: '192.168.1.100',
-      status: 'success',
-    },
-    {
-      id: 'LOG-004',
-      timestamp: new Date(Date.now() - 14400000),
-      user: 'user2',
-      action: 'ACCESS',
-      resource: 'Dashboard',
-      details: 'Failed to access dashboard',
-      ip: '192.168.1.102',
-      status: 'failure',
-    },
-  ]);
-
-  const [complianceReports, setComplianceReports] = useState<ComplianceReport[]>([
-    {
-      id: 'CR-001',
-      name: 'SOC2 Type II',
-      type: 'SOC2',
-      status: 'compliant',
-      lastAudit: new Date(Date.now() - 86400000 * 30),
-      nextAudit: new Date(Date.now() + 86400000 * 335),
-      findings: 2,
-    },
-    {
-      id: 'CR-002',
-      name: 'ISO 27001',
-      type: 'ISO27001',
-      status: 'compliant',
-      lastAudit: new Date(Date.now() - 86400000 * 60),
-      nextAudit: new Date(Date.now() + 86400000 * 305),
-      findings: 5,
-    },
-    {
-      id: 'CR-003',
-      name: 'GDPR',
-      type: 'GDPR',
-      status: 'pending',
-      lastAudit: new Date(Date.now() - 86400000 * 90),
-      nextAudit: new Date(Date.now() + 86400000 * 275),
-      findings: 0,
-    },
-  ]);
-
-  const [retentionPolicies, setRetentionPolicies] = useState<RetentionPolicy[]>([
-    {
-      resource: 'Audit Logs',
-      retentionPeriod: '7 years',
-      currentRetention: '7 years',
-      status: 'compliant',
-    },
-    {
-      resource: 'Alert Data',
-      retentionPeriod: '90 days',
-      currentRetention: '90 days',
-      status: 'compliant',
-    },
-    {
-      resource: 'User Activity',
-      retentionPeriod: '2 years',
-      currentRetention: '1.5 years',
-      status: 'non-compliant',
-    },
-  ]);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [auditRes, statsRes] = await Promise.all([
+          api.get('/api/guard/audit', { params: { limit: 50 } }),
+          api.get('/api/guard/stats'),
+        ]);
+        const rawLogs = auditRes.data?.logs ?? [];
+        setAuditLogs(rawLogs.map((log: any, i: number) => mapGuardLogToAuditLog(log, i)));
+        setAccessStats(statsRes.data ?? { total: 0, blocked_count: 0, high_count: 0, block_rate: 0 });
+        setComplianceReports([buildComplianceReport(statsRes.data ?? {})]);
+      } catch (error) {
+        // api.ts already shows toast on error
+      }
+    };
+    loadData();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -153,6 +126,33 @@ export default function ComplianceAuditPage() {
       log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.resource.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const highRiskLogs = auditLogs.filter(
+    (log) =>
+      /high|blocked/i.test(log.action) ||
+      log.status === 'failure'
+  ).slice(0, 5);
+
+  const retentionPolicies: RetentionPolicy[] = [
+    {
+      resource: 'Audit Logs',
+      retentionPeriod: '7 years',
+      currentRetention: '7 years',
+      status: 'compliant',
+    },
+    {
+      resource: 'Alert Data',
+      retentionPeriod: '90 days',
+      currentRetention: '90 days',
+      status: 'compliant',
+    },
+    {
+      resource: 'User Activity',
+      retentionPeriod: '2 years',
+      currentRetention: '1.5 years',
+      status: 'non-compliant',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -252,35 +252,37 @@ export default function ComplianceAuditPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">总访问次数</p>
-                    <p className="text-2xl font-bold">1,234</p>
+                    <p className="text-2xl font-bold">{accessStats.total}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">失败访问</p>
-                    <p className="text-2xl font-bold text-red-600">23</p>
+                    <p className="text-sm text-gray-500">失败/拦截访问</p>
+                    <p className="text-2xl font-bold text-red-600">{accessStats.blocked_count}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">异常IP</p>
-                    <p className="text-2xl font-bold text-yellow-600">5</p>
+                    <p className="text-2xl font-bold text-yellow-600">{accessStats.high_count}</p>
                   </div>
                 </div>
               </div>
               <div className="p-4 border border-gray-200 rounded-lg">
                 <h4 className="font-medium mb-2">高风险访问</h4>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 bg-red-50 rounded">
-                    <div>
-                      <p className="text-sm font-medium">多次登录失败</p>
-                      <p className="text-xs text-gray-500">IP: 192.168.1.200</p>
-                    </div>
-                    <Badge className="bg-red-100 text-red-800">高风险</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-2 bg-yellow-50 rounded">
-                    <div>
-                      <p className="text-sm font-medium">异常时间访问</p>
-                      <p className="text-xs text-gray-500">IP: 192.168.1.201</p>
-                    </div>
-                    <Badge className="bg-yellow-100 text-yellow-800">中风险</Badge>
-                  </div>
+                  {highRiskLogs.length === 0 ? (
+                    <p className="text-sm text-gray-500">暂无高风险访问记录</p>
+                  ) : (
+                    highRiskLogs.map((log) => (
+                      <div
+                        key={`risk-${log.id}`}
+                        className="flex items-center justify-between p-2 bg-red-50 rounded"
+                      >
+                        <div>
+                          <p className="text-sm font-medium">{log.action}</p>
+                          <p className="text-xs text-gray-500">IP: {log.ip}</p>
+                        </div>
+                        <Badge className="bg-red-100 text-red-800">高风险</Badge>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>

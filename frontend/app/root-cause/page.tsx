@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,8 @@ interface RootCauseReport {
 export default function RootCausePage() {
   const [selectedAlert, setSelectedAlert] = useState<string>('ALT-001');
   const [rootCauseReport, setRootCauseReport] = useState<RootCauseReport | null>(null);
+  const [rootCauseNodes, setRootCauseNodes] = useState<RootCauseNode[]>([]);
+  const [rootCausePaths, setRootCausePaths] = useState<RootCausePath[]>([]);
 
   const [alerts] = useState([
     { id: 'ALT-001', title: 'CPU使用率过高', service: 'web-service' },
@@ -51,57 +54,81 @@ export default function RootCausePage() {
     { id: 'ALT-003', title: '响应时间过长', service: 'database' },
   ]);
 
-  const [rootCauseNodes] = useState<RootCauseNode[]>([
-    { id: 'N1', type: 'alert', name: 'CPU告警', status: 'critical', probability: 100 },
-    { id: 'N2', type: 'service', name: 'web-service', status: 'warning', probability: 85 },
-    { id: 'N3', type: 'metric', name: 'CPU使用率', status: 'critical', probability: 80 },
-    { id: 'N4', type: 'service', name: 'api-gateway', status: 'normal', probability: 30 },
-    { id: 'N5', type: 'metric', name: '内存使用率', status: 'normal', probability: 20 },
-  ]);
+  useEffect(() => {
+    const fetchHypotheses = async () => {
+      try {
+        const res = await api.get('/api/v1/root-cause/hypotheses');
+        const hypotheses = res.data?.hypotheses || [];
 
-  const [rootCausePaths] = useState<RootCausePath[]>([
-    {
-      nodes: ['CPU告警', 'web-service', 'CPU使用率'],
-      probability: 85,
-      impact: 75,
-    },
-    {
-      nodes: ['CPU告警', 'api-gateway', '内存使用率'],
-      probability: 30,
-      impact: 20,
-    },
-  ]);
+        setRootCausePaths(
+          hypotheses.map((h: any) => ({
+            nodes: Array.isArray(h.causal_path) ? h.causal_path : [h.root_cause],
+            probability: Math.round((h.confidence || 0) * 100),
+            impact: Math.round((h.impact_score || 0) * 100),
+          }))
+        );
 
-  const handleAnalyze = () => {
-    setRootCauseReport({
-      id: 'RCR-001',
-      alertId: selectedAlert,
-      possibleCauses: [
-        {
-          service: 'web-service',
-          probability: 85,
-          description: 'web-service CPU使用率持续过高',
-          evidence: ['CPU使用率 > 90% 持续5分钟', '响应时间增加30%', '错误率上升'],
+        const nodeMap = new Map<string, RootCauseNode>();
+        hypotheses.forEach((h: any) => {
+          const confidence = Math.round((h.confidence || 0) * 100);
+          const upsert = (name: string) => {
+            const existing = nodeMap.get(name);
+            const probability = existing ? Math.max(existing.probability, confidence) : confidence;
+            const isMetric = /CPU|内存|使用率|响应时间|错误率|请求量|负载|metric/i.test(name);
+            const isAlert = /告警|alert|ALT-/i.test(name);
+            const type: RootCauseNode['type'] = isAlert ? 'alert' : isMetric ? 'metric' : 'service';
+            const status: RootCauseNode['status'] = probability >= 80 ? 'critical' : probability >= 50 ? 'warning' : 'normal';
+            nodeMap.set(name, { id: name, type, name, status, probability });
+          };
+          upsert(h.root_cause);
+          (h.causal_path || []).forEach(upsert);
+        });
+        setRootCauseNodes(Array.from(nodeMap.values()));
+      } catch {
+        // api interceptor already shows toast errors
+      }
+    };
+
+    fetchHypotheses();
+  }, []);
+
+  const handleAnalyze = async () => {
+    const alert = alerts.find((a) => a.id === selectedAlert) || { id: selectedAlert, title: '', service: '' };
+    try {
+      const res = await api.post('/api/v1/root-cause/analyze', {
+        alert,
+        metrics_data: {},
+        context: {},
+      });
+      const hypotheses = res.data?.hypotheses || [];
+      const total = hypotheses.length;
+
+      const report: RootCauseReport = {
+        id: `RCR-${selectedAlert}`,
+        alertId: res.data?.alert_id || selectedAlert,
+        possibleCauses: hypotheses.map((h: any) => ({
+          service: h.root_cause,
+          probability: Math.round((h.confidence || 0) * 100),
+          description: `${h.root_cause}${h.causal_path?.length ? ' → ' + h.causal_path.join(' → ') : ''}`,
+          evidence: Array.isArray(h.evidence) ? h.evidence : [],
+        })),
+        impactAnalysis: {
+          affectedServices: Array.from(
+            new Set(hypotheses.flatMap((h: any) => h.causal_path || []).filter(Boolean))
+          ),
+          userImpact: total ? `识别出 ${total} 个根因假设` : '暂无影响分析',
+          businessImpact: total
+            ? `最高置信度假设为 ${Math.round(
+              Math.max(...hypotheses.map((h: any) => h.confidence || 0)) * 100
+            )}%`
+            : '暂无业务影响评估',
         },
-        {
-          service: 'api-gateway',
-          probability: 30,
-          description: 'api-gateway负载传递导致上游服务压力',
-          evidence: ['请求量增加20%', '连接池接近满载'],
-        },
-      ],
-      impactAnalysis: {
-        affectedServices: ['web-service', 'api-gateway', 'database'],
-        userImpact: '用户请求响应时间增加，部分请求超时',
-        businessImpact: '影响在线交易处理，预计损失约$5000/小时',
-      },
-      relatedMetrics: [
-        { name: 'CPU使用率', value: 92, trend: 'up' },
-        { name: '内存使用率', value: 78, trend: 'up' },
-        { name: '响应时间', value: 450, trend: 'up' },
-        { name: '错误率', value: 5.2, trend: 'up' },
-      ],
-    });
+        relatedMetrics: [],
+      };
+      setRootCauseReport(report);
+    } catch {
+      // api interceptor already shows toast errors
+    }
   };
 
   const getStatusColor = (status: string) => {

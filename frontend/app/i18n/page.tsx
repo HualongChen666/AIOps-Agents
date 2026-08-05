@@ -4,74 +4,24 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import api from '@/lib/api';
 
-// 语言翻译字典
-const translations: Record<string, Record<string, string>> = {
-  'zh-CN': {
-    title: '国际化设置',
-    language: '语言',
-    timezone: '时区',
-    unit: '单位',
-    layout: '布局',
-    welcome: '欢迎使用AIOps平台',
-    dashboard: '仪表盘',
-    alerts: '告警',
-    topology: '拓扑',
-    settings: '设置',
-    rtl: '从右到左布局',
-    ltr: '从左到右布局',
-    metric: '公制',
-    imperial: '英制',
-  },
-  'en-US': {
-    title: 'Internationalization Settings',
-    language: 'Language',
-    timezone: 'Timezone',
-    unit: 'Unit',
-    layout: 'Layout',
-    welcome: 'Welcome to AIOps Platform',
-    dashboard: 'Dashboard',
-    alerts: 'Alerts',
-    topology: 'Topology',
-    settings: 'Settings',
-    rtl: 'Right-to-Left Layout',
-    ltr: 'Left-to-Right Layout',
-    metric: 'Metric',
-    imperial: 'Imperial',
-  },
-  'ja-JP': {
-    title: '国際化設定',
-    language: '言語',
-    timezone: 'タイムゾーン',
-    unit: '単位',
-    layout: 'レイアウト',
-    welcome: 'AIOpsプラットフォームへようこそ',
-    dashboard: 'ダッシュボード',
-    alerts: 'アラート',
-    topology: 'トポロジー',
-    settings: '設定',
-    rtl: '右から左へのレイアウト',
-    ltr: '左から右へのレイアウト',
-    metric: 'メートル法',
-    imperial: 'ヤード・ポンド法',
-  },
-  'ar-SA': {
-    title: 'إعدادات التدويل',
-    language: 'اللغة',
-    timezone: 'التوقيت',
-    unit: 'الوحدة',
-    layout: 'التخطيط',
-    welcome: 'مرحباً بك في منصة AIOps',
-    dashboard: 'لوحة القيادة',
-    alerts: 'التنبيهات',
-    topology: 'الطوبولوجيا',
-    settings: 'الإعدادات',
-    rtl: 'تخطيط من اليمين إلى اليسار',
-    ltr: 'تخطيط من اليسار إلى اليمين',
-    metric: 'نظام متري',
-    imperial: 'نظام إمبراطوري',
-  },
-};
+const TRANSLATION_KEYS = [
+  'title',
+  'language',
+  'timezone',
+  'unit',
+  'layout',
+  'welcome',
+  'dashboard',
+  'alerts',
+  'topology',
+  'settings',
+  'rtl',
+  'ltr',
+  'metric',
+  'imperial',
+];
 
 export default function I18nPage() {
   const [language, setLanguage] = useState('zh-CN');
@@ -79,6 +29,90 @@ export default function I18nPage() {
   const [unitSystem, setUnitSystem] = useState<'metric' | 'imperial'>('metric');
   const [isRTL, setIsRTL] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const [locales, setLocales] = useState<string[]>([]);
+  const [translations, setTranslations] = useState<Record<string, Record<string, string>>>({});
+
+  // 加载支持的语言、状态以及默认语言的翻译
+  useEffect(() => {
+    let mounted = true;
+
+    const loadI18nData = async () => {
+      try {
+        const [statusRes, localesRes] = await Promise.all([
+          api.get('/api/i18n/status'),
+          api.get('/api/i18n/locales'),
+        ]);
+
+        const localeList = localesRes.data?.data?.locales || [];
+        const statusData = statusRes.data?.data || {};
+        const defaultLocale = statusData.default_locale || localeList[0] || 'zh-CN';
+
+        if (!mounted) return;
+
+        setLocales(localeList);
+        setLanguage(defaultLocale);
+
+        const results = await Promise.all(
+          TRANSLATION_KEYS.map((key) =>
+            api.get('/api/i18n/translate', {
+              params: { key, namespace: 'common', language: defaultLocale },
+            })
+          )
+        );
+
+        const mapped = results.reduce((acc, res, i) => {
+          const key = TRANSLATION_KEYS[i];
+          acc[key] = res.data?.data?.translation || key;
+          return acc;
+        }, {} as Record<string, string>);
+
+        if (!mounted) return;
+        setTranslations((prev) => ({ ...prev, [defaultLocale]: mapped }));
+      } catch {
+        // 出错时保留默认值
+      }
+    };
+
+    loadI18nData();
+    return () => { mounted = false; };
+  }, []);
+
+  // 语言切换时同步后端设置并懒加载对应翻译
+  useEffect(() => {
+    if (!language || translations[language]) return;
+
+    let mounted = true;
+
+    const fetchTranslations = async () => {
+      try {
+        const results = await Promise.all(
+          TRANSLATION_KEYS.map((key) =>
+            api.get('/api/i18n/translate', {
+              params: { key, namespace: 'common', language },
+            })
+          )
+        );
+
+        const mapped = results.reduce((acc, res, i) => {
+          const key = TRANSLATION_KEYS[i];
+          acc[key] = res.data?.data?.translation || key;
+          return acc;
+        }, {} as Record<string, string>);
+
+        if (!mounted) return;
+        setTranslations((prev) => ({ ...prev, [language]: mapped }));
+      } catch {
+        // 失败时使用 key 作为回退
+      }
+    };
+
+    fetchTranslations();
+
+    api.post('/api/i18n/locale/set', null, { params: { locale_id: language } }).catch(() => { });
+
+    return () => { mounted = false; };
+  }, [language]);
 
   // 更新语言
   useEffect(() => {
@@ -197,10 +231,9 @@ export default function I18nPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">选择语言</label>
             <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              <option value="zh-CN">简体中文</option>
-              <option value="en-US">English</option>
-              <option value="ja-JP">日本語</option>
-              <option value="ar-SA">العربية</option>
+              {locales.map((locale) => (
+                <option key={locale} value={locale}>{locale}</option>
+              ))}
             </Select>
           </div>
 
@@ -338,8 +371,8 @@ export default function I18nPage() {
         <CardContent className="space-y-4">
           <div>
             <p className="text-sm text-gray-600 mb-4">
-              {isRTL 
-                ? '当前使用从右到左（RTL）布局，适用于阿拉伯语、希伯来语等语言。' 
+              {isRTL
+                ? '当前使用从右到左（RTL）布局，适用于阿拉伯语、希伯来语等语言。'
                 : '当前使用从左到右（LTR）布局，适用于大多数语言。'}
             </p>
             <div className="p-4 border border-gray-200 rounded-lg">

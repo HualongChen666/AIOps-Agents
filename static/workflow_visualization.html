@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流可视化 | AIOps Agent</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a1f35;
+            --bg-card-hover: #242b45;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-cyan: #06b6d4;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            height: 48px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        .header .status {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .toolbar {
+            padding: 12px 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        button {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent-cyan);
+        }
+
+        select {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .graph-wrap {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            padding: 40px 20px;
+        }
+
+        #graph {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            min-height: 100%;
+            padding-bottom: 60px;
+        }
+
+        #edges {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .node {
+            width: 200px;
+            padding: 14px 16px;
+            border-radius: 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            text-align: center;
+            margin: 18px 0;
+            cursor: pointer;
+            z-index: 2;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            position: relative;
+        }
+
+        .node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .node.active {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+        }
+
+        .node .id-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .node .title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .node .type-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+        }
+
+        .node.start {
+            border-top: 4px solid var(--accent-green);
+        }
+
+        .node.end {
+            border-top: 4px solid var(--accent-red);
+        }
+
+        .node.process {
+            border-top: 4px solid var(--accent-blue);
+        }
+
+        .node.decision {
+            border-top: 4px solid var(--accent-yellow);
+        }
+
+        .sidebar {
+            width: 300px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            padding: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .sidebar h3 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: var(--accent-cyan);
+        }
+
+        .sidebar .empty {
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .sidebar .detail {
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .sidebar .label {
+            color: var(--text-muted);
+            margin-right: 6px;
+        }
+
+        .logs {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            font-size: 12px;
+            min-height: 120px;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--accent-red);
+            font-size: 14px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>工作流可视化</h1>
+        <div class="status" id="status">准备加载</div>
+    </div>
+    <div class="toolbar">
+        <button id="reloadBtn">重新加载</button>
+        <select id="workflowSelect" disabled>
+            <option value="">选择工作流定义（可选）</option>
+        </select>
+        <button id="simulateBtn" disabled>运行仿真</button>
+    </div>
+    <div class="main">
+        <div class="graph-wrap">
+            <div id="graph">
+                <svg id="edges"></svg>
+            </div>
+            <div id="errorBox" class="error" style="display:none;"></div>
+        </div>
+        <div class="sidebar">
+            <h3>节点详情</h3>
+            <div id="detail" class="empty">点击节点查看详情</div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const graphEl = document.getElementById('graph');
+            const edgesSvg = document.getElementById('edges');
+            const statusEl = document.getElementById('status');
+            const errorBox = document.getElementById('errorBox');
+            const detailEl = document.getElementById('detail');
+            const reloadBtn = document.getElementById('reloadBtn');
+            const selectEl = document.getElementById('workflowSelect');
+            const simBtn = document.getElementById('simulateBtn');
+
+            function log(msg) {
+                console.log('[workflow-viz]', msg);
+            }
+
+            function showError(msg) {
+                errorBox.textContent = msg;
+                errorBox.style.display = 'block';
+                statusEl.textContent = '加载失败';
+            }
+
+            function clearError() {
+                errorBox.style.display = 'none';
+            }
+
+            const typeColors = {
+                start: 'var(--accent-green)',
+                process: 'var(--accent-blue)',
+                decision: 'var(--accent-yellow)',
+                end: 'var(--accent-red)'
+            };
+
+            function drawEdges(edges) {
+                edgesSvg.innerHTML = '';
+                const ns = 'http://www.w3.org/2000/svg';
+                const marker = document.createElementNS(ns, 'defs');
+                marker.innerHTML = `
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#06b6d4" />
+                    </marker>
+                `;
+                edgesSvg.appendChild(marker);
+
+                const graphRect = graphEl.getBoundingClientRect();
+                const wrapRect = graphEl.parentElement.getBoundingClientRect();
+
+                edges.forEach(edge => {
+                    const from = document.querySelector('.node[data-id="' + edge.source + '"]');
+                    const to = document.querySelector('.node[data-id="' + edge.target + '"]');
+                    if (!from || !to) return;
+                    const fr = from.getBoundingClientRect();
+                    const tr = to.getBoundingClientRect();
+                    const x1 = fr.left + fr.width / 2 - graphRect.left;
+                    const y1 = fr.top + fr.height - graphRect.top;
+                    const x2 = tr.left + tr.width / 2 - graphRect.left;
+                    const y2 = tr.top - graphRect.top;
+
+                    const line = document.createElementNS(ns, 'path');
+                    const d = 'M ' + x1 + ' ' + y1 + ' C ' + x1 + ' ' + (y1 + 20) + ', ' + x2 + ' ' + (y2 - 20) + ', ' + x2 + ' ' + y2;
+                    line.setAttribute('d', d);
+                    line.setAttribute('stroke', '#06b6d4');
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('fill', 'none');
+                    line.setAttribute('marker-end', 'url(#arrowhead)');
+                    edgesSvg.appendChild(line);
+                });
+            }
+
+            function renderGraph(structure) {
+                graphEl.innerHTML = '';
+                graphEl.appendChild(edgesSvg);
+                const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
+                const edges = Array.isArray(structure.edges) ? structure.edges : [];
+
+                const nodeMap = {};
+                nodes.forEach((node, idx) => {
+                    const el = document.createElement('div');
+                    el.className = 'node ' + (node.type || 'process');
+                    el.setAttribute('data-id', node.id);
+                    el.innerHTML = '<div class="id-label">' + node.id + '</div>' +
+                        '<div class="title">' + (node.label || node.id) + '</div>' +
+                        '<div class="type-badge">' + (node.type || 'process') + '</div>';
+                    el.addEventListener('click', () => selectNode(node, el));
+                    graphEl.appendChild(el);
+                    nodeMap[node.id] = node;
+                });
+
+                // 等待 DOM 渲染后画线
+                setTimeout(() => {
+                    drawEdges(edges);
+                    const h = graphEl.scrollHeight;
+                    edgesSvg.setAttribute('width', graphEl.scrollWidth);
+                    edgesSvg.setAttribute('height', h);
+                }, 0);
+            }
+
+            function selectNode(node, el) {
+                document.querySelectorAll('.node.active').forEach(n => n.classList.remove('active'));
+                el.classList.add('active');
+                detailEl.innerHTML = '' +
+                    '<div class="detail"><span class="label">ID:</span>' + node.id + '</div>' +
+                    '<div class="detail"><span class="label">名称:</span>' + (node.label || node.id) + '</div>' +
+                    '<div class="detail"><span class="label">类型:</span>' + (node.type || 'process') + '</div>' +
+                    '<div class="detail"><span class="label">描述:</span>' + (node.description || '无') + '</div>';
+            }
+
+            function loadStructure() {
+                statusEl.textContent = '加载中...';
+                clearError();
+                let url = '/workflow/structure';
+                if (selectEl.value) {
+                    url += '?key=' + encodeURIComponent(selectEl.value);
+                }
+                fetch(url)
+                    .then(r => {
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(data => {
+                        renderGraph(data);
+                        statusEl.textContent = data.metadata && data.metadata.description ? data.metadata.description : '加载完成';
+                    })
+                    .catch(err => {
+                        log(err);
+                        showError('无法加载工作流结构：' + err.message + '\n请确认 /workflow/structure 接口已注册。');
+                    });
+            }
+
+            function loadDefinitions() {
+                fetch('/api/v1/workflows/definitions')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data) return;
+                        selectEl.innerHTML = '<option value="">选择工作流定义</option>';
+                        Object.keys(data).forEach(key => {
+                            const option = document.createElement('option');
+                            option.value = key;
+                            option.textContent = data[key].name || key;
+                            selectEl.appendChild(option);
+                        });
+                        selectEl.disabled = false;
+                        simBtn.disabled = false;
+                    })
+                    .catch(() => {
+                        log('无法获取工作流定义（可能未授权）');
+                    });
+            }
+
+            function runSimulation() {
+                const key = selectEl.value;
+                if (!key) return;
+                const url = '/api/v1/workflows/simulate/' + encodeURIComponent(key);
+                if (typeof EventSource === 'undefined') {
+                    detailEl.innerHTML = '<div class="detail" style="color:var(--accent-red)">当前浏览器不支持 SSE</div>';
+                    return;
+                }
+                const es = new EventSource(url);
+                const logs = document.createElement('pre');
+                logs.className = 'logs';
+                logs.textContent = '开始仿真：' + key + '\n';
+                detailEl.innerHTML = '<h3>仿真日志</h3>';
+                detailEl.appendChild(logs);
+                es.onmessage = function (e) {
+                    logs.textContent += e.data + '\n';
+                    logs.scrollTop = logs.scrollHeight;
+                    try {
+                        const payload = JSON.parse(e.data);
+                        if (payload.node_key) {
+                            const node = document.querySelector('.node[data-id="' + payload.node_key + '"]');
+                            if (node) {
+                                node.style.borderColor = payload.type === 'step_complete' ? 'var(--accent-green)' : 'var(--accent-cyan)';
+                            }
+                        }
+                    } catch (ex) { }
+                };
+                es.onerror = function () {
+                    logs.textContent += 'SSE 连接错误（可能未授权或接口不可用）\n';
+                    es.close();
+                };
+            }
+
+            reloadBtn.addEventListener('click', loadStructure);
+            simBtn.addEventListener('click', runSimulation);
+            selectEl.addEventListener('change', loadStructure);
+
+            loadStructure();
+            loadDefinitions();
+        })();
+    </script>
+</body>
+
+</html>

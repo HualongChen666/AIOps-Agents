@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import api from '@/lib/api';
 
 interface SLO {
   id: string;
@@ -31,59 +32,31 @@ export default function SLOSLAPage() {
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
   const [selectedSLO, setSelectedSLO] = useState<SLO | null>(null);
 
-  const [slos, setSlos] = useState<SLO[]>([
-    {
-      id: 'SLO-001',
-      name: 'API可用性',
-      service: 'API Gateway',
-      target: 99.95,
-      current: 99.92,
-      errorBudget: 87,
-      period: '30d',
-      status: 'healthy',
-    },
-    {
-      id: 'SLO-002',
-      name: '响应时间',
-      service: 'Web Service',
-      target: 99.9,
-      current: 99.75,
-      errorBudget: 45,
-      period: '30d',
-      status: 'warning',
-    },
-    {
-      id: 'SLO-003',
-      name: '错误率',
-      service: 'Database',
-      target: 99.99,
-      current: 99.85,
-      errorBudget: 15,
-      period: '30d',
-      status: 'critical',
-    },
-  ]);
+  const [slos, setSlos] = useState<SLO[]>([]);
+  const [slaReports] = useState<SLAReport[]>([]);
 
-  const [slaReports, setSlaReports] = useState<SLAReport[]>([
-    {
-      id: 'SLA-001',
-      service: 'API Gateway',
-      period: '2024-01',
-      availability: 99.92,
-      slaTarget: 99.9,
-      compliance: 'compliant',
-      incidents: 2,
-    },
-    {
-      id: 'SLA-002',
-      service: 'Web Service',
-      period: '2024-01',
-      availability: 99.75,
-      slaTarget: 99.9,
-      compliance: 'non-compliant',
-      incidents: 5,
-    },
-  ]);
+  useEffect(() => {
+    const loadSlos = async () => {
+      try {
+        const { data } = await api.get('/api/v1/slo/');
+        setSlos(
+          (data.slos || []).map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            service: item.service,
+            target: item.target,
+            current: item.current,
+            errorBudget: item.errorBudget,
+            period: item.window,
+            status: item.status,
+          }))
+        );
+      } catch (err) {
+        console.error('Failed to load SLOs', err);
+      }
+    };
+    loadSlos();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -121,9 +94,8 @@ export default function SLOSLAPage() {
         {slos.map((slo) => (
           <Card
             key={slo.id}
-            className={`cursor-pointer transition hover:shadow-md ${
-              selectedSLO?.id === slo.id ? 'border-blue-500 ring-2 ring-blue-200' : ''
-            }`}
+            className={`cursor-pointer transition hover:shadow-md ${selectedSLO?.id === slo.id ? 'border-blue-500 ring-2 ring-blue-200' : ''
+              }`}
             onClick={() => setSelectedSLO(slo)}
           >
             <CardHeader>
@@ -144,9 +116,8 @@ export default function SLOSLAPage() {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full ${
-                        slo.status === 'healthy' ? 'bg-green-500' : slo.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
+                      className={`h-2 rounded-full ${slo.status === 'healthy' ? 'bg-green-500' : slo.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
                       style={{ width: `${slo.current}%` }}
                     />
                   </div>

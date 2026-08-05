@@ -8,7 +8,7 @@ from typing import Any, Literal, cast
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
-from core.authentication import get_current_active_user
+
 from core.topology_engine import (
     TOPOLOGY_TYPES,
     get_full_link_topology,
@@ -19,7 +19,7 @@ from core.topology_engine import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/api/v1/topologies", tags=["拓扑管理"], dependencies=[Depends(get_current_active_user)]
+    prefix="/api/v1/topologies", tags=["拓扑管理"]
 )
 _VALID_NODE_ID_PATTERN = re.compile("^[a-zA-Z0-9._\\-]+$")
 _FULL_LINK_CACHE_TTL_SEC = 5

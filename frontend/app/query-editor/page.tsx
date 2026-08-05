@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import api from '@/lib/api';
 
 interface QueryTemplate {
   id: string;
@@ -27,6 +28,7 @@ export default function QueryEditorPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<QueryTemplate | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [lastResult, setLastResult] = useState<any>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const templates: QueryTemplate[] = [
@@ -158,26 +160,44 @@ ORDER BY bucket DESC;`,
     textareaRef.current?.focus();
   };
 
-  const handleExecute = () => {
+  const handleExecute = async () => {
     if (!query.trim()) return;
     setIsExecuting(true);
     setShowResults(false);
+    setLastResult(null);
+    const start = Date.now();
 
-    // 模拟查询执行
-    setTimeout(() => {
-      setIsExecuting(false);
+    try {
+      const response = await api.post('/api/ai/analyze', {
+        query,
+        include_metrics: true,
+        platform: 'windows',
+      });
+      const duration = Date.now() - start;
       setShowResults(true);
+      setLastResult(response.data);
 
-      // 添加到历史记录
       const newHistory: QueryHistory = {
         id: `HIST-${Date.now()}`,
         query,
         timestamp: new Date(),
-        duration: Math.floor(Math.random() * 500) + 50,
-        resultCount: Math.floor(Math.random() * 100) + 1,
+        duration,
+        resultCount: response.data?.analysis?.suggested_actions?.length ?? 1,
       };
-      setQueryHistory([newHistory, ...queryHistory].slice(0, 10));
-    }, 1500);
+      setQueryHistory((prev) => [newHistory, ...prev].slice(0, 10));
+    } catch {
+      const duration = Date.now() - start;
+      const newHistory: QueryHistory = {
+        id: `HIST-${Date.now()}`,
+        query,
+        timestamp: new Date(),
+        duration,
+        resultCount: 0,
+      };
+      setQueryHistory((prev) => [newHistory, ...prev].slice(0, 10));
+    } finally {
+      setIsExecuting(false);
+    }
   };
 
   const handleFormat = () => {
@@ -241,9 +261,8 @@ ORDER BY bucket DESC;`,
               {templates.map((template) => (
                 <div
                   key={template.id}
-                  className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${
-                    selectedTemplate?.id === template.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}
+                  className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedTemplate?.id === template.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
                   onClick={() => handleTemplateSelect(template)}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -310,13 +329,18 @@ ORDER BY bucket DESC;`,
                       查询执行成功，返回 {queryHistory[0]?.resultCount || 0} 条记录
                     </div>
                     <div className="bg-gray-50 rounded p-4 font-mono text-xs">
-                      <pre>{`| timestamp          | service_name  | cpu_usage_percent |
-|--------------------|---------------|-------------------|
-| 2024-01-15 10:00:00| web-service   | 75.2              |
-| 2024-01-15 10:05:00| web-service   | 72.8              |
-| 2024-01-15 10:10:00| web-service   | 68.5              |
-| 2024-01-15 10:15:00| web-service   | 71.3              |
-| 2024-01-15 10:20:00| web-service   | 73.9              |`}</pre>
+                      <pre>
+                        {lastResult
+                          ? JSON.stringify(
+                            {
+                              metrics_context: lastResult.metrics_context,
+                              analysis: lastResult.analysis,
+                            },
+                            null,
+                            2
+                          )
+                          : ''}
+                      </pre>
                     </div>
                   </div>
                 </div>

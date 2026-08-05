@@ -1,69 +1,353 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-    <meta charset="UTF-8" />
-    <title>全链路拓扑视图</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全链路拓扑视图 | AIOps Agent</title>
     <style>
-        body {font-family: Arial, sans-serif; margin:0; padding:0; background:#f5f5f5;}
-        #app {padding:20px;}
-        .graph {width:100%; height:80vh; background:#fff; border:1px solid #ddd;}
-            /* 移动端响应式布局 */
-        @media (max-width: 768px) {
-            body {margin: 0; padding: 0; font-size: 14px;}
-            #app {padding: 10px;}
-            .graph {height: 60vh;}
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a1f35;
+            --bg-card-hover: #242b45;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-cyan: #06b6d4;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            height: 48px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        .toolbar {
+            padding: 10px 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        input,
+        button {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        button {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent-cyan);
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .graph-wrap {
+            flex: 1;
+            position: relative;
+            overflow: auto;
+        }
+
+        #graph {
+            position: relative;
+            width: 100%;
+            min-height: 100%;
+            min-width: 600px;
+        }
+
+        #edges {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .node {
+            position: absolute;
+            width: 90px;
+            padding: 8px 6px;
+            border-radius: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-primary);
+            cursor: pointer;
+            z-index: 2;
+            transform: translate(-50%, -50%);
+            transition: box-shadow 0.2s;
+        }
+
+        .node:hover {
+            box-shadow: 0 0 0 2px var(--accent-cyan);
+        }
+
+        .node.high {
+            border-color: var(--accent-red);
+        }
+
+        .node.medium {
+            border-color: var(--accent-yellow);
+        }
+
+        .node.low {
+            border-color: var(--accent-blue);
+        }
+
+        .sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            padding: 16px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 14px;
+            font-size: 13px;
+        }
+
+        .card h3 {
+            font-size: 13px;
+            color: var(--accent-cyan);
+            margin-bottom: 10px;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .stat .label {
+            color: var(--text-muted);
+        }
+
+        .message {
+            color: var(--text-muted);
+            font-size: 13px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .error {
+            color: var(--accent-red);
         }
     </style>
-    <!-- 若有前端打包的 JS 可在此引入 -->
 </head>
+
 <body>
-<div class="global-status">
-  <span id="status-text" data-i18n="status.running">系统运行中</span>
-  <span id="status-time"></span>
-</div>
-<script>
-function updateTime(){
-  const now = new Date();
-  document.getElementById('status-time').textContent = now.toLocaleString();
-}
-setInterval(updateTime, 1000);
-updateTime();
-</script>
-<div id="app">
-    <h1 data-i18n="topology.title">全链路拓扑视图</h1>
-    <div class="graph" id="topology-graph">加载拓扑中...</div>
-</div>
-<script>
-    // 简单示例：从后端获取全链路拓扑 JSON 并在控制台打印
-    fetch('/api/topology/full-link')
-        .then(r=>r.json())
-        .then(data=>{
-            // 在页面展示完整的拓扑 JSON，便于调试和查看
-            const pretty = JSON.stringify(data, null, 2);
-            const pre = document.createElement('pre');
-            pre.id = 'topology-json';
-            pre.style.background = '#fafafa';
-            pre.style.border = '1px solid #ddd';
-            pre.style.padding = '10px';
-            pre.textContent = pretty;
-            const container = document.getElementById('topology-graph');
-            // 清空原有提示后插入 JSON
-            container.textContent = '';
-            container.appendChild(pre);
-            console.log('Full link topology:', data);
-        })
-        .catch(err=>{console.error(err); document.getElementById('topology-graph').textContent='加载失败';});
-</script>
-<script>
-(() => {
-  const defaultLang = localStorage.getItem('lang') || 'zh';
-  const setLang = (lang) => { localStorage.setItem('lang', lang); location.reload(); };
-  const nav = document.querySelector('.top-nav');
-  if (nav) { const btn = document.createElement('button'); btn.textContent = defaultLang === 'zh' ? 'English' : '中文'; btn.style.marginLeft='8px'; btn.onclick = () => setLang(defaultLang === 'zh' ? 'en' : 'zh'); nav.appendChild(btn); }
-  fetch(`/i18n/translations/${defaultLang}`).then(r=>r.json()).then(trans=>{ document.querySelectorAll('[data-i18n]').forEach(el=>{ const k=el.getAttribute('data-i18n'); if(trans[k]) el.textContent=trans[k]; }); });
-})();
-</script>
-<link rel="stylesheet" href="/static/toast.css">
-<script src="/static/toast.js"></script>
+    <div class="header">
+        <h1>全链路拓扑视图</h1>
+        <div style="font-size:12px;color:var(--text-muted);" id="status">准备加载</div>
+    </div>
+    <div class="toolbar">
+        <input type="text" id="tokenInput" placeholder="JWT Token (Authorization: Bearer)" style="min-width:260px;">
+        <button id="loadBtn">加载拓扑</button>
+    </div>
+    <div class="main">
+        <div class="graph-wrap">
+            <div id="graph">
+                <svg id="edges"></svg>
+            </div>
+            <div id="errorBox" class="message"
+                style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+        </div>
+        <div class="sidebar">
+            <div class="card">
+                <h3>拓扑统计</h3>
+                <div class="stat"><span class="label">节点数</span><span id="nodeCount">-</span></div>
+                <div class="stat"><span class="label">边数</span><span id="edgeCount">-</span></div>
+            </div>
+            <div class="card">
+                <h3>节点详情</h3>
+                <div id="nodeDetail" class="message" style="padding:0;text-align:left;">点击节点查看</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const tokenInput = document.getElementById('tokenInput');
+            const loadBtn = document.getElementById('loadBtn');
+            const statusEl = document.getElementById('status');
+            const graphEl = document.getElementById('graph');
+            const edgesSvg = document.getElementById('edges');
+            const errorBox = document.getElementById('errorBox');
+            const nodeCount = document.getElementById('nodeCount');
+            const edgeCount = document.getElementById('edgeCount');
+            const nodeDetail = document.getElementById('nodeDetail');
+
+            const TOKEN_KEY = 'aiops-jwt-token';
+            tokenInput.value = localStorage.getItem(TOKEN_KEY) || '';
+
+            function saveToken() { localStorage.setItem(TOKEN_KEY, tokenInput.value.trim()); }
+
+            function getHeaders() {
+                const token = tokenInput.value.trim();
+                const h = { 'Accept': 'application/json' };
+                if (token) h['Authorization'] = 'Bearer ' + token;
+                return h;
+            }
+
+            function showError(msg) {
+                errorBox.textContent = msg;
+                errorBox.style.display = 'block';
+                statusEl.textContent = '加载失败';
+            }
+
+            function clearError() { errorBox.style.display = 'none'; }
+
+            function layoutNodes(nodes, edges, width, height) {
+                const angleStep = (2 * Math.PI) / nodes.length;
+                const radius = Math.min(width, height) / 2 - 80;
+                const center = { x: width / 2, y: height / 2 };
+                return nodes.map((n, i) => ({
+                    id: n.id,
+                    label: n.label || n.id,
+                    pagerank: n.pagerank || 0,
+                    x: center.x + radius * Math.cos(i * angleStep) * 0.8,
+                    y: center.y + radius * Math.sin(i * angleStep) * 0.8
+                }));
+            }
+
+            function renderGraph(data) {
+                graphEl.innerHTML = '';
+                graphEl.appendChild(edgesSvg);
+                const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+                const edges = Array.isArray(data.edges) ? data.edges : [];
+
+                const width = Math.max(graphEl.clientWidth, 600);
+                const height = Math.max(graphEl.parentElement.clientHeight, 500);
+                graphEl.style.height = height + 'px';
+                edgesSvg.setAttribute('width', width);
+                edgesSvg.setAttribute('height', height);
+
+                const positions = layoutNodes(nodes, edges, width, height);
+                const posMap = {};
+                positions.forEach(p => posMap[p.id] = p);
+
+                const ns = 'http://www.w3.org/2000/svg';
+                edgesSvg.innerHTML = '';
+                const defs = document.createElementNS(ns, 'defs');
+                defs.innerHTML = '<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#06b6d4" /></marker>';
+                edgesSvg.appendChild(defs);
+
+                edges.forEach(e => {
+                    const from = posMap[e.source];
+                    const to = posMap[e.target];
+                    if (!from || !to) return;
+                    const line = document.createElementNS(ns, 'path');
+                    const d = 'M ' + from.x + ' ' + from.y + ' L ' + to.x + ' ' + to.y;
+                    line.setAttribute('d', d);
+                    line.setAttribute('stroke', 'rgba(6,182,212,0.5)');
+                    line.setAttribute('stroke-width', e.weight ? Math.max(1, e.weight) : '1');
+                    line.setAttribute('marker-end', 'url(#arrowhead)');
+                    edgesSvg.appendChild(line);
+                });
+
+                positions.forEach(p => {
+                    const el = document.createElement('div');
+                    el.className = 'node';
+                    if (p.pagerank > 0.15) el.classList.add('high');
+                    else if (p.pagerank > 0.08) el.classList.add('medium');
+                    else el.classList.add('low');
+                    el.style.left = p.x + 'px';
+                    el.style.top = p.y + 'px';
+                    el.textContent = p.label;
+                    el.addEventListener('click', () => showNode(p));
+                    graphEl.appendChild(el);
+                });
+
+                nodeCount.textContent = nodes.length;
+                edgeCount.textContent = edges.length;
+                statusEl.textContent = '加载完成';
+            }
+
+            function showNode(p) {
+                nodeDetail.innerHTML = '' +
+                    '<div>ID: ' + p.id + '</div>' +
+                    '<div>Label: ' + p.label + '</div>' +
+                    '<div>PageRank: ' + (typeof p.pagerank === 'number' ? p.pagerank.toFixed(4) : p.pagerank) + '</div>';
+            }
+
+            function loadTopology() {
+                saveToken();
+                clearError();
+                statusEl.textContent = '加载中...';
+                fetch('/api/v1/topologies/full-link', { headers: getHeaders() })
+                    .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+                    .then(({ ok, status, data }) => {
+                        if (!ok) {
+                            showError('加载失败 ' + status + ': ' + (data.detail || JSON.stringify(data)));
+                        } else {
+                            renderGraph(data);
+                        }
+                    })
+                    .catch(err => showError('请求异常: ' + err.message));
+            }
+
+            loadBtn.addEventListener('click', loadTopology);
+            if (tokenInput.value) loadTopology();
+        })();
+    </script>
 </body>
+
 </html>

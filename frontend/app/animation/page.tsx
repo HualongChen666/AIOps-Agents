@@ -1,8 +1,17 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import api from '@/lib/api';
+
+interface MetricsHistory {
+  cpu?: number[];
+  memory?: number[];
+  net_in?: number[];
+  timestamps?: string[];
+  _meta?: { size?: number; maxlen?: number };
+}
 
 export default function AnimationPage() {
   const [pageTransition, setPageTransition] = useState<'fade' | 'slide' | 'scale'>('fade');
@@ -10,15 +19,48 @@ export default function AnimationPage() {
   const [loading, setLoading] = useState(false);
   const [interaction, setInteraction] = useState(false);
   const [counter, setCounter] = useState(0);
+  const [metrics, setMetrics] = useState({ cpu: 0, memory: 0, netIn: 0 });
+  const [meta, setMeta] = useState({ size: 0, maxlen: 60 });
+  const [error, setError] = useState<string | null>(null);
+
+  const safePercent = (value: number) => Math.min(100, Math.max(0, value));
+
+  const fetchMetrics = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get<MetricsHistory>('/api/v1/metrics/history');
+      const history = response.data;
+      setMetrics({
+        cpu: history.cpu?.[history.cpu.length - 1] ?? 0,
+        memory: history.memory?.[history.memory.length - 1] ?? 0,
+        netIn: history.net_in?.[history.net_in.length - 1] ?? 0,
+      });
+      setMeta({
+        size: history._meta?.size ?? (history.cpu?.length ?? 0),
+        maxlen: history._meta?.maxlen ?? 60,
+      });
+      setDataUpdate(true);
+      setTimeout(() => setDataUpdate(false), 500);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || '指标获取失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchMetrics();
+    const interval = setInterval(() => void fetchMetrics(), 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const triggerDataUpdate = () => {
-    setDataUpdate(true);
-    setTimeout(() => setDataUpdate(false), 500);
+    void fetchMetrics();
   };
 
   const triggerLoading = () => {
-    setLoading(true);
-    setTimeout(() => setLoading(false), 2000);
+    void fetchMetrics();
   };
 
   const triggerInteraction = () => {
@@ -31,8 +73,14 @@ export default function AnimationPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">动画系统</h1>
+        <h1 className="text-3xl font-bold text-gray-900">实时指标动画</h1>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* 页面转场动画 */}
       <Card>
@@ -41,21 +89,21 @@ export default function AnimationPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2 mb-4">
-            <Button 
+            <Button
               variant={pageTransition === 'fade' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPageTransition('fade')}
             >
               淡入淡出
             </Button>
-            <Button 
+            <Button
               variant={pageTransition === 'slide' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPageTransition('slide')}
             >
               滑动
             </Button>
-            <Button 
+            <Button
               variant={pageTransition === 'scale' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPageTransition('scale')}
@@ -66,19 +114,16 @@ export default function AnimationPage() {
 
           <div className="border border-gray-200 rounded-lg p-8">
             <div
-              className={`transition-all duration-500 ${
-                pageTransition === 'fade' ? 'opacity-50' : 'opacity-100'
-              }`}
+              className={`transition-all duration-500 ${pageTransition === 'fade' ? 'opacity-50' : 'opacity-100'
+                }`}
             >
               <div
-                className={`transition-all duration-500 ${
-                  pageTransition === 'slide' ? 'translate-x-4' : 'translate-x-0'
-                }`}
+                className={`transition-all duration-500 ${pageTransition === 'slide' ? 'translate-x-4' : 'translate-x-0'
+                  }`}
               >
                 <div
-                  className={`transition-all duration-500 ${
-                    pageTransition === 'scale' ? 'scale-95' : 'scale-100'
-                  }`}
+                  className={`transition-all duration-500 ${pageTransition === 'scale' ? 'scale-95' : 'scale-100'
+                    }`}
                 >
                   <div className="p-6 bg-blue-50 rounded-lg">
                     <h3 className="font-medium text-blue-900 mb-2">页面内容</h3>
@@ -100,59 +145,61 @@ export default function AnimationPage() {
           <CardTitle>数据更新动画</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={triggerDataUpdate}>触发数据更新</Button>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <Button onClick={triggerDataUpdate} disabled={loading}>
+              刷新指标
+            </Button>
+            <p className="text-sm text-gray-500">
+              已加载 {meta.size} / {meta.maxlen} 个历史数据点
+            </p>
+          </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div
-              className={`p-4 border border-gray-200 rounded-lg transition-all duration-300 ${
-                dataUpdate ? 'bg-green-50 border-green-300 scale-105' : 'bg-white'
-              }`}
+              className={`p-4 border border-gray-200 rounded-lg transition-all duration-300 ${dataUpdate ? 'bg-green-50 border-green-300 scale-105' : 'bg-white'
+                }`}
             >
-              <p className="text-2xl font-bold">42</p>
+              <p className="text-2xl font-bold">{metrics.cpu.toFixed(1)}%</p>
               <p className="text-sm text-gray-500">CPU使用率</p>
             </div>
             <div
-              className={`p-4 border border-gray-200 rounded-lg transition-all duration-300 ${
-                dataUpdate ? 'bg-blue-50 border-blue-300 scale-105' : 'bg-white'
-              }`}
+              className={`p-4 border border-gray-200 rounded-lg transition-all duration-300 ${dataUpdate ? 'bg-blue-50 border-blue-300 scale-105' : 'bg-white'
+                }`}
             >
-              <p className="text-2xl font-bold">68</p>
+              <p className="text-2xl font-bold">{metrics.memory.toFixed(1)}%</p>
               <p className="text-sm text-gray-500">内存使用率</p>
             </div>
             <div
-              className={`p-4 border border-gray-200 rounded-lg transition-all duration-300 ${
-                dataUpdate ? 'bg-purple-50 border-purple-300 scale-105' : 'bg-white'
-              }`}
+              className={`p-4 border border-gray-200 rounded-lg transition-all duration-300 ${dataUpdate ? 'bg-purple-50 border-purple-300 scale-105' : 'bg-white'
+                }`}
             >
-              <p className="text-2xl font-bold">23</p>
-              <p className="text-sm text-gray-500">磁盘使用率</p>
+              <p className="text-2xl font-bold">{metrics.netIn.toFixed(2)}</p>
+              <p className="text-sm text-gray-500">网络入站 (MB/s)</p>
             </div>
           </div>
 
           <div className="p-4 border border-gray-200 rounded-lg">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm">进度条1</span>
-                <span className="text-sm font-medium">75%</span>
+                <span className="text-sm">CPU</span>
+                <span className="text-sm font-medium">{Math.round(metrics.cpu)}%</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className={`h-full bg-blue-500 transition-all duration-500 ${
-                    dataUpdate ? 'w-0' : 'w-3/4'
-                  }`}
+                  className="h-full bg-blue-500 transition-all duration-500"
+                  style={{ width: dataUpdate ? '0%' : `${safePercent(metrics.cpu)}%` }}
                 />
               </div>
             </div>
             <div className="space-y-2 mt-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm">进度条2</span>
-                <span className="text-sm font-medium">50%</span>
+                <span className="text-sm">内存</span>
+                <span className="text-sm font-medium">{Math.round(metrics.memory)}%</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className={`h-full bg-green-500 transition-all duration-500 ${
-                    dataUpdate ? 'w-0' : 'w-1/2'
-                  }`}
+                  className="h-full bg-green-500 transition-all duration-500"
+                  style={{ width: dataUpdate ? '0%' : `${safePercent(metrics.memory)}%` }}
                 />
               </div>
             </div>
@@ -166,7 +213,9 @@ export default function AnimationPage() {
           <CardTitle>加载状态动画</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={triggerLoading}>触发加载状态</Button>
+          <Button onClick={triggerLoading} disabled={loading}>
+            触发加载
+          </Button>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 border border-gray-200 rounded-lg">
@@ -230,9 +279,8 @@ export default function AnimationPage() {
               <h4 className="font-medium mb-3">点击反馈</h4>
               <Button
                 onClick={triggerInteraction}
-                className={`w-full transition-all duration-200 ${
-                  interaction ? 'scale-95 bg-blue-600' : 'scale-100'
-                }`}
+                className={`w-full transition-all duration-200 ${interaction ? 'scale-95 bg-blue-600' : 'scale-100'
+                  }`}
               >
                 点击我
               </Button>
@@ -252,9 +300,8 @@ export default function AnimationPage() {
               <div className="flex items-center gap-4">
                 <Button onClick={incrementCounter}>增加</Button>
                 <span
-                  className={`text-2xl font-bold transition-all duration-300 ${
-                    counter > 0 ? 'text-green-600 scale-125' : 'text-gray-900'
-                  }`}
+                  className={`text-2xl font-bold transition-all duration-300 ${counter > 0 ? 'text-green-600 scale-125' : 'text-gray-900'
+                    }`}
                 >
                   {counter}
                 </span>

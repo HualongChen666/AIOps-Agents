@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -29,53 +29,10 @@ interface MaturityLevel {
 }
 
 export default function MaturityPage() {
-  const [dimensions, setDimensions] = useState<MaturityDimension[]>([
-    { name: '监控能力', score: 75, maxScore: 100, description: '系统监控覆盖度和实时性' },
-    { name: '告警管理', score: 80, maxScore: 100, description: '告警规则配置和响应效率' },
-    { name: '自动化程度', score: 60, maxScore: 100, description: '自动化修复和运维操作' },
-    { name: '数据分析', score: 70, maxScore: 100, description: '数据分析和根因分析能力' },
-    { name: '预测能力', score: 50, maxScore: 100, description: '容量预测和故障预测' },
-    { name: '协作效率', score: 65, maxScore: 100, description: '团队协作和知识共享' },
-  ]);
+  const [dimensions, setDimensions] = useState<MaturityDimension[]>([]);
 
-  const [suggestions, setSuggestions] = useState<ImprovementSuggestion[]>([
-    {
-      id: 'IMP-001',
-      category: '自动化程度',
-      title: '增加自动修复场景',
-      description: '扩展自动修复策略覆盖更多常见故障场景，提升自动化率至80%',
-      priority: 'high',
-      estimatedTime: '2-3个月',
-      targetLevel: 4,
-    },
-    {
-      id: 'IMP-002',
-      category: '预测能力',
-      title: '引入AI预测模型',
-      description: '部署机器学习模型进行故障预测和容量规划',
-      priority: 'high',
-      estimatedTime: '3-4个月',
-      targetLevel: 4,
-    },
-    {
-      id: 'IMP-003',
-      category: '协作效率',
-      title: '建立知识库',
-      description: '构建Runbook知识库，沉淀运维经验和最佳实践',
-      priority: 'medium',
-      estimatedTime: '1-2个月',
-      targetLevel: 3,
-    },
-    {
-      id: 'IMP-004',
-      category: '监控能力',
-      title: '完善业务监控',
-      description: '增加业务指标监控，实现端到端可观测性',
-      priority: 'medium',
-      estimatedTime: '2个月',
-      targetLevel: 3,
-    },
-  ]);
+  const [suggestions, setSuggestions] = useState<ImprovementSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const [maturityLevels] = useState<MaturityLevel[]>([
     {
@@ -110,8 +67,38 @@ export default function MaturityPage() {
     },
   ]);
 
-  const overallScore = Math.round(dimensions.reduce((sum, d) => sum + d.score, 0) / dimensions.length);
+  const fetchMaturity = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/v1/maturity/assess');
+      if (!res.ok) {
+        throw new Error(`评估接口返回 ${res.status}`);
+      }
+      const data = await res.json();
+      setDimensions((data.dimensions || []) as MaturityDimension[]);
+      setSuggestions((data.recommendations || []) as ImprovementSuggestion[]);
+    } catch (err) {
+      console.error('成熟度评估加载失败:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMaturity();
+  }, []);
+
+  const overallScore = dimensions.length
+    ? Math.round(dimensions.reduce((sum, d) => sum + d.score, 0) / dimensions.length)
+    : 0;
   const currentLevel = overallScore >= 90 ? 5 : overallScore >= 75 ? 4 : overallScore >= 60 ? 3 : overallScore >= 40 ? 2 : 1;
+
+  const highestDimension = dimensions.length
+    ? dimensions.reduce((max, d) => (d.score > max.score ? d : max), dimensions[0])
+    : null;
+  const lowestDimension = dimensions.length
+    ? dimensions.reduce((min, d) => (d.score < min.score ? d : min), dimensions[0])
+    : null;
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -130,7 +117,9 @@ export default function MaturityPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">AIOps成熟度评估</h1>
-        <Button>重新评估</Button>
+        <Button onClick={fetchMaturity} disabled={loading}>
+          {loading ? '评估中...' : '重新评估'}
+        </Button>
       </div>
 
       {/* 总体评分 */}
@@ -158,8 +147,8 @@ export default function MaturityPage() {
             <CardTitle className="text-sm">最高维度</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{dimensions.reduce((max, d) => d.score > max.score ? d : max).name}</p>
-            <p className="text-sm text-gray-500 mt-1">得分: {Math.max(...dimensions.map(d => d.score))}</p>
+            <p className="text-2xl font-bold">{highestDimension?.name ?? '-'}</p>
+            <p className="text-sm text-gray-500 mt-1">得分: {highestDimension?.score ?? 0}</p>
           </CardContent>
         </Card>
         <Card>
@@ -167,8 +156,8 @@ export default function MaturityPage() {
             <CardTitle className="text-sm">待提升维度</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{dimensions.reduce((min, d) => d.score < min.score ? d : min).name}</p>
-            <p className="text-sm text-gray-500 mt-1">得分: {Math.min(...dimensions.map(d => d.score))}</p>
+            <p className="text-2xl font-bold">{lowestDimension?.name ?? '-'}</p>
+            <p className="text-sm text-gray-500 mt-1">得分: {lowestDimension?.score ?? 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -258,13 +247,12 @@ export default function MaturityPage() {
             {maturityLevels.map((level) => (
               <div
                 key={level.level}
-                className={`p-4 border rounded-lg ${
-                  level.level === currentLevel
-                    ? 'border-blue-500 bg-blue-50'
-                    : level.level < currentLevel
+                className={`p-4 border rounded-lg ${level.level === currentLevel
+                  ? 'border-blue-500 bg-blue-50'
+                  : level.level < currentLevel
                     ? 'border-green-200 bg-green-50'
                     : 'border-gray-200'
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xl font-bold">Level {level.level}</span>

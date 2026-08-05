@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,18 +27,34 @@ export default function AdvancedTablePage() {
   const [batchAction, setBatchAction] = useState('');
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  // 生成大量模拟数据
+  // 从租户接口加载真实数据
   useEffect(() => {
-    const mockData: TableRow[] = Array.from({ length: 1000 }, (_, i) => ({
-      id: `SRV-${String(i + 1).padStart(4, '0')}`,
-      name: `Server-${i + 1}`,
-      status: ['active', 'inactive', 'pending'][Math.floor(Math.random() * 3)] as 'active' | 'inactive' | 'pending',
-      cpu: Math.floor(Math.random() * 100),
-      memory: Math.floor(Math.random() * 100),
-      region: ['us-east', 'us-west', 'eu-west', 'ap-southeast'][Math.floor(Math.random() * 4)],
-      created: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-    }));
-    setData(mockData);
+    api
+      .get('/api/v1/tenants')
+      .then((res) => {
+        const rows: TableRow[] = (res.data || []).map((t: any) => {
+          const rawStatus = t.status?.toString().toLowerCase() || '';
+          let status: 'active' | 'inactive' | 'pending';
+          if (rawStatus === 'active') {
+            status = 'active';
+          } else if (rawStatus === 'suspended' || rawStatus === 'expired') {
+            status = 'inactive';
+          } else {
+            status = 'pending';
+          }
+          return {
+            id: t.id?.toString() || '',
+            name: t.name?.toString() || '',
+            status,
+            cpu: Math.round(Number(t.usage?.cpu ?? 0)),
+            memory: Math.round(Number(t.usage?.memory ?? 0)),
+            region: t.plan?.toString() || t.contact?.toString() || 'unknown',
+            created: t.created_at?.toString() || '',
+          };
+        });
+        setData(rows);
+      })
+      .catch(() => setData([]));
   }, []);
 
   // 虚拟滚动处理
@@ -237,9 +254,8 @@ export default function AdvancedTablePage() {
                 {columns.map((col) => (
                   <div
                     key={col.key}
-                    className={`p-3 font-medium text-sm border-r ${
-                      frozenColumn === col.key ? 'sticky left-0 bg-gray-50 z-20' : ''
-                    }`}
+                    className={`p-3 font-medium text-sm border-r ${frozenColumn === col.key ? 'sticky left-0 bg-gray-50 z-20' : ''
+                      }`}
                     style={{ width: col.width }}
                   >
                     {col.label}
@@ -252,9 +268,8 @@ export default function AdvancedTablePage() {
                 {visibleData.map((row, index) => (
                   <div
                     key={row.id}
-                    className={`flex border-b hover:bg-gray-50 ${
-                      selectedRows.has(row.id) ? 'bg-blue-50' : ''
-                    }`}
+                    className={`flex border-b hover:bg-gray-50 ${selectedRows.has(row.id) ? 'bg-blue-50' : ''
+                      }`}
                     style={{ height: '50px' }}
                   >
                     <div className="p-3 w-12 flex items-center justify-center border-r">
@@ -268,9 +283,8 @@ export default function AdvancedTablePage() {
                     {columns.map((col) => (
                       <div
                         key={col.key}
-                        className={`p-3 text-sm border-r flex items-center ${
-                          frozenColumn === col.key ? 'sticky left-0 bg-white z-10' : ''
-                        }`}
+                        className={`p-3 text-sm border-r flex items-center ${frozenColumn === col.key ? 'sticky left-0 bg-white z-10' : ''
+                          }`}
                         style={{ width: col.width }}
                       >
                         {col.key === 'id' && (

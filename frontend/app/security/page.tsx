@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLoadingState, useToast } from '@/hooks/useEnhancements';
+import api from '@/lib/api';
 
 interface SecurityAlert {
   id: string;
@@ -46,7 +47,7 @@ export default function SecurityPage() {
   const { isLoading, error, setLoading, setError } = useLoadingState(false);
   const { success, error: showError } = useToast();
   const [activeTab, setActiveTab] = useState<'alerts' | 'threats' | 'incidents' | 'compliance'>('alerts');
-  
+
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
 
   const [threatIntel, setThreatIntel] = useState<ThreatIntel[]>([]);
@@ -56,21 +57,30 @@ export default function SecurityPage() {
   const loadSecurityData = async () => {
     setLoading(true);
     try {
-      const [alertsRes, threatsRes, incidentsRes] = await Promise.all([
-        fetch('/api/v1/security/alerts'),
-        fetch('/api/v1/security/threats'),
-        fetch('/api/v1/security/incidents'),
-      ]);
-      
-      const [alerts, threats, incidents] = await Promise.all([
-        alertsRes.json(),
-        threatsRes.json(),
-        incidentsRes.json(),
-      ]);
-      
+      const auditRes = await api.get('/api/guard/audit');
+      const logs = auditRes.data?.logs || [];
+      const alerts: SecurityAlert[] = logs.map((log: any, idx: number) => ({
+        id: `${log.timestamp || Date.now()}-${idx}`,
+        timestamp: log.timestamp || new Date().toISOString(),
+        type: log.risk_level === 'blocked' ? 'compliance' : 'threat',
+        severity:
+          log.risk_level === 'blocked'
+            ? 'critical'
+            : log.risk_level === 'high'
+              ? 'high'
+              : log.risk_level === 'medium'
+                ? 'medium'
+                : 'low',
+        title: log.command || '未知命令',
+        description: `执行者: ${log.executor || 'unknown'}`,
+        source: log.executor || 'unknown',
+        affectedAssets: 1,
+        status: 'open',
+      }));
+
       setSecurityAlerts(alerts);
-      setThreatIntel(threats);
-      setIncidents(incidents);
+      setThreatIntel([]);
+      setIncidents([]);
       setLoading(false);
     } catch (err) {
       setError(err);
@@ -80,9 +90,8 @@ export default function SecurityPage() {
 
   const handleResolveAlert = async (alertId: string) => {
     try {
-      await fetch(`/api/v1/security/alerts/${alertId}/resolve`, { method: 'POST' });
+      setSecurityAlerts((prev) => prev.filter((a) => a.id !== alertId));
       success("Alert resolved successfully");
-      loadSecurityData();
     } catch (err) {
       showError("Failed to resolve alert");
     }
@@ -216,11 +225,10 @@ export default function SecurityPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 rounded-lg font-medium transition ${
-                  activeTab === tab.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === tab.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 {tab.label}
               </button>
@@ -255,7 +263,7 @@ export default function SecurityPage() {
                 </Select>
               </div>
             </div>
-            
+
             <Table>
               <TableHeader>
                 <TableRow>

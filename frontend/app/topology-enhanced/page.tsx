@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -26,51 +27,42 @@ interface Edge {
 export default function TopologyEnhancedPage() {
   const [selectedView, setSelectedView] = useState('traffic');
   const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [nodes, setNodes] = useState<ServiceNode[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
 
-  const [nodes, setNodes] = useState<ServiceNode[]>([
-    {
-      id: 'web-service',
-      name: 'Web Service',
-      type: 'service',
-      status: 'healthy',
-      cpu: 45,
-      memory: 55,
-      requests: 1200,
-    },
-    {
-      id: 'api-gateway',
-      name: 'API Gateway',
-      type: 'gateway',
-      status: 'warning',
-      cpu: 72,
-      memory: 68,
-      requests: 3500,
-    },
-    {
-      id: 'database',
-      name: 'Database',
-      type: 'database',
-      status: 'healthy',
-      cpu: 35,
-      memory: 80,
-      requests: 800,
-    },
-    {
-      id: 'cache',
-      name: 'Cache',
-      type: 'cache',
-      status: 'healthy',
-      cpu: 20,
-      memory: 45,
-      requests: 2000,
-    },
-  ]);
+  useEffect(() => {
+    const loadTopology = async () => {
+      try {
+        const response = await api.get('/api/v1/topologies/full-link');
+        const data = response.data;
 
-  const [edges, setEdges] = useState<Edge[]>([
-    { source: 'web-service', target: 'api-gateway', traffic: 1200, latency: 15 },
-    { source: 'api-gateway', target: 'database', traffic: 800, latency: 25 },
-    { source: 'api-gateway', target: 'cache', traffic: 2000, latency: 5 },
-  ]);
+        setNodes(
+          data.nodes.map((node: { id: string; label?: string; pagerank?: number }) => ({
+            id: node.id,
+            name: node.label || node.id,
+            type: 'service',
+            status: 'healthy' as const,
+            cpu: 0,
+            memory: 0,
+            requests: Math.round((node.pagerank ?? 1) * 1000),
+          }))
+        );
+
+        setEdges(
+          data.edges.map((edge: { source: string; target: string; weight?: number }) => ({
+            source: edge.source,
+            target: edge.target,
+            traffic: edge.weight ?? 0,
+            latency: 0,
+          }))
+        );
+      } catch {
+        // api.ts interceptor already toasts errors
+      }
+    };
+
+    loadTopology();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {

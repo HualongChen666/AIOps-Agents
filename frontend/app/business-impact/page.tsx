@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import api from '@/lib/api';
 
 interface BusinessService {
   id: string;
@@ -30,87 +31,53 @@ interface UserExperienceMetric {
 }
 
 export default function BusinessImpactPage() {
-  const [services, setServices] = useState<BusinessService[]>([
-    {
-      id: 'SVC-001',
-      name: '电商服务',
-      category: '核心业务',
-      impactScore: 8.5,
-      status: 'degraded',
-      affectedUsers: 12000,
-      conversionRate: 2.5,
-      conversionRateChange: -15,
-      revenueImpact: 50000,
-      lastUpdated: new Date().toISOString(),
-    },
-    {
-      id: 'SVC-002',
-      name: '支付网关',
-      category: '核心业务',
-      impactScore: 9.2,
-      status: 'down',
-      affectedUsers: 8500,
-      conversionRate: 0,
-      conversionRateChange: -100,
-      revenueImpact: 120000,
-      lastUpdated: new Date(Date.now() - 300000).toISOString(),
-    },
-    {
-      id: 'SVC-003',
-      name: '用户中心',
-      category: '支撑服务',
-      impactScore: 4.5,
-      status: 'healthy',
-      affectedUsers: 0,
-      conversionRate: 3.2,
-      conversionRateChange: 5,
-      revenueImpact: 0,
-      lastUpdated: new Date(Date.now() - 600000).toISOString(),
-    },
-    {
-      id: 'SVC-004',
-      name: '搜索服务',
-      category: '增值服务',
-      impactScore: 6.8,
-      status: 'degraded',
-      affectedUsers: 3200,
-      conversionRate: 1.8,
-      conversionRateChange: -8,
-      revenueImpact: 15000,
-      lastUpdated: new Date(Date.now() - 900000).toISOString(),
-    },
-  ]);
+  const [services, setServices] = useState<BusinessService[]>([]);
+  const [uxMetrics, setUxMetrics] = useState<UserExperienceMetric[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [uxMetrics, setUxMetrics] = useState<UserExperienceMetric[]>([
-    {
-      id: 'UX-001',
-      name: '页面加载时间',
-      value: 3.2,
-      change: 25,
-      status: 'critical',
-    },
-    {
-      id: 'UX-002',
-      name: 'API响应时间',
-      value: 450,
-      change: 18,
-      status: 'warning',
-    },
-    {
-      id: 'UX-003',
-      name: '错误率',
-      value: 2.1,
-      change: -5,
-      status: 'good',
-    },
-    {
-      id: 'UX-004',
-      name: '用户满意度',
-      value: 4.2,
-      change: -12,
-      status: 'warning',
-    },
-  ]);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [servicesRes, uxRes] = await Promise.all([
+          api.get('/api/v1/business-impact/services'),
+          api.get('/api/v1/business-impact/ux-metrics'),
+        ]);
+        if (!cancelled) {
+          setServices(servicesRes.data.data || []);
+          setUxMetrics(uxRes.data.data || []);
+        }
+      } catch (error) {
+        // Errors are handled by the api interceptor toast.
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const overview = useMemo(() => {
+    const impacted = services.filter((s) => s.status !== 'healthy');
+    const affectedUsers = impacted.reduce((sum, s) => sum + s.affectedUsers, 0);
+    const revenueImpact = impacted.reduce((sum, s) => sum + s.revenueImpact, 0);
+    const conversionChange =
+      affectedUsers > 0
+        ? impacted.reduce((sum, s) => sum + s.affectedUsers * s.conversionRateChange, 0) / affectedUsers
+        : 0;
+    const healthyCount = services.filter((s) => s.status === 'healthy').length;
+    const healthScore = services.length > 0 ? Math.round((healthyCount / services.length) * 100) : 100;
+    return { affectedUsers, revenueImpact, conversionChange, healthScore };
+  }, [services]);
+
+  const criticalServices = useMemo(() => {
+    return [...services].sort((a, b) => b.impactScore - a.impactScore).slice(0, 3);
+  }, [services]);
 
   const getImpactColor = (score: number) => {
     if (score >= 8) return 'bg-red-100 text-red-800';
@@ -144,6 +111,36 @@ export default function BusinessImpactPage() {
     }
   };
 
+  const getStatusText = (status: string) => {
+    if (status === 'healthy') return '健康';
+    if (status === 'degraded') return '降级';
+    return '宕机';
+  };
+
+  const renderKeyFindings = () => {
+    return criticalServices.map((service) => {
+      if (service.status === 'down') {
+        return `${service.name}宕机导致转化率下降${Math.abs(service.conversionRateChange)}%，预计收入损失¥${service.revenueImpact.toLocaleString()}`;
+      }
+      if (service.status === 'degraded') {
+        return `${service.name}降级影响${service.affectedUsers.toLocaleString()}用户，转化率下降${Math.abs(service.conversionRateChange)}%`;
+      }
+      return `${service.name}状态${getStatusText(service.status)}，影响评分${service.impactScore}`;
+    });
+  };
+
+  const renderRecommendations = () => {
+    return criticalServices.slice(0, 3).map((service) => {
+      if (service.status === 'down') {
+        return `立即恢复${service.name}服务，优先级最高`;
+      }
+      if (service.status === 'degraded') {
+        return `优化${service.name}性能，减少降级影响`;
+      }
+      return `持续监控${service.name}指标，确保稳定运行`;
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -161,7 +158,9 @@ export default function BusinessImpactPage() {
             <CardTitle className="text-sm">受影响用户</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-red-600">23,700</p>
+            <p className="text-3xl font-bold text-red-600">
+              {overview.affectedUsers.toLocaleString()}
+            </p>
             <p className="text-sm text-gray-500">当前受影响</p>
           </CardContent>
         </Card>
@@ -170,7 +169,10 @@ export default function BusinessImpactPage() {
             <CardTitle className="text-sm">转化率下降</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-orange-600">-23%</p>
+            <p className="text-3xl font-bold text-orange-600">
+              {overview.conversionChange > 0 ? '+' : ''}
+              {overview.conversionChange.toFixed(1)}%
+            </p>
             <p className="text-sm text-gray-500">较昨日</p>
           </CardContent>
         </Card>
@@ -179,7 +181,9 @@ export default function BusinessImpactPage() {
             <CardTitle className="text-sm">收入影响</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-red-600">¥185,000</p>
+            <p className="text-3xl font-bold text-red-600">
+              ¥{overview.revenueImpact.toLocaleString()}
+            </p>
             <p className="text-sm text-gray-500">预计损失</p>
           </CardContent>
         </Card>
@@ -188,7 +192,7 @@ export default function BusinessImpactPage() {
             <CardTitle className="text-sm">服务健康度</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-yellow-600">72%</p>
+            <p className="text-3xl font-bold text-yellow-600">{overview.healthScore}%</p>
             <p className="text-sm text-gray-500">整体评分</p>
           </CardContent>
         </Card>
@@ -201,6 +205,7 @@ export default function BusinessImpactPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {loading && <p className="text-sm text-gray-500">加载中...</p>}
             {services.map((service) => (
               <div key={service.id} className="p-4 border border-gray-200 rounded-lg">
                 <div className="flex items-center justify-between mb-3">
@@ -208,7 +213,7 @@ export default function BusinessImpactPage() {
                     <h3 className="font-medium">{service.name}</h3>
                     <Badge variant="outline">{service.category}</Badge>
                     <Badge className={getStatusColor(service.status)}>
-                      {service.status === 'healthy' ? '健康' : service.status === 'degraded' ? '降级' : '宕机'}
+                      {getStatusText(service.status)}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
@@ -257,6 +262,7 @@ export default function BusinessImpactPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {loading && <p className="text-sm text-gray-500">加载中...</p>}
             {uxMetrics.map((metric) => (
               <div key={metric.id} className="p-4 border border-gray-200 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
@@ -322,7 +328,7 @@ export default function BusinessImpactPage() {
                   <TableCell>{service.category}</TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(service.status)}>
-                      {service.status === 'healthy' ? '健康' : service.status === 'degraded' ? '降级' : '宕机'}
+                      {getStatusText(service.status)}
                     </Badge>
                   </TableCell>
                   <TableCell className="font-medium">{service.conversionRate}%</TableCell>
@@ -354,17 +360,17 @@ export default function BusinessImpactPage() {
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
               <h3 className="font-medium text-red-800 mb-2">关键影响</h3>
               <ul className="text-sm text-red-700 space-y-1">
-                <li>• 支付网关宕机导致转化率下降100%，预计收入损失¥120,000</li>
-                <li>• 电商服务降级影响12,000用户，转化率下降15%</li>
-                <li>• 搜索服务响应时间增加25%，影响3,200用户</li>
+                {renderKeyFindings().map((item, idx) => (
+                  <li key={idx}>• {item}</li>
+                ))}
               </ul>
             </div>
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <h3 className="font-medium text-yellow-800 mb-2">建议行动</h3>
               <ul className="text-sm text-yellow-700 space-y-1">
-                <li>• 立即恢复支付网关服务，优先级最高</li>
-                <li>• 优化电商服务性能，减少降级影响</li>
-                <li>• 监控搜索服务性能，考虑扩容</li>
+                {renderRecommendations().map((item, idx) => (
+                  <li key={idx}>• {item}</li>
+                ))}
               </ul>
             </div>
             <div className="flex justify-end">

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,9 +40,11 @@ interface ScalingPolicy {
 
 interface User {
   id: string;
+  username: string;
   name: string;
   email: string;
   role: 'admin' | 'operator' | 'viewer';
+  disabled: boolean;
   status: 'active' | 'inactive';
   lastLogin: string;
 }
@@ -104,62 +107,72 @@ export default function SettingsPage() {
     },
   ]);
 
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: 'USR-001',
-      name: '管理员',
-      email: 'admin@example.com',
-      role: 'admin',
-      status: 'active',
-      lastLogin: new Date().toISOString(),
-    },
-    {
-      id: 'USR-002',
-      name: '运维工程师',
-      email: 'operator@example.com',
-      role: 'operator',
-      status: 'active',
-      lastLogin: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: 'USR-003',
-      name: '查看者',
-      email: 'viewer@example.com',
-      role: 'viewer',
-      status: 'inactive',
-      lastLogin: new Date(Date.now() - 86400000).toISOString(),
-    },
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
-    {
-      id: 'AUD-001',
-      timestamp: new Date().toISOString(),
-      user: 'admin@example.com',
-      action: 'UPDATE',
-      resource: 'settings',
-      details: '修改系统配置',
-      ip: '192.168.1.100',
-    },
-    {
-      id: 'AUD-002',
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      user: 'operator@example.com',
-      action: 'CREATE',
-      resource: 'alert_rule',
-      details: '创建新的告警规则',
-      ip: '192.168.1.101',
-    },
-    {
-      id: 'AUD-003',
-      timestamp: new Date(Date.now() - 600000).toISOString(),
-      user: 'admin@example.com',
-      action: 'DELETE',
-      resource: 'user',
-      details: '删除用户',
-      ip: '192.168.1.100',
-    },
-  ]);
+  const mapUser = (u: any): User => ({
+    id: String(u.id),
+    username: String(u.username),
+    name: u.full_name || u.username,
+    email: u.email || '',
+    role: u.role === 'admin' ? 'admin' : u.role === 'operator' ? 'operator' : 'viewer',
+    disabled: !!u.disabled,
+    status: u.disabled ? 'inactive' : 'active',
+    lastLogin: u.last_login_at || u.created_at || new Date().toISOString(),
+  });
+
+  const mapAuditLog = (l: any): AuditLog => ({
+    id: String(l.id),
+    timestamp: l.created_at || new Date().toISOString(),
+    user: l.username || 'system',
+    action: l.action || '',
+    resource: `${l.resource_type || ''}${l.resource_id ? `/${l.resource_id}` : ''}`,
+    details: l.details || '',
+    ip: l.ip_address || '',
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    const loadData = async () => {
+      try {
+        const [usersRes, auditRes] = await Promise.all([
+          api.get('/api/v1/users/'),
+          api.get('/api/v1/users/audit-logs'),
+        ]);
+        if (!mounted) return;
+        setUsers((usersRes.data || []).map(mapUser));
+        setAuditLogs((auditRes.data || []).map(mapAuditLog));
+      } catch {
+        // api interceptor shows errors via toast
+      }
+    };
+    loadData();
+    return () => { mounted = false; };
+  }, []);
+
+  const handleToggleStatus = async (user: User) => {
+    const newDisabled = !user.disabled;
+    try {
+      await api.put(`/api/v1/users/${user.username}`, { disabled: newDisabled });
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id ? { ...u, disabled: newDisabled, status: newDisabled ? 'inactive' : 'active' } : u
+        )
+      );
+    } catch {
+      // api interceptor handles errors
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    if (!window.confirm('确定要删除该用户吗？')) return;
+    try {
+      await api.delete(`/api/v1/users/${user.username}`);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+    } catch {
+      // api interceptor handles errors
+    }
+  };
 
   const tabs = [
     { key: 'general' as const, label: '通用设置' },
@@ -183,11 +196,10 @@ export default function SettingsPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 rounded-lg font-medium transition ${
-                  activeTab === tab.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === tab.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 {tab.label}
               </button>
@@ -390,7 +402,10 @@ export default function SettingsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge className={user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                        <Badge
+                          className={`cursor-pointer ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+                          onClick={() => handleToggleStatus(user)}
+                        >
                           {user.status === 'active' ? '活跃' : '未激活'}
                         </Badge>
                       </TableCell>
@@ -400,7 +415,7 @@ export default function SettingsPage() {
                           <Button variant="outline" size="sm">
                             编辑
                           </Button>
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user)}>
                             删除
                           </Button>
                         </div>

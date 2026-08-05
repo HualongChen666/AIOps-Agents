@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useLoadingState, useToast } from '@/hooks/useEnhancements';
+import api from '@/lib/api';
 
 interface WorkflowNode {
   id: string;
@@ -40,9 +41,17 @@ export default function WorkflowPage() {
   const loadWorkflows = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/workflow');
+      const res = await fetch('/api/v1/workflows/definitions', {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}` },
+      });
       const data = await res.json();
-      setWorkflows(data);
+      const items = Object.entries(data).map(([key, value]: [string, any]) => ({
+        id: key,
+        name: value?.name || key,
+        status: 'active' as const,
+        lastRun: value?.time || '-',
+      }));
+      setWorkflows(items);
       setLoading(false);
     } catch (err) {
       setError(err);
@@ -52,8 +61,9 @@ export default function WorkflowPage() {
 
   const handleRunWorkflow = async (workflowId: string) => {
     try {
-      await fetch(`/api/v1/workflow/${workflowId}/run`, { method: 'POST' });
-      success("Workflow started successfully");
+      // 后端使用 SSE 流式仿真，这里以文本方式消费流并提示启动
+      await api.get(`/api/v1/workflows/simulate/${workflowId}`, { responseType: 'text' });
+      success("Workflow simulation started");
     } catch (err) {
       showError("Failed to start workflow");
     }

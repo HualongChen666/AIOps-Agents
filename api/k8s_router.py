@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from core.authentication import get_current_active_user
+
 from core.k8s_collector import collect_all_k8s, get_k8s_collect_history
 from core.k8s_repair import execute_repair_sync, get_k8s_repair_history, repair_all_k8s
 
@@ -29,7 +29,6 @@ class K8sRepairRequest(BaseModel):
 router = APIRouter(
     prefix="/api/v1/platforms/kubernetes",
     tags=["Kubernetes"],
-    dependencies=[Depends(get_current_active_user)],
 )
 
 

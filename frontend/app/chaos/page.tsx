@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,45 +30,68 @@ interface FaultTemplate {
   severity: 'low' | 'medium' | 'high';
 }
 
+interface BackendExperiment {
+  experiment: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'aborted';
+  success: boolean;
+  duration_seconds: number;
+  start_time: string;
+  end_time?: string | null;
+}
+
+const experimentLabels: Record<string, string> = {
+  latency_injection: '网络延迟注入',
+  fault_injection: '故障注入',
+  resource_limitation: '资源限制',
+  network_partition: '网络分区',
+  service_failure: '服务故障',
+};
+
+const experimentTypeMap: Record<string, ChaosExperiment['type']> = {
+  latency_injection: 'network',
+  fault_injection: 'disk',
+  resource_limitation: 'cpu',
+  network_partition: 'network',
+  service_failure: 'service',
+};
+
+const experimentImpactMap: Record<string, ChaosExperiment['impact']> = {
+  latency_injection: 'medium',
+  fault_injection: 'high',
+  resource_limitation: 'medium',
+  network_partition: 'high',
+  service_failure: 'high',
+};
+
+const backendTypeMap: Record<ChaosExperiment['type'], string> = {
+  cpu: 'resource_limitation',
+  network: 'latency_injection',
+  disk: 'fault_injection',
+  service: 'service_failure',
+};
+
+function mapBackendExperiment(exp: BackendExperiment, index: number): ChaosExperiment {
+  return {
+    id: `EXP-${String(index + 1).padStart(3, '0')}`,
+    name: experimentLabels[exp.experiment] || exp.experiment,
+    type: experimentTypeMap[exp.experiment] || 'service',
+    target: '-',
+    status: exp.status === 'aborted' ? 'failed' : exp.status,
+    duration: Math.round(exp.duration_seconds),
+    startTime: exp.start_time,
+    endTime: exp.end_time || undefined,
+    impact: experimentImpactMap[exp.experiment] || 'medium',
+  };
+}
+
 export default function ChaosPage() {
   const [activeTab, setActiveTab] = useState<'experiments' | 'templates' | 'history' | 'results'>('experiments');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  
-  const [experiments, setExperiments] = useState<ChaosExperiment[]>([
-    {
-      id: 'EXP-001',
-      name: 'CPU过载测试',
-      type: 'cpu',
-      target: 'api-gateway',
-      status: 'completed',
-      duration: 300,
-      startTime: new Date(Date.now() - 3600000).toISOString(),
-      endTime: new Date(Date.now() - 3300000).toISOString(),
-      impact: 'medium',
-    },
-    {
-      id: 'EXP-002',
-      name: '网络延迟注入',
-      type: 'network',
-      target: 'database',
-      status: 'running',
-      duration: 600,
-      startTime: new Date(Date.now() - 120000).toISOString(),
-      impact: 'high',
-    },
-    {
-      id: 'EXP-003',
-      name: '磁盘故障模拟',
-      type: 'disk',
-      target: 'storage-service',
-      status: 'pending',
-      duration: 900,
-      startTime: new Date(Date.now() + 300000).toISOString(),
-      impact: 'high',
-    },
-  ]);
+  const [enabled, setEnabled] = useState(false);
+  const [stats, setStats] = useState<Record<string, any>>({});
+  const [experiments, setExperiments] = useState<ChaosExperiment[]>([]);
 
-  const [templates, setTemplates] = useState<FaultTemplate[]>([
+  const [templates] = useState<FaultTemplate[]>([
     {
       id: 'TPL-001',
       name: 'CPU过载',
@@ -104,6 +128,35 @@ export default function ChaosPage() {
     target: '',
     duration: 300,
   });
+
+  const loadStatus = async () => {
+    try {
+      const res = await api.get('/api/v1/chaos/status');
+      if (res.data.success) {
+        setEnabled(res.data.data.enabled);
+        setStats(res.data.data.stats || {});
+      }
+    } catch {
+      // toast handled by interceptor
+    }
+  };
+
+  const loadExperiments = async () => {
+    try {
+      const res = await api.get('/api/v1/chaos/experiments?limit=50');
+      if (res.data.success) {
+        const items: BackendExperiment[] = res.data.data.experiments || [];
+        setExperiments(items.map((exp, idx) => mapBackendExperiment(exp, idx)));
+      }
+    } catch {
+      // toast handled by interceptor
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+    loadExperiments();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -148,20 +201,30 @@ export default function ChaosPage() {
     }
   };
 
-  const handleCreateExperiment = () => {
-    const experiment: ChaosExperiment = {
-      id: `EXP-${String(experiments.length + 1).padStart(3, '0')}`,
-      name: newExperiment.name,
-      type: newExperiment.type,
-      target: newExperiment.target,
-      status: 'pending',
-      duration: newExperiment.duration,
-      startTime: new Date(Date.now() + 60000).toISOString(),
-      impact: 'medium',
-    };
-    setExperiments([...experiments, experiment]);
-    setShowCreateDialog(false);
-    setNewExperiment({ name: '', type: 'cpu', target: '', duration: 300 });
+  const handleToggleEnabled = async () => {
+    try {
+      await api.post(`/api/v1/chaos/${enabled ? 'disable' : 'enable'}`);
+      await loadStatus();
+    } catch {
+      // toast handled by interceptor
+    }
+  };
+
+  const handleCreateExperiment = async () => {
+    const backendType = backendTypeMap[newExperiment.type];
+    try {
+      await api.post(`/api/v1/chaos/experiment/${backendType}`, {
+        target: newExperiment.target,
+        duration: newExperiment.duration,
+      });
+      await loadExperiments();
+      await loadStatus();
+    } catch {
+      // toast handled by interceptor
+    } finally {
+      setShowCreateDialog(false);
+      setNewExperiment({ name: '', type: 'cpu', target: '', duration: 300 });
+    }
   };
 
   const tabs = [
@@ -171,11 +234,20 @@ export default function ChaosPage() {
     { key: 'results' as const, label: '结果分析' },
   ];
 
+  const runningCount = experiments.filter((e) => e.status === 'running').length;
+  const pendingCount = experiments.filter((e) => e.status === 'pending').length;
+  const completedCount = experiments.filter((e) => e.status === 'completed').length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">混沌工程</h1>
-        <Button onClick={() => setShowCreateDialog(true)}>创建实验</Button>
+        <div className="flex gap-2">
+          <Button variant={enabled ? 'destructive' : 'default'} onClick={handleToggleEnabled}>
+            {enabled ? '禁用混沌工程' : '启用混沌工程'}
+          </Button>
+          <Button onClick={() => setShowCreateDialog(true)}>创建实验</Button>
+        </div>
       </div>
 
       {/* 实验概览卡片 */}
@@ -185,7 +257,7 @@ export default function ChaosPage() {
             <CardTitle className="text-sm">运行中实验</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-blue-600">1</p>
+            <p className="text-3xl font-bold text-blue-600">{runningCount}</p>
             <p className="text-sm text-gray-500">当前执行</p>
           </CardContent>
         </Card>
@@ -194,7 +266,7 @@ export default function ChaosPage() {
             <CardTitle className="text-sm">待执行实验</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-yellow-600">1</p>
+            <p className="text-3xl font-bold text-yellow-600">{pendingCount}</p>
             <p className="text-sm text-gray-500">等待开始</p>
           </CardContent>
         </Card>
@@ -203,7 +275,7 @@ export default function ChaosPage() {
             <CardTitle className="text-sm">已完成实验</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-600">1</p>
+            <p className="text-3xl font-bold text-green-600">{completedCount}</p>
             <p className="text-sm text-gray-500">成功完成</p>
           </CardContent>
         </Card>
@@ -212,7 +284,7 @@ export default function ChaosPage() {
             <CardTitle className="text-sm">故障模板</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-purple-600">4</p>
+            <p className="text-3xl font-bold text-purple-600">{templates.length}</p>
             <p className="text-sm text-gray-500">可用模板</p>
           </CardContent>
         </Card>
@@ -226,11 +298,10 @@ export default function ChaosPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 rounded-lg font-medium transition ${
-                  activeTab === tab.key
+                className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === tab.key
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -401,58 +472,41 @@ export default function ChaosPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h3 className="font-medium mb-2">EXP-001: CPU过载测试</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">状态:</span>
-                    <span className="ml-2 font-medium">已完成</span>
+              {experiments.length === 0 && (
+                <p className="text-sm text-gray-500">暂无实验结果</p>
+              )}
+              {experiments.map((exp) => (
+                <div key={exp.id} className="p-4 border border-gray-200 rounded-lg">
+                  <h3 className="font-medium mb-2">{exp.id}: {exp.name}</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">状态:</span>
+                      <span className={`ml-2 font-medium ${exp.status === 'completed' ? 'text-green-600' : exp.status === 'running' ? 'text-blue-600' : 'text-red-600'}`}>
+                        {exp.status === 'running' ? '运行中' : exp.status === 'completed' ? '已完成' : '失败'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">持续时间:</span>
+                      <span className="ml-2 font-medium">{exp.duration}s</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">故障影响:</span>
+                      <span className="ml-2 font-medium">
+                        {exp.impact === 'high' ? '高' : exp.impact === 'medium' ? '中' : '低'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">结束时间:</span>
+                      <span className="ml-2 font-medium">{exp.endTime ? new Date(exp.endTime).toLocaleString() : '-'}</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-gray-500">持续时间:</span>
-                    <span className="ml-2 font-medium">300s</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">故障影响:</span>
-                    <span className="ml-2 font-medium">中等</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">恢复时间:</span>
-                    <span className="ml-2 font-medium">45s</span>
-                  </div>
-                </div>
-                <div className="mt-4 p-3 bg-gray-50 rounded">
-                  <p className="text-sm text-gray-600">
-                    <strong>结论:</strong> 系统在CPU过载情况下表现良好，自动扩容机制正常工作，恢复时间在预期范围内。
-                  </p>
-                </div>
-              </div>
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h3 className="font-medium mb-2">EXP-002: 网络延迟注入</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">状态:</span>
-                    <span className="ml-2 font-medium text-blue-600">运行中</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">持续时间:</span>
-                    <span className="ml-2 font-medium">600s</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">故障影响:</span>
-                    <span className="ml-2 font-medium">高</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">已运行:</span>
-                    <span className="ml-2 font-medium">120s</span>
+                  <div className="mt-4 p-3 bg-gray-50 rounded">
+                    <p className="text-sm text-gray-600">
+                      <strong>结论:</strong> {exp.status === 'completed' ? `实验成功完成，共运行 ${exp.duration} 秒` : '实验未成功完成或被中止'}
+                    </p>
                   </div>
                 </div>
-                <div className="mt-4 p-3 bg-blue-50 rounded">
-                  <p className="text-sm text-blue-800">
-                    <strong>实时监控:</strong> 网络延迟已注入，正在监控系统响应时间和错误率变化。
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -506,7 +560,7 @@ export default function ChaosPage() {
               </div>
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800">
-                  ⚠️ 警告：混沌实验会对生产环境造成实际影响，请确保已获得适当授权并有回滚计划。
+                  警告：混沌实验会对生产环境造成实际影响，请确保已获得适当授权并有回滚计划。
                 </p>
               </div>
             </div>

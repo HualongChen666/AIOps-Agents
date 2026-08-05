@@ -23,8 +23,8 @@ export default function CostPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/api/v1/cost/collect').catch(() => ({ data: { costs: [] } })),
-      api.get('/api/v1/cost/budget').catch(() => ({ data: {} })),
+      api.get('/api/cost/collect').catch(() => ({ data: { costs: [] } })),
+      api.get('/api/cost/budget').catch(() => ({ data: {} })),
     ])
       .then(([costRes, budgetRes]) => {
         setCosts(costRes.data?.costs || [])
@@ -81,7 +81,7 @@ export default function CostPage() {
       <div className='bg-white dark:bg-gray-800 rounded shadow p-4'>
         <h2 className='text-lg font-semibold mb-2'>LLM Token / USD 成本</h2>
         <p className='text-sm text-gray-600'>
-          实际金额来自 /api/v1/cost/collect；Prometheus 指标 llm_cost_per_incident_usd 可按告警维度细分。
+          实际金额来自 /api/cost/collect；Prometheus 指标 llm_cost_per_incident_usd 可按告警维度细分。
         </p>
       </div>
     </main>

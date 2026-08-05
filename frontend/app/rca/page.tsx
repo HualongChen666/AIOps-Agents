@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,43 +27,48 @@ interface AnalysisReport {
 
 export default function RCAPage() {
   const [selectedAlert, setSelectedAlert] = useState('ALT-001');
-  const [analysisReports, setAnalysisReports] = useState<AnalysisReport[]>([
-    {
-      id: 'RCA-001',
-      timestamp: new Date().toISOString(),
-      alertId: 'ALT-001',
-      rootCause: 'web-service数据库连接池耗尽',
-      confidence: 92,
-      affectedServices: ['web-service', 'api-gateway'],
-      recommendations: [
-        '增加数据库连接池大小',
-        '优化慢查询',
-        '考虑增加数据库副本',
-      ],
-    },
-    {
-      id: 'RCA-002',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      alertId: 'ALT-002',
-      rootCause: 'api-gateway内存泄漏',
-      confidence: 85,
-      affectedServices: ['api-gateway'],
-      recommendations: [
-        '检查内存泄漏点',
-        '重启api-gateway实例',
-        '升级到最新版本',
-      ],
-    },
-  ]);
+  const [analysisReports, setAnalysisReports] = useState<AnalysisReport[]>([]);
+  const [rootCauseNodes, setRootCauseNodes] = useState<RootCauseNode[]>([]);
 
-  const rootCauseNodes: RootCauseNode[] = [
-    { id: '1', name: 'web-service', type: 'service', status: 'critical', impact: 0.9 },
-    { id: '2', name: 'database', type: 'service', status: 'warning', impact: 0.7 },
-    { id: '3', name: 'connection-pool', type: 'component', status: 'critical', impact: 0.95 },
-    { id: '4', name: 'api-gateway', type: 'service', status: 'warning', impact: 0.6 },
-    { id: '5', name: 'CPU使用率', type: 'metric', status: 'critical', impact: 0.85 },
-    { id: '6', name: '内存使用率', type: 'metric', status: 'warning', impact: 0.5 },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [hypothesesRes, patternsRes] = await Promise.all([
+          api.get('/api/v1/root-cause/hypotheses'),
+          api.get('/api/v1/root-cause/patterns'),
+        ]);
+
+        const hypotheses = hypothesesRes.data?.hypotheses || [];
+        setRootCauseNodes(
+          hypotheses.map((h: any) => ({
+            id: h.hypothesis_id,
+            name: h.root_cause,
+            type: 'service' as const,
+            status:
+              h.confidence >= 0.8 ? 'critical' : h.confidence >= 0.5 ? 'warning' : 'normal',
+            impact: h.impact_score ?? h.confidence ?? 0,
+          }))
+        );
+
+        const patterns = patternsRes.data?.patterns || [];
+        setAnalysisReports(
+          patterns.map((p: any) => ({
+            id: p.pattern_id,
+            timestamp: p.last_occurrence || new Date().toISOString(),
+            alertId: p.pattern_id,
+            rootCause: p.root_cause,
+            confidence: Math.round((p.confidence ?? 0) * 100),
+            affectedServices: [],
+            recommendations: [],
+          }))
+        );
+      } catch (error) {
+        console.error('Failed to fetch root cause data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {

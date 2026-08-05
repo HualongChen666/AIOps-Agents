@@ -24,7 +24,7 @@ interface TopologyData {
 }
 
 const fetchTopology = async (): Promise<TopologyData> => {
-  const res = await api.get('/api/v1/topologies');
+  const res = await api.get('/api/v1/topologies/full-link');
   return res.data;
 };
 

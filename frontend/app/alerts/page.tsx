@@ -29,7 +29,7 @@ export default function AlertsPage() {
   const { data: alertsData, isLoading, error, refetch } = useQuery<Alert[]>({
     queryKey: ['alerts'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/alerts/?limit=100');
+      const resp = await api.get('/api/v1/alerts?limit=100');
       return resp.data.alerts || resp.data || [];
     },
     refetchInterval: 10000, // 10秒刷新
