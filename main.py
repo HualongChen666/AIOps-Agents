@@ -1971,7 +1971,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ------------------------
 # SECURITY: 从环境变量读取允许的域名，避免过于宽松的 CORS 配置
 ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:8000"
+    "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000"
 ).split(",")
 # 注意：CORS中间件将在所有路由注册后添加，确保它最先执行
 
@@ -2145,7 +2145,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,  # 明确指定允许的域名
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Internal-Key"],
     max_age=600,  # 预检请求缓存时间
 )
 

@@ -2,7 +2,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const instance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000',
+  baseURL: process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:3000',
   timeout: 15000,
 });
 
