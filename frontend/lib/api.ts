@@ -23,8 +23,12 @@ instance.interceptors.request.use((config) => {
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.detail || error.message || '请求失败';
-    toast.error(message);
+    const method = error.config?.method?.toLowerCase() || '';
+    // GET 请求失败由页面自身处理，不在全局弹 toast；写操作仍弹提示
+    if (method && method !== 'get' && method !== 'head') {
+      const message = error.response?.data?.detail || error.message || '请求失败';
+      toast.error(message);
+    }
     return Promise.reject(error);
   }
 );

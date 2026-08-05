@@ -86,7 +86,7 @@ export default function MobilePage() {
     setError(null);
     try {
       const [alertsRes, approvalsRes, snapshotRes] = await Promise.all([
-        api.get('/api/v1/alerts?limit=20'),
+        api.get('/api/v1/alerts/?limit=20'),
         api.get('/api/v1/approvals/pending'),
         api.get('/api/v1/metrics/snapshot'),
       ]);
