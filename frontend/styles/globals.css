@@ -1,20 +1,67 @@
-/* globals.css */
+/* globals.css — DDS-inspired tokens */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --color-primary: #1f4b99;
-  --color-bg: #f5f7fa;
-  --color-text: #1f2937;
+  /* DDS brand / slate primitives */
+  --dds-blue-60: #0672cb;
+  --dds-blue-70: #0063b8;
+  --dds-slate-10: #ebf1f6;
+  --dds-slate-20: #c5d4e3;
+  --dds-slate-30: #a4b8cd;
+  --dds-slate-60: #293b4d;
+  --dds-slate-70: #1d2c3b;
+  --dds-slate-80: #141d28;
+  --dds-slate-90: #0a0e14;
+  --dds-gray-10: #f5f6f7;
+  --dds-gray-20: #f0f0f0;
+  --dds-gray-30: #e1e1e1;
+  --dds-gray-40: #d2d2d2;
+  --dds-gray-70: #6e6e6e;
+  --dds-gray-90: #0e0e0e;
+  --dds-white: #ffffff;
+
+  --color-primary: var(--dds-blue-60);
+  --color-bg: var(--dds-gray-10);
+  --color-text: var(--dds-gray-90);
+  --color-surface: var(--dds-white);
+  --color-sidebar: var(--dds-slate-80);
+  --color-sidebar-text: var(--dds-slate-20);
+  --color-sidebar-active: var(--dds-blue-60);
+  --color-border: var(--dds-gray-30);
 }
 
-.dark {
-  --color-bg: #111827;
-  --color-text: #d1d5db;
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Hide scrollbar for sidebar but allow scroll */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Main content scroll */
+.main-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.main-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.main-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--dds-slate-30);
+  border-radius: 3px;
 }

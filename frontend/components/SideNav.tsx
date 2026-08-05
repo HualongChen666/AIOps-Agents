@@ -22,53 +22,73 @@ export function SideNav() {
     setExpanded((prev) => ({ ...prev, [title]: !prev[title] }));
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-gray-900 text-gray-100 border-r border-gray-800 flex flex-col z-50">
-      <div className="h-14 flex items-center px-4 border-b border-gray-800 font-bold text-lg tracking-wide">
-        AIOps Agent
+    <aside className="w-72 h-full shrink-0 flex flex-col bg-[var(--color-sidebar)] text-[var(--color-sidebar-text)] border-r border-[var(--dds-slate-70)] shadow-[2px_0_8px_rgba(0,0,0,0.12)]">
+      {/* Brand header */}
+      <div className="h-16 shrink-0 flex items-center px-6 border-b border-[var(--dds-slate-70)] bg-[var(--dds-slate-90)]">
+        <div className="w-8 h-8 rounded-md bg-[var(--dds-blue-60)] flex items-center justify-center text-white font-bold mr-3">
+          A
+        </div>
+        <div>
+          <div className="font-semibold text-white text-base leading-tight">AIOps Agent</div>
+          <div className="text-[11px] text-[var(--dds-slate-30)]">统一运维控制台</div>
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+
+      {/* Nav groups */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide py-4 px-3 space-y-4">
         {navGroups.map((group) => (
           <div key={group.title}>
             <button
               onClick={() => toggle(group.title)}
-              className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-white transition"
+              className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--dds-slate-30)] hover:text-white transition-colors rounded-md hover:bg-[var(--dds-slate-70)]"
             >
               <span>{group.title}</span>
-              <span className="text-[10px]">{expanded[group.title] ? '▾' : '▸'}</span>
+              <span className="text-[10px] opacity-80">{expanded[group.title] ? '▾' : '▸'}</span>
             </button>
+
             {expanded[group.title] && (
-              <div className="mt-1 space-y-1">
+              <nav className="mt-1 ml-1 border-l-2 border-[var(--dds-slate-60)] pl-2 space-y-1">
                 {group.items.map((item) =>
                   item.href.startsWith('http') ? (
                     <a
                       key={item.href}
                       href={item.href}
                       target={item.target}
-                      className="block px-3 py-2 rounded-md text-sm hover:bg-gray-800 transition text-gray-300 hover:text-white"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between px-3 py-2 rounded-md text-sm text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white transition-colors"
                     >
-                      {item.label} ↗
+                      <span className="truncate">{item.label}</span>
+                      <span className="text-xs opacity-60">↗</span>
                     </a>
                   ) : (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`block px-3 py-2 rounded-md text-sm transition ${
-                        isActive(item.href)
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                      }`}
+                      className={`flex items-center px-3 py-2 rounded-md text-sm transition-colors border-l-4 -ml-[10px] pl-[18px] ${isActive(item.href)
+                          ? 'bg-[var(--dds-slate-70)] text-white border-[var(--dds-blue-60)]'
+                          : 'border-transparent text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white'
+                        }`}
                     >
                       {item.label}
                     </Link>
                   )
                 )}
-              </div>
+              </nav>
             )}
           </div>
         ))}
       </div>
-      <div className="p-3 text-xs text-gray-500 border-t border-gray-800">
-        前端: 3000 | 后端: 8000
+
+      {/* Footer status */}
+      <div className="shrink-0 p-4 text-[11px] text-[var(--dds-slate-30)] border-t border-[var(--dds-slate-70)] bg-[var(--dds-slate-90)]">
+        <div className="flex justify-between mb-1">
+          <span>前端门户</span>
+          <span className="font-medium text-white">:8000</span>
+        </div>
+        <div className="flex justify-between">
+          <span>后端 API</span>
+          <span className="font-medium text-white">:3000</span>
+        </div>
       </div>
     </aside>
   );
