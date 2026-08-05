@@ -50,6 +50,10 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
         Returns:
             响应
         """
+        # Skip CORS preflight requests (OPTIONS method)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
         # 排除特定路径
         if any(request.url.path.startswith(path) for path in self.exclude_paths):
             return await call_next(request)

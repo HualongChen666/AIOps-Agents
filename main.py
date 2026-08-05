@@ -1911,6 +1911,11 @@ tls_enforcer._enforce_tls = os.getenv("AIOPS_ENFORCE_TLS", "false").lower() == "
 # Add security middleware
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
+    # Skip CORS preflight requests (OPTIONS method)
+    if request.method == "OPTIONS":
+        response = await call_next(request)
+        return response
+
     # TLS enforcement
     if not tls_enforcer.check_tls(request):
         return JSONResponse(status_code=400, content={"error": "HTTPS required"})

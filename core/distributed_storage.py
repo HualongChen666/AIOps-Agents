@@ -229,23 +229,31 @@ class DistributedStorageManager:
 
     def get_read_connection_info(self) -> Dict[str, Any]:
         """获取读连接信息"""
-        instance = self.read_write_router.get_read_connection()
-        return {
-            "host": instance.host,
-            "port": instance.port,
-            "role": instance.role.value,
-            "database_type": instance.database_type.value,
-        }
+        try:
+            instance = self.read_write_router.get_read_connection()
+            return {
+                "host": instance.host,
+                "port": instance.port,
+                "role": instance.role.value,
+                "database_type": instance.database_type.value,
+            }
+        except Exception as e:
+            _logger.warning("Read connection unavailable: %s", e)
+            return {"host": None, "port": None, "role": None, "database_type": None, "error": str(e)}
 
     def get_write_connection_info(self) -> Dict[str, Any]:
         """获取写连接信息"""
-        instance = self.read_write_router.get_write_connection()
-        return {
-            "host": instance.host,
-            "port": instance.port,
-            "role": instance.role.value,
-            "database_type": instance.database_type.value,
-        }
+        try:
+            instance = self.read_write_router.get_write_connection()
+            return {
+                "host": instance.host,
+                "port": instance.port,
+                "role": instance.role.value,
+                "database_type": instance.database_type.value,
+            }
+        except Exception as e:
+            _logger.warning("Write connection unavailable: %s", e)
+            return {"host": None, "port": None, "role": None, "database_type": None, "error": str(e)}
 
     def health_check(self) -> Dict[str, Any]:
         """健康检查"""

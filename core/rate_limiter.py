@@ -302,6 +302,10 @@ def add_concurrency_middleware(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def concurrency_middleware(request: Request, call_next):
+        # Skip CORS preflight requests (OPTIONS method)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
         client_id = request.client.host if request.client else "unknown"
         user = getattr(request.state, "user", {})
         session_key = user.get("id", client_id) if user else client_id

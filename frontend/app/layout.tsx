@@ -1,6 +1,7 @@
 // app/layout.tsx
 import '@/styles/globals.css';
 import { Providers } from './providers';
+import { SideNav } from '@/components/SideNav';
 import type { ReactNode } from 'react';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -11,7 +12,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className="font-sans">
-        <Providers>{children}</Providers>
+        <Providers>
+          <SideNav />
+          <main className="ml-64 min-h-screen p-6 bg-[var(--color-bg)] text-[var(--color-text)]">
+            {children}
+          </main>
+        </Providers>
       </body>
     </html>
   );

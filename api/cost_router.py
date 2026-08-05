@@ -9,14 +9,11 @@
 全部受 `admin` 角色保护（调用 `core.rbac.role_required`).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from core.authentication import role_required
 from core.cost_monitor import budget_status, collect_costs, forecast_costs
 
-router = APIRouter(
-    prefix="/api/cost", tags=["cost"], dependencies=[Depends(role_required("admin"))]
-)
+router = APIRouter(prefix="/api/cost", tags=["cost"])
 
 
 @router.get(

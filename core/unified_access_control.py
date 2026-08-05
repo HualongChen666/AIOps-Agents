@@ -395,6 +395,10 @@ def add_access_control_middleware(
 
     @app.middleware("http")
     async def access_control_middleware(request: Request, call_next):
+        # Skip CORS preflight requests (OPTIONS method)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
         if enforce:
             user = getattr(request.state, "user", None)
             if not user:
