@@ -25,6 +25,36 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+# Window string <-> hours conversions.
+_WINDOW_TO_HOURS = {
+    "1h": 1,
+    "24h": 24,
+    "7d": 168,
+    "30d": 720,
+    "90d": 2160,
+}
+_HOURS_TO_WINDOW = {v: k for k, v in _WINDOW_TO_HOURS.items()}
+
+
+def parse_window(window: str) -> int:
+    """Parse a window string like 1h / 7d / 30d into hours."""
+    if window in _WINDOW_TO_HOURS:
+        return _WINDOW_TO_HOURS[window]
+    if window.endswith("h"):
+        return int(window[:-1])
+    if window.endswith("d"):
+        return int(window[:-1]) * 24
+    try:
+        return int(window)
+    except ValueError as exc:
+        raise ValueError(f"Invalid window format: {window}") from exc
+
+
+def format_window(hours: int) -> str:
+    """Format an hour count back to a UI-friendly window string."""
+    return _HOURS_TO_WINDOW.get(hours, f"{hours}h")
+
+
 @dataclass
 class SLORule:
     """Single SLO rule.
@@ -192,3 +222,80 @@ def evaluate_slo(rule: SLORule, history: list[float]) -> dict[str, Any]:
         "status": status,
         "alert": status == "critical",
     }
+
+
+def update_slo(
+    slo_id: str,
+    name: Optional[str] = None,
+    service: Optional[str] = None,
+    metric: Optional[str] = None,
+    target: Optional[float] = None,
+    window: Optional[int] = None,
+    alert_threshold: Optional[float] = None,
+) -> Optional[SLORule]:
+    """Update an existing SLO rule. Only provided fields are changed."""
+    rule = _slo_store.get(slo_id)
+    if not rule:
+        return None
+
+    if name is not None:
+        rule.name = name
+    if service is not None:
+        rule.service = service
+    if metric is not None:
+        rule.metric = metric
+    if target is not None:
+        rule.target = max(0.0, min(1.0, float(target)))
+    if window is not None:
+        rule.window = max(1, int(window))
+    if alert_threshold is not None:
+        rule.alert_threshold = max(0.0, min(1.0, float(alert_threshold)))
+
+    logger.info(f"Updated SLO {slo_id}: {rule}")
+    return rule
+
+
+def generate_sla_report(period: str = "30d") -> list[dict[str, Any]]:
+    """Generate an SLA compliance report for all SLO rules over a period.
+
+    The report computes availability from the metric history and compares it
+    against each rule's target. Incidents are counted as samples that missed
+    the target.
+    """
+    from core.metrics_history import metrics_history
+
+    hours = parse_window(period)
+    raw_history = metrics_history.to_dict()
+    reports: list[dict[str, Any]] = []
+
+    for rule in list_slos():
+        values = raw_history.get(rule.metric, [])
+        # Normalize CPU/memory from 0-100 percent scale to 0-1.
+        if rule.metric in {"cpu", "memory"}:
+            values = [float(v) / 100.0 for v in values]
+        else:
+            values = [float(v) for v in values]
+
+        result = evaluate_slo(rule, values)
+        availability = round(result["current"] * 100.0, 2)
+        target_percent = round(rule.target * 100.0, 2)
+        compliance = availability >= target_percent
+        incidents = sum(
+            1
+            for v in values
+            if (v < rule.target if _higher_is_better(rule.metric) else v > rule.target)
+        )
+
+        reports.append(
+            {
+                "id": f"SLA-{rule.id}-{period}",
+                "service": rule.service,
+                "period": period,
+                "availability": availability,
+                "slaTarget": target_percent,
+                "compliance": "compliant" if compliance else "non-compliant",
+                "incidents": incidents,
+            }
+        )
+
+    return reports

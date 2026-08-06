@@ -27,8 +27,12 @@ from core.slo_engine import (
     create_slo,
     delete_slo,
     evaluate_slo,
+    format_window,
+    generate_sla_report,
     get_slo,
     list_slos,
+    parse_window,
+    update_slo,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,34 +56,15 @@ class SLOCreate(BaseModel):
     alert_threshold: Optional[float] = None
 
 
-# Window string <-> hours conversions.
-_WINDOW_TO_HOURS = {
-    "1h": 1,
-    "24h": 24,
-    "7d": 168,
-    "30d": 720,
-    "90d": 2160,
-}
-_HOURS_TO_WINDOW = {v: k for k, v in _WINDOW_TO_HOURS.items()}
+class SLOUpdate(BaseModel):
+    """Request body for updating an SLO. All fields are optional."""
 
-
-def _parse_window(window: str) -> int:
-    """Parse a window string into hours."""
-    if window in _WINDOW_TO_HOURS:
-        return _WINDOW_TO_HOURS[window]
-    if window.endswith("h"):
-        return int(window[:-1])
-    if window.endswith("d"):
-        return int(window[:-1]) * 24
-    try:
-        return int(window)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid window format: {window}") from e
-
-
-def _format_window(hours: int) -> str:
-    """Format an hour count back to a UI-friendly window string."""
-    return _HOURS_TO_WINDOW.get(hours, f"{hours}h")
+    name: Optional[str] = None
+    service: Optional[str] = None
+    metric: Optional[str] = None
+    target: Optional[float] = None
+    window: Optional[str] = None
+    alert_threshold: Optional[float] = None
 
 
 def _get_metric_history(metric: str) -> list[float]:
@@ -105,7 +90,7 @@ def _serialize(rule: SLORule) -> dict[str, Any]:
         "metric": rule.metric,
         "target": round(rule.target * 100.0, 4),
         "current": round(result["current"] * 100.0, 2),
-        "window": _format_window(rule.window),
+        "window": format_window(rule.window),
         "errorBudget": round(result["error_budget_remaining_percent"], 2),
         "burnRate": round(result["burn_rate"], 2),
         "status": result["status"],
@@ -134,7 +119,7 @@ async def create_slo_endpoint(body: SLOCreate) -> dict[str, Any]:
             service=body.service,
             metric=body.metric,
             target=target_frac,
-            window=_parse_window(body.window),
+            window=parse_window(body.window),
             alert_threshold=alert_frac,
         )
     except Exception as e:
@@ -150,6 +135,32 @@ async def get_slo_endpoint(slo_id: str) -> dict[str, Any]:
     if not rule:
         raise HTTPException(status_code=404, detail="SLO not found")
     return _serialize(rule)
+
+
+@router.put("/{slo_id}", summary="更新 SLO 规则")
+async def update_slo_endpoint(slo_id: str, body: SLOUpdate) -> dict[str, Any]:
+    """Update an existing SLO rule."""
+    try:
+        kwargs = body.model_dump(exclude_unset=True)
+        if "window" in kwargs:
+            kwargs["window"] = parse_window(kwargs["window"])
+        if "target" in kwargs:
+            kwargs["target"] = kwargs["target"] / 100.0
+        if "alert_threshold" in kwargs:
+            kwargs["alert_threshold"] = kwargs["alert_threshold"] / 100.0
+
+        updated = update_slo(slo_id, **kwargs)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid SLO data: {e}") from e
+    if not updated:
+        raise HTTPException(status_code=404, detail="SLO not found")
+    return _serialize(updated)
+
+
+@router.get("/reports", summary="生成 SLA 合规报告")
+async def list_sla_reports(period: str = "30d") -> dict[str, Any]:
+    """Generate SLA compliance reports for all SLO rules over the given period."""
+    return {"reports": generate_sla_report(period)}
 
 
 @router.delete("/{slo_id}", summary="删除 SLO 规则")

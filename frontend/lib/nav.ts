@@ -44,8 +44,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/capacity', label: '容量预测' },
       { href: '/performance', label: '性能分析' },
-      { href: '/slo', label: 'SLO' },
-      { href: '/slo-sla', label: 'SLO/SLA' },
+      { href: '/slo', label: 'SLO/SLA' },
       { href: '/predictive', label: '预测分析' },
     ],
   },
