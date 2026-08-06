@@ -4,16 +4,17 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 
-interface MetricDataPoint {
-  timestamp: string;
-  value: number;
+interface MetricsHistory {
+  cpu?: number[];
+  memory?: number[];
+  net_in?: number[];
+  disk?: number[];
+  timestamps?: string[];
+  _meta?: any;
 }
 
-interface MetricsHistory {
-  cpu: MetricDataPoint[];
-  memory: MetricDataPoint[];
-  disk: MetricDataPoint[];
-}
+const fmt = (n: number | undefined) =>
+  typeof n === 'number' ? n.toFixed(1) : 'N/A';
 
 export const MetricsChart: React.FC = () => {
   const { data, isLoading, error } = useQuery<MetricsHistory>({
@@ -27,43 +28,48 @@ export const MetricsChart: React.FC = () => {
 
   if (isLoading) {
     return (
-      <section className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow h-80">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-          指标趋势
-        </h2>
-        <div className="text-center text-gray-500">加载中…</div>
+      <section className="p-4 bg-[var(--color-surface)] rounded-lg shadow h-80">
+        <h2 className="text-lg font-semibold mb-4">指标趋势</h2>
+        <div className="text-center text-[var(--dds-gray-70)]">加载中…</div>
       </section>
     );
   }
 
   if (error || !data) {
     return (
-      <section className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow h-80">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-          指标趋势
-        </h2>
-        <div className="text-center text-red-500">无法获取指标数据</div>
+      <section className="p-4 bg-[var(--color-surface)] rounded-lg shadow h-80">
+        <h2 className="text-lg font-semibold mb-4">指标趋势</h2>
+        <div className="text-center text-[var(--dds-red-60)]">无法获取指标数据</div>
       </section>
     );
   }
 
-  const renderSimpleChart = (data: MetricDataPoint[], color: string, label: string) => {
-    if (!data || data.length === 0) return null;
+  const renderSimpleChart = (values: number[] | undefined, color: string, label: string) => {
+    if (!values || values.length === 0) return null;
 
-    const max = Math.max(...data.map(d => d.value));
-    const min = Math.min(...data.map(d => d.value));
+    const numeric = values.map((v, i) => ({
+      value: typeof v === 'number' ? v : 0,
+      timestamp: data.timestamps?.[i] || `T${i}`,
+    }));
+
+    const valid = numeric.filter(d => typeof d.value === 'number');
+    if (valid.length === 0) return null;
+
+    const max = Math.max(...valid.map(d => d.value));
+    const min = Math.min(...valid.map(d => d.value));
     const range = max - min || 1;
+    const last = valid[valid.length - 1];
 
     return (
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            当前: {data[data.length - 1]?.value.toFixed(1)}%
+          <span className="text-sm font-medium text-[var(--dds-slate-70)]">{label}</span>
+          <span className="text-sm text-[var(--dds-gray-70)]">
+            当前: {fmt(last.value)}%
           </span>
         </div>
         <div className="h-16 flex items-end gap-1">
-          {data.slice(-24).map((point, i) => {
+          {valid.slice(-24).map((point, i) => {
             const height = ((point.value - min) / range) * 100;
             return (
               <div
@@ -73,7 +79,7 @@ export const MetricsChart: React.FC = () => {
                   height: `${Math.max(height, 5)}%`,
                   backgroundColor: color,
                 }}
-                title={`${point.timestamp}: ${point.value.toFixed(1)}%`}
+                title={`${point.timestamp}: ${fmt(point.value)}%`}
               />
             );
           })}
@@ -83,15 +89,13 @@ export const MetricsChart: React.FC = () => {
   };
 
   return (
-    <section className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow h-80 overflow-y-auto">
-      <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-        24小时指标趋势
-      </h2>
-      
+    <section className="p-4 bg-[var(--color-surface)] rounded-lg shadow h-80 overflow-y-auto">
+      <h2 className="text-lg font-semibold mb-4">24小时指标趋势</h2>
       <div className="space-y-4">
-        {renderSimpleChart(data.cpu, '#3b82f6', 'CPU 使用率')}
-        {renderSimpleChart(data.memory, '#10b981', '内存使用率')}
-        {renderSimpleChart(data.disk, '#f59e0b', '磁盘使用率')}
+        {renderSimpleChart(data.cpu, '#0672cb', 'CPU 使用率')}
+        {renderSimpleChart(data.memory, '#4f7d00', '内存使用率')}
+        {renderSimpleChart(data.net_in, '#b85200', '网络入流量')}
+        {renderSimpleChart(data.disk, '#a95adc', '磁盘使用率')}
       </div>
     </section>
   );

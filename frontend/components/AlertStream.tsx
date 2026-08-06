@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
-import { toast } from 'react-hot-toast';
 
 interface AlertMessage {
   id: string;
@@ -17,11 +16,10 @@ export const AlertStream: React.FC = () => {
   const { sendMessage, lastMessage, readyState } = useWebSocket(
     `${process.env.NEXT_PUBLIC_WS_URL || ''}/ws/alerts`,
     {
-      shouldReconnect: (closeEvent) => true,
+      shouldReconnect: () => false,
       onOpen: () => console.log('WebSocket connected for alerts'),
       onError: (event) => {
-        console.error('WebSocket error', event);
-        toast.error('实时告警连接失败');
+        console.warn('WebSocket error (dev-only log)', event);
       },
     }
   );
@@ -57,15 +55,14 @@ export const AlertStream: React.FC = () => {
           {alerts.map((alert) => (
             <li
               key={alert.id}
-              className={`p-2 rounded-md border-l-4 ${
-                alert.severity === 'P0'
+              className={`p-2 rounded-md border-l-4 ${alert.severity === 'P0'
                   ? 'border-danger bg-danger/10'
                   : alert.severity === 'P1'
-                  ? 'border-warning bg-warning/10'
-                  : alert.severity === 'P2'
-                  ? 'border-secondary bg-secondary/10'
-                  : 'border-success bg-success/10'
-              }`}
+                    ? 'border-warning bg-warning/10'
+                    : alert.severity === 'P2'
+                      ? 'border-secondary bg-secondary/10'
+                      : 'border-success bg-success/10'
+                }`}
             >
               <div className="flex justify-between items-start">
                 <div>
