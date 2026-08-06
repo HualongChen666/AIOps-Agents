@@ -66,7 +66,6 @@ export const navGroups: NavGroup[] = [
     title: '可观测性',
     items: [
       { href: '/log-analysis', label: '日志分析' },
-      { href: '/logs-analysis', label: '日志分析（旧）' },
       { href: '/query', label: '查询' },
       { href: '/query-editor', label: '查询编辑器' },
     ],
@@ -116,7 +115,7 @@ export const navGroups: NavGroup[] = [
     title: '后端与系统',
     items: [
       { href: '/settings', label: '系统设置' },
-      { href: 'http://127.0.0.1:8000/docs', label: 'API 文档', target: '_blank' },
+      { href: 'http://127.0.0.1:3000/docs', label: 'API 文档', target: '_blank' },
     ],
   },
 ];
