@@ -131,6 +131,12 @@ async def create_slo_endpoint(body: SLOCreate) -> dict[str, Any]:
     return _serialize(rule)
 
 
+@router.get("/reports", summary="生成 SLA 合规报告")
+async def list_sla_reports(period: str = "30d") -> dict[str, Any]:
+    """Generate SLA compliance reports for all SLO rules over the given period."""
+    return {"reports": generate_sla_report(period)}
+
+
 @router.get("/{slo_id}", summary="获取单个 SLO 详情")
 async def get_slo_endpoint(slo_id: str) -> dict[str, Any]:
     """Return a single SLO with its current error budget."""
@@ -158,12 +164,6 @@ async def update_slo_endpoint(slo_id: str, body: SLOUpdate) -> dict[str, Any]:
     if not updated:
         raise HTTPException(status_code=404, detail="SLO not found")
     return _serialize(updated)
-
-
-@router.get("/reports", summary="生成 SLA 合规报告")
-async def list_sla_reports(period: str = "30d") -> dict[str, Any]:
-    """Generate SLA compliance reports for all SLO rules over the given period."""
-    return {"reports": generate_sla_report(period)}
 
 
 @router.delete("/{slo_id}", summary="删除 SLO 规则")
