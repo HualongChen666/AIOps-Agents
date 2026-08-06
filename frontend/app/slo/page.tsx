@@ -28,6 +28,7 @@ interface SLO {
   errorBudget: number;
   burnRate: number;
   status: 'healthy' | 'warning' | 'critical';
+  aggregation?: string;
 }
 
 interface SLAReport {
@@ -40,7 +41,7 @@ interface SLAReport {
   incidents: number;
 }
 
-const emptyForm = { name: '', service: '', metric: '', target: 99.9, window: '30d', alert_threshold: 99.0 };
+const emptyForm = { name: '', service: '', metric: '', target: 99.9, window: '30d', alert_threshold: 99.0, aggregation: 'good_ratio' };
 
 export default function SLOPage() {
   const [slos, setSlos] = useState<SLO[]>([]);
@@ -90,6 +91,7 @@ export default function SLOPage() {
       target: slo.target,
       window: slo.window,
       alert_threshold: Math.round((slo.target - (slo.target - 99.0)) * 100) / 100,
+      aggregation: slo.aggregation || 'good_ratio',
     });
     setDialogOpen(true);
   };
@@ -102,6 +104,7 @@ export default function SLOPage() {
       target: form.target,
       window: form.window,
       alert_threshold: form.alert_threshold,
+      aggregation: form.aggregation,
     };
     try {
       if (editingId) {
@@ -237,6 +240,7 @@ export default function SLOPage() {
                 <TableHead>目标</TableHead>
                 <TableHead>当前值</TableHead>
                 <TableHead>窗口</TableHead>
+                <TableHead>聚合</TableHead>
                 <TableHead>状态</TableHead>
               </TableRow>
             </TableHeader>
@@ -252,6 +256,7 @@ export default function SLOPage() {
                     {slo.current.toFixed(2)}%
                   </TableCell>
                   <TableCell>{slo.window}</TableCell>
+                  <TableCell>{slo.aggregation || 'good_ratio'}</TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(slo.status)}>
                       {slo.status === 'healthy' ? '健康' : slo.status === 'warning' ? '警告' : '严重'}
@@ -323,6 +328,15 @@ export default function SLOPage() {
                   <option value="90d">90 天</option>
                 </Select>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">聚合方式</label>
+              <Select value={form.aggregation} onChange={(e) => setForm({ ...form, aggregation: e.target.value })}>
+                <option value="good_ratio">达标比例</option>
+                <option value="uptime">运行时长</option>
+                <option value="p99_lt">P99 小于目标</option>
+                <option value="mean_lt">均值小于目标</option>
+              </Select>
             </div>
           </div>
           <DialogFooter>

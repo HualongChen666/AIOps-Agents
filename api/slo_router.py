@@ -9,15 +9,18 @@ Endpoints:
 - GET    /api/v1/slo/        List all SLOs with live status
 - POST   /api/v1/slo/        Create a new SLO rule
 - GET    /api/v1/slo/{id}    Get one SLO with current error budget
+- PUT    /api/v1/slo/{id}    Update an SLO rule
+- GET    /api/v1/slo/reports Generate SLA compliance reports
 - DELETE /api/v1/slo/{id}    Delete an SLO rule
 """
 
 from __future__ import annotations
 
+import datetime
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 
@@ -54,6 +57,8 @@ class SLOCreate(BaseModel):
     window: str
     # Optional alert threshold as a percent; derived if omitted.
     alert_threshold: Optional[float] = None
+    # Optional aggregation strategy (good_ratio, uptime, p99_lt, mean_lt).
+    aggregation: Optional[str] = None
 
 
 class SLOUpdate(BaseModel):
@@ -65,24 +70,20 @@ class SLOUpdate(BaseModel):
     target: Optional[float] = None
     window: Optional[str] = None
     alert_threshold: Optional[float] = None
+    aggregation: Optional[str] = None
 
 
-def _get_metric_history(metric: str) -> list[float]:
-    """Fetch the latest metric samples and normalize known percent metrics."""
-    raw = metrics_history.to_dict()
-    if metric not in raw:
-        return []
-    values = raw[metric]
-    if metric in {"cpu", "memory"}:
-        # metrics_history stores CPU/memory as 0-100 percentages.
-        return [float(v) / 100.0 for v in values]
-    return [float(v) for v in values]
+def _get_metric_points(rule: SLORule) -> list[Any]:
+    """Fetch metric points for the rule's evaluation window."""
+    end_dt = datetime.datetime.utcnow()
+    start_dt = end_dt - datetime.timedelta(hours=rule.window)
+    return metrics_history.query(rule.metric, rule.service, start_dt, end_dt)
 
 
 def _serialize(rule: SLORule) -> dict[str, Any]:
     """Convert an SLORule into the frontend SLO card shape."""
-    history = _get_metric_history(rule.metric)
-    result = evaluate_slo(rule, history)
+    points = _get_metric_points(rule)
+    result = evaluate_slo(rule, points)
     return {
         "id": rule.id,
         "name": rule.name,
@@ -94,6 +95,7 @@ def _serialize(rule: SLORule) -> dict[str, Any]:
         "errorBudget": round(result["error_budget_remaining_percent"], 2),
         "burnRate": round(result["burn_rate"], 2),
         "status": result["status"],
+        "aggregation": rule.aggregation,
     }
 
 
@@ -121,6 +123,7 @@ async def create_slo_endpoint(body: SLOCreate) -> dict[str, Any]:
             target=target_frac,
             window=parse_window(body.window),
             alert_threshold=alert_frac,
+            aggregation=body.aggregation,
         )
     except Exception as e:
         logger.error(f"Failed to create SLO: {e}", exc_info=True)
