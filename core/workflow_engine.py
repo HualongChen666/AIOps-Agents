@@ -521,6 +521,96 @@ def get_workflow_definitions() -> dict[str, dict[str, Any]]:
 # ============================================================
 # 🔧 W10 [P2]:新增公共接口 — 供路由层快速校验
 # ============================================================
+def _refresh_valid_keys() -> None:
+    """工作流定义变更后刷新合法 key 集合"""
+    global _VALID_WF_KEYS
+    _VALID_WF_KEYS = frozenset(_WORKFLOW_DEFINITIONS_RAW.keys())
+
+
+def _validate_workflow_definition(wf_key: str, definition: dict[str, Any]) -> dict[str, Any]:
+    """
+    校验工作流定义并填充默认值
+    Raises:
+        ValueError: 校验失败
+    """
+    if not isinstance(wf_key, str) or not wf_key.strip():
+        raise ValueError("wf_key 必须是且非空字符串")
+    if not all(c.isalnum() or c in ("_", "-") for c in wf_key):
+        raise ValueError("wf_key 只能包含字母、数字、下划线或连字符")
+
+    name = definition.get("name") or wf_key
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("name 必须是且非空字符串")
+
+    steps = definition.get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise ValueError("steps 必须是非空列表")
+
+    validated_steps: list[dict[str, Any]] = []
+    for idx, step in enumerate(steps):
+        if not isinstance(step, dict):
+            raise ValueError(f"steps[{idx}] 必须是字典")
+        step_key = str(step.get("key") or f"{wf_key}-step-{idx}").strip()
+        step_title = str(step.get("title") or f"步骤 {idx + 1}").strip()
+        step_desc = str(step.get("desc") or "").strip()
+        validated_steps.append({
+            "key": step_key[:128],
+            "title": step_title[:128],
+            "desc": step_desc[:256],
+        })
+
+    safe: dict[str, Any] = copy.deepcopy(definition)
+    safe["name"] = name.strip()
+    safe["steps"] = validated_steps
+    safe["nodes"] = len(validated_steps)
+    # 允许前端传入的时间/成功率描述,若为空则使用默认值
+    safe.setdefault("time", "N/A")
+    safe.setdefault("rate", "N/A")
+    safe.setdefault("description", "")
+    return safe
+
+
+def create_workflow_definition(wf_key: str, definition: dict[str, Any]) -> dict[str, Any]:
+    """
+    新增工作流定义
+    Returns:
+        创建后的定义深拷贝
+    """
+    if wf_key in _WORKFLOW_DEFINITIONS_RAW:
+        raise ValueError(f"工作流 '{wf_key}' 已存在")
+
+    safe = _validate_workflow_definition(wf_key, definition)
+    _WORKFLOW_DEFINITIONS_RAW[wf_key] = safe
+    _refresh_valid_keys()
+    logger.info(f"工作流创建成功 | wf_key='{wf_key}' | name='{safe['name']}'")
+    return copy.deepcopy(safe)
+
+
+def update_workflow_definition(wf_key: str, definition: dict[str, Any]) -> dict[str, Any]:
+    """
+    更新工作流定义
+    Returns:
+        更新后的定义深拷贝
+    """
+    if wf_key not in _WORKFLOW_DEFINITIONS_RAW:
+        raise ValueError(f"工作流 '{wf_key}' 不存在")
+
+    safe = _validate_workflow_definition(wf_key, definition)
+    _WORKFLOW_DEFINITIONS_RAW[wf_key] = safe
+    logger.info(f"工作流更新成功 | wf_key='{wf_key}' | name='{safe['name']}'")
+    return copy.deepcopy(safe)
+
+
+def delete_workflow_definition(wf_key: str) -> None:
+    """删除工作流定义"""
+    if wf_key not in _WORKFLOW_DEFINITIONS_RAW:
+        raise ValueError(f"工作流 '{wf_key}' 不存在")
+
+    removed = _WORKFLOW_DEFINITIONS_RAW.pop(wf_key)
+    _refresh_valid_keys()
+    logger.info(f"工作流删除成功 | wf_key='{wf_key}' | name='{removed.get('name')}'")
+
+
 def is_valid_workflow_key(wf_key: str) -> bool:
     """
     快速校验工作流 key 是否合法

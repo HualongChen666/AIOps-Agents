@@ -15,14 +15,18 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 
 from core.workflow_engine import (
     WORKFLOW_DEFINITIONS,
+    create_workflow_definition,
+    delete_workflow_definition,
     get_workflow_definitions,
     simulate_workflow_stream,
+    update_workflow_definition,
 )
 
 logger = logging.getLogger(__name__)
@@ -245,6 +249,119 @@ async def simulate_workflow(wf_key: str, request: Request):
             "Access-Control-Allow-Origin": "*",
         },
     )
+
+
+# ============================================================
+# CRUD: 工作流定义增删改查
+# ============================================================
+class WorkflowStep(BaseModel):
+    key: str = Field(..., min_length=1, max_length=128, description="节点标识")
+    title: str = Field(..., min_length=1, max_length=128, description="节点标题")
+    desc: str = Field(default="", max_length=256, description="节点描述")
+
+
+class WorkflowCreate(BaseModel):
+    wf_key: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$", description="工作流唯一键")
+    name: str = Field(..., min_length=1, max_length=128, description="工作流名称")
+    description: str = Field(default="", max_length=512, description="工作流描述")
+    steps: list[WorkflowStep] = Field(..., min_length=1, description="工作流节点列表")
+    time: str = Field(default="N/A", max_length=32, description="平均耗时展示文本")
+    rate: str = Field(default="N/A", max_length=32, description="成功率展示文本")
+
+
+class WorkflowUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128, description="工作流名称")
+    description: str | None = Field(default=None, max_length=512, description="工作流描述")
+    steps: list[WorkflowStep] | None = Field(default=None, min_length=1, description="工作流节点列表")
+    time: str | None = Field(default=None, max_length=32, description="平均耗时展示文本")
+    rate: str | None = Field(default=None, max_length=32, description="成功率展示文本")
+
+
+def _to_engine_dict(data: WorkflowCreate | WorkflowUpdate) -> dict[str, Any]:
+    """Pydantic 模型转引擎所需的普通 dict"""
+    payload = data.model_dump(exclude_unset=True, exclude={"wf_key"} if isinstance(data, WorkflowCreate) else set())
+    # model_dump 已经递归把 WorkflowStep 转成 dict
+    if "steps" in payload and payload["steps"] is not None:
+        payload["steps"] = [dict(s) for s in payload["steps"]]
+    return payload
+
+
+@router.get(
+    "/definitions/{wf_key}",
+    summary="获取单个工作流定义",
+    responses={
+        200: {"description": "工作流定义"},
+        404: {"description": "工作流不存在"},
+    },
+)
+def get_workflow(
+    wf_key: str = Path(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$"),
+) -> dict[str, Any]:
+    """获取单个工作流定义详情"""
+    definitions = get_workflow_definitions()
+    if wf_key not in definitions:
+        raise HTTPException(status_code=404, detail=f"工作流 '{wf_key}' 不存在")
+    return definitions[wf_key]
+
+
+@router.post(
+    "/definitions",
+    summary="创建工作流定义",
+    status_code=201,
+    responses={
+        201: {"description": "创建成功"},
+        400: {"description": "请求参数错误"},
+    },
+)
+def create_workflow(body: WorkflowCreate) -> dict[str, Any]:
+    """新增一个工作流定义,创建后可立即被仿真执行"""
+    try:
+        payload = _to_engine_dict(body)
+        return create_workflow_definition(body.wf_key, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put(
+    "/definitions/{wf_key}",
+    summary="更新工作流定义",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "请求参数错误"},
+        404: {"description": "工作流不存在"},
+    },
+)
+def update_workflow(
+    body: WorkflowUpdate,
+    wf_key: str = Path(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$"),
+) -> dict[str, Any]:
+    """更新指定工作流定义"""
+    try:
+        payload = _to_engine_dict(body)
+        if not payload:
+            raise HTTPException(status_code=400, detail="请求体不能为空")
+        return update_workflow_definition(wf_key, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "不存在" in str(exc) else 400, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/definitions/{wf_key}",
+    summary="删除工作流定义",
+    responses={
+        200: {"description": "删除成功"},
+        404: {"description": "工作流不存在"},
+    },
+)
+def delete_workflow(
+    wf_key: str = Path(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$"),
+) -> dict[str, str]:
+    """删除指定工作流定义"""
+    try:
+        delete_workflow_definition(wf_key)
+        return {"detail": f"工作流 '{wf_key}' 已删除"}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 # ============================================================
