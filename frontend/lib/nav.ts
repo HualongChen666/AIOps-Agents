@@ -54,7 +54,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/auto-heal', label: '自动自愈' },
       { href: '/workflow', label: '工作流' },
-      { href: '/workflow-orchestration', label: '工作流编排' },
       { href: '/root-cause', label: '根因分析' },
       { href: '/change-management', label: '变更管理' },
       { href: '/chaos', label: '混沌工程' },
