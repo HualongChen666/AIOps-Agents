@@ -13,37 +13,51 @@ const PUBLIC_PATHS = ['/login', '/setup'];
 function useAuthGuard() {
   const pathname = usePathname();
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const authed = isAuthenticated();
+    const v = isAuthenticated();
     const isPublic = PUBLIC_PATHS.includes(pathname);
-    if (!authed && !isPublic) {
+    if (!v && !isPublic) {
       router.replace('/login');
-    } else if (authed && isPublic) {
+    } else if (v && isPublic) {
       router.replace('/');
     }
-    setChecked(true);
+    setAuthed(v);
   }, [pathname, router]);
 
-  return checked;
+  return authed;
+}
+
+function LoadingShell() {
+  return (
+    <html lang="en" className="dark">
+      <head>
+        <title>AIOps Agent 控制台</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body className="h-screen overflow-hidden bg-[var(--dds-slate-10)] text-[var(--dds-gray-90)] flex items-center justify-center">
+        <div className="text-sm text-[var(--dds-gray-70)]">加载中...</div>
+      </body>
+    </html>
+  );
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isPublic = PUBLIC_PATHS.includes(pathname);
-  const checked = useAuthGuard();
+  const authed = useAuthGuard();
 
-  if (!checked) {
-    return (
-      <html lang="en" className="dark">
-        <head>
-          <title>AIOps Agent 控制台</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-        </head>
-        <body className="h-screen overflow-hidden bg-[var(--dds-slate-10)] text-[var(--dds-gray-90)]" />
-      </html>
-    );
+  if (authed === null) {
+    return <LoadingShell />;
+  }
+
+  if (!isPublic && !authed) {
+    return <LoadingShell />;
+  }
+
+  if (isPublic && authed) {
+    return <LoadingShell />;
   }
 
   return (
