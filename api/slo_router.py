@@ -25,6 +25,12 @@ from pydantic import BaseModel
 
 
 from core.metrics_history import metrics_history
+from core.sla_report_storage import (
+    delete_report as delete_sla_report,
+    get_report as get_sla_report,
+    list_reports as list_sla_reports,
+    save_reports as save_sla_reports,
+)
 from core.slo_engine import (
     SLORule,
     create_slo,
@@ -131,10 +137,35 @@ async def create_slo_endpoint(body: SLOCreate) -> dict[str, Any]:
     return _serialize(rule)
 
 
-@router.get("/reports", summary="生成 SLA 合规报告")
-async def list_sla_reports(period: str = "30d") -> dict[str, Any]:
-    """Generate SLA compliance reports for all SLO rules over the given period."""
-    return {"reports": generate_sla_report(period)}
+@router.post("/reports", summary="生成并保存 SLA 合规报告")
+async def create_sla_reports_endpoint(period: str = "30d") -> dict[str, Any]:
+    """Generate SLA reports for the given period and persist them."""
+    generated = generate_sla_report(period)
+    ids = save_sla_reports(generated)
+    return {"reports": list_sla_reports(), "generated_ids": ids}
+
+
+@router.get("/reports", summary="列出已保存的 SLA 合规报告")
+async def list_sla_reports_endpoint(period: Optional[str] = None) -> dict[str, Any]:
+    """Return persisted SLA reports, optionally filtered by period."""
+    return {"reports": list_sla_reports(period=period)}
+
+
+@router.get("/reports/{report_id}", summary="获取单个 SLA 报告详情")
+async def get_sla_report_endpoint(report_id: str) -> dict[str, Any]:
+    """Return a single persisted SLA report."""
+    report = get_sla_report(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="SLA report not found")
+    return report
+
+
+@router.delete("/reports/{report_id}", summary="删除 SLA 合规报告")
+async def delete_sla_report_endpoint(report_id: str) -> dict[str, Any]:
+    """Delete a persisted SLA report."""
+    if delete_sla_report(report_id):
+        return {"ok": True}
+    raise HTTPException(status_code=404, detail="SLA report not found")
 
 
 @router.get("/{slo_id}", summary="获取单个 SLO 详情")

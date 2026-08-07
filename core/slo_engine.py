@@ -399,6 +399,8 @@ def generate_sla_report(period: str = "30d") -> list[dict[str, Any]]:
         reports.append(
             {
                 "id": f"SLA-{rule.id}-{period}",
+                "slo_id": rule.id,
+                "slo_name": rule.name,
                 "service": rule.service,
                 "metric": rule.metric,
                 "period": period,

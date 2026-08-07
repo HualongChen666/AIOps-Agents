@@ -33,12 +33,17 @@ interface SLO {
 
 interface SLAReport {
   id: string;
+  slo_id: string;
+  slo_name: string;
   service: string;
+  metric: string;
   period: string;
   availability: number;
   slaTarget: number;
   compliance: 'compliant' | 'non-compliant';
   incidents: number;
+  aggregation: string;
+  created_at: string;
 }
 
 const emptyForm = { name: '', service: '', metric: '', target: 99.9, window: '30d', alert_threshold: 99.0, aggregation: 'good_ratio' };
@@ -52,6 +57,7 @@ export default function SLOPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [selectedSLO, setSelectedSLO] = useState<SLO | null>(null);
+  const [selectedReport, setSelectedReport] = useState<SLAReport | null>(null);
 
   const loadSlos = async () => {
     try {
@@ -62,18 +68,40 @@ export default function SLOPage() {
     }
   };
 
-  const loadReports = async (p: string) => {
+  const loadReports = async () => {
     try {
-      const resp = await api.get<{ reports: SLAReport[] }>(`/api/v1/slo/reports?period=${p}`);
+      const resp = await api.get<{ reports: SLAReport[] }>('/api/v1/slo/reports');
       setReports(resp.data?.reports || []);
     } catch (err) {
       console.error('加载 SLA 报告失败', err);
     }
   };
 
+  const refreshReports = async () => {
+    setLoading(true);
+    try {
+      await api.post(`/api/v1/slo/reports?period=${period}`);
+      await loadReports();
+    } catch (err) {
+      console.error('生成 SLA 报告失败', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteReport = async (id: string) => {
+    if (!window.confirm('确定删除这条 SLA 报告吗？')) return;
+    try {
+      await api.delete(`/api/v1/slo/reports/${id}`);
+      await loadReports();
+    } catch (err) {
+      console.error('删除 SLA 报告失败', err);
+    }
+  };
+
   useEffect(() => {
     loadSlos();
-    loadReports(period);
+    loadReports();
   }, []);
 
   const openCreate = () => {
@@ -114,7 +142,7 @@ export default function SLOPage() {
       }
       setDialogOpen(false);
       await loadSlos();
-      await loadReports(period);
+      await loadReports();
     } catch (err) {
       console.error('保存 SLO 失败', err);
     }
@@ -126,16 +154,10 @@ export default function SLOPage() {
       await api.delete(`/api/v1/slo/${id}`);
       if (selectedSLO?.id === id) setSelectedSLO(null);
       await loadSlos();
-      await loadReports(period);
+      await loadReports();
     } catch (err) {
       console.error('删除 SLO 失败', err);
     }
-  };
-
-  const refreshReports = async () => {
-    setLoading(true);
-    await loadReports(period);
-    setLoading(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -279,14 +301,20 @@ export default function SLOPage() {
               {reports.map((r) => (
                 <div key={r.id} className="p-4 border rounded-lg flex justify-between items-center">
                   <div>
-                    <div className="font-medium">{r.service}</div>
-                    <div className="text-sm text-gray-500">周期: {r.period} · 事件数: {r.incidents}</div>
+                    <div className="font-medium">{r.slo_name || r.service} <span className="text-gray-400">({r.period})</span></div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(r.created_at).toLocaleString()} · 周期: {r.period} · 事件数: {r.incidents} · 聚合: {r.aggregation}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold">{r.availability}% / {r.slaTarget}%</div>
-                    <Badge className={r.compliance === 'compliant' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                      {r.compliance === 'compliant' ? '合规' : '不合规'}
-                    </Badge>
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      <div className="text-lg font-bold">{r.availability}% / {r.slaTarget}%</div>
+                      <Badge className={r.compliance === 'compliant' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                        {r.compliance === 'compliant' ? '合规' : '不合规'}
+                      </Badge>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setSelectedReport(r)}>详情</Button>
+                    <Button variant="outline" size="sm" onClick={() => deleteReport(r.id)}>删除</Button>
                   </div>
                 </div>
               ))}
@@ -342,6 +370,31 @@ export default function SLOPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
             <Button onClick={saveSLO} disabled={!form.name || !form.service || !form.metric}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedReport} onOpenChange={(open) => { if (!open) setSelectedReport(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>SLA 报告详情</DialogTitle>
+          </DialogHeader>
+          {selectedReport && (
+            <div className="space-y-2 text-sm">
+              <div><span className="text-gray-500">SLO:</span> {selectedReport.slo_name} ({selectedReport.slo_id})</div>
+              <div><span className="text-gray-500">服务:</span> {selectedReport.service}</div>
+              <div><span className="text-gray-500">指标:</span> {selectedReport.metric}</div>
+              <div><span className="text-gray-500">周期:</span> {selectedReport.period}</div>
+              <div><span className="text-gray-500">聚合:</span> {selectedReport.aggregation}</div>
+              <div><span className="text-gray-500">可用性:</span> {selectedReport.availability}%</div>
+              <div><span className="text-gray-500">目标:</span> {selectedReport.slaTarget}%</div>
+              <div><span className="text-gray-500">合规:</span> {selectedReport.compliance === 'compliant' ? '合规' : '不合规'}</div>
+              <div><span className="text-gray-500">事件数:</span> {selectedReport.incidents}</div>
+              <div><span className="text-gray-500">生成时间:</span> {new Date(selectedReport.created_at).toLocaleString()}</div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedReport(null)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
