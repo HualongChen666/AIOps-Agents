@@ -116,17 +116,7 @@ export function SideNav() {
         </div>
       )}
 
-      {/* Footer status */}
-      <div className="shrink-0 p-4 text-[11px] text-[var(--dds-slate-30)] border-t border-[var(--dds-slate-70)] bg-[var(--dds-slate-90)]">
-        <div className="flex justify-between mb-1">
-          <span>前端门户</span>
-          <span className="font-medium text-white">:8000</span>
-        </div>
-        <div className="flex justify-between">
-          <span>后端 API</span>
-          <span className="font-medium text-white">:3000</span>
-        </div>
-      </div>
+
     </aside>
   );
 }
