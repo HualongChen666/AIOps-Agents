@@ -1386,15 +1386,18 @@ async def lifespan(app: FastAPI):
         _logger.info("Compliance Manager initialized and started (Security Compliance Layer)")
 
         # Initialize Security Testing System (Security Testing Layer)
-        security_testing_system = await _safe_init(
-            lambda: get_security_testing_system(), "Security Testing System", timeout=2.0
-        )
-        await _safe_init(
-            lambda: security_testing_system.start_auto_scan_loop(),
-            "Security testing auto scan",
-            timeout=5.0,
-        )
-        _logger.info("Security Testing System initialized and started (Security Testing Layer)")
+        if os.environ.get("AIOPS_DISABLE_SECURITY_SCAN") != "1":
+            security_testing_system = await _safe_init(
+                lambda: get_security_testing_system(), "Security Testing System", timeout=2.0
+            )
+            await _safe_init(
+                lambda: security_testing_system.start_auto_scan_loop(),
+                "Security testing auto scan",
+                timeout=5.0,
+            )
+            _logger.info("Security Testing System initialized and started (Security Testing Layer)")
+        else:
+            _logger.info("Security Testing System skipped (AIOPS_DISABLE_SECURITY_SCAN=1)")
 
         # Initialize Vulnerability Manager (Vulnerability Management Layer)
         vulnerability_manager = await _safe_init(
