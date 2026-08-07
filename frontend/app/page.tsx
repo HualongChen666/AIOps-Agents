@@ -47,11 +47,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Welcome / instruction */}
-      <div className="bg-[var(--dds-blue-10)] border border-[var(--dds-blue-30)] rounded-lg p-4 text-sm text-[var(--dds-blue-80)]">
-        左侧为 DDS 风格功能导航，点击任意菜单即可在右侧主区域加载对应功能页面。
-      </div>
-
       {/* Category cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {navGroups.map((group) => (
