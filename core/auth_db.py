@@ -33,6 +33,14 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+class TokenBlacklist(Base):
+    __tablename__ = "token_blacklist"
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String, unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)

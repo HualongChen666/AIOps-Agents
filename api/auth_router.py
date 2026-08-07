@@ -11,11 +11,14 @@ from sqlalchemy.orm import Session
 from core.auth_db import User, get_session
 from core.auth_service import (
     create_access_token,
+    decode_token,
     get_current_user,
     hash_password,
     max_admin_check,
+    oauth2_scheme,
     verify_password,
 )
+from core.token_blacklist import blacklist_jti
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -107,3 +110,19 @@ def change_password(
     db.commit()
     db.refresh(merged)
     return {"detail": "Password updated"}
+
+
+@router.post("/logout")
+def logout(
+    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+):
+    payload = decode_token(token)
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if jti:
+        from datetime import datetime
+
+        expires_at = datetime.utcfromtimestamp(exp) if exp else None
+        blacklist_jti(jti, expires_at)
+    return {"detail": "Logged out"}

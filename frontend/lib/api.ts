@@ -85,8 +85,13 @@ export async function login(username: string, password: string) {
   return res.data;
 }
 
-export function logout() {
+export async function logout() {
   if (typeof window !== 'undefined') {
+    try {
+      await instance.post('/api/v1/auth/logout');
+    } catch {
+      // ignore: always clear local session even if server call fails
+    }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
     removeCookie('auth_token');

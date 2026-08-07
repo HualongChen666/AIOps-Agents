@@ -2,8 +2,9 @@
 """Authentication and authorization helpers."""
 
 import jwt
+import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -27,6 +28,7 @@ from core.auth_db import (
     UserAssetPermission,
     get_session,
 )
+from core.token_blacklist import blacklist_jti, is_blacklisted
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -50,6 +52,7 @@ def create_access_token(data: dict) -> str:
     expire = now + timedelta(minutes=config.JWT_ACCESS_EXPIRE_MINUTES)
     to_encode.update(
         {
+            "jti": str(uuid.uuid4()),
             "exp": expire,
             "iat": now,
             "iss": config.JWT_ISSUER,
@@ -63,14 +66,12 @@ def create_access_token(data: dict) -> str:
     )
 
 
-def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
+def decode_token(token: str) -> dict[str, Any]:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if not token:
-        raise credentials_exception
     try:
         payload = jwt.decode(
             token,
@@ -79,11 +80,30 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
             issuer=config.JWT_ISSUER,
             audience=config.JWT_AUDIENCE,
         )
-        username = payload.get("sub")
-        if not isinstance(username, str):
-            raise credentials_exception
     except Exception as exc:
         raise credentials_exception from exc
+    jti = payload.get("jti")
+    if jti and is_blacklisted(jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return payload
+
+
+def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if not token:
+        raise credentials_exception
+    payload = decode_token(token)
+    username = payload.get("sub")
+    if not isinstance(username, str):
+        raise credentials_exception
 
     db = SessionLocal()
     try:
