@@ -141,7 +141,7 @@ async def _get_current_user_or_internal(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return await get_current_user(token)
+    return get_current_user(token)
 
 
 @router.get("/", summary="列出所有 SLO 及其实时状态")
