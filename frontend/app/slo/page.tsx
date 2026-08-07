@@ -46,6 +46,11 @@ interface SLAReport {
   created_at: string;
 }
 
+interface AuthUser {
+  role: string;
+  permissions?: string[];
+}
+
 const emptyForm = { name: '', service: '', metric: '', target: 99.9, window: '30d', alert_threshold: 99.0, aggregation: 'good_ratio' };
 
 export default function SLOPage() {
@@ -58,6 +63,7 @@ export default function SLOPage() {
   const [form, setForm] = useState(emptyForm);
   const [selectedSLO, setSelectedSLO] = useState<SLO | null>(null);
   const [selectedReport, setSelectedReport] = useState<SLAReport | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   const loadSlos = async () => {
     try {
@@ -74,6 +80,15 @@ export default function SLOPage() {
       setReports(resp.data?.reports || []);
     } catch (err) {
       console.error('加载 SLA 报告失败', err);
+    }
+  };
+
+  const loadUser = async () => {
+    try {
+      const resp = await api.get<AuthUser>('/api/v1/auth/me');
+      setUser(resp.data);
+    } catch (err) {
+      console.error('加载用户信息失败', err);
     }
   };
 
@@ -102,6 +117,7 @@ export default function SLOPage() {
   useEffect(() => {
     loadSlos();
     loadReports();
+    loadUser();
   }, []);
 
   const openCreate = () => {
@@ -175,11 +191,19 @@ export default function SLOPage() {
     return 'text-red-600';
   };
 
+  const isPrivileged = user?.role === 'admin' || user?.role === 'operator';
+  const canEdit = (service: string) =>
+    isPrivileged ||
+    (user?.role === 'business' && user?.permissions?.includes(service));
+  const canEditAny = () =>
+    isPrivileged ||
+    (user?.role === 'business' && (user?.permissions?.length ?? 0) > 0);
+
   return (
     <main className="p-6 space-y-6 bg-gray-100 min-h-screen">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">SLO/SLA 管理</h1>
-        <Button onClick={openCreate}>创建 SLO</Button>
+        {canEditAny() && <Button onClick={openCreate}>创建 SLO</Button>}
       </div>
 
       <section>
@@ -213,8 +237,12 @@ export default function SLOPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setSelectedSLO(slo)}>详情</Button>
-                  <Button variant="outline" size="sm" onClick={() => openEdit(slo)}>编辑</Button>
-                  <Button variant="outline" size="sm" onClick={() => deleteSLO(slo.id)}>删除</Button>
+                  {canEdit(slo.service) && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => openEdit(slo)}>编辑</Button>
+                      <Button variant="outline" size="sm" onClick={() => deleteSLO(slo.id)}>删除</Button>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -245,9 +273,11 @@ export default function SLOPage() {
                 <option value="30d">最近 30 天</option>
                 <option value="90d">最近 90 天</option>
               </Select>
-              <Button variant="outline" size="sm" onClick={refreshReports} disabled={loading}>
-                {loading ? '生成中...' : '生成 SLA 报告'}
-              </Button>
+              {canEditAny() && (
+                <Button variant="outline" size="sm" onClick={refreshReports} disabled={loading}>
+                  {loading ? '生成中...' : '生成 SLA 报告'}
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -314,7 +344,9 @@ export default function SLOPage() {
                       </Badge>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => setSelectedReport(r)}>详情</Button>
-                    <Button variant="outline" size="sm" onClick={() => deleteReport(r.id)}>删除</Button>
+                    {canEdit(r.service) && (
+                      <Button variant="outline" size="sm" onClick={() => deleteReport(r.id)}>删除</Button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -112,6 +112,7 @@ export const navGroups: NavGroup[] = [
     title: '后端与系统',
     items: [
       { href: '/settings', label: '系统设置' },
+      { href: '/users', label: '用户管理' },
       { href: 'http://127.0.0.1:3000/docs', label: 'API 文档', target: '_blank' },
     ],
   },

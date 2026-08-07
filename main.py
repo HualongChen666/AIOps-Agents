@@ -47,6 +47,10 @@ from api.sse_router import router as sse_router
 from api.stats_router import router as stats_router
 from api.teams_router import router as teams_router
 from api.unified_repair_router import router as unified_repair_router
+from api.assets_router import router as assets_router
+from api.auth_router import router as auth_router
+from api.users_router import router as users_router
+from core.auth_db import init_db
 from api.user_router import router as user_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
@@ -1689,6 +1693,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _logger.warning(f"Failed to start alert monitor loop: {e}")
 
+    try:
+        await _safe_init_core(lambda: init_db(), "auth database init")
+    except Exception as e:
+        _logger.warning(f"Auth database init failed: {e}")
+
     yield
 
     # Shutdown
@@ -1998,6 +2007,9 @@ CORE_ROUTERS = [
     api_performance_router,
     cost_router,
     user_router,
+    auth_router,
+    users_router,
+    assets_router,
     sso_router,
     slack_router,
     teams_router,
