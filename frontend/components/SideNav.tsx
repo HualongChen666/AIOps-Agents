@@ -1,17 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { navGroups } from '@/lib/nav';
+import { logout } from '@/lib/api';
+
+interface UserInfo {
+  username: string;
+  role: string;
+}
 
 export function SideNav() {
   const pathname = usePathname();
+  const [user, setUser] = useState<UserInfo | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     navGroups.forEach((g) => (initial[g.title] = true));
     return initial;
   });
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw && raw !== 'undefined') {
+        const parsed = JSON.parse(raw);
+        setUser({ username: parsed.username || '', role: parsed.role || '' });
+      }
+    } catch {
+      setUser(null);
+    }
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
@@ -65,8 +84,8 @@ export function SideNav() {
                       key={item.href}
                       href={item.href}
                       className={`flex items-center px-3 py-2 rounded-md text-sm transition-colors border-l-4 -ml-[10px] pl-[18px] ${isActive(item.href)
-                          ? 'bg-[var(--dds-slate-70)] text-white border-[var(--dds-blue-60)]'
-                          : 'border-transparent text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white'
+                        ? 'bg-[var(--dds-slate-70)] text-white border-[var(--dds-blue-60)]'
+                        : 'border-transparent text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white'
                         }`}
                     >
                       {item.label}
@@ -78,6 +97,24 @@ export function SideNav() {
           </div>
         ))}
       </div>
+
+      {/* User / logout */}
+      {user && (
+        <div className="shrink-0 p-3 border-t border-[var(--dds-slate-70)] bg-[var(--dds-slate-90)]">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-white truncate" title={user.username}>
+              {user.username}
+              <span className="ml-1 text-[10px] text-[var(--dds-slate-30)]">({user.role})</span>
+            </div>
+          </div>
+          <button
+            onClick={async () => { await logout(); }}
+            className="w-full px-3 py-1.5 rounded text-xs text-white bg-[var(--dds-red-60)] hover:bg-[var(--dds-red-70)] transition-colors"
+          >
+            退出登录
+          </button>
+        </div>
+      )}
 
       {/* Footer status */}
       <div className="shrink-0 p-4 text-[11px] text-[var(--dds-slate-30)] border-t border-[var(--dds-slate-70)] bg-[var(--dds-slate-90)]">
