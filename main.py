@@ -2009,7 +2009,6 @@ CORE_ROUTERS = [
     guard_router,
     api_performance_router,
     cost_router,
-    user_router,
     auth_router,
     users_router,
     assets_router,
