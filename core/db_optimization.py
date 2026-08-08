@@ -592,92 +592,195 @@ async def run_comprehensive_optimization() -> Dict[str, Any]:
     return results
 
 
-# component functions for testing compatibility
+# component functions backed by in-memory state (moves from hardcoded stubs)
+import copy
+import statistics
+from collections import deque
+
+_OPTIMIZATION_STATE = {
+    "enabled": True,
+    "level": "basic",
+    "connection_pool": {"max_connections": 100, "min_connections": 10, "active": 0, "idle": 0},
+    "query_cache": {"enabled": True, "size": 1000, "hits": 0, "misses": 0},
+    "slow_queries": deque(maxlen=1000),
+}
+
+_SLOW_QUERY_THRESHOLD_MS = 100.0
+
+
+def _cache_hit_rate() -> float:
+    hits = _OPTIMIZATION_STATE["query_cache"]["hits"]
+    misses = _OPTIMIZATION_STATE["query_cache"]["misses"]
+    total = hits + misses
+    return round(hits / total, 4) if total else 0.0
+
+
 def clear_slow_queries() -> dict:
     """Clear slow query log component"""
-    return {"status": "success", "cleared_count": 0}
+    count = len(_OPTIMIZATION_STATE["slow_queries"])
+    _OPTIMIZATION_STATE["slow_queries"].clear()
+    return {"status": "success", "cleared_count": count}
 
 
 def configure_db_optimization(config: dict) -> dict:
     """Configure database optimization component"""
-    return {"status": "success", "config": config}
+    _OPTIMIZATION_STATE["enabled"] = bool(config.get("enabled", _OPTIMIZATION_STATE["enabled"]))
+    _OPTIMIZATION_STATE["level"] = config.get("level", _OPTIMIZATION_STATE["level"])
+    if "connection_pool" in config:
+        _OPTIMIZATION_STATE["connection_pool"].update(config["connection_pool"])
+    if "query_cache" in config:
+        _OPTIMIZATION_STATE["query_cache"].update(config["query_cache"])
+    return {"status": "success", "config": copy.deepcopy(_OPTIMIZATION_STATE)}
 
 
 def get_connection_pool_config() -> dict:
     """Get connection pool configuration component"""
-    return {"max_connections": 100, "min_connections": 10}
+    return copy.deepcopy(_OPTIMIZATION_STATE["connection_pool"])
 
 
 def get_connection_pool_statistics() -> dict:
     """Get connection pool statistics component"""
-    return {"active_connections": 5, "idle_connections": 3}
+    cfg = _OPTIMIZATION_STATE["connection_pool"]
+    return {
+        "active_connections": cfg.get("active", 0),
+        "idle_connections": cfg.get("idle", 0),
+        "max_connections": cfg.get("max_connections", 100),
+        "utilization_rate": round(cfg.get("active", 0) / max(cfg.get("max_connections", 100), 1), 4),
+    }
 
 
 def get_db_optimization_config() -> dict:
     """Get database optimization configuration component"""
-    return {"enabled": True, "level": "basic"}
+    return {"enabled": _OPTIMIZATION_STATE["enabled"], "level": _OPTIMIZATION_STATE["level"]}
 
 
 def get_performance_summary() -> dict:
     """Get performance summary component"""
-    return {"query_time_avg": 0.1, "throughput": 1000}
+    slow = list(_OPTIMIZATION_STATE["slow_queries"])
+    times = [q["execution_time"] for q in slow if q.get("execution_time")]
+    avg_time = round(statistics.mean(times), 4) if times else 0.0
+    return {
+        "query_time_avg": avg_time,
+        "slow_query_count": len(slow),
+        "cache_hit_rate": _cache_hit_rate(),
+        "throughput": len(slow) + _OPTIMIZATION_STATE["query_cache"]["hits"] + _OPTIMIZATION_STATE["query_cache"]["misses"],
+    }
 
 
 def get_query_cache_config() -> dict:
     """Get query cache configuration component"""
-    return {"enabled": True, "size": 1000}
+    cfg = _OPTIMIZATION_STATE["query_cache"]
+    return {"enabled": cfg["enabled"], "size": cfg["size"]}
 
 
 def get_query_cache_statistics() -> dict:
     """Get query cache statistics component"""
-    return {"hits": 100, "misses": 10, "hit_rate": 0.9}
+    cfg = _OPTIMIZATION_STATE["query_cache"]
+    return {
+        "hits": cfg["hits"],
+        "misses": cfg["misses"],
+        "hit_rate": _cache_hit_rate(),
+    }
 
 
 def get_slow_queries(limit: int = 100) -> list:
     """Get slow queries component"""
-    return []
+    slow = list(_OPTIMIZATION_STATE["slow_queries"])
+    return copy.deepcopy(slow[:limit])
 
 
 def is_db_optimization_enabled() -> bool:
     """Check if database optimization is enabled component"""
-    return True
+    return _OPTIMIZATION_STATE["enabled"]
 
 
 def reset_query_cache() -> dict:
     """Reset query cache component"""
+    _OPTIMIZATION_STATE["query_cache"]["hits"] = 0
+    _OPTIMIZATION_STATE["query_cache"]["misses"] = 0
     return {"status": "success"}
 
 
 def update_query_cache_config(config: dict) -> dict:
     """Update query cache configuration component"""
-    return {"status": "success", "config": config}
+    _OPTIMIZATION_STATE["query_cache"]["enabled"] = bool(
+        config.get("enabled", _OPTIMIZATION_STATE["query_cache"]["enabled"])
+    )
+    _OPTIMIZATION_STATE["query_cache"]["size"] = int(
+        config.get("size", _OPTIMIZATION_STATE["query_cache"]["size"])
+    )
+    return {"status": "success", "config": get_query_cache_config()}
 
 
 def record_connection_pool_usage(pool_size: int, active: int) -> dict:
     """Record connection pool usage component"""
+    _OPTIMIZATION_STATE["connection_pool"]["active"] = active
+    _OPTIMIZATION_STATE["connection_pool"]["idle"] = max(0, pool_size - active)
     return {"status": "success", "pool_size": pool_size, "active": active}
 
 
 def record_query_cache_hit(query: str) -> dict:
     """Record query cache hit component"""
-    return {"status": "success", "query": query}
+    _OPTIMIZATION_STATE["query_cache"]["hits"] += 1
+    return {"status": "success", "query": query, "hit_rate": _cache_hit_rate()}
 
 
 def record_query_cache_miss(query: str) -> dict:
     """Record query cache miss component"""
-    return {"status": "success", "query": query}
+    _OPTIMIZATION_STATE["query_cache"]["misses"] += 1
+    return {"status": "success", "query": query, "hit_rate": _cache_hit_rate()}
 
 
 def record_slow_query(query: str, execution_time: float) -> dict:
     """Record slow query component"""
-    return {"status": "success", "query": query, "execution_time": execution_time}
+    entry = {
+        "query": query,
+        "execution_time": execution_time,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "is_slow": execution_time > _SLOW_QUERY_THRESHOLD_MS,
+    }
+    _OPTIMIZATION_STATE["slow_queries"].appendleft(entry)
+    return {"status": "success", "query": query, "execution_time": execution_time, "is_slow": entry["is_slow"]}
 
 
 def reset_query_cache_statistics() -> dict:
     """Reset query cache statistics component"""
+    _OPTIMIZATION_STATE["query_cache"]["hits"] = 0
+    _OPTIMIZATION_STATE["query_cache"]["misses"] = 0
     return {"status": "success"}
 
 
 def suggest_optimizations() -> list:
     """Suggest database optimizations component"""
-    return []
+    suggestions = []
+    if not _OPTIMIZATION_STATE["enabled"]:
+        suggestions.append("Database optimization is currently disabled.")
+        return suggestions
+
+    slow = list(_OPTIMIZATION_STATE["slow_queries"])
+    if not slow:
+        suggestions.append("No slow queries recorded yet; collect more metrics first.")
+        return suggestions
+
+    # Simple heuristic: if a query appears often, suggest an index on WHERE columns
+    from collections import Counter
+
+    query_keywords = Counter()
+    for q in slow:
+        text = q.get("query", "")
+        for token in re.findall(r"where\s+(\w+)", text, re.IGNORECASE):
+            query_keywords[token.lower()] += 1
+
+    for column, count in query_keywords.most_common(5):
+        if count >= 2:
+            suggestions.append(f"Consider adding an index on column '{column}' (appears in {count} slow queries).")
+
+    if _cache_hit_rate() < 0.5:
+        suggestions.append("Query cache hit rate is low; review cache size and TTL settings.")
+
+    cfg = _OPTIMIZATION_STATE["connection_pool"]
+    utilization = cfg.get("active", 0) / max(cfg.get("max_connections", 100), 1)
+    if utilization > 0.8:
+        suggestions.append("Connection pool utilization is high; consider increasing max_connections.")
+
+    return suggestions

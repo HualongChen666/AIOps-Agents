@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -9,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from config import OIDC_REDIRECT_URI as DEFAULT_OIDC_REDIRECT_URI
-from core.authentication import UserInDB, create_access_token  # type: ignore
+from core.authentication import UserInDB, create_access_token, get_user  # type: ignore
 
 # ---------------------------------------------------------------------------
 # Configuration – OIDC / OAuth2 parameters (must be provided in .env)
@@ -117,10 +118,11 @@ async def auth_callback(
     # Create internal user representation – if not in fake DB, add it  # noqa: E501
     # on‑the‑fly (read‑only for demo)
     user: Optional[UserInDB] = None
-    if "_fake_users_db" in globals():
-        # get_user is async, but we're in a sync context, so we'll skip it for now
-        # and always create a new user for SSO
-        pass
+    try:
+        user = await get_user(username)
+    except Exception as exc:
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not load user {username} from database: {exc}")
     if not user:
         # Dynamically create a UserInDB entry (no password) for SSO users
         user = UserInDB(

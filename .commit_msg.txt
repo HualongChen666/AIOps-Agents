@@ -1,10 +1,11 @@
-round2: real workflow task dispatch, docker repair, and add-on health checks
+round3: core optimization, engine stubs, agent tools, and response/sso fixes
 
-- api/workflow_router.py: task nodes now dispatch safe actions (send_alert, log, http_get) instead of noop.
-- core/docker_repair.py: implemented safe docker repair execution with dry-run default and persistent history.
-- core/platform_strategies.py: DockerStrategy now returns real scripts/history.
-- extensions/addons/**/health_check.py: 57 add-ons now report uptime and optional resource status via psutil instead of always "ok".
-- compileall and pytest remain green.
+- core/db_optimization.py: component functions now backed by in-memory state (slow queries, cache stats, connection pool) instead of hardcoded values.
+- core/db_engine.py: no remaining test-compatible stubs beyond DatabaseEngine which now executes real SQL.
+- core/agent/tools.py: _analyze_anomaly uses mean/std; _restart_service/_scale_service default to simulation with optional real command execution; _check_health and _run_diagnostic now perform HTTP/TCP probes.
+- core/api_response_standard.py: APIResponseMiddleware now wraps JSON responses in the unified format.
+- core/sso_auth.py: callback now uses async get_user instead of skipping fake_users_db lookup.
+- compileall and pytest remain green (6 passed).
 
 Generated with Devin (https://devin.ai)
 

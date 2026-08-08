@@ -960,13 +960,32 @@ class ToolRegistry:
         threshold: float = 0.5,
         method: str = "transformer",
     ) -> Dict[str, Any]:
-        """异常检测"""
+        """异常检测：基于均值/标准差的简单统计异常检测。"""
+        import statistics
+
         logger.info(f"Analyzing anomaly with {method}")
-        # 实际实现应调用异常检测模型
+        if not data:
+            return {"method": method, "is_anomaly": False, "anomaly_score": 0.0, "reason": "empty data"}
+
+        values = [float(v) for v in data]
+        mean = statistics.mean(values)
+        stdev = statistics.stdev(values) if len(values) > 1 else 0.0
+        latest = values[-1]
+        score = abs((latest - mean) / max(stdev, 1e-9))
+
+        if method == "threshold":
+            is_anomaly = latest > threshold
+            score = latest
+        else:
+            is_anomaly = score > threshold
+
         return {
             "method": method,
-            "is_anomaly": max(data) > threshold,
-            "anomaly_score": max(data),
+            "is_anomaly": is_anomaly,
+            "anomaly_score": round(score, 4),
+            "mean": round(mean, 4),
+            "std": round(stdev, 4),
+            "latest": round(latest, 4),
         }
 
     async def _root_cause_analysis(
@@ -1054,14 +1073,49 @@ class ToolRegistry:
         }
 
     def _restart_service(self, service_name: str, timeout: int = 30) -> Dict[str, Any]:
-        """重启服务"""
+        """重启服务（默认模拟，仅 force=true 时执行真实命令）"""
+        import shutil
+        import subprocess
+
         logger.info(f"Restarting service {service_name}")
-        # 实际实现应调用服务管理接口
-        return {
-            "service": service_name,
-            "status": "restarted",
+        safe_service = observability_client._safe_label(service_name)
+
+        result = {
+            "service": safe_service,
+            "status": "simulated",
             "timeout": timeout,
+            "executed": False,
         }
+        if not shutil.which("systemctl"):
+            result["note"] = "systemctl not available; restart simulated"
+            return result
+
+        active = subprocess.run(
+            ["systemctl", "is-active", safe_service],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        result["is_active"] = active.returncode == 0
+
+        # By default we do not execute destructive commands unless explicitly forced.
+        if self._env_safe_bool("FORCE_REPAIR_COMMANDS"):
+            proc = subprocess.run(
+                ["systemctl", "restart", safe_service],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+            result["executed"] = True
+            result["status"] = "restarted" if proc.returncode == 0 else "failed"
+            result["returncode"] = proc.returncode
+            result["stderr"] = proc.stderr[:500]
+        else:
+            result["note"] = "Set FORCE_REPAIR_COMMANDS=1 to execute real restart"
+
+        return result
 
     def _scale_service(
         self,
@@ -1069,36 +1123,98 @@ class ToolRegistry:
         replicas: int,
         strategy: str = "rolling",
     ) -> Dict[str, Any]:
-        """扩缩容服务"""
+        """扩缩容服务（默认模拟，仅 force=true 时执行真实命令）"""
+        import shutil
+        import subprocess
+
         logger.info(f"Scaling service {service_name} to {replicas} replicas")
-        # 实际实现应调用扩缩容接口
-        return {
-            "service": service_name,
+        safe_service = observability_client._safe_label(service_name)
+
+        result = {
+            "service": safe_service,
             "replicas": replicas,
             "strategy": strategy,
-            "status": "scaled",
+            "status": "simulated",
+            "executed": False,
         }
+        if not shutil.which("kubectl"):
+            result["note"] = "kubectl not available; scale simulated"
+            return result
+
+        if self._env_safe_bool("FORCE_REPAIR_COMMANDS"):
+            proc = subprocess.run(
+                ["kubectl", "scale", f"deployment/{safe_service}", f"--replicas={replicas}"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            result["executed"] = True
+            result["status"] = "scaled" if proc.returncode == 0 else "failed"
+            result["returncode"] = proc.returncode
+            result["stderr"] = proc.stderr[:500]
+        else:
+            result["note"] = "Set FORCE_REPAIR_COMMANDS=1 to execute real scale"
+
+        return result
+
+    def _env_safe_bool(self, name: str) -> bool:
+        import os
+
+        return os.environ.get(name, "").lower() in ("1", "true", "yes")
 
     def _check_health(self, target: str) -> Dict[str, Any]:
-        """健康检查"""
+        """健康检查：支持 HTTP URL、host:port 或 host"""
         logger.info(f"Checking health of {target}")
-        # 实际实现应调用健康检查接口
-        return {
-            "target": target,
-            "healthy": True,
-            "status": "ok",
-        }
+
+        # If target looks like an HTTP endpoint, try a GET.
+        if target.startswith("http://") or target.startswith("https://"):
+            try:
+                import httpx
+
+                resp = httpx.get(target, timeout=10, follow_redirects=True)
+                healthy = resp.status_code < 500
+                return {
+                    "target": target,
+                    "healthy": healthy,
+                    "status_code": resp.status_code,
+                    "status": "ok" if healthy else "unhealthy",
+                }
+            except Exception as exc:
+                return {"target": target, "healthy": False, "status": "error", "error": str(exc)}
+
+        # If target has a port, try a TCP socket connect.
+        import socket
+
+        host = target
+        port = 80
+        if ":" in target:
+            parts = target.rsplit(":", 1)
+            try:
+                host, port = parts[0], int(parts[1])
+            except ValueError:
+                host = target
+
+        try:
+            with socket.create_connection((host, port), timeout=5):
+                return {"target": target, "healthy": True, "status": "ok"}
+        except Exception as exc:
+            return {"target": target, "healthy": False, "status": "error", "error": str(exc)}
 
     def _run_diagnostic(self, target: str, type: str = "basic") -> Dict[str, Any]:
-        """运行诊断"""
+        """运行基础诊断：健康检查 + 简单指标采集"""
         logger.info(f"Running {type} diagnostic for {target}")
-        # 实际实现应调用诊断工具
-        return {
+        health = self._check_health(target)
+        metrics = self._collect_service_metrics(target) if hasattr(self, "_collect_service_metrics") else {}
+        result = {
             "target": target,
             "type": type,
-            "healthy": True,
-            "status": "ok",
+            "healthy": health.get("healthy", False),
+            "health": health,
+            "metrics_sample": {k: v for k, v in metrics.items() if k not in ("source", "service")},
+            "status": "ok" if health.get("healthy") else "unhealthy",
         }
+        return result
 
     def _collect_service_metrics(
         self,

@@ -6,6 +6,7 @@ Unified API Response Module
 提供标准化的API响应格式和错误处理。
 """
 
+import json
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
@@ -346,16 +347,72 @@ def create_paginated_response(items: List[Any], total: int, page: int, size: int
 
 
 class APIResponseMiddleware:
-    """API响应中间件，自动包装响应"""
+    """API响应中间件，自动包装JSON响应为标准格式"""
 
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            # 包装响应
-            pass
-        await self.app(scope, receive, send)
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        start_message: Dict[str, Any] = {}
+        body_parts: List[bytes] = []
+
+        async def wrapped_send(message: Dict[str, Any]):
+            if message["type"] == "http.response.start":
+                start_message.update(message)
+                return
+            if message["type"] == "http.response.body":
+                body_parts.append(message.get("body", b""))
+                if message.get("more_body", False):
+                    return
+
+            # 如果 body 接收完成，统一包装
+            raw_body = b"".join(body_parts)
+            body_parts.clear()
+
+            status_code = start_message.get("status", 200)
+            headers = {k.decode().lower(): v.decode() for k, v in start_message.get("headers", [])}
+            is_json = "application/json" in headers.get("content-type", "")
+
+            if is_json and raw_body:
+                try:
+                    payload = json.loads(raw_body.decode("utf-8"))
+                except Exception:
+                    payload = None
+
+                if isinstance(payload, dict) and ("code" in payload or "data" in payload):
+                    # 已经包装过的响应，直接透传
+                    pass
+                elif payload is not None and 200 <= status_code < 300:
+                    raw_body = json.dumps(create_success_response(payload), ensure_ascii=False).encode("utf-8")
+                elif payload is not None and status_code >= 400:
+                    message_text = payload.get("detail") if isinstance(payload, dict) else str(payload)
+                    raw_body = json.dumps(
+                        create_error_response("ERROR", f"HTTP {status_code}", message_text), ensure_ascii=False
+                    ).encode("utf-8")
+
+            headers_list = list(start_message.get("headers", []))
+            # 更新 content-length 如果存在
+            for idx, (k, v) in enumerate(headers_list):
+                if k.decode().lower() == "content-length":
+                    headers_list[idx] = (k, str(len(raw_body)).encode())
+                    break
+
+            await send({
+                "type": "http.response.start",
+                "status": start_message.get("status", 200),
+                "headers": headers_list,
+            })
+            await send({
+                "type": "http.response.body",
+                "body": raw_body,
+                "more_body": False,
+            })
+
+        await self.app(scope, receive, wrapped_send)
 
 
 # 在exception_handler.py中添加对统一响应的支持
