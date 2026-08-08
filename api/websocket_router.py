@@ -32,7 +32,7 @@ async def websocket_realtime(websocket: WebSocket):
             # 回复发送者
             await manager.send_personal_message({"status": "received"}, websocket)
     except WebSocketDisconnect:
-        await manager.disconnect(websocket, "realtime")
+        manager.disconnect(websocket, "realtime")
         logger.info("WebSocket disconnected")
 
 
@@ -49,7 +49,7 @@ async def websocket_alerts(websocket: WebSocket):
                 message = {"raw": data}
             await manager.send_personal_message({"type": "ack", "received": message}, websocket)
     except WebSocketDisconnect:
-        await manager.disconnect(websocket, "alerts")
+        manager.disconnect(websocket, "alerts")
         logger.info("Alerts WebSocket disconnected")
 
 
@@ -72,5 +72,5 @@ async def websocket_metrics(websocket: WebSocket):
 
             await asyncio.sleep(5)
     except WebSocketDisconnect:
-        await manager.disconnect(websocket, "metrics")
+        manager.disconnect(websocket, "metrics")
         logger.info("Metrics WebSocket disconnected")

@@ -1703,6 +1703,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _logger.warning(f"Auth database init failed: {e}")
 
+    try:
+        from core.db_engine import async_init_db
+
+        await _safe_init_core(async_init_db, "async database init")
+    except Exception as e:
+        _logger.warning(f"Async database init failed: {e}")
+
     yield
 
     # Shutdown
