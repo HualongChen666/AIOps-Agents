@@ -1,0 +1,11 @@
+round2: real workflow task dispatch, docker repair, and add-on health checks
+
+- api/workflow_router.py: task nodes now dispatch safe actions (send_alert, log, http_get) instead of noop.
+- core/docker_repair.py: implemented safe docker repair execution with dry-run default and persistent history.
+- core/platform_strategies.py: DockerStrategy now returns real scripts/history.
+- extensions/addons/**/health_check.py: 57 add-ons now report uptime and optional resource status via psutil instead of always "ok".
+- compileall and pytest remain green.
+
+Generated with Devin (https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

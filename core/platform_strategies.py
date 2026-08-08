@@ -125,13 +125,18 @@ class DockerStrategy(PlatformStrategy):
     """Docker platform repair strategy."""
 
     def __init__(self):
-        from core.docker_repair import execute_repair_sync
+        from core.docker_repair import (
+            execute_repair_sync,
+            get_docker_repair_history,
+            get_docker_repair_scripts,
+        )
 
         self._execute_repair = execute_repair_sync
+        self._get_scripts = get_docker_repair_scripts
+        self._get_history = get_docker_repair_history
 
     def get_scripts(self) -> Dict[str, Any]:
-        # Docker scripts are not centrally managed like Windows/Linux
-        return {}
+        return self._get_scripts()
 
     async def execute_repair(
         self, script_key: str, host_name: str, params: Dict[str, str]
@@ -139,8 +144,7 @@ class DockerStrategy(PlatformStrategy):
         return await self._execute_repair(host_name, script_key, params)
 
     def get_history(self, limit: int) -> List[Dict[str, Any]]:
-        # Docker repair history not implemented
-        return []
+        return self._get_history(limit)
 
     def requires_host_name(self) -> bool:
         return True

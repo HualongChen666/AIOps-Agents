@@ -13,6 +13,7 @@ import asyncio
 import copy
 import json
 import logging
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
@@ -54,9 +55,54 @@ async def _delay_handler(node: Any, context: Any) -> dict[str, Any]:
     await asyncio.sleep(max(0, float(seconds)))
     return {"status": "ok", "node_id": node.id, "delay": seconds}
 
+async def _task_handler(node: Any, context: Any) -> dict[str, Any]:
+    """Execute a workflow task node based on its configured action."""
+    config = getattr(node, "config", None) or {}
+    action = config.get("action", "noop")
+    params = config.get("params", {})
+
+    if action == "noop":
+        return {"status": "ok", "node_id": node.id, "action": action}
+
+    if action == "send_alert":
+        from core.alert_engine import alert_history
+
+        alert_id = params.get("id") or f"wf-{uuid.uuid4().hex[:8]}"
+        alert = {
+            "id": alert_id,
+            "title": params.get("title", f"Workflow task {node.id}"),
+            "level": params.get("level", "warning"),
+            "source": "workflow",
+            "node_id": node.id,
+        }
+        alert_history.appendleft(alert)
+        return {"status": "ok", "node_id": node.id, "action": action, "alert_id": alert_id}
+
+    if action == "log":
+        logger.info(f"Workflow task {node.id}: {params.get('message', 'executed')}")
+        return {"status": "ok", "node_id": node.id, "action": action}
+
+    if action == "http_get":
+        url = params.get("url")
+        if not url:
+            raise ValueError("http_get action requires params.url")
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+        return {
+            "status": "ok",
+            "node_id": node.id,
+            "action": action,
+            "url": url,
+            "status_code": resp.status_code,
+        }
+
+    raise ValueError(f"Unsupported task action '{action}' for node {node.id}")
+
 _executor.register_handler("noop", _noop_handler)
 _executor.register_handler("delay", _delay_handler)
-_executor.register_handler("task", _noop_handler)
+_executor.register_handler("task", _task_handler)
 
 # 🔧 WR4 [P2]:SSE 心跳间隔(秒,防 nginx/cloudflare 超时断连)
 _SSE_HEARTBEAT_INTERVAL_SEC = 30
