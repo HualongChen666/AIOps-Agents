@@ -1007,6 +1007,8 @@ def collect_all() -> dict[str, Any]:
         finally:
             if executor is not None:
                 executor.shutdown(wait=False)
+    except Exception as e:
+        logger.error(f"N3: 全量采集线程池异常: {e}", exc_info=True)
 
     # ── 组装快照 ──
     snapshot: dict[str, Any] = {
