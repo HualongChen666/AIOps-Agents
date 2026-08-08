@@ -36,6 +36,23 @@ async def websocket_realtime(websocket: WebSocket):
         logger.info("WebSocket disconnected")
 
 
+@router.websocket("/alerts")
+async def websocket_alerts(websocket: WebSocket):
+    """告警实时推送 WebSocket 端点"""
+    await manager.connect(websocket, "alerts")
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                message = json.loads(data)
+            except json.JSONDecodeError:
+                message = {"raw": data}
+            await manager.send_personal_message({"type": "ack", "received": message}, websocket)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket, "alerts")
+        logger.info("Alerts WebSocket disconnected")
+
+
 @router.websocket("/metrics")
 async def websocket_metrics(websocket: WebSocket):
     """指标实时推送WebSocket端点"""

@@ -222,8 +222,19 @@ async def async_insert_alert(alert: dict) -> str:
             logger.info(f"✅ 告警已持久化到数据库 | alert_id={alert_id}")
             return alert_id
     except Exception as e:
-        logger.error(f"❌ 告警插入数据库失败 | alert_id={alert_id}: {e}", exc_info=True)
+        if _is_db_connection_error(e):
+            logger.warning(f"数据库连接失败，告警插入跳过 | alert_id={alert_id}: {e}")
+        else:
+            logger.error(f"❌ 告警插入数据库失败 | alert_id={alert_id}: {e}", exc_info=True)
         raise
+
+
+def _is_db_connection_error(exc: Exception) -> bool:
+    """判断异常是否为数据库连接失败（如 PostgreSQL 未启动）。"""
+    if isinstance(exc, (ConnectionError, OSError)):
+        return True
+    cause = getattr(exc, "__cause__", None) or getattr(exc, "orig", None)
+    return isinstance(cause, (ConnectionError, OSError))
 
 
 async def async_query_alerts(limit: int = 20, **filters) -> List[Dict[str, Any]]:
@@ -271,7 +282,10 @@ async def async_query_alerts(limit: int = 20, **filters) -> List[Dict[str, Any]]
                 for a in alerts
             ]
     except Exception as e:
-        logger.error(f"❌ 查询告警失败: {e}", exc_info=True)
+        if _is_db_connection_error(e):
+            logger.warning(f"数据库连接失败，告警查询降级为空: {e}")
+        else:
+            logger.error(f"❌ 查询告警失败: {e}", exc_info=True)
         return []
 
 
@@ -292,7 +306,10 @@ async def async_count_alerts(**filters) -> int:
             result = await session.execute(stmt)
             return result.scalar() or 0
     except Exception as e:
-        logger.error(f"❌ 统计告警数量失败: {e}", exc_info=True)
+        if _is_db_connection_error(e):
+            logger.warning(f"数据库连接失败，告警统计降级为 0: {e}")
+        else:
+            logger.error(f"❌ 统计告警数量失败: {e}", exc_info=True)
         return 0
 
 
