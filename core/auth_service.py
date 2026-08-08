@@ -59,6 +59,9 @@ def create_access_token(data: dict) -> str:
             "aud": config.JWT_AUDIENCE,
         }
     )
+    # Ensure tenant is encoded in the token for multi-tenant endpoints.
+    if "tenant_id" not in to_encode:
+        to_encode["tenant_id"] = "default"
     return jwt.encode(
         to_encode,
         config.JWT_SECRET_KEY,
@@ -112,11 +115,57 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
         db.close()
     if user is None or not user.is_active:
         raise credentials_exception
+    # Attach tenant_id from token so downstream code can enforce multi-tenant isolation.
+    user.tenant_id = str(payload.get("tenant_id", "default"))
     return user
 
 
 def has_role(user: User, *roles: str) -> bool:
     return bool(user.is_active and user.role in roles)
+
+
+def require_roles(*roles: str):
+    """FastAPI dependency that rejects requests from users without one of the allowed roles."""
+
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if not has_role(user, *roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires one of roles: {', '.join(roles)}",
+            )
+        return user
+
+    return checker
+
+
+def require_permission(permission: str, resource_type: str = "asset"):
+    """FastAPI dependency that checks a user's ABAC permission for a resource type."""
+
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if has_role(user, "admin"):
+            return user
+        db = SessionLocal()
+        try:
+            perms = (
+                db.query(UserAssetPermission)
+                .filter(
+                    UserAssetPermission.user_id == user.id,
+                    UserAssetPermission.tenant_id == getattr(user, "tenant_id", "default"),
+                    UserAssetPermission.permission == permission,
+                    UserAssetPermission.resource_type == resource_type,
+                )
+                .all()
+            )
+        finally:
+            db.close()
+        if not perms:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing permission: {permission} on {resource_type}",
+            )
+        return user
+
+    return checker
 
 
 def require_roles(*roles: str):

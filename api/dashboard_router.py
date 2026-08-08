@@ -8,6 +8,9 @@ import logging
 
 from fastapi import APIRouter, Depends
 
+from config import LINUX_HOSTS
+from core.alert_engine import alert_history
+from core.approval_store import get_pending_only_snapshot
 from core.authentication import role_required
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -31,26 +34,11 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 )
 async def summary(user=Depends(role_required("user"))):
     """返回仪表盘聚合摘要（主机数、告警数、待审批修复）。"""
-    try:
-        from config import LINUX_HOSTS
-
-        total_hosts = len(LINUX_HOSTS) if LINUX_HOSTS else 0
-        healthy_hosts = total_hosts
-        total_alerts = 0
-        pending_repairs = 0
-        try:
-            from core.db_engine import async_count_alerts, async_get_all_pending_approvals
-
-            total_alerts = await async_count_alerts()
-            pending_repairs = len(await async_get_all_pending_approvals())
-        except Exception as exc:
-            logger = logging.getLogger(__name__)
-            logger.debug(f"Dashboard summary DB stats unavailable: {exc}")
-
-    except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
-        logging.warning("Suppressed exception", exc_info=True)
-        pass
+    total_hosts = len(LINUX_HOSTS) if LINUX_HOSTS else 0
+    # 没有离线主机时默认健康数为总数；告警数>0则假设部分主机不健康
+    total_alerts = len(alert_history)
+    pending_repairs = len(get_pending_only_snapshot())
+    healthy_hosts = max(0, total_hosts - min(total_alerts, total_hosts))
 
     return {
         "status": "ok",
@@ -58,5 +46,4 @@ async def summary(user=Depends(role_required("user"))):
         "healthy_hosts": healthy_hosts,
         "total_alerts": total_alerts,
         "pending_repairs": pending_repairs,
-        "message": "Dashboard default_value",
     }

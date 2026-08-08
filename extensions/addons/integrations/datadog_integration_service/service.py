@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import httpx
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +23,7 @@ BASE_METHODS: List[str] = [
 OPERATIONS: List[str] = [
     "integrate_datadog_api",
     "collect_metrics",
+    "query_metrics",
     "collect_logs",
     "integrate_apm",
     "integrate_alerts",
@@ -255,6 +257,73 @@ class DatadogIntegrationService:
             }
             await self.idempotency.mark_processed(request_id, result)
             return result
+
+    async def query_metrics(self, request: Any = None) -> Dict[str, Any]:
+        """Query a Datadog metric via the v1 query API."""
+        self.metrics.inc_request("query_metrics")
+        config = self._get_config(request)
+
+        api_key = config.get("api_key")
+        app_key = config.get("app_key")
+        query = config.get("query")
+        site = config.get("site", "datadoghq.com")
+        if not api_key or not app_key or not query:
+            return {
+                "feature": "query_metrics",
+                "success": False,
+                "status": "error",
+                "config": {},
+                "result": {},
+                "message": "Missing api_key, app_key, or query in config",
+            }
+
+        now = datetime.now(timezone.utc)
+        from_time = config.get("from", int(now.timestamp()) - 3600)
+        to_time = config.get("to", int(now.timestamp()))
+
+        url = f"https://api.{site}/api/v1/query"
+        headers = {
+            "DD-API-KEY": api_key,
+            "DD-APPLICATION-KEY": app_key,
+            "Accept": "application/json",
+        }
+        params = {
+            "query": query,
+            "from": from_time,
+            "to": to_time,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout) as client:
+                resp = await client.get(url, headers=headers, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+            return {
+                "feature": "query_metrics",
+                "success": True,
+                "status": "ok",
+                "config": {"site": site, "query": query},
+                "result": data,
+                "message": f"Queried {len(data.get('series', []))} series",
+            }
+        except httpx.HTTPStatusError as exc:
+            return {
+                "feature": "query_metrics",
+                "success": False,
+                "status": "error",
+                "config": {"site": site, "query": query},
+                "result": {"status_code": exc.response.status_code, "body": exc.response.text},
+                "message": f"Datadog API error: {exc}",
+            }
+        except Exception as exc:
+            return {
+                "feature": "query_metrics",
+                "success": False,
+                "status": "error",
+                "config": {"site": site, "query": query},
+                "result": {},
+                "message": f"Query failed: {exc}",
+            }
 
     async def collect_logs(self, request: Any = None) -> Dict[str, Any]:
         """Collect Logs."""

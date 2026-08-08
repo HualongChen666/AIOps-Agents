@@ -44,6 +44,7 @@ class TokenBlacklist(Base):
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String, nullable=False, default="default", index=True)
     username = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False, default="viewer")
@@ -58,6 +59,7 @@ class User(Base):
 class Asset(Base):
     __tablename__ = "assets"
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String, nullable=False, default="default", index=True)
     name = Column(String, nullable=False)
     service = Column(String, nullable=True)
     business_unit = Column(String, nullable=True)
@@ -73,9 +75,12 @@ class Asset(Base):
 class UserAssetPermission(Base):
     __tablename__ = "user_asset_permissions"
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String, nullable=False, default="default", index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)
     permission = Column(String, nullable=False)
+    resource_type = Column(String, nullable=False, default="asset")
+    conditions = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="permissions")

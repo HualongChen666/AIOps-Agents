@@ -332,37 +332,59 @@ class CausalGraph:
         }
 
     def build_system_topology(self) -> None:
-        """Build a default system topology"""
-        # Create nodes for common system components
-        nodes = [
+        """Build a system topology from configured hosts plus base components."""
+        from config import DOCKER_HOSTS, K8S_HOSTS, LINUX_HOSTS, WIN_HOSTS
+
+        metric_nodes = [
             CausalNode("cpu", "CPU Usage", "metric"),
             CausalNode("memory", "Memory Usage", "metric"),
             CausalNode("disk", "Disk I/O", "metric"),
             CausalNode("network", "Network I/O", "metric"),
+        ]
+        for node in metric_nodes:
+            self.add_node(node)
+
+        base_services = [
             CausalNode("app", "Application", "service"),
             CausalNode("db", "Database", "service"),
             CausalNode("cache", "Cache", "service"),
             CausalNode("api", "API Gateway", "service"),
         ]
-
-        for node in nodes:
+        for node in base_services:
             self.add_node(node)
 
-        # Create causal edges
-        edges = [
-            CausalEdgeClass("cpu", "app", CausalStrength.STRONG),
-            CausalEdgeClass("memory", "app", CausalStrength.STRONG),
+        host_groups = {
+            "linux": LINUX_HOSTS.get("hosts", []) if isinstance(LINUX_HOSTS, dict) else [],
+            "k8s": K8S_HOSTS if isinstance(K8S_HOSTS, list) else [],
+            "docker": DOCKER_HOSTS if isinstance(DOCKER_HOSTS, list) else [],
+            "windows": WIN_HOSTS if isinstance(WIN_HOSTS, list) else [],
+        }
+        for platform, hosts in host_groups.items():
+            for host_entry in hosts:
+                if not isinstance(host_entry, dict):
+                    continue
+                host_id = host_entry.get("host") or host_entry.get("hostname") or host_entry.get("name")
+                if not host_id:
+                    continue
+                node_id = f"host:{host_id}"
+                self.add_node(CausalNode(node_id, host_id, "host"))
+                self.add_edge(CausalEdgeClass("cpu", node_id, CausalStrength.MODERATE))
+                self.add_edge(CausalEdgeClass("memory", node_id, CausalStrength.MODERATE))
+                self.add_edge(CausalEdgeClass("disk", node_id, CausalStrength.MODERATE))
+                self.add_edge(CausalEdgeClass("network", node_id, CausalStrength.MODERATE))
+                self.add_edge(CausalEdgeClass(node_id, "app", CausalStrength.MODERATE))
+
+        base_edges = [
             CausalEdgeClass("disk", "db", CausalStrength.STRONG),
             CausalEdgeClass("db", "app", CausalStrength.STRONG),
             CausalEdgeClass("cache", "app", CausalStrength.MODERATE),
             CausalEdgeClass("network", "api", CausalStrength.STRONG),
             CausalEdgeClass("api", "app", CausalStrength.STRONG),
         ]
-
-        for edge in edges:
+        for edge in base_edges:
             self.add_edge(edge)
 
-        logger.info("Built default system topology")
+        logger.info(f"Built system topology with {len(self.nodes)} nodes")
 
     def get_status(self) -> Dict[str, Any]:
         """Get graph status"""

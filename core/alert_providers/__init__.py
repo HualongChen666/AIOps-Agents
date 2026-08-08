@@ -9,7 +9,12 @@ from .base import (
     list_alert_providers,
     register_alert_provider,
 )
+from .cloudwatch import CloudWatchAlertProvider
+from .datadog import DatadogAlertProvider
+from .grafana import GrafanaAlertProvider
+from .pagerduty import PagerDutyAlertProvider
 from .prometheus import PrometheusAlertProvider
+from .zabbix import ZabbixAlertProvider
 
 __all__ = [
     "AlertProvider",
@@ -17,4 +22,9 @@ __all__ = [
     "list_alert_providers",
     "register_alert_provider",
     "PrometheusAlertProvider",
+    "GrafanaAlertProvider",
+    "DatadogAlertProvider",
+    "ZabbixAlertProvider",
+    "CloudWatchAlertProvider",
+    "PagerDutyAlertProvider",
 ]

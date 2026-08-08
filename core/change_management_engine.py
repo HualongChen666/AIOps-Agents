@@ -67,6 +67,7 @@ class ChangeRequest(BaseModel):
     """变更请求模型."""
 
     id: str = Field(default_factory=lambda: _generate_id(), description="变更请求唯一标识")
+    tenant_id: str = Field(default="default", description="租户 ID")
     title: str = Field(..., description="标题")
     description: str = Field(default="", description="描述")
     requester: str = Field(..., description="申请人")
@@ -123,11 +124,12 @@ async def _persist() -> None:
         )
 
 
-async def create_request(data: dict[str, Any]) -> ChangeRequest:
+async def create_request(data: dict[str, Any], tenant_id: str = "default") -> ChangeRequest:
     """创建新的变更请求.
 
     Args:
         data: 变更请求字段字典.
+        tenant_id: 租户 ID.
 
     Returns:
         创建后的变更请求.
@@ -139,6 +141,7 @@ async def create_request(data: dict[str, Any]) -> ChangeRequest:
     data = dict(data)
     if not data.get("id"):
         data["id"] = _generate_id()
+    data.setdefault("tenant_id", tenant_id)
 
     if data["id"] in _REQUESTS:
         raise ChangeManagementError(f"变更请求 {data['id']} 已存在")
@@ -156,32 +159,43 @@ async def create_request(data: dict[str, Any]) -> ChangeRequest:
     return request
 
 
-async def list_requests() -> list[ChangeRequest]:
-    """获取所有变更请求列表.
+async def list_requests(tenant_id: str | None = None) -> list[ChangeRequest]:
+    """获取变更请求列表,可选按租户过滤.
+
+    Args:
+        tenant_id: 可选租户过滤.
 
     Returns:
         变更请求列表.
     """
     await _load_store()
-    return sorted(_REQUESTS.values(), key=lambda r: r.id)
+    requests = _REQUESTS.values()
+    if tenant_id is not None:
+        requests = [r for r in requests if r.tenant_id == tenant_id]
+    return sorted(requests, key=lambda r: r.id)
 
 
-async def get_request(request_id: str) -> ChangeRequest:
+async def get_request(request_id: str, tenant_id: str | None = None) -> ChangeRequest:
     """获取单个变更请求.
 
     Args:
         request_id: 变更请求 ID.
+        tenant_id: 可选租户 ID，提供时会校验租户隔离.
 
     Returns:
         变更请求对象.
 
     Raises:
         ChangeManagementError: 变更请求不存在.
+        PermissionError: 租户不匹配.
     """
     await _load_store()
     if request_id not in _REQUESTS:
         raise ChangeManagementError(f"变更请求 {request_id} 不存在")
-    return _REQUESTS[request_id]
+    req = _REQUESTS[request_id]
+    if tenant_id is not None and req.tenant_id != tenant_id:
+        raise PermissionError(f"无权限访问变更请求 {request_id}")
+    return req
 
 
 def _add_audit(request: ChangeRequest, action: str, message: str) -> None:
@@ -190,11 +204,12 @@ def _add_audit(request: ChangeRequest, action: str, message: str) -> None:
     request.audit_log.append(AuditEntry(actor=actor, action=action, message=message))
 
 
-async def submit_request(request_id: str) -> ChangeRequest:
+async def submit_request(request_id: str, tenant_id: str | None = None) -> ChangeRequest:
     """提交变更请求进入审批.
 
     Args:
         request_id: 变更请求 ID.
+        tenant_id: 可选租户 ID 校验.
 
     Returns:
         更新后的变更请求.
@@ -203,7 +218,7 @@ async def submit_request(request_id: str) -> ChangeRequest:
         ChangeManagementError: 状态转换不合法或请求不存在.
     """
     await _load_store()
-    request = await get_request(request_id)
+    request = await get_request(request_id, tenant_id=tenant_id)
     if request.status != ChangeStatus.DRAFT:
         raise ChangeManagementError("只有草稿状态的变更请求可以提交")
     request.status = ChangeStatus.PENDING
@@ -212,7 +227,7 @@ async def submit_request(request_id: str) -> ChangeRequest:
     return request
 
 
-async def approve_request(request_id: str) -> ChangeRequest:
+async def approve_request(request_id: str, tenant_id: str | None = None) -> ChangeRequest:
     """审批通过变更请求.
 
     Args:
@@ -225,7 +240,7 @@ async def approve_request(request_id: str) -> ChangeRequest:
         ChangeManagementError: 状态转换不合法或请求不存在.
     """
     await _load_store()
-    request = await get_request(request_id)
+    request = await get_request(request_id, tenant_id=tenant_id)
     if request.status not in (ChangeStatus.PENDING, ChangeStatus.REVIEW):
         raise ChangeManagementError("只有待审批/审核中的变更请求可以批准")
     request.status = ChangeStatus.APPROVED
@@ -234,7 +249,7 @@ async def approve_request(request_id: str) -> ChangeRequest:
     return request
 
 
-async def reject_request(request_id: str) -> ChangeRequest:
+async def reject_request(request_id: str, tenant_id: str | None = None) -> ChangeRequest:
     """拒绝变更请求.
 
     Args:
@@ -247,7 +262,7 @@ async def reject_request(request_id: str) -> ChangeRequest:
         ChangeManagementError: 状态转换不合法或请求不存在.
     """
     await _load_store()
-    request = await get_request(request_id)
+    request = await get_request(request_id, tenant_id=tenant_id)
     if request.status not in (
         ChangeStatus.DRAFT,
         ChangeStatus.PENDING,
@@ -260,7 +275,7 @@ async def reject_request(request_id: str) -> ChangeRequest:
     return request
 
 
-async def implement_request(request_id: str) -> ChangeRequest:
+async def implement_request(request_id: str, tenant_id: str | None = None) -> ChangeRequest:
     """实施已批准的变更请求.
 
     Args:
@@ -273,7 +288,7 @@ async def implement_request(request_id: str) -> ChangeRequest:
         ChangeManagementError: 状态转换不合法或请求不存在.
     """
     await _load_store()
-    request = await get_request(request_id)
+    request = await get_request(request_id, tenant_id=tenant_id)
     if request.status != ChangeStatus.APPROVED:
         raise ChangeManagementError("只有已批准的变更请求可以实施")
     request.status = ChangeStatus.IMPLEMENTED
@@ -282,7 +297,7 @@ async def implement_request(request_id: str) -> ChangeRequest:
     return request
 
 
-async def rollback_request(request_id: str) -> ChangeRequest:
+async def rollback_request(request_id: str, tenant_id: str | None = None) -> ChangeRequest:
     """回滚已实施的变更请求.
 
     Args:
@@ -295,7 +310,7 @@ async def rollback_request(request_id: str) -> ChangeRequest:
         ChangeManagementError: 状态转换不合法或请求不存在.
     """
     await _load_store()
-    request = await get_request(request_id)
+    request = await get_request(request_id, tenant_id=tenant_id)
     if request.status != ChangeStatus.IMPLEMENTED:
         raise ChangeManagementError("只有已实施的变更请求可以回滚")
     request.status = ChangeStatus.ROLLED_BACK

@@ -1078,18 +1078,18 @@ def record_audit(
     executor: str = "agent",
     result: str = "success",
     trace_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
 ) -> None:
     """
     记录命令执行审计日志(Who/When/Where/What/Risk/Result)
-
-    🔧 CG3 [P0]:command 字段截断长度从 200 提升到 500
-    🔧 CG7 [P1]:用 deque 自动 LRU,免去手动 pop
     """
     record = {
         "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
         "who": str(executor)[:64],
+        "user_id": str(user_id) if user_id else None,
+        "tenant_id": str(tenant_id) if tenant_id else None,
         "where": str(host)[:128],
-        # 🔧 CG3:command 截断到 500 字符,便于审计追溯
         "what": str(command)[:500],
         "risk_level": str(risk_level)[:16],
         "result": str(result)[:128],

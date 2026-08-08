@@ -33,30 +33,22 @@ router = APIRouter()
 )
 async def ping(request: Request) -> dict:
     """
-    简易健康检查接口，返回固定结果
-
-    SECURITY: 允许本地回环地址访问，远程访问需要认证
-
-    Returns:
-        dict: Health status response
-        - status: "alive" if service is healthy
-
-    Example response:
-        {
-            "status": "alive"
-        }
-
-    Error responses:
-        - 401: Unauthorized (for remote access without authentication)
-        - 503: Service unavailable
+    简易健康检查接口，远程访问需要认证
     """
-    client_host = request.client.host if request.client else "unknown"
-    # 允许本地回环地址无需认证
-    if client_host in ALLOWED_LOCAL_IPS:
-        return {"status": "alive"}
+    from datetime import datetime, timezone
 
-    # 远程访问需要认证 - 简化处理，暂时返回alive状态
-    return {"status": "alive"}
+    client_host = request.client.host if request.client else "unknown"
+    # 本地回环无需认证
+    if client_host not in ALLOWED_LOCAL_IPS:
+        token = request.headers.get("Authorization", "")
+        if not token.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Remote access requires Bearer token")
+
+    return {
+        "status": "alive",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "client": client_host,
+    }
 
 
 @router.get(

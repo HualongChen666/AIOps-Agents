@@ -1,0 +1,24 @@
+{
+  "messages": [
+    {
+      "event": "incident.triggered",
+      "incident": {
+        "id": "ABC1234",
+        "incident_number": 42,
+        "title": "Database latency high",
+        "description": "Average database latency is 1200ms",
+        "status": "triggered",
+        "urgency": "high",
+        "created_at": "2026-08-08T12:00:00Z",
+        "service": {
+          "id": "SERV001",
+          "name": "payments-service",
+          "html_url": "https://example.pagerduty.com/service/SERV001"
+        },
+        "priority": {
+          "name": "P1"
+        }
+      }
+    }
+  ]
+}

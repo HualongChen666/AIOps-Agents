@@ -1,1 +1,13 @@
-{}
+{
+  "permissions": {
+    "allow": [
+      "Exec(C:\\aiops-sre-agent-archive)",
+      "Exec(Write-Host)",
+      "Exec(Select-Object)",
+      "Exec(Get-ChildItem)",
+      "Exec(exit)",
+      "Exec($LASTEXITCODE)",
+      "Exec(python)"
+    ]
+  }
+}

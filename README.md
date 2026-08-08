@@ -4,14 +4,10 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg?style=flat-square)
 ![Docker Compose](https://img.shields.io/badge/docker--compose-ready-2496ED.svg?style=flat-square)
-![Coverage](coverage.svg)
 
-> **Self-hosted AI SRE that turns Prometheus alerts into approved, verified, auditable repairs for software and hardware incidents.**
+> **Self-hosted AI SRE that turns monitoring alerts into approved, verified, auditable repairs for software and hardware incidents.**
 
-`aiops-agent` is an open-source SRE agent for Prometheus users. It consumes
-Alertmanager notifications, normalizes them into a uniform alert model, and runs
-a deterministic repair workflow that selects runbooks, generates dry-run
-commands, and only executes after approval.
+`aiops-agent` is an open-source SRE agent for Prometheus, Grafana, Datadog, and Zabbix users. It consumes webhook notifications, normalizes them into a uniform alert model, and runs a deterministic repair workflow that selects runbooks, generates dry-run commands, and only executes after approval.
 
 Hardware remediation (IPMI, Redfish, RAID, SMART, Kubernetes drain) stays in
 dry-run by default, while software repairs can be promoted to auto-execution once
@@ -33,7 +29,7 @@ Open `http://localhost:8000/docs` and try the Prometheus webhook:
 ```bash
 curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
   -H "Content-Type: application/json" \
-  -d @examples/curl/createAnomaly.sh
+  -d @examples/prometheus_alert.json
 ```
 
 ---
@@ -53,13 +49,12 @@ normalization, approval, audit, auto-heal, repair, and health endpoints.
 Optional **add-on packs** provide AI/ML, observability/topology, SRE workflows,
 multi-cloud integrations, security, IaC, and plugins.
 
-Add-ons are disabled by default. Enable a pack by setting `ENABLE_ADDONS=true`
-and the matching pack flag:
+Add-ons are enabled by default. Each pack is controlled by a flag in `config.py`
+(or via environment variables). To disable a pack, set its flag to `false`:
 
 ```text
-ENABLE_ADDONS=true
-RAG_ENABLED=true
-LLM_ROUTER_ENABLED=true
+RAG_ENABLED=false
+LLM_ROUTER_ENABLED=false
 ```
 
 Or start the AI Plus pack with Docker Compose profiles:
@@ -91,7 +86,7 @@ runtime flags.
 - **[docs/QUICKSTART.md](docs/QUICKSTART.md)** — Get a demo running in 5 minutes
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System design and alert flow
 - **[docs/OPERATOR_GUIDE.md](docs/OPERATOR_GUIDE.md)** — Safety flags, approval workflow, maintenance windows
-- **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)** — Performance and coverage numbers
+- **[docs/CAPABILITIES.md](docs/CAPABILITIES.md)** — Real capabilities matrix, no marketing numbers
 - **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — How to contribute
 
 ---

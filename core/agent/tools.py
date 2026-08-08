@@ -926,11 +926,33 @@ class ToolRegistry:
         }
 
     def _collect_logs(self, service: str, level: str = "INFO", lines: int = 100) -> List[str]:
-        """收集日志（当前为占位实现，限制返回条数并对服务名做校验）"""
+        """收集日志：优先读取本地日志文件，没有则返回结构化提示。"""
+        from pathlib import Path
+
         logger.info(f"Collecting logs for {service}")
         safe_service = observability_client._safe_label(service)
         safe_level = observability_client._safe_label(level)
-        return [f"[{safe_level}] Service {safe_service} log line {i}" for i in range(lines)]
+
+        candidates = [
+            Path(f"logs/{safe_service}.log"),
+            Path(f"data/logs/{safe_service}.log"),
+            Path(f"/var/log/{safe_service}.log"),
+        ]
+        for log_path in candidates:
+            try:
+                if log_path.is_file():
+                    with log_path.open("r", encoding="utf-8", errors="ignore") as f:
+                        all_lines = f.readlines()
+                    filtered = [
+                        line.rstrip("\n")
+                        for line in all_lines
+                        if safe_level.upper() in line.upper()
+                    ]
+                    return filtered[-lines:] if filtered else all_lines[-lines:]
+            except Exception as e:
+                logger.debug(f"Failed to read {log_path}: {e}")
+
+        return [f"[{safe_level}] No log file found for service {safe_service}; tail unavailable"]
 
     def _analyze_anomaly(
         self,

@@ -16,7 +16,7 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, cast
 
@@ -43,6 +43,14 @@ try:
 except ImportError:
     HTTP_AVAILABLE = False
     logger.warning("HTTP library not available, some integrations will be disabled")
+
+try:
+    import boto3
+
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    logger.warning("boto3 not available, CloudWatch integration will be disabled")
 
 # Try to import WebSocket libraries
 try:
@@ -73,6 +81,20 @@ class IntegrationStatus(Enum):
     INACTIVE = "inactive"
     ERROR = "error"
     CONFIGURING = "configuring"
+
+
+class IntegrationAdapter:
+    """Standardized adapter interface for monitoring/ITSM/cloud integrations."""
+
+    name: str = ""
+
+    async def normalize_alert(self, payload: Any) -> List[Dict[str, Any]]:
+        """Normalize an external webhook payload into internal alert dicts."""
+        return []
+
+    async def query(self, config: Dict[str, Any], query: str, **params: Any) -> Dict[str, Any]:
+        """Query real data from the integration."""
+        raise NotImplementedError("query must be implemented by subclass")
 
 
 @dataclass
@@ -775,6 +797,137 @@ class IntegrationManager:
         except Exception as e:
             safe_error = sanitize_error_for_llm(e)
             logger.error(f"Prometheus query error for {integration_id}: {safe_error}")
+            return {"error": safe_error}
+
+    async def query_cloudwatch_metrics(
+        self, integration_id: str, query: str, time_range: str = "1h"
+    ) -> Dict[str, Any]:
+        """Query CloudWatch metrics via GetMetricData."""
+        if integration_id not in self.integrations:
+            return {"error": "Integration not found"}
+        integration = self.integrations[integration_id]
+        if integration.name.lower() != "cloudwatch":
+            return {"error": "Not a CloudWatch integration"}
+        if not BOTO3_AVAILABLE:
+            return {"error": "boto3 not installed, CloudWatch integration disabled"}
+
+        config = integration.config
+        region = config.get("region", "us-east-1")
+        access_key = config.get("aws_access_key_id")
+        secret_key = config.get("aws_secret_access_key")
+        if not access_key or not secret_key:
+            return {"error": "Missing aws_access_key_id or aws_secret_access_key in config"}
+
+        # Parse metric definition from query string: Namespace/MetricName[DimKey=DimValue,...]
+        # If the raw string cannot be parsed, use it as MetricName with default Namespace
+        import re
+        match = re.match(r"([^/]+)/([^[]+)(?:\[(.+)\])?", query)
+        if match:
+            namespace = match.group(1).strip()
+            metric_name = match.group(2).strip()
+            dim_str = match.group(3) or ""
+            dimensions = []
+            for pair in dim_str.split(","):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    dimensions.append({"Name": k.strip(), "Value": v.strip()})
+        else:
+            namespace = config.get("namespace", "AWS/EC2")
+            metric_name = query.strip()
+            dimensions = []
+
+        try:
+            duration_seconds = parse_duration_to_seconds(time_range)
+        except ValueError as exc:
+            return {"error": f"Invalid time_range: {exc}"}
+
+        end = datetime.now(timezone.utc)
+        start = end.replace(second=0, microsecond=0) - timedelta(seconds=duration_seconds)
+        start_ms = int(start.timestamp() * 1000)
+        end_ms = int(end.timestamp() * 1000)
+
+        client = boto3.client(
+            "cloudwatch",
+            region_name=region,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
+        metric_query = {
+            "Id": "q1",
+            "MetricStat": {
+                "Metric": {"Namespace": namespace, "MetricName": metric_name, "Dimensions": dimensions},
+                "Period": 60,
+                "Stat": "Average",
+            },
+            "StartTime": start,
+            "EndTime": end,
+        }
+        try:
+            response = client.get_metric_data(MetricDataQueries=[metric_query], StartTime=start, EndTime=end)
+            return {
+                "namespace": namespace,
+                "metric_name": metric_name,
+                "timestamps": [t.isoformat() for t in response["MetricDataResults"][0].get("Timestamps", [])],
+                "values": response["MetricDataResults"][0].get("Values", []),
+                "status_code": 200,
+            }
+        except Exception as e:
+            safe_error = sanitize_error_for_llm(e)
+            logger.error(f"CloudWatch query error for {integration_id}: {safe_error}")
+            return {"error": safe_error}
+
+    async def query_pagerduty_incidents(
+        self, integration_id: str, query: str, time_range: str = "1h"
+    ) -> Dict[str, Any]:
+        """Query PagerDuty incidents."""
+        if integration_id not in self.integrations:
+            return {"error": "Integration not found"}
+        integration = self.integrations[integration_id]
+        if integration.name.lower() != "pagerduty":
+            return {"error": "Not a PagerDuty integration"}
+        if not HTTP_AVAILABLE or self.http_client is None:
+            return {"error": "HTTP client not available"}
+
+        config = integration.config
+        api_key = config.get("api_key") or config.get("token")
+        if not api_key:
+            return {"error": "Missing api_key or token in config"}
+
+        try:
+            duration_seconds = parse_duration_to_seconds(time_range)
+        except ValueError as exc:
+            return {"error": f"Invalid time_range: {exc}"}
+
+        end = datetime.now(timezone.utc)
+        start = end.replace(second=0, microsecond=0) - timedelta(seconds=duration_seconds)
+
+        headers = {
+            "Authorization": f"Token token={api_key}",
+            "Accept": "application/vnd.pagerduty+json;version=2",
+            "Content-Type": "application/json",
+        }
+        params = {
+            "since": start.isoformat(),
+            "until": end.isoformat(),
+            "limit": 100,
+        }
+        if query and query.strip():
+            params["query"] = query.strip()
+
+        try:
+            response = await with_query_timeout(
+                self.http_client.get(
+                    "https://api.pagerduty.com/incidents",
+                    headers=headers,
+                    params=params,
+                )
+            )
+            if response.status_code == 200:
+                return cast(Dict[str, Any], response.json())
+            return {"error": f"PagerDuty query failed: {response.status_code}", "body": response.text}
+        except Exception as e:
+            safe_error = sanitize_error_for_llm(e)
+            logger.error(f"PagerDuty query error for {integration_id}: {safe_error}")
             return {"error": safe_error}
 
     async def trigger_jenkins_job(

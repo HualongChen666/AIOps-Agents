@@ -136,9 +136,13 @@ class KafkaStreamProcessor:
             if msg.topic == topic:
                 yield msg
 
-    def get_stub_messages(self) -> List[KafkaMessage]:
-        """获取本地缓存消息（用于测试或离线模式）"""
+    def get_cached_messages(self) -> List[KafkaMessage]:
+        """获取本地缓存消息（真实发送或离线模式都会经过此缓存）"""
         return list(self.cached_messages)
+
+    def get_stub_messages(self) -> List[KafkaMessage]:
+        """兼容旧名：获取本地缓存消息"""
+        return self.get_cached_messages()
 
     def clear_stub_messages(self):
         """清空本地缓存消息"""

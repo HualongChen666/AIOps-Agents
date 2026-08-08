@@ -10,7 +10,7 @@ alert_service.py
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from core.alert_engine import alert_history
 from core.db_engine import alert_repository as db_alert_repository
@@ -23,17 +23,18 @@ logger = logging.getLogger(__name__)
 class AlertService:
     """告警服务"""
 
-    def get_alerts(self, limit: int = 20) -> dict[str, Any]:
+    def get_alerts(self, limit: int = 20, tenant_id: Optional[str] = None) -> dict[str, Any]:
         """
         获取告警历史列表（使用查询优化）
 
         Args:
             limit: 返回的告警最大条数
+            tenant_id: 可选租户过滤
 
         Returns:
             包含 total 和 alerts 的字典
         """
-        cache_key = f"alerts_{limit}"
+        cache_key = f"alerts_{limit}_{tenant_id}"
 
         # 尝试从缓存获取（仅当缓存中的 total 与当前 alert_history 长度一致时才命中，避免返回过期数据）
         cached_result = query_cache.get(cache_key)
@@ -41,13 +42,16 @@ class AlertService:
             logger.debug(f"告警查询缓存命中: {cache_key}")
             return cached_result  # type: ignore[no-any-return]
 
-        logger.info(f"查询告警历史列表,limit={limit}")
+        logger.info(f"查询告警历史列表,limit={limit},tenant={tenant_id}")
 
         try:
             alerts_list = list(alert_history)
         except Exception as e:
             logger.error(f"alert_history 转换异常: {e}", exc_info=True)
             return {"total": 0, "alerts": []}
+
+        if tenant_id:
+            alerts_list = [a for a in alerts_list if a.get("tenant_id") in (tenant_id, None)]
 
         latest_alerts = alerts_list[:limit]
 

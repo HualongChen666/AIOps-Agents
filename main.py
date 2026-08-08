@@ -272,6 +272,8 @@ from core.plugin_development_sdk import get_plugin_sdk
 from core.plugin_ecosystem_manager import get_ecosystem_manager
 from core.plugin_marketplace_manager import get_marketplace_manager
 from core.plugin_system_manager import get_plugin_system_manager
+from api.middleware.rbac_middleware import RBACMiddleware
+from api.middleware.tenant_middleware import TenantMiddleware
 from core.request_tracking import RequestTrackingMiddleware
 from core.security_audit_system import get_security_audit_system
 from core.security_input_validator import add_input_validation_middleware
@@ -2173,3 +2175,9 @@ app.add_middleware(
 
 # Add request tracking middleware (在CORS之后添加，最后执行)
 app.add_middleware(RequestTrackingMiddleware)
+
+# Add tenant middleware (resolves tenant_id from JWT or header)
+app.add_middleware(TenantMiddleware)
+
+# Add global RBAC middleware (auth + write-method role checks)
+app.add_middleware(RBACMiddleware)

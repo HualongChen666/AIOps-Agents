@@ -3,12 +3,12 @@
 HITL (Human‑In‑The‑Loop) 审批中心页面路由
 
 提供一个静态 HTML 页面，用于展示待审批的修复请求列表，
-页面会自行调用后端 `/api/mcp/approve_repair`、`/api/mcp/get_host_health` 等接口获取数据。
+页面会自行调用后端 `/api/v1/hitl/approval/approve`、`/api/v1/hitl/approval/reject` 等接口获取数据。
 
 访问方式:
-    GET /hitl/   -> 返回 static/hitl_approval.html（HTML）
+    GET /hitl-page/   -> 返回 static/hitl_approval.html（HTML）
 
-如果页面文件不存在，返回 404 并记录错误日志。
+真实审批端点位于 `api/hitl_router.py`。
 """
 
 import logging
@@ -21,7 +21,7 @@ from config import BASE_DIR
 
 _logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/hitl", tags=["HITL Approval Center"])
+router = APIRouter(prefix="/hitl-page", tags=["HITL Approval Page"])
 
 
 @router.get(

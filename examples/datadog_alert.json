@@ -1,0 +1,14 @@
+{
+  "alert_id": "dd-1234567890",
+  "title": "High CPU on host-01",
+  "text": "CPU usage exceeded 80% threshold",
+  "hostname": "host-01",
+  "alert_metric": "system.cpu.user",
+  "metric_snapshot": {
+    "system.cpu.user": 87.5
+  },
+  "priority": "4",
+  "event_type": "trigger",
+  "date": "2026-08-08T12:00:00Z",
+  "tags": ["env:production", "service:api"]
+}

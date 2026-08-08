@@ -3,9 +3,12 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from core.auth_db import User
+from core.auth_service import require_roles
+from core.command_guard import record_audit
 from core.change_management_engine import (
     ChangeManagementError,
     ChangeRequest,
@@ -40,10 +43,11 @@ class ChangeRequestCreate(BaseModel):
 
 
 @router.get("/requests", response_model=list[ChangeRequest], summary="列出所有变更请求")
-async def get_change_requests() -> list[ChangeRequest]:
-    """获取所有变更请求列表."""
+async def get_change_requests(request: Request) -> list[ChangeRequest]:
+    """获取当前租户变更请求列表."""
     try:
-        return await list_requests()
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        return await list_requests(tenant_id=tenant_id)
     except Exception as e:
         _logger.error("获取变更请求列表失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取变更请求列表失败: {e}")
@@ -55,10 +59,11 @@ async def get_change_requests() -> list[ChangeRequest]:
     status_code=201,
     summary="创建变更请求",
 )
-async def post_change_request(payload: ChangeRequestCreate) -> ChangeRequest:
+async def post_change_request(request: Request, payload: ChangeRequestCreate) -> ChangeRequest:
     """创建新的变更请求."""
     try:
-        return await create_request(payload.model_dump(mode="json"))
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        return await create_request(payload.model_dump(mode="json"), tenant_id=tenant_id)
     except ChangeManagementError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -67,11 +72,12 @@ async def post_change_request(payload: ChangeRequestCreate) -> ChangeRequest:
 
 
 @router.get("/requests/{id}", response_model=ChangeRequest, summary="获取单个变更请求")
-async def get_change_request(id: str) -> ChangeRequest:
+async def get_change_request(request: Request, id: str) -> ChangeRequest:
     """根据 ID 获取单个变更请求."""
     try:
-        return await get_request(id)
-    except ChangeManagementError as e:
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        return await get_request(id, tenant_id=tenant_id)
+    except (ChangeManagementError, PermissionError) as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         _logger.error("获取变更请求失败: %s", e, exc_info=True)
@@ -83,10 +89,11 @@ async def get_change_request(id: str) -> ChangeRequest:
     response_model=ChangeRequest,
     summary="提交变更请求",
 )
-async def submit_change_request(id: str) -> ChangeRequest:
+async def submit_change_request(request: Request, id: str) -> ChangeRequest:
     """将草稿状态的变更请求提交进入审批."""
     try:
-        return await submit_request(id)
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        return await submit_request(id, tenant_id=tenant_id)
     except ChangeManagementError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -99,10 +106,24 @@ async def submit_change_request(id: str) -> ChangeRequest:
     response_model=ChangeRequest,
     summary="审批通过变更请求",
 )
-async def approve_change_request(id: str) -> ChangeRequest:
+async def approve_change_request(
+    id: str,
+    current_user: User = Depends(require_roles("admin")),
+) -> ChangeRequest:
     """审批通过待审批/审核中的变更请求."""
     try:
-        return await approve_request(id)
+        tenant_id = str(current_user.tenant_id)
+        result = await approve_request(id, tenant_id=tenant_id)
+        record_audit(
+            host=id,
+            command="CHANGE_APPROVE",
+            risk_level="high",
+            executor=current_user.username,
+            result="approved",
+            user_id=str(current_user.id) if current_user.id else None,
+            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+        )
+        return result
     except ChangeManagementError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -115,10 +136,24 @@ async def approve_change_request(id: str) -> ChangeRequest:
     response_model=ChangeRequest,
     summary="拒绝变更请求",
 )
-async def reject_change_request(id: str) -> ChangeRequest:
+async def reject_change_request(
+    id: str,
+    current_user: User = Depends(require_roles("admin")),
+) -> ChangeRequest:
     """拒绝变更请求."""
     try:
-        return await reject_request(id)
+        tenant_id = str(current_user.tenant_id)
+        result = await reject_request(id, tenant_id=tenant_id)
+        record_audit(
+            host=id,
+            command="CHANGE_REJECT",
+            risk_level="high",
+            executor=current_user.username,
+            result="rejected",
+            user_id=str(current_user.id) if current_user.id else None,
+            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+        )
+        return result
     except ChangeManagementError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -131,10 +166,24 @@ async def reject_change_request(id: str) -> ChangeRequest:
     response_model=ChangeRequest,
     summary="实施变更请求",
 )
-async def implement_change_request(id: str) -> ChangeRequest:
+async def implement_change_request(
+    id: str,
+    current_user: User = Depends(require_roles("admin", "operator")),
+) -> ChangeRequest:
     """实施已批准的变更请求."""
     try:
-        return await implement_request(id)
+        tenant_id = str(current_user.tenant_id)
+        result = await implement_request(id, tenant_id=tenant_id)
+        record_audit(
+            host=id,
+            command="CHANGE_IMPLEMENT",
+            risk_level="critical",
+            executor=current_user.username,
+            result="implemented",
+            user_id=str(current_user.id) if current_user.id else None,
+            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+        )
+        return result
     except ChangeManagementError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -147,10 +196,24 @@ async def implement_change_request(id: str) -> ChangeRequest:
     response_model=ChangeRequest,
     summary="回滚变更请求",
 )
-async def rollback_change_request(id: str) -> ChangeRequest:
+async def rollback_change_request(
+    id: str,
+    current_user: User = Depends(require_roles("admin", "operator")),
+) -> ChangeRequest:
     """回滚已实施的变更请求."""
     try:
-        return await rollback_request(id)
+        tenant_id = str(current_user.tenant_id)
+        result = await rollback_request(id, tenant_id=tenant_id)
+        record_audit(
+            host=id,
+            command="CHANGE_ROLLBACK",
+            risk_level="critical",
+            executor=current_user.username,
+            result="rolled_back",
+            user_id=str(current_user.id) if current_user.id else None,
+            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+        )
+        return result
     except ChangeManagementError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

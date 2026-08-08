@@ -15,6 +15,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - RAG_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -28,6 +34,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - LLM_ROUTER_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -41,6 +53,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - LLM_ROUTER_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -57,6 +75,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - TOPOLOGY_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -70,6 +94,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - TOPOLOGY_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -83,6 +113,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - TRACING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -96,6 +132,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - TRACING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -109,6 +151,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - LOG_AGGREGATION_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -125,6 +173,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INCIDENT_RESPONSE_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -138,6 +192,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INCIDENT_RESPONSE_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -151,6 +211,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - WORKFLOW_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -164,6 +230,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - WORKFLOW_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -177,6 +249,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - WORKFLOW_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -190,6 +268,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INCIDENT_RESPONSE_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -206,6 +290,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -219,6 +309,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -232,6 +328,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -245,6 +347,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -258,6 +366,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -271,6 +385,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -284,6 +404,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -297,6 +423,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - INTEGRATIONS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -313,6 +445,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SECURITY_SCANNING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -326,6 +464,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SECURITY_SCANNING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -339,6 +483,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PENETRATION_TESTING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -352,6 +502,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SECURITY_SCANNING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -368,6 +524,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PLUGINS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -381,6 +543,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PLUGINS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -394,6 +562,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PLUGINS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -407,6 +581,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PLUGINS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -420,6 +600,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PLUGINS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -433,6 +619,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SHARDING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -446,6 +638,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SHARDING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -459,6 +657,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SHARDING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -472,6 +676,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SHARDING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -485,6 +695,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - SHARDING_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -498,6 +714,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PLUGINS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -511,6 +733,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - PLUGINS_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:
@@ -527,6 +755,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - DOC_GENERATION_ENABLED=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aiops-network
     profiles:

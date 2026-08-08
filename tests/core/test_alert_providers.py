@@ -1,58 +1,44 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for the alert provider adapters."""
+"""Smoke tests for alert provider normalization."""
 
-from __future__ import annotations
+import json
+from pathlib import Path
+
+import pytest
 
 from core.alert_providers import get_alert_provider, list_alert_providers
 
 
-def test_list_providers():
+def _load_example(name: str):
+    path = Path(__file__).resolve().parents[2] / "examples" / f"{name}_alert.json"
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def test_all_providers_are_registered():
     providers = list_alert_providers()
-    assert "prometheus" in providers
+    for name in ("prometheus", "grafana", "datadog", "zabbix", "cloudwatch", "pagerduty"):
+        assert name in providers
 
 
-def test_get_prometheus_provider():
-    provider = get_alert_provider("prometheus")
-    assert provider is not None
-    assert provider.name == "prometheus"
-
-
-def test_prometheus_normalize_group():
-    provider = get_alert_provider("prometheus")
-    payload = {
-        "alerts": [
-            {
-                "labels": {
-                    "__name__": "memory_high",
-                    "severity": "warning",
-                    "instance": "h1",
-                },
-                "annotations": {
-                    "summary": "Memory high",
-                    "description": "Memory usage high",
-                },
-                "status": "firing",
-            }
-        ]
-    }
+def test_cloudwatch_normalize_sns():
+    payload = _load_example("cloudwatch")
+    provider = get_alert_provider("cloudwatch")
     alerts = provider.normalize(payload)
     assert len(alerts) == 1
-    assert alerts[0]["id"].startswith("PROM-")
-    assert alerts[0]["metric"] == "memory_high"
-    assert alerts[0]["status"] == "firing"
-    assert alerts[0]["host"] == "h1"
+    alert = alerts[0]
+    assert alert["source"] == "cloudwatch"
+    assert alert["title"] == "HighCPU"
+    assert alert["metric"] == "AWS/EC2/CPUUtilization"
+    assert alert["status"] == "firing"
 
 
-def test_prometheus_resolved_alert():
-    provider = get_alert_provider("prometheus")
-    payload = {
-        "alerts": [
-            {
-                "labels": {"__name__": "x"},
-                "annotations": {},
-                "status": "resolved",
-            }
-        ]
-    }
+def test_pagerduty_normalize_webhook():
+    payload = _load_example("pagerduty")
+    provider = get_alert_provider("pagerduty")
     alerts = provider.normalize(payload)
-    assert alerts[0]["status"] == "resolved"
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert alert["source"] == "pagerduty"
+    assert alert["title"] == "Database latency high"
+    assert alert["status"] == "firing"

@@ -143,6 +143,25 @@ class ConsulConfigCenter:
             _logger.error(f"Failed to get config {key}: {e}")
         return default
 
+    def get_config_item(self, key: str) -> Optional[ConfigItem]:
+        """获取完整配置项（含 version 等元数据）"""
+        if self.stub_enabled:
+            return self.stub_config.get(key)
+        try:
+            if self.consul_client:
+                _, data = self.consul_client.kv.get(key)
+                if data and data["Value"]:
+                    payload = json.loads(data["Value"].decode("utf-8"))
+                    return ConfigItem(
+                        key=key,
+                        value=payload.get("value"),
+                        version=payload.get("version", 0),
+                        metadata=payload.get("metadata", {}),
+                    )
+        except Exception as e:
+            _logger.error(f"Failed to get config item {key}: {e}")
+        return None
+
     def delete_config(self, key: str) -> bool:
         """删除配置"""
         if self.stub_enabled:

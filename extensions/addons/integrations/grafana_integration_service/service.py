@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import httpx
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,7 @@ OPERATIONS: List[str] = [
     "manage_organizations",
     "manage_permissions",
     "integrate_visualization_layer",
+    "query_data",
     "test_and_optimize_grafana",
     "write_integration_docs",
     "manage_templates",
@@ -411,6 +413,65 @@ class GrafanaIntegrationService:
             }
             await self.idempotency.mark_processed(request_id, result)
             return result
+
+    async def query_data(self, request: Any = None) -> Dict[str, Any]:
+        """Query Grafana dashboards via the search API."""
+        self.metrics.inc_request("query_data")
+        config = self._get_config(request)
+
+        base_url = config.get("url", config.get("grafana_url"))
+        api_key = config.get("api_key") or config.get("token")
+        query = config.get("query", "")
+        if not base_url:
+            return {
+                "feature": "query_data",
+                "success": False,
+                "status": "error",
+                "config": {},
+                "result": {},
+                "message": "Missing grafana url in config",
+            }
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        search_url = base_url.rstrip("/") + "/api/search"
+        params = {"query": query, "limit": config.get("limit", 50)}
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout) as client:
+                resp = await client.get(search_url, headers=headers, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+            return {
+                "feature": "query_data",
+                "success": True,
+                "status": "ok",
+                "config": {"url": base_url, "query": query},
+                "result": data,
+                "message": f"Found {len(data) if isinstance(data, list) else 0} items",
+            }
+        except httpx.HTTPStatusError as exc:
+            return {
+                "feature": "query_data",
+                "success": False,
+                "status": "error",
+                "config": {"url": base_url, "query": query},
+                "result": {"status_code": exc.response.status_code, "body": exc.response.text},
+                "message": f"Grafana API error: {exc}",
+            }
+        except Exception as exc:
+            return {
+                "feature": "query_data",
+                "success": False,
+                "status": "error",
+                "config": {"url": base_url, "query": query},
+                "result": {},
+                "message": f"Query failed: {exc}",
+            }
 
     async def test_and_optimize_grafana(self, request: Any = None) -> Dict[str, Any]:
         """Test And Optimize Grafana."""

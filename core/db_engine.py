@@ -953,14 +953,22 @@ class PostgreSQLAlertRepository:
         return await async_query_alerts(limit=limit)
 
 
-# component DatabaseEngine class for testing compatibility
+# component DatabaseEngine class for SQL execution
 class DatabaseEngine:
-    """component DatabaseEngine class for testing compatibility"""
+    """DatabaseEngine component backed by SQLAlchemy sync engine."""
 
     def __init__(self, connection_string: str = None):
         """Initialize DatabaseEngine component"""
-        self.connection_string = connection_string
+        import asyncio
+        import os
+
+        from sqlalchemy import create_engine, text
+
+        self._loop = asyncio.get_event_loop()
+        self.connection_string = connection_string or "sqlite:///data/db_engine.db"
+        self._engine = create_engine(self.connection_string, future=True)
         self.connected = False
+        self._text = text
 
     async def connect(self):
         """Connect to database component"""
@@ -969,14 +977,43 @@ class DatabaseEngine:
     async def disconnect(self):
         """Disconnect from database component"""
         self.connected = False
+        if self._engine:
+            await self._loop.run_in_executor(None, self._engine.dispose)
 
-    async def execute(self, query: str, params: dict = None):
+    def _sync_execute(self, query: str, params: Optional[Dict[str, Any]] = None):
+        from sqlalchemy import text
+
+        params = params or {}
+        with self._engine.begin() as conn:
+            result = conn.execute(text(query), params)
+            try:
+                return result.rowcount
+            finally:
+                result.close()
+
+    def _sync_fetchall(self, query: str, params: Optional[Dict[str, Any]] = None):
+        from sqlalchemy import text
+
+        params = params or {}
+        with self._engine.connect() as conn:
+            result = conn.execute(text(query), params)
+            try:
+                rows = result.mappings().all()
+                return [dict(row) for row in rows]
+            finally:
+                result.close()
+
+    async def execute(self, query: str, params: Optional[Dict[str, Any]] = None):
         """Execute query component"""
-        return []
+        if not self.connected:
+            await self.connect()
+        return await self._loop.run_in_executor(None, self._sync_execute, query, params)
 
-    async def fetchall(self, query: str, params: dict = None):
+    async def fetchall(self, query: str, params: Optional[Dict[str, Any]] = None):
         """Fetch all results component"""
-        return []
+        if not self.connected:
+            await self.connect()
+        return await self._loop.run_in_executor(None, self._sync_fetchall, query, params)
 
 
 # 默认告警仓储实例

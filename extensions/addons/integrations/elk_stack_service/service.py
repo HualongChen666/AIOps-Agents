@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import httpx
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -349,34 +350,70 @@ class ELKStackService:
             return result
 
     async def search_query(self, request: Any = None) -> Dict[str, Any]:
-        """Search Query."""
+        """Execute an Elasticsearch search query."""
         self.metrics.inc_request("search_query")
         config = self._get_config(request)
-        request_id = self.idempotency.get_key(request, "search_query")
-        async with self.lock_manager.acquire("search_query", request_id):
-            if await self.idempotency.is_processed(request_id):
-                return {
-                    "feature": "search_query",
-                    "success": True,
-                    "status": "idempotent",
-                    "config": config,
-                    "result": {"service": settings.service_name, "display": "ELK Stack"},
-                    "message": "search_query already processed",
+
+        es_url = config.get("es_url") or config.get("url")
+        index = config.get("index", "*")
+        query = config.get("query", "*")
+        username = config.get("username") or config.get("user")
+        password = config.get("password") or config.get("pass")
+        if not es_url:
+            return {
+                "feature": "search_query",
+                "success": False,
+                "status": "error",
+                "config": {},
+                "result": {},
+                "message": "Missing es_url in config",
+            }
+
+        search_url = f"{es_url.rstrip('/')}/{index}/_search"
+        body = {
+            "query": {
+                "query_string": {
+                    "query": query,
                 }
-            await self.cache.set(f"{settings.service_name}:search_query", config)
-            self._state["search_query"] = config
-            self._operations["search_query"] = self._operations.get("search_query", 0) + 1
-            self.metrics.inc_operation("search_query")
-            result = {
+            },
+            "size": config.get("size", 10),
+        }
+
+        auth = None
+        if username and password:
+            auth = (username, password)
+
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout) as client:
+                resp = await client.post(search_url, json=body, auth=auth)
+                resp.raise_for_status()
+                data = resp.json()
+            return {
                 "feature": "search_query",
                 "success": True,
-                "status": "configured",
-                "config": config,
-                "result": {"service": settings.service_name, "display": "ELK Stack"},
-                "message": "search_query completed",
+                "status": "ok",
+                "config": {"es_url": es_url, "index": index, "query": query},
+                "result": data,
+                "message": f"Found {data.get('hits', {}).get('total', {}).get('value', 0)} hits",
             }
-            await self.idempotency.mark_processed(request_id, result)
-            return result
+        except httpx.HTTPStatusError as exc:
+            return {
+                "feature": "search_query",
+                "success": False,
+                "status": "error",
+                "config": {"es_url": es_url, "index": index, "query": query},
+                "result": {"status_code": exc.response.status_code, "body": exc.response.text},
+                "message": f"Elasticsearch error: {exc}",
+            }
+        except Exception as exc:
+            return {
+                "feature": "search_query",
+                "success": False,
+                "status": "error",
+                "config": {"es_url": es_url, "index": index, "query": query},
+                "result": {},
+                "message": f"Search failed: {exc}",
+            }
 
     async def aggregate_query(self, request: Any = None) -> Dict[str, Any]:
         """Aggregate Query."""

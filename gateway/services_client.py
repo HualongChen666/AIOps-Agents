@@ -14,9 +14,15 @@ from typing import Any, Dict, List, Optional, cast
 
 import httpx
 
+import config
+
 logger = logging.getLogger(__name__)
 
 _http_client: Optional[httpx.AsyncClient] = None
+
+# Default add-on service URLs are centralized in config.py so that
+# `MICROSERVICE_MODE=remote` automatically has usable endpoints.
+_DEFAULT_SERVICE_URLS: Dict[str, str] = config.ADDON_SERVICE_URLS
 
 
 def _get_http_client() -> httpx.AsyncClient:
@@ -28,7 +34,7 @@ def _get_http_client() -> httpx.AsyncClient:
 
 
 def _is_remote() -> bool:
-    return os.getenv("MICROSERVICE_MODE", "local").lower() == "remote"
+    return config.MICROSERVICE_MODE == "remote"
 
 
 async def _close_http_client() -> None:
@@ -146,9 +152,11 @@ async def _remote_call(
     payload: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Generic remote microservice call."""
-    url_value = os.getenv(service_url_env)
+    url_value = _DEFAULT_SERVICE_URLS.get(service_url_env)
     if not url_value:
-        raise RuntimeError(f"{service_url_env} is not configured")
+        raise RuntimeError(
+            f"{service_url_env} is not configured and no default URL is available"
+        )
     base = url_value.rstrip("/")
     client = _get_http_client()
     url = f"{base}{path}"
@@ -165,22 +173,57 @@ async def _remote_call(
 
 async def remote_rag_query(query: str, top_k: int = 5) -> Any:
     """Query the RAG add-on service."""
-    return await _remote_call("RAG_SERVICE_URL", "POST", "/query", {"query": query, "top_k": top_k})
+    return await _remote_call("RAG_SERVICE_URL", "POST", "/search", {"query": query, "top_k": top_k})
 
 
 async def remote_llm_route(prompt: str, models: Optional[List[str]] = None) -> Any:
     """Route a prompt through the LLM router add-on service."""
     payload: Dict[str, Any] = {"prompt": prompt}
     if models:
-        payload["models"] = models
+        payload["force_model"] = models[0]
     return await _remote_call("LLM_ROUTER_SERVICE_URL", "POST", "/route", payload)
 
 
 async def remote_topology() -> Any:
-    """Fetch topology from the observability add-on service."""
-    return await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/topology")
+    """Fetch topology nodes and edges from the observability add-on service."""
+    nodes = await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/nodes")
+    edges = await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/edges")
+    return {
+        "nodes": nodes.get("nodes", []),
+        "edges": edges.get("edges", []),
+    }
 
 
 async def remote_incident_list() -> Any:
-    """List incidents from the operations add-on service."""
-    return await _remote_call("INCIDENT_RESPONSE_SERVICE_URL", "GET", "/incidents")
+    """List methods available on the incident response add-on service."""
+    return await _remote_call("INCIDENT_RESPONSE_SERVICE_URL", "POST", "/incident-response/list_methods", {})
+
+
+async def remote_datadog_query(config: Dict[str, Any]) -> Any:
+    """Query a Datadog metric through the Datadog integration add-on."""
+    return await _remote_call(
+        "DATADOG_INTEGRATION_SERVICE_URL",
+        "POST",
+        "/datadog-integration/query-metrics",
+        {"config": config},
+    )
+
+
+async def remote_grafana_query(config: Dict[str, Any]) -> Any:
+    """Query Grafana dashboards through the Grafana integration add-on."""
+    return await _remote_call(
+        "GRAFANA_INTEGRATION_SERVICE_URL",
+        "POST",
+        "/grafana-integration/query-data",
+        {"config": config},
+    )
+
+
+async def remote_elk_search(config: Dict[str, Any]) -> Any:
+    """Search an Elasticsearch index through the ELK stack add-on."""
+    return await _remote_call(
+        "ELK_STACK_SERVICE_URL",
+        "POST",
+        "/elk-stack/search-query",
+        {"config": config},
+    )

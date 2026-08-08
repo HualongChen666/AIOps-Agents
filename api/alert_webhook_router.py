@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, HTTPException, Request, status
 from pydantic import BaseModel
 
 from core.alert_engine import alert_history
@@ -56,7 +56,11 @@ class WebhookResponse(BaseModel):
 
 
 @router.post("/webhook/{provider}", response_model=WebhookResponse)
-async def receive_alert(provider: str, payload: Any = Body(...)) -> WebhookResponse:
+async def receive_alert(
+    provider: str,
+    request: Request,
+    payload: Any = Body(...),
+) -> WebhookResponse:
     """Receive an alert payload from any supported monitoring provider."""
     provider_impl = get_alert_provider(provider)
     if provider_impl is None:
@@ -71,9 +75,11 @@ async def receive_alert(provider: str, payload: Any = Body(...)) -> WebhookRespo
             detail="Auto-heal engine is not available",
         )
 
+    tenant_id = getattr(request.state, "tenant_id", None)
     alerts = provider_impl.normalize(payload)
     for alert in alerts:
         if isinstance(alert, dict):
+            alert["tenant_id"] = tenant_id
             alert_history.appendleft(alert)
     results: List[WebhookResult] = []
 
@@ -127,12 +133,12 @@ async def receive_alert(provider: str, payload: Any = Body(...)) -> WebhookRespo
 
 
 @router.post("/webhook/prometheus", response_model=WebhookResponse)
-async def receive_prometheus(payload: Any = Body(...)) -> WebhookResponse:
+async def receive_prometheus(request: Request, payload: Any = Body(...)) -> WebhookResponse:
     """Dedicated Prometheus / Alertmanager webhook endpoint."""
-    return await receive_alert("prometheus", payload)
+    return await receive_alert("prometheus", request, payload)
 
 
 @router.post("/prometheus", response_model=WebhookResponse)
-async def receive_prometheus_root(payload: Any = Body(...)) -> WebhookResponse:
+async def receive_prometheus_root(request: Request, payload: Any = Body(...)) -> WebhookResponse:
     """Prometheus / Alertmanager webhook endpoint at /api/v1/alerts/prometheus."""
-    return await receive_alert("prometheus", payload)
+    return await receive_alert("prometheus", request, payload)

@@ -41,7 +41,7 @@ CHANGE_CORRELATION_WINDOW_MINUTES: int = 15
 
 # Import existing causal analysis components
 try:
-    pass
+    from core.processing.l3.causal_graph import CausalGraph
 
     CAUSAL_AVAILABLE = True
 except ImportError:
@@ -1373,14 +1373,86 @@ class RootCauseIntelligenceEngine:
     async def _causal_graph_analysis(
         self, alert: Dict[str, Any], metrics_data: Dict[str, Any]
     ) -> List[RootCauseHypothesis]:
-        """default_value for causal graph analysis; kept for future extension."""
-        return []
+        """基于告警与指标的因果路径分析，生成可验证的根因假设。"""
+        import uuid
+
+        hypotheses = []
+        source = alert.get("source_service") or alert.get("instance", "unknown")
+        metric = alert.get("metric", "unknown")
+        value = alert.get("value")
+
+        # 构建一条简单因果链：source -> metric 异常 -> 依赖服务受影响
+        causal_path = [source, metric]
+        downstream = set(alert.get("affected_services", []))
+        if downstream:
+            causal_path.extend(sorted(downstream))
+
+        evidence = [
+            f"告警指标 {metric} 当前值为 {value}",
+            f"受影响服务: {', '.join(downstream) if downstream else '未指定'}",
+        ]
+        # 如果 metrics_data 里有相关指标，加入证据
+        for key, val in metrics_data.items():
+            if metric in key or key in str(metric):
+                evidence.append(f"相关指标 {key} 值: {val}")
+
+        hypotheses.append(
+            RootCauseHypothesis(
+                hypothesis_id=f"causal-{uuid.uuid4().hex[:8]}",
+                root_cause=f"{metric} 异常可能是 {source} 上根因的传导结果",
+                confidence=0.6,
+                evidence=evidence,
+                causal_path=causal_path,
+                impact_score=alert.get("severity_score", 0.5),
+                expected_observations=[
+                    f"若成立，{source} 的 {metric} 指标应持续异常",
+                    "下游服务错误率或延迟应同步上升",
+                ],
+            )
+        )
+        return hypotheses
 
     async def _ml_based_analysis(
         self, alert: Dict[str, Any], metrics_data: Dict[str, Any]
     ) -> List[RootCauseHypothesis]:
-        """default_value for ML-based root cause analysis; kept for future extension."""
-        return []
+        """基于指标统计特征生成根因假设。"""
+        import uuid
+
+        hypotheses = []
+        metric = alert.get("metric", "unknown")
+        values = [v for v in metrics_data.values() if isinstance(v, (int, float))]
+        avg = sum(values) / len(values) if values else 0.0
+        threshold = alert.get("threshold", avg * 1.2 if avg else 1.0)
+        current_value = alert.get("value")
+        current_numeric = current_value if isinstance(current_value, (int, float)) else 1.0
+
+        if values and current_numeric > avg:
+            confidence = min(0.95, 0.5 + (current_numeric - avg) / max(avg, 1.0) * 0.3)
+            root_cause = f"{metric} 明显高于历史均值 {avg:.2f}，可能为容量或资源瓶颈"
+        else:
+            confidence = 0.4
+            root_cause = f"{metric} 异常触发，但历史数据不足，需人工确认"
+
+        evidence = [
+            f"当前值: {current_numeric}",
+            f"历史均值: {avg:.2f}",
+            f"阈值: {threshold}",
+        ]
+
+        hypotheses.append(
+            RootCauseHypothesis(
+                hypothesis_id=f"ml-{uuid.uuid4().hex[:8]}",
+                root_cause=root_cause,
+                confidence=round(confidence, 2),
+                evidence=evidence,
+                impact_score=alert.get("severity_score", 0.5),
+                expected_observations=[
+                    f"若成立，{metric} 应持续高于 {threshold}",
+                    "相关容量指标（CPU/内存/连接数）应同步接近上限",
+                ],
+            )
+        )
+        return hypotheses
 
     async def predict_root_causes(
         self, current_state: Dict[str, Any], prediction_horizon: int = 60  # minutes

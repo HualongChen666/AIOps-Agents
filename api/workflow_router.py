@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 
+from core.workflow.engine import WorkflowExecutor, parse_json_workflow
 from core.workflow_engine import (
     WORKFLOW_DEFINITIONS,
     create_workflow_definition,
@@ -41,6 +42,21 @@ router = APIRouter(
 # 🔧 BUG-FIX-13(低危):SSE 全局并发限制
 _SSE_MAX_CONCURRENT = 20
 _sse_semaphore = asyncio.Semaphore(_SSE_MAX_CONCURRENT)
+
+# DSL workflow executor
+_executor = WorkflowExecutor()
+
+async def _noop_handler(node: Any, context: Any) -> dict[str, Any]:
+    return {"status": "ok", "node_id": node.id}
+
+async def _delay_handler(node: Any, context: Any) -> dict[str, Any]:
+    seconds = node.config.get("seconds", 1)
+    await asyncio.sleep(max(0, float(seconds)))
+    return {"status": "ok", "node_id": node.id, "delay": seconds}
+
+_executor.register_handler("noop", _noop_handler)
+_executor.register_handler("delay", _delay_handler)
+_executor.register_handler("task", _noop_handler)
 
 # 🔧 WR4 [P2]:SSE 心跳间隔(秒,防 nginx/cloudflare 超时断连)
 _SSE_HEARTBEAT_INTERVAL_SEC = 30
@@ -404,4 +420,27 @@ async def get_concurrent_status() -> dict[str, Any]:
         "available": current_value,
         "in_use": in_use,
         "is_locked": _sse_semaphore.locked(),
+    }
+
+
+class WorkflowExecuteRequest(BaseModel):
+    """Request to execute a DSL-defined workflow."""
+
+    workflow: dict[str, Any]
+
+
+@router.post("/execute", summary="执行 DSL 工作流")
+async def execute_workflow(body: WorkflowExecuteRequest) -> dict[str, Any]:
+    """Execute a workflow defined in the request body (JSON/YAML DSL)."""
+    try:
+        dag = parse_json_workflow(json.dumps(body.workflow))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    context = await _executor.execute(dag)
+    return {
+        "workflow_id": context.workflow_id,
+        "run_id": context.run_id,
+        "status": context.status.value,
+        "results": context.results,
+        "errors": context.errors,
     }

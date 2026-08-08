@@ -125,13 +125,15 @@ class TrendPredictionRequest(BaseModel):
     },
 )
 async def get_alerts(
-    limit: int = Query(default=20, ge=1, le=500, description="返回的告警最大条数,范围 1-500")
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=500, description="返回的告警最大条数,范围 1-500"),
 ) -> dict[str, Any]:
     """
     返回最新告警列表(时间倒序,最新在前)
     对应前端:右侧"最新告警事件"面板
     """
-    return alert_service.get_alerts(limit)
+    tenant_id = getattr(request.state, "tenant_id", None)
+    return alert_service.get_alerts(limit, tenant_id=tenant_id)
 
 
 @router.post(

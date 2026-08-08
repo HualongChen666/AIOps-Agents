@@ -1,0 +1,6 @@
+{
+  "Type": "Notification",
+  "MessageId": "abcdef-1234-5678-90ab-cdef",
+  "TopicArn": "arn:aws:sns:us-east-1:123456789:aiops-alerts",
+  "Message": "{\"AlarmName\":\"HighCPU\",\"AlarmDescription\":\"CPU utilization is high\",\"AWSAccountId\":\"123456789\",\"NewStateValue\":\"ALARM\",\"OldStateValue\":\"OK\",\"StateChangeTime\":\"2026-08-08T12:00:00.000+0000\",\"Region\":\"us-east-1\",\"AlarmArn\":\"arn:aws:cloudwatch:us-east-1:123456789:alarm:HighCPU\",\"Trigger\":{\"MetricName\":\"CPUUtilization\",\"Namespace\":\"AWS/EC2\",\"Statistic\":\"Average\",\"Dimensions\":[{\"name\":\"InstanceId\",\"value\":\"i-0123456789abcdef0\"}],\"Threshold\":80.0,\"ComparisonOperator\":\"GreaterThanThreshold\"},\"NewStateReason\":\"Threshold Crossed: 85.0 (average) >= 80.0\"}"
+}

@@ -1,0 +1,11 @@
+{
+  "eventid": "123456",
+  "subject": "High CPU usage on host-01",
+  "message": "CPU usage is 87.5% on host-01",
+  "hostname": "host-01",
+  "severity": "High",
+  "itemname": "CPU utilization",
+  "itemvalue": "87.5",
+  "status": "1",
+  "event_time": "2026-08-08T12:00:00Z"
+}

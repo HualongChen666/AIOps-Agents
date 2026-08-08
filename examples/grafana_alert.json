@@ -1,0 +1,25 @@
+{
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HighCPUUsage",
+        "severity": "warning",
+        "instance": "host-01",
+        "job": "node-exporter",
+        "__name__": "cpu_usage_user"
+      },
+      "annotations": {
+        "summary": "High CPU usage on host-01",
+        "description": "CPU usage is above 80% for more than 5 minutes"
+      },
+      "startsAt": "2026-08-08T12:00:00Z",
+      "fingerprint": "grafana-cpu-host-01",
+      "values": {
+        "B": 87.5,
+        "C": 0
+      }
+    }
+  ]
+}

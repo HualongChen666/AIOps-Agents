@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-Apache%202.0-orange.svg)
 ![Status](https://img.shields.io/badge/status-Active-success.svg)
 
-**新一代智能运维平台 - 第一梯队技术领导者**
+**新一代开源 AIOps Agent**
 
 [文档](https://docs.aiops-agent.com) | [演示](https://demo.aiops-agent.com) | [社区](https://community.aiops-agent.com) | [路线图](https://roadmap.aiops-agent.com)
 
@@ -17,13 +17,13 @@
 
 ## 🎯 项目愿景
 
-AIOps Agent 致力于成为**新一代智能运维平台 - 第一梯队技术领导者**，提供企业级的智能运维解决方案。重新定义AIOps行业的技术标准。
+AIOps Agent 致力于成为**新一代开源 AIOps Agent**，提供企业级的智能运维解决方案。重新定义AIOps行业的技术标准。
 
 ### 核心目标
 
-- **技术水平:** 8.8/10 (第一梯队技术领导者)
-- **市场定位:** 与Dynatrace、Datadog形成有力竞争
-- **核心策略:** 7层分布式架构 + 核心算法突破 + 功能完全对等
+- **技术水平:** 持续迭代中，基于真实源码演进
+- **市场定位:** 面向中小规模的开源 AIOps 自愈 Agent
+- **核心策略:** 单体 + 可选远程微服务架构，优先把核心告警→自愈闭环跑通
 - **开发模式:** AI+专家混合开发
 - **差异化:** 开源+企业双模式，成本+技术双重优势
 
@@ -33,27 +33,27 @@ AIOps Agent 致力于成为**新一代智能运维平台 - 第一梯队技术领
 
 ### 🧠 智能化能力
 
-- **确定性因果分析:** 基于LangGraph + Neo4j的因果推理引擎，提供可解释的根因分析
-- **多代理协作:** 智能代理编排系统，实现监控、诊断、修复的自动化协作
-- **情景记忆系统:** 基于向量数据库的长期记忆，从历史事件中学习和优化
-- **知识图谱:** 实时服务拓扑和依赖关系建模，支持影响范围分析
-- **异常检测:** 多算法融合的异常检测，支持自适应基线和预测性告警
+- **根因分析:** 基于规则与可选 LLM 的因果推理，辅助定位故障根因
+- **多代理协作:** 模块化的监控、诊断、修复编排接口，真实运行依赖 add-on 配置
+- **情景记忆 / RAG:** 可选向量数据库长期记忆，环境就绪后召回历史知识
+- **知识图谱 / 拓扑:** 可选服务拓扑与依赖关系建模，默认基于 config 中真实主机生成
+- **异常检测:** 基于阈值与规则的告警检测，结合可选趋势预测组件
 
 ### 🏗️ 架构优势
 
-- **7层分布式架构:** 清晰的分层设计，支持独立扩展和部署
-- **高可用性:** 集群部署、故障自动转移、多地域容灾
-- **高性能:** 异步处理、缓存优化、数据库读写分离
-- **可扩展:** 水平扩展、弹性伸缩、模块化设计
-- **云原生:** 容器化部署、Kubernetes编排、服务网格
+- **单体 + 可选分布式微服务:** 默认 core 单体运行，add-on 可按需拆分为独立服务
+- **高可用性:** 预留集群部署、故障自动转移接口，默认单实例
+- **高性能:** 异步处理、内存缓存、可选数据库读写分离
+- **可扩展:** 模块化 add-on 设计，支持横向扩展
+- **云原生友好:** 提供 Docker Compose 与 K8s 部署配置，需按实际环境启用
 
 ### 🔧 企业级特性
 
-- **权限控制:** RBAC + ABAC双重权限模型，支持多租户
-- **审计合规:** 完整的操作审计日志，支持合规报告生成
-- **安全防护:** TLS加密、数据脱敏、访问控制、DDoS防护
-- **数据保护:** 数据加密、备份恢复、数据保留策略
-- **集成能力:** 400+监控工具集成，支持多云平台
+- **权限控制:** RBAC 已实现，ABAC 细粒度策略与多租户数据隔离持续完善
+- **审计合规:** 操作审计日志（含 user_id/tenant_id），支持命令与审批追溯
+- **安全防护:** 可选 TLS、访问控制、DDoS 防护接口
+- **数据保护:** 数据加密、备份恢复、数据保留策略预留接口
+- **集成能力:** 已跑通 Prometheus、Grafana、Datadog、Zabbix 告警接入，Datadog/Grafana/ELK 真实数据查询，预留 CloudWatch、PagerDuty 扩展接口；多云修复支持 AWS、Azure 基础操作
 
 ### 🚀 开发效率
 
@@ -130,7 +130,7 @@ graph TB
 ### 架构层次说明
 
 | 层次 | 功能定位 | 核心组件 | 技术选型 |
-|-----|---------|---------|---------|
+| ----- | --------- | --------- | --------- |
 | **Layer 1** | API网关层 | API Gateway、负载均衡、认证授权 | Kong, Nginx, OAuth 2.0 |
 | **Layer 2** | 业务逻辑层 | 告警、修复、拓扑、工作流服务 | FastAPI, PostgreSQL, Temporal |
 | **Layer 3** | AI引擎层 | LLM路由、RAG、代理编排、因果分析 | LangGraph, LiteLLM, Qdrant |
@@ -312,7 +312,7 @@ pytest -n auto
 
 ### 测试覆盖率
 
-我们的目标是达到80%以上的测试覆盖率。当前覆盖率可以通过以下命令查看：
+测试覆盖率目标是持续跑通核心路径；当前覆盖率可通过以下命令查看真实数字：
 
 ```bash
 pytest --cov=. --cov-report=term-missing
@@ -325,7 +325,7 @@ pytest --cov=. --cov-report=term-missing
 ### 性能指标
 
 | 指标 | 目标值 | 当前值 | 状态 |
-|-----|--------|--------|------|
+| ----- | -------- | -------- | ------ |
 | API响应时间 | < 100ms (P95) | 85ms | ✅ |
 | 告警处理延迟 | < 5s | 3.2s | ✅ |
 | 根因分析时间 | < 30s | 25s | ✅ |
@@ -375,6 +375,7 @@ locust -f tests/performance/locustfile.py --host=http://localhost:8000
 ```
 
 类型包括:
+
 - feat: 新功能
 - fix: 修复bug
 - docs: 文档更新
@@ -411,7 +412,7 @@ locust -f tests/performance/locustfile.py --host=http://localhost:8000
 
 - [ ] OneAgent级别的自动发现
 - [ ] Watchdog零配置异常检测
-- [ ] 400+工具集成
+- [ ] 逐步扩展可跑通的监控/ITSM/云平台集成（见 docs/CAPABILITIES.md）
 - [ ] 多地域容灾
 - [ ] 性能优化专项
 
@@ -431,7 +432,7 @@ locust -f tests/performance/locustfile.py --host=http://localhost:8000
 ### 与竞品对比
 
 | 特性 | AIOps Agent | Dynatrace | Datadog | Keep |
-|-----|-------------|-----------|---------|------|
+| ----- | ------------- | ----------- | --------- | ------ |
 | **架构设计** | 7层分布式 | 专有架构 | 云原生架构 | 模块化架构 |
 | **AI算法** | 因果分析+代理 | Davis AI | Watchdog | 基础AI |
 | **开源程度** | 开源+企业 | 闭源 | 闭源 | 完全开源 |
@@ -453,7 +454,7 @@ locust -f tests/performance/locustfile.py --host=http://localhost:8000
 
 ### 获取帮助
 
-- 📧 邮件: support@aiops-agent.com
+- 📧 邮件: <support@aiops-agent.com>
 - 💬 Slack: [aiops-agent.slack.com](https://aiops-agent.slack.com)
 - 📖 论坛: [forum.aiops-agent.com](https://forum.aiops-agent.com)
 - 🐛 问题跟踪: [GitHub Issues](https://github.com/your-org/aiops-agent/issues)
@@ -489,7 +490,7 @@ locust -f tests/performance/locustfile.py --host=http://localhost:8000
 ## 📞 联系我们
 
 - 🌐 官网: [https://aiops-agent.com](https://aiops-agent.com)
-- 📧 邮箱: contact@aiops-agent.com
+- 📧 邮箱: <contact@aiops-agent.com>
 - 🐦 Twitter: [@aiops_agent](https://twitter.com/aiops_agent)
 - 💼 LinkedIn: [AIOps Agent](https://linkedin.com/company/aiops-agent)
 

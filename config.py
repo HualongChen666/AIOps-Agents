@@ -104,6 +104,7 @@ def _safe_float(
 # ============================================================
 # Add-on Feature Pack Switches
 # ============================================================
+# All add-on packs are enabled by default. Set individual flags to false to disable.
 ENABLE_ADDONS: bool = _safe_bool("ENABLE_ADDONS", default=True)
 
 # AI Plus Pack
@@ -112,7 +113,7 @@ LLM_ROUTER_ENABLED: bool = _safe_bool("LLM_ROUTER_ENABLED", default=True)
 
 # Observability & Topology Pack
 TOPOLOGY_ENABLED: bool = _safe_bool("TOPOLOGY_ENABLED", default=True)
-TRACING_ENABLED: bool = _safe_bool("TRACING_ENABLED", default=False)
+TRACING_ENABLED: bool = _safe_bool("TRACING_ENABLED", default=True)
 LOG_AGGREGATION_ENABLED: bool = _safe_bool("LOG_AGGREGATION_ENABLED", default=True)
 
 # SRE Operations Pack
@@ -120,19 +121,40 @@ INCIDENT_RESPONSE_ENABLED: bool = _safe_bool("INCIDENT_RESPONSE_ENABLED", defaul
 WORKFLOW_ENABLED: bool = _safe_bool("WORKFLOW_ENABLED", default=True)
 
 # Multi-Cloud & Integrations Pack
-INTEGRATIONS_ENABLED: bool = _safe_bool("INTEGRATIONS_ENABLED", default=False)
+INTEGRATIONS_ENABLED: bool = _safe_bool("INTEGRATIONS_ENABLED", default=True)
 
 # Security & Compliance Pack
-SECURITY_SCANNING_ENABLED: bool = _safe_bool("SECURITY_SCANNING_ENABLED", default=False)
-PENETRATION_TESTING_ENABLED: bool = _safe_bool("PENETRATION_TESTING_ENABLED", default=False)
+SECURITY_SCANNING_ENABLED: bool = _safe_bool("SECURITY_SCANNING_ENABLED", default=True)
+PENETRATION_TESTING_ENABLED: bool = _safe_bool("PENETRATION_TESTING_ENABLED", default=True)
 
 # Infrastructure & Plugin Ecosystem Pack
 PLUGINS_ENABLED: bool = _safe_bool("PLUGINS_ENABLED", default=True)
-SHARDING_ENABLED: bool = _safe_bool("SHARDING_ENABLED", default=False)
+SHARDING_ENABLED: bool = _safe_bool("SHARDING_ENABLED", default=True)
 I18N_ENABLED: bool = _safe_bool("I18N_ENABLED", default=True)
 
 # Documentation & Tooling Pack
-DOC_GENERATION_ENABLED: bool = _safe_bool("DOC_GENERATION_ENABLED", default=False)
+DOC_GENERATION_ENABLED: bool = _safe_bool("DOC_GENERATION_ENABLED", default=True)
+
+# ============================================================
+# Microservice / Add-on remote defaults
+# ============================================================
+MICROSERVICE_MODE: str = os.getenv("MICROSERVICE_MODE", "local").strip().lower()
+
+# Default add-on service base URLs (host port side) matching docker-compose.addons.yml.
+ADDON_SERVICE_URLS: Dict[str, str] = {
+    "RAG_SERVICE_URL": os.getenv("RAG_SERVICE_URL", "http://localhost:8001"),
+    "LLM_ROUTER_SERVICE_URL": os.getenv("LLM_ROUTER_SERVICE_URL", "http://localhost:8002"),
+    "KNOWLEDGE_GRAPH_SERVICE_URL": os.getenv("KNOWLEDGE_GRAPH_SERVICE_URL", "http://localhost:8003"),
+    "TOPOLOGY_SERVICE_URL": os.getenv("TOPOLOGY_SERVICE_URL", "http://localhost:8011"),
+    "METRICS_MONITORING_SERVICE_URL": os.getenv("METRICS_MONITORING_SERVICE_URL", "http://localhost:8012"),
+    "TRACING_SERVICE_URL": os.getenv("TRACING_SERVICE_URL", "http://localhost:8014"),
+    "LOG_AGGREGATION_SERVICE_URL": os.getenv("LOG_AGGREGATION_SERVICE_URL", "http://localhost:8015"),
+    "INCIDENT_RESPONSE_SERVICE_URL": os.getenv("INCIDENT_RESPONSE_SERVICE_URL", "http://localhost:8021"),
+    "WORKFLOW_SERVICE_URL": os.getenv("WORKFLOW_SERVICE_URL", "http://localhost:8023"),
+    "DATADOG_INTEGRATION_SERVICE_URL": os.getenv("DATADOG_INTEGRATION_SERVICE_URL", "http://localhost:8031"),
+    "GRAFANA_INTEGRATION_SERVICE_URL": os.getenv("GRAFANA_INTEGRATION_SERVICE_URL", "http://localhost:8032"),
+    "ELK_STACK_SERVICE_URL": os.getenv("ELK_STACK_SERVICE_URL", "http://localhost:8033"),
+}
 
 
 # ============================================================
@@ -602,7 +624,7 @@ L4_STORAGE_CONFIG: dict[str, Any] = {
 # ============================================================
 # L2 Analysis Layer Configuration (7-Layer Architecture)
 # ============================================================
-LANGGRAPH_ENABLED: bool = _safe_bool("LANGGRAPH_ENABLED", default=False)
+LANGGRAPH_ENABLED: bool = _safe_bool("LANGGRAPH_ENABLED", default=True)
 
 RAG_COLLECTION_NAME: str = os.getenv("RAG_COLLECTION_NAME", "aiops_knowledge").strip()
 RAG_EMBEDDING_MODEL: str = os.getenv("RAG_EMBEDDING_MODEL", "all-MiniLM-L6-v2").strip()
@@ -631,9 +653,9 @@ L2_ANALYSIS_CONFIG: dict[str, Any] = {
 # ============================================================
 # L5 Interface Layer Configuration (7-Layer Architecture)
 # ============================================================
-MCP_ENABLED: bool = _safe_bool("MCP_ENABLED", default=False)
+MCP_ENABLED: bool = _safe_bool("MCP_ENABLED", default=True)
 
-GRAPHQL_ENABLED: bool = _safe_bool("GRAPHQL_ENABLED", default=False)
+GRAPHQL_ENABLED: bool = _safe_bool("GRAPHQL_ENABLED", default=True)
 GRAPHQL_PATH: str = os.getenv("GRAPHQL_PATH", "/graphql").strip()
 
 GRPC_HOST: str = os.getenv("AIOPS_GRPC_HOST", "127.0.0.1").strip()
@@ -709,12 +731,12 @@ L7_INTEGRATION_CONFIG: dict[str, Any] = {
 # ============================================================
 # L3 Processing Layer Configuration (7-Layer Architecture)
 # ============================================================
-WORKFLOW_ENGINE_ENABLED: bool = _safe_bool("WORKFLOW_ENGINE_ENABLED", default=False)
+WORKFLOW_ENGINE_ENABLED: bool = _safe_bool("WORKFLOW_ENGINE_ENABLED", default=True)
 WORKFLOW_ENGINE_MAX_CONCURRENT: int = _safe_int(
     "WORKFLOW_ENGINE_MAX_CONCURRENT", default=10, min_val=1, max_val=50
 )
 
-CAUSAL_GRAPH_ENABLED: bool = _safe_bool("CAUSAL_GRAPH_ENABLED", default=False)
+CAUSAL_GRAPH_ENABLED: bool = _safe_bool("CAUSAL_GRAPH_ENABLED", default=True)
 CAUSAL_GRAPH_AUTO_BUILD: bool = _safe_bool("CAUSAL_GRAPH_AUTO_BUILD", default=True)
 
 L3_PROCESSING_CONFIG: dict[str, Any] = {

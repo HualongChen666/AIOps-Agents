@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from core.config_center import get_config_center
 from core.distributed_storage import get_distributed_storage_manager
-from core.flink_stream_processor import get_flink_job_manager
+from core.flink_stream_processor import FlinkJobConfig, FlinkJobType, get_flink_job_manager
 from core.kafka_stream_processor import get_kafka_processor
 from core.l1l2_data_flow_integrator import get_l1l2_data_flow_integrator
 from core.monitoring_infrastructure import get_monitoring_infrastructure
@@ -234,24 +234,19 @@ async def send_kafka_message(request: KafkaMessageRequest):
     },
 )
 async def get_kafka_status():
-    """获取Kafka状态"""
+    """获取Kafka状态（基于真实本地缓存/发送的消息）"""
     kafka_processor = get_kafka_processor()
-    stub_enabled = bool(getattr(kafka_processor, "stub_enabled", True))
-
     messages: list = []
     try:
-        messages = kafka_processor.get_stub_messages()
+        messages = kafka_processor.get_cached_messages()
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
-        logging.warning("Suppressed exception", exc_info=True)
-        pass
+        logging.warning("读取Kafka缓存消息失败", exc_info=True)
 
-    topics = sorted({getattr(msg, "topic", "") for msg in messages})
-    if not topics:
-        topics = ["metrics-topic", "logs-topic", "traces-topic", "alerts-topic"]
+    topics = sorted({getattr(msg, "topic", "") for msg in messages if getattr(msg, "topic", "")})
 
     return {
-        "stub_enabled": stub_enabled,
+        "connected": bool(getattr(kafka_processor, "producer", None) is not None),
         "total_messages": len(messages),
         "topics": topics,
     }
@@ -280,10 +275,24 @@ async def get_kafka_status():
 async def create_flink_job(request: FlinkJobRequest):
     """创建Flink作业"""
     try:
-        get_flink_job_manager()
-        return FlinkJobResponse(
-            job_name=request.job_name, job_type=request.job_type, status="created"
+        job_type_enum = FlinkJobType.METRICS_AGGREGATION
+        for t in FlinkJobType:
+            if t.value == request.job_type:
+                job_type_enum = t
+                break
+        config = FlinkJobConfig(
+            job_name=request.job_name,
+            job_type=job_type_enum,
+            parallelism=request.parallelism,
         )
+        job = get_flink_job_manager().create_job(config)
+        return FlinkJobResponse(
+            job_name=job.config.job_name,
+            job_type=job.config.job_type.value,
+            status="created",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid job_type: {request.job_type}")
     except Exception as e:
         _logger.error(f"Error creating Flink job: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -389,7 +398,9 @@ async def set_config(request: ConfigItemRequest):
             key=request.key, value=request.value, metadata=request.metadata
         )
         if success:
-            return ConfigItemResponse(key=request.key, value=request.value, version=0)
+            item = config_center.get_config_item(request.key)
+            version = item.version if item else 0
+            return ConfigItemResponse(key=request.key, value=request.value, version=version)
         else:
             raise HTTPException(status_code=500, detail="Failed to set config")
     except Exception as e:
@@ -574,15 +585,15 @@ async def get_infrastructure_health():
         monitoring = get_monitoring_infrastructure()
         data_flow = get_l1l2_data_flow_integrator()
 
-        def _is_healthy(obj: Any, attr: str = "stub_enabled") -> bool:
-            value = getattr(obj, attr, True)
-            if callable(value):
-                try:
-                    value = value()
-                except Exception as e:
-                    logging.exception("Unexpected exception: %s", e)
-                    value = True
-            return bool(value)
+        def _is_healthy(obj: Any) -> bool:
+            # 如果显式标记为 stub，视为不健康；否则优先使用 _initialized/connected 等真实状态
+            if getattr(obj, "stub_enabled", False):
+                return False
+            for flag in ("_initialized", "connected", "initialized"):
+                val = getattr(obj, flag, None)
+                if val is not None:
+                    return bool(val if not callable(val) else val())
+            return True
 
         collector = getattr(monitoring, "metrics_collector", monitoring)
 

@@ -8,7 +8,11 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from core.auth_db import User
+from core.auth_service import require_roles
+from core.command_guard import record_audit
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +107,10 @@ async def hitl_health() -> Dict[str, Any]:
         500: {"description": "创建失败"},
     },
 )
-async def create_approval_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
+async def create_approval_request(
+    request: Request,
+    request_data: Dict[str, Any],
+) -> Dict[str, Any]:
     """Create approval request"""
     if not HITL_AVAILABLE or not _approval_workflow:
         raise HTTPException(status_code=503, detail="HITL not available")
@@ -120,12 +127,14 @@ async def create_approval_request(request_data: Dict[str, Any]) -> Dict[str, Any
             for step in request_data.get("steps", [])
         ]
 
+        tenant_id = getattr(request.state, "tenant_id", "default")
         request = _approval_workflow.create_request(
             workflow_id=request_data.get("workflow_id", "default"),
             title=request_data.get("title", "Approval Request"),
             description=request_data.get("description", ""),
             steps=steps,
             context=request_data.get("context", {}),
+            tenant_id=tenant_id,
         )
 
         if _approval_timeout_handler is not None:
@@ -167,19 +176,37 @@ async def create_approval_request(request_data: Dict[str, Any]) -> Dict[str, Any
     },
 )
 async def approve_step(
-    request_id: str, step_id: str, approver: str, comment: Optional[str] = None
+    request_id: str,
+    step_id: str,
+    comment: Optional[str] = None,
+    approver: Optional[str] = None,
+    current_user: User = Depends(require_roles("admin", "operator")),
 ) -> Dict[str, Any]:
     """Approve an approval step"""
     if not HITL_AVAILABLE or not _approval_workflow:
         raise HTTPException(status_code=503, detail="HITL not available")
 
+    effective_approver = approver or current_user.username
+    tenant_id = str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else "default"
     try:
-        success = _approval_workflow.approve_step(request_id, step_id, approver, comment)
+        success = _approval_workflow.approve_step(
+            request_id, step_id, effective_approver, comment, tenant_id=tenant_id
+        )
         if not success:
             raise HTTPException(status_code=400, detail="Approval failed")
 
         if _approval_timeout_handler is not None:
             _approval_timeout_handler.stop_monitoring(request_id)
+
+        record_audit(
+            host=request_id,
+            command="HITL_APPROVE",
+            risk_level="high",
+            executor=effective_approver,
+            result="approved",
+            user_id=str(current_user.id) if current_user.id else None,
+            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+        )
 
         return {"status": "approved", "request_id": request_id, "step_id": step_id}
     except Exception as e:
@@ -209,19 +236,37 @@ async def approve_step(
     },
 )
 async def reject_step(
-    request_id: str, step_id: str, approver: str, comment: Optional[str] = None
+    request_id: str,
+    step_id: str,
+    comment: Optional[str] = None,
+    approver: Optional[str] = None,
+    current_user: User = Depends(require_roles("admin", "operator")),
 ) -> Dict[str, Any]:
     """Reject an approval step"""
     if not HITL_AVAILABLE or not _approval_workflow:
         raise HTTPException(status_code=503, detail="HITL not available")
 
+    effective_approver = approver or current_user.username
+    tenant_id = str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else "default"
     try:
-        success = _approval_workflow.reject_step(request_id, step_id, approver, comment)
+        success = _approval_workflow.reject_step(
+            request_id, step_id, effective_approver, comment, tenant_id=tenant_id
+        )
         if not success:
             raise HTTPException(status_code=400, detail="Rejection failed")
 
         if _approval_timeout_handler is not None:
             _approval_timeout_handler.stop_monitoring(request_id)
+
+        record_audit(
+            host=request_id,
+            command="HITL_REJECT",
+            risk_level="high",
+            executor=effective_approver,
+            result="rejected",
+            user_id=str(current_user.id) if current_user.id else None,
+            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+        )
 
         return {"status": "rejected", "request_id": request_id, "step_id": step_id}
     except Exception as e:
@@ -250,13 +295,14 @@ async def reject_step(
         500: {"description": "状态查询失败"},
     },
 )
-async def get_approval_status(request_id: str) -> Dict[str, Any]:
+async def get_approval_status(request: Request, request_id: str) -> Dict[str, Any]:
     """Get approval request status"""
     if not HITL_AVAILABLE or not _approval_workflow:
         raise HTTPException(status_code=503, detail="HITL not available")
 
     try:
-        return _approval_workflow.get_request_status(request_id) or {}
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        return _approval_workflow.get_request_status(request_id, tenant_id=tenant_id) or {}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 
@@ -270,7 +316,7 @@ async def get_approval_status(request_id: str) -> Dict[str, Any]:
         503: {"description": "HITL不可用"},
     },
 )
-async def manual_takeover(request_id: str, reason: str = "manual takeover") -> Dict[str, Any]:
+async def manual_takeover(request: Request, request_id: str, reason: str = "manual takeover") -> Dict[str, Any]:
     """人工接管：取消活跃的审批工作流并把状态标记为已接管"""
     if not HITL_AVAILABLE or not _approval_workflow:
         raise HTTPException(status_code=503, detail="HITL not available")
@@ -279,7 +325,8 @@ async def manual_takeover(request_id: str, reason: str = "manual takeover") -> D
         if _approval_timeout_handler is not None:
             _approval_timeout_handler.stop_monitoring(request_id)
 
-        success = _approval_workflow.cancel_request(request_id, reason=reason)
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        success = _approval_workflow.cancel_request(request_id, reason=reason, tenant_id=tenant_id)
         if not success:
             raise HTTPException(status_code=404, detail="Request not found or not active")
         return {"request_id": request_id, "status": "taken_over", "reason": reason}

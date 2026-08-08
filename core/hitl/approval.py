@@ -97,6 +97,7 @@ class ApprovalRequest:
         description: Request description
         context: Additional context
         requester: Requester identifier
+        tenant_id: Tenant identifier
         created_at: Creation timestamp
         status: Overall status
         steps: Approval steps
@@ -110,6 +111,7 @@ class ApprovalRequest:
     description: str
     context: Dict[str, Any] = field(default_factory=dict)
     requester: str = "system"
+    tenant_id: str = "default"
     created_at: datetime = field(default_factory=datetime.now)
     status: ApprovalStatus = ApprovalStatus.PENDING
     steps: List[ApprovalStep] = field(default_factory=list)
@@ -125,6 +127,7 @@ class ApprovalRequest:
             "description": self.description,
             "context": self.context,
             "requester": self.requester,
+            "tenant_id": self.tenant_id,
             "created_at": self.created_at.isoformat(),
             "status": self.status.value,
             "steps": [step.to_dict() for step in self.steps],
@@ -165,6 +168,7 @@ class ApprovalWorkflow:
         description: str,
         steps: List[ApprovalStep],
         context: Optional[Dict] = None,
+        tenant_id: str = "default",
     ) -> ApprovalRequest:
         """
         Create approval request
@@ -175,6 +179,7 @@ class ApprovalWorkflow:
             description: Request description
             steps: Approval steps
             context: Additional context
+            tenant_id: Tenant identifier
 
         Returns:
             Approval request
@@ -188,6 +193,7 @@ class ApprovalWorkflow:
             description=description,
             context=context or {},
             steps=steps,
+            tenant_id=tenant_id,
         )
 
         self.active_requests[request_id] = request
@@ -197,7 +203,7 @@ class ApprovalWorkflow:
         return request
 
     def approve_step(
-        self, request_id: str, step_id: str, approver: str, comment: Optional[str] = None
+        self, request_id: str, step_id: str, approver: str, comment: Optional[str] = None, tenant_id: str | None = None
     ) -> bool:
         """
         Approve a step
@@ -207,6 +213,7 @@ class ApprovalWorkflow:
             step_id: Step identifier
             approver: Approver identifier
             comment: Approval comment
+            tenant_id: Optional tenant filter
 
         Returns:
             True if approved successfully
@@ -214,6 +221,9 @@ class ApprovalWorkflow:
         with self._get_request_lock(request_id):
             request = self.active_requests.get(request_id)
             if not request:
+                return False
+            if tenant_id is not None and request.tenant_id != tenant_id:
+                return False
                 logger.warning(f"Request {request_id} not found")
                 return False
 
@@ -249,7 +259,7 @@ class ApprovalWorkflow:
             return True
 
     def reject_step(
-        self, request_id: str, step_id: str, approver: str, comment: Optional[str] = None
+        self, request_id: str, step_id: str, approver: str, comment: Optional[str] = None, tenant_id: str | None = None
     ) -> bool:
         """
         Reject a step
@@ -259,6 +269,7 @@ class ApprovalWorkflow:
             step_id: Step identifier
             approver: Approver identifier
             comment: Rejection comment
+            tenant_id: Optional tenant filter
 
         Returns:
             True if rejected successfully
@@ -266,6 +277,8 @@ class ApprovalWorkflow:
         with self._get_request_lock(request_id):
             request = self.active_requests.get(request_id)
             if not request:
+                return False
+            if tenant_id is not None and request.tenant_id != tenant_id:
                 return False
 
             step = next((s for s in request.steps if s.step_id == step_id), None)
@@ -317,11 +330,13 @@ class ApprovalWorkflow:
                     request.current_step = i
                     break
 
-    def cancel_request(self, request_id: str, reason: str = "manual takeover") -> bool:
+    def cancel_request(self, request_id: str, reason: str = "manual takeover", tenant_id: str | None = None) -> bool:
         """Cancel / manually take over an active workflow and move it to completed."""
         with self._get_request_lock(request_id):
             request = self.active_requests.get(request_id)
             if not request:
+                return False
+            if tenant_id is not None and request.tenant_id != tenant_id:
                 return False
             request.status = ApprovalStatus.REJECTED
             for step in request.steps:
@@ -360,18 +375,21 @@ class ApprovalWorkflow:
             logger.warning(f"Failed to interrupt agent {agent_id}: {exc}")
             return False
 
-    def get_request_status(self, request_id: str) -> Optional[Dict]:
+    def get_request_status(self, request_id: str, tenant_id: str | None = None) -> Optional[Dict]:
         """
         Get request status
 
         Args:
             request_id: Request identifier
+            tenant_id: Optional tenant filter
 
         Returns:
             Request status dictionary
         """
         request = self.active_requests.get(request_id) or self.completed_requests.get(request_id)
         if request:
+            if tenant_id is not None and request.tenant_id != tenant_id:
+                return None
             return request.to_dict()
         return None
 

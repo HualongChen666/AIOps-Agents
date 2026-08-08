@@ -17,8 +17,8 @@ API endpoints for comprehensive integration ecosystem including:
 import logging
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Path, Query
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/integration", tags=["集成生态"])
@@ -29,6 +29,18 @@ try:
 except ImportError:
     INTEGRATION_AVAILABLE = False
     logger.warning("Integration manager not available")
+
+try:
+    from gateway.services_client import (
+        remote_datadog_query,
+        remote_elk_search,
+        remote_grafana_query,
+    )
+
+    REMOTE_CLIENT_AVAILABLE = True
+except ImportError:
+    REMOTE_CLIENT_AVAILABLE = False
+    logger.warning("Remote integration client not available")
 
 
 class IntegrationRegistrationRequest(BaseModel):
@@ -141,6 +153,20 @@ class JiraIssueRequest(BaseModel):
                 "issue_type": "example",
                 "priority": "example",
             }
+        },
+    }
+
+
+class IntegrationQueryRequest(BaseModel):
+    """Request for querying an integration data source."""
+
+    query: str = ""
+    params: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {
+        "extra": "ignore",
+        "json_schema_extra": {
+            "example": {"query": "avg:system.cpu.user{*}", "params": {"from": "now-1h", "to": "now"}}
         },
     }
 
@@ -567,3 +593,62 @@ async def get_webhook_events(
             for e in events[:limit]
         ],
     }
+
+
+@router.post(
+    "/{integration_id}/query",
+    summary="查询集成真实数据",
+    responses={
+        (200): {"description": "查询结果"},
+        (400): {"description": "参数错误或不支持的集成类型"},
+        (404): {"description": "集成不存在"},
+        (503): {"description": "集成管理器或远程客户端不可用"},
+    },
+)
+async def query_integration(
+    request: IntegrationQueryRequest,
+    integration_id: str = Path(..., min_length=1, description="集成 ID"),
+) -> dict[str, Any]:
+    """Query real data from an external integration (Datadog, Grafana, ELK, CloudWatch, PagerDuty)."""
+    if not INTEGRATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="集成管理器不可用")
+
+    integration = integration_manager.integrations.get(integration_id)
+    if not integration:
+        raise HTTPException(status_code=404, detail=f"集成 {integration_id} 不存在")
+    if not integration.enabled:
+        raise HTTPException(status_code=400, detail="集成未启用")
+
+    provider = integration.config.get("provider", integration.name.lower())
+    config = dict(integration.config)
+    config["query"] = request.query
+    config.update(request.params)
+    time_range = request.params.get("time_range", "1h")
+
+    try:
+        if provider in ("datadog", "datadoghq"):
+            if not REMOTE_CLIENT_AVAILABLE:
+                raise HTTPException(status_code=503, detail="远程集成客户端不可用")
+            result = await remote_datadog_query(config)
+        elif provider in ("grafana",):
+            if not REMOTE_CLIENT_AVAILABLE:
+                raise HTTPException(status_code=503, detail="远程集成客户端不可用")
+            result = await remote_grafana_query(config)
+        elif provider in ("elk", "elasticsearch", "elk_stack"):
+            if not REMOTE_CLIENT_AVAILABLE:
+                raise HTTPException(status_code=503, detail="远程集成客户端不可用")
+            result = await remote_elk_search(config)
+        elif provider in ("cloudwatch", "aws"):
+            result = await integration_manager.query_cloudwatch_metrics(
+                integration_id=integration_id, query=request.query, time_range=time_range
+            )
+        elif provider in ("pagerduty", "pd"):
+            result = await integration_manager.query_pagerduty_incidents(
+                integration_id=integration_id, query=request.query, time_range=time_range
+            )
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的集成类型: {provider}")
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"查询失败: {exc}") from exc
+
+    return {"status": "success", "provider": provider, "query_result": result}
