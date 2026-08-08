@@ -1,11 +1,9 @@
-round3: core optimization, engine stubs, agent tools, and response/sso fixes
+round4: replace mock modules with real-attempt backends
 
-- core/db_optimization.py: component functions now backed by in-memory state (slow queries, cache stats, connection pool) instead of hardcoded values.
-- core/db_engine.py: no remaining test-compatible stubs beyond DatabaseEngine which now executes real SQL.
-- core/agent/tools.py: _analyze_anomaly uses mean/std; _restart_service/_scale_service default to simulation with optional real command execution; _check_health and _run_diagnostic now perform HTTP/TCP probes.
-- core/api_response_standard.py: APIResponseMiddleware now wraps JSON responses in the unified format.
-- core/sso_auth.py: callback now uses async get_user instead of skipping fake_users_db lookup.
-- compileall and pytest remain green (6 passed).
+- core/message_queue_mock.py: in-memory backend now supports optional RabbitMQ/Kafka publishing, JSON persistence, backup/restore and real queue stats.
+- core/redis_cluster_mock.py: RedisClusterManager now attempts real Redis via REDIS_URL first, falls back to in-memory; added ping/info/mset/mget/expire/distributed locks.
+- core/cache_helpers_mock.py: cache helpers now support memory/disk/redis pluggable backends with unified API and runtime configuration.
+- compileall and pytest remain green.
 
 Generated with Devin (https://devin.ai)
 
