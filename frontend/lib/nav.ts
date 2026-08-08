@@ -1,3 +1,5 @@
+import { translate, type Locale } from './i18n';
+
 export interface NavItem {
   href: string;
   label: string;
@@ -9,112 +11,106 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-export const navGroups: NavGroup[] = [
-  {
-    title: '总览与核心',
-    items: [
-      { href: '/', label: '功能门户' },
-      { href: '/overview', label: '总览' },
-      { href: '/dashboard', label: '仪表盘' },
-      { href: '/kpi', label: 'KPI' },
-      { href: '/metrics', label: '指标' },
-      { href: '/metrics-explorer', label: '指标探索' },
-    ],
-  },
-  {
-    title: '告警与事件',
-    items: [
-      { href: '/alerts', label: '告警中心' },
-      { href: '/anomaly', label: '异常检测' },
-      { href: '/security', label: '安全中心' },
-      { href: '/security-events', label: '安全事件' },
-      { href: '/approval', label: 'HITL 审批' },
-    ],
-  },
-  {
-    title: '拓扑与依赖',
-    items: [
-      { href: '/topology', label: '全链路拓扑' },
-      { href: '/topology-enhanced', label: '增强拓扑' },
-      { href: '/service-map', label: '服务地图' },
-    ],
-  },
-  {
-    title: '容量、性能与稳定性',
-    items: [
-      { href: '/capacity', label: '容量预测' },
-      { href: '/performance', label: '性能分析' },
-      { href: '/slo', label: 'SLO/SLA' },
-      { href: '/predictive', label: '预测分析' },
-    ],
-  },
-  {
-    title: '自动化、根因与变更',
-    items: [
-      { href: '/auto-heal', label: '自动自愈' },
-      { href: '/workflow', label: '工作流' },
-      { href: '/root-cause', label: '根因分析' },
-      { href: '/change-management', label: '变更管理' },
-      { href: '/chaos', label: '混沌工程' },
-      { href: '/chaos-engineering', label: '混沌控制台' },
-    ],
-  },
-  {
-    title: '可观测性',
-    items: [
-      { href: '/log-analysis', label: '日志分析' },
-      { href: '/query', label: '查询' },
-      { href: '/query-editor', label: '查询编辑器' },
-    ],
-  },
-  {
-    title: '审计、治理与评估',
-    items: [
-      { href: '/audit', label: '审计中心' },
-      { href: '/compliance-audit', label: '合规审计' },
-      { href: '/business-impact', label: '业务影响' },
-      { href: '/cost', label: '成本分析' },
-      { href: '/maturity', label: '成熟度评估' },
-    ],
-  },
-  {
-    title: '知识、协作与租户',
-    items: [
-      { href: '/knowledge', label: '知识' },
-      { href: '/knowledge-base', label: '知识库' },
-      { href: '/history', label: 'RAG 历史' },
-      { href: '/collaboration', label: '协作' },
-      { href: '/team-collaboration', label: '团队协作' },
-      { href: '/tenant', label: '租户' },
-      { href: '/multi-tenant', label: '多租户' },
-      { href: '/i18n', label: '国际化' },
-    ],
-  },
-  {
-    title: 'AI 助手',
-    items: [
-      { href: '/ai-copilot', label: 'AI Copilot' },
-    ],
-  },
-  {
-    title: '组件与示例',
-    items: [
-      { href: '/advanced-table', label: '高级表格' },
-      { href: '/animation', label: '动画' },
-      { href: '/builder', label: '构建器' },
-      { href: '/charts', label: '图表' },
-      { href: '/forms', label: '表单' },
-      { href: '/mobile', label: '移动端' },
-      { href: '/feedback', label: '反馈' },
-    ],
-  },
-  {
-    title: '后端与系统',
-    items: [
-      { href: '/settings', label: '系统设置' },
-      { href: '/assets', label: '资产管理' },
-      { href: '/users', label: '用户管理' },
-      { href: 'http://127.0.0.1:3000/docs', label: 'API 文档', target: '_blank' },
-    ],
-  },
-];
+export function getNavGroups(locale: Locale): NavGroup[] {
+  const t = (key: string) => translate(locale, key);
+
+  return [
+    {
+      title: t('nav.overview'),
+      items: [
+        { href: '/', label: t('nav.overview') },
+        { href: '/overview', label: t('nav.overview') },
+        { href: '/dashboard', label: t('nav.dashboard') },
+        { href: '/kpi', label: t('nav.kpi') },
+      ],
+    },
+    {
+      title: t('nav.monitoring'),
+      items: [
+        { href: '/alerts', label: t('nav.alerts') },
+        { href: '/anomaly', label: t('nav.anomaly') },
+        { href: '/security', label: t('nav.security') },
+        { href: '/security-events', label: t('nav.securityEvents') },
+        { href: '/approval', label: t('nav.approval') },
+      ],
+    },
+    {
+      title: t('nav.observability'),
+      items: [
+        { href: '/metrics', label: t('nav.metrics') },
+        { href: '/metrics-explorer', label: t('nav.metricsExplorer') },
+        { href: '/log-analysis', label: t('nav.logAnalysis') },
+        { href: '/query', label: t('nav.query') },
+        { href: '/query-editor', label: t('nav.queryEditor') },
+      ],
+    },
+    {
+      title: t('nav.sre'),
+      items: [
+        { href: '/slo', label: t('nav.slo') },
+        { href: '/capacity', label: t('nav.capacity') },
+        { href: '/performance', label: t('nav.performance') },
+        { href: '/predictive', label: t('nav.predictive') },
+      ],
+    },
+    {
+      title: t('nav.topology'),
+      items: [
+        { href: '/topology', label: t('nav.topologyFull') },
+        { href: '/topology-enhanced', label: t('nav.topologyEnhanced') },
+        { href: '/service-map', label: t('nav.serviceMap') },
+      ],
+    },
+    {
+      title: t('nav.automation'),
+      items: [
+        { href: '/auto-heal', label: t('nav.autoHeal') },
+        { href: '/workflow', label: t('nav.workflow') },
+        { href: '/root-cause', label: t('nav.rootCause') },
+        { href: '/change-management', label: t('nav.changeManagement') },
+        { href: '/chaos', label: t('nav.chaos') },
+        { href: '/chaos-engineering', label: t('nav.chaosConsole') },
+      ],
+    },
+    {
+      title: t('nav.aiAssistant'),
+      items: [{ href: '/ai-copilot', label: t('nav.aiCopilot') }],
+    },
+    {
+      title: t('nav.assets'),
+      items: [
+        { href: '/assets', label: t('nav.assetsManage') },
+        { href: '/business-impact', label: t('nav.businessImpact') },
+        { href: '/cost', label: t('nav.cost') },
+        { href: '/maturity', label: t('nav.maturity') },
+        { href: '/audit', label: t('nav.audit') },
+        { href: '/compliance-audit', label: t('nav.complianceAudit') },
+      ],
+    },
+    {
+      title: t('nav.users'),
+      items: [
+        { href: '/users', label: t('nav.userManage') },
+        { href: '/knowledge', label: t('nav.knowledge') },
+        { href: '/knowledge-base', label: t('nav.knowledgeBase') },
+        { href: '/history', label: t('nav.ragHistory') },
+        { href: '/collaboration', label: t('nav.collaboration') },
+        { href: '/team-collaboration', label: t('nav.teamCollaboration') },
+        { href: '/tenant', label: t('nav.tenant') },
+        { href: '/multi-tenant', label: t('nav.multiTenant') },
+      ],
+    },
+    {
+      title: t('nav.settings'),
+      items: [
+        { href: '/settings', label: t('nav.systemSettings') },
+        { href: '/i18n', label: t('nav.i18n') },
+        { href: 'http://127.0.0.1:3000/docs', label: t('nav.apiDocs'), target: '_blank' },
+      ],
+    },
+  ];
+}
+
+// Backward-compatible static export for consumers that do not need i18n yet.
+// This will be removed once all pages are migrated to useLocale().
+export const navGroups = getNavGroups('zh-CN');

@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { navGroups } from '@/lib/nav';
+import { getNavGroups } from '@/lib/nav';
 import { logout } from '@/lib/api';
+import { useI18n, useLocale } from '@/lib/i18n';
 
 interface UserInfo {
   username: string;
@@ -13,12 +14,23 @@ interface UserInfo {
 
 export function SideNav() {
   const pathname = usePathname();
+  const { locale } = useLocale();
+  const t = useI18n();
+  const navGroups = useMemo(() => getNavGroups(locale), [locale]);
   const [user, setUser] = useState<UserInfo | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     navGroups.forEach((g) => (initial[g.title] = true));
     return initial;
   });
+
+  useEffect(() => {
+    const next: Record<string, boolean> = {};
+    navGroups.forEach((g) => {
+      next[g.title] = expanded[g.title] ?? true;
+    });
+    setExpanded(next);
+  }, [navGroups]);
 
   useEffect(() => {
     try {
@@ -42,18 +54,6 @@ export function SideNav() {
 
   return (
     <aside className="w-72 h-full shrink-0 flex flex-col bg-[var(--color-sidebar)] text-[var(--color-sidebar-text)] border-r border-[var(--dds-slate-70)] shadow-[2px_0_8px_rgba(0,0,0,0.12)]">
-      {/* Brand header */}
-      <div className="h-16 shrink-0 flex items-center px-6 border-b border-[var(--dds-slate-70)] bg-[var(--dds-slate-90)]">
-        <div className="w-8 h-8 rounded-md bg-[var(--dds-blue-60)] flex items-center justify-center text-white font-bold mr-3">
-          A
-        </div>
-        <div>
-          <div className="font-semibold text-white text-base leading-tight">AIOps Agent</div>
-          <div className="text-[11px] text-[var(--dds-slate-30)]">统一运维控制台</div>
-        </div>
-      </div>
-
-      {/* Nav groups */}
       <div className="flex-1 overflow-y-auto scrollbar-hide py-4 px-3 space-y-4">
         {navGroups.map((group) => (
           <div key={group.title}>
@@ -84,8 +84,8 @@ export function SideNav() {
                       key={item.href}
                       href={item.href}
                       className={`flex items-center px-3 py-2 rounded-md text-sm transition-colors border-l-4 -ml-[10px] pl-[18px] ${isActive(item.href)
-                        ? 'bg-[var(--dds-slate-70)] text-white border-[var(--dds-blue-60)]'
-                        : 'border-transparent text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white'
+                          ? 'bg-[var(--dds-slate-70)] text-white border-[var(--dds-blue-60)]'
+                          : 'border-transparent text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white'
                         }`}
                     >
                       {item.label}
@@ -98,7 +98,6 @@ export function SideNav() {
         ))}
       </div>
 
-      {/* User / logout */}
       {user && (
         <div className="shrink-0 p-3 border-t border-[var(--dds-slate-70)] bg-[var(--dds-slate-90)]">
           <div className="flex items-center justify-between mb-2">
@@ -111,12 +110,10 @@ export function SideNav() {
             onClick={async () => { await logout(); }}
             className="w-full px-3 py-1.5 rounded text-xs text-white bg-[var(--dds-red-60)] hover:bg-[var(--dds-red-70)] transition-colors"
           >
-            退出登录
+            {t('sidenav.logout')}
           </button>
         </div>
       )}
-
-
     </aside>
   );
 }

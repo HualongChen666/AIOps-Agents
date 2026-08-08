@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Providers } from './providers';
 import { SideNav } from '@/components/SideNav';
+import { TopBar } from '@/components/TopBar';
 import { isAuthenticated } from '@/lib/api';
 import type { ReactNode } from 'react';
 
@@ -31,7 +32,7 @@ function useAuthGuard() {
 
 function LoadingShell() {
   return (
-    <html lang="en" className="dark">
+    <html lang="zh-CN" className="dark">
       <head>
         <title>AIOps Agent 控制台</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -61,21 +62,34 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <html lang="en" className="dark">
+    <html lang="zh-CN" className="dark">
       <head>
         <title>AIOps Agent 控制台</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className="h-screen overflow-hidden bg-[var(--dds-slate-10)] text-[var(--dds-gray-90)]">
         <Providers>
-          <div className="flex h-full">
-            {!isPublic && <SideNav />}
-            <main className={`flex-1 h-full overflow-y-auto main-scroll bg-[var(--dds-gray-10)] ${isPublic ? 'w-full' : ''}`}>
-              <div className="min-h-full p-8">
-                {children}
+          {isPublic ? (
+            <div className="flex h-full">
+              <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--dds-gray-10)] w-full">
+                <div className="min-h-full p-8">
+                  {children}
+                </div>
+              </main>
+            </div>
+          ) : (
+            <div className="flex flex-col h-full">
+              <TopBar />
+              <div className="flex flex-1 overflow-hidden">
+                <SideNav />
+                <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--dds-gray-10)]">
+                  <div className="min-h-full p-8">
+                    {children}
+                  </div>
+                </main>
               </div>
-            </main>
-          </div>
+            </div>
+          )}
         </Providers>
       </body>
     </html>

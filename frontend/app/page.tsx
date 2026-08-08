@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { navGroups } from '@/lib/nav';
+import { getNavGroups } from '@/lib/nav';
+import { useI18n, useLocale } from '@/lib/i18n';
 
 export default function Home() {
+  const { locale } = useLocale();
+  const t = useI18n();
+  const navGroups = useMemo(() => getNavGroups(locale), [locale]);
   const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
 
   useEffect(() => {
@@ -19,35 +23,33 @@ export default function Home() {
     status === 'loading' ? (
       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[var(--dds-yellow-10)] text-[var(--dds-yellow-70)]">
         <span className="w-2 h-2 rounded-full bg-[var(--dds-yellow-60)] mr-2 animate-pulse" />
-        检测中
+        {t('home.status.loading')}
       </span>
     ) : status === 'ok' ? (
       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[var(--dds-green-10)] text-[var(--dds-green-70)]">
         <span className="w-2 h-2 rounded-full bg-[var(--dds-green-60)] mr-2" />
-        后端正常
+        {t('home.status.ok')}
       </span>
     ) : (
       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[var(--dds-red-10)] text-[var(--dds-red-70)]">
         <span className="w-2 h-2 rounded-full bg-[var(--dds-red-60)] mr-2" />
-        后端不可用
+        {t('home.status.error')}
       </span>
     );
 
   return (
     <div className="space-y-8">
-      {/* Hero header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-[var(--dds-gray-30)]">
         <div>
-          <h1 className="text-3xl font-bold text-[var(--dds-slate-90)] mb-1">AIOps Agent 统一控制台</h1>
-          <p className="text-[var(--dds-gray-70)] text-sm">企业级 AI 运维监控平台 · 全部功能一览</p>
+          <h1 className="text-3xl font-bold text-[var(--dds-slate-90)] mb-1">{t('home.title')}</h1>
+          <p className="text-[var(--dds-gray-70)] text-sm">{t('home.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-[var(--dds-gray-70)]">后端状态</span>
+          <span className="text-sm text-[var(--dds-gray-70)]">{t('home.backendStatus')}</span>
           {statusBadge}
         </div>
       </div>
 
-      {/* Category cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {navGroups.map((group) => (
           <div
@@ -85,7 +87,7 @@ export default function Home() {
             </div>
             {group.items.length > 6 && (
               <div className="px-5 pb-4 text-xs text-[var(--dds-gray-70)]">
-                还有 {group.items.length - 6} 个功能
+                +{group.items.length - 6}
               </div>
             )}
           </div>
