@@ -105,12 +105,26 @@ export default function KnowledgeBasePage() {
   };
 
   const handleAIRecommend = () => {
-    const recommended = runbooks.slice(0, 3).map((runbook) => ({
-      runbook,
-      relevance: Math.floor(Math.random() * 3) + 2,
-      matchedTags: runbook.tags.slice(0, 2),
-    }));
+    const recommended = [...searchResults]
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, 3);
     setSearchResults(recommended);
+  };
+
+  const handleCreateRunbook = async () => {
+    const title = window.prompt('Runbook 标题：');
+    if (!title) return;
+    const content = window.prompt('Runbook 内容：');
+    if (!content) return;
+    try {
+      await api.post('/api/v1/rag/ingest', {
+        text: content,
+        payload: { title, category: '未分类', author: '当前用户', tags: [] },
+      });
+      window.alert('Runbook 创建成功');
+    } catch (err) {
+      window.alert('Runbook 创建失败');
+    }
   };
 
   const filteredRunbooks =
@@ -122,7 +136,7 @@ export default function KnowledgeBasePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">知识库</h1>
-        <Button>创建Runbook</Button>
+        <Button onClick={handleCreateRunbook}>创建Runbook</Button>
       </div>
 
       {/* 搜索和AI推荐 */}

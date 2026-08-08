@@ -33,6 +33,8 @@ class TenantUpdate(BaseModel):
     plan: Optional[str] = Field(None, pattern="^(free|basic|pro|enterprise)$")
     status: Optional[str] = Field(None, pattern="^(active|suspended|expired)$")
     contact: Optional[str] = Field(None, max_length=200)
+    quota: Optional[dict] = Field(None, description="Quota overrides")
+    usage: Optional[dict] = Field(None, description="Usage overrides")
 
     model_config = {"extra": "ignore"}
 

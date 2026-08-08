@@ -97,6 +97,22 @@ export default function KnowledgePage() {
     };
   }
 
+  async function handleCreateRunbook() {
+    const title = window.prompt('Runbook 标题：');
+    if (!title) return;
+    const content = window.prompt('Runbook 内容：');
+    if (!content) return;
+    try {
+      await api.post('/api/v1/rag/ingest', {
+        text: content,
+        payload: { title, category: '未分类', author: '当前用户', tags: [] },
+      });
+      window.alert('Runbook 创建成功');
+    } catch (err) {
+      window.alert('Runbook 创建失败');
+    }
+  }
+
   async function handleSearch() {
     const query = searchQuery.trim();
     if (!query) return;
@@ -122,7 +138,7 @@ export default function KnowledgePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">知识库</h1>
-        <Button>创建Runbook</Button>
+        <Button onClick={handleCreateRunbook}>创建Runbook</Button>
       </div>
 
       {/* AI推荐 */}
@@ -235,11 +251,11 @@ export default function KnowledgePage() {
             </div>
             <div className="p-4 border border-gray-200 rounded-lg">
               <div className="text-sm text-gray-500 mb-1">本周新增</div>
-              <div className="text-2xl font-bold">3</div>
+              <div className="text-2xl font-bold">—</div>
             </div>
             <div className="p-4 border border-gray-200 rounded-lg">
               <div className="text-sm text-gray-500 mb-1">使用次数</div>
-              <div className="text-2xl font-bold">156</div>
+              <div className="text-2xl font-bold">—</div>
             </div>
           </div>
         </CardContent>

@@ -18,12 +18,12 @@ interface NodeDetail {
   name: string;
   type: string;
   status: 'normal' | 'warning' | 'critical';
-  cpu: number;
-  memory: number;
-  latency: number;
-  throughput: number;
-  traffic: number;
-  dependencyDepth: number;
+  cpu?: number;
+  memory?: number;
+  latency?: number;
+  throughput?: number;
+  traffic?: number;
+  dependencyDepth?: number;
 }
 
 interface TrafficFlow {
@@ -61,13 +61,7 @@ export default function TopologyPage() {
   });
 
   // 🔧 修复: 从 API 数据转换流量流
-  const [trafficFlows, setTrafficFlows] = useState<TrafficFlow[]>([
-    { source: 'web-service', target: 'api-gateway', requests: 1200, latency: 45, errorRate: 0.5 },
-    { source: 'api-gateway', target: 'auth-service', requests: 800, latency: 30, errorRate: 0.2 },
-    { source: 'api-gateway', target: 'user-service', requests: 400, latency: 35, errorRate: 0.3 },
-    { source: 'user-service', target: 'database', requests: 350, latency: 80, errorRate: 0.1 },
-    { source: 'auth-service', target: 'cache', requests: 600, latency: 15, errorRate: 0.05 },
-  ]);
+  const [trafficFlows, setTrafficFlows] = useState<TrafficFlow[]>([]);
 
   // 同步 API 数据到流量流
   useEffect(() => {
@@ -83,14 +77,7 @@ export default function TopologyPage() {
     }
   }, [topologyData]);
 
-  const [hotPaths, setHotPaths] = useState<HotPath[]>([
-    {
-      path: ['web-service', 'api-gateway', 'user-service', 'database'],
-      latency: 160,
-      errorRate: 0.4,
-      throughput: 350,
-    },
-  ]);
+  const [hotPaths, setHotPaths] = useState<HotPath[]>([]);
 
   // 同步 API 数据到热点路径
   useEffect(() => {
@@ -109,18 +96,13 @@ export default function TopologyPage() {
   if (error) return <div className="text-center text-red-500">加载失败</div>;
 
   const handleNodeClick = (nodeId: string) => {
+    const node = topologyData?.nodes?.find((n: any) => n.id === nodeId);
     setSelectedNode({
       id: nodeId,
-      name: `服务 ${nodeId}`,
+      name: node?.label || nodeId,
       type: 'Service',
-      status: 'normal',
-      cpu: 45,
-      memory: 60,
-      latency: 120,
-      throughput: 500,
-      traffic: 1200,
-      dependencyDepth: 3,
-    });
+      status: node?.status || 'normal',
+    } as NodeDetail);
   };
 
   const handleExport = (format: 'png' | 'json') => {
@@ -252,59 +234,7 @@ export default function TopologyPage() {
                   {selectedNode.status === 'normal' ? '正常' : selectedNode.status === 'warning' ? '警告' : '严重'}
                 </Badge>
               </div>
-              <div className="pt-4 border-t">
-                <h4 className="text-sm font-medium mb-3">实时指标</h4>
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-500">CPU使用率</span>
-                      <span className="font-medium">{selectedNode.cpu}%</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${selectedNode.cpu >= 80 ? 'bg-red-500' : selectedNode.cpu >= 60 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                        style={{ width: `${selectedNode.cpu}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-500">内存使用率</span>
-                      <span className="font-medium">{selectedNode.memory}%</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${selectedNode.memory >= 80 ? 'bg-red-500' : selectedNode.memory >= 60 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                        style={{ width: `${selectedNode.memory}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-500">延迟</span>
-                      <span className="font-medium">{selectedNode.latency}ms</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-500">吞吐量</span>
-                      <span className="font-medium">{selectedNode.throughput} req/s</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-500">流量</span>
-                      <span className="font-medium">{selectedNode.traffic} req/min</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-500">依赖深度</span>
-                      <span className="font-medium">{selectedNode.dependencyDepth}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+
               <div className="pt-4 border-t">
                 <Button variant="outline" size="sm" className="w-full mb-2">
                   查看详情

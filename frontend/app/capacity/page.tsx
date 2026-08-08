@@ -29,21 +29,41 @@ export default function CapacityPage() {
   const [selectedTimeRange, setSelectedTimeRange] = useState('30d');
   const [capacityForecasts, setCapacityForecasts] = useState<CapacityForecast[]>([]);
   const [recommendations, setRecommendations] = useState<ScalingRecommendation[]>([]);
+  const [history, setHistory] = useState<Record<string, any>>({});
+  const [threshold, setThreshold] = useState<number | ''>('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
     const loadData = async () => {
       try {
-        const [forecastRes, recRes] = await Promise.all([
-          api.get('/api/v1/capacity/forecast'),
-          api.get('/api/v1/capacity/recommendations'),
+        setLoading(true);
+        const [snapshotRes, historyRes, forecastRes, recRes] = await Promise.all([
+          api.get('/api/v1/metrics/snapshot').catch(() => null),
+          api.get('/api/v1/metrics/history').catch(() => null),
+          api.get('/api/v1/capacity/forecast').catch(() => null),
+          api.get('/api/v1/capacity/recommendations').catch(() => null),
         ]);
+
         if (!mounted) return;
-        setCapacityForecasts(forecastRes.data?.data ?? forecastRes.data ?? []);
-        setRecommendations(recRes.data?.data ?? recRes.data ?? []);
+
+        setHistory(historyRes?.data || {});
+        const forecasts = (forecastRes?.data?.data ?? forecastRes?.data ?? []) as CapacityForecast[];
+        setCapacityForecasts(forecasts);
+        setRecommendations((recRes?.data?.data ?? recRes?.data ?? []) as ScalingRecommendation[]);
+
+        if (forecasts.length > 0) {
+          const avg = forecasts.reduce((sum, f) => sum + (Number(f.threshold) || 0), 0) / forecasts.length;
+          setThreshold(Math.round(avg));
+        } else {
+          const cpu = snapshotRes?.data?.cpu?.usage_percent;
+          setThreshold(typeof cpu === 'number' ? Math.round(cpu + 20) : 80);
+        }
       } catch (err) {
         console.error('Failed to load capacity data:', err);
+      } finally {
+        if (mounted) setLoading(false);
       }
     };
 
@@ -53,6 +73,10 @@ export default function CapacityPage() {
       mounted = false;
     };
   }, [selectedTimeRange]);
+
+  const getThreshold = (forecast: CapacityForecast): number => {
+    return threshold !== '' ? Number(threshold) : forecast.threshold;
+  };
 
   const getActionColor = (action: string) => {
     switch (action) {
@@ -93,6 +117,35 @@ export default function CapacityPage() {
     }
   };
 
+  const renderTrend = (metricKey: string) => {
+    const raw = history[metricKey];
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return <p className="text-sm text-gray-500 h-24 flex items-center justify-center">无历史数据</p>;
+    }
+    const values = raw.map((v: any) => Number(v) || 0);
+    const max = Math.max(1, ...values);
+    return (
+      <div className="flex items-end h-24 gap-1">
+        {values.map((value, index) => (
+          <div
+            key={index}
+            className="flex-1 bg-indigo-400 rounded-sm"
+            style={{ height: `${Math.round((value / max) * 100)}%` }}
+            title={`${value.toFixed(1)}`}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 text-sm text-gray-500">
+        容量数据加载中...
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -112,37 +165,43 @@ export default function CapacityPage() {
 
       {/* 容量预测概览 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {capacityForecasts.map((forecast) => (
-          <Card key={forecast.metric}>
-            <CardHeader>
-              <CardTitle className="text-sm">{forecast.metric}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">当前值</span>
-                  <span className="font-medium">{forecast.currentValue}{forecast.unit}</span>
+        {capacityForecasts.map((forecast) => {
+          const t = getThreshold(forecast);
+          const exceeds = forecast.forecast30d > t;
+          const pct = t > 0 ? Math.min(100, Math.max(0, (forecast.forecast30d / t) * 100)) : 0;
+          return (
+            <Card key={forecast.metric}>
+              <CardHeader>
+                <CardTitle className="text-sm">{forecast.metric}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">当前值</span>
+                    <span className="font-medium">{forecast.currentValue}{forecast.unit}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">7天预测</span>
+                    <span className="font-medium">{forecast.forecast7d}{forecast.unit}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">30天预测</span>
+                    <span className={`font-medium ${exceeds ? 'text-red-600' : 'text-green-600'}`}>
+                      {forecast.forecast30d}{forecast.unit}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${exceeds ? 'bg-red-500' : 'bg-green-500'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">阈值: {t}{forecast.unit}</p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">7天预测</span>
-                  <span className="font-medium">{forecast.forecast7d}{forecast.unit}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">30天预测</span>
-                  <span className={`font-medium ${forecast.forecast30d > forecast.threshold ? 'text-red-600' : 'text-green-600'}`}>
-                    {forecast.forecast30d}{forecast.unit}
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${forecast.forecast30d > forecast.threshold ? 'bg-red-500' : 'bg-green-500'}`}
-                    style={{ width: `${(forecast.forecast30d / 100) * 100}%` }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* 预测趋势图 */}
@@ -151,8 +210,15 @@ export default function CapacityPage() {
           <CardTitle>容量预测趋势</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-80 bg-gray-50 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">容量预测趋势图 (使用ECharts渲染)</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {['cpu', 'memory', 'net_in'].map((key) => (
+              <div key={key}>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  {key === 'cpu' ? 'CPU' : key === 'memory' ? '内存' : '网络入站'} 历史趋势
+                </p>
+                {renderTrend(key)}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -164,6 +230,9 @@ export default function CapacityPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {recommendations.length === 0 && (
+              <p className="text-sm text-gray-500">暂无扩容建议</p>
+            )}
             {recommendations.map((rec) => (
               <div key={rec.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
                 <div className="flex items-start justify-between">
@@ -217,11 +286,14 @@ export default function CapacityPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">告警阈值</label>
-              <Select>
-                <option value="70">70%</option>
-                <option value="80">80%</option>
-                <option value="90">90%</option>
-              </Select>
+              <input
+                type="number"
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value === '' ? '' : Number(e.target.value))}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="由后端预测阈值自动计算"
+              />
+              <p className="text-xs text-gray-500 mt-1">默认取自容量预测阈值平均值</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">自动扩容</label>

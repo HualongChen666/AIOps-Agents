@@ -1,0 +1,65 @@
+{
+  "counter": 11,
+  "slos": {
+    "SLO-001": {
+      "id": "SLO-001",
+      "name": "SmokeTest",
+      "service": "service-a",
+      "metric": "cpu",
+      "target": 1.0,
+      "window": 168,
+      "alert_threshold": 0.99,
+      "aggregation": "good_ratio"
+    },
+    "SLO-006": {
+      "id": "SLO-006",
+      "name": "支付可用性",
+      "service": "payment-gateway",
+      "metric": "availability",
+      "target": 0.9990000000000001,
+      "window": 720,
+      "alert_threshold": 0.99,
+      "aggregation": "good_ratio"
+    },
+    "SLO-007": {
+      "id": "SLO-007",
+      "name": "支付可用性",
+      "service": "payment-gateway",
+      "metric": "availability",
+      "target": 0.9990000000000001,
+      "window": 720,
+      "alert_threshold": 0.99,
+      "aggregation": "good_ratio"
+    },
+    "SLO-008": {
+      "id": "SLO-008",
+      "name": "订单可用性",
+      "service": "order-service",
+      "metric": "availability",
+      "target": 0.9990000000000001,
+      "window": 720,
+      "alert_threshold": 0.99,
+      "aggregation": "good_ratio"
+    },
+    "SLO-009": {
+      "id": "SLO-009",
+      "name": "支付可用性",
+      "service": "payment-gateway",
+      "metric": "availability",
+      "target": 0.9990000000000001,
+      "window": 720,
+      "alert_threshold": 0.99,
+      "aggregation": "good_ratio"
+    },
+    "SLO-010": {
+      "id": "SLO-010",
+      "name": "订单可用性",
+      "service": "order-service",
+      "metric": "availability",
+      "target": 0.9990000000000001,
+      "window": 720,
+      "alert_threshold": 0.99,
+      "aggregation": "good_ratio"
+    }
+  }
+}

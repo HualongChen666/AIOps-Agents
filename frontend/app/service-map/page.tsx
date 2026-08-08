@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import api from '@/lib/api';
+import G6, { Graph } from '@antv/g6';
 
 interface ServiceNode {
   id: string;
@@ -14,13 +15,15 @@ interface ServiceNode {
   status: 'healthy' | 'warning' | 'critical';
   dependencies: string[];
   metrics: {
-    requests: number;
-    errorRate: number;
-    latency: number;
+    requests?: number;
+    errorRate?: number;
+    latency?: number;
   };
 }
 
 interface ServiceDependency {
+  fromId: string;
+  toId: string;
   from: string;
   to: string;
   type: 'http' | 'rpc' | 'database' | 'cache' | 'queue';
@@ -44,48 +47,142 @@ interface FullLinkResponse {
   edges: FullLinkEdge[];
 }
 
+const inferType = (name: string): ServiceNode['type'] => {
+  const n = name.toLowerCase();
+  if (n.includes('front') || n.includes('web') || n.includes('ui')) return 'frontend';
+  if (n.includes('db') || n.includes('database') || n.includes('mysql') || n.includes('postgres') || n.includes('mongo')) return 'database';
+  if (n.includes('cache') || n.includes('redis')) return 'cache';
+  if (n.includes('queue') || n.includes('kafka') || n.includes('mq')) return 'queue';
+  if (n.includes('ext') || n.includes('third') || n.includes('vendor')) return 'external';
+  return 'backend';
+};
+
 export default function ServiceMapPage() {
   const [selectedService, setSelectedService] = useState<ServiceNode | null>(null);
   const [viewMode, setViewMode] = useState<'topology' | 'dependencies' | 'traffic'>('topology');
   const [services, setServices] = useState<ServiceNode[]>([]);
   const [dependencies, setDependencies] = useState<ServiceDependency[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const graphRef = useRef<Graph | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<FullLinkResponse>('/api/v1/topologies/full-link');
+      const { nodes, edges } = res.data || { nodes: [], edges: [] };
+      const labelById = new Map<string, string>();
+      nodes.forEach((n) => labelById.set(n.id, n.label));
+
+      const outDegree = new Map<string, number>();
+      edges.forEach((e) => {
+        outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+      });
+
+      const nodeDeps = new Map<string, string[]>();
+      edges.forEach((e) => {
+        const list = nodeDeps.get(e.source) ?? [];
+        list.push(labelById.get(e.target) ?? e.target);
+        nodeDeps.set(e.source, list);
+      });
+
+      const mappedServices: ServiceNode[] = nodes.map((n) => ({
+        id: n.id,
+        name: n.label,
+        type: inferType(n.label),
+        status: 'healthy' as const,
+        dependencies: nodeDeps.get(n.id) ?? [],
+        metrics: {
+          requests: outDegree.get(n.id) ?? 0,
+        },
+      }));
+
+      const mappedDeps: ServiceDependency[] = edges.map((e) => ({
+        fromId: e.source,
+        toId: e.target,
+        from: labelById.get(e.source) ?? e.source,
+        to: labelById.get(e.target) ?? e.target,
+        type: 'http' as const,
+        traffic: e.weight,
+      }));
+
+      setServices(mappedServices);
+      setDependencies(mappedDeps);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err.message || '服务地图加载失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    api.get<FullLinkResponse>('/api/v1/topologies/full-link')
-      .then((res) => {
-        const { nodes, edges } = res.data;
-        const labelById = new Map<string, string>();
-        nodes.forEach((n) => labelById.set(n.id, n.label));
+    loadData();
+  }, []);
 
-        const nodeDeps = new Map<string, string[]>();
-        edges.forEach((e) => {
-          const list = nodeDeps.get(e.source) ?? [];
-          list.push(labelById.get(e.target) ?? e.target);
-          nodeDeps.set(e.source, list);
-        });
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (!graphRef.current) {
+      graphRef.current = new G6.Graph({
+        container: containerRef.current,
+        width: containerRef.current.offsetWidth,
+        height: containerRef.current.offsetHeight,
+        fitView: true,
+        defaultNode: {
+          size: 30,
+          style: {
+            fill: '#1f4b99',
+            stroke: '#fff',
+            lineWidth: 2,
+          },
+          labelCfg: {
+            style: { fill: '#1f2937', fontSize: 12 },
+          },
+        },
+        defaultEdge: {
+          style: { stroke: '#9ca3af', lineWidth: 1 },
+          labelCfg: { style: { fill: '#6b7280', fontSize: 10 } },
+        },
+        modes: {
+          default: ['drag-canvas', 'zoom-canvas', 'drag-node'],
+        },
+      });
+      graphRef.current.on('node:click', (e: any) => {
+        const model = e.item?.getModel?.();
+        if (model?.id) {
+          const svc = services.find((s) => s.id === model.id);
+          if (svc) setSelectedService(svc);
+        }
+      });
+    }
+    const graph = graphRef.current;
+    const graphNodes = services.map((s) => ({
+      id: s.id,
+      label: s.name,
+      style: {
+        fill:
+          s.status === 'critical'
+            ? '#ef4444'
+            : s.status === 'warning'
+              ? '#f59e0b'
+              : '#22c55e',
+      },
+    }));
+    const graphEdges = dependencies.map((d) => ({
+      source: d.fromId,
+      target: d.toId,
+      label: String(d.traffic ?? ''),
+    }));
+    graph.changeData({ nodes: graphNodes, edges: graphEdges });
+    graph.fitView();
+  }, [services, dependencies]);
 
-        setServices(
-          nodes.map((n) => ({
-            id: n.id,
-            name: n.label,
-            type: 'backend' as const,
-            status: 'healthy' as const,
-            dependencies: nodeDeps.get(n.id) ?? [],
-            metrics: { requests: 0, errorRate: 0, latency: 0 },
-          }))
-        );
-
-        setDependencies(
-          edges.map((e) => ({
-            from: labelById.get(e.source) ?? e.source,
-            to: labelById.get(e.target) ?? e.target,
-            type: 'http' as const,
-            traffic: e.weight,
-          }))
-        );
-      })
-      .finally(() => setLoading(false));
+  useEffect(() => {
+    return () => {
+      graphRef.current?.destroy();
+      graphRef.current = null;
+    };
   }, []);
 
   const getStatusColor = (status: string) => {
@@ -149,7 +246,7 @@ export default function ServiceMapPage() {
             <option value="dependencies">依赖视图</option>
             <option value="traffic">流量视图</option>
           </Select>
-          <Button>刷新</Button>
+          <Button onClick={loadData} disabled={loading}>刷新</Button>
         </div>
       </div>
 
@@ -205,11 +302,21 @@ export default function ServiceMapPage() {
           <CardTitle>服务拓扑图</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-            {loading ? (
-              <p className="text-gray-500">加载中...</p>
-            ) : (
-              <p className="text-gray-500">服务拓扑图 (使用D3.js/Cytoscape.js渲染)</p>
+          <div ref={containerRef} className="h-96 bg-gray-50 rounded-lg relative">
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <p className="text-gray-500">加载中...</p>
+              </div>
+            )}
+            {error && !loading && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <p className="text-red-500">{error}</p>
+              </div>
+            )}
+            {!loading && !error && services.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <p className="text-gray-500">暂无服务拓扑数据</p>
+              </div>
             )}
           </div>
           <div className="mt-4 flex gap-4 text-sm">
@@ -244,42 +351,50 @@ export default function ServiceMapPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {services.map((service) => (
-              <div
-                key={service.id}
-                className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedService?.id === service.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}
-                onClick={() => setSelectedService(service)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium">{service.name}</h4>
-                  <Badge className={getStatusColor(service.status)}>
-                    {service.status === 'healthy' ? '健康' : service.status === 'warning' ? '警告' : '严重'}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge className={getTypeColor(service.type)} variant="outline">
-                    {getTypeLabel(service.type)}
-                  </Badge>
-                </div>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>请求量</span>
-                    <span className="font-medium">{service.metrics.requests}/s</span>
+            {services.map((service) => {
+              const errorClass =
+                service.metrics.errorRate != null
+                  ? service.metrics.errorRate > 1
+                    ? 'text-red-600'
+                    : 'text-green-600'
+                  : 'text-gray-600';
+              return (
+                <div
+                  key={service.id}
+                  className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedService?.id === service.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
+                  onClick={() => setSelectedService(service)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">{service.name}</h4>
+                    <Badge className={getStatusColor(service.status)}>
+                      {service.status === 'healthy' ? '健康' : service.status === 'warning' ? '警告' : '严重'}
+                    </Badge>
                   </div>
-                  <div className="flex justify-between">
-                    <span>错误率</span>
-                    <span className={`font-medium ${service.metrics.errorRate > 1 ? 'text-red-600' : 'text-green-600'}`}>
-                      {service.metrics.errorRate}%
-                    </span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className={getTypeColor(service.type)} variant="outline">
+                      {getTypeLabel(service.type)}
+                    </Badge>
                   </div>
-                  <div className="flex justify-between">
-                    <span>延迟</span>
-                    <span className="font-medium">{service.metrics.latency}ms</span>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <div className="flex justify-between">
+                      <span>请求量</span>
+                      <span className="font-medium">{service.metrics.requests ?? '—'}/s</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>错误率</span>
+                      <span className={`font-medium ${errorClass}`}>
+                        {service.metrics.errorRate ?? '—'}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>延迟</span>
+                      <span className="font-medium">{service.metrics.latency ?? '—'}ms</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -318,17 +433,22 @@ export default function ServiceMapPage() {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">请求量</span>
-                      <span className="font-medium">{selectedService.metrics.requests}/s</span>
+                      <span className="font-medium">{selectedService.metrics.requests ?? '—'}/s</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">错误率</span>
-                      <span className={`font-medium ${selectedService.metrics.errorRate > 1 ? 'text-red-600' : 'text-green-600'}`}>
-                        {selectedService.metrics.errorRate}%
+                      <span className={`font-medium ${selectedService.metrics.errorRate != null
+                          ? selectedService.metrics.errorRate > 1
+                            ? 'text-red-600'
+                            : 'text-green-600'
+                          : 'text-gray-600'
+                        }`}>
+                        {selectedService.metrics.errorRate ?? '—'}%
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">平均延迟</span>
-                      <span className="font-medium">{selectedService.metrics.latency}ms</span>
+                      <span className="font-medium">{selectedService.metrics.latency ?? '—'}ms</span>
                     </div>
                   </div>
                 </div>

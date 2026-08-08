@@ -346,3 +346,12 @@ async def escalate_incident(
         notify_id,
     )
     return record
+
+
+async def list_dashboards(team_id: Optional[str] = None) -> list[dict[str, Any]]:
+    """Return shared dashboards, optionally filtered by team."""
+    data = await _load_data()
+    dashboards = data.get("shared_dashboards", [])
+    if team_id:
+        dashboards = [d for d in dashboards if d.get("team_id") == team_id]
+    return dashboards

@@ -22,48 +22,7 @@ interface HealTask {
 }
 
 export default function AutoHealPage() {
-  const [tasks, setTasks] = useState<HealTask[]>([
-    {
-      id: 'HT-001',
-      alertId: 'ALT-001',
-      alertTitle: 'CPU使用率过高',
-      healPlan: '自动重启web-service实例',
-      riskLevel: 'low',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'HT-002',
-      alertId: 'ALT-002',
-      alertTitle: '内存不足',
-      healPlan: '扩容api-gateway内存配置至4GB',
-      riskLevel: 'medium',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: 'HT-003',
-      alertId: 'ALT-003',
-      alertTitle: '磁盘空间不足',
-      healPlan: '清理database日志文件',
-      riskLevel: 'high',
-      status: 'approved',
-      createdAt: new Date(Date.now() - 7200000).toISOString(),
-      approver: 'admin',
-      approvalComment: '已确认风险可接受',
-    },
-    {
-      id: 'HT-004',
-      alertId: 'ALT-004',
-      alertTitle: '响应时间过长',
-      healPlan: '增加cache-service副本数',
-      riskLevel: 'low',
-      status: 'completed',
-      createdAt: new Date(Date.now() - 10800000).toISOString(),
-      approver: 'admin',
-      approvalComment: '批准执行',
-    },
-  ]);
+  const [tasks, setTasks] = useState<HealTask[]>([]);
 
   const [selectedTab, setSelectedTab] = useState<'pending' | 'approved' | 'executing' | 'completed' | 'failed'>('pending');
   const [selectedTask, setSelectedTask] = useState<HealTask | null>(null);

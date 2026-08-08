@@ -35,7 +35,7 @@ export default function AlertsPage() {
     refetchInterval: 10000, // 10秒刷新
   });
 
-  const [alerts, setAlerts] = useState<Alert[]>(alertsData || []);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
 
   // 🔧 P1 Integration: Use enhanced loading state
   const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(isLoading);
@@ -55,10 +55,33 @@ export default function AlertsPage() {
   // 🔧 P1 Integration: Use debounce for search
   const debouncedSearch = useDebounce(filters.search, 300);
 
-  // 🔧 修复: 同步 API 数据到本地状态
+  // 🔧 修复: 同步 API 数据到本地状态并规范化字段
+  const normalizeAlert = (a: any, index: number): Alert => {
+    const severityMap: Record<string, string> = {
+      fatal: 'critical',
+      critical: 'critical',
+      warning: 'high',
+      info: 'low',
+    };
+    const rawSeverity = a.severity || a.level || 'medium';
+    const severity = (severityMap[rawSeverity] || rawSeverity) as Alert['severity'];
+    const rawStatus = a.status || 'open';
+    const status = (['open', 'acknowledged', 'resolved'].includes(rawStatus) ? rawStatus : 'open') as Alert['status'];
+    return {
+      id: a.id || a.trace_id || `alert-${index}`,
+      title: a.title || a.desc || a.message || '未知告警',
+      severity,
+      status,
+      timestamp: a.timestamp || a.detected_at || a.metric_time || a.raw_time || new Date().toISOString(),
+      service: a.service || a.host || a.metric || 'unknown',
+      details: a.details || a.desc || a.message || '',
+    };
+  };
+
   useEffect(() => {
     if (alertsData) {
-      setAlerts(alertsData);
+      const raw = Array.isArray(alertsData) ? alertsData : (alertsData as any).alerts || [];
+      setAlerts(raw.map(normalizeAlert));
     }
   }, [alertsData]);
 
@@ -97,26 +120,34 @@ export default function AlertsPage() {
     setSelectedAlerts(newSelected);
   };
 
-  const handleBatchAcknowledge = () => {
-    setAlerts(
-      alerts.map((alert) =>
-        selectedAlerts.has(alert.id) ? { ...alert, status: 'acknowledged' as const } : alert
-      )
-    );
+  const handleBatchAcknowledge = async () => {
+    const ids = Array.from(selectedAlerts);
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => api.post(`/api/v1/alerts/${id}/acknowledge`)));
     setSelectedAlerts(new Set());
-    // 🔧 P1 Integration: Show success toast
-    showSuccess(`${selectedAlerts.size} alerts acknowledged`);
+    showSuccess(`${ids.length} alerts acknowledged`);
+    await refetch();
   };
 
-  const handleBatchResolve = () => {
-    setAlerts(
-      alerts.map((alert) =>
-        selectedAlerts.has(alert.id) ? { ...alert, status: 'resolved' as const } : alert
-      )
-    );
+  const handleBatchResolve = async () => {
+    const ids = Array.from(selectedAlerts);
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => api.post(`/api/v1/alerts/${id}/resolve`)));
     setSelectedAlerts(new Set());
-    // 🔧 P1 Integration: Show success toast
-    showSuccess(`${selectedAlerts.size} alerts resolved`);
+    showSuccess(`${ids.length} alerts resolved`);
+    await refetch();
+  };
+
+  const handleAcknowledge = async (id: string) => {
+    await api.post(`/api/v1/alerts/${id}/acknowledge`);
+    setSelectedAlert(null);
+    await refetch();
+  };
+
+  const handleResolve = async (id: string) => {
+    await api.post(`/api/v1/alerts/${id}/resolve`);
+    setSelectedAlert(null);
+    await refetch();
   };
 
   const getSeverityColor = (severity: string) => {
@@ -374,16 +405,10 @@ export default function AlertsPage() {
               <Button variant="secondary" onClick={() => setSelectedAlert(null)}>
                 关闭
               </Button>
-              <Button onClick={() => {
-                setAlerts(alerts.map(a => a.id === selectedAlert.id ? { ...a, status: 'acknowledged' as const } : a));
-                setSelectedAlert(null);
-              }}>
+              <Button onClick={() => selectedAlert && handleAcknowledge(selectedAlert.id)}>
                 确认
               </Button>
-              <Button onClick={() => {
-                setAlerts(alerts.map(a => a.id === selectedAlert.id ? { ...a, status: 'resolved' as const } : a));
-                setSelectedAlert(null);
-              }}>
+              <Button onClick={() => selectedAlert && handleResolve(selectedAlert.id)}>
                 解决
               </Button>
             </DialogFooter>

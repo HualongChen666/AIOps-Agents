@@ -319,3 +319,83 @@ async def get_experiments(limit: int = 10) -> Dict[str, Any]:
         )
     except Exception as e:
         return create_error_response(error=str(e), error_code="EXPERIMENT_HISTORY_ERROR")
+
+
+@router.get(
+    "/templates",
+    summary="获取故障实验模板",
+    responses={
+        200: {
+            "description": "故障实验模板列表",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "data": {
+                            "templates": [
+                                {
+                                    "id": "latency_injection",
+                                    "name": "网络延迟注入",
+                                    "type": "network",
+                                    "description": "向目标注入指定毫秒数的网络延迟",
+                                    "severity": "medium",
+                                    "parameters": ["target", "duration", "delay_ms"],
+                                }
+                            ]
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def get_chaos_templates() -> Dict[str, Any]:
+    """
+    返回支持的混沌实验模板列表
+    """
+    try:
+        templates = [
+            {
+                "id": "latency_injection",
+                "name": "网络延迟注入",
+                "type": "network",
+                "description": "向目标注入指定毫秒数的网络延迟，验证链路超时与降级能力",
+                "severity": "medium",
+                "parameters": ["target", "duration", "delay_ms"],
+            },
+            {
+                "id": "fault_injection",
+                "name": "磁盘故障注入",
+                "type": "disk",
+                "description": "注入磁盘 I/O、数据库或缓存等故障，验证系统容错能力",
+                "severity": "high",
+                "parameters": ["target", "duration", "fault_type"],
+            },
+            {
+                "id": "resource_limitation",
+                "name": "资源限制",
+                "type": "cpu",
+                "description": "限制 CPU 或内存资源使用，验证资源瓶颈下的服务表现",
+                "severity": "medium",
+                "parameters": ["target", "duration", "resource_type", "limit"],
+            },
+            {
+                "id": "network_partition",
+                "name": "网络分区",
+                "type": "network",
+                "description": "创建网络分区，验证服务在分区场景下的降级与恢复能力",
+                "severity": "high",
+                "parameters": ["target", "duration", "partition_type"],
+            },
+            {
+                "id": "service_failure",
+                "name": "服务故障",
+                "type": "service",
+                "description": "触发指定服务故障并验证其恢复能力",
+                "severity": "medium",
+                "parameters": ["target", "duration", "service_name"],
+            },
+        ]
+        return create_success_response({"templates": templates})
+    except Exception as e:
+        return create_error_response(error=str(e), error_code="TEMPLATES_ERROR")

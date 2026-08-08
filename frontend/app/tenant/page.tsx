@@ -149,6 +149,24 @@ export default function TenantPage() {
     }
   };
 
+  const handleUpgradePlan = async () => {
+    if (!currentTenant) return;
+    const plan = window.prompt('选择新套餐 (free/basic/pro/enterprise):', currentTenant.plan);
+    if (!plan || !['free', 'basic', 'pro', 'enterprise'].includes(plan)) return;
+    try {
+      const res = await fetch(`${API_BASE}/${currentTenant.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      if (!res.ok) throw new Error('Upgrade failed');
+      const data: Tenant = await res.json();
+      updateTenant(data.id, data);
+    } catch (err) {
+      console.error('upgrade plan error', err);
+    }
+  };
+
   const preview = currentTenant ? planPreview(currentTenant.plan) : null;
 
   return (
@@ -223,7 +241,7 @@ export default function TenantPage() {
 
             <div className="mt-6 flex gap-2">
               <Button onClick={() => setShowBillingDialog(true)}>查看账单</Button>
-              <Button variant="outline">升级套餐</Button>
+              <Button variant="outline" onClick={handleUpgradePlan}>升级套餐</Button>
             </div>
           </CardContent>
         </Card>

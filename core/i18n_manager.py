@@ -7,6 +7,8 @@ Enterprise-grade internationalization framework and localization support
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import json
+import os
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -100,6 +102,9 @@ class I18nManager:
 
         # Initialize default locales
         self._initialize_default_locales()
+
+        # Load any persisted translations
+        self._load_translation_store()
 
         logger.info("Internationalization manager initialized")
 
@@ -444,6 +449,103 @@ class I18nManager:
             }
             for locale_id, locale in self.locales.items()
         ]
+
+    def _translation_store_path(self) -> str:
+        """Return the path to the persisted translation store."""
+        return os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data",
+            "i18n_translations.json",
+        )
+
+    def _load_translation_store(self) -> None:
+        """Load persisted translations from data/i18n_translations.json."""
+        path = self._translation_store_path()
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load translation store: {e}")
+            return
+
+        if not isinstance(data, dict):
+            return
+
+        for locale_id, namespaces in data.items():
+            if not isinstance(namespaces, dict):
+                continue
+            locale = self.locales.get(locale_id)
+            if not locale:
+                continue
+            language = locale.language
+            self.translation_resources.setdefault(language.value, {})
+            for namespace, translations in namespaces.items():
+                if not isinstance(translations, dict):
+                    continue
+                self.translation_resources[language.value][namespace] = TranslationResource(
+                    language=language,
+                    namespace=namespace,
+                    translations=dict(translations),
+                )
+                self.total_translations += len(translations)
+                self.total_namespaces += 1
+
+    def _save_translation_store(self) -> None:
+        """Persist current translations to data/i18n_translations.json."""
+        path = self._translation_store_path()
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            data: Dict[str, Any] = {}
+            for locale_id, locale in self.locales.items():
+                lang_code = locale.language.value
+                namespaces = self.translation_resources.get(lang_code, {})
+                if not namespaces:
+                    continue
+                data[locale_id] = {
+                    namespace: dict(resource.translations)
+                    for namespace, resource in namespaces.items()
+                }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to save translation store: {e}")
+
+    def set_translation(self, locale_id: str, namespace: str, key: str, value: str) -> bool:
+        """Add or update a translation for a locale and namespace."""
+        locale = self.locales.get(locale_id)
+        if not locale:
+            return False
+        language = locale.language
+        if language.value not in self.translation_resources:
+            self.translation_resources[language.value] = {}
+        if namespace not in self.translation_resources[language.value]:
+            self.translation_resources[language.value][namespace] = TranslationResource(
+                language=language,
+                namespace=namespace,
+                translations={},
+            )
+            self.total_namespaces += 1
+
+        resource = self.translation_resources[language.value][namespace]
+        if key not in resource.translations:
+            self.total_translations += 1
+        resource.translations[key] = value
+        self._save_translation_store()
+        return True
+
+    def get_namespace_translations(self, locale_id: str, namespace: str = "common") -> Dict[str, str]:
+        """Get all translations for a locale and namespace."""
+        locale = self.locales.get(locale_id)
+        if not locale:
+            return {}
+        language = locale.language
+        resources = self.translation_resources.get(language.value, {})
+        resource = resources.get(namespace)
+        if resource:
+            return dict(resource.translations)
+        return {}
 
     def get_i18n_summary(self) -> Dict[str, Any]:
         """

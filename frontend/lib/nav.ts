@@ -16,9 +16,9 @@ export function getNavGroups(locale: Locale): NavGroup[] {
 
   return [
     {
-      title: t('nav.overview'),
+      title: t('nav.homeAndOverview'),
       items: [
-        { href: '/', label: t('nav.overview') },
+        { href: '/', label: t('nav.home') },
         { href: '/overview', label: t('nav.overview') },
         { href: '/dashboard', label: t('nav.dashboard') },
         { href: '/kpi', label: t('nav.kpi') },

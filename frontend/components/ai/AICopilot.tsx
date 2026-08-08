@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import api from '@/lib/api';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -32,29 +33,42 @@ export const AICopilot = () => {
       timestamp: new Date().toISOString(),
     };
 
-    setMessages([...messages, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    // 模拟AI响应
-    setTimeout(() => {
-      const responses = [
-        '根据当前告警分析，建议优先处理CPU使用率过高的问题。可以尝试重启web-service实例或增加副本数。',
-        '系统健康度良好，MTTR为15分钟，低于目标值30分钟。自动修复成功率为87%，表现良好。',
-        '检测到数据库查询延迟增加，建议检查慢查询日志并优化索引。我可以帮你生成优化建议。',
-        '根据历史数据分析，预计7天后磁盘空间将不足，建议提前进行清理或扩容。',
-        '当前系统可用性为99.95%，满足SLA要求。告警数量为23个，其中严重告警2个需要立即处理。',
-      ];
+    try {
+      const resp = await api.post('/api/ai/analyze', {
+        query: input,
+        include_metrics: true,
+        include_rich_context: true,
+      });
+
+      const payload = resp.data?.analysis ?? resp.data;
+      const content =
+        typeof payload === 'string'
+          ? payload
+          : payload?.recommended_action
+            ? String(payload.recommended_action)
+            : JSON.stringify(payload, null, 2);
 
       const aiMessage: Message = {
         role: 'assistant',
-        content: responses[Math.floor(Math.random() * responses.length)],
+        content: content || 'AI 分析完成',
         timestamp: new Date().toISOString(),
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+    } catch (error: any) {
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `AI 分析失败：${error?.response?.data?.detail || error.message || '请稍后重试'}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const quickActions = [
@@ -96,11 +110,10 @@ export const AICopilot = () => {
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
+                className={`max-w-[80%] rounded-lg p-3 ${msg.role === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-900'
+                  }`}
               >
                 <p className="text-sm">{msg.content}</p>
                 <p className="text-xs mt-1 opacity-70">

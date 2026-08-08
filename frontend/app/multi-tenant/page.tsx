@@ -64,7 +64,6 @@ const mapBackendTenant = (t: any): Tenant => ({
 
 export default function MultiTenantPage() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -111,6 +110,87 @@ export default function MultiTenantPage() {
     return 'bg-green-500';
   };
 
+  const loadTenants = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/api/v1/tenants/');
+      const mapped = Array.isArray(data) ? data.map(mapBackendTenant) : [];
+      setTenants(mapped);
+      if (selectedTenant) {
+        const refreshed = mapped.find((t) => t.id === selectedTenant.id);
+        if (refreshed) setSelectedTenant(refreshed);
+      }
+    } catch (err) {
+      // api interceptor already shows a toast on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateTenant = async () => {
+    const name = window.prompt('租户名称：');
+    if (!name) return;
+    const plan = window.prompt('套餐 (free/basic/pro/enterprise)：', 'basic');
+    if (!plan || !['free', 'basic', 'pro', 'enterprise'].includes(plan)) return;
+    const contact = window.prompt('联系人：', '') || '';
+    try {
+      await api.post('/api/v1/tenants/', {
+        name,
+        plan,
+        contact,
+        status: 'active',
+      });
+      await loadTenants();
+    } catch (err) {
+      window.alert('创建租户失败');
+    }
+  };
+
+  const handleToggleSuspend = async (tenant: Tenant) => {
+    const newStatus = tenant.status === 'suspended' ? 'active' : 'suspended';
+    try {
+      await api.put(`/api/v1/tenants/${tenant.id}`, { status: newStatus });
+      await loadTenants();
+    } catch (err) {
+      window.alert('状态更新失败');
+    }
+  };
+
+  const handleAdjustQuota = async (tenant: Tenant) => {
+    const cpu = window.prompt('CPU 配额：', String(tenant.quota.cpu || 0));
+    if (cpu === null) return;
+    const memory = window.prompt('内存 配额：', String(tenant.quota.memory || 0));
+    if (memory === null) return;
+    const storage = window.prompt('存储 配额 (GB)：', String(tenant.quota.storage || 0));
+    if (storage === null) return;
+    try {
+      await api.put(`/api/v1/tenants/${tenant.id}`, {
+        quota: {
+          cpu: Number(cpu) || 0,
+          memory: Number(memory) || 0,
+          maxStorage: Number(storage) || 0,
+        },
+      });
+      await loadTenants();
+    } catch (err) {
+      window.alert('配额调整失败');
+    }
+  };
+
+  const handleRefreshBilling = async (tenant: Tenant) => {
+    try {
+      const { data } = await api.get(`/api/v1/tenants/${tenant.id}`);
+      const mapped = mapBackendTenant(data);
+      setSelectedTenant(mapped);
+    } catch (err) {
+      window.alert('刷新账单失败');
+    }
+  };
+
+  const handleSwitchTenant = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+  };
+
   const totalCpu = tenants.reduce((sum, t) => sum + t.quota.cpu, 0);
   const usedCpu = tenants.reduce((sum, t) => sum + t.resources.cpu, 0);
   const totalMemory = tenants.reduce((sum, t) => sum + t.quota.memory, 0);
@@ -134,7 +214,7 @@ export default function MultiTenantPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">多租户管理</h1>
-        <Button onClick={() => setShowCreateModal(true)}>创建租户</Button>
+        <Button onClick={handleCreateTenant}>创建租户</Button>
       </div>
 
       {loading && <p className="text-sm text-gray-500">加载中...</p>}
@@ -238,14 +318,14 @@ export default function MultiTenantPage() {
 
               {/* 操作 */}
               <div className="flex gap-2 pt-4 border-t">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => selectedTenant && handleAdjustQuota(selectedTenant)}>
                   调整配额
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => selectedTenant && handleRefreshBilling(selectedTenant)}>
                   查看账单
                 </Button>
-                <Button variant="outline" size="sm" className="text-red-600">
-                  暂停租户
+                <Button variant="outline" size="sm" className="text-red-600" onClick={() => selectedTenant && handleToggleSuspend(selectedTenant)}>
+                  {selectedTenant?.status === 'suspended' ? '激活租户' : '暂停租户'}
                 </Button>
               </div>
             </div>
@@ -295,7 +375,7 @@ export default function MultiTenantPage() {
                   <h4 className="font-medium">{tenant.name}</h4>
                   <p className="text-sm text-gray-500">{tenant.id}</p>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => handleSwitchTenant(tenant)}>
                   切换
                 </Button>
               </div>

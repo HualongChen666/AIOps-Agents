@@ -242,6 +242,49 @@ async def translate(key: str, namespace: str = "common", language: Optional[str]
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.put(
+    "/translate",
+    summary="更新翻译文本",
+    responses={
+        200: {"description": "更新结果"},
+        400: {"description": "参数无效"},
+        500: {"description": "更新失败"},
+    },
+)
+async def update_translation(
+    key: str,
+    translation: str,
+    namespace: str = "common",
+    language: Optional[str] = None,
+):
+    """Update a translation for a key/namespace/language."""
+    try:
+        from core.i18n_manager import get_i18n_manager
+
+        manager = get_i18n_manager()
+        if language and language in manager.locales:
+            target_locale = language
+        elif manager.current_locale:
+            target_locale = next(
+                (lid for lid, loc in manager.locales.items() if loc.language == manager.current_locale.language),
+                "zh-CN",
+            )
+        else:
+            target_locale = "zh-CN"
+        success = manager.set_translation(target_locale, namespace, key, translation)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Locale {target_locale} not supported")
+
+        return {
+            "status": "success",
+            "data": {"key": key, "namespace": namespace, "language": target_locale, "translation": translation},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error updating translation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/format/number",
     summary="格式化数字",

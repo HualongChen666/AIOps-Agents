@@ -45,6 +45,7 @@ export default function PredictivePage() {
   const [deviceHealth, setDeviceHealth] = useState<DeviceHealth[]>([]);
   const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceTask[]>([]);
   const [failurePredictions, setFailurePredictions] = useState<FailurePrediction[]>([]);
+  const [recommendations, setRecommendations] = useState<{ id: string; title: string; description: string; action: string; priority: string }[]>([]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -113,6 +114,11 @@ export default function PredictivePage() {
           platform: 'windows',
         }),
       ]);
+
+      const recRes = await api.get('/api/v1/metrics/predictions').catch(() => null);
+      if (recRes?.data?.data) {
+        setRecommendations(recRes.data.data);
+      }
 
       if (historyResult.status === 'fulfilled') {
         const historyData = historyResult.value.data || {};
@@ -248,7 +254,7 @@ export default function PredictivePage() {
             {loading ? (
               <p className="text-gray-500">加载预测数据中...</p>
             ) : (
-              <p className="text-gray-500">设备健康趋势图 (使用ECharts渲染)</p>
+              <p className="text-gray-500">设备健康趋势图</p>
             )}
           </div>
         </CardContent>
@@ -415,42 +421,24 @@ export default function PredictivePage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">资源优化</h4>
-              <p className="text-sm text-gray-600 mb-3">
-                建议将MT-001和MT-002合并到同一维护窗口，可节省约30%的维护时间
-              </p>
-              <Button variant="outline" size="sm">
-                应用优化
-              </Button>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">成本优化</h4>
-              <p className="text-sm text-gray-600 mb-3">
-                预防性维护可降低故障修复成本约40%，建议增加预防性维护比例
-              </p>
-              <Button variant="outline" size="sm">
-                查看详情
-              </Button>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">时间优化</h4>
-              <p className="text-sm text-gray-600 mb-3">
-                建议将低优先级任务安排在非业务高峰期，减少对业务影响
-              </p>
-              <Button variant="outline" size="sm">
-                调整计划
-              </Button>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">人员优化</h4>
-              <p className="text-sm text-gray-600 mb-3">
-                根据技能匹配度，建议分配特定工程师处理数据库相关维护任务
-              </p>
-              <Button variant="outline" size="sm">
-                分配人员
-              </Button>
-            </div>
+            {recommendations.length === 0 ? (
+              <p className="text-sm text-gray-500 md:col-span-2">暂无预测性维护建议</p>
+            ) : (
+              recommendations.map((rec) => (
+                <div key={rec.id} className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">{rec.title}</h4>
+                    <Badge className={getPriorityColor(rec.priority)}>
+                      {rec.priority === 'high' ? '高' : rec.priority === 'medium' ? '中' : '低'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">{rec.description}</p>
+                  <Button variant="outline" size="sm">
+                    {rec.action || '查看详情'}
+                  </Button>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

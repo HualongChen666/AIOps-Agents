@@ -90,14 +90,26 @@ export default function ComplianceAuditPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [auditRes, statsRes] = await Promise.all([
-          api.get('/api/guard/audit', { params: { limit: 50 } }),
-          api.get('/api/guard/stats'),
+        const [logsRes, reportRes] = await Promise.all([
+          api.get('/api/v1/audit', { params: { limit: 50 } }),
+          api.get('/api/v1/audit/report', { params: { limit: 50 } }),
         ]);
-        const rawLogs = auditRes.data?.logs ?? [];
+        const rawLogs = logsRes.data ?? [];
         setAuditLogs(rawLogs.map((log: any, i: number) => mapGuardLogToAuditLog(log, i)));
-        setAccessStats(statsRes.data ?? { total: 0, blocked_count: 0, high_count: 0, block_rate: 0 });
-        setComplianceReports([buildComplianceReport(statsRes.data ?? {})]);
+
+        const report = reportRes.data ?? {};
+        const total = Number(report.total) || 0;
+        const riskDist = report.risk_distribution ?? {};
+        const blockedCount = Number(riskDist.blocked) || 0;
+        const highCount = Number(riskDist.high) || 0;
+        const stats = {
+          total,
+          blocked_count: blockedCount,
+          high_count: highCount,
+          block_rate: total > 0 ? Math.round(((blockedCount + highCount) / total) * 100) : 0,
+        };
+        setAccessStats(stats);
+        setComplianceReports([buildComplianceReport(stats)]);
       } catch (error) {
         // api.ts already shows toast on error
       }
@@ -133,26 +145,7 @@ export default function ComplianceAuditPage() {
       log.status === 'failure'
   ).slice(0, 5);
 
-  const retentionPolicies: RetentionPolicy[] = [
-    {
-      resource: 'Audit Logs',
-      retentionPeriod: '7 years',
-      currentRetention: '7 years',
-      status: 'compliant',
-    },
-    {
-      resource: 'Alert Data',
-      retentionPeriod: '90 days',
-      currentRetention: '90 days',
-      status: 'compliant',
-    },
-    {
-      resource: 'User Activity',
-      retentionPeriod: '2 years',
-      currentRetention: '1.5 years',
-      status: 'non-compliant',
-    },
-  ];
+  const [retentionPolicies] = useState<RetentionPolicy[]>([]);
 
   return (
     <div className="space-y-6">
@@ -298,28 +291,32 @@ export default function ComplianceAuditPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {retentionPolicies.map((policy, index) => (
-                <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium">{policy.resource}</h4>
-                    <Badge className={getStatusColor(policy.status)}>
-                      {policy.status === 'compliant' ? '合规' : '不合规'}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">要求保留期: </span>
-                      <span>{policy.retentionPeriod}</span>
+              {retentionPolicies.length === 0 ? (
+                <p className="text-gray-500">暂无保留策略数据</p>
+              ) : (
+                retentionPolicies.map((policy, index) => (
+                  <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">{policy.resource}</h4>
+                      <Badge className={getStatusColor(policy.status)}>
+                        {policy.status === 'compliant' ? '合规' : '不合规'}
+                      </Badge>
                     </div>
-                    <div>
-                      <span className="text-gray-500">当前保留期: </span>
-                      <span className={policy.status === 'non-compliant' ? 'text-red-600' : ''}>
-                        {policy.currentRetention}
-                      </span>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">要求保留期: </span>
+                        <span>{policy.retentionPeriod}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">当前保留期: </span>
+                        <span className={policy.status === 'non-compliant' ? 'text-red-600' : ''}>
+                          {policy.currentRetention}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
             <div className="mt-4 pt-4 border-t">
               <Button variant="outline">配置保留策略</Button>

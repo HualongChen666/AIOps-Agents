@@ -17,6 +17,7 @@ from core.team_collaboration_engine import (
     create_handoff,
     escalate_incident,
     get_team_oncall,
+    list_dashboards,
     list_handoffs,
     list_teams,
 )
@@ -138,6 +139,19 @@ async def post_escalate(incident_id: str, request: EscalateRequest) -> dict[str,
         ) from exc
     except Exception as exc:
         logger.error("Failed to escalate incident %s: %s", incident_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        )
+
+
+@router.get("/dashboards", summary="获取共享仪表盘")
+async def get_dashboards(team_id: Optional[str] = None) -> list[dict[str, Any]]:
+    """返回所有共享仪表盘；支持按团队ID过滤。"""
+    try:
+        return await list_dashboards(team_id=team_id)
+    except Exception as exc:
+        logger.error("Failed to list dashboards: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),

@@ -34,6 +34,8 @@ export default function BusinessImpactPage() {
   const [services, setServices] = useState<BusinessService[]>([]);
   const [uxMetrics, setUxMetrics] = useState<UserExperienceMetric[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedService, setSelectedService] = useState<BusinessService | null>(null);
+  const [assessLoading, setAssessLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +117,21 @@ export default function BusinessImpactPage() {
     if (status === 'healthy') return '健康';
     if (status === 'degraded') return '降级';
     return '宕机';
+  };
+
+  const handleViewDetails = async (name: string) => {
+    setAssessLoading(true);
+    try {
+      const res = await api.get(`/api/v1/business-impact/assess/${encodeURIComponent(name)}`);
+      const data = res.data?.data ?? res.data;
+      if (data) {
+        setSelectedService(data as BusinessService);
+      }
+    } catch {
+      // errors handled by api.ts interceptor
+    } finally {
+      setAssessLoading(false);
+    }
   };
 
   const renderKeyFindings = () => {
@@ -339,7 +356,7 @@ export default function BusinessImpactPage() {
                   <TableCell className="text-red-600">¥{service.revenueImpact.toLocaleString()}</TableCell>
                   <TableCell className="text-sm">{new Date(service.lastUpdated).toLocaleString()}</TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleViewDetails(service.name)} disabled={assessLoading}>
                       查看详情
                     </Button>
                   </TableCell>
@@ -379,6 +396,26 @@ export default function BusinessImpactPage() {
           </div>
         </CardContent>
       </Card>
+
+      {selectedService && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{selectedService.name} 业务影响详情</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div><span className="text-gray-500">类别</span><div>{selectedService.category}</div></div>
+              <div><span className="text-gray-500">状态</span><div>{getStatusText(selectedService.status)}</div></div>
+              <div><span className="text-gray-500">影响评分</span><div>{selectedService.impactScore}</div></div>
+              <div><span className="text-gray-500">受影响用户</span><div>{selectedService.affectedUsers.toLocaleString()}</div></div>
+              <div><span className="text-gray-500">转化率</span><div>{selectedService.conversionRate}%</div></div>
+              <div><span className="text-gray-500">转化率变化</span><div>{selectedService.conversionRateChange}%</div></div>
+              <div><span className="text-gray-500">收入影响</span><div>¥{selectedService.revenueImpact.toLocaleString()}</div></div>
+              <div><span className="text-gray-500">最后更新</span><div>{new Date(selectedService.lastUpdated).toLocaleString()}</div></div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

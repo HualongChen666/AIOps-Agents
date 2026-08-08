@@ -134,6 +134,26 @@ async def get_alerts(
     return alert_service.get_alerts(limit)
 
 
+@router.post(
+    "/{alert_id}/acknowledge",
+    summary="确认告警",
+)
+async def acknowledge_alert(alert_id: str) -> dict[str, Any]:
+    """将告警标记为已确认"""
+    await alert_service.update_alert_status(alert_id, "acknowledged")
+    return {"id": alert_id, "status": "acknowledged"}
+
+
+@router.post(
+    "/{alert_id}/resolve",
+    summary="解决告警",
+)
+async def resolve_alert(alert_id: str) -> dict[str, Any]:
+    """将告警标记为已解决"""
+    await alert_service.update_alert_status(alert_id, "resolved")
+    return {"id": alert_id, "status": "resolved"}
+
+
 @router.delete(
     "/",
     summary="清空告警历史(高危操作)",

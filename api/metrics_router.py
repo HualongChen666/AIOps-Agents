@@ -110,11 +110,18 @@ import asyncio
 import logging
 from typing import Any, Optional  # 🔧 MRV5 [P1]:补全 Optional 导入
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 
 from core.cache_helpers import ParametricTTLCache, TTLCache
 from core.collector import collect_all, get_top_processes
+from core.kpi_config import (
+    create_kpi_config,
+    delete_kpi_config,
+    list_kpi_configs,
+    resolve_field,
+    update_kpi_config,
+)
 from core.metrics_history import metrics_history
 from core.stats_engine import get_decision_accuracy, get_real_summary
 
@@ -427,6 +434,124 @@ async def get_history() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"历史数据获取失败: {str(e)[:200]}")
 
 
+def _to_floats(values: Any) -> list[float]:
+    """Convert a sequence to a list of floats, skipping invalid items."""
+    result: list[float] = []
+    if not isinstance(values, (list, tuple)):
+        return result
+    for v in values:
+        try:
+            result.append(float(v))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _linear_slope(values: list[float]) -> float:
+    """Return the slope of a simple linear regression over the series."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    x = list(range(n))
+    sx = sum(x)
+    sy = sum(values)
+    sxx = sum(i * i for i in x)
+    sxy = sum(x[i] * values[i] for i in range(n))
+    denom = n * sxx - sx * sx
+    if denom == 0:
+        return 0.0
+    return (n * sxy - sx * sy) / denom
+
+
+def _build_predictions(history: dict[str, Any]) -> list[dict[str, Any]]:
+    """Generate predictive maintenance recommendations from metric history."""
+    predictions: list[dict[str, Any]] = []
+    metric_meta = [
+        ("cpu", "CPU", "%"),
+        ("memory", "内存", "%"),
+        ("net_in", "网络入站", "MB/s"),
+    ]
+    for key, label, unit in metric_meta:
+        values = _to_floats(history.get(key))
+        if not values:
+            continue
+        current = values[-1]
+        if len(values) >= 2:
+            slope = _linear_slope(values)
+            start = values[0]
+            delta = current - start
+            trend = "上升" if slope > 0.5 else "下降" if slope < -0.5 else "平稳"
+            message = (
+                f"{label} 当前 {current:.1f}{unit}，最近 {len(values)} 个采样呈{trend}趋势"
+                f"（变化 {delta:+.1f}{unit}）"
+            )
+            if slope > 0.5:
+                projected = current + slope * len(values)
+                message += (
+                    f"。预计 {len(values)} 个采样后达到 {max(0.0, projected):.1f}{unit}，"
+                    f"建议关注 {label} 相关进程或服务"
+                )
+            elif slope < -0.5:
+                message += f"。{label} 压力缓解，可继续观察"
+            else:
+                message += f"。{label} 运行平稳，建议持续监控"
+            priority = "high" if slope > 0.5 else "low"
+        else:
+            message = (
+                f"{label} 当前 {current:.1f}{unit}，采样点不足，无法判断趋势，建议持续监控"
+            )
+            priority = "low"
+        predictions.append(
+            {
+                "id": f"pred-{key}",
+                "title": f"{label} 预测",
+                "description": message,
+                "action": "查看详情",
+                "priority": priority,
+            }
+        )
+    return predictions
+
+
+@router.get(
+    "/predictions",
+    summary="获取预测性维护建议",
+    responses={
+        200: {
+            "description": "预测性维护建议",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "data": [
+                            {
+                                "id": "pred-cpu",
+                                "title": "CPU 预测",
+                                "description": "CPU 当前 45.0%...",
+                                "action": "查看详情",
+                                "priority": "high",
+                            }
+                        ]
+                    }
+                }
+            },
+        },
+        500: {"description": "预测失败"},
+    },
+)
+async def get_predictions() -> dict[str, Any]:
+    """Return predictive maintenance recommendations based on metric history."""
+    logger.debug("请求预测性维护建议")
+    try:
+        raw_history = metrics_history.to_dict()
+        predictions = _build_predictions(raw_history)
+        return {"data": predictions}
+    except Exception as e:
+        logger.error(f"预测性维护建议生成失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"预测性维护建议生成失败: {str(e)[:200]}"
+        )
+
+
 def _try_get_processes_from_cache(limit: int) -> Optional[dict[str, Any]]:
     """尝试从缓存获取进程列表
 
@@ -665,3 +790,92 @@ async def clear_snapshot_cache() -> dict[str, Any]:
         "processes_cleared": processes_cleared,
         "engine_cleared": engine_cleared,
     }
+
+
+# ============================================================
+# 后端驱动的 KPI 配置 / 实时值
+# ============================================================
+
+
+@router.get("/kpi/config", summary="获取 KPI 配置列表")
+async def get_kpi_configs() -> dict[str, Any]:
+    return {"data": list_kpi_configs()}
+
+
+@router.post("/kpi/config", summary="新增 KPI 配置")
+async def post_kpi_config(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    config = create_kpi_config(body)
+    return {"data": config}
+
+
+@router.put("/kpi/config/{config_id}", summary="更新 KPI 配置")
+async def put_kpi_config(config_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    config = update_kpi_config(config_id, body)
+    if not config:
+        raise HTTPException(status_code=404, detail="KPI 配置不存在")
+    return {"data": config}
+
+
+@router.delete("/kpi/config/{config_id}", summary="删除 KPI 配置")
+async def del_kpi_config(config_id: str) -> dict[str, Any]:
+    if not delete_kpi_config(config_id):
+        raise HTTPException(status_code=404, detail="KPI 配置不存在")
+    return {"status": "ok"}
+
+
+@router.get("/kpi/values", summary="获取 KPI 实时值")
+async def get_kpi_values() -> dict[str, Any]:
+    """按后端 KPI 配置，从各数据源聚合实时值。"""
+    configs = list_kpi_configs()
+    if not any(c.get("visible") for c in configs):
+        return {"data": []}
+
+    # 按需采集数据源
+    summary_data: Any = None
+    snapshot_data: Any = None
+    decision_data: Any = None
+    feedback_data: Any = None
+
+    for c in configs:
+        if not c.get("visible"):
+            continue
+        ep = c.get("endpoint")
+        if ep == "summary" and summary_data is None:
+            summary_data = await get_real_summary()
+        elif ep == "snapshot" and snapshot_data is None:
+            summary_data = await get_real_summary()
+            snapshot_data = {**await _collect_system_snapshot(), "summary": summary_data}
+        elif ep == "agent/decision-accuracy" and decision_data is None:
+            decision_data = get_decision_accuracy()
+        elif ep == "agent/feedback-accuracy" and feedback_data is None:
+            from api.ai_feedback_router import _compute_feedback_stats
+
+            feedback_data = _compute_feedback_stats(today_only=False)
+
+    data_sources = {
+        "summary": summary_data or {},
+        "snapshot": snapshot_data or {},
+        "agent/decision-accuracy": decision_data or {},
+        "agent/feedback-accuracy": feedback_data or {},
+    }
+
+    values = []
+    for c in configs:
+        if not c.get("visible"):
+            continue
+        raw = resolve_field(data_sources.get(c.get("endpoint"), {}), c.get("field_path", ""))
+        try:
+            value = float(raw) if raw is not None else 0.0
+        except (TypeError, ValueError):
+            value = 0.0
+        values.append({
+            "id": c.get("id"),
+            "name": c.get("name"),
+            "value": value,
+            "target": float(c.get("target", 0)),
+            "unit": c.get("unit", ""),
+            "endpoint": c.get("endpoint"),
+            "field_path": c.get("field_path"),
+        })
+
+    return {"data": values}

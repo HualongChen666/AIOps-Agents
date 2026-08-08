@@ -115,7 +115,7 @@ export default function AnomalyPage() {
         </CardHeader>
         <CardContent>
           <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">时序图表区域 (使用ECharts渲染)</p>
+            <p className="text-gray-500">时序图表区域</p>
             <div className="absolute bottom-4 right-4 space-x-2">
               <Badge className="bg-blue-100 text-blue-800">实际值</Badge>
               <Badge className="bg-green-100 text-green-800">预测值</Badge>

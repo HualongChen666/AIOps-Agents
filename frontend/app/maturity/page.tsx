@@ -169,7 +169,7 @@ export default function MaturityPage() {
         </CardHeader>
         <CardContent>
           <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">雷达图区域 (使用ECharts渲染)</p>
+            <p className="text-gray-500">雷达图区域</p>
           </div>
         </CardContent>
       </Card>

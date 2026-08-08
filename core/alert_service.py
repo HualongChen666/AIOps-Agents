@@ -13,6 +13,7 @@ import logging
 from typing import Any
 
 from core.alert_engine import alert_history
+from core.db_engine import alert_repository as db_alert_repository
 from core.db_engine import clear_alerts as db_clear_alerts
 from core.query_optimization import query_cache
 
@@ -117,6 +118,26 @@ class AlertService:
             "sqlite_deleted": db_deleted,
             "operator_ip": operator_ip,
         }
+
+    async def update_alert_status(self, alert_id: str, status: str) -> bool:
+        """更新告警状态（内存 + 数据库）"""
+        found = False
+        for alert in alert_history:
+            if alert.get("id") == alert_id:
+                alert["status"] = status
+                if status == "acknowledged":
+                    alert["acknowledged_at"] = datetime.utcnow().isoformat()
+                elif status == "resolved":
+                    alert["resolved_at"] = datetime.utcnow().isoformat()
+                found = True
+                break
+
+        try:
+            await db_alert_repository.update_status(alert_id, status)
+        except Exception as db_err:
+            logger.warning(f"告警状态持久化失败(已更新内存): {db_err}")
+
+        return found
 
 
 # 默认服务实例

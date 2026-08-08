@@ -91,36 +91,7 @@ export default function ChaosPage() {
   const [stats, setStats] = useState<Record<string, any>>({});
   const [experiments, setExperiments] = useState<ChaosExperiment[]>([]);
 
-  const [templates] = useState<FaultTemplate[]>([
-    {
-      id: 'TPL-001',
-      name: 'CPU过载',
-      type: 'cpu',
-      description: '模拟CPU使用率达到100%',
-      severity: 'high',
-    },
-    {
-      id: 'TPL-002',
-      name: '网络延迟',
-      type: 'network',
-      description: '增加网络延迟500ms',
-      severity: 'medium',
-    },
-    {
-      id: 'TPL-003',
-      name: '磁盘故障',
-      type: 'disk',
-      description: '模拟磁盘I/O失败',
-      severity: 'high',
-    },
-    {
-      id: 'TPL-004',
-      name: '服务重启',
-      type: 'service',
-      description: '强制重启目标服务',
-      severity: 'medium',
-    },
-  ]);
+  const [templates, setTemplates] = useState<FaultTemplate[]>([]);
 
   const [newExperiment, setNewExperiment] = useState({
     name: '',
@@ -153,9 +124,21 @@ export default function ChaosPage() {
     }
   };
 
+  const loadTemplates = async () => {
+    try {
+      const res = await api.get('/api/v1/chaos/templates');
+      if (res.data.success) {
+        setTemplates(res.data.data.templates || []);
+      }
+    } catch {
+      // toast handled by interceptor
+    }
+  };
+
   useEffect(() => {
     loadStatus();
     loadExperiments();
+    loadTemplates();
   }, []);
 
   const getStatusColor = (status: string) => {
@@ -299,8 +282,8 @@ export default function ChaosPage() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === tab.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
                 {tab.label}

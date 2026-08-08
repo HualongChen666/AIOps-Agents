@@ -1,175 +1,107 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 
-// 虚拟列表组件示例
-function VirtualList({ items, itemHeight = 50, containerHeight = 400 }: { items: any[], itemHeight?: number, containerHeight?: number }) {
-  const [scrollTop, setScrollTop] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const visibleCount = Math.ceil(containerHeight / itemHeight);
-  const startIndex = Math.floor(scrollTop / itemHeight);
-  const endIndex = Math.min(startIndex + visibleCount, items.length);
-  const visibleItems = items.slice(startIndex, endIndex);
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
-  }, []);
-
-  return (
-    <div
-      ref={containerRef}
-      onScroll={handleScroll}
-      style={{ height: containerHeight, overflow: 'auto' }}
-      className="border border-gray-200 rounded-lg"
-    >
-      <div style={{ height: items.length * itemHeight, position: 'relative' }}>
-        {visibleItems.map((item, index) => (
-          <div
-            key={startIndex + index}
-            style={{
-              position: 'absolute',
-              top: (startIndex + index) * itemHeight,
-              height: itemHeight,
-              left: 0,
-              right: 0,
-            }}
-            className="p-3 border-b border-gray-100 hover:bg-gray-50"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{item.name}</span>
-              <Badge className={item.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                {item.status}
-              </Badge>
-            </div>
-            <p className="text-sm text-gray-500">{item.description}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// 懒加载组件示例
-function LazyImage({ src, alt, placeholder }: { src: string, alt: string, placeholder: string }) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={imgRef} className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
-      {isInView ? (
-        <img
-          src={src}
-          alt={alt}
-          onLoad={() => setIsLoaded(true)}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-gray-400">
-          {placeholder}
-        </div>
-      )}
-    </div>
-  );
+interface MetricCard {
+  key: string;
+  label: string;
+  value: string;
+  unit: string;
+  level: 'normal' | 'warning' | 'critical';
+  history: number[];
 }
 
 export default function PerformancePage() {
-  const [workerResult, setWorkerResult] = useState<string>('');
-  const [isCalculating, setIsCalculating] = useState(false);
+  const [metrics, setMetrics] = useState<MetricCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [metrics, setMetrics] = useState<any[]>([]);
-  const [processes, setProcesses] = useState<any[]>([]);
-  const [health, setHealth] = useState<any>(null);
-  const [loadingMetrics, setLoadingMetrics] = useState(true);
-  const [loadingProcesses, setLoadingProcesses] = useState(true);
-  const [loadingHealth, setLoadingHealth] = useState(true);
-
-  // 加载真实的性能指标、Top 进程和健康状态
   useEffect(() => {
     let cancelled = false;
+
     const loadData = async () => {
       try {
-        const [metricsRes, processesRes, healthRes] = await Promise.all([
-          api.get('/api/v1/metrics/').catch(() => null),
-          api.get('/api/v1/metrics/processes', { params: { limit: 50 } }).catch(() => null),
-          api.get('/api/v1/health/detailed').catch(() => null),
+        const [snapshotRes, historyRes] = await Promise.all([
+          api.get('/api/v1/metrics/snapshot').catch(() => null),
+          api.get('/api/v1/metrics/history').catch(() => null),
         ]);
 
         if (cancelled) return;
 
-        setMetrics(metricsRes?.data?.metrics || []);
-        setProcesses((processesRes?.data?.processes || []).map((p: any, index: number) => ({
-          id: p.pid ?? index,
-          name: `${p.name || '未知'} (PID: ${p.pid ?? '-'})`,
-          status: (p.cpu_percent || 0) > 0 ? 'active' : 'inactive',
-          description: `CPU: ${(p.cpu_percent || 0).toFixed(1)}% | 内存: ${(p.memory_mb || 0).toFixed(0)} MB`,
-        })));
-        setHealth(healthRes?.data || null);
+        const snapshot = snapshotRes?.data || null;
+        const history = historyRes?.data || null;
+
+        if (!snapshot || !history) {
+          setError('无法获取性能数据，请稍后重试');
+          setMetrics([]);
+          setLoading(false);
+          return;
+        }
+
+        const getLevel = (value: number | null): MetricCard['level'] => {
+          if (value === null) return 'normal';
+          if (value >= 90) return 'critical';
+          if (value >= 70) return 'warning';
+          return 'normal';
+        };
+
+        const getValue = (value: number | null): string => {
+          if (value === null || Number.isNaN(value)) return '--';
+          return value.toFixed(1);
+        };
+
+        const getHistory = (key: string): number[] => {
+          const raw = history[key];
+          if (!Array.isArray(raw)) return [];
+          return raw.slice(-20).map((v) => Number(v) || 0);
+        };
+
+        const cpu = typeof snapshot.cpu?.usage_percent === 'number' ? snapshot.cpu.usage_percent : null;
+        const memory = typeof snapshot.memory?.usage_percent === 'number' ? snapshot.memory.usage_percent : null;
+        const disk = typeof snapshot.disk?.usage_percent === 'number' ? snapshot.disk.usage_percent : null;
+
+        setMetrics([
+          {
+            key: 'cpu',
+            label: 'CPU 使用率',
+            value: getValue(cpu),
+            unit: '%',
+            level: getLevel(cpu),
+            history: getHistory('cpu'),
+          },
+          {
+            key: 'memory',
+            label: '内存使用率',
+            value: getValue(memory),
+            unit: '%',
+            level: getLevel(memory),
+            history: getHistory('memory'),
+          },
+          {
+            key: 'disk',
+            label: '磁盘使用率',
+            value: getValue(disk),
+            unit: '%',
+            level: getLevel(disk),
+            history: [],
+          },
+        ]);
+      } catch (err) {
+        if (!cancelled) {
+          setError('性能数据加载失败');
+        }
       } finally {
-        setLoadingMetrics(false);
-        setLoadingProcesses(false);
-        setLoadingHealth(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     loadData();
     return () => { cancelled = true; };
-  }, []);
-
-  // Web Worker 示例
-  const runHeavyCalculation = useCallback(() => {
-    setIsCalculating(true);
-
-    const workerCode = `
-      self.onmessage = function(e) {
-        const result = heavyCalculation(e.data);
-        self.postMessage(result);
-      };
-
-      function heavyCalculation(n) {
-        let sum = 0;
-        for (let i = 0; i < n; i++) {
-          for (let j = 0; j < 1000; j++) {
-            sum += Math.sqrt(i * j);
-          }
-        }
-        return sum;
-      }
-    `;
-
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    const worker = new Worker(URL.createObjectURL(blob));
-
-    worker.onmessage = (e) => {
-      setWorkerResult(`计算结果: ${e.data.toFixed(2)}`);
-      setIsCalculating(false);
-      worker.terminate();
-    };
-
-    worker.postMessage(10000);
   }, []);
 
   const getLevelText = (level: string) => {
@@ -181,186 +113,82 @@ export default function PerformancePage() {
     }
   };
 
+  const getLevelColor = (level: string) => {
+    switch (level) {
+      case 'critical': return 'bg-red-100 text-red-800';
+      case 'warning': return 'bg-yellow-100 text-yellow-800';
+      case 'normal': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const renderTrend = (history: number[]) => {
+    if (history.length === 0) {
+      return <p className="text-xs text-gray-400 mt-2">暂无历史趋势数据</p>;
+    }
+    const max = Math.max(1, ...history);
+    return (
+      <div className="flex items-end h-16 gap-1 mt-3">
+        {history.map((value, index) => (
+          <div
+            key={index}
+            className="flex-1 bg-blue-400 rounded-sm opacity-80"
+            style={{ height: `${Math.round((value / max) * 100)}%` }}
+            title={`${value.toFixed(1)}`}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 text-sm text-gray-500">
+        性能数据加载中...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 text-red-600">
+        {error}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">性能优化</h1>
-        <Badge className="bg-blue-100 text-blue-800">技术展示</Badge>
+        <h1 className="text-3xl font-bold text-gray-900">性能监控</h1>
       </div>
 
-      {/* 性能指标概览 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {loadingMetrics ? (
-          <div className="md:col-span-4 text-sm text-gray-500">指标加载中...</div>
-        ) : (
-          metrics.map((m) => (
+      {metrics.length === 0 ? (
+        <div className="text-sm text-gray-500">暂无可用性能指标</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {metrics.map((m) => (
             <Card key={m.key}>
               <CardHeader>
-                <CardTitle className="text-sm">{m.key}</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">{m.label}</CardTitle>
+                  <Badge className={getLevelColor(m.level)}>
+                    {getLevelText(m.level)}
+                  </Badge>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className={`text-2xl font-bold ${m.level === 'critical' ? 'text-red-600' : m.level === 'warning' ? 'text-yellow-600' : 'text-green-600'}`}>
                   {m.value}
                   <span className="text-sm font-normal text-gray-500 ml-1">{m.unit}</span>
                 </p>
-                <p className="text-sm text-gray-500">{getLevelText(m.level)}</p>
+                <p className="text-xs text-gray-500 mt-1">实时快照 / 历史趋势</p>
+                {renderTrend(m.history)}
               </CardContent>
             </Card>
-          ))
-        )}
-      </div>
-
-      {/* 虚拟列表演示 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top 进程 ({processes.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600 mb-4">
-            从 /api/v1/metrics/processes 获取的 CPU 占用最高的实时进程列表。
-          </p>
-          {loadingProcesses ? (
-            <p className="text-sm text-gray-500">进程加载中...</p>
-          ) : (
-            <VirtualList items={processes} itemHeight={60} containerHeight={400} />
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 懒加载演示 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>懒加载组件</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600 mb-4">
-            图片和组件只在进入视口时才加载，减少初始加载时间和带宽消耗。
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <LazyImage
-              src="https://via.placeholder.com/400x300/3b82f6/ffffff?text=Image+1"
-              alt="示例图片1"
-              placeholder="图片加载中..."
-            />
-            <LazyImage
-              src="https://via.placeholder.com/400x300/10b981/ffffff?text=Image+2"
-              alt="示例图片2"
-              placeholder="图片加载中..."
-            />
-            <LazyImage
-              src="https://via.placeholder.com/400x300/f59e0b/ffffff?text=Image+3"
-              alt="示例图片3"
-              placeholder="图片加载中..."
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Web Worker 演示 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Web Worker</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600 mb-4">
-            Web Worker 在后台线程执行计算密集型任务，避免阻塞主线程，保持UI响应流畅。
-          </p>
-          <div className="space-y-4">
-            <Button onClick={runHeavyCalculation} disabled={isCalculating}>
-              {isCalculating ? '计算中...' : '运行繁重计算'}
-            </Button>
-            {workerResult && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-green-800">{workerResult}</p>
-              </div>
-            )}
-            <p className="text-xs text-gray-500">
-              注意：此计算在 Web Worker 中执行，不会阻塞主线程。
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 系统健康检查 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>系统健康检查</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600 mb-4">
-            从 /api/v1/health/detailed 获取的系统组件健康状态。
-          </p>
-          {loadingHealth ? (
-            <p className="text-sm text-gray-500">健康状态加载中...</p>
-          ) : health ? (
-            <div className="p-4 border border-gray-200 rounded-lg space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">整体状态</span>
-                <Badge className={health.status === 'healthy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                  {health.status}
-                </Badge>
-              </div>
-              {health.metrics && (
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <p className="text-gray-500">CPU</p>
-                    <p className="font-medium">{health.metrics.cpu_usage}%</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">内存</p>
-                    <p className="font-medium">{health.metrics.memory_usage}%</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">连接</p>
-                    <p className="font-medium">{health.metrics.active_connections}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">无法获取健康状态</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 性能优化建议 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>性能优化建议</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <span className="text-blue-600">1.</span>
-              <div>
-                <p className="font-medium text-blue-800">使用虚拟列表</p>
-                <p className="text-sm text-blue-700">对于大数据量列表，使用虚拟滚动只渲染可见元素。</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <span className="text-green-600">2.</span>
-              <div>
-                <p className="font-medium text-green-800">实现懒加载</p>
-                <p className="text-sm text-green-700">图片和组件按需加载，减少初始加载时间。</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <span className="text-purple-600">3.</span>
-              <div>
-                <p className="font-medium text-purple-800">使用 Web Worker</p>
-                <p className="text-sm text-purple-700">将计算密集型任务放到后台线程执行。</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-              <span className="text-orange-600">4.</span>
-              <div>
-                <p className="font-medium text-orange-800">启用 Service Worker</p>
-                <p className="text-sm text-orange-700">缓存静态资源，实现离线访问和快速加载。</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

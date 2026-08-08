@@ -75,18 +75,19 @@ export default function AICopilotPage() {
         include_rich_context: true,
       });
 
+      const analysis = resp.data?.analysis ?? resp.data;
+      const content =
+        typeof analysis === 'string'
+          ? analysis
+          : analysis?.recommended_action
+            ? String(analysis.recommended_action)
+            : JSON.stringify(analysis, null, 2) || '分析完成';
+
       const aiResponse: Message = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: resp.data.analysis || resp.data.response || resp.data.answer || '分析完成',
+        content,
         timestamp: new Date(),
-        actions: resp.data.actions ? resp.data.actions.map((action: any) => ({
-          label: action.label,
-          onClick: () => {
-            // 实现操作点击处理
-            console.log('Action clicked:', action);
-          },
-        })) : [],
       };
 
       setMessages((prev) => [...prev, aiResponse]);
@@ -271,40 +272,7 @@ export default function AICopilotPage() {
         </Card>
       </div>
 
-      {/* 功能演示 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>功能演示</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">自然语言查询</h4>
-              <p className="text-sm text-gray-600">
-                "过去24小时CPU使用率最高的服务" → 自动生成查询并返回结果
-              </p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">智能告警解释</h4>
-              <p className="text-sm text-gray-600">
-                "为什么这个告警触发了？" → 分析告警上下文并提供解释
-              </p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">修复建议生成</h4>
-              <p className="text-sm text-gray-600">
-                "如何解决这个错误？" → 提供分步修复指南和代码示例
-              </p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h4 className="font-medium mb-2">SQL查询生成</h4>
-              <p className="text-sm text-gray-600">
-                "生成查询最近告警的SQL" → 自动生成可执行的SQL语句
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
     </div>
   );
 }

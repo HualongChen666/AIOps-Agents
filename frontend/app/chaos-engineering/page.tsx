@@ -52,36 +52,7 @@ export default function ChaosEngineeringPage() {
 
   const [experimentResults, setExperimentResults] = useState<ExperimentResult[]>([]);
 
-  const [faultTemplates, setFaultTemplates] = useState<FaultTemplate[]>([
-    {
-      id: 'TPL-001',
-      name: 'CPU过载',
-      type: 'cpu-overload',
-      description: '模拟CPU使用率过高场景',
-      parameters: ['target', 'duration', 'load-percent'],
-    },
-    {
-      id: 'TPL-002',
-      name: '网络延迟',
-      type: 'network-latency',
-      description: '模拟网络延迟增加',
-      parameters: ['target', 'duration', 'latency-ms'],
-    },
-    {
-      id: 'TPL-003',
-      name: '磁盘故障',
-      type: 'disk-failure',
-      description: '模拟磁盘读写失败',
-      parameters: ['target', 'duration', 'failure-type'],
-    },
-    {
-      id: 'TPL-004',
-      name: '服务重启',
-      type: 'service-restart',
-      description: '模拟服务意外重启',
-      parameters: ['target', 'restart-delay'],
-    },
-  ]);
+  const [faultTemplates, setFaultTemplates] = useState<FaultTemplate[]>([]);
 
   const mapBackendExperimentType = (backendType: string): string => {
     switch (backendType) {
@@ -137,6 +108,9 @@ export default function ChaosEngineeringPage() {
 
         const statusData = statusRes.data?.data ?? {};
         setEnabled(Boolean(statusData.enabled));
+
+        const templatesRes = await api.get('/api/v1/chaos/templates');
+        setFaultTemplates(templatesRes.data?.data?.templates ?? []);
 
         const expList = experimentsRes.data?.data?.experiments ?? [];
         const mappedExperiments: ChaosExperiment[] = expList.map((item: any, idx: number) => {

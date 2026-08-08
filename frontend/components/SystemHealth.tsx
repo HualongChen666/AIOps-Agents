@@ -46,7 +46,7 @@ export const SystemHealth: React.FC = () => {
     );
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
     switch (status) {
       case 'healthy':
       case 'up':
@@ -67,21 +67,20 @@ export const SystemHealth: React.FC = () => {
           系统健康状态
         </h2>
         <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(data.status)}`}>
-          {data.status.toUpperCase()}
+          {data.status ? data.status.toUpperCase() : 'UNKNOWN'}
         </span>
       </div>
-      
+
       <div className="space-y-3">
-        {data.services.map((service) => (
+        {(data.services || []).map((service) => (
           <div
             key={service.name}
             className="flex justify-between items-center p-3 rounded-md bg-gray-50 dark:bg-gray-700"
           >
             <div className="flex items-center gap-3">
               <div
-                className={`w-3 h-3 rounded-full ${
-                  service.status === 'up' ? 'bg-green-500' : 'bg-red-500'
-                }`}
+                className={`w-3 h-3 rounded-full ${service.status === 'up' ? 'bg-green-500' : 'bg-red-500'
+                  }`}
               />
               <span className="font-medium text-gray-900 dark:text-gray-100">
                 {service.name}
@@ -102,7 +101,7 @@ export const SystemHealth: React.FC = () => {
           </div>
         ))}
       </div>
-      
+
       <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
         最后更新: {new Date(data.last_updated).toLocaleString()}
       </div>

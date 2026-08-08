@@ -55,7 +55,7 @@ export default function TeamCollaborationPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [oncall, setOncall] = useState<Oncall | null>(null);
   const [handoffs, setHandoffs] = useState<Handoff[]>([]);
-  const [sharedDashboards] = useState<SharedDashboard[]>([]);
+  const [sharedDashboards, setSharedDashboards] = useState<SharedDashboard[]>([]);
   const [selectedDashboard, setSelectedDashboard] = useState<SharedDashboard | null>(null);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
@@ -99,6 +99,28 @@ export default function TeamCollaborationPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [selectedTeamId]);
+
+  useEffect(() => {
+    if (activeTab !== 'dashboards') return;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/dashboards`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: any) => {
+        const items = Array.isArray(data) ? data : [];
+        const mapped: SharedDashboard[] = items.map((d: any, index: number) => ({
+          id: d.id || `dashboard-${index}`,
+          name: d.name || '',
+          owner: d.owner || '',
+          lastModified: new Date(d.last_modified || d.lastModified || d.updated_at || Date.now()),
+          viewers: d.viewers || 0,
+          description: d.description || '',
+        }));
+        setSharedDashboards(mapped);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [activeTab]);
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !selectedTeamId) return;

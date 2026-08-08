@@ -22,6 +22,8 @@ const zhCN: Dictionary = {
   'topbar.language': '语言',
   'lang.zh-CN': '中',
   'lang.en-US': 'EN',
+  'nav.home': '首页',
+  'nav.homeAndOverview': '首页与总览',
   'nav.overview': '总览',
   'nav.dashboard': '仪表盘',
   'nav.kpi': 'KPI',
@@ -91,6 +93,8 @@ const enUS: Dictionary = {
   'home.status.ok': 'Backend Online',
   'home.status.error': 'Backend Offline',
   'topbar.language': 'Language',
+  'nav.home': 'Home',
+  'nav.homeAndOverview': 'Home & Overview',
   'nav.overview': 'Overview',
   'nav.dashboard': 'Dashboard',
   'nav.kpi': 'KPI',
@@ -178,7 +182,7 @@ interface LocaleContextValue {
 
 const LocaleContext = createContext<LocaleContextValue>({
   locale: DEFAULT_LOCALE,
-  setLocale: () => {},
+  setLocale: () => { },
   t: (key) => key,
 });
 

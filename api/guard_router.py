@@ -481,3 +481,92 @@ async def get_audit_stats(
     except Exception as e:
         logger.error(f"获取审计统计失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取审计统计失败")
+
+
+security_router = APIRouter(prefix="/api/v1/security", tags=["安全中心"])
+
+
+@security_router.get(
+    "/events",
+    summary="获取安全事件列表",
+)
+async def get_security_events(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_internal_key: Optional[str] = Header(default=None, alias="X-Internal-Key"),
+) -> dict[str, Any]:
+    """基于命令护栏审计日志返回安全事件"""
+    _verify_audit_access(request, x_internal_key)
+    raw_logs = get_audit_log(limit)
+    events = []
+    for idx, log in enumerate(raw_logs):
+        risk = str(log.get("risk_level", "safe"))
+        result = str(log.get("result", "allowed"))
+        if risk == "blocked":
+            event_type = "compliance"
+        elif risk == "high":
+            event_type = "threat"
+        elif risk == "medium":
+            event_type = "vulnerability"
+        else:
+            event_type = "incident"
+
+        if risk == "blocked":
+            severity: str = "critical"
+        elif risk == "high":
+            severity = "high"
+        elif risk == "medium":
+            severity = "medium"
+        else:
+            severity = "low"
+
+        status = "open" if risk in ("high", "blocked") and result != "resolved" else "resolved"
+        events.append(
+            {
+                "id": log.get("trace_id") or f"SEV-{idx}",
+                "timestamp": log.get("timestamp", ""),
+                "type": event_type,
+                "severity": severity,
+                "title": log.get("what", "未知命令"),
+                "description": f"执行者: {log.get('who', 'unknown')} @ {log.get('where', 'unknown')}，结果: {result}",
+                "source": log.get("who", "unknown"),
+                "affectedAssets": 1,
+                "status": status,
+            }
+        )
+    return {"events": events}
+
+
+@security_router.get(
+    "/stats",
+    summary="获取安全事件统计",
+)
+async def get_security_stats(
+    request: Request,
+    limit: int = Query(default=500, ge=1, le=5000),
+    x_internal_key: Optional[str] = Header(default=None, alias="X-Internal-Key"),
+) -> dict[str, Any]:
+    """基于审计日志统计安全事件"""
+    _verify_audit_access(request, x_internal_key)
+    raw_logs = get_audit_log(limit)
+    total = len(raw_logs)
+    level_counts: dict[str, int] = {}
+    for log in raw_logs:
+        lv = str(log.get("risk_level", "unknown"))
+        level_counts[lv] = level_counts.get(lv, 0) + 1
+    blocked_count = level_counts.get("blocked", 0)
+    high_count = level_counts.get("high", 0)
+    block_rate = round(blocked_count / total * 100, 1) if total > 0 else 0.0
+    threat_count = high_count + blocked_count
+    assets = {str(log.get("where", "")) for log in raw_logs if log.get("where")}
+    return {
+        "total": total,
+        "threat_count": threat_count,
+        "vulnerability_count": level_counts.get("medium", 0),
+        "compliance_rate": round((total - blocked_count) / total * 100, 1) if total > 0 else 100.0,
+        "affected_assets": len(assets),
+        "blocked_count": blocked_count,
+        "high_count": high_count,
+        "block_rate": block_rate,
+        "level_counts": level_counts,
+    }

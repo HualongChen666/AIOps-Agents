@@ -54,33 +54,68 @@ export default function SecurityPage() {
 
   const [incidents, setIncidents] = useState<Incident[]>([]);
 
+  const [securityStats, setSecurityStats] = useState({
+    threat_count: 0,
+    vulnerability_count: 0,
+    compliance_rate: 100,
+    affected_assets: 0,
+  });
+
   const loadSecurityData = async () => {
     setLoading(true);
     try {
-      const auditRes = await api.get('/api/guard/audit');
-      const logs = auditRes.data?.logs || [];
-      const alerts: SecurityAlert[] = logs.map((log: any, idx: number) => ({
-        id: `${log.timestamp || Date.now()}-${idx}`,
+      const [eventsRes, statsRes] = await Promise.all([
+        api.get('/api/v1/security/events'),
+        api.get('/api/v1/security/stats'),
+      ]);
+      const events = eventsRes.data?.events || [];
+      const stats = statsRes.data || {};
+
+      const alerts: SecurityAlert[] = events.map((log: any, idx: number) => ({
+        id: log.id || `SEV-${idx}`,
         timestamp: log.timestamp || new Date().toISOString(),
-        type: log.risk_level === 'blocked' ? 'compliance' : 'threat',
-        severity:
-          log.risk_level === 'blocked'
-            ? 'critical'
-            : log.risk_level === 'high'
-              ? 'high'
-              : log.risk_level === 'medium'
-                ? 'medium'
-                : 'low',
-        title: log.command || '未知命令',
-        description: `执行者: ${log.executor || 'unknown'}`,
-        source: log.executor || 'unknown',
-        affectedAssets: 1,
-        status: 'open',
+        type: log.type || 'incident',
+        severity: log.severity || 'low',
+        title: log.title || '安全事件',
+        description: log.description || '',
+        source: log.source || 'unknown',
+        affectedAssets: log.affectedAssets || 1,
+        status: log.status || 'open',
       }));
 
+      const threats: ThreatIntel[] = events
+        .filter((e: any) => e.type === 'threat' || e.severity === 'high')
+        .map((e: any, idx: number) => ({
+          id: e.id || `THR-${idx}`,
+          threatName: e.title || '未知威胁',
+          threatType: e.type || 'threat',
+          confidence: e.severity === 'high' ? 85 : 60,
+          ioc: e.source || 'unknown',
+          firstSeen: e.timestamp || new Date().toISOString(),
+          lastSeen: e.timestamp || new Date().toISOString(),
+        }));
+
+      const incidentItems: Incident[] = events
+        .filter((e: any) => e.severity === 'critical' || e.severity === 'high' || e.status === 'open')
+        .map((e: any, idx: number) => ({
+          id: e.id || `INC-${idx}`,
+          name: e.title || '安全事件',
+          severity: e.severity || 'high',
+          status: e.status === 'resolved' ? 'resolved' : 'open',
+          assignedTo: e.source || 'unknown',
+          created: e.timestamp || new Date().toISOString(),
+          updated: e.timestamp || new Date().toISOString(),
+        }));
+
       setSecurityAlerts(alerts);
-      setThreatIntel([]);
-      setIncidents([]);
+      setThreatIntel(threats);
+      setIncidents(incidentItems);
+      setSecurityStats({
+        threat_count: stats.threat_count ?? alerts.filter((a) => a.type === 'threat').length,
+        vulnerability_count: stats.vulnerability_count ?? 0,
+        compliance_rate: stats.compliance_rate ?? 100,
+        affected_assets: stats.affected_assets ?? 0,
+      });
       setLoading(false);
     } catch (err) {
       setError(err);
@@ -184,7 +219,7 @@ export default function SecurityPage() {
             <CardTitle className="text-sm">威胁告警</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-red-600">{securityAlerts.length}</p>
+            <p className="text-3xl font-bold text-red-600">{securityStats.threat_count}</p>
             <p className="text-sm text-gray-500">活跃威胁</p>
           </CardContent>
         </Card>
@@ -193,7 +228,7 @@ export default function SecurityPage() {
             <CardTitle className="text-sm">漏洞扫描</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-orange-600">5</p>
+            <p className="text-3xl font-bold text-orange-600">{securityStats.vulnerability_count}</p>
             <p className="text-sm text-gray-500">高危漏洞</p>
           </CardContent>
         </Card>
@@ -202,7 +237,7 @@ export default function SecurityPage() {
             <CardTitle className="text-sm">合规检查</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-blue-600">95%</p>
+            <p className="text-3xl font-bold text-blue-600">{securityStats.compliance_rate}%</p>
             <p className="text-sm text-gray-500">合规率</p>
           </CardContent>
         </Card>
@@ -211,7 +246,7 @@ export default function SecurityPage() {
             <CardTitle className="text-sm">受影响资产</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-purple-600">12</p>
+            <p className="text-3xl font-bold text-purple-600">{securityStats.affected_assets}</p>
             <p className="text-sm text-gray-500">需要关注</p>
           </CardContent>
         </Card>
@@ -317,8 +352,20 @@ export default function SecurityPage() {
             <CardTitle>威胁情报</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center text-gray-500 py-8">
-              威胁情报功能正在开发中...
+            <div className="space-y-3">
+              {threatIntel.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">暂无威胁情报</p>
+              ) : (
+                threatIntel.map((t) => (
+                  <div key={t.id} className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{t.threatName}</span>
+                      <Badge className={getSeverityColor('high')}>{t.threatType}</Badge>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">IOC: {t.ioc} · 置信度: {t.confidence}%</p>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -331,8 +378,20 @@ export default function SecurityPage() {
             <CardTitle>事件响应</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center text-gray-500 py-8">
-              事件响应功能正在开发中...
+            <div className="space-y-3">
+              {incidents.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">暂无安全事件</p>
+              ) : (
+                incidents.map((inc) => (
+                  <div key={inc.id} className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{inc.name}</span>
+                      <Badge className={getStatusColor(inc.status)}>{inc.status}</Badge>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">严重度: {inc.severity} · 指派: {inc.assignedTo}</p>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -345,8 +404,22 @@ export default function SecurityPage() {
             <CardTitle>合规检查</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center text-gray-500 py-8">
-              合规检查功能正在开发中...
+            <div className="space-y-3">
+              {securityAlerts.filter((a) => a.type === 'compliance').length === 0 ? (
+                <p className="text-center text-gray-500 py-8">暂无合规违规事件</p>
+              ) : (
+                securityAlerts
+                  .filter((a) => a.type === 'compliance')
+                  .map((a) => (
+                    <div key={a.id} className="p-4 border border-gray-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{a.title}</span>
+                        <Badge className={getSeverityColor(a.severity)}>{a.severity}</Badge>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">{a.description}</p>
+                    </div>
+                  ))
+              )}
             </div>
           </CardContent>
         </Card>

@@ -1,0 +1,111 @@
+{
+  "teams": [
+    {
+      "id": "T-001",
+      "name": "AIOps运维团队",
+      "description": "负责AIOps平台的运维和监控",
+      "members": [
+        {
+          "user_id": "U-001",
+          "username": "zhangsan",
+          "full_name": "张三",
+          "role": "Team Lead",
+          "status": "online",
+          "avatar": ""
+        },
+        {
+          "user_id": "U-002",
+          "username": "lisi",
+          "full_name": "李四",
+          "role": "DevOps Engineer",
+          "status": "online",
+          "avatar": ""
+        },
+        {
+          "user_id": "U-003",
+          "username": "wangwu",
+          "full_name": "王五",
+          "role": "SRE",
+          "status": "busy",
+          "avatar": ""
+        },
+        {
+          "user_id": "U-004",
+          "username": "zhaoliu",
+          "full_name": "赵六",
+          "role": "Developer",
+          "status": "offline",
+          "avatar": ""
+        }
+      ],
+      "rotation": {
+        "type": "weekly",
+        "start_date": "2026-01-01T00:00:00+00:00",
+        "order": [
+          "U-001",
+          "U-002",
+          "U-003",
+          "U-004"
+        ],
+        "shift_duration_days": 7
+      },
+      "escalation_policy": {
+        "levels": [
+          {
+            "level": 1,
+            "delay_minutes": 15,
+            "contact_methods": [
+              "phone",
+              "email"
+            ],
+            "notify_role": "primary"
+          },
+          {
+            "level": 2,
+            "delay_minutes": 30,
+            "contact_methods": [
+              "phone",
+              "sms"
+            ],
+            "notify_role": "secondary"
+          },
+          {
+            "level": 3,
+            "delay_minutes": 60,
+            "contact_methods": [
+              "phone",
+              "sms",
+              "email"
+            ],
+            "notify_role": "manager"
+          }
+        ]
+      }
+    }
+  ],
+  "handoffs": [],
+  "incidents": {
+    "INC-1785917063240": {
+      "incident_id": "INC-1785917063240",
+      "team_id": "T-001",
+      "level": 1,
+      "reason": "手动升级",
+      "notified_user_id": "U-003",
+      "notified_user": {
+        "user_id": "U-003",
+        "username": "wangwu",
+        "full_name": "王五",
+        "role": "SRE",
+        "status": "busy",
+        "avatar": ""
+      },
+      "contact_methods": [
+        "phone",
+        "email"
+      ],
+      "delay_minutes": 15,
+      "created_at": "2026-08-05T08:04:23.779276+00:00",
+      "status": "escalated"
+    }
+  }
+}

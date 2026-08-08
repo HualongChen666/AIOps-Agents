@@ -37,6 +37,7 @@ from api.audit_router import router as audit_router
 from api.autoheal_router import router as autoheal_router
 from api.cost_router import router as cost_router
 from api.guard_router import router as guard_router
+from api.guard_router import security_router as security_router
 from api.health_router import router as health_router
 from api.hitl_approval_router import router as hitl_approval_router
 from api.linux_router import router as linux_router
@@ -49,6 +50,7 @@ from api.teams_router import router as teams_router
 from api.unified_repair_router import router as unified_repair_router
 from api.assets_router import router as assets_router
 from api.auth_router import router as auth_router
+from api.settings_router import router as settings_router
 from api.users_router import router as users_router
 from core.auth_db import init_db
 from api.user_router import router as user_router
@@ -2007,9 +2009,11 @@ CORE_ROUTERS = [
     unified_repair_router,
     windows_repair_router,
     guard_router,
+    security_router,
     api_performance_router,
     cost_router,
     auth_router,
+    settings_router,
     users_router,
     assets_router,
     sso_router,

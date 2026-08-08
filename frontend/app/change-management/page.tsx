@@ -7,6 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 interface AuditEntry {
   timestamp: string;
@@ -91,15 +100,71 @@ export default function ChangeManagementPage() {
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ChangeRequest | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    requester: '',
+    risk_level: 'low' as 'low' | 'medium' | 'high',
+    schedule: '',
+    affected_services: '',
+    implementation_plan: '',
+    rollback_plan: '',
+  });
 
-  useEffect(() => {
+  const loadRequests = () => {
     setLoading(true);
     api
       .get('/api/v1/change-management/requests')
       .then((res) => setChangeRequests(res.data as ChangeRequest[]))
       .catch((err) => console.error('加载变更请求失败', err))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadRequests();
   }, []);
+
+  const openCreateDialog = () => {
+    setForm({
+      title: '',
+      description: '',
+      requester: '',
+      risk_level: 'low',
+      schedule: '',
+      affected_services: '',
+      implementation_plan: '',
+      rollback_plan: '',
+    });
+    setDialogOpen(true);
+  };
+
+  const createRequest = async () => {
+    if (!form.title.trim() || !form.requester.trim()) return;
+    setCreating(true);
+    try {
+      const res = await api.post('/api/v1/change-management/requests', {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        requester: form.requester.trim(),
+        risk_level: form.risk_level,
+        schedule: form.schedule.trim(),
+        affected_services: form.affected_services
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        implementation_plan: form.implementation_plan.trim(),
+        rollback_plan: form.rollback_plan.trim(),
+      });
+      setChangeRequests((prev) => [...prev, res.data as ChangeRequest]);
+      setDialogOpen(false);
+    } catch (err) {
+      console.error('创建变更请求失败', err);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const filteredRequests = changeRequests.filter(
     (cr) => selectedStatus === 'all' || cr.status === selectedStatus
@@ -116,7 +181,7 @@ export default function ChangeManagementPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">变更管理</h1>
-        <Button>创建变更请求</Button>
+        <Button onClick={openCreateDialog}>创建变更请求</Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -277,6 +342,88 @@ export default function ChangeManagementPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>创建变更请求</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">标题</label>
+              <Input
+                value={form.title}
+                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                placeholder="变更标题"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">申请人</label>
+                <Input
+                  value={form.requester}
+                  onChange={(e) => setForm((p) => ({ ...p, requester: e.target.value }))}
+                  placeholder="申请人"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">风险等级</label>
+                <Select value={form.risk_level} onChange={(e) => setForm((p) => ({ ...p, risk_level: e.target.value as any }))}>
+                  <option value="low">低</option>
+                  <option value="medium">中</option>
+                  <option value="high">高</option>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">计划日期</label>
+              <Input
+                value={form.schedule}
+                onChange={(e) => setForm((p) => ({ ...p, schedule: e.target.value }))}
+                placeholder="例如 2026-07-05 02:00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">受影响服务 (逗号分隔)</label>
+              <Input
+                value={form.affected_services}
+                onChange={(e) => setForm((p) => ({ ...p, affected_services: e.target.value }))}
+                placeholder="api-gateway, database"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                placeholder="变更内容说明"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">实施方案</label>
+              <Textarea
+                value={form.implementation_plan}
+                onChange={(e) => setForm((p) => ({ ...p, implementation_plan: e.target.value }))}
+                placeholder="具体实施步骤"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">回滚方案</label>
+              <Textarea
+                value={form.rollback_plan}
+                onChange={(e) => setForm((p) => ({ ...p, rollback_plan: e.target.value }))}
+                placeholder="异常时的回滚步骤"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
+            <Button onClick={createRequest} disabled={!form.title.trim() || !form.requester.trim() || creating}>
+              {creating ? '创建中...' : '创建'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

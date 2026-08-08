@@ -283,7 +283,6 @@ export default function MetricsExplorerPage() {
                 <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
                   <p className="text-gray-500">
                     {chartType === 'line' ? '折线图' : chartType === 'bar' ? '柱状图' : chartType === 'area' ? '面积图' : '饼图'}区域
-                    (使用ECharts渲染)
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
