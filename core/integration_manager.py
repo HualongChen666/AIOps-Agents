@@ -90,7 +90,7 @@ class IntegrationAdapter:
 
     async def normalize_alert(self, payload: Any) -> List[Dict[str, Any]]:
         """Normalize an external webhook payload into internal alert dicts."""
-        return []
+        raise NotImplementedError(f"normalize_alert must be implemented by {self.__class__.__name__}")
 
     async def query(self, config: Dict[str, Any], query: str, **params: Any) -> Dict[str, Any]:
         """Query real data from the integration."""

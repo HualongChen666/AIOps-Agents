@@ -91,11 +91,16 @@ class MemoryCacheBackend(CacheBackend):
     def set(self, key: str, value: Any, ttl: int) -> None:
         with _LOCK:
             self._store[key] = value
+            # key format: func:<func_name>:<md5>
+            func_name = ""
+            if key.startswith("func:"):
+                parts = key.split(":", 2)
+                func_name = parts[1] if len(parts) >= 2 else ""
             self._metadata[key] = {
                 "timestamp": time.time(),
                 "ttl": ttl,
                 "hits": 1,
-                "func_name": key.split(":", 1)[1] if key.startswith("func:") else "",
+                "func_name": func_name,
             }
 
     def delete(self, key: str) -> bool:
@@ -193,7 +198,7 @@ def cache_result(
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             backend = _get_backend()
-            cache_key = _generate_cache_key(func_name, args, kwargs)
+            cache_key = f"func:{func_name}:{_generate_cache_key(func_name, args, kwargs)}"
             value = backend.get(cache_key)
             if value is not None:
                 if enable_monitoring:

@@ -1,0 +1,44 @@
+[
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-08T09:11:04.693315+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-08T09:12:23.118820+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-08T09:13:20.398180+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  }
+]

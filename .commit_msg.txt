@@ -1,9 +1,15 @@
-round4: replace mock modules with real-attempt backends
+round5: final stub scan, cleanup and expanded tests
 
-- core/message_queue_mock.py: in-memory backend now supports optional RabbitMQ/Kafka publishing, JSON persistence, backup/restore and real queue stats.
-- core/redis_cluster_mock.py: RedisClusterManager now attempts real Redis via REDIS_URL first, falls back to in-memory; added ping/info/mset/mget/expire/distributed locks.
-- core/cache_helpers_mock.py: cache helpers now support memory/disk/redis pluggable backends with unified API and runtime configuration.
-- compileall and pytest remain green.
+- Scanned and patched remaining placeholder code, including IntegrationAdapter.normalize_alert raising NotImplementedError.
+- Added tests/core/__init__.py and tests/api/__init__.py so pytest can discover correctly.
+- Expanded test suite from 6 to 31 tests covering:
+  - db_optimization (slow queries, cache stats, suggestions, summary)
+  - message_queue (publish, batch, priority, transactions, cluster status)
+  - redis_cluster (set/get/ttl, locks, mset/mget, ping/info)
+  - cache_helpers (cache_result, invalidate, flush)
+  - docker_repair (scripts, dry-run, history)
+  - api_response_standard (success/error/paginated/object)
+- Final validation: compileall passes, `from main import app` returns 97 routes, `pytest -q` 31 passed.
 
 Generated with Devin (https://devin.ai)
 
