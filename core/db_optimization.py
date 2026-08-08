@@ -10,6 +10,7 @@ This module provides database optimization strategies including:
 - Database statistics update automation
 """
 
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -278,6 +279,17 @@ async def create_performance_indexes() -> Dict[str, Any]:
     Returns:
         Dictionary with index creation results
     """
+    if os.getenv("USE_SQLITE", "false").lower() in ("1", "true", "yes"):
+        logger.info("SQLite in use; skipping PostgreSQL performance index creation")
+        return {
+            "total_indexes": len(PERFORMANCE_INDEXES),
+            "created": 0,
+            "already_exists": 0,
+            "failed": 0,
+            "details": [],
+            "skipped": True,
+        }
+
     results: Dict[str, Any] = {
         "total_indexes": len(PERFORMANCE_INDEXES),
         "created": 0,

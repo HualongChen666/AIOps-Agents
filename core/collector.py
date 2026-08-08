@@ -928,10 +928,12 @@ def collect_all() -> dict[str, Any]:
 
     try:
         # 🆕 N3-3:使用线程池并行执行所有采集任务
-        with ThreadPoolExecutor(
-            max_workers=_IO_POOL_SIZE + 1,  # +1 给 CPU+进程合并任务
-            thread_name_prefix="n3_collect",
-        ) as executor:
+        executor: Any | None = None
+        try:
+            executor = ThreadPoolExecutor(
+                max_workers=_IO_POOL_SIZE + 1,  # +1 给 CPU+进程合并任务
+                thread_name_prefix="n3_collect",
+            )
             # 提交所有任务(非阻塞)
             future_cpu_proc = executor.submit(_collect_cpu_and_processes, 10)
             future_memory = executor.submit(get_memory_metrics)
@@ -1000,9 +1002,11 @@ def collect_all() -> dict[str, Any]:
                         f"N3-6: {io_name} 采集异常(非超时),使用默认值: "
                         f"{type(io_err).__name__}: {io_err}"
                     )
-
-    except Exception as e:
-        logger.error(f"N3: 全量采集线程池异常: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"N3: 全量采集线程池异常: {e}", exc_info=True)
+        finally:
+            if executor is not None:
+                executor.shutdown(wait=False)
 
     # ── 组装快照 ──
     snapshot: dict[str, Any] = {

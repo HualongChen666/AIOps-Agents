@@ -1722,18 +1722,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _logger.info(f"OpenTelemetry shutdown failed: {e}")
     # 关闭所有复用的 http 客户端资源
-    try:
-        await _notify_get_http_client().close()
-    except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
-    try:
-        await _ai_get_http_client().close()
-    except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
-    try:
-        await _stats_get_http_client().close()
-    except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
+    for _get_client in (_notify_get_http_client, _ai_get_http_client, _stats_get_http_client):
+        try:
+            client = _get_client()
+            if client is not None:
+                close_coro = getattr(client, "aclose", getattr(client, "close", None))
+                if close_coro is not None:
+                    await close_coro()
+        except Exception as e:
+            _logger.info(f"HTTP client shutdown failed: {e}")
     # 关闭 Slack 与 Teams 客户端（若已创建）
     try:
         await close_slack_client()
