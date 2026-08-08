@@ -1706,7 +1706,7 @@ async def lifespan(app: FastAPI):
     try:
         from core.db_engine import async_init_db
 
-        await _safe_init_core(async_init_db, "async database init")
+        await _safe_init_core(async_init_db, "async database init", timeout=15.0)
     except Exception as e:
         _logger.warning(f"Async database init failed: {e}")
 

@@ -843,8 +843,7 @@ async def get_kpi_values() -> dict[str, Any]:
         if ep == "summary" and summary_data is None:
             summary_data = await get_real_summary()
         elif ep == "snapshot" and snapshot_data is None:
-            summary_data = await get_real_summary()
-            snapshot_data = {**await _collect_system_snapshot(), "summary": summary_data}
+            snapshot_data = await get_snapshot()
         elif ep == "agent/decision-accuracy" and decision_data is None:
             decision_data = get_decision_accuracy()
         elif ep == "agent/feedback-accuracy" and feedback_data is None:

@@ -50,8 +50,18 @@ def detect_anomalies(
     Returns:
         List of AnomalyRecord-like dicts for anomalous points.
     """
-    values = metric_history.get(metric_name)
-    if not isinstance(values, list) or len(values) < 3:
+    raw = metric_history.get(metric_name)
+    if not isinstance(raw, list):
+        return []
+
+    values = []
+    for v in raw:
+        try:
+            values.append(float(v))
+        except (TypeError, ValueError):
+            continue
+
+    if len(values) < 3:
         return []
 
     n = DEFAULT_LATEST_N

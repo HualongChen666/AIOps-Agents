@@ -981,6 +981,7 @@ async def alert_monitor_loop() -> None:
                 else 0
             )
 
+            summary = await get_real_summary()
             await broadcast(
                 {
                     "type": "realtime",
@@ -991,7 +992,7 @@ async def alert_monitor_loop() -> None:
                         "disk": first_disk_usage,
                     },
                     "history": metrics_history.to_dict(),
-                    "summary": get_real_summary(),
+                    "summary": summary,
                     "alerts": list(alert_history)[:10],
                 }
             )

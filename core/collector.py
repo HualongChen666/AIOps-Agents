@@ -594,13 +594,15 @@ def get_top_processes(limit: int = 10) -> list[dict[str, Any]]:
             username = username.split("\\")[-1] if username != "N/A" else "N/A"
             try:
                 cpu_pct = round(proc.cpu_percent(), 1)
-            except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                cpu_pct = 0.0
+            except Exception:
                 cpu_pct = 0.0
             try:
                 mem_pct = round(proc.memory_percent(), 2)
-            except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                mem_pct = 0.0
+            except Exception:
                 mem_pct = 0.0
             result.append(
                 {
@@ -767,13 +769,15 @@ def _collect_cpu_and_processes(
             username = username.split("\\")[-1] if username != "N/A" else "N/A"
             try:
                 cpu_pct = round(proc.cpu_percent(), 1)
-            except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                cpu_pct = 0.0
+            except Exception:
                 cpu_pct = 0.0
             try:
                 mem_pct = round(proc.memory_percent(), 2)
-            except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                mem_pct = 0.0
+            except Exception:
                 mem_pct = 0.0
             proc_result.append(
                 {
