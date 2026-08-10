@@ -1,13 +1,21 @@
-round13: remove Devin-specific config and leftover placeholder traces
+round14: cleanup temp files, generated docs and duplicates
 
-- Removed entire .devin/ directory (Devin IDE configuration, skills, scripts).
-- Removed .devinignore.
-- Removed leftover verification/report scripts:
-  verify_*.py, verify_tool_security.py, compile_verify_report.py,
-  generate_phase4_report.py, add_missing_docstrings.py, cleanup_root.py
-- Replaced openapi.json/yaml example placeholders:
-  feedback_id "placeholder_id" -> real UUID example
-  "Dashboard placeholder" -> "Dashboard summary data"
+- Removed 64+ root-level log files and coverage/test artifacts:
+  coverage.json, coverage.svg, docs/coverage.svg, .coverage, coverage.xml,
+  aiops_e2e.db, e2e.db, test, ai_api.env, bandit*.txt, *stderr.txt, *.log
+- Removed untracked temp directories: .devin/, htmlcov_router/, integration_docs/
+- Removed generated/duplicate docs:
+  docs/diagrams/*.html/*.json, docs/architecture/per_layer/*.svg,
+  docs/coverage.svg, docs/CHANGELOG.md, docs/CONTRIBUTING.md,
+  docs/SECURITY.md, docs/CODE_OF_CONDUCT.md, docs/task_list.md,
+  docs/PRE_COMMIT_*.md, docs/ci-cd/CI_CD_CONFIG_CHANGES.md,
+  docs/ci-cd/CI_CD_TASK_SUMMARY.md, docs/testing/task_completion_summary.md,
+  docs/testing/pytest_skip_analysis.md, docs/verify/ai_decision_engine_p2_final_report.md,
+  docs/document/target_architecture_diagram.md,
+  docs/document/真实评估_2026-07-28_11-19.md,
+  docs/images/机柜展示示意图*.png
+- Updated .gitignore to prevent re-adding coverage badges, generated diagrams,
+  .devin/, htmlcov*/ and integration_docs/
 
 Verified: compileall, from main import app (97 routes), pytest -q (31 passed) all green.
 

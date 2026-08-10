@@ -27,9 +27,12 @@ build/
 *.py,cover
 .coverage
 coverage.*
-!docs/coverage.svg
-!coverage.svg
 htmlcov/
+htmlcov*/
+integration_docs/
+.devin/
+docs/diagrams/
+docs/architecture/per_layer/*.svg
 .tox/
 .nox/
 .hypothesis/
