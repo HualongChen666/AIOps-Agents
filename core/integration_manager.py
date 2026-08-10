@@ -90,7 +90,8 @@ class IntegrationAdapter:
 
     async def normalize_alert(self, payload: Any) -> List[Dict[str, Any]]:
         """Normalize an external webhook payload into internal alert dicts."""
-        raise NotImplementedError(f"normalize_alert must be implemented by {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"normalize_alert must be implemented by {self.__class__.__name__}")
 
     async def query(self, config: Dict[str, Any], query: str, **params: Any) -> Dict[str, Any]:
         """Query real data from the integration."""
@@ -843,8 +844,8 @@ class IntegrationManager:
 
         end = datetime.now(timezone.utc)
         start = end.replace(second=0, microsecond=0) - timedelta(seconds=duration_seconds)
-        start_ms = int(start.timestamp() * 1000)
-        end_ms = int(end.timestamp() * 1000)
+        int(start.timestamp() * 1000)
+        int(end.timestamp() * 1000)
 
         client = boto3.client(
             "cloudwatch",
@@ -863,7 +864,8 @@ class IntegrationManager:
             "EndTime": end,
         }
         try:
-            response = client.get_metric_data(MetricDataQueries=[metric_query], StartTime=start, EndTime=end)
+            response = client.get_metric_data(
+                MetricDataQueries=[metric_query], StartTime=start, EndTime=end)
             return {
                 "namespace": namespace,
                 "metric_name": metric_name,

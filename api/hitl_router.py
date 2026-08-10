@@ -187,7 +187,8 @@ async def approve_step(
         raise HTTPException(status_code=503, detail="HITL not available")
 
     effective_approver = approver or current_user.username
-    tenant_id = str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else "default"
+    tenant_id = str(current_user.tenant_id) if getattr(
+        current_user, "tenant_id", None) else "default"
     try:
         success = _approval_workflow.approve_step(
             request_id, step_id, effective_approver, comment, tenant_id=tenant_id
@@ -205,7 +206,8 @@ async def approve_step(
             executor=effective_approver,
             result="approved",
             user_id=str(current_user.id) if current_user.id else None,
-            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+            tenant_id=str(current_user.tenant_id) if getattr(
+                current_user, "tenant_id", None) else None,
         )
 
         return {"status": "approved", "request_id": request_id, "step_id": step_id}
@@ -247,7 +249,8 @@ async def reject_step(
         raise HTTPException(status_code=503, detail="HITL not available")
 
     effective_approver = approver or current_user.username
-    tenant_id = str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else "default"
+    tenant_id = str(current_user.tenant_id) if getattr(
+        current_user, "tenant_id", None) else "default"
     try:
         success = _approval_workflow.reject_step(
             request_id, step_id, effective_approver, comment, tenant_id=tenant_id
@@ -265,7 +268,8 @@ async def reject_step(
             executor=effective_approver,
             result="rejected",
             user_id=str(current_user.id) if current_user.id else None,
-            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+            tenant_id=str(current_user.tenant_id) if getattr(
+                current_user, "tenant_id", None) else None,
         )
 
         return {"status": "rejected", "request_id": request_id, "step_id": step_id}
@@ -316,7 +320,8 @@ async def get_approval_status(request: Request, request_id: str) -> Dict[str, An
         503: {"description": "HITL不可用"},
     },
 )
-async def manual_takeover(request: Request, request_id: str, reason: str = "manual takeover") -> Dict[str, Any]:
+async def manual_takeover(request: Request, request_id: str,
+                          reason: str = "manual takeover") -> Dict[str, Any]:
     """人工接管：取消活跃的审批工作流并把状态标记为已接管"""
     if not HITL_AVAILABLE or not _approval_workflow:
         raise HTTPException(status_code=503, detail="HITL not available")

@@ -535,7 +535,8 @@ class I18nManager:
         self._save_translation_store()
         return True
 
-    def get_namespace_translations(self, locale_id: str, namespace: str = "common") -> Dict[str, str]:
+    def get_namespace_translations(
+            self, locale_id: str, namespace: str = "common") -> Dict[str, str]:
         """Get all translations for a locale and namespace."""
         locale = self.locales.get(locale_id)
         if not locale:

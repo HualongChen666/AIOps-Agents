@@ -107,7 +107,8 @@ class BusinessImpactEngine:
                 out_degree += 1
         return in_degree, out_degree
 
-    def _get_metric_analysis(self, service_name: str) -> Tuple[str, float, float, float, float, datetime]:
+    def _get_metric_analysis(
+            self, service_name: str) -> Tuple[str, float, float, float, float, datetime]:
         """Compute status, error rate, response time, cpu, memory, and last update.
 
         Returns:
@@ -210,7 +211,8 @@ class BusinessImpactEngine:
 
         if self._assessor:
             try:
-                per_minute = affected_users * (baseline_conversion / 100.0) * (revenue_per_user / 60.0)
+                per_minute = affected_users * \
+                    (baseline_conversion / 100.0) * (revenue_per_user / 60.0)
                 assessment = self._assessor.assess(
                     service=service_name,
                     affected_users=affected_users,
@@ -308,11 +310,13 @@ class BusinessImpactEngine:
         total_alerts = max(1, int(total_alerts))
 
         # Page load time estimate combines response time and system load.
-        page_load = round(1.0 + (avg_response / 1000.0) + (statistics.mean(cpu_values) if cpu_values else 0.0) / 100.0, 2)
+        page_load = round(1.0 + (avg_response / 1000.0) +
+                          (statistics.mean(cpu_values) if cpu_values else 0.0) / 100.0, 2)
 
         # Satisfaction score from 1 to 5; penalized by errors, latency, and alerts.
         satisfaction = round(
-            max(1.0, 5.0 - avg_error * 0.2 - (avg_response / 1000.0) * 0.3 - min(total_alerts / 100.0, 1.0)),
+            max(1.0, 5.0 - avg_error * 0.2 - (avg_response / 1000.0)
+                * 0.3 - min(total_alerts / 100.0, 1.0)),
             2,
         )
 
@@ -328,6 +332,27 @@ class BusinessImpactEngine:
         cpu_change = _change(list(cpu_history))
         memory_change = _change(list(memory_history))
         net_change = _change(list(net_history))
+
+        def _status(values, history, critical, warning):
+            current = values[-1] if values else (history[-1] if history else 0.0)
+            if current > critical:
+                return "critical"
+            if current > warning:
+                return "warning"
+            return "good"
+
+        cpu_status = _status(cpu_values, cpu_history, 90, 75)
+        memory_status = _status(memory_values, memory_history, 95, 85)
+        cpu_value = (
+            round(statistics.mean(cpu_values), 1)
+            if cpu_values
+            else (cpu_history[-1] if cpu_history else 0.0)
+        )
+        memory_value = (
+            round(statistics.mean(memory_values), 1)
+            if memory_values
+            else (memory_history[-1] if memory_history else 0.0)
+        )
 
         return [
             {
@@ -361,16 +386,16 @@ class BusinessImpactEngine:
             {
                 "id": "UX-005",
                 "name": "CPU使用率",
-                "value": round(statistics.mean(cpu_values), 1) if cpu_values else (cpu_history[-1] if cpu_history else 0.0),
+                "value": cpu_value,
                 "change": cpu_change,
-                "status": "critical" if (cpu_values or cpu_history) and (cpu_values[-1] if cpu_values else cpu_history[-1]) > 90 else "warning" if (cpu_values or cpu_history) and (cpu_values[-1] if cpu_values else cpu_history[-1]) > 75 else "good",
+                "status": cpu_status,
             },
             {
                 "id": "UX-006",
                 "name": "内存使用率",
-                "value": round(statistics.mean(memory_values), 1) if memory_values else (memory_history[-1] if memory_history else 0.0),
+                "value": memory_value,
                 "change": memory_change,
-                "status": "critical" if (memory_values or memory_history) and (memory_values[-1] if memory_values else memory_history[-1]) > 95 else "warning" if (memory_values or memory_history) and (memory_values[-1] if memory_values else memory_history[-1]) > 85 else "good",
+                "status": memory_status,
             },
             {
                 "id": "UX-007",

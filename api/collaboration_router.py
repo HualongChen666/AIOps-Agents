@@ -231,7 +231,8 @@ async def resolve_workspace_endpoint(workspace_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         logger.error(f"Failed to resolve workspace: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to resolve workspace: {str(exc)[:200]}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to resolve workspace: {str(exc)[:200]}")
 
 
 @router.get(
@@ -248,4 +249,5 @@ async def get_active_context_endpoint() -> dict[str, Any]:
         return engine_get_active_context()
     except Exception as exc:
         logger.error(f"Failed to get active context: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get active context: {str(exc)[:200]}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get active context: {str(exc)[:200]}")

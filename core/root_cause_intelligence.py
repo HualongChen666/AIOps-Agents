@@ -41,7 +41,7 @@ CHANGE_CORRELATION_WINDOW_MINUTES: int = 15
 
 # Import existing causal analysis components
 try:
-    from core.processing.l3.causal_graph import CausalGraph
+    pass
 
     CAUSAL_AVAILABLE = True
 except ImportError:

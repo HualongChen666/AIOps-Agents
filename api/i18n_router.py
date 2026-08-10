@@ -266,7 +266,8 @@ async def update_translation(
             target_locale = language
         elif manager.current_locale:
             target_locale = next(
-                (lid for lid, loc in manager.locales.items() if loc.language == manager.current_locale.language),
+                (lid for lid, loc in manager.locales.items()
+                 if loc.language == manager.current_locale.language),
                 "zh-CN",
             )
         else:

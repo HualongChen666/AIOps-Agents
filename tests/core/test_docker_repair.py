@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import pytest
 
 from core.docker_repair import (
     execute_repair_sync,

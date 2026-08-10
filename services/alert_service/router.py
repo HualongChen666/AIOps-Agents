@@ -77,7 +77,6 @@ class Router:
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)
                 logging.warning("Suppressed exception", exc_info=True)
-                pass
         if category == "security":
             return "team:security"
         if category in ("database", "network"):

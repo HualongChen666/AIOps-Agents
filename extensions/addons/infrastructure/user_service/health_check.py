@@ -8,6 +8,7 @@ from services.user_service.schemas import ServiceHealth
 
 _START_TIME = time.time()
 
+
 class HealthCheckEngine:
     """Simple health check engine for user service."""
 

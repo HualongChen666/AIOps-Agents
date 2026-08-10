@@ -8,6 +8,7 @@ from .config import settings
 
 _START_TIME = time.time()
 
+
 class HealthCheckEngine:
     """Simple health check."""
 

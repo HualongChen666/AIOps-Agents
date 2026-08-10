@@ -14,7 +14,7 @@ import datetime
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 
 from core.anomaly_engine import detect_all_anomalies, detect_anomalies
 

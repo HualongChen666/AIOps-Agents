@@ -322,7 +322,8 @@ class Subscription:
     @strawberry.subscription
     async def metrics_stream(self) -> AsyncGenerator[SystemMetrics, None]:
         """Stream system metrics updates"""
-        # Real-time metrics streaming requires a persistent metrics bus; yield nothing when unavailable.
+        # Real-time metrics streaming requires a persistent metrics bus; yield
+        # nothing when unavailable.
         if False:
             yield
         return

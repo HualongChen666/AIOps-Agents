@@ -196,7 +196,8 @@ async def invoke(req: InvokeRequest) -> InvokeResponse:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 r = await client.post(
                     f"{ollama_url}/api/generate",
-                    json={"model": selected["id"].replace("local-", ""), "prompt": req.prompt, "stream": False},
+                    json={"model": selected["id"].replace(
+                        "local-", ""), "prompt": req.prompt, "stream": False},
                     timeout=60.0,
                 )
                 r.raise_for_status()
@@ -206,7 +207,8 @@ async def invoke(req: InvokeRequest) -> InvokeResponse:
             logger.error("Local LLM backend failed: %s", e)
             raise HTTPException(status_code=502, detail=f"Local LLM backend error: {e}") from e
     else:
-        raise HTTPException(status_code=503, detail=f"No backend available for provider {selected['provider']}")
+        raise HTTPException(
+            status_code=503, detail=f"No backend available for provider {selected['provider']}")
 
     latency_ms = int((time.monotonic() - start) * 1000) or selected["latency_ms"]
     return InvokeResponse(

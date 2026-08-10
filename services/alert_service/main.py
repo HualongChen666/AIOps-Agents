@@ -1,3 +1,8 @@
+from core.auto_heal import try_auto_heal
+from fastapi import FastAPI
+import uvicorn
+import httpx
+import os
 import logging
 
 """AIOps Alert Service.
@@ -14,13 +19,6 @@ ROOT = Path(__file__).parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import os
-
-import httpx
-import uvicorn
-from fastapi import FastAPI
-
-from core.auto_heal import try_auto_heal
 
 try:
     from core.db_engine import async_insert_alert

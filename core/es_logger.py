@@ -4,6 +4,16 @@
 # 提供异步客户端单例、日志写入、搜索接口
 # 依赖 elasticsearch[async] >= 8.13.0
 
+from core.observability_query import (
+    DEFAULT_MAX_LLM_ITEMS,
+    QueryCache,
+    cached_query,
+    make_cache_key,
+    prepare_for_llm,
+    validate_es_query_string,
+    with_query_timeout,
+)
+from config import ELASTICSEARCH_URL
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -24,17 +34,6 @@ except (ImportError, ModuleNotFoundError) as e:
     # Define a dummy NotFoundError if elasticsearch is not available
     NotFoundError = Exception  # type: ignore[misc,assignment]
 
-
-from config import ELASTICSEARCH_URL
-from core.observability_query import (
-    DEFAULT_MAX_LLM_ITEMS,
-    QueryCache,
-    cached_query,
-    make_cache_key,
-    prepare_for_llm,
-    validate_es_query_string,
-    with_query_timeout,
-)
 
 logger = logging.getLogger(__name__)
 

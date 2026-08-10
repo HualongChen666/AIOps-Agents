@@ -27,6 +27,14 @@ which simply executes the graph and returns the final state.
 """
 
 from __future__ import annotations
+from .metrics_history import metrics_history as _metrics_history
+from .escalation import notify_rollback_failure
+from config import SNAPSHOT_CONFIG
+from typing import Any, Callable, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from dataclasses import dataclass, field
+import traceback
+import re
 
 import asyncio
 import inspect
@@ -35,16 +43,7 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
-import re
-import traceback
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from config import SNAPSHOT_CONFIG
-
-from .escalation import notify_rollback_failure
-from .metrics_history import metrics_history as _metrics_history
 
 try:
     from core.stats_engine import record_decision, record_outcome
@@ -532,7 +531,6 @@ async def invoke_agent(state: HealState) -> HealState:
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
             logging.warning("Suppressed exception", exc_info=True)
-            pass
         rich_context["recent_alerts"] = recent_alerts
 
         # Minimal stats for the snapshot.
@@ -587,7 +585,6 @@ async def generate_runbook(state: HealState) -> HealState:
 
     # P2-2: RepairScriptLibrary fallback when LLM runbook is unusable.
     # Ensure hardware remediation scripts are registered in the global library.
-    import extensions.hardware_remediation
 
     if not state.runbook or not isinstance(state.runbook, dict) or not state.runbook.get("success"):
         try:
@@ -1112,7 +1109,6 @@ async def rollback(state: HealState) -> HealState:
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)
                 logging.warning("Suppressed exception", exc_info=True)
-                pass
         return state
 
     snapshot_id = state.snapshot_id
@@ -1140,7 +1136,6 @@ async def rollback(state: HealState) -> HealState:
                     except Exception as e:
                         logging.exception("Unexpected exception: %s", e)
                         logging.warning("Suppressed exception", exc_info=True)
-                        pass
                 return state
 
     execute_enabled = os.getenv("HEAL_EXECUTE_ENABLED", "false").lower() == "true"
@@ -1204,7 +1199,6 @@ async def rollback(state: HealState) -> HealState:
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)
                 logging.warning("Suppressed exception", exc_info=True)
-                pass
         if (
             SNAPSHOT_CONFIG.get("rollback_failure_escalation_enabled", True)
             and notify_rollback_failure is not None
@@ -1227,7 +1221,6 @@ async def rollback(state: HealState) -> HealState:
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
             logging.warning("Suppressed exception", exc_info=True)
-            pass
     logger.info("Rollback completed for alert %s", alert_id)
     return state
 
@@ -1314,7 +1307,6 @@ async def complete(state: HealState) -> HealState:
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
         logging.warning("Suppressed exception", exc_info=True)
-        pass
 
     _audit(
         "HEALING_COMPLETED",

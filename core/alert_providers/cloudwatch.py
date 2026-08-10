@@ -70,7 +70,8 @@ class CloudWatchAlertProvider(AlertProvider):
 
         dimensions = trigger.get("Dimensions") or []
         if isinstance(dimensions, list):
-            labels = {d.get("name") or d.get("Name"): d.get("value") or d.get("Value") for d in dimensions if isinstance(d, dict)}
+            labels = {d.get("name") or d.get("Name"): d.get("value") or d.get("Value")
+                      for d in dimensions if isinstance(d, dict)}
         else:
             labels = {}
 
@@ -79,7 +80,8 @@ class CloudWatchAlertProvider(AlertProvider):
         service = labels.get("ServiceName") or labels.get("service") or namespace
         severity = "critical" if state == "alarm" else "warning"
         fingerprint = str(raw.get("AlarmName") or uuid.uuid4().hex[:16])[:64]
-        started_at = raw.get("StateChangeTime") or raw.get("state_change_time") or datetime.now(timezone.utc).isoformat()
+        started_at = raw.get("StateChangeTime") or raw.get(
+            "state_change_time") or datetime.now(timezone.utc).isoformat()
 
         return {
             "id": f"CW-{fingerprint}",

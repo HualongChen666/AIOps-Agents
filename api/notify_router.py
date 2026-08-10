@@ -3,7 +3,7 @@ import datetime
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 import core.notify_engine as _notify_engine

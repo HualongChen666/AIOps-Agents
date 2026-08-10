@@ -107,7 +107,8 @@ async def _azure_repair(cfg: Dict[str, Any], action: str, params: Dict[str, Any]
 async def _alibaba_repair(
     cfg: Dict[str, Any], action: str, params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    raise RuntimeError("Alibaba Cloud repair SDK not installed; only metrics collection is supported")
+    raise RuntimeError(
+        "Alibaba Cloud repair SDK not installed; only metrics collection is supported")
 
 
 async def execute_cloud_repair(

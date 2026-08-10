@@ -960,7 +960,6 @@ class DatabaseEngine:
     def __init__(self, connection_string: str = None):
         """Initialize DatabaseEngine component"""
         import asyncio
-        import os
 
         from sqlalchemy import create_engine, text
 

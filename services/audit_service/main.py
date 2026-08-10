@@ -3,6 +3,9 @@
 Exposes audit logs and allows recording new audit events.
 """
 
+from core.command_guard import get_audit_log
+from fastapi import FastAPI, Query
+import uvicorn
 import asyncio
 import os
 import sys
@@ -13,10 +16,6 @@ ROOT = Path(__file__).parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import uvicorn
-from fastapi import FastAPI, Query
-
-from core.command_guard import get_audit_log
 
 app = FastAPI(title="AIOps Audit Service", version="0.1.0")
 

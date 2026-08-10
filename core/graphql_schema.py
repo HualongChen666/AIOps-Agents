@@ -193,6 +193,8 @@ class Mutation:
             if not found:
                 raise ValueError(f"Alert not found: {alert_id}")
 
+            from core.alert_engine import alert_history
+
             for alert in alert_history:
                 if alert.get("id") == alert_id:
                     return Alert(

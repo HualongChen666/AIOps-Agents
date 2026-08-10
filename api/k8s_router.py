@@ -7,7 +7,7 @@ SECURITY: 所有端点需要认证才能访问
 
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 

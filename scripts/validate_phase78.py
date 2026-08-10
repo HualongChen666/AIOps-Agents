@@ -198,8 +198,8 @@ def main() -> int:
     report["checks"]["open_source_tests"] = open_source_test
     if open_source_test["returncode"] != 0:
         report["issues"].append(f"tests/open_source failed (rc={
-                open_source_test['returncode']}): {
-                open_source_test['stderr']}")
+            open_source_test['returncode']}): {
+            open_source_test['stderr']}")
 
     if report["issues"]:
         report["valid"] = False

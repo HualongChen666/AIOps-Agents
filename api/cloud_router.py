@@ -22,7 +22,7 @@ SECURITY: 所有端点需要认证才能访问
 import logging
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Body, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 

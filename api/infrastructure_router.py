@@ -291,7 +291,7 @@ async def create_flink_job(request: FlinkJobRequest):
             job_type=job.config.job_type.value,
             status="created",
         )
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid job_type: {request.job_type}")
     except Exception as e:
         _logger.error(f"Error creating Flink job: {e}")

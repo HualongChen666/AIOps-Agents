@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """Direct end-to-end test of the backend heal_graph business loop."""
 
+from core.heal_graph import HealState, run_heal
+from core.db_engine import async_update_approval_status_by_alert
+from core.database import Base
+from core.command_guard import get_audit_log
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy import create_engine, select
 import asyncio
 import json
 import os
@@ -16,15 +23,8 @@ os.environ["AI_ENABLED"] = "false"
 os.environ["HEAL_EXECUTE_ENABLED"] = "false"
 os.environ["HARDWARE_EXECUTE_ENABLED"] = "false"
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
 
 import core.models  # noqa: F401
-from core.command_guard import get_audit_log
-from core.database import Base
-from core.db_engine import async_update_approval_status_by_alert
-from core.heal_graph import HealState, run_heal
 
 
 def _pydantic_safe(obj):

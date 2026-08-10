@@ -31,8 +31,6 @@ _REQUESTS: dict[str, ChangeRequest] = {}
 class ChangeManagementError(Exception):
     """变更管理业务异常."""
 
-    pass
-
 
 class ChangeStatus(str, Enum):
     """变更请求生命周期状态."""

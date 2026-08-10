@@ -877,7 +877,9 @@ async def restore_backup(backup_id: str) -> Dict[str, Any]:
             }
 
         elif backup_type == "config":
-            restore_dir = f"restored_config_{backup_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            restore_dir = f"restored_config_{backup_id}_{
+                datetime.now(
+                    timezone.utc).strftime('%Y%m%d_%H%M%S')}"
             shutil.unpack_archive(backup_path, restore_dir)
             return {
                 "backup_id": backup_id,

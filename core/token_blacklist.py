@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Token blacklist management for JWT revocation."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from core.auth_db import SessionLocal, TokenBlacklist

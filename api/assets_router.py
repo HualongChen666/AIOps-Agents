@@ -5,11 +5,11 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from core.auth_db import Asset, get_session
-from core.auth_service import get_current_user, has_role, require_roles
+from core.auth_service import require_roles
 
 router = APIRouter(prefix="/api/v1/assets", tags=["assets"])
 
@@ -49,7 +49,7 @@ def _asset_out(asset: Asset) -> _AssetOut:
 @router.get("/", response_model=List[_AssetOut])
 def list_assets(
     db: Session = Depends(get_session),
-    current_user = Depends(require_roles("admin", "operator", "business")),
+    current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     return [_asset_out(a) for a in db.query(Asset).all()]
 
@@ -58,7 +58,7 @@ def list_assets(
 def create_asset(
     req: _AssetCreate,
     db: Session = Depends(get_session),
-    current_user = Depends(require_roles("admin", "operator")),
+    current_user=Depends(require_roles("admin", "operator")),
 ):
     asset = Asset(
         name=req.name,
@@ -77,7 +77,7 @@ def create_asset(
 def get_asset(
     id: int,
     db: Session = Depends(get_session),
-    current_user = Depends(require_roles("admin", "operator", "business")),
+    current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     asset = db.query(Asset).filter(Asset.id == id).first()
     if not asset:
@@ -90,7 +90,7 @@ def update_asset(
     id: int,
     req: _AssetUpdate,
     db: Session = Depends(get_session),
-    current_user = Depends(require_roles("admin", "operator")),
+    current_user=Depends(require_roles("admin", "operator")),
 ):
     asset = db.query(Asset).filter(Asset.id == id).first()
     if not asset:
@@ -106,7 +106,7 @@ def update_asset(
 def delete_asset(
     id: int,
     db: Session = Depends(get_session),
-    current_user = Depends(require_roles("admin")),
+    current_user=Depends(require_roles("admin")),
 ):
     asset = db.query(Asset).filter(Asset.id == id).first()
     if not asset:

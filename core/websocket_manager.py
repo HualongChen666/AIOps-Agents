@@ -46,7 +46,6 @@ class ConnectionManager:
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)
                 logging.warning("Suppressed exception", exc_info=True)
-                pass
         logger.info(f"WebSocket connected to channel: {channel}, total: {count}")  # noqa: E501
 
     def disconnect(self, websocket: WebSocket, channel: str = "default"):
@@ -66,7 +65,6 @@ class ConnectionManager:
                 except Exception as e:
                     logging.exception("Unexpected exception: %s", e)
                     logging.warning("Suppressed exception", exc_info=True)
-                    pass
             logger.info(f"WebSocket disconnected from channel: {channel}, " f"remaining: {count}")
 
     async def broadcast(self, message: Any, channel: str = "default"):

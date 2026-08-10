@@ -227,7 +227,7 @@ class GESAlgorithm:
         # Log-likelihood (simplified): independent Gaussian with empirical variances
         variances = np.var(data, axis=0)
         variances = np.where(variances > 0, variances, 1e-6)
-        n_variables = data.shape[1]
+        data.shape[1]
         log_likelihood = float(
             -0.5 * n_samples * np.sum(np.log(2 * np.pi * variances) + 1)
         )

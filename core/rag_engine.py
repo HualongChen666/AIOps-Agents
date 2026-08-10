@@ -115,7 +115,8 @@ def _ensure_collection(dim: int) -> None:
 def _embed(texts: List[str], embed_type: str = "db") -> List[List[float]]:
     """调用 MiniMax 国内版 embeddings API 将文本列表转为向量。"""
     api_key = (AI_CONFIG.get("api_key") or os.environ.get("AI_API_KEY", "")).strip()
-    base_url = (AI_CONFIG.get("base_url") or os.environ.get("AI_BASE_URL", "https://api.minimaxi.com/v1")).strip().rstrip("/")
+    base_url = (AI_CONFIG.get("base_url") or os.environ.get(
+        "AI_BASE_URL", "https://api.minimaxi.com/v1")).strip().rstrip("/")
     if not api_key:
         raise RuntimeError("AI_API_KEY not configured")
 

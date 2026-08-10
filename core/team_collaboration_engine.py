@@ -305,7 +305,7 @@ async def escalate_incident(
     level = (current.get("level", 0) if current else 0) + 1
 
     levels = team.get("escalation_policy", {}).get("levels", [])
-    level_config = next((l for l in levels if l.get("level") == level), None)
+    level_config = next((item for item in levels if item.get("level") == level), None)
     if not level_config:
         raise ValueError("Maximum escalation level reached for this team")
 
@@ -316,7 +316,8 @@ async def escalate_incident(
         notify_id = oncall.get("secondary", {}).get("user_id") if oncall.get("secondary") else None
     else:
         manager = next(
-            (m for m in team.get("members", []) if m.get("role", "").lower() in ("team lead", "manager", "lead")),
+            (m for m in team.get("members", []) if m.get(
+                "role", "").lower() in ("team lead", "manager", "lead")),
             None,
         )
         notify_id = manager["user_id"] if manager else oncall.get("primary", {}).get("user_id")

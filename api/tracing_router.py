@@ -143,7 +143,8 @@ async def get_tracing_dashboard():
 
         services = _services()
         total = max(len(alert_history), 24)
-        errors = sum(1 for a in alert_history if a.get("level", "").lower() in ("error", "critical"))
+        errors = sum(1 for a in alert_history if a.get(
+            "level", "").lower() in ("error", "critical"))
         error_rate = round(errors / max(total, 1), 4)
         return {
             "status": "success",
@@ -182,7 +183,8 @@ async def list_traces(
                 {"service": service_name, "limit": limit} if service_name else {"limit": limit},
             )
             if real:
-                return {"status": "success", "data": real.get("data", []), "total": real.get("total", 0)}
+                return {"status": "success", "data": real.get(
+                    "data", []), "total": real.get("total", 0)}
 
         min_ms = _parse_duration_ms(min_duration) if min_duration else None
         max_ms = _parse_duration_ms(max_duration) if max_duration else None
@@ -321,10 +323,13 @@ async def get_error_analysis(
         services = _services()
         if service_name:
             services = [service_name]
-        error_alerts = [a for a in alert_history if a.get("level", "").lower() in ("error", "critical")]
+        error_alerts = [a for a in alert_history if a.get(
+            "level", "").lower() in ("error", "critical")]
         error_count = len(error_alerts) or sum(hash(s) % 5 for s in services)
-        error_types = list({a.get("title", "unknown") for a in error_alerts}) or ["Timeout", "ConnectionError"]
-        affected = list({a.get("source_service") or a.get("source", s) for a in error_alerts for s in services}) or services
+        error_types = list({a.get("title", "unknown")
+                           for a in error_alerts}) or ["Timeout", "ConnectionError"]
+        affected = list({a.get("source_service") or a.get("source", s)
+                        for a in error_alerts for s in services}) or services
         return {
             "status": "success",
             "data": {

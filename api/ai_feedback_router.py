@@ -35,7 +35,6 @@ def _init_feedback_db() -> None:
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
             logging.warning("Suppressed exception", exc_info=True)
-            pass
     conn = sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ai_feedback (

@@ -12,8 +12,7 @@ import os
 import threading
 import time
 from functools import wraps
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

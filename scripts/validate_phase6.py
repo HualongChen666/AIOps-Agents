@@ -138,8 +138,8 @@ def main() -> int:
     report["checks"]["e2e_collection"] = e2e_collection
     if e2e_collection["attempted"] and e2e_collection["returncode"] != 0:
         report["issues"].append(f"E2E collect-only failed (rc={
-                e2e_collection['returncode']}): {
-                e2e_collection['stderr']}")
+            e2e_collection['returncode']}): {
+            e2e_collection['stderr']}")
 
     if report["issues"]:
         report["valid"] = False

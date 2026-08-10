@@ -375,7 +375,7 @@ class SecurityInputValidatorMiddleware(BaseHTTPMiddleware):
         # Skip CORS preflight requests (OPTIONS method)
         if request.method == "OPTIONS":
             return await call_next(request)
-        
+
         # Skip validation for certain paths (health checks, static files, etc.)
         skip_paths = ["/health", "/metrics", "/docs", "/openapi.json", "/static"]
         if any(request.url.path.startswith(path) for path in skip_paths):

@@ -89,7 +89,8 @@ def save_reports(reports: list[dict[str, Any]]) -> list[str]:
     return ids
 
 
-def list_reports(period: Optional[str] = None, max_age_days: int = DEFAULT_MAX_AGE_DAYS) -> list[dict[str, Any]]:
+def list_reports(period: Optional[str] = None,
+                 max_age_days: int = DEFAULT_MAX_AGE_DAYS) -> list[dict[str, Any]]:
     """Return non-expired reports, optionally filtered by period."""
     prune_reports(max_age_days)
     data = _load()

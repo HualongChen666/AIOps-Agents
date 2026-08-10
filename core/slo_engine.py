@@ -17,6 +17,7 @@ Key concepts
 """
 
 from __future__ import annotations
+from core.slo_storage import load_slos  # type: ignore
 
 import datetime
 import logging
@@ -416,6 +417,5 @@ def generate_sla_report(period: str = "30d") -> list[dict[str, Any]]:
 
 
 # Load persisted SLOs at module import time.
-from core.slo_storage import load_slos  # type: ignore
 
 load_slos()

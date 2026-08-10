@@ -4,7 +4,7 @@ import copy
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from config import LINUX_HOSTS, LINUX_SSH_TIMEOUT

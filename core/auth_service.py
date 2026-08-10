@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 """Authentication and authorization helpers."""
 
+from core.token_blacklist import is_blacklisted
+from core.auth_db import (
+    SessionLocal,
+    User,
+    UserAssetPermission,
+)
+import config
+from sqlalchemy.orm import Session
 import jwt
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -18,17 +26,6 @@ _passlib_bcrypt._BcryptCommon._finalize_backend_mixin = classmethod(
     lambda cls, backend, dryrun: setattr(cls, "_workrounds_initialized", True) or True
 )
 
-from sqlalchemy.orm import Session
-
-import config
-from core.auth_db import (
-    Asset,
-    SessionLocal,
-    User,
-    UserAssetPermission,
-    get_session,
-)
-from core.token_blacklist import blacklist_jti, is_blacklisted
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -166,18 +163,6 @@ def require_permission(permission: str, resource_type: str = "asset"):
         return user
 
     return checker
-
-
-def require_roles(*roles: str):
-    def _require(current_user: User = Depends(get_current_user)) -> User:
-        if not has_role(current_user, *roles):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
-        return current_user
-
-    return _require
 
 
 def admin_count(db: Session) -> int:

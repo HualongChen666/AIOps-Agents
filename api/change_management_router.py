@@ -121,7 +121,8 @@ async def approve_change_request(
             executor=current_user.username,
             result="approved",
             user_id=str(current_user.id) if current_user.id else None,
-            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+            tenant_id=str(current_user.tenant_id) if getattr(
+                current_user, "tenant_id", None) else None,
         )
         return result
     except ChangeManagementError as e:
@@ -151,7 +152,8 @@ async def reject_change_request(
             executor=current_user.username,
             result="rejected",
             user_id=str(current_user.id) if current_user.id else None,
-            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+            tenant_id=str(current_user.tenant_id) if getattr(
+                current_user, "tenant_id", None) else None,
         )
         return result
     except ChangeManagementError as e:
@@ -181,7 +183,8 @@ async def implement_change_request(
             executor=current_user.username,
             result="implemented",
             user_id=str(current_user.id) if current_user.id else None,
-            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+            tenant_id=str(current_user.tenant_id) if getattr(
+                current_user, "tenant_id", None) else None,
         )
         return result
     except ChangeManagementError as e:
@@ -211,7 +214,8 @@ async def rollback_change_request(
             executor=current_user.username,
             result="rolled_back",
             user_id=str(current_user.id) if current_user.id else None,
-            tenant_id=str(current_user.tenant_id) if getattr(current_user, "tenant_id", None) else None,
+            tenant_id=str(current_user.tenant_id) if getattr(
+                current_user, "tenant_id", None) else None,
         )
         return result
     except ChangeManagementError as e:

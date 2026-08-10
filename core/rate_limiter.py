@@ -261,7 +261,6 @@ class SessionLimiter:
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)
                 logging.warning("Suppressed exception", exc_info=True)
-                pass
 
     async def check_and_register(self, key: str, max_sessions: int) -> bool:
         async with self._lock:
@@ -305,7 +304,7 @@ def add_concurrency_middleware(app: FastAPI) -> None:
         # Skip CORS preflight requests (OPTIONS method)
         if request.method == "OPTIONS":
             return await call_next(request)
-        
+
         client_id = request.client.host if request.client else "unknown"
         user = getattr(request.state, "user", {})
         session_key = user.get("id", client_id) if user else client_id

@@ -10,8 +10,7 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
-
+from fastapi import APIRouter, HTTPException, Path
 
 
 # 🔧 重构:使用策略模式

@@ -420,7 +420,6 @@ class AIContextService:
                 except Exception as e:
                     logging.exception("Unexpected exception: %s", e)
                     logging.warning("Suppressed exception", exc_info=True)
-                    pass
 
         try:
             results = await asyncio.gather(*tasks, return_exceptions=True)

@@ -142,7 +142,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
         logging.warning("Suppressed exception", exc_info=True)
-        pass
 
 
 @app.post("/sagas")

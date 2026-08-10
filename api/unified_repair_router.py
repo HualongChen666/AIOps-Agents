@@ -10,7 +10,7 @@
 import logging
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from api.schemas import UnifiedRepairRequest
 

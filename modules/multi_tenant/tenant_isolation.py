@@ -163,7 +163,7 @@ class DataIsolator:
             租户 ID
         """
         if isolated_key.startswith(self.tenant_data_prefix):
-            parts = isolated_key[len(self.tenant_data_prefix) :].split(":", 1)
+            parts = isolated_key[len(self.tenant_data_prefix):].split(":", 1)
             if len(parts) == 2:
                 return parts[0]
         return None

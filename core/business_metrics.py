@@ -172,7 +172,7 @@ class BusinessMetricsCollector:
         # 保存到历史
         self._metrics_history.append(metrics)
         if len(self._metrics_history) > self._max_history_size:
-            self._metrics_history = self._metrics_history[-self._max_history_size :]
+            self._metrics_history = self._metrics_history[-self._max_history_size:]
 
         logger.info(f"Calculated business metrics: {metrics}")
         return metrics

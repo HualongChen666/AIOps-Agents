@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-import httpx
 
 from gateway.services_client import _DEFAULT_SERVICE_URLS, _get_http_client
 
@@ -42,7 +41,7 @@ class AddOnServiceRegistry:
             # Return a cold snapshot without performing network I/O.
             return [
                 ServiceHealth(
-                    name=name,
+                    name=env.replace("_SERVICE_URL", "").replace("_", " ").lower().title(),
                     url_env=env,
                     url=default_url,
                     healthy=False,

@@ -8,6 +8,7 @@ from .schemas import ServiceHealth
 
 _START_TIME = time.time()
 
+
 class HealthCheckEngine:
     """Simple health check engine for the LLM router service."""
 

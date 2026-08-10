@@ -10,6 +10,9 @@ This module provides database optimization strategies including:
 - Database statistics update automation
 """
 
+from collections import deque
+import statistics
+import copy
 import os
 import re
 from dataclasses import dataclass
@@ -593,9 +596,6 @@ async def run_comprehensive_optimization() -> Dict[str, Any]:
 
 
 # component functions backed by in-memory state (moves from hardcoded stubs)
-import copy
-import statistics
-from collections import deque
 
 _OPTIMIZATION_STATE = {
     "enabled": True,
@@ -659,11 +659,16 @@ def get_performance_summary() -> dict:
     slow = list(_OPTIMIZATION_STATE["slow_queries"])
     times = [q["execution_time"] for q in slow if q.get("execution_time")]
     avg_time = round(statistics.mean(times), 4) if times else 0.0
+    throughput = (
+        len(slow)
+        + _OPTIMIZATION_STATE["query_cache"]["hits"]
+        + _OPTIMIZATION_STATE["query_cache"]["misses"]
+    )
     return {
         "query_time_avg": avg_time,
         "slow_query_count": len(slow),
         "cache_hit_rate": _cache_hit_rate(),
-        "throughput": len(slow) + _OPTIMIZATION_STATE["query_cache"]["hits"] + _OPTIMIZATION_STATE["query_cache"]["misses"],
+        "throughput": throughput,
     }
 
 
@@ -740,7 +745,8 @@ def record_slow_query(query: str, execution_time: float) -> dict:
         "is_slow": execution_time > _SLOW_QUERY_THRESHOLD_MS,
     }
     _OPTIMIZATION_STATE["slow_queries"].appendleft(entry)
-    return {"status": "success", "query": query, "execution_time": execution_time, "is_slow": entry["is_slow"]}
+    return {"status": "success", "query": query,
+            "execution_time": execution_time, "is_slow": entry["is_slow"]}
 
 
 def reset_query_cache_statistics() -> dict:
@@ -773,7 +779,8 @@ def suggest_optimizations() -> list:
 
     for column, count in query_keywords.most_common(5):
         if count >= 2:
-            suggestions.append(f"Consider adding an index on column '{column}' (appears in {count} slow queries).")
+            suggestions.append(
+                f"Consider adding an index on column '{column}' (appears in {count} slow queries).")
 
     if _cache_hit_rate() < 0.5:
         suggestions.append("Query cache hit rate is low; review cache size and TTL settings.")
@@ -781,6 +788,7 @@ def suggest_optimizations() -> list:
     cfg = _OPTIMIZATION_STATE["connection_pool"]
     utilization = cfg.get("active", 0) / max(cfg.get("max_connections", 100), 1)
     if utilization > 0.8:
-        suggestions.append("Connection pool utilization is high; consider increasing max_connections.")
+        suggestions.append(
+            "Connection pool utilization is high; consider increasing max_connections.")
 
     return suggestions

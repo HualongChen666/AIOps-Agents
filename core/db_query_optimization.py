@@ -153,7 +153,7 @@ class BatchQueryOptimizer:
 
         try:
             for i in range(0, len(items), batch_size):
-                batch = items[i : i + batch_size]
+                batch = items[i: i + batch_size]
                 results["batches"] += 1
 
                 try:
@@ -203,7 +203,7 @@ class BatchQueryOptimizer:
 
         try:
             for i in range(0, len(updates), batch_size):
-                batch = updates[i : i + batch_size]
+                batch = updates[i: i + batch_size]
                 results["batches"] += 1
 
                 try:

@@ -298,7 +298,6 @@ def _compute_prompt_token_budget(system_prompt: str) -> int:
     except Exception as e:
         logging.exception("Unexpected exception: %s", e)
         logging.warning("Suppressed exception", exc_info=True)
-        pass
     return 7000
 
 
@@ -495,7 +494,7 @@ def _validate_root_cause_output(raw: str) -> Optional[str]:
             cleaned = cleaned.strip("`")
             for lang in ("json", "JSON"):
                 if cleaned.startswith(lang):
-                    cleaned = cleaned[len(lang) :].strip()
+                    cleaned = cleaned[len(lang):].strip()
                     break
         try:
             data = json.loads(cleaned)
@@ -1171,7 +1170,6 @@ class LLMAnalysisService(AIAnalysisService):
                 except Exception as e:
                     logging.exception("Unexpected exception: %s", e)
                     logging.warning("Suppressed exception", exc_info=True)
-                    pass
             return []
 
     async def get_health_status(self) -> Dict[str, Any]:

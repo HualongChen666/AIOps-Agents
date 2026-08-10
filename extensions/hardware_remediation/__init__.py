@@ -2,6 +2,12 @@
 """Hardware remediation dry-run extensions (IPMI/iDRAC/RAID/SMART/K8s drain/ticket)."""
 
 from __future__ import annotations
+from .ticket_integration import register_ticket_scripts
+from .smartctl import register_smart_scripts
+from .redfish_actions import register_redfish_scripts
+from .raid_storcli import register_raid_scripts
+from .node_lifecycle import register_node_scripts
+from .ipmi_actions import register_ipmi_scripts
 
 import logging
 import os
@@ -13,13 +19,6 @@ HARDWARE_EXECUTE_ENABLED = os.getenv("HARDWARE_EXECUTE_ENABLED", "false").lower(
     "true",
     "yes",
 )
-
-from .ipmi_actions import register_ipmi_scripts
-from .node_lifecycle import register_node_scripts
-from .raid_storcli import register_raid_scripts
-from .redfish_actions import register_redfish_scripts
-from .smartctl import register_smart_scripts
-from .ticket_integration import register_ticket_scripts
 
 
 def register_all_hardware_scripts() -> None:

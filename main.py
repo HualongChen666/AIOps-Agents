@@ -1,4 +1,97 @@
 # -*- coding: utf-8 -*-
+from core.unified_access_control import (
+    add_access_control_middleware,
+    setup_default_access_policies,
+)
+from core.rate_limiter import add_concurrency_middleware
+from core.command_guard import register_self_pid
+from core.websocket_integrator import get_websocket_integrator
+from core.vulnerability_manager import get_vulnerability_manager
+from core.user_training_system import get_user_training_system
+from core.third_party_service_integrator import get_third_party_service_integrator
+from core.test_framework_manager import get_test_framework_manager
+from core.test_coverage_manager import get_coverage_manager
+from core.test_automation_manager import get_automation_manager
+from core.teams_adapter import close_teams_client
+from core.system_resource_optimizer import get_system_resource_optimizer
+from core.structured_logging import setup_logging
+from core.stats_engine import _get_http_client as _stats_get_http_client
+from core.sso_auth import router as sso_router
+from core.slack_adapter import close_slack_client
+from core.service_monitoring_manager import get_service_monitoring_manager
+from core.service_mesh_manager import get_service_mesh_manager
+from core.service_discovery_manager import get_service_discovery_manager
+from core.security_testing_system import get_security_testing_system
+from core.security_system_integrator import get_security_system_integrator
+from core.security_input_validator import add_input_validation_middleware
+from core.security_audit_system import get_security_audit_system
+from core.request_tracking import RequestTrackingMiddleware
+from api.middleware.tenant_middleware import TenantMiddleware
+from api.middleware.rbac_middleware import RBACMiddleware
+from core.plugin_system_manager import get_plugin_system_manager
+from core.plugin_marketplace_manager import get_marketplace_manager
+from core.plugin_ecosystem_manager import get_ecosystem_manager
+from core.plugin_development_sdk import get_plugin_sdk
+from core.performance_optimizer import get_performance_optimizer
+from core.performance_integration_tester import get_performance_integration_tester
+from core.notify_engine import _get_http_client as _notify_get_http_client
+from core.monitoring_infrastructure import get_monitoring_infrastructure
+from core.module_health_check import check_all_modules_health
+from core.module_dependencies import validate_initialization_order
+from core.model_fine_tuner import get_model_fine_tuner
+from core.memory_monitor import setup_memory_monitoring
+from core.localization_resource_manager import get_resource_manager
+from core.localization_adapter import get_localization_adapter
+from core.l6l7_frontend_integrator import get_l6l7_frontend_integrator
+from core.l5l6_execution_integrator import get_l5l6_execution_integrator
+from core.l4l5_data_integrator import get_l4l5_data_integrator
+from core.l3l4_storage_integrator import get_l3l4_storage_integrator
+from core.l2l3_workflow_integrator import get_l2l3_workflow_integrator
+from core.l1l2_data_flow_integrator import get_l1l2_data_flow_integrator
+from core.kubernetes_deployment_manager import get_kubernetes_deployment_manager
+from core.key_management_service import initialize_key_management
+from core.kafka_stream_processor import get_kafka_processor
+from core.integration_testing_system import get_integration_testing_system
+from core.integration_test_validator import get_integration_test_validator
+from core.integration_monitoring_system import get_integration_monitoring_system
+from core.integration_documentation_manager import get_integration_documentation_manager
+from core.i18n_manager import get_i18n_manager
+from core.frontend_performance_optimizer import get_frontend_performance_optimizer
+from core.frontend_cache_strategy import setup_cache_headers_middleware
+from core.flink_stream_processor import get_flink_job_manager
+from core.external_api_audit import initialize_external_api_audit
+from core.execution.l6.fault_tolerant_executor import get_fault_tolerant_executor
+from core.exception_handler import setup_exception_handlers
+from core.error_recovery import setup_error_recovery
+from core.enhanced_websocket_manager import get_enhanced_websocket_manager
+from core.enhanced_auth_integration import get_enhanced_auth_integration
+from core.dr_scenarios import list_dr_scenarios, run_dr_scenario
+from core.documentation_manager import get_documentation_manager
+from core.documentation_generator import get_documentation_generator
+from core.distributed_storage import get_distributed_storage_manager
+from core.disaster_recovery_drill import setup_disaster_recovery
+from core.db_read_write_router import get_read_write_router
+from core.database_optimization_manager import get_database_optimization_manager
+from core.data_lifecycle_manager import setup_data_lifecycle
+from core.data_integration_manager import get_data_integration_manager
+from core.config_center import get_config_center, get_service_discovery
+from core.compliance_manager import get_compliance_manager
+from core.cicd_pipeline_manager import get_cicd_pipeline_manager
+from core.cicd_integration_manager import get_cicd_integration_manager
+from core.chaos_engineering import setup_chaos_engineering
+from core.business_metrics import setup_business_metrics
+from core.audit_integration_manager import get_audit_integration_manager
+from core.api_response_middleware import setup_api_response_middleware
+from core.api_performance_optimizer import get_api_performance_optimizer
+from core.api_governance import setup_api_governance
+from core.api_error import (
+    api_error_handler,
+    general_exception_handler,
+    validation_error_handler,
+)
+from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
+from core.ai_engine import _get_http_client as _ai_get_http_client
+from core.accessibility_support import setup_accessibility_support
 import logging
 
 """
@@ -22,7 +115,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger as _logger
 from slowapi import _rate_limit_exceeded_handler
@@ -53,7 +146,6 @@ from api.auth_router import router as auth_router
 from api.settings_router import router as settings_router
 from api.users_router import router as users_router
 from core.auth_db import init_db
-from api.user_router import router as user_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
 from api.anomaly_router import router as anomaly_router
@@ -74,14 +166,11 @@ from config import (
     INTEGRATIONS_ENABLED,
     LLM_ROUTER_ENABLED,
     LOG_AGGREGATION_ENABLED,
-    LOKI_ENABLED,
     MCP_ENABLED,
     METRICS_ENABLED,
-    PENETRATION_TESTING_ENABLED,
     PLUGINS_ENABLED,
     RAG_ENABLED,
     SECURITY_SCANNING_ENABLED,
-    SHARDING_ENABLED,
     TOPOLOGY_ENABLED,
     TRACING_ENABLED,
     WORKFLOW_ENABLED,
@@ -208,93 +297,6 @@ if ENABLE_ADDONS:
         from api.documentation_router import router as documentation_router
         from api.frontend_enhancement_router import router as frontend_enhancement_router
 
-from core.accessibility_support import setup_accessibility_support
-from core.ai_engine import _get_http_client as _ai_get_http_client
-from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
-from core.api_error import (
-    api_error_handler,
-    general_exception_handler,
-    validation_error_handler,
-)
-from core.api_governance import setup_api_governance
-from core.api_performance_optimizer import get_api_performance_optimizer
-from core.api_response_middleware import setup_api_response_middleware
-from core.audit_integration_manager import get_audit_integration_manager
-from core.business_metrics import setup_business_metrics
-from core.chaos_engineering import setup_chaos_engineering
-from core.cicd_integration_manager import get_cicd_integration_manager
-from core.cicd_pipeline_manager import get_cicd_pipeline_manager
-from core.compliance_manager import get_compliance_manager
-from core.config_center import get_config_center, get_service_discovery
-from core.data_integration_manager import get_data_integration_manager
-from core.data_lifecycle_manager import setup_data_lifecycle
-from core.database_optimization_manager import get_database_optimization_manager
-from core.db_read_write_router import get_read_write_router
-from core.disaster_recovery_drill import setup_disaster_recovery
-from core.distributed_storage import get_distributed_storage_manager
-from core.documentation_generator import get_documentation_generator
-from core.documentation_manager import get_documentation_manager
-from core.dr_scenarios import list_dr_scenarios, run_dr_scenario
-from core.enhanced_auth_integration import get_enhanced_auth_integration
-from core.enhanced_websocket_manager import get_enhanced_websocket_manager
-from core.error_recovery import setup_error_recovery
-from core.exception_handler import setup_exception_handlers
-from core.execution.l6.fault_tolerant_executor import get_fault_tolerant_executor
-from core.external_api_audit import initialize_external_api_audit
-from core.flink_stream_processor import get_flink_job_manager
-from core.frontend_cache_strategy import setup_cache_headers_middleware
-from core.frontend_performance_optimizer import get_frontend_performance_optimizer
-from core.i18n_manager import get_i18n_manager
-from core.integration_documentation_manager import get_integration_documentation_manager
-from core.integration_monitoring_system import get_integration_monitoring_system
-from core.integration_test_validator import get_integration_test_validator
-from core.integration_testing_system import get_integration_testing_system
-from core.kafka_stream_processor import get_kafka_processor
-from core.key_management_service import initialize_key_management
-from core.kubernetes_deployment_manager import get_kubernetes_deployment_manager
-from core.l1l2_data_flow_integrator import get_l1l2_data_flow_integrator
-from core.l2l3_workflow_integrator import get_l2l3_workflow_integrator
-from core.l3l4_storage_integrator import get_l3l4_storage_integrator
-from core.l4l5_data_integrator import get_l4l5_data_integrator
-from core.l5l6_execution_integrator import get_l5l6_execution_integrator
-from core.l6l7_frontend_integrator import get_l6l7_frontend_integrator
-from core.localization_adapter import get_localization_adapter
-from core.localization_resource_manager import get_resource_manager
-from core.memory_monitor import setup_memory_monitoring
-from core.model_fine_tuner import get_model_fine_tuner
-from core.module_dependencies import validate_initialization_order
-from core.module_health_check import check_all_modules_health
-from core.monitoring_infrastructure import get_monitoring_infrastructure
-from core.notify_engine import _get_http_client as _notify_get_http_client
-from core.performance_integration_tester import get_performance_integration_tester
-from core.performance_optimizer import get_performance_optimizer
-from core.plugin_development_sdk import get_plugin_sdk
-from core.plugin_ecosystem_manager import get_ecosystem_manager
-from core.plugin_marketplace_manager import get_marketplace_manager
-from core.plugin_system_manager import get_plugin_system_manager
-from api.middleware.rbac_middleware import RBACMiddleware
-from api.middleware.tenant_middleware import TenantMiddleware
-from core.request_tracking import RequestTrackingMiddleware
-from core.security_audit_system import get_security_audit_system
-from core.security_input_validator import add_input_validation_middleware
-from core.security_system_integrator import get_security_system_integrator
-from core.security_testing_system import get_security_testing_system
-from core.service_discovery_manager import get_service_discovery_manager
-from core.service_mesh_manager import get_service_mesh_manager
-from core.service_monitoring_manager import get_service_monitoring_manager
-from core.slack_adapter import close_slack_client
-from core.sso_auth import router as sso_router
-from core.stats_engine import _get_http_client as _stats_get_http_client
-from core.structured_logging import setup_logging
-from core.system_resource_optimizer import get_system_resource_optimizer
-from core.teams_adapter import close_teams_client
-from core.test_automation_manager import get_automation_manager
-from core.test_coverage_manager import get_coverage_manager
-from core.test_framework_manager import get_test_framework_manager
-from core.third_party_service_integrator import get_third_party_service_integrator
-from core.user_training_system import get_user_training_system
-from core.vulnerability_manager import get_vulnerability_manager
-from core.websocket_integrator import get_websocket_integrator
 
 warnings.filterwarnings(
     "ignore",
@@ -310,7 +312,6 @@ from slowapi.util import get_remote_address  # noqa: F401
 
 from core.api_deprecation import mark_deprecated  # noqa: F401
 from core.api_performance import monitor_api_performance  # noqa: F401
-from core.command_guard import register_self_pid
 from core.concurrency_control import ConcurrencyController  # noqa: F401
 from core.config_validation import setup_config_validation  # noqa: F401
 from core.data_lifecycle_operations import archive_alerts, archive_metrics  # noqa: F401
@@ -318,7 +319,6 @@ from core.db_query_optimization import optimize_database_queries  # noqa: F401
 from core.dependency_injection import di_container, setup_dependency_injection  # noqa: F401
 from core.enhanced_caching import setup_enhanced_caching  # noqa: F401
 from core.environment_config import setup_environment_configuration  # noqa: F401
-from core.rate_limiter import add_concurrency_middleware
 from core.rate_limiting import ENDPOINT_LIMITS  # noqa: F401
 from core.security_config import setup_enterprise_security  # noqa: F401
 from core.security_middleware import (  # noqa: F401
@@ -329,10 +329,6 @@ from core.security_middleware import (  # noqa: F401
     tls_enforcer,
 )
 from core.smart_cache_strategy import SmartCacheStrategy  # noqa: F401
-from core.unified_access_control import (
-    add_access_control_middleware,
-    setup_default_access_policies,
-)
 from core.websocket_manager import manager  # noqa: F401
 
 

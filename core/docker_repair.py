@@ -63,7 +63,8 @@ def _load_history() -> List[Dict[str, Any]]:
 def _save_history(history: List[Dict[str, Any]]) -> None:
     try:
         _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _HISTORY_FILE.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
+        _HISTORY_FILE.write_text(json.dumps(
+            history, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         logger.warning(f"Failed to save docker repair history: {e}")
 
@@ -71,7 +72,8 @@ def _save_history(history: List[Dict[str, Any]]) -> None:
 def get_docker_repair_scripts() -> Dict[str, Any]:
     """Return available Docker repair scripts metadata."""
     return {
-        key: {"description": meta["description"], "requires": meta["requires"], "read_only": meta["read_only"]}
+        key: {"description": meta["description"],
+              "requires": meta["requires"], "read_only": meta["read_only"]}
         for key, meta in _DOCKER_SCRIPTS.items()
     }
 

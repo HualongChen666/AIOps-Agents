@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 SERVICE_NAME = "rag_service"
@@ -159,7 +159,7 @@ async def index(req: IndexRequest) -> IndexResponse:
     """Index documents by chunking and embedding."""
     all_chunks = []
     for doc in req.documents:
-        doc_id = doc.get("id") or f"doc-{hash(doc.get('content',''))}"
+        doc_id = doc.get("id") or f"doc-{hash(doc.get('content', ''))}"
         content = doc.get("content") or ""
         meta = doc.get("metadata", {})
         all_chunks.extend(chunker.chunk(doc_id, content, meta))

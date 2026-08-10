@@ -281,7 +281,7 @@ class AdvancedAICapabilities:
         window_size = 5
 
         for i in range(window_size, len(values)):
-            features.append(values[i - window_size : i])
+            features.append(values[i - window_size: i])
             targets.append(values[i])
 
         if len(features) < 10:

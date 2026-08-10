@@ -14,7 +14,7 @@ import time
 from threading import Lock
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from config import LINUX_HOSTS
 from core.api_helpers import VALID_HOSTNAME_PATTERN

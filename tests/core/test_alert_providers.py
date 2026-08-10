@@ -4,7 +4,6 @@
 import json
 from pathlib import Path
 
-import pytest
 
 from core.alert_providers import get_alert_provider, list_alert_providers
 

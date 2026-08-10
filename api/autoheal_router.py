@@ -3,7 +3,7 @@ import asyncio
 import logging
 from typing import Any, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from config import INTERNAL_API_KEY

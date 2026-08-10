@@ -42,7 +42,10 @@ def generate(coverage_json: Path, output_svg: Path) -> float:
         f'  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">\n'
         f'    <text x="{label_w / 2}" y="15" fill="#010101" fill-opacity=".3">{label}</text>\n'
         f'    <text x="{label_w / 2}" y="14">{label}</text>\n'
-        f'    <text x="{label_w + value_w / 2}" y="15" fill="#010101" fill-opacity=".3">{value}</text>\n'
+        f'    <text x="{
+            label_w +
+            value_w /
+            2}" y="15" fill="#010101" fill-opacity=".3">{value}</text>\n'
         f'    <text x="{label_w + value_w / 2}" y="14">{value}</text>\n'
         f"  </g>\n"
         f"</svg>\n"

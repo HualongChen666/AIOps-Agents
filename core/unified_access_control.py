@@ -398,7 +398,7 @@ def add_access_control_middleware(
         # Skip CORS preflight requests (OPTIONS method)
         if request.method == "OPTIONS":
             return await call_next(request)
-        
+
         if enforce:
             user = getattr(request.state, "user", None)
             if not user:

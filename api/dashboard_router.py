@@ -4,7 +4,6 @@
 Provides a minimal health-like endpoint for the dashboard overview.
 """
 
-import logging
 
 from fastapi import APIRouter, Depends
 

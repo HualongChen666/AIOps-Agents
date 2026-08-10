@@ -363,7 +363,8 @@ class CausalGraph:
             for host_entry in hosts:
                 if not isinstance(host_entry, dict):
                     continue
-                host_id = host_entry.get("host") or host_entry.get("hostname") or host_entry.get("name")
+                host_id = host_entry.get("host") or host_entry.get(
+                    "hostname") or host_entry.get("name")
                 if not host_id:
                     continue
                 node_id = f"host:{host_id}"

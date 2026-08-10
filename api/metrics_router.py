@@ -110,7 +110,7 @@ import asyncio
 import logging
 from typing import Any, Optional  # 🔧 MRV5 [P1]:补全 Optional 导入
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 
 
 from core.cache_helpers import ParametricTTLCache, TTLCache

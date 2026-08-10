@@ -47,7 +47,8 @@ try:
     from core.collector import get_cached_snapshot
 except ImportError:  # pragma: no cover
 
-    def get_cached_snapshot(host_id: Optional[str] = None) -> Optional[Dict[str, Any]]:  # type: ignore[misc]
+    # type: ignore[misc]
+    def get_cached_snapshot(host_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Fallback when collector is not available."""
         return None
 
@@ -251,7 +252,7 @@ def _score_reliability(signals: Dict[str, Any]) -> int:
 def _score_automation(signals: Dict[str, Any]) -> int:
     """Score automation from repair throughput and playbook coverage."""
     total_alerts = max(signals.get("total_alerts", 0), 1)
-    total_repairs = signals.get("total_repairs", 0)
+    signals.get("total_repairs", 0)
     successful_repairs = signals.get("successful_repairs", 0)
     scripts_count = signals.get("repair_scripts_count", 0)
 

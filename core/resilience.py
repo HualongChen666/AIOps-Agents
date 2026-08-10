@@ -8,7 +8,7 @@ import functools
 import inspect
 import logging
 import time
-from typing import Any, Callable, Coroutine, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Optional, Tuple, Type, TypeVar
 
 F = TypeVar("F", bound=Callable[..., Any])
 

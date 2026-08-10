@@ -659,4 +659,3 @@ async def get_user_audit_logs(
     """获取指定用户的审计日志（仅管理员）"""
     logs = await audit_service.get_audit_logs(limit=limit, offset=offset, username=username)
     return [AuditLogResponse(**log) for log in logs]
-

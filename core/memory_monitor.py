@@ -130,7 +130,7 @@ class MemoryMonitor:
 
         # 限制历史大小
         if len(self._memory_history) > self._max_history_size:
-            self._memory_history = self._memory_history[-self._max_history_size :]
+            self._memory_history = self._memory_history[-self._max_history_size:]
 
         # 检查是否超过阈值
         if usage_rate > self.warning_threshold:

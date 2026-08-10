@@ -4,14 +4,15 @@
 实现PostgreSQL主从复制、读写分离、Redis集群等分布式存储功能
 """
 
+from config import REDIS_DB, REDIS_HOST, REDIS_PORT
+from typing import Any, Dict, List, Optional
+from enum import Enum
+from datetime import datetime, timezone
+from dataclasses import dataclass, field
 import logging
 import secrets
 
 _random = secrets.SystemRandom()
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Dict, List, Optional
 
 try:
     import redis
@@ -23,7 +24,6 @@ except ImportError:
     redis: Any = None  # type: ignore
     RedisCluster: Any = None  # type: ignore
 
-from config import REDIS_DB, REDIS_HOST, REDIS_PORT
 
 _logger = logging.getLogger(__name__)
 
@@ -239,7 +239,8 @@ class DistributedStorageManager:
             }
         except Exception as e:
             _logger.warning("Read connection unavailable: %s", e)
-            return {"host": None, "port": None, "role": None, "database_type": None, "error": str(e)}
+            return {"host": None, "port": None, "role": None,
+                    "database_type": None, "error": str(e)}
 
     def get_write_connection_info(self) -> Dict[str, Any]:
         """获取写连接信息"""
@@ -253,7 +254,8 @@ class DistributedStorageManager:
             }
         except Exception as e:
             _logger.warning("Write connection unavailable: %s", e)
-            return {"host": None, "port": None, "role": None, "database_type": None, "error": str(e)}
+            return {"host": None, "port": None, "role": None,
+                    "database_type": None, "error": str(e)}
 
     def health_check(self) -> Dict[str, Any]:
         """健康检查"""
