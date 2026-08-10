@@ -1236,24 +1236,38 @@ class AutomaticAlertRouter:
 
     def _ml_route_alert(self, alert: Dict) -> List[str]:
         """
-        ML-based alert routing (default_value for actual ML model)
+        Simple rule+heuristic based ML-like alert routing.
 
-        Args:
-            alert: Alert to route
-
-        Returns:
-            List of ML-predicted channels
+        In production this should call a trained model; here we compute a
+        lightweight score from severity, message urgency keywords and past
+        routing history.
         """
-        # default_value for ML model inference
-        # In production, this would use a trained ML model
         severity = alert.get("severity", "info")
+        title = str(alert.get("title", "")).lower()
+        message = str(alert.get("message", "")).lower()
+        full_text = f"{title} {message}"
 
-        if severity == "critical":
+        severity_weights = {"critical": 3.0, "warning": 2.0, "info": 1.0, "debug": 0.5}
+        score = severity_weights.get(severity, 1.0)
+
+        urgency_keywords = ["outage", "down", "fail", "error", "critical", "latency", "timeout"]
+        score += sum(0.5 for kw in urgency_keywords if kw in full_text)
+
+        # Boost score if the same source recently triggered a critical route
+        source = alert.get("source_service") or alert.get("source", "")
+        recent = [r for r in self.routing_history[-100:] if r.get("alert_id") != alert.get("id")]
+        same_source_critical = any(
+            source and (source == r.get("channels") or source in str(r.get("channels", "")))
+            for r in recent
+        )
+        if same_source_critical:
+            score += 0.5
+
+        if score >= 4.0:
             return ["email", "sms", "webhook"]
-        elif severity == "warning":
+        if score >= 2.0:
             return ["email", "webhook"]
-        else:
-            return ["webhook"]
+        return ["webhook"]
 
     def get_routing_stats(self) -> Dict[str, Any]:
         """

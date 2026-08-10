@@ -202,9 +202,9 @@ class FeedbackRequest(BaseModel):
                 "application/json": {
                     "example": {
                         "status": "ok",
-                        "feedback_id": "placeholder_id",
+                        "feedback_id": "fb-550e8400-e29b-41d4-a716-446655440000",
                         "message": "反馈已记录,感谢您的评价!",
-                        "stats": {"total": 0, "positive": 0, "negative": 0},
+                        "stats": {"total": 1, "positive": 1, "negative": 0},
                     }
                 }
             },

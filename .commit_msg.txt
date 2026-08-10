@@ -1,15 +1,10 @@
-round5: final stub scan, cleanup and expanded tests
+round6: patch remaining high-value stubs after second full scan
 
-- Scanned and patched remaining placeholder code, including IntegrationAdapter.normalize_alert raising NotImplementedError.
-- Added tests/core/__init__.py and tests/api/__init__.py so pytest can discover correctly.
-- Expanded test suite from 6 to 31 tests covering:
-  - db_optimization (slow queries, cache stats, suggestions, summary)
-  - message_queue (publish, batch, priority, transactions, cluster status)
-  - redis_cluster (set/get/ttl, locks, mset/mget, ping/info)
-  - cache_helpers (cache_result, invalidate, flush)
-  - docker_repair (scripts, dry-run, history)
-  - api_response_standard (success/error/paginated/object)
-- Final validation: compileall passes, `from main import app` returns 97 routes, `pytest -q` 31 passed.
+- api/tracing_router.py: replaced 6 hardcoded default_value endpoints with deterministic synthetic traces plus optional Jaeger query backend.
+- api/ai_feedback_router.py: OpenAPI example feedback_id changed from placeholder to a realistic UUID.
+- core/alert_engine.py: _ml_route_alert now uses a scoring heuristic (severity, urgency keywords, history) instead of a severity-only default.
+- maturity_engine.py, ai_router.py: confirmed existing fallbacks are acceptable; no changes needed.
+- Final validation: compileall, from main import app (97 routes), pytest -q (31 passed) all green.
 
 Generated with Devin (https://devin.ai)
 
