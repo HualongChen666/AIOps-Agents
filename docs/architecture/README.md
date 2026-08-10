@@ -10,108 +10,108 @@
 
 ```mermaid
 graph TB
-    subgraph "Layer 1: API网关层"
-        A1[API Gateway集群]
-        A2[负载均衡器]
-        A3[认证授权中心]
-        A4[限流熔断器]
-        A5[路由策略引擎]
-    end
-    
-    subgraph "Layer 2: 业务逻辑层"
-        B1[告警服务集群]
-        B2[修复服务集群]
-        B3[拓扑服务集群]
-        B4[工作流服务集群]
-        B5[审计服务集群]
-        B6[用户服务集群]
-        B7[配置服务集群]
-    end
-    
-    subgraph "Layer 3: AI引擎层"
-        C1[LLM路由服务]
-        C2[RAG服务集群]
-        C3[代理编排服务]
-        C4[情景记忆服务]
-        C5[知识图谱服务]
-        C6[因果分析服务]
-        C7[异常检测服务]
-    end
-    
-    subgraph "Layer 4: 数据访问层"
-        D1[数据访问服务]
-        D2[缓存服务]
-        D3[向量检索服务]
-        D4[数据同步服务]
-        D5[事务管理服务]
-    end
-    
-    subgraph "Layer 5: 数据存储层"
-        E1[PostgreSQL集群]
-        E2[Redis集群]
-        E3[Qdrant集群]
-        E4[Prometheus集群]
-        E5[ClickHouse集群]
-        E6[Neo4j集群]
-    end
-    
-    subgraph "Layer 6: 集成层"
-        F1[监控工具集成服务]
-        F2[云平台集成服务]
-        F3[通知服务集群]
-        F4[工作流集成服务]
-        F5[ITSM集成服务]
-    end
-    
-    subgraph "Layer 7: 监控层"
-        G1[指标收集服务]
-        G2[日志聚合服务]
-        G3[分布式追踪服务]
-        G4[性能监控服务]
-        G5[告警管理服务]
-    end
-    
-    A1 --> B1
-    A1 --> B2
-    A1 --> B3
-    A1 --> B4
-    A1 --> B5
-    A1 --> B6
-    A1 --> B7
-    
-    B1 --> C1
-    B2 --> C3
-    B3 --> C5
-    B4 --> C2
-    B5 --> C4
-    B6 --> C7
-    B7 --> C6
-    
-    C1 --> D1
-    C2 --> D3
-    C3 --> D4
-    C4 --> D2
-    C5 --> D1
-    C6 --> D1
-    C7 --> D1
-    
-    D1 --> E1
-    D2 --> E2
-    D3 --> E3
-    D4 --> E5
-    D5 --> E6
-    
-    B1 --> F1
-    B2 --> F4
-    B3 --> F2
-    B4 --> F5
-    B5 --> F3
-    
-    G1 --> E4
-    G2 --> E5
-    G3 --> D1
-    G4 --> B1
-    G5 --> A1
+ subgraph "Layer 1: API网关层"
+ A1[API Gateway集群]
+ A2[负载均衡器]
+ A3[认证授权中心]
+ A4[限流熔断器]
+ A5[路由策略引擎]
+ end
+ 
+ subgraph "Layer 2: 业务逻辑层"
+ B1[告警服务集群]
+ B2[修复服务集群]
+ B3[拓扑服务集群]
+ B4[工作流服务集群]
+ B5[审计服务集群]
+ B6[用户服务集群]
+ B7[配置服务集群]
+ end
+ 
+ subgraph "Layer 3: AI引擎层"
+ C1[LLM路由服务]
+ C2[RAG服务集群]
+ C3[代理编排服务]
+ C4[情景记忆服务]
+ C5[知识图谱服务]
+ C6[因果分析服务]
+ C7[异常检测服务]
+ end
+ 
+ subgraph "Layer 4: 数据访问层"
+ D1[数据访问服务]
+ D2[缓存服务]
+ D3[向量检索服务]
+ D4[数据同步服务]
+ D5[事务管理服务]
+ end
+ 
+ subgraph "Layer 5: 数据存储层"
+ E1[PostgreSQL集群]
+ E2[Redis集群]
+ E3[Qdrant集群]
+ E4[Prometheus集群]
+ E5[ClickHouse集群]
+ E6[Neo4j集群]
+ end
+ 
+ subgraph "Layer 6: 集成层"
+ F1[监控工具集成服务]
+ F2[云平台集成服务]
+ F3[通知服务集群]
+ F4[工作流集成服务]
+ F5[ITSM集成服务]
+ end
+ 
+ subgraph "Layer 7: 监控层"
+ G1[指标收集服务]
+ G2[日志聚合服务]
+ G3[分布式追踪服务]
+ G4[性能监控服务]
+ G5[告警管理服务]
+ end
+ 
+ A1 --> B1
+ A1 --> B2
+ A1 --> B3
+ A1 --> B4
+ A1 --> B5
+ A1 --> B6
+ A1 --> B7
+ 
+ B1 --> C1
+ B2 --> C3
+ B3 --> C5
+ B4 --> C2
+ B5 --> C4
+ B6 --> C7
+ B7 --> C6
+ 
+ C1 --> D1
+ C2 --> D3
+ C3 --> D4
+ C4 --> D2
+ C5 --> D1
+ C6 --> D1
+ C7 --> D1
+ 
+ D1 --> E1
+ D2 --> E2
+ D3 --> E3
+ D4 --> E5
+ D5 --> E6
+ 
+ B1 --> F1
+ B2 --> F4
+ B3 --> F2
+ B4 --> F5
+ B5 --> F3
+ 
+ G1 --> E4
+ G2 --> E5
+ G3 --> D1
+ G4 --> B1
+ G5 --> A1
 ```
 
 ---

@@ -17,160 +17,160 @@
 
 #### 变更2: 移除black检查的容错机制
 - **原配置** (第124行):
-  ```yaml
-  - name: Run black
-    run: |
-      black --check core/ api/ tests/ || echo "Black formatting issues found"
-  ```
+ ```yaml
+ - name: Run black
+ run: |
+ black --check core/ api/ tests/ || echo "Black formatting issues found"
+ ```
 - **新配置** (第117-121行):
-  ```yaml
-  - name: Run black
-    run: |
-      echo "=== Running Black code formatting check ==="
-      echo "Configuration: line-length=100 (from pyproject.toml)"
-      black --check core/ api/ tests/
-  ```
+ ```yaml
+ - name: Run black
+ run: |
+ echo "=== Running Black code formatting check ==="
+ echo "Configuration: line-length=100 (from pyproject.toml)"
+ black --check core/ api/ tests/
+ ```
 - **变更说明**: 移除了`|| echo "Black formatting issues found"`，使black检查失败时CI会真正失败
 
 #### 变更3: 移除isort检查的容错机制
 - **原配置** (第128行):
-  ```yaml
-  - name: Run isort
-    run: |
-      isort --check-only core/ api/ tests/ || echo "Import sorting issues found"
-  ```
+ ```yaml
+ - name: Run isort
+ run: |
+ isort --check-only core/ api/ tests/ || echo "Import sorting issues found"
+ ```
 - **新配置** (第123-127行):
-  ```yaml
-  - name: Run isort
-    run: |
-      echo "=== Running isort import sorting check ==="
-      echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
-      isort --check-only core/ api/ tests/
-  ```
+ ```yaml
+ - name: Run isort
+ run: |
+ echo "=== Running isort import sorting check ==="
+ echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
+ isort --check-only core/ api/ tests/
+ ```
 - **变更说明**: 移除了`|| echo "Import sorting issues found"`，使isort检查失败时CI会真正失败
 
 #### 变更4: 添加mypy类型检查
 - **新增步骤** (第136-140行):
-  ```yaml
-  - name: Run mypy
-    run: |
-      echo "=== Running mypy type checking ==="
-      echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
-      mypy core/ api/ --ignore-missing-imports
-  ```
+ ```yaml
+ - name: Run mypy
+ run: |
+ echo "=== Running mypy type checking ==="
+ echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
+ mypy core/ api/ --ignore-missing-imports
+ ```
 - **变更说明**: 添加了mypy类型检查作为质量门禁的一部分
 
 #### 变更5: 更新flake8配置
 - **原配置** (第119-120行):
-  ```yaml
-  flake8 core/ api/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
-  flake8 core/ api/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-  ```
+ ```yaml
+ flake8 core/ api/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+ flake8 core/ api/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+ ```
 - **新配置** (第129-134行):
-  ```yaml
-  - name: Run flake8
-    run: |
-      echo "=== Running flake8 linting check ==="
-      echo "Configuration: max-line-length=100 (from pyproject.toml)"
-      flake8 core/ api/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
-      flake8 core/ api/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
-  ```
+ ```yaml
+ - name: Run flake8
+ run: |
+ echo "=== Running flake8 linting check ==="
+ echo "Configuration: max-line-length=100 (from pyproject.toml)"
+ flake8 core/ api/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+ flake8 core/ api/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+ ```
 - **变更说明**: 将max-line-length从127改为100，与pyproject.toml配置保持一致
 
 #### 变更6: 更新build job依赖
 - **原配置** (第256行):
-  ```yaml
-  needs: [test, lint, security, test-collection-validation]
-  ```
+ ```yaml
+ needs: [test, lint, security, test-collection-validation]
+ ```
 - **新配置** (第266行):
-  ```yaml
-  needs: [test, code-quality, security, test-collection-validation]
-  ```
+ ```yaml
+ needs: [test, code-quality, security, test-collection-validation]
+ ```
 - **变更说明**: 将lint改为code-quality，以匹配新的job名称
 
 ### 2. `.github/workflows/ci.yml`
 
 #### 变更1: 新增独立的code-quality job
 - **新增job** (第13-48行):
-  ```yaml
-  code-quality:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install black isort mypy pylint
-    
-    - name: Run code formatting check
-      run: |
-        echo "=== Running Black code formatting check ==="
-        echo "Configuration: line-length=100 (from pyproject.toml)"
-        black --check core/ api/ tests/
-        echo "=== Running isort import sorting check ==="
-        echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
-        isort --check-only core/ api/ tests/
-    
-    - name: Run linting
-      run: |
-        echo "=== Running pylint linting check ==="
-        pylint core/ api/ --errors-only
-    
-    - name: Run type checking
-      run: |
-        echo "=== Running mypy type checking ==="
-        echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
-        mypy core/ api/ --ignore-missing-imports
-  ```
+ ```yaml
+ code-quality:
+ runs-on: ubuntu-latest
+ 
+ steps:
+ - uses: actions/checkout@v4
+ 
+ - name: Set up Python
+ uses: actions/setup-python@v5
+ with:
+ python-version: '3.12'
+ 
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install black isort mypy pylint
+ 
+ - name: Run code formatting check
+ run: |
+ echo "=== Running Black code formatting check ==="
+ echo "Configuration: line-length=100 (from pyproject.toml)"
+ black --check core/ api/ tests/
+ echo "=== Running isort import sorting check ==="
+ echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
+ isort --check-only core/ api/ tests/
+ 
+ - name: Run linting
+ run: |
+ echo "=== Running pylint linting check ==="
+ pylint core/ api/ --errors-only
+ 
+ - name: Run type checking
+ run: |
+ echo "=== Running mypy type checking ==="
+ echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
+ mypy core/ api/ --ignore-missing-imports
+ ```
 - **变更说明**: 创建独立的代码质量检查job，包含black、isort、pylint和mypy检查
 
 #### 变更2: 从test job中移除代码质量检查步骤
 - **移除的步骤**:
-  - Run code formatting check (black和isort)
-  - Run linting (pylint)
-  - Run type checking (mypy)
+ - Run code formatting check (black和isort)
+ - Run linting (pylint)
+ - Run type checking (mypy)
 - **保留的步骤**:
-  - Run security scan (bandit和safety，使用|| true容错)
+ - Run security scan (bandit和safety，使用|| true容错)
 - **变更说明**: 将代码质量检查移到独立的code-quality job中，test job专注于测试和安全扫描
 
 #### 变更3: 更新test job依赖
 - **原配置**:
-  ```yaml
-  test:
-    runs-on: ubuntu-latest
-  ```
+ ```yaml
+ test:
+ runs-on: ubuntu-latest
+ ```
 - **新配置** (第51-52行):
-  ```yaml
-  test:
-    needs: code-quality
-    runs-on: ubuntu-latest
-  ```
+ ```yaml
+ test:
+ needs: code-quality
+ runs-on: ubuntu-latest
+ ```
 - **变更说明**: test job现在依赖于code-quality job，确保代码质量检查通过后才运行测试
 
 #### 变更4: 更新build和docker-push job依赖
 - **原配置** (第225行):
-  ```yaml
-  needs: [test, integration-test, docker-test]
-  ```
+ ```yaml
+ needs: [test, integration-test, docker-test]
+ ```
 - **新配置** (第251行):
-  ```yaml
-  needs: [code-quality, test, integration-test, docker-test]
-  ```
+ ```yaml
+ needs: [code-quality, test, integration-test, docker-test]
+ ```
 - **原配置** (第256行):
-  ```yaml
-  needs: [test, integration-test, docker-test]
-  ```
+ ```yaml
+ needs: [test, integration-test, docker-test]
+ ```
 - **新配置** (第282行):
-  ```yaml
-  needs: [code-quality, test, integration-test, docker-test]
-  ```
+ ```yaml
+ needs: [code-quality, test, integration-test, docker-test]
+ ```
 - **变更说明**: build和docker-push job现在都依赖于code-quality job
 
 ## 配置一致性

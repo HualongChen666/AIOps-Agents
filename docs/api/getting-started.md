@@ -18,16 +18,16 @@ print(resp.json())
 - 示例（curl）:
 ```bash
 curl -X GET http://localhost:8000/api/v1/health \
-  -H "Authorization: Bearer YOUR_TOKEN"
+ -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ## 3. 常用请求 / 响应格式
 所有成功请求返回 **application/json**，示例结构已在 OpenAPI 文档中提供（`example`字段）。错误响应统一使用以下格式：
 ```json
 {
-  "error": "string",
-  "message": "string",
-  "detail": null
+ "error": "string",
+ "message": "string",
+ "detail": null
 }
 ```
 对应 HTTP 状态码：

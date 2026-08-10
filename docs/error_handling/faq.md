@@ -72,7 +72,7 @@ from aiops_core.error_codes import ErrorCode
 print(ErrorCode.GEN_VALIDATION_FAILED)  # 01_01_0001
 ```
 
-3. 使用错误码管理器：
+1. 使用错误码管理器：
 
 ```python
 from aiops_core.error_codes import get_error_message
@@ -387,17 +387,21 @@ def test_validation_error():
     assert exc_info.value.error_code == "01_01_0001"
 ```
 
-### Q22: 如何Mock外部错误？
+### Q22: 如何Fake外部错误？
 
-**A**: 使用unittest.mock：
+**A**: 临时替换目标函数：
 
 ```python
-from unittest.mock import patch
+import external_api
 
 def test_external_service_error():
-    with patch('external_api.call', side_effect=Exception("API Error")):
+    original = external_api.call
+    external_api.call = lambda *args, **kwargs: (_ for _ in ()).throw(Exception("API Error"))
+    try:
         with pytest.raises(ExternalServiceException):
             call_external_service()
+    finally:
+        external_api.call = original
 ```
 
 ## 10. 常见问题

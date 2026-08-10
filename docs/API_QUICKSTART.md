@@ -33,7 +33,7 @@ curl http://localhost:8000/api/v1/health/ping
 Response:
 ```json
 {
-  "status": "alive"
+ "status": "alive"
 }
 ```
 
@@ -48,18 +48,18 @@ curl http://localhost:8000/api/v1/health/detailed
 Response:
 ```json
 {
-  "status": "healthy",
-  "timestamp": "2026-07-02T00:00:00Z",
-  "components": {
-    "database": {"status": "healthy", "response_time_ms": 5},
-    "redis": {"status": "healthy", "response_time_ms": 2},
-    "ai_engine": {"status": "healthy", "model_loaded": true}
-  },
-  "metrics": {
-    "cpu_usage": 45.2,
-    "memory_usage": 68.3,
-    "active_connections": 42
-  }
+ "status": "healthy",
+ "timestamp": "2026-07-02T00:00:00Z",
+ "components": {
+ "database": {"status": "healthy", "response_time_ms": 5},
+ "redis": {"status": "healthy", "response_time_ms": 2},
+ "ai_engine": {"status": "healthy", "model_loaded": true}
+ },
+ "metrics": {
+ "cpu_usage": 45.2,
+ "memory_usage": 68.3,
+ "active_connections": 42
+ }
 }
 ```
 
@@ -69,34 +69,34 @@ Submit a natural language query for AI-powered root cause analysis:
 
 ```bash
 curl -X POST http://localhost:8000/api/ai/analyze \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <your_token>" \
-  -d '{
-    "query": "Why is the server slow?",
-    "platform": "linux",
-    "include_metrics": true,
-    "include_rich_context": true
-  }'
+ -H "Content-Type: application/json" \
+ -H "Authorization: Bearer <your_token>" \
+ -d '{
+ "query": "Why is the server slow?",
+ "platform": "linux",
+ "include_metrics": true,
+ "include_rich_context": true
+ }'
 ```
 
 Response:
 ```json
 {
-  "analysis": "High CPU usage detected in python3 process consuming 85% CPU",
-  "confidence": 0.92,
-  "suggested_actions": [
-    "Check process logs for unusual activity",
-    "Consider scaling resources",
-    "Monitor memory usage"
-  ],
-  "context_used": {
-    "cpu_usage": 85.2,
-    "memory_usage": 68.3,
-    "top_processes": [
-      {"name": "python3", "cpu": 85.2, "memory": 12.5}
-    ]
-  },
-  "timestamp": "2026-07-02T00:00:00Z"
+ "analysis": "High CPU usage detected in python3 process consuming 85% CPU",
+ "confidence": 0.92,
+ "suggested_actions": [
+ "Check process logs for unusual activity",
+ "Consider scaling resources",
+ "Monitor memory usage"
+ ],
+ "context_used": {
+ "cpu_usage": 85.2,
+ "memory_usage": 68.3,
+ "top_processes": [
+ {"name": "python3", "cpu": 85.2, "memory": 12.5}
+ ]
+ },
+ "timestamp": "2026-07-02T00:00:00Z"
 }
 ```
 
@@ -148,7 +148,7 @@ All endpoints return standard HTTP status codes:
 Error response format:
 ```json
 {
-  "detail": "Error message describing what went wrong"
+ "detail": "Error message describing what went wrong"
 }
 ```
 
@@ -167,7 +167,7 @@ Real-time updates are available via WebSocket connections:
 ```javascript
 const ws = new WebSocket('ws://localhost:8000/api/sse/workflow');
 ws.onmessage = (event) => {
-  console.log('Update:', event.data);
+ console.log('Update:', event.data);
 };
 ```
 

@@ -21,9 +21,9 @@ cd AIOps_Agent
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
+source venv/bin/activate # Linux/Mac
 # or
-venv\Scripts\activate  # Windows
+venv\Scripts\activate # Windows
 ```
 
 ### 3. Install Dependencies
@@ -140,11 +140,11 @@ docker-compose up -d
 
 ```bash
 docker run -d \
-  --name aiops-agent \
-  -p 8000:8000 \
-  -e DATABASE_URL=postgresql://user:password@db:5432/aiops \
-  -e REDIS_URL=redis://redis:6379 \
-  aiops-agent:latest
+ --name aiops-agent \
+ -p 8000:8000 \
+ -e DATABASE_URL=postgresql://user:password@db:5432/aiops \
+ -e REDIS_URL=redis://redis:6379 \
+ aiops-agent:latest
 ```
 
 ## Kubernetes Deployment
@@ -207,9 +207,9 @@ Adjust database pool size in `config/production.yaml`:
 
 ```yaml
 database:
-  pool_size: 20
-  max_overflow: 10
-  pool_timeout: 30
+ pool_size: 20
+ max_overflow: 10
+ pool_timeout: 30
 ```
 
 ### Redis Connection Pool
@@ -218,9 +218,9 @@ Adjust Redis pool settings:
 
 ```yaml
 redis:
-  max_connections: 50
-  socket_timeout: 5
-  socket_connect_timeout: 5
+ max_connections: 50
+ socket_timeout: 5
+ socket_connect_timeout: 5
 ```
 
 ### Worker Processes

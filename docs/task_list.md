@@ -13,7 +13,7 @@
 ## 主要代码变更
 
 - `core/db_optimization.py`：将 `PERFORMANCE_INDEXES` 从直接引用模型属性改为 `_IndexSpec` dataclass，消除 import-time 循环依赖。
-- `core/rag_engine.py`：`QdrantClient` / `SentenceTransformer` / qmodels 延迟导入并暴露为模块属性，支持测试 mock，避免 worker crash。
+- `core/rag_engine.py`：`QdrantClient` / `SentenceTransformer` / qmodels 延迟导入并暴露为模块属性，支持测试 fake 对象，避免 worker crash。
 - `core/authentication.py`：Redis client 改为 `_get_redis_client()` 懒加载；增加 `Authentication = JWTAuthService` 别名。
 - `core/alert_engine.py`：增加 `alert_engine = AutomaticAlertRouter()` 实例别名。
 - `core/base/collector.py`：新增 `Collector` 具体实现，修复 `tests/unit/test_collector_unit.py` 初始化失败。
@@ -24,7 +24,7 @@
 - `.coveragerc`：source 限定为 `core`/`api`，omit 未使用的死代码。
 - `scripts/run_core_api_infrastructure_tests.py`：新增 `unit` phase，每次启动前清除 `.coverage`/`coverage.json`/`coverage.xml`。
 - `core/ai/rag/vectorizer.py` / `retriever.py` / `fusion.py` / `reranker.py`：将 `ChunkingStrategy`、`EmbeddingModel`、`RetrievalStrategy`、`FusionStrategy`、`Reranker` 改为可实例化的普通基类，默认方法抛 `NotImplementedError`，修复相关 `NotImplementedError` 测试断言。
-- `tests/core/test_heal_graph_rollback.py`：在 `_enable_execution` 中 mock `heal_graph.analyze_command` 为安全放行，避免 `python -c` 被 `command_guard` 拦截导致 rollback 失败。
+- `tests/core/test_heal_graph_rollback.py`：在 `_enable_execution` 中 patch `heal_graph.analyze_command` 为安全放行，避免 `python -c` 被 `command_guard` 拦截导致 rollback 失败。
 
 ## 验证命令
 
@@ -45,20 +45,20 @@ python -m bandit -r core api
 ## 任务 36-38：数据访问 / 缓存 / 向量检索服务完成情况
 
 - **36 数据访问服务** (`services/data_access_service/`): 已完成
-  - 实现 `service.py`（SQLAlchemy 2.0 async ORM、查询构建器、事务、连接池、慢查询监控、读写分离、分片、数据库路由、查询优化、缓存、指标、重试）
-  - 实现 `main_app.py`（FastAPI REST + RPC）
-  - 实现 `schemas.py`（Pydantic v2）
-  - 测试 `tests/services/data_access_service/`: 35 passed，覆盖率 86.61%
+- 实现 `service.py`（SQLAlchemy 2.0 async ORM、查询构建器、事务、连接池、慢查询监控、读写分离、分片、数据库路由、查询优化、缓存、指标、重试）
+- 实现 `main_app.py`（FastAPI REST + RPC）
+- 实现 `schemas.py`（Pydantic v2）
+- 测试 `tests/services/data_access_service/`: 35 passed，覆盖率 86.61%
 - **37 缓存服务** (`services/cache_service/`): 已完成
-  - 实现 `service.py`（Redis/in-memory 缓存、缓存预热、击穿/雪崩保护、Cache-Aside/Write-Through/Write-Behind/Refresh-Ahead）
-  - 实现 `main_app.py`（FastAPI REST + RPC）
-  - 实现 `schemas.py`（Pydantic v2）
-  - 测试 `tests/services/cache_service/`: 18 passed，覆盖率 83.57%
+- 实现 `service.py`（Redis/in-memory 缓存、缓存预热、击穿/雪崩保护、Cache-Aside/Write-Through/Write-Behind/Refresh-Ahead）
+- 实现 `main_app.py`（FastAPI REST + RPC）
+- 实现 `schemas.py`（Pydantic v2）
+- 测试 `tests/services/cache_service/`: 18 passed，覆盖率 83.57%
 - **38 向量检索服务** (`services/vector_retrieval_service/`): 已完成
-  - 实现 `service.py`（in-memory numpy 向量存储/索引、相似度搜索、ANN/精确搜索、混合搜索、多向量搜索、K-Means 聚类、Qdrant fallback）
-  - 实现 `main_app.py`（FastAPI REST + RPC）
-  - 实现 `schemas.py`（Pydantic v2）
-  - 测试 `tests/services/vector_retrieval_service/`: 28 passed，覆盖率 83.67%
+- 实现 `service.py`（in-memory numpy 向量存储/索引、相似度搜索、ANN/精确搜索、混合搜索、多向量搜索、K-Means 聚类、Qdrant fallback）
+- 实现 `main_app.py`（FastAPI REST + RPC）
+- 实现 `schemas.py`（Pydantic v2）
+- 测试 `tests/services/vector_retrieval_service/`: 28 passed，覆盖率 83.67%
 
 ### 统一验证结果
 
@@ -77,8 +77,8 @@ python -m pytest tests/services/data_access_service tests/services/cache_service
 
 - **mypy 类型检查**：`python -m mypy .` 已完成，识别 214 处类型错误，覆盖 187 个文件。已修复 `api/stats_router.py`（`get_summary`/`record_repair_result` 缺少 `await`）、`api/ai_router.py`（`get_real_summary` 误用 `asyncio.to_thread`）、`api/autoheal_router.py`（`# type: ignore` 标注 mypy 无法推断的 else 分支）中的高频 `await` 相关问题；`pytest tests/api/test_stats_router.py tests/api/test_autoheal_router.py` 32 + 5 passed。`mypy` 属于项目可选严格检查。
 - **pip-audit 依赖漏洞扫描**：
-  - `dry-run` 可正常解析 `requirements.txt`，识别 235 个待审计包；
-  - 实际联网扫描（pypi/osv）长时间无响应，已终止；当前环境存在网络/代理限制，建议在有网络时单独执行。
+- `dry-run` 可正常解析 `requirements.txt`，识别 235 个待审计包；
+- 实际联网扫描（pypi/osv）长时间无响应，已终止；当前环境存在网络/代理限制，建议在有网络时单独执行。
 
 ## 后续建议
 

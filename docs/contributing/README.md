@@ -16,59 +16,59 @@
 ## 贡献流程
 
 1. **Fork 并 Clone**
-   ```bash
-   git clone https://github.com/your-username/AIOps_Agent.git
-   cd AIOps_Agent
-   ```
+ ```bash
+ git clone https://github.com/your-username/AIOps_Agent.git
+ cd AIOps_Agent
+ ```
 2. **创建分支**
-   ```bash
-   git checkout -b feature/your-feature-name   # 新功能
-   # 或
-   git checkout -b fix/your-bug-fix          # Bug 修复
-   ```
+ ```bash
+ git checkout -b feature/your-feature-name # 新功能
+ # 或
+ git checkout -b fix/your-bug-fix # Bug 修复
+ ```
 3. **本地开发**
-   - 按照 **开发环境搭建** 部分准备好虚拟环境与依赖。
-   - 完成代码实现，遵循 **代码规范**（PEP8、类型提示、Google 风格 docstring）。
+ - 按照 **开发环境搭建** 部分准备好虚拟环境与依赖。
+ - 完成代码实现，遵循 **代码规范**（PEP8、类型提示、Google 风格 docstring）。
 4. **编写测试**
-   - 为新功能或修改编写单元/集成测试，确保覆盖率 ≥ 80%。
+ - 为新功能或修改编写单元/集成测试，确保覆盖率 ≥ 80%。
 5. **提交并 Push**
-   ```bash
-   git add .
-   git commit -m "feat: 添加新功能描述"
-   git push origin feature/your-feature-name
-   ```
+ ```bash
+ git add .
+ git commit -m "feat: 添加新功能描述"
+ git push origin feature/your-feature-name
+ ```
 6. **创建 Pull Request**
-   - 在 GitHub 上创建 PR，描述变更动机、关联 Issue（若有）并附上必要的截图或日志。 
-   - PR 将触发 CI 自动检查（格式化、Lint、类型检查、测试），并进入维护者审查阶段。
+ - 在 GitHub 上创建 PR，描述变更动机、关联 Issue（若有）并附上必要的截图或日志。 
+ - PR 将触发 CI 自动检查（格式化、Lint、类型检查、测试），并进入维护者审查阶段。
 
 ---
 
 ## 开发环境搭建
 
 1. **创建并激活虚拟环境**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # Linux/macOS
-   # 或
-   venv\Scripts\activate    # Windows
-   ```
+ ```bash
+ python -m venv venv
+ source venv/bin/activate # Linux/macOS
+ # 或
+ venv\Scripts\activate # Windows
+ ```
 2. **安装依赖**
-   ```bash
-   pip install -r requirements.txt
-   ```
+ ```bash
+ pip install -r requirements.txt
+ ```
 3. **配置环境变量**
-   ```bash
-   cp .env.example .env
-   # 编辑 .env 填入本地或测试环境配置
-   ```
+ ```bash
+ cp .env.example .env
+ # 编辑 .env 填入本地或测试环境配置
+ ```
 4. **运行测试确保环境正常**
-   ```bash
-   pytest
-   ```
+ ```bash
+ pytest
+ ```
 5. **启动开发服务器**（可选）
-   ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
-   ```
+ ```bash
+ uvicorn main:app --reload --host 0.0.0.0 --port 8000
+ ```
 
 ---
 
@@ -100,10 +100,10 @@ python -m flake8 .
 ### 目录结构
 ```
 tests/
-├── unit/          # 单元测试
-├── integration/   # 集成测试
-├── e2e/           # 端到端测试
-└── fixtures/      # 测试数据/Mock
+├── unit/ # 单元测试
+├── integration/ # 集成测试
+├── e2e/ # 端到端测试
+└── fixtures/ # 测试数据/Mock
 ```
 ### 编写测试
 ```python
@@ -111,18 +111,18 @@ import pytest
 from your_module import your_function
 
 def test_your_function():
-    # Arrange
-    input_data = {...}
-    # Act
-    result = your_function(input_data)
-    # Assert
-    assert result == expected
+ # Arrange
+ input_data = {...}
+ # Act
+ result = your_function(input_data)
+ # Assert
+ assert result == expected
 ```
 ### 运行测试
 ```bash
-pytest                # 运行全部
-pytest tests/unit/    # 仅运行单元测试
-pytest --cov=. --cov-report=html   # 生成覆盖报告
+pytest # 运行全部
+pytest tests/unit/ # 仅运行单元测试
+pytest --cov=. --cov-report=html # 生成覆盖报告
 ```
 > **目标**：整体覆盖率 ≥ 80%，关键路径覆盖率 ≥ 90%。
 
@@ -131,13 +131,13 @@ pytest --cov=. --cov-report=html   # 生成覆盖报告
 ## 提交规范
 
 - **提交信息** 采用 **Conventional Commits**：
-  - `feat:` 新功能
-  - `fix:` Bug 修复
-  - `docs:` 文档更新
-  - `style:` 代码格式（不影响功能）
-  - `refactor:` 重构代码
-  - `test:` 测试相关
-  - `chore:` 其他维护
+ - `feat:` 新功能
+ - `fix:` Bug 修复
+ - `docs:` 文档更新
+ - `style:` 代码格式（不影响功能）
+ - `refactor:` 重构代码
+ - `test:` 测试相关
+ - `chore:` 其他维护
 - **提交频率**：每次功能/修复完成后立即提交，避免大幅度一次性提交。
 - **审查前自检**：在提交前运行全部 CI 检查（格式化、Lint、类型检查、测试），确保 `git status` 为干净状态。
 

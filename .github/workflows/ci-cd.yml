@@ -1,319 +1,319 @@
 name: AIOps Agent CI/CD
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+ push:
+ branches: [ main, develop ]
+ pull_request:
+ branches: [ main, develop ]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11', '3.12']
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-cov pytest-asyncio pytest-mock
-        pip install fastapi httpx
-        pip install -r requirements.txt || echo "No requirements.txt found"
-    
-    - name: Validate test collection
-      run: |
-        echo "=== Validating test collection ==="
-        python -m pytest --collect-only --tb=line > test-collection-output.txt 2>&1
-        cat test-collection-output.txt
-    
-    - name: Check for collection errors
-      run: |
-        echo "=== Checking for collection errors ==="
-        if grep -q "ERROR" test-collection-output.txt; then
-          echo "❌ Test collection errors found:"
-          grep "ERROR" test-collection-output.txt
-          exit 1
-        else
-          echo "✅ No collection errors found"
-        fi
-    
-    - name: Validate minimum test count
-      run: |
-        echo "=== Validating minimum test count ==="
-        TEST_COUNT=$(grep -oP '\d+(?= tests collected)' test-collection-output.txt || echo "0")
-        echo "Current test count: $TEST_COUNT"
-        MIN_TESTS=2000  # 设置最小测试数量阈值
-        if [ "$TEST_COUNT" -lt "$MIN_TESTS" ]; then
-          echo "❌ Test count ($TEST_COUNT) below minimum threshold ($MIN_TESTS)"
-          exit 1
-        else
-          echo "✅ Test count ($TEST_COUNT) meets minimum threshold ($MIN_TESTS)"
-        fi
-    
-    - name: Upload collection output
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: test-collection-output
-        path: test-collection-output.txt
-    
-    - name: Run unit tests
-      run: |
-        pytest tests/unit/ -v --tb=short --cov=core --cov=api --cov-report=xml --cov-report=term-missing
-    
-    - name: Run API tests
-      run: |
-        pytest tests/api/ -v --tb=short --cov=api --cov-append --cov-report=xml
-    
-    - name: Run integration tests
-      run: |
-        pytest tests/integration/ -v --tb=short --cov-append --cov-report=xml
-    
-    - name: Run e2e tests
-      run: |
-        pytest tests/e2e/ -v --tb=short --cov-append --cov-report=xml
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+ test:
+ runs-on: ubuntu-latest
+ 
+ strategy:
+ matrix:
+ python-version: ['3.10', '3.11', '3.12']
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Set up Python ${{ matrix.python-version }}
+ uses: actions/setup-python@v4
+ with:
+ python-version: ${{ matrix.python-version }}
+ 
+ - name: Cache pip dependencies
+ uses: actions/cache@v3
+ with:
+ path: ~/.cache/pip
+ key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+ restore-keys: |
+ ${{ runner.os }}-pip-
+ 
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install pytest pytest-cov pytest-asyncio
+ pip install fastapi httpx
+ pip install -r requirements.txt || echo "No requirements.txt found"
+ 
+ - name: Validate test collection
+ run: |
+ echo "=== Validating test collection ==="
+ python -m pytest --collect-only --tb=line > test-collection-output.txt 2>&1
+ cat test-collection-output.txt
+ 
+ - name: Check for collection errors
+ run: |
+ echo "=== Checking for collection errors ==="
+ if grep -q "ERROR" test-collection-output.txt; then
+ echo "❌ Test collection errors found:"
+ grep "ERROR" test-collection-output.txt
+ exit 1
+ else
+ echo "✅ No collection errors found"
+ fi
+ 
+ - name: Validate minimum test count
+ run: |
+ echo "=== Validating minimum test count ==="
+ TEST_COUNT=$(grep -oP '\d+(?= tests collected)' test-collection-output.txt || echo "0")
+ echo "Current test count: $TEST_COUNT"
+ MIN_TESTS=2000 # 设置最小测试数量阈值
+ if [ "$TEST_COUNT" -lt "$MIN_TESTS" ]; then
+ echo "❌ Test count ($TEST_COUNT) below minimum threshold ($MIN_TESTS)"
+ exit 1
+ else
+ echo "✅ Test count ($TEST_COUNT) meets minimum threshold ($MIN_TESTS)"
+ fi
+ 
+ - name: Upload collection output
+ uses: actions/upload-artifact@v3
+ if: always()
+ with:
+ name: test-collection-output
+ path: test-collection-output.txt
+ 
+ - name: Run unit tests
+ run: |
+ pytest tests/unit/ -v --tb=short --cov=core --cov=api --cov-report=xml --cov-report=term-missing
+ 
+ - name: Run API tests
+ run: |
+ pytest tests/api/ -v --tb=short --cov=api --cov-append --cov-report=xml
+ 
+ - name: Run integration tests
+ run: |
+ pytest tests/integration/ -v --tb=short --cov-append --cov-report=xml
+ 
+ - name: Run e2e tests
+ run: |
+ pytest tests/e2e/ -v --tb=short --cov-append --cov-report=xml
+ 
+ - name: Upload coverage to Codecov
+ uses: codecov/codecov-action@v3
+ with:
+ file: ./coverage.xml
+ flags: unittests
+ name: codecov-umbrella
+ fail_ci_if_error: false
 
-  code-quality:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 black isort mypy
-    
-    - name: Run black
-      run: |
-        echo "=== Running Black code formatting check ==="
-        echo "Configuration: line-length=100 (from pyproject.toml)"
-        black --check .
-    
-    - name: Run isort
-      run: |
-        echo "=== Running isort import sorting check ==="
-        echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
-        isort --check-only .
-    
-    - name: Run flake8
-      run: |
-        echo "=== Running flake8 linting check ==="
-        echo "Configuration: max-line-length=100 (from pyproject.toml)"
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
-    
-    - name: Run mypy
-      run: |
-        echo "=== Running mypy type checking ==="
-        echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
-        mypy . --ignore-missing-imports
+ code-quality:
+ runs-on: ubuntu-latest
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Set up Python
+ uses: actions/setup-python@v4
+ with:
+ python-version: '3.12'
+ 
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install flake8 black isort mypy
+ 
+ - name: Run black
+ run: |
+ echo "=== Running Black code formatting check ==="
+ echo "Configuration: line-length=100 (from pyproject.toml)"
+ black --check .
+ 
+ - name: Run isort
+ run: |
+ echo "=== Running isort import sorting check ==="
+ echo "Configuration: profile=black, line_length=100 (from pyproject.toml)"
+ isort --check-only .
+ 
+ - name: Run flake8
+ run: |
+ echo "=== Running flake8 linting check ==="
+ echo "Configuration: max-line-length=100 (from pyproject.toml)"
+ flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+ flake8 . --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+ 
+ - name: Run mypy
+ run: |
+ echo "=== Running mypy type checking ==="
+ echo "Configuration: python_version=3.10, ignore_missing_imports=true (from pyproject.toml)"
+ mypy . --ignore-missing-imports
 
-  security:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install bandit safety
-    
-    - name: Run bandit security check
-      run: |
-        bandit -r . -f json -o bandit-report.json || true
-        bandit -r . -f screen
-    
-    - name: Run safety check
-      run: |
-        safety check --json --output safety-report.json || true
-        safety check || true
-    
-    - name: Upload security reports
-      uses: actions/upload-artifact@v3
-      with:
-        name: security-reports
-        path: |
-          bandit-report.json
-          safety-report.json
+ security:
+ runs-on: ubuntu-latest
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Set up Python
+ uses: actions/setup-python@v4
+ with:
+ python-version: '3.12'
+ 
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install bandit safety
+ 
+ - name: Run bandit security check
+ run: |
+ bandit -r . -f json -o bandit-report.json || true
+ bandit -r . -f screen
+ 
+ - name: Run safety check
+ run: |
+ safety check --json --output safety-report.json || true
+ safety check || true
+ 
+ - name: Upload security reports
+ uses: actions/upload-artifact@v3
+ with:
+ name: security-reports
+ path: |
+ bandit-report.json
+ safety-report.json
 
-  test-collection-validation:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-asyncio pytest-mock
-        pip install -r requirements.txt || echo "No requirements.txt found"
-    
-    - name: Validate test collection
-      run: |
-        echo "=== Validating test collection ==="
-        python -m pytest --collect-only --tb=line > test-collection-output.txt 2>&1
-        cat test-collection-output.txt
-    
-    - name: Check for collection errors
-      run: |
-        echo "=== Checking for collection errors ==="
-        if grep -q "ERROR" test-collection-output.txt; then
-          echo "❌ Test collection errors found:"
-          grep "ERROR" test-collection-output.txt
-          exit 1
-        else
-          echo "✅ No collection errors found"
-        fi
-    
-    - name: Validate minimum test count
-      run: |
-        echo "=== Validating minimum test count ==="
-        TEST_COUNT=$(grep -oP '\d+(?= tests collected)' test-collection-output.txt || echo "0")
-        echo "Current test count: $TEST_COUNT"
-        MIN_TESTS=2000  # 设置最小测试数量阈值
-        if [ "$TEST_COUNT" -lt "$MIN_TESTS" ]; then
-          echo "❌ Test count ($TEST_COUNT) below minimum threshold ($MIN_TESTS)"
-          exit 1
-        else
-          echo "✅ Test count ($TEST_COUNT) meets minimum threshold ($MIN_TESTS)"
-        fi
-    
-    - name: Upload collection output
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: test-collection-output
-        path: test-collection-output.txt
+ test-collection-validation:
+ runs-on: ubuntu-latest
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Set up Python
+ uses: actions/setup-python@v4
+ with:
+ python-version: '3.12'
+ 
+ - name: Cache pip dependencies
+ uses: actions/cache@v3
+ with:
+ path: ~/.cache/pip
+ key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+ restore-keys: |
+ ${{ runner.os }}-pip-
+ 
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install pytest pytest-asyncio
+ pip install -r requirements.txt || echo "No requirements.txt found"
+ 
+ - name: Validate test collection
+ run: |
+ echo "=== Validating test collection ==="
+ python -m pytest --collect-only --tb=line > test-collection-output.txt 2>&1
+ cat test-collection-output.txt
+ 
+ - name: Check for collection errors
+ run: |
+ echo "=== Checking for collection errors ==="
+ if grep -q "ERROR" test-collection-output.txt; then
+ echo "❌ Test collection errors found:"
+ grep "ERROR" test-collection-output.txt
+ exit 1
+ else
+ echo "✅ No collection errors found"
+ fi
+ 
+ - name: Validate minimum test count
+ run: |
+ echo "=== Validating minimum test count ==="
+ TEST_COUNT=$(grep -oP '\d+(?= tests collected)' test-collection-output.txt || echo "0")
+ echo "Current test count: $TEST_COUNT"
+ MIN_TESTS=2000 # 设置最小测试数量阈值
+ if [ "$TEST_COUNT" -lt "$MIN_TESTS" ]; then
+ echo "❌ Test count ($TEST_COUNT) below minimum threshold ($MIN_TESTS)"
+ exit 1
+ else
+ echo "✅ Test count ($TEST_COUNT) meets minimum threshold ($MIN_TESTS)"
+ fi
+ 
+ - name: Upload collection output
+ uses: actions/upload-artifact@v3
+ if: always()
+ with:
+ name: test-collection-output
+ path: test-collection-output.txt
 
-  performance:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-benchmark
-    
-    - name: Run performance tests
-      run: |
-        pytest tests/api/test_metrics_router.py::TestMetricsRouterPerformance -v --benchmark-only
-    
-    - name: Upload performance results
-      uses: actions/upload-artifact@v3
-      with:
-        name: performance-results
-        path: .benchmarks/
+ performance:
+ runs-on: ubuntu-latest
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Set up Python
+ uses: actions/setup-python@v4
+ with:
+ python-version: '3.12'
+ 
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install pytest pytest-benchmark
+ 
+ - name: Run performance tests
+ run: |
+ pytest tests/api/test_metrics_router.py::TestMetricsRouterPerformance -v --benchmark-only
+ 
+ - name: Upload performance results
+ uses: actions/upload-artifact@v3
+ with:
+ name: performance-results
+ path: .benchmarks/
 
-  build:
-    runs-on: ubuntu-latest
-    needs: [test, code-quality, security, test-collection-validation]
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-    
-    - name: Build package
-      run: |
-        python -m build
-    
-    - name: Check package
-      run: |
-        twine check dist/*
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: dist
-        path: dist/
+ build:
+ runs-on: ubuntu-latest
+ needs: [test, code-quality, security, test-collection-validation]
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Set up Python
+ uses: actions/setup-python@v4
+ with:
+ python-version: '3.12'
+ 
+ - name: Install build dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install build twine
+ 
+ - name: Build package
+ run: |
+ python -m build
+ 
+ - name: Check package
+ run: |
+ twine check dist/*
+ 
+ - name: Upload build artifacts
+ uses: actions/upload-artifact@v3
+ with:
+ name: dist
+ path: dist/
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: dist
-        path: dist/
-    
-    - name: Deploy to production
-      run: |
-        echo "Deploying to production..."
-        # Add your deployment commands here
-        # Example: docker build -t aiops-agent .
-        # Example: kubectl apply -f k8s/
-    
-    - name: Notify deployment
-      run: |
-        echo "Deployment completed successfully"
-        # Add notification logic here (Slack, email, etc.)
+ deploy:
+ runs-on: ubuntu-latest
+ needs: [build]
+ if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Download build artifacts
+ uses: actions/download-artifact@v3
+ with:
+ name: dist
+ path: dist/
+ 
+ - name: Deploy to production
+ run: |
+ echo "Deploying to production..."
+ # Add your deployment commands here
+ # Example: docker build -t aiops-agent .
+ # Example: kubectl apply -f k8s/
+ 
+ - name: Notify deployment
+ run: |
+ echo "Deployment completed successfully"
+ # Add notification logic here (Slack, email, etc.)

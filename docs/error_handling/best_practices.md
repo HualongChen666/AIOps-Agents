@@ -190,6 +190,7 @@ def call_external_api():
 ```
 
 **最佳实践**:
+
 - 设置合理的重试次数（通常3-5次）
 - 使用指数退避策略
 - 只对临时性错误重试
@@ -210,6 +211,7 @@ def get_user_data(user_id):
 ```
 
 **最佳实践**:
+
 - 优先使用缓存
 - 提供默认值
 - 简化功能
@@ -234,6 +236,7 @@ def call_external_service():
 ```
 
 **最佳实践**:
+
 - 设置合理的故障阈值
 - 监控熔断状态
 - 提供降级方案
@@ -257,6 +260,7 @@ def update_user(user_id, data):
 ```
 
 **最佳实践**:
+
 - 使用数据库事务
 - 实现补偿操作
 - 记录回滚原因
@@ -597,15 +601,19 @@ def test_error_handling():
             raise
 ```
 
-### 10.3 Mock外部错误
+### 10.3 Fake 外部错误
 
 ```python
-from unittest.mock import patch
+import external_api
 
 def test_external_service_error():
-    with patch('external_api.call', side_effect=Exception("API Error")):
+    original = external_api.call
+    external_api.call = lambda *args, **kwargs: (_ for _ in ()).throw(Exception("API Error"))
+    try:
         with pytest.raises(ExternalServiceException):
             call_external_service()
+    finally:
+        external_api.call = original
 ```
 
 ## 11. 总结

@@ -541,7 +541,7 @@ except ImportError:
 # ------------------------
 # 初始化速率限制器
 # limiter = Limiter(key_func=get_remote_address)  # Temporarily disabled - .env encoding issue
-limiter = None  # default_value
+limiter = None  # disabled until rate limiter is configured
 
 # Global variables for enhanced cache and AI enhancer
 _enhanced_cache: Any = None

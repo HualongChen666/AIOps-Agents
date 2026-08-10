@@ -9,138 +9,138 @@
 
 ```mermaid
 graph TB
-    subgraph L0["表现层 / 客户端"]
-        FE["Next.js 前端<br/>frontend/app/ + components/"]
-        SDK["SDK / API Clients"]
-        CLI["CLI / curl / Webhook"]
-    end
+ subgraph L0["表现层 / 客户端"]
+ FE["Next.js 前端<br/>frontend/app/ + components/"]
+ SDK["SDK / API Clients"]
+ CLI["CLI / curl / Webhook"]
+ end
 
-    subgraph L1["Layer 1: API 网关层"]
-        AG["API Gateway 集群<br/>(Kong / APISIX / Envoy)"]
-        LB["负载均衡器<br/>(Nginx / HAProxy / ALB)"]
-        AUTH["认证授权中心<br/>(OAuth2 / JWT / MFA / RBAC / ABAC)"]
-        RL["限流熔断器<br/>(Rate Limiter / Circuit Breaker)"]
-        RSE["路由策略引擎<br/>(灰度 / A-B / 地理位置路由)"]
-        SEC["安全网关<br/>(WAF / DDoS / Input Validation)"]
-    end
+ subgraph L1["Layer 1: API 网关层"]
+ AG["API Gateway 集群<br/>(Kong / APISIX / Envoy)"]
+ LB["负载均衡器<br/>(Nginx / HAProxy / ALB)"]
+ AUTH["认证授权中心<br/>(OAuth2 / JWT / MFA / RBAC / ABAC)"]
+ RL["限流熔断器<br/>(Rate Limiter / Circuit Breaker)"]
+ RSE["路由策略引擎<br/>(灰度 / A-B / 地理位置路由)"]
+ SEC["安全网关<br/>(WAF / DDoS / Input Validation)"]
+ end
 
-    subgraph L2["Layer 2: 业务逻辑层"]
-        ALERT["告警服务集群"]
-        REPAIR["修复服务集群"]
-        TOPO["拓扑服务集群"]
-        WF["工作流服务集群"]
-        AUDIT["审计/合规服务集群"]
-        USER["用户/租户服务集群"]
-        CFG["配置/平台服务集群"]
-        DASH["仪表盘/指标服务集群"]
-        PLUGIN["插件生态服务"]
-        INTG["集成/ITSM/通知服务"]
-        DOC["文档/生成服务"]
-        TEST["测试/质量服务"]
-    end
+ subgraph L2["Layer 2: 业务逻辑层"]
+ ALERT["告警服务集群"]
+ REPAIR["修复服务集群"]
+ TOPO["拓扑服务集群"]
+ WF["工作流服务集群"]
+ AUDIT["审计/合规服务集群"]
+ USER["用户/租户服务集群"]
+ CFG["配置/平台服务集群"]
+ DASH["仪表盘/指标服务集群"]
+ PLUGIN["插件生态服务"]
+ INTG["集成/ITSM/通知服务"]
+ DOC["文档/生成服务"]
+ TEST["测试/质量服务"]
+ end
 
-    subgraph L3["Layer 3: AI 引擎层"]
-        LLM["LLM 路由服务"]
-        RAG["RAG 服务集群"]
-        AGENT["代理编排服务<br/>(LangGraph + Agent)"]
-        MEM["情景记忆服务"]
-        KG["知识图谱服务"]
-        CAUSAL["因果分析服务"]
-        ANOMALY["异常检测服务"]
-        ROOT["根因智能分析"]
-    end
+ subgraph L3["Layer 3: AI 引擎层"]
+ LLM["LLM 路由服务"]
+ RAG["RAG 服务集群"]
+ AGENT["代理编排服务<br/>(LangGraph + Agent)"]
+ MEM["情景记忆服务"]
+ KG["知识图谱服务"]
+ CAUSAL["因果分析服务"]
+ ANOMALY["异常检测服务"]
+ ROOT["根因智能分析"]
+ end
 
-    subgraph L4["Layer 4: 数据访问与处理层"]
-        DAO["数据访问服务<br/>(ORM / DAO / 事务)"]
-        CACHE["缓存服务<br/>(Redis / Cache Strategy)"]
-        VEC["向量检索服务<br/>(Qdrant)"]
-        SYNC["数据同步 / CDC<br/>(Kafka / Debezium)"]
-        TX["分布式事务管理<br/>(Saga / TCC)"]
-        STREAM["流处理<br/>(Flink / Kafka Streams)"]
-    end
+ subgraph L4["Layer 4: 数据访问与处理层"]
+ DAO["数据访问服务<br/>(ORM / DAO / 事务)"]
+ CACHE["缓存服务<br/>(Redis / Cache Strategy)"]
+ VEC["向量检索服务<br/>(Qdrant)"]
+ SYNC["数据同步 / CDC<br/>(Kafka / Debezium)"]
+ TX["分布式事务管理<br/>(Saga / TCC)"]
+ STREAM["流处理<br/>(Flink / Kafka Streams)"]
+ end
 
-    subgraph L5["Layer 5: 数据存储层"]
-        PG["PostgreSQL 集群"]
-        RD["Redis 集群"]
-        QD["Qdrant 向量集群"]
-        PM["Prometheus / Thanos / VictoriaMetrics"]
-        CH["ClickHouse OLAP 集群"]
-        NEO["Neo4j 图数据库"]
-        ES["Elasticsearch / Logs"]
-        S3["对象存储 / S3 / MinIO"]
-    end
+ subgraph L5["Layer 5: 数据存储层"]
+ PG["PostgreSQL 集群"]
+ RD["Redis 集群"]
+ QD["Qdrant 向量集群"]
+ PM["Prometheus / Thanos / VictoriaMetrics"]
+ CH["ClickHouse OLAP 集群"]
+ NEO["Neo4j 图数据库"]
+ ES["Elasticsearch / Logs"]
+ S3["对象存储 / S3 / MinIO"]
+ end
 
-    subgraph L6["Layer 6: 集成层"]
-        MON["监控工具集成<br/>(Prometheus / Datadog / CloudWatch)"]
-        CLOUD["云平台集成<br/>(AWS / Azure / GCP / 阿里云 / 腾讯云)"]
-        NOTIFY["通知服务集群<br/>(Slack / Teams / 钉钉 / 邮件 / 短信)"]
-        CICD["CI/CD 集成<br/>(Jenkins / GitLab CI / GitHub Actions)"]
-        ITSM["ITSM 集成<br/>(ServiceNow / Jira / BMC / Zendesk)"]
-        AGENT_OS["Agent/采集器<br/>(Linux / Windows / macOS / Docker / K8s)"]
-    end
+ subgraph L6["Layer 6: 集成层"]
+ MON["监控工具集成<br/>(Prometheus / Datadog / CloudWatch)"]
+ CLOUD["云平台集成<br/>(AWS / Azure / GCP / 阿里云 / 腾讯云)"]
+ NOTIFY["通知服务集群<br/>(Slack / Teams / 钉钉 / 邮件 / 短信)"]
+ CICD["CI/CD 集成<br/>(Jenkins / GitLab CI / GitHub Actions)"]
+ ITSM["ITSM 集成<br/>(ServiceNow / Jira / BMC / Zendesk)"]
+ AGENT_OS["Agent/采集器<br/>(Linux / Windows / macOS / Docker / K8s)"]
+ end
 
-    subgraph L7["Layer 7: 可观测性监控层"]
-        METRICS["指标收集服务"]
-        LOGS["日志聚合服务"]
-        TRACE["分布式追踪服务"]
-        APM["性能监控/APM"]
-        ALERT_MGR["告警管理服务"]
-        AUDIT_LOG["审计/安全监控"]
-    end
+ subgraph L7["Layer 7: 可观测性监控层"]
+ METRICS["指标收集服务"]
+ LOGS["日志聚合服务"]
+ TRACE["分布式追踪服务"]
+ APM["性能监控/APM"]
+ ALERT_MGR["告警管理服务"]
+ AUDIT_LOG["审计/安全监控"]
+ end
 
-    FE --> AG
-    SDK --> AG
-    CLI --> AG
+ FE --> AG
+ SDK --> AG
+ CLI --> AG
 
-    AG --> ALERT
-    AG --> REPAIR
-    AG --> TOPO
-    AG --> WF
-    AG --> AUDIT
-    AG --> USER
-    AG --> CFG
-    AG --> DASH
-    AG --> PLUGIN
-    AG --> INTG
-    AG --> DOC
-    AG --> TEST
+ AG --> ALERT
+ AG --> REPAIR
+ AG --> TOPO
+ AG --> WF
+ AG --> AUDIT
+ AG --> USER
+ AG --> CFG
+ AG --> DASH
+ AG --> PLUGIN
+ AG --> INTG
+ AG --> DOC
+ AG --> TEST
 
-    ALERT --> LLM
-    REPAIR --> AGENT
-    TOPO --> KG
-    WF --> RAG
-    AUDIT --> MEM
-    DASH --> ANOMALY
-    CFG --> CAUSAL
+ ALERT --> LLM
+ REPAIR --> AGENT
+ TOPO --> KG
+ WF --> RAG
+ AUDIT --> MEM
+ DASH --> ANOMALY
+ CFG --> CAUSAL
 
-    LLM --> DAO
-    RAG --> VEC
-    AGENT --> SYNC
-    MEM --> CACHE
-    KG --> DAO
-    CAUSAL --> DAO
-    ANOMALY --> DAO
-    ROOT --> KG
+ LLM --> DAO
+ RAG --> VEC
+ AGENT --> SYNC
+ MEM --> CACHE
+ KG --> DAO
+ CAUSAL --> DAO
+ ANOMALY --> DAO
+ ROOT --> KG
 
-    DAO --> PG
-    CACHE --> RD
-    VEC --> QD
-    SYNC --> CH
-    TX --> NEO
+ DAO --> PG
+ CACHE --> RD
+ VEC --> QD
+ SYNC --> CH
+ TX --> NEO
 
-    ALERT --> MON
-    REPAIR --> CICD
-    TOPO --> CLOUD
-    WF --> ITSM
-    AUDIT --> NOTIFY
-    INTG --> AGENT_OS
+ ALERT --> MON
+ REPAIR --> CICD
+ TOPO --> CLOUD
+ WF --> ITSM
+ AUDIT --> NOTIFY
+ INTG --> AGENT_OS
 
-    METRICS --> PM
-    LOGS --> ES
-    TRACE --> DAO
-    APM --> ALERT
-    ALERT_MGR --> AG
-    AUDIT_LOG --> AUDIT
+ METRICS --> PM
+ LOGS --> ES
+ TRACE --> DAO
+ APM --> ALERT
+ ALERT_MGR --> AG
+ AUDIT_LOG --> AUDIT
 
 ```
 
@@ -342,7 +342,7 @@ graph TB
 
 ```text
 L1 API Gateway → L2 业务服务 → L3 AI 引擎 → L4 数据访问 → L5 数据存储
-             ←              ←              ←              ←
+ ← ← ← ←
 
 ```
 
@@ -398,5 +398,5 @@ L6 外部系统 → Kafka/Debezium → L4 流处理 → L5 ClickHouse/ES
 
 ---
 
-*文件生成时间：2026-07-10*  
+*文件生成时间：2026-07-10* 
 *依据：docs/document/task_list.md、docs/document/target_architecture_diagram.md、api/、core/、modules/、frontend/、infrastructure/ 等实际代码结构*

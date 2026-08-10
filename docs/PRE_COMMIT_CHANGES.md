@@ -13,24 +13,24 @@
 #### 变更前
 ```yaml
 - repo: https://github.com/psf/black
-  rev: 24.3.0
-  hooks:
-    - id: black
-      language_version: python3.10
-      args: [--line-length=100]  # 硬编码参数
+ rev: 24.3.0
+ hooks:
+ - id: black
+ language_version: python3.10
+ args: [--line-length=100] # 硬编码参数
 ```
 
 #### 变更后
 ```yaml
 - repo: https://github.com/psf/black
-  rev: 24.3.0
-  hooks:
-    - id: black
-      name: Black - Python Code Formatter
-      description: The uncompromising Python code formatter
-      language_version: python3.10
-      # Black will automatically read configuration from pyproject.toml
-      # No args needed - it will use line-length=100 from pyproject.toml
+ rev: 24.3.0
+ hooks:
+ - id: black
+ name: Black - Python Code Formatter
+ description: The uncompromising Python code formatter
+ language_version: python3.10
+ # Black will automatically read configuration from pyproject.toml
+ # No args needed - it will use line-length=100 from pyproject.toml
 ```
 
 #### 优化效果
@@ -46,24 +46,24 @@
 ```yaml
 # Default configuration for all hooks
 default_language_version:
-  python: python3.10
+ python: python3.10
 
 # Exclude patterns for all hooks
 exclude: |
-  (?x)^(
-    \.git/|
-    \.mypy_cache/|
-    \.pytest_cache/|
-    \.venv/|
-    venv/|
-    __pycache__/|
-    build/|
-    dist/|
-    \.eggs/|
-    .*\.egg-info/
-    node_modules/|
-    \.tox/
-  )$
+ (?x)^(
+ \.git/|
+ \.mypy_cache/|
+ \.pytest_cache/|
+ \.venv/|
+ venv/|
+ __pycache__/|
+ build/|
+ dist/|
+ \.eggs/|
+ .*\.egg-info/
+ node_modules/|
+ \.tox/
+ )$
 ```
 
 #### 优化效果
@@ -77,12 +77,12 @@ exclude: |
 
 ```yaml
 - id: trailing-whitespace
-  name: Trim Trailing Whitespace
-  description: Ensures no trailing whitespace in files
+ name: Trim Trailing Whitespace
+ description: Ensures no trailing whitespace in files
 
 - id: black
-  name: Black - Python Code Formatter
-  description: The uncompromising Python code formatter
+ name: Black - Python Code Formatter
+ description: The uncompromising Python code formatter
 ```
 
 #### 优化效果
@@ -95,12 +95,12 @@ exclude: |
 #### 添加了额外的检查
 ```yaml
 - id: check-toml
-  name: Check TOML
-  description: Checks TOML files for syntax errors
+ name: Check TOML
+ description: Checks TOML files for syntax errors
 
 - id: debug-statements
-  name: Debug Statements
-  description: Checks for debugger imports and py37+ breakpoint() calls
+ name: Debug Statements
+ description: Checks for debugger imports and py37+ breakpoint() calls
 ```
 
 #### 优化效果
@@ -113,18 +113,18 @@ exclude: |
 #### 变更前
 ```yaml
 - id: flake8
-  args: [--max-line-length=100, --extend-ignore=E203]
+ args: [--max-line-length=100, --extend-ignore=E203]
 ```
 
 #### 变更后
 ```yaml
 - id: flake8
-  name: flake8 - Python Linter
-  description: Checks for style and syntax errors in Python code
-  additional_dependencies:
-    - flake8-docstrings  # Check docstrings
-    - flake8-bugbear     # Find likely bugs
-    - flake8-comprehensions  # Write better list/set/dict comprehensions
+ name: flake8 - Python Linter
+ description: Checks for style and syntax errors in Python code
+ additional_dependencies:
+ - flake8-docstrings # Check docstrings
+ - flake8-bugbear # Find likely bugs
+ - flake8-comprehensions # Write better list/set/dict comprehensions
 ```
 
 #### 优化效果
@@ -138,21 +138,21 @@ exclude: |
 #### isort Hook
 ```yaml
 - id: isort
-  name: isort - Python Import Sorter
-  description: Sorts imports alphabetically and automatically separated into sections
-  # isort will automatically read configuration from pyproject.toml
+ name: isort - Python Import Sorter
+ description: Sorts imports alphabetically and automatically separated into sections
+ # isort will automatically read configuration from pyproject.toml
 ```
 
 #### mypy Hook
 ```yaml
 - id: mypy
-  name: mypy - Static Type Checker
-  description: Static type checker for Python
-  additional_dependencies:
-    - types-all
-    - pydantic
-  args: [--config-file=pyproject.toml, --ignore-missing-imports]
-  exclude: ^tests/
+ name: mypy - Static Type Checker
+ description: Static type checker for Python
+ additional_dependencies:
+ - types-all
+ - pydantic
+ args: [--config-file=pyproject.toml, --ignore-missing-imports]
+ exclude: ^tests/
 ```
 
 #### 优化效果
@@ -164,22 +164,22 @@ exclude: |
 
 #### 修复前
 ```yaml
-entry: python -c "import sys; import subprocess; import os; sys.path.insert(0, '.'); test_files = [os.path.join(root, f) for root, dirs, files in os.walk('tests') for f in files if f.startswith('test_') and f.endswith('.py')]; errors = [f for f in test_files if subprocess.run(['python', '-m', 'py_compile', f], capture_output=True).returncode != 0]; print(f'Checking {len(test_files)} test files'); print(f'Syntax errors: {len(errors)}'); [print(f\"  ❌ {error}\") for error in errors]; sys.exit(1 if errors else 0)"
+entry: python -c "import sys; import subprocess; import os; sys.path.insert(0, '.'); test_files = [os.path.join(root, f) for root, dirs, files in os.walk('tests') for f in files if f.startswith('test_') and f.endswith('.py')]; errors = [f for f in test_files if subprocess.run(['python', '-m', 'py_compile', f], capture_output=True).returncode != 0]; print(f'Checking {len(test_files)} test files'); print(f'Syntax errors: {len(errors)}'); [print(f\" ❌ {error}\") for error in errors]; sys.exit(1 if errors else 0)"
 ```
 
 #### 修复后
 ```yaml
 entry: >
-  python -c "import sys; import subprocess; import os;
-  sys.path.insert(0, '.');
-  test_files = [os.path.join(root, f) for root, dirs, files in os.walk('tests')
-  for f in files if f.startswith('test_') and f.endswith('.py')];
-  errors = [f for f in test_files if subprocess.run(['python', '-m', 'py_compile', f],
-  capture_output=True).returncode != 0];
-  print(f'Checking {len(test_files)} test files');
-  print(f'Syntax errors: {len(errors)}');
-  [print(f'  ❌ {error}') for error in errors];
-  sys.exit(1 if errors else 0)"
+ python -c "import sys; import subprocess; import os;
+ sys.path.insert(0, '.');
+ test_files = [os.path.join(root, f) for root, dirs, files in os.walk('tests')
+ for f in files if f.startswith('test_') and f.endswith('.py')];
+ errors = [f for f in test_files if subprocess.run(['python', '-m', 'py_compile', f],
+ capture_output=True).returncode != 0];
+ print(f'Checking {len(test_files)} test files');
+ print(f'Syntax errors: {len(errors)}');
+ [print(f' ❌ {error}') for error in errors];
+ sys.exit(1 if errors else 0)"
 ```
 
 #### 优化效果
@@ -204,13 +204,13 @@ entry: >
 # - Custom hooks: Test validation
 #
 # Installation:
-#   pip install pre-commit
-#   pre-commit install
+# pip install pre-commit
+# pre-commit install
 #
 # Usage:
-#   pre-commit run --all-files  # Run on all files
-#   pre-commit run black --all-files  # Run specific hook
-#   pre-commit autoupdate  # Update hook versions
+# pre-commit run --all-files # Run on all files
+# pre-commit run black --all-files # Run specific hook
+# pre-commit autoupdate # Update hook versions
 ```
 
 #### 优化效果
@@ -275,17 +275,17 @@ max-line-length = 100
 
 ### 新增文档
 1. **docs/PRE_COMMIT_SETUP.md** - 详细的配置说明文档
-   - 安装步骤
-   - 使用方法
-   - 配置验证
-   - 故障排除
-   - CI/CD 集成
-   - 最佳实践
+ - 安装步骤
+ - 使用方法
+ - 配置验证
+ - 故障排除
+ - CI/CD 集成
+ - 最佳实践
 
 2. **test_pre_commit_config.py** - 配置验证脚本
-   - 自动化配置验证
-   - 一致性检查
-   - 详细的测试报告
+ - 自动化配置验证
+ - 一致性检查
+ - 详细的测试报告
 
 ## 向后兼容性
 
@@ -335,32 +335,32 @@ name: Lint
 on: [push, pull_request]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
-          pip install pre-commit
-      - name: Run pre-commit
-        run: |
-          pre-commit run --all-files
+ lint:
+ runs-on: ubuntu-latest
+ steps:
+ - uses: actions/checkout@v3
+ - uses: actions/setup-python@v4
+ with:
+ python-version: '3.10'
+ - name: Install dependencies
+ run: |
+ pip install pre-commit
+ - name: Run pre-commit
+ run: |
+ pre-commit run --all-files
 ```
 
 ### GitLab CI
 ```yaml
 lint:
-  stage: test
-  image: python:3.10
-  script:
-    - pip install pre-commit
-    - pre-commit run --all-files
-  only:
-    - merge_requests
-    - main
+ stage: test
+ image: python:3.10
+ script:
+ - pip install pre-commit
+ - pre-commit run --all-files
+ only:
+ - merge_requests
+ - main
 ```
 
 ## 风险评估

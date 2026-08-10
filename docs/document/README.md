@@ -70,61 +70,61 @@ AIOps Agent 致力于成为**新一代开源 AIOps Agent**，提供企业级的�
 
 ```mermaid
 graph TB
-    subgraph "Layer 1: API网关层"
-        A1[API Gateway集群]
-        A2[负载均衡器]
-        A3[认证授权中心]
-        A4[限流熔断器]
-        A5[路由策略引擎]
-    end
-    
-    subgraph "Layer 2: 业务逻辑层"
-        B1[告警服务集群]
-        B2[修复服务集群]
-        B3[拓扑服务集群]
-        B4[工作流服务集群]
-        B5[审计服务集群]
-    end
-    
-    subgraph "Layer 3: AI引擎层"
-        C1[LLM路由服务]
-        C2[RAG服务集群]
-        C3[代理编排服务]
-        C4[情景记忆服务]
-        C5[知识图谱服务]
-    end
-    
-    subgraph "Layer 4: 数据访问层"
-        D1[数据访问服务]
-        D2[缓存服务]
-        D3[向量检索服务]
-    end
-    
-    subgraph "Layer 5: 数据存储层"
-        E1[PostgreSQL集群]
-        E2[Redis集群]
-        E3[Qdrant集群]
-        E4[Prometheus集群]
-    end
-    
-    subgraph "Layer 6: 集成层"
-        F1[监控工具集成服务]
-        F2[云平台集成服务]
-        F3[通知服务集群]
-    end
-    
-    subgraph "Layer 7: 监控层"
-        G1[指标收集服务]
-        G2[日志聚合服务]
-        G3[分布式追踪服务]
-    end
-    
-    A1 --> B1
-    B1 --> C1
-    C1 --> D1
-    D1 --> E1
-    B1 --> F1
-    G1 --> E4
+ subgraph "Layer 1: API网关层"
+ A1[API Gateway集群]
+ A2[负载均衡器]
+ A3[认证授权中心]
+ A4[限流熔断器]
+ A5[路由策略引擎]
+ end
+ 
+ subgraph "Layer 2: 业务逻辑层"
+ B1[告警服务集群]
+ B2[修复服务集群]
+ B3[拓扑服务集群]
+ B4[工作流服务集群]
+ B5[审计服务集群]
+ end
+ 
+ subgraph "Layer 3: AI引擎层"
+ C1[LLM路由服务]
+ C2[RAG服务集群]
+ C3[代理编排服务]
+ C4[情景记忆服务]
+ C5[知识图谱服务]
+ end
+ 
+ subgraph "Layer 4: 数据访问层"
+ D1[数据访问服务]
+ D2[缓存服务]
+ D3[向量检索服务]
+ end
+ 
+ subgraph "Layer 5: 数据存储层"
+ E1[PostgreSQL集群]
+ E2[Redis集群]
+ E3[Qdrant集群]
+ E4[Prometheus集群]
+ end
+ 
+ subgraph "Layer 6: 集成层"
+ F1[监控工具集成服务]
+ F2[云平台集成服务]
+ F3[通知服务集群]
+ end
+ 
+ subgraph "Layer 7: 监控层"
+ G1[指标收集服务]
+ G2[日志聚合服务]
+ G3[分布式追踪服务]
+ end
+ 
+ A1 --> B1
+ B1 --> C1
+ C1 --> D1
+ D1 --> E1
+ B1 --> F1
+ G1 --> E4
 ```
 
 ### 架构层次说明
@@ -166,8 +166,8 @@ cd aiops-agent
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+source venv/bin/activate # Linux/Mac
+venv\Scripts\activate # Windows
 ```
 
 #### 3. 安装依赖
@@ -247,11 +247,11 @@ client = AIOpsClient(api_key="your-api-key")
 
 # 创建告警
 alert = client.create_alert(
-    title="High CPU Usage",
-    severity="critical",
-    resource="web-server-01",
-    metric_value=95.5,
-    metric_name="cpu.usage_percent"
+ title="High CPU Usage",
+ severity="critical",
+ resource="web-server-01",
+ metric_value=95.5,
+ metric_name="cpu.usage_percent"
 )
 ```
 
@@ -260,9 +260,9 @@ alert = client.create_alert(
 ```python
 # 启动AI根因分析
 rca = client.start_root_cause_analysis(
-    alert_id=alert.id,
-    analysis_depth="deep",
-    include_topology=True
+ alert_id=alert.id,
+ analysis_depth="deep",
+ include_topology=True
 )
 
 # 获取分析结果
@@ -276,9 +276,9 @@ print(f"Confidence: {result.confidence}")
 ```python
 # 执行自动修复
 repair = client.execute_auto_repair(
-    alert_id=alert.id,
-    repair_strategy="auto",
-    require_approval=False
+ alert_id=alert.id,
+ repair_strategy="auto",
+ require_approval=False
 )
 
 # 监控修复进度
@@ -464,7 +464,7 @@ locust -f tests/performance/locustfile.py --host=http://localhost:8000
 感谢所有为项目做出贡献的开发者！
 
 <a href="https://github.com/your-org/aiops-agent/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=your-org/aiops-agent" />
+ <img src="https://contrib.rocks/image?repo=your-org/aiops-agent" />
 </a>
 
 ---

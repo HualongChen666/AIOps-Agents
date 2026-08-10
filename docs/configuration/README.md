@@ -20,9 +20,9 @@
 
 ```text
 C:\AIOps_Agent_bak\config\
-│   development.yaml   # 开发环境配置
-│   staging.yaml       # 预发布环境配置
-│   production.yaml    # 生产环境配置
+│ development.yaml # 开发环境配置
+│ staging.yaml # 预发布环境配置
+│ production.yaml # 生产环境配置
 ```
 
 ### 1️⃣ 基本结构
@@ -31,29 +31,29 @@ C:\AIOps_Agent_bak\config\
 
 ```yaml
 system:
-  host: "0.0.0.0"               # 监听地址
-  port: 8000                     # HTTP 端口
-  log_level: "INFO"            # 日志级别 (DEBUG/INFO/WARN/ERROR)
+ host: "0.0.0.0" # 监听地址
+ port: 8000 # HTTP 端口
+ log_level: "INFO" # 日志级别 (DEBUG/INFO/WARN/ERROR)
 
 postgres:
-  uri: "postgresql://user:password@db:5432/aiops"
-  pool_size: 20                  # 连接池大小
-  timeout: 30                    # 秒
+ uri: "postgresql://user:password@db:5432/aiops"
+ pool_size: 20 # 连接池大小
+ timeout: 30 # 秒
 
 redis:
-  host: "redis"
-  port: 6379
-  db: 0
-  password: "${REDIS_PASSWORD}"   # 从环境变量读取
+ host: "redis"
+ port: 6379
+ db: 0
+ password: "${REDIS_PASSWORD}" # 从环境变量读取
 
 qdrant:
-  host: "qdrant"
-  port: 6333
-  collection: "embeddings"
+ host: "qdrant"
+ port: 6333
+ collection: "embeddings"
 
 otel:
-  enabled: true
-  endpoint: "http://otel-collector:4317"
+ enabled: true
+ endpoint: "http://otel-collector:4317"
 ```
 
 > **说明**：以上示例为 `development.yaml` 中的核心字段，`staging.yaml` 与 `production.yaml` 仅在 **host/port/密码** 上有所差异。
@@ -90,17 +90,17 @@ otel:
 ## 配置最佳实践
 
 1. **分层管理**
-   - **公共配置**：放在 `development.yaml`，通过 Git 进行版本管理。
-   - **敏感信息**：仅在部署环境的 `.env` 或 Kubernetes Secret 中定义，`yaml` 中使用 `${VAR_NAME}` 引用。
+ - **公共配置**：放在 `development.yaml`，通过 Git 进行版本管理。
+ - **敏感信息**：仅在部署环境的 `.env` 或 Kubernetes Secret 中定义，`yaml` 中使用 `${VAR_NAME}` 引用。
 2. **使用模板**
-   - 项目根目录提供 `config.example.yaml`（已在 `config/` 中），可通过 `cp config/example.yaml config/development.yaml && envsubst < config/development.yaml > config/development_final.yaml` 生成实际配置。
+ - 项目根目录提供 `config.example.yaml`（已在 `config/` 中），可通过 `cp config/example.yaml config/development.yaml && envsubst < config/development.yaml > config/development_final.yaml` 生成实际配置。
 3. **最小权限原则**
-   - PostgreSQL 只授予 `SELECT/INSERT/UPDATE` 权限，避免 `DROP`。
-   - Redis 仅开放内部网络访问。
+ - PostgreSQL 只授予 `SELECT/INSERT/UPDATE` 权限，避免 `DROP`。
+ - Redis 仅开放内部网络访问。
 4. **热更新**
-   - `log_level` 支持运行时修改（`export LOG_LEVEL=DEBUG` 并重启服务即可生效），其他配置需 **重启**。
+ - `log_level` 支持运行时修改（`export LOG_LEVEL=DEBUG` 并重启服务即可生效），其他配置需 **重启**。
 5. **版本化**
-   - 每次配置变更必须提交 Git，使用 `git tag vX.Y.Z-config` 标记版本，方便回滚。
+ - 每次配置变更必须提交 Git，使用 `git tag vX.Y.Z-config` 标记版本，方便回滚。
 
 ---
 

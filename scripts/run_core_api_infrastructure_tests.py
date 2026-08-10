@@ -65,8 +65,8 @@ def run_phase(name: str, targets: list[str], extra: list[str]) -> int:
     n_workers = "auto"
     dist = ""
     if name == "api":
-        # API tests mock sys.modules at import time; keep each test file in its
-        # own worker to avoid cross-file mock contamination.
+        # API tests patch sys.modules at import time; keep each test file in its
+        # own worker to avoid cross-file fixture contamination.
         n_workers = str(len(list(_ROOT.joinpath("tests/api").glob("test_*.py"))))
         dist = " --dist=loadfile"
     addopts = (

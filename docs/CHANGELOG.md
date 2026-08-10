@@ -69,8 +69,8 @@ Removed 20 stale comment TODO/FIXME/HACK/XXX markers from 4 files.
 Restored 6 unrelated comments that were incorrectly removed by the audit cleanup.
 
 - C:\AIOps_Agent_bak\core\mfa_service.py:88: # 格式化为 XXXX-XXXX-XXXX
-- C:\AIOps_Agent_bak\core\mfa_service.py:146: if "-" in token:  # 恢复码格式 XXXX-XXXX-XXXX
+- C:\AIOps_Agent_bak\core\mfa_service.py:146: if "-" in token: # 恢复码格式 XXXX-XXXX-XXXX
 - C:\AIOps_Agent_bak\core_backup\mfa_service.py:88: # 格式化为 XXXX-XXXX-XXXX
-- C:\AIOps_Agent_bak\core_backup\mfa_service.py:146: if "-" in token:  # 恢复码格式 XXXX-XXXX-XXXX
+- C:\AIOps_Agent_bak\core_backup\mfa_service.py:146: if "-" in token: # 恢复码格式 XXXX-XXXX-XXXX
 - C:\AIOps_Agent_bak\tests\disabled\test_mfa_service.py:67: # 格式: XXXX-XXXX-XXXX
 - C:\AIOps_Agent_bak\fix_core_indentation_v2.py:19: # 匹配函数签名中间的TODO docstring

@@ -21,12 +21,12 @@
 
 ### 1.3 网络要求
 - 端口开放：
-  - `80/443` – HTTP/HTTPS（外部访问）
-  - `8000` – FastAPI 服务（内部调试）
-  - `6379` – Redis
-  - `5432` – PostgreSQL
-  - `6333` – Qdrant
-  - `9000` – ClickHouse
+ - `80/443` – HTTP/HTTPS（外部访问）
+ - `8000` – FastAPI 服务（内部调试）
+ - `6379` – Redis
+ - `5432` – PostgreSQL
+ - `6333` – Qdrant
+ - `9000` – ClickHouse
 - 防火墙：仅对内部子网开放数据库与缓存端口，外部仅暴露 HTTP/HTTPS
 
 ## 2. 安装步骤
@@ -59,7 +59,7 @@ pip install -r requirements.txt
 
 ### 2.5 数据库初始化
 ```bash
-alembic upgrade head   # 创建/迁移 PostgreSQL 表结构
+alembic upgrade head # 创建/迁移 PostgreSQL 表结构
 ```
 
 ### 2.6 第三方服务准备
@@ -78,11 +78,11 @@ docker compose -f docker-compose.dev.yml up -d
 ### 3.2 测试环境部署（Kubernetes）
 ```bash
 kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml   # 包含 .env 内容的 ConfigMap
-kubectl apply -f k8s/secret.yaml      # Sensitive credentials
+kubectl apply -f k8s/configmap.yaml # 包含 .env 内容的 ConfigMap
+kubectl apply -f k8s/secret.yaml # Sensitive credentials
 kubectl apply -f k8s/statefulset.yaml # PostgreSQL, Redis, ClickHouse, Qdrant
-kubectl apply -f k8s/deployment.yaml  # FastAPI + Workers
-kubectl apply -f k8s/ingress.yaml     # Ingress 暴露 HTTP/HTTPS
+kubectl apply -f k8s/deployment.yaml # FastAPI + Workers
+kubectl apply -f k8s/ingress.yaml # Ingress 暴露 HTTP/HTTPS
 ```
 - 所有资源使用 `aiops` 命名空间，便于环境隔离
 - 通过 `kubectl port-forward svc/aiops-api 8080:80` 本地调试
@@ -91,10 +91,10 @@ kubectl apply -f k8s/ingress.yaml     # Ingress 暴露 HTTP/HTTPS
 ```bash
 helm repo add aiops https://your-org.github.io/aiops-helm
 helm upgrade --install aiops aiops/aiops-agent \
-  --namespace prod \
-  --set image.tag=latest \
-  --set env.SECRET_KEY=$(openssl rand -hex 32) \
-  --set persistence.enabled=true
+ --namespace prod \
+ --set image.tag=latest \
+ --set env.SECRET_KEY=$(openssl rand -hex 32) \
+ --set persistence.enabled=true
 ```
 - 推荐使用 `values-prod.yaml` 进行细粒度配置（副本数、资源限制、日志采集）
 - 支持滚动升级、蓝绿发布以及 Canary
@@ -136,9 +136,9 @@ python scripts/smoke_test.py --host <host>
 ### 5.2 监控告警
 - Prometheus 采集 `process_cpu_seconds_total`、`http_request_duration_seconds`
 - Alertmanager 已内置以下告警规则：
-  - `HighCPUUsage`（CPU > 80% 持续 5min）
-  - `ServiceDown`（Endpoint 返回非200）
-  - `DBConnectionError`（PostgreSQL 连接错误次数 > 10）
+ - `HighCPUUsage`（CPU > 80% 持续 5min）
+ - `ServiceDown`（Endpoint 返回非200）
+ - `DBConnectionError`（PostgreSQL 连接错误次数 > 10）
 
 ## 6. 文档评审
 

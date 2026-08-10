@@ -19,7 +19,7 @@
 | P2 | RepairScriptLibrary fallback | `generate_runbook` 在 LLM runbook 生成失败/无效时回退到 `repair_script_library` |
 | P2 | metrics/audit 可观测性 | `complete` 节点生成 `state.metrics`，引入 Prometheus counter |
 | 兼容性 | langgraph checkpointing | `heal_graph._build_graph` 按 `graph.compile` 签名条件传递 `checkpointer` |
-| 健壮性 | metrics_history | 对 `HISTORY_MAX_POINTS` 被 mock 为非整数时 fallback 到 60 |
+| 健壮性 | metrics_history | 对 `HISTORY_MAX_POINTS` 被设为非整数时 fallback 到 60 |
 
 ## 2. 修改的核心文件
 

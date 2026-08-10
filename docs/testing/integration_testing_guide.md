@@ -23,6 +23,7 @@
 ### 应该使用Mock的场景
 
 #### 1. 外部依赖
+
 当测试代码依赖于外部服务时，应该使用mock：
 
 ```python
@@ -40,12 +41,14 @@ async def test_ai_analysis_with_mock():
 ```
 
 **适用场景**:
+
 - OpenAI、Anthropic等AI服务
 - GitLab、Jira等外部服务
 - AWS、Azure等云服务
 - 第三方API调用
 
 #### 2. 慢速操作
+
 当操作执行时间较长时，应该使用mock：
 
 ```python
@@ -63,12 +66,14 @@ async def test_large_file_upload_with_mock():
 ```
 
 **适用场景**:
+
 - 大文件上传/下载
 - 复杂计算任务
 - 长时间运行的批处理
 - 视频处理、图像处理
 
 #### 3. 不稳定依赖
+
 当依赖不稳定或不可靠时，应该使用mock：
 
 ```python
@@ -86,12 +91,14 @@ async def test_external_api_with_mock():
 ```
 
 **适用场景**:
+
 - 网络依赖
 - 第三方服务
 - 外部数据库
 - 不稳定的API
 
 #### 4. 错误场景测试
+
 当需要测试错误处理逻辑时，应该使用mock：
 
 ```python
@@ -104,12 +111,14 @@ async def test_api_error_handling():
 ```
 
 **适用场景**:
+
 - API失败场景
 - 网络超时场景
 - 服务不可用场景
 - 权限错误场景
 
 #### 5. 边界条件测试
+
 当需要测试极端情况时，应该使用mock：
 
 ```python
@@ -123,6 +132,7 @@ async def test_extreme_data_size():
 ```
 
 **适用场景**:
+
 - 极大数据量
 - 极小数据量
 - 特殊字符
@@ -133,6 +143,7 @@ async def test_extreme_data_size():
 ### 应该使用真实集成的场景
 
 #### 1. 数据库操作
+
 对于数据库CRUD操作，应该使用真实的数据库连接：
 
 ```python
@@ -151,16 +162,19 @@ async def test_create_user(test_db_session: AsyncSession):
 ```
 
 **适用场景**:
+
 - CRUD操作测试
 - 查询逻辑测试
 - 事务处理测试
 - 数据验证测试
 
 **使用fixture**:
+
 - `test_db_engine`: SQLite内存数据库引擎
 - `test_db_session`: 数据库会话
 
 #### 2. 缓存操作
+
 对于缓存操作，应该使用真实的Redis客户端（使用fakeredis）：
 
 ```python
@@ -176,15 +190,18 @@ async def test_cache_operations(test_redis_client):
 ```
 
 **适用场景**:
+
 - 缓存读写测试
 - 缓存过期测试
 - 缓存统计测试
 - 分布式锁测试
 
 **使用fixture**:
+
 - `test_redis_client`: fakeredis模拟的Redis客户端
 
 #### 3. HTTP客户端
+
 对于API端点测试，应该使用真实的HTTP客户端：
 
 ```python
@@ -206,16 +223,19 @@ async def test_api_endpoint(client: AsyncClient, test_db_session: AsyncSession):
 ```
 
 **适用场景**:
+
 - API端点测试
 - 请求验证测试
 - 响应格式测试
 - 认证授权测试
 
 **使用fixture**:
+
 - `client`: AsyncClient for FastAPI
 - `authenticated_client`: 带认证的AsyncClient
 
 #### 4. 消息队列
+
 对于消息队列操作，应该使用真实的消息队列客户端：
 
 ```python
@@ -232,12 +252,14 @@ async def test_message_queue(test_message_queue):
 ```
 
 **适用场景**:
+
 - 消息发布/订阅测试
 - 消息顺序测试
 - 消息持久化测试
 - 消息重试测试
 
 #### 5. 文件系统
+
 对于文件系统操作，应该使用真实的文件系统（临时目录）：
 
 ```python
@@ -254,6 +276,7 @@ async def test_file_operations(tmp_path):
 ```
 
 **适用场景**:
+
 - 文件读写测试
 - 目录操作测试
 - 文件权限测试
@@ -262,14 +285,17 @@ async def test_file_operations(tmp_path):
 ## 测试分层策略
 
 ### 单元测试（Unit Tests）
+
 **目的**: 测试单个函数/类的行为
 
 **特点**:
+
 - 快速执行
 - 隔离依赖
 - 使用mock
 
 **示例**:
+
 ```python
 @pytest.mark.unit
 async def test_user_validation():
@@ -280,14 +306,17 @@ async def test_user_validation():
 ```
 
 ### 集成测试（Integration Tests）
+
 **目的**: 测试多个组件的集成
 
 **特点**:
+
 - 中等执行速度
 - 真实组件集成
 - 部分mock
 
 **示例**:
+
 ```python
 @pytest.mark.integration
 async def test_user_api_integration(client: AsyncClient, test_db_session: AsyncSession):
@@ -301,14 +330,17 @@ async def test_user_api_integration(client: AsyncClient, test_db_session: AsyncS
 ```
 
 ### E2E测试（End-to-End Tests）
+
 **目的**: 测试完整的用户流程
 
 **特点**:
+
 - 较慢执行
 - 真实环境
 - 最少mock
 
 **示例**:
+
 ```python
 @pytest.mark.e2e
 async def test_user_registration_flow(client: AsyncClient):
@@ -335,8 +367,8 @@ async def test_user_registration_flow(client: AsyncClient):
 ### 平衡真实性和速度
 
 | 测试类型 | 执行速度 | 真实性 | 使用频率 |
-|---------|---------|--------|---------|
-| 单元测试 | 快（<1s） | 低（mock） | 高（70%） |
+| --------- | --------- | -------- | --------- |
+| 单元测试 | 快（<1s） | 低（fake） | 高（70%） |
 | 集成测试 | 中（1-10s） | 中（部分真实） | 中（20%） |
 | E2E测试 | 慢（>10s） | 高（真实） | 低（10%） |
 
@@ -367,6 +399,7 @@ pytest -m "not slow"
 ## 最佳实践
 
 ### 1. 明确测试类型
+
 在测试文件名和测试函数中明确标注测试类型：
 
 ```python
@@ -387,6 +420,7 @@ async def test_user_registration_flow():
 ```
 
 ### 2. 合理使用fixtures
+
 利用conftest.py中提供的fixtures：
 
 ```python
@@ -409,6 +443,7 @@ mock_cache          # 缓存mock（谨慎使用）
 ```
 
 ### 3. 测试数据隔离
+
 每个测试应该有独立的测试数据：
 
 ```python
@@ -424,6 +459,7 @@ async def test_user_creation(test_db_session: AsyncSession):
 ```
 
 ### 4. 清理测试数据
+
 测试完成后清理测试数据：
 
 ```python
@@ -436,6 +472,7 @@ async def cleanup_test_data(test_db_session: AsyncSession):
 ```
 
 ### 5. 避免测试依赖
+
 测试之间不应该有依赖关系：
 
 ```python
@@ -461,6 +498,7 @@ async def test_get_user():
 ## 常见错误
 
 ### 错误1: 过度Mock
+
 ```python
 # ❌ 错误：mock了应该使用真实集成的组件
 async def test_database_operations():
@@ -477,6 +515,7 @@ async def test_database_operations(test_db_session: AsyncSession):
 ```
 
 ### 错误2: Mock外部依赖
+
 ```python
 # ❌ 错误：没有mock外部依赖
 async def test_external_api():
@@ -492,6 +531,7 @@ async def test_external_api():
 ```
 
 ### 错误3: 测试之间有依赖
+
 ```python
 # ❌ 错误：测试之间有依赖
 async def test_step1():
@@ -513,6 +553,7 @@ async def test_step2():
 ```
 
 ### 错误4: 不清理测试数据
+
 ```python
 # ❌ 错误：不清理测试数据
 async def test_user_creation(test_db_session: AsyncSession):
@@ -535,6 +576,7 @@ async def test_user_creation(test_db_session: AsyncSession):
 ## 工具和资源
 
 ### 测试工具
+
 - **pytest**: 测试框架
 - **pytest-asyncio**: 异步测试支持
 - **pytest-xdist**: 并行测试执行
@@ -543,6 +585,7 @@ async def test_user_creation(test_db_session: AsyncSession):
 - **httpx**: 异步HTTP客户端
 
 ### 相关文档
+
 - [Mock使用情况分析报告](./mock_usage_analysis.md)
 - [pytest文档](https://docs.pytest.org/)
 - [FastAPI测试文档](https://fastapi.tiangolo.com/tutorial/testing/)

@@ -15,9 +15,9 @@
 
 ```
 .pre-commit-config.yaml (pre-commit 配置)
-    ↓
+ ↓
 pyproject.toml (工具特定配置)
-    ↓
+ ↓
 [tool.black] - Black 格式化配置
 [tool.isort] - isort 导入排序配置
 [tool.flake8] - flake8 代码检查配置
@@ -36,13 +36,13 @@ pyproject.toml (工具特定配置)
 **优化后**:
 ```yaml
 - repo: https://github.com/psf/black
-  rev: 24.3.0
-  hooks:
-    - id: black
-      name: Black - Python Code Formatter
-      language_version: python3.10
-      # Black 自动从 pyproject.toml 读取配置
-      # 不再需要硬编码参数
+ rev: 24.3.0
+ hooks:
+ - id: black
+ name: Black - Python Code Formatter
+ language_version: python3.10
+ # Black 自动从 pyproject.toml 读取配置
+ # 不再需要硬编码参数
 ```
 
 **优势**:
@@ -58,24 +58,24 @@ pyproject.toml (工具特定配置)
 ```yaml
 # 默认 Python 版本
 default_language_version:
-  python: python3.10
+ python: python3.10
 
 # 全局排除模式
 exclude: |
-  (?x)^(
-    \.git/|
-    \.mypy_cache/|
-    \.pytest_cache/|
-    \.venv/|
-    venv/|
-    __pycache__/|
-    build/|
-    dist/|
-    \.eggs/|
-    .*\.egg-info/
-    node_modules/|
-    \.tox/
-  )$
+ (?x)^(
+ \.git/|
+ \.mypy_cache/|
+ \.pytest_cache/|
+ \.venv/|
+ venv/|
+ __pycache__/|
+ build/|
+ dist/|
+ \.eggs/|
+ .*\.egg-info/
+ node_modules/|
+ \.tox/
+ )$
 ```
 
 #### 3. 增强的 Hook 描述
@@ -112,9 +112,9 @@ pre-commit install
 
 ```bash
 # 激活虚拟环境
-venv\Scripts\activate  # Windows
+venv\Scripts\activate # Windows
 # 或
-source venv/bin/activate  # Linux/Mac
+source venv/bin/activate # Linux/Mac
 
 # 安装 pre-commit
 pip install pre-commit
@@ -197,19 +197,19 @@ target-version = ['py310']
 include = '\.pyi?$'
 exclude = '''
 /(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | venv
-  | __pycache__
-  | .pytest_cache
-  | build
-  | dist
-  | .*\.egg-info
+ # directories
+ \.eggs
+ | \.git
+ | \.hg
+ | \.mypy_cache
+ | \.tox
+ | \.venv
+ | venv
+ | __pycache__
+ | .pytest_cache
+ | build
+ | dist
+ | .*\.egg-info
 )/
 '''
 ```
@@ -235,33 +235,33 @@ black --config pyproject.toml --help
 Pre-commit hooks 按照在配置文件中出现的顺序执行：
 
 1. **通用检查** (pre-commit-hooks)
-   - trailing-whitespace
-   - end-of-file-fixer
-   - check-yaml
-   - check-added-large-files
-   - check-json
-   - check-merge-conflict
-   - check-toml
-   - debug-statements
+ - trailing-whitespace
+ - end-of-file-fixer
+ - check-yaml
+ - check-added-large-files
+ - check-json
+ - check-merge-conflict
+ - check-toml
+ - debug-statements
 
 2. **代码格式化** (black)
-   - 自动格式化 Python 代码
+ - 自动格式化 Python 代码
 
 3. **导入排序** (isort)
-   - 自动排序和格式化导入
+ - 自动排序和格式化导入
 
 4. **代码检查** (flake8)
-   - 检查代码风格和语法错误
+ - 检查代码风格和语法错误
 
 5. **安全检查** (bandit)
-   - 检查安全问题
+ - 检查安全问题
 
 6. **类型检查** (mypy)
-   - 静态类型检查
+ - 静态类型检查
 
 7. **自定义检查** (local hooks)
-   - test-collection-validation
-   - test-syntax-check
+ - test-collection-validation
+ - test-syntax-check
 
 ## CI/CD 集成
 
@@ -275,19 +275,19 @@ name: Lint
 on: [push, pull_request]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
-          pip install pre-commit
-      - name: Run pre-commit
-        run: |
-          pre-commit run --all-files
+ lint:
+ runs-on: ubuntu-latest
+ steps:
+ - uses: actions/checkout@v3
+ - uses: actions/setup-python@v4
+ with:
+ python-version: '3.10'
+ - name: Install dependencies
+ run: |
+ pip install pre-commit
+ - name: Run pre-commit
+ run: |
+ pre-commit run --all-files
 ```
 
 ### GitLab CI 集成
@@ -296,14 +296,14 @@ jobs:
 
 ```yaml
 lint:
-  stage: test
-  image: python:3.10
-  script:
-    - pip install pre-commit
-    - pre-commit run --all-files
-  only:
-    - merge_requests
-    - main
+ stage: test
+ image: python:3.10
+ script:
+ - pip install pre-commit
+ - pre-commit run --all-files
+ only:
+ - merge_requests
+ - main
 ```
 
 ## 故障排除
@@ -377,10 +377,10 @@ pre-commit autoupdate
 
 ```yaml
 repos:
-  - repo: https://github.com/psf/black
-    hooks:
-      - id: black
-        exclude: ^(legacy/|deprecated/)
+ - repo: https://github.com/psf/black
+ hooks:
+ - id: black
+ exclude: ^(legacy/|deprecated/)
 ```
 
 ### 4. 团队协作

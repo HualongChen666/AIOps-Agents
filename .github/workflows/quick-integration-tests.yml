@@ -1,45 +1,45 @@
 name: Quick Integration Tests
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:
+ push:
+ branches: [ main, develop ]
+ pull_request:
+ branches: [ main, develop ]
+ workflow_dispatch:
 
 env:
-  PYTHON_VERSION: '3.12'
+ PYTHON_VERSION: '3.12'
 
 jobs:
-  quick-tests:
-    name: Quick Integration Tests
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-asyncio pytest-timeout
-        pip install httpx sqlalchemy alembic redis python-dotenv
-        pip install -r requirements.txt || true
-    
-    - name: Create test directories
-      run: |
-        mkdir -p logs reports test_data
-    
-    - name: Run quick integration tests
-      run: |
-        pytest tests/integration/ -m "integration and not database and not redis and not api" -v --tb=short --maxfail=3
-    
-    - name: Test Summary
-      if: always()
-      run: |
-        echo "Quick integration tests completed"
+ quick-tests:
+ name: Quick Integration Tests
+ runs-on: ubuntu-latest
+ 
+ steps:
+ - name: Checkout code
+ uses: actions/checkout@v4
+ 
+ - name: Set up Python
+ uses: actions/setup-python@v5
+ with:
+ python-version: ${{ env.PYTHON_VERSION }}
+ 
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install pytest pytest-asyncio pytest-timeout
+ pip install httpx sqlalchemy alembic redis python-dotenv
+ pip install -r requirements.txt || true
+ 
+ - name: Create test directories
+ run: |
+ mkdir -p logs reports test_data
+ 
+ - name: Run quick integration tests
+ run: |
+ pytest tests/integration/ -m "integration and not database and not redis and not api" -v --tb=short --maxfail=3
+ 
+ - name: Test Summary
+ if: always()
+ run: |
+ echo "Quick integration tests completed"

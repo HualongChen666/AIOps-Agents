@@ -29,8 +29,8 @@ Visit `http://localhost:8000/docs` in your browser.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
-  -H "Content-Type: application/json" \
-  -d @examples/curl/createAnomaly.sh
+ -H "Content-Type: application/json" \
+ -d @examples/curl/createAnomaly.sh
 ```
 
 The response contains `alert_id` and `approval_id`.

@@ -32,9 +32,9 @@ cd AIOps_Agent
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
+source venv/bin/activate # Linux/Mac
 # or
-venv\Scripts\activate  # Windows
+venv\Scripts\activate # Windows
 
 pip install -r requirements.txt
 ```
@@ -151,10 +151,10 @@ python -m flake8 .
 
 ```
 tests/
-├── unit/          # Unit tests
-├── integration/   # Integration tests
-├── e2e/          # End-to-end tests
-└── fixtures/     # Test fixtures
+├── unit/ # Unit tests
+├── integration/ # Integration tests
+├── e2e/ # End-to-end tests
+└── fixtures/ # Test fixtures
 ```
 
 ### Writing Tests
@@ -164,14 +164,14 @@ import pytest
 from your_module import your_function
 
 def test_your_function():
-    # Arrange
-    input_data = {...}
-    
-    # Act
-    result = your_function(input_data)
-    
-    # Assert
-    assert result == expected
+ # Arrange
+ input_data = {...}
+ 
+ # Act
+ result = your_function(input_data)
+ 
+ # Assert
+ assert result == expected
 ```
 
 ### Running Tests
@@ -225,20 +225,20 @@ pytest tests/unit/test_module.py::test_function
 ### Before Submitting
 
 1. **Code Quality**
-   - Run formatting tools: `black`, `isort`
-   - Run linting: `flake8`
-   - Run type checking: `mypy`
-   - Run tests: `pytest`
+ - Run formatting tools: `black`, `isort`
+ - Run linting: `flake8`
+ - Run type checking: `mypy`
+ - Run tests: `pytest`
 
 2. **Documentation**
-   - Update relevant documentation
-   - Add docstrings to new code
-   - Update API documentation
+ - Update relevant documentation
+ - Add docstrings to new code
+ - Update API documentation
 
 3. **Testing**
-   - Add tests for new features
-   - Ensure all tests pass
-   - Check test coverage
+ - Add tests for new features
+ - Ensure all tests pass
+ - Check test coverage
 
 ### Pull Request Checklist
 

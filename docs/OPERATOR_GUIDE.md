@@ -16,7 +16,7 @@
 ## Approval workflow
 
 1. An alert arrives. The system generates a `runbook` and sets
-   `needs_approval=true` for high-risk actions.
+ `needs_approval=true` for high-risk actions.
 2. Operator calls `GET /api/v1/approvals/pending`.
 3. Review the `proposal`, `risk_level`, and `commands`.
 4. Approve with `PATCH /api/v1/approvals/{alert_id}` or reject it.
