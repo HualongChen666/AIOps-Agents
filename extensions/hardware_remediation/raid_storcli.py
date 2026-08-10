@@ -65,7 +65,11 @@ def register_raid_scripts() -> None:
             platforms=[PlatformType.LINUX],
             risk_level=RiskLevel.HIGH,
             requires_approval=True,
-            script_content="storcli /c0 /vall show\nstorcli /c0 /eall /sall show rebuild\nstorcli /c0 /e252 /s0 start rebuild",
+            script_content=(
+                "storcli /c0 /vall show\n"
+                "storcli /c0 /eall /sall show rebuild\n"
+                "storcli /c0 /e252 /s0 start rebuild"
+            ),
             rollback_script="storcli /c0 /e252 /s0 stop rebuild",
             metadata={"category": "hardware", "interface": "storcli"},
         )

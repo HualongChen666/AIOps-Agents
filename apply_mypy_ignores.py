@@ -76,7 +76,7 @@ if __name__ == "__main__":
         if rc == 0:
             print("mypy is now clean")
             break
-        count = sum(1 for l in out.splitlines() if "error:" in l)
+        count = sum(1 for line in out.splitlines() if "error:" in line)
         print(f"Iteration {i + 1}: {count} errors...")
         apply_ignores(out)
     else:

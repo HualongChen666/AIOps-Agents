@@ -1,17 +1,19 @@
-round16: fix lint issues across the project
+round17: remove all flake8 per-file exemptions, achieve strict lint zero
 
-- autoflake: removed 38 unused imports (F401) and 5 unused variables (F841)
-- autopep8: fixed 60 E302 blank-line issues, E251/E303/W293/W391 style issues,
-  and many E501 line-too-long cases
-- manually fixed 2 F821 undefined name errors:
-  - core/graphql_schema.py (added alert_history import)
-  - gateway/service_registry.py (derived service name from env)
-- manually fixed F811 duplicated require_roles in core/auth_service.py
-- manually refactored core/business_impact_engine.py and core/db_optimization.py
-  to avoid long inline ternary expressions
-- updated .flake8 max-line-length from 100 to 120 for remaining long strings/URLs
+- Removed `per-file-ignores` from `.flake8` entirely
+- Fixed `apply_mypy_ignores.py` E741: renamed loop variable `l` to `line`
+- Fixed `extensions/hardware_remediation/raid_storcli.py` E501 by splitting
+  the long `script_content` string over multiple lines
+- Fixed `main.py`:
+  - Removed 46 unused local variable assignments in startup/shutdown
+    lifespan blocks (kept `_safe_init` calls for side effects)
+  - Removed 2 duplicate imports causing F811
+    (`L4_STORAGE_CONFIG`, `get_l4_storage_manager`)
 
-Verified: flake8 clean (0 errors), compileall, pytest -q (31 passed) all green.
+Verified with a strict `flake8` config (no per-file exemptions):
+- `python -m flake8 .` ✅ 0 errors
+- `python -m compileall -q` ✅
+- `python -m pytest -q` ✅ 31 passed
 
 Generated with Devin (https://devin.ai)
 

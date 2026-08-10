@@ -871,7 +871,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize API performance optimizer (Phase 4)
-        _api_perf_optimizer = await _safe_init(
+        await _safe_init(
             lambda: get_api_performance_optimizer(), "Api Performance Optimizer", timeout=2.0
         )  # noqa: F841
         _logger.info("API performance optimizer initialized (Phase 4)")
@@ -880,7 +880,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize system resource optimizer (Phase 4)
-        _sys_resource_optimizer = await _safe_init(
+        await _safe_init(
             lambda: get_system_resource_optimizer(), "System Resource Optimizer", timeout=2.0
         )  # noqa: F841
         _logger.info("System resource optimizer initialized (Phase 4)")
@@ -889,7 +889,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize service mesh manager (Long-term Phase 1)
-        _service_mesh_manager = await _safe_init(
+        await _safe_init(
             lambda: get_service_mesh_manager(), "Service Mesh Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Service mesh manager initialized (Long-term Phase 1)")
@@ -905,7 +905,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize service discovery manager (Long-term Phase 1)
-        service_discovery_manager = await _safe_init(
+        await _safe_init(
             lambda: get_service_discovery_manager(), "Service Discovery Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Service discovery manager initialized (Long-term Phase 1)")
@@ -914,7 +914,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize service monitoring manager (Long-term Phase 1)
-        service_monitoring_manager = await _safe_init(
+        await _safe_init(
             lambda: get_service_monitoring_manager(), "Service Monitoring Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Service monitoring manager initialized (Long-term Phase 1)")
@@ -923,7 +923,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize plugin system manager (Long-term Phase 4)
-        plugin_system_manager = await _safe_init(
+        await _safe_init(
             lambda: get_plugin_system_manager(), "Plugin System Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Plugin system manager initialized (Long-term Phase 4)")
@@ -932,7 +932,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize plugin development SDK (Long-term Phase 4)
-        plugin_sdk = await _safe_init(
+        await _safe_init(
             lambda: get_plugin_sdk(), "Plugin Sdk", timeout=2.0
         )  # noqa: F841
         _logger.info("Plugin development SDK initialized (Long-term Phase 4)")
@@ -941,7 +941,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize plugin marketplace manager (Long-term Phase 4)
-        marketplace_manager = await _safe_init(
+        await _safe_init(
             lambda: get_marketplace_manager(), "Marketplace Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Plugin marketplace manager initialized (Long-term Phase 4)")
@@ -950,7 +950,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize plugin ecosystem manager (Long-term Phase 4)
-        ecosystem_manager = await _safe_init(
+        await _safe_init(
             lambda: get_ecosystem_manager(), "Ecosystem Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Plugin ecosystem manager initialized (Long-term Phase 4)")
@@ -959,7 +959,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize i18n manager (Long-term Phase 3)
-        i18n_manager = await _safe_init(
+        await _safe_init(
             lambda: get_i18n_manager(), "I18N Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("I18n manager initialized (Long-term Phase 3)")
@@ -968,7 +968,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize localization resource manager (Long-term Phase 3)
-        resource_manager = await _safe_init(
+        await _safe_init(
             lambda: get_resource_manager(), "Resource Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Localization resource manager initialized (Long-term Phase 3)")
@@ -977,7 +977,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize localization adapter (Long-term Phase 3)
-        localization_adapter = await _safe_init(
+        await _safe_init(
             lambda: get_localization_adapter(), "Localization Adapter", timeout=2.0
         )  # noqa: F841
         _logger.info("Localization adapter initialized (Long-term Phase 3)")
@@ -986,7 +986,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize test framework manager (Short-term Phase 2)
-        test_framework_manager = await _safe_init(
+        await _safe_init(
             lambda: get_test_framework_manager(), "Test Framework Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Test framework manager initialized (Short-term Phase 2)")
@@ -995,7 +995,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize test coverage manager (Short-term Phase 2)
-        coverage_manager = await _safe_init(
+        await _safe_init(
             lambda: get_coverage_manager(), "Coverage Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Test coverage manager initialized (Short-term Phase 2)")
@@ -1004,7 +1004,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize test automation manager (Short-term Phase 2)
-        automation_manager = await _safe_init(
+        await _safe_init(
             lambda: get_automation_manager(), "Automation Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Test automation manager initialized (Short-term Phase 2)")
@@ -1013,7 +1013,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize documentation manager (Short-term Phase 3)
-        doc_manager = await _safe_init(
+        await _safe_init(
             lambda: get_documentation_manager(), "Documentation Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Documentation manager initialized (Short-term Phase 3)")
@@ -1022,7 +1022,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize documentation generator (Short-term Phase 3)
-        doc_generator = await _safe_init(
+        await _safe_init(
             lambda: get_documentation_generator(), "Documentation Generator", timeout=2.0
         )  # noqa: F841
         _logger.info("Documentation generator initialized (Short-term Phase 3)")
@@ -1155,37 +1155,37 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Kafka Stream Processor
-        kafka_processor = await _safe_init(
+        await _safe_init(
             lambda: get_kafka_processor(), "Kafka Processor", timeout=2.0
         )  # noqa: F841
         _logger.info("Kafka Stream Processor initialized")
 
         # Initialize Flink Job Manager
-        flink_manager = await _safe_init(
+        await _safe_init(
             lambda: get_flink_job_manager(), "Flink Job Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Flink Job Manager initialized")
 
         # Initialize Distributed Storage Manager
-        storage_manager = await _safe_init(
+        await _safe_init(
             lambda: get_distributed_storage_manager(), "Distributed Storage Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Distributed Storage Manager initialized")
 
         # Initialize Config Center
-        config_center = await _safe_init(
+        await _safe_init(
             lambda: get_config_center(), "Config Center", timeout=2.0
         )  # noqa: F841
         _logger.info("Config Center initialized")
 
         # Initialize Service Discovery
-        service_discovery = await _safe_init(
+        await _safe_init(
             lambda: get_service_discovery(), "Service Discovery", timeout=2.0
         )  # noqa: F841
         _logger.info("Service Discovery initialized")
 
         # Initialize Monitoring Infrastructure
-        monitoring = await _safe_init(
+        await _safe_init(
             lambda: get_monitoring_infrastructure(), "Monitoring Infrastructure", timeout=2.0
         )  # noqa: F841
         _logger.info("Monitoring Infrastructure initialized")
@@ -1213,43 +1213,43 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Enhanced Causal Analyzer (L2 Analysis Layer)
-        enhanced_causal_analyzer = await _safe_init(
+        await _safe_init(
             lambda: get_enhanced_causal_analyzer(), "Enhanced Causal Analyzer", timeout=2.0
         )  # noqa: F841
         _logger.info("Enhanced Causal Analyzer initialized (L2 Layer)")
 
         # Initialize Fault Tolerant Executor (L6 Execution Layer)
-        fault_tolerant_executor = await _safe_init(
+        await _safe_init(
             lambda: get_fault_tolerant_executor(), "Fault Tolerant Executor", timeout=2.0
         )  # noqa: F841
         _logger.info("Fault Tolerant Executor initialized (L6 Layer)")
 
         # Initialize Read-Write Router (Database Layer)
-        read_write_router = await _safe_init(
+        await _safe_init(
             lambda: get_read_write_router(), "Read Write Router", timeout=2.0
         )  # noqa: F841
         _logger.info("Read-Write Router initialized (Database Layer)")
 
         # Initialize Enhanced WebSocket Manager (Communication Layer)
-        enhanced_websocket_manager = await _safe_init(
+        await _safe_init(
             lambda: get_enhanced_websocket_manager(), "Enhanced Websocket Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Enhanced WebSocket Manager initialized (Communication Layer)")
 
         # Initialize L2-L3 Workflow Integrator
-        l2l3_workflow_integrator = await _safe_init(
+        await _safe_init(
             lambda: get_l2l3_workflow_integrator(), "L2L3 Workflow Integrator", timeout=2.0
         )  # noqa: F841
         _logger.info("L2-L3 Workflow Integrator initialized (L2-L3 Integration)")
 
         # Initialize L3-L4 Storage Integrator
-        l3l4_storage_integrator = await _safe_init(
+        await _safe_init(
             lambda: get_l3l4_storage_integrator(), "L3L4 Storage Integrator", timeout=2.0
         )  # noqa: F841
         _logger.info("L3-L4 Storage Integrator initialized (L3-L4 Integration)")
 
         # Initialize Enhanced Auth Integration
-        enhanced_auth_integration = await _safe_init(
+        await _safe_init(
             lambda: get_enhanced_auth_integration(), "Enhanced Auth Integration", timeout=2.0
         )  # noqa: F841
         _logger.info("Enhanced Auth Integration initialized (Security Layer)")
@@ -1275,13 +1275,13 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Model Fine-Tuner (AI Enhancement)
-        model_fine_tuner = await _safe_init(
+        await _safe_init(
             lambda: get_model_fine_tuner(), "Model Fine Tuner", timeout=2.0
         )  # noqa: F841
         _logger.info("Model Fine-Tuner initialized (AI Enhancement)")
 
         # Initialize Frontend Performance Optimizer (Performance Layer)
-        frontend_performance_optimizer = await _safe_init(
+        await _safe_init(
             lambda: get_frontend_performance_optimizer(),
             "Frontend Performance Optimizer",
             timeout=2.0,
@@ -1289,7 +1289,7 @@ async def lifespan(app: FastAPI):
         _logger.info("Frontend Performance Optimizer initialized (Performance Layer)")
 
         # Initialize Kubernetes Deployment Manager (Deployment Layer)
-        kubernetes_deployment_manager = await _safe_init(
+        await _safe_init(
             lambda: get_kubernetes_deployment_manager(),
             "Kubernetes Deployment Manager",
             timeout=2.0,
@@ -1297,7 +1297,7 @@ async def lifespan(app: FastAPI):
         _logger.info("Kubernetes Deployment Manager initialized (Deployment Layer)")
 
         # Initialize CI/CD Pipeline Manager (Automation Layer)
-        cicd_pipeline_manager = await _safe_init(
+        await _safe_init(
             lambda: get_cicd_pipeline_manager(), "Cicd Pipeline Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("CI/CD Pipeline Manager initialized (Automation Layer)")
@@ -1356,7 +1356,7 @@ async def lifespan(app: FastAPI):
         )
 
         # Initialize CI/CD Integration Manager (Deployment Automation Integration)
-        cicd_integration_manager = await _safe_init(
+        await _safe_init(
             lambda: get_cicd_integration_manager(), "Cicd Integration Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("CI/CD Integration Manager initialized (Deployment Automation Integration)")
@@ -1413,7 +1413,7 @@ async def lifespan(app: FastAPI):
         )
 
         # Initialize Security Audit System (Security Audit Layer)
-        security_audit_system = await _safe_init(
+        await _safe_init(
             lambda: get_security_audit_system(), "Security Audit System", timeout=2.0
         )  # noqa: F841
         _logger.info("Security Audit System initialized (Security Audit Layer)")
@@ -1467,7 +1467,7 @@ async def lifespan(app: FastAPI):
     # ================================
     try:
         # Initialize Performance Optimizer (Optimization Layer)
-        performance_optimizer = await _safe_init(
+        await _safe_init(
             lambda: get_performance_optimizer(), "Performance Optimizer", timeout=2.0
         )  # noqa: F841
         # Auto-optimization is started in __init__ via _start_background_monitoring
@@ -1499,25 +1499,25 @@ async def lifespan(app: FastAPI):
         _logger.info("Integration Monitoring System initialized and started (Monitoring Layer)")
 
         # Initialize Documentation Manager (Documentation Layer)
-        documentation_manager = await _safe_init(
+        await _safe_init(
             lambda: get_documentation_manager(), "Documentation Manager", timeout=2.0
         )  # noqa: F841
         _logger.info("Documentation Manager initialized (Documentation Layer)")
 
         # Initialize User Training System (Training Layer)
-        user_training_system = await _safe_init(
+        await _safe_init(
             lambda: get_user_training_system(), "User Training System", timeout=2.0
         )  # noqa: F841
         _logger.info("User Training System initialized (Training Layer)")
 
         # Initialize Integration Test Validator (Validation Layer)
-        integration_test_validator = await _safe_init(
+        await _safe_init(
             lambda: get_integration_test_validator(), "Integration Test Validator", timeout=2.0
         )  # noqa: F841
         _logger.info("Integration Test Validator initialized (Validation Layer)")
 
         # Initialize Performance Integration Tester (Performance Testing Layer)
-        performance_integration_tester = await _safe_init(
+        await _safe_init(
             lambda: get_performance_integration_tester(),
             "Performance Integration Tester",
             timeout=2.0,
@@ -1525,7 +1525,7 @@ async def lifespan(app: FastAPI):
         _logger.info("Performance Integration Tester initialized (Performance Testing Layer)")
 
         # Initialize Integration Documentation Manager (Integration Documentation Layer)
-        integration_documentation_manager = await _safe_init(
+        await _safe_init(
             lambda: get_integration_documentation_manager(),
             "Integration Documentation Manager",
             timeout=2.0,
@@ -1648,7 +1648,6 @@ async def lifespan(app: FastAPI):
 
     # Initialize Storage Implementations (Loki, Tempo, VictoriaMetrics)
     try:
-        from config import L4_STORAGE_CONFIG  # noqa: E402
         from core.storage.l4.loki import LokiStorage  # noqa: E402
         from core.storage.l4.tempo import TempoStorage  # noqa: E402
         from core.storage.l4.victoriametrics import VictoriaMetricsStorage  # noqa: E402
@@ -1740,8 +1739,6 @@ async def lifespan(app: FastAPI):
         _logger.error("Shutdown Teams client error: %s", exc, exc_info=True)
     # 关闭 L4 Storage Layer
     try:
-        from core.storage.l4.storage_manager import get_l4_storage_manager  # noqa: E402
-
         l4_manager = await _safe_init(
             lambda: get_l4_storage_manager(), "L4 Storage Manager", timeout=2.0
         )
@@ -1797,10 +1794,10 @@ async def lifespan(app: FastAPI):
         from core.interface.l5.graphql_interface import get_graphql_interface  # noqa: E402
         from core.interface.l5.mcp_interface import get_mcp_interface  # noqa: E402
 
-        mcp_interface = await _safe_init(
+        await _safe_init(
             lambda: get_mcp_interface(), "Mcp Interface", timeout=2.0
         )  # noqa: F841
-        graphql_interface = await _safe_init(
+        await _safe_init(
             lambda: get_graphql_interface(), "Graphql Interface", timeout=2.0
         )  # noqa: F841
 
@@ -1824,10 +1821,10 @@ async def lifespan(app: FastAPI):
         )
         from core.integration.l7.itSM_integration import get_itsm_integration  # noqa: E402
 
-        itsm_integration = await _safe_init(
+        await _safe_init(
             lambda: get_itsm_integration(), "Itsm Integration", timeout=2.0
         )  # noqa: F841
-        collaboration_integration = await _safe_init(
+        await _safe_init(
             lambda: get_collaboration_integration(), "Collaboration Integration", timeout=2.0
         )  # noqa: F841
         # Note: These integrations don't have explicit close methods
