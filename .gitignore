@@ -27,6 +27,7 @@ build/
 *.py,cover
 .coverage
 coverage.*
+!.github/workflows/coverage.yml
 htmlcov/
 htmlcov*/
 integration_docs/
