@@ -1,12 +1,13 @@
-round12: remove all remaining default_value references
+round13: remove Devin-specific config and leftover placeholder traces
 
-- core/feature_flag.py: renamed default_value field/parameter to fallback_value (20 occurrences).
-- Deleted 13 placeholder/maintenance scripts that used default_value as a literal placeholder string:
-  add_docstrings_simple.py, add_missing_200_examples.py, add_missing_docstrings_v2.py,
-  add_missing_docstrings_v3.py, analyze_coverage.py, enhance_openapi_descriptions_extended.py,
-  fill_missing_examples.py, fix_misplaced_docstrings.py, fix_placeholder_in_signature.py,
-  migrate_to_victoriametrics.py, remove_placeholder.py, update_openapi_examples_missing.py,
-  verify_devin_config.py
+- Removed entire .devin/ directory (Devin IDE configuration, skills, scripts).
+- Removed .devinignore.
+- Removed leftover verification/report scripts:
+  verify_*.py, verify_tool_security.py, compile_verify_report.py,
+  generate_phase4_report.py, add_missing_docstrings.py, cleanup_root.py
+- Replaced openapi.json/yaml example placeholders:
+  feedback_id "placeholder_id" -> real UUID example
+  "Dashboard placeholder" -> "Dashboard summary data"
 
 Verified: compileall, from main import app (97 routes), pytest -q (31 passed) all green.
 

@@ -138,5 +138,19 @@
     "docker_available": false,
     "success": true,
     "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-10T02:28:31.890458+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
   }
 ]

@@ -11716,7 +11716,7 @@
                 },
                 "example": {
                   "status": "ok",
-                  "feedback_id": "placeholder_id",
+                  "feedback_id": "550e8400-e29b-41d4-a716-446655440000",
                   "message": "反馈已记录,感谢您的评价!",
                   "stats": {
                     "total": 0,
@@ -12879,7 +12879,7 @@
                 "schema": {},
                 "example": {
                   "status": "ok",
-                  "message": "Dashboard placeholder"
+                  "message": "Dashboard summary data"
                 }
               }
             }
@@ -31988,7 +31988,7 @@
               "application/json": {
                 "example": {
                   "status": "ok",
-                  "feedback_id": "placeholder_id",
+                  "feedback_id": "550e8400-e29b-41d4-a716-446655440000",
                   "message": "反馈已记录,感谢您的评价!",
                   "stats": {
                     "total": 0,
