@@ -10339,7 +10339,7 @@
           "统计数据"
         ],
         "summary": "记录修复操作结果(内部接口)",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "记录修复操作结果(内部接口)",
         "operationId": "record_repair_result_api_v1_stats_repair_record_post",
         "parameters": [
           {
@@ -12476,7 +12476,7 @@
           "MCP"
         ],
         "summary": "Api Approve Repair",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "Api Approve Repair",
         "operationId": "api_approve_repair_api_mcp_approve_repair_post",
         "requestBody": {
           "content": {
@@ -12553,7 +12553,7 @@
           "RAG"
         ],
         "summary": "RAG语义搜索",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "RAG语义搜索",
         "operationId": "rag_search_api_v1_rag_search_post",
         "requestBody": {
           "content": {
@@ -12869,7 +12869,7 @@
           "dashboard"
         ],
         "summary": "仪表盘摘要",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "仪表盘摘要",
         "operationId": "summary_dashboard_summary_get",
         "responses": {
           "200": {
@@ -25142,7 +25142,7 @@
           "qdrant"
         ],
         "summary": "获取所有集合",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "获取所有集合",
         "operationId": "get_collections_api_qdrant_collections_get",
         "responses": {
           "200": {
@@ -25209,7 +25209,7 @@
           "qdrant"
         ],
         "summary": "创建集合",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "创建集合",
         "operationId": "post_collection_api_qdrant_collections_post",
         "requestBody": {
           "content": {
@@ -25292,7 +25292,7 @@
           "qdrant"
         ],
         "summary": "删除集合",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "删除集合",
         "operationId": "delete_collection_endpoint_api_qdrant_collections__name__delete",
         "security": [
           {
@@ -25377,7 +25377,7 @@
           "qdrant"
         ],
         "summary": "插入或更新向量点",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "插入或更新向量点",
         "operationId": "upsert_points_endpoint_api_qdrant_points_post",
         "requestBody": {
           "content": {
@@ -25459,7 +25459,7 @@
           "qdrant"
         ],
         "summary": "删除向量点",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "删除向量点",
         "operationId": "delete_points_endpoint_api_qdrant_points_delete",
         "requestBody": {
           "content": {
@@ -25541,7 +25541,7 @@
           "qdrant"
         ],
         "summary": "向量搜索",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "向量搜索",
         "operationId": "search_endpoint_api_qdrant_search_post",
         "requestBody": {
           "content": {
@@ -29340,7 +29340,7 @@
           "plugins"
         ],
         "summary": "列出已注册的插件名称",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "列出已注册的插件名称",
         "operationId": "api_list_plugins_api_plugins__get",
         "responses": {
           "200": {
@@ -29405,7 +29405,7 @@
           "plugins"
         ],
         "summary": "运行指定插件的 collect() 方法并返回采集结果",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "运行指定插件的 collect() 方法并返回采集结果",
         "operationId": "api_run_plugin_api_plugins__name__run_post",
         "security": [
           {
@@ -29491,7 +29491,7 @@
           "cost"
         ],
         "summary": "获取成本数据",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "获取成本数据",
         "operationId": "get_collect_api_cost_collect_get",
         "responses": {
           "200": {
@@ -29554,7 +29554,7 @@
           "cost"
         ],
         "summary": "费用预测",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "费用预测",
         "operationId": "get_forecast_api_cost_forecast_get",
         "security": [
           {
@@ -29641,7 +29641,7 @@
           "cost"
         ],
         "summary": "预算状态",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "预算状态",
         "operationId": "get_budget_api_cost_budget_get",
         "responses": {
           "200": {
@@ -31316,7 +31316,7 @@
     "/sw.js": {
       "get": {
         "summary": "Service Worker",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "Service Worker",
         "operationId": "service_worker_sw_js_get",
         "responses": {
           "200": {
@@ -31366,7 +31366,7 @@
     "/sw-register.js": {
       "get": {
         "summary": "Service Worker Register",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "Service Worker Register",
         "operationId": "service_worker_register_sw_register_js_get",
         "responses": {
           "200": {
@@ -31416,7 +31416,7 @@
     "/api/v1/dr/scenarios": {
       "get": {
         "summary": "List Dr Scenarios Endpoint",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "List Dr Scenarios Endpoint",
         "operationId": "list_dr_scenarios_endpoint_api_v1_dr_scenarios_get",
         "responses": {
           "200": {
@@ -31466,7 +31466,7 @@
     "/api/v1/dr/run/{scenario_name}": {
       "post": {
         "summary": "Run Dr Scenario Endpoint",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "Run Dr Scenario Endpoint",
         "operationId": "run_dr_scenario_endpoint_api_v1_dr_run__scenario_name__post",
         "parameters": [
           {
@@ -47220,7 +47220,7 @@
           "query"
         ],
         "title": "AnalyzeRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "AnalyzeRequest schema.",
         "example": {
           "include_metrics": true,
           "include_rich_context": true,
@@ -47294,7 +47294,7 @@
           "approved"
         ],
         "title": "ApproveRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "ApproveRequest schema.",
         "example": {
           "repair_id": "string",
           "approved": true,
@@ -47467,7 +47467,7 @@
           "created_at"
         ],
         "title": "AuditLogResponse",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "AuditLogResponse schema.",
         "example": {
           "action": "example",
           "details": "example",
@@ -47592,7 +47592,7 @@
           "command"
         ],
         "title": "CommandRewriteRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "CommandRewriteRequest schema.",
         "example": {
           "command": "example"
         }
@@ -47732,7 +47732,7 @@
           "vector_size"
         ],
         "title": "CreateCollectionRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "CreateCollectionRequest schema.",
         "example": {
           "distance": "example",
           "name": "example",
@@ -47949,7 +47949,7 @@
           "ids"
         ],
         "title": "DeletePointsRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "DeletePointsRequest schema.",
         "example": {
           "collection": "example",
           "ids": []
@@ -48036,7 +48036,7 @@
           "feedback_type"
         ],
         "title": "FeedbackRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "FeedbackRequest schema.",
         "example": {
           "analysis_text": "example",
           "comment": "example",
@@ -48179,7 +48179,7 @@
           "host_id"
         ],
         "title": "HostHealthRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "HostHealthRequest schema.",
         "example": {
           "host_id": "string"
         }
@@ -48419,7 +48419,7 @@
           "host_name"
         ],
         "title": "LinuxCollectRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "LinuxCollectRequest schema.",
         "example": {
           "host_name": "example",
           "metrics": "example"
@@ -48462,7 +48462,7 @@
           "script_key"
         ],
         "title": "LinuxRepairRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "LinuxRepairRequest schema.",
         "example": {
           "host_name": "example",
           "params": {},
@@ -48481,7 +48481,7 @@
           "password"
         ],
         "title": "MFAEnableRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "MFAEnableRequest schema.",
         "example": {
           "password": "example"
         }
@@ -48506,7 +48506,7 @@
           "metrics"
         ],
         "title": "MetricsRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "MetricsRequest schema.",
         "example": {
           "host_id": "string",
           "metrics": []
@@ -48620,7 +48620,7 @@
           "status"
         ],
         "title": "NodeHealthUpdateRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "NodeHealthUpdateRequest schema.",
         "example": {
           "node_id": "example"
         }
@@ -48698,7 +48698,7 @@
         },
         "type": "object",
         "title": "NotifyTestRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "NotifyTestRequest schema.",
         "example": {
           "desc": "example",
           "title": "example"
@@ -48722,7 +48722,7 @@
           "new_password"
         ],
         "title": "PasswordChange",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "PasswordChange schema.",
         "example": {
           "current_password": "example",
           "new_password": "example"
@@ -48797,7 +48797,7 @@
           "vector"
         ],
         "title": "PointModel",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "PointModel schema.",
         "example": {
           "payload": "example",
           "vector": []
@@ -48857,7 +48857,7 @@
           "alert_id"
         ],
         "title": "RejectRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "RejectRequest schema.",
         "example": {
           "alert_id": "example",
           "reason": "example"
@@ -48904,7 +48904,7 @@
           "success"
         ],
         "title": "RepairRecordRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "RepairRecordRequest schema.",
         "example": {
           "output": "example",
           "platform": "example",
@@ -48941,7 +48941,7 @@
           "user"
         ],
         "title": "RepairRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "RepairRequest schema.",
         "example": {
           "alert_id": "string",
           "user": "string",
@@ -49492,7 +49492,7 @@
           "points"
         ],
         "title": "UpsertPointsRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "UpsertPointsRequest schema.",
         "example": {
           "collection": "example",
           "points": []
@@ -49547,7 +49547,7 @@
           "password"
         ],
         "title": "UserCreate",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "UserCreate schema.",
         "example": {
           "email": "example",
           "full_name": "example",
@@ -49796,7 +49796,7 @@
           "mfa_enabled"
         ],
         "title": "UserResponse",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "UserResponse schema.",
         "example": {
           "disabled": true,
           "email": "example",
@@ -49858,7 +49858,7 @@
         },
         "type": "object",
         "title": "UserUpdate",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "UserUpdate schema.",
         "example": {
           "disabled": true,
           "email": "example",
@@ -50020,7 +50020,7 @@
           "query_vector"
         ],
         "title": "SearchRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "SearchRequest schema.",
         "example": {
           "collection": "example",
           "filter": "example",
@@ -50045,7 +50045,7 @@
           "query"
         ],
         "title": "SearchRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "SearchRequest schema.",
         "example": {
           "query": "example",
           "top_k": 0
@@ -50068,7 +50068,7 @@
           "query"
         ],
         "title": "SearchRequest",
-        "description": "TODO: Add docstring (Google style).",
+        "description": "SearchRequest schema.",
         "example": {
           "query": "string",
           "limit": 0
