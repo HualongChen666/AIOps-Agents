@@ -846,8 +846,8 @@ export function cleanLabelRouteClearanceProblems({
 }
 
 function segmentPosition(index, segmentCount) {
-  if (index === 0) return 'source-stub';
-  if (index === segmentCount - 1) return 'target-stub';
+  if (index === 0) return 'source-end';
+  if (index === segmentCount - 1) return 'target-end';
   return 'interior';
 }
 
@@ -1036,8 +1036,8 @@ export function automaticPortRhythmBridge(
   { endpointStubPx = 24, interiorSegmentPx = 16, accept } = {},
 ) {
   if (!Array.isArray(start) || !Array.isArray(end)
-      || start.length !== 2 || end.length !== 2
-      || !isFinitePoint(...start, ...end)) return null;
+    || start.length !== 2 || end.length !== 2
+    || !isFinitePoint(...start, ...end)) return null;
   const fromVector = PORT_OUTWARD_VECTOR[fromSide];
   const toVector = PORT_OUTWARD_VECTOR[toSide];
   if (!fromVector || !toVector) return null;
@@ -1055,7 +1055,7 @@ export function automaticPortRhythmBridge(
   const horizontalSides = new Set(['left', 'right']);
 
   if (verticalSides.has(fromSide) && verticalSides.has(toSide)
-      && Math.abs(start[0] - end[0]) < interiorSegmentPx) {
+    && Math.abs(start[0] - end[0]) < interiorSegmentPx) {
     for (const channelX of [
       Math.max(start[0], end[0]) + interiorSegmentPx,
       Math.min(start[0], end[0]) - interiorSegmentPx,
@@ -1071,7 +1071,7 @@ export function automaticPortRhythmBridge(
     }
   }
   if (horizontalSides.has(fromSide) && horizontalSides.has(toSide)
-      && Math.abs(start[1] - end[1]) < interiorSegmentPx) {
+    && Math.abs(start[1] - end[1]) < interiorSegmentPx) {
     for (const channelY of [
       Math.max(start[1], end[1]) + interiorSegmentPx,
       Math.min(start[1], end[1]) - interiorSegmentPx,

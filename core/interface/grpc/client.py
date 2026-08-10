@@ -28,7 +28,7 @@ class AIOpsGrpcClient:
         self.port = port
         self.timeout = timeout
         self._channel: Optional[grpc.Channel] = None
-        self._stub = None
+        self._grpc_client = None
 
     async def connect(self) -> None:
         """Connect to gRPC server"""
@@ -38,7 +38,7 @@ class AIOpsGrpcClient:
 
             # Create component
             # from proto.aiops_pb2_grpc import AIOpsServiceStub
-            # self._stub = AIOpsServiceStub(self._channel)
+            # self._grpc_client = AIOpsServiceStub(self._channel)
 
             logger.info(f"Connected to gRPC server at {self.host}:{self.port}")
 
@@ -54,27 +54,27 @@ class AIOpsGrpcClient:
 
     async def get_metrics(self) -> dict:
         """Get current system metrics"""
-        if self._stub is None:
-            raise RuntimeError("gRPC stub not initialized; connect() did not produce a service stub")
-        raise NotImplementedError("gRPC metrics retrieval requires generated protobuf stubs")
+        if self._grpc_client is None:
+            raise RuntimeError("gRPC client not initialized; connect() did not produce a service client")
+        raise NotImplementedError("gRPC metrics retrieval requires generated protobuf service clients")
 
     async def get_alerts(
         self, level: Optional[str] = None, platform: Optional[str] = None, limit: int = 10
     ) -> List[dict]:
         """Get alerts with filtering"""
-        if self._stub is None:
-            raise RuntimeError("gRPC stub not initialized; connect() did not produce a service stub")
-        raise NotImplementedError("gRPC alert retrieval requires generated protobuf stubs")
+        if self._grpc_client is None:
+            raise RuntimeError("gRPC client not initialized; connect() did not produce a service client")
+        raise NotImplementedError("gRPC alert retrieval requires generated protobuf service clients")
 
     async def execute_repair(self, script_key: str, parameters: Optional[dict] = None) -> dict:
         """Execute a repair action"""
-        if self._stub is None:
-            raise RuntimeError("gRPC stub not initialized; connect() did not produce a service stub")
-        raise NotImplementedError("gRPC repair execution requires generated protobuf stubs")
+        if self._grpc_client is None:
+            raise RuntimeError("gRPC client not initialized; connect() did not produce a service client")
+        raise NotImplementedError("gRPC repair execution requires generated protobuf service clients")
 
     async def stream_metrics(self):
         """Stream metrics updates"""
-        # gRPC streaming requires generated protobuf stubs; do not yield placeholder data.
+        # gRPC streaming requires generated protobuf service clients; do not yield placeholder data.
         if False:
             yield
-        raise NotImplementedError("gRPC metrics streaming requires generated protobuf stubs")
+        raise NotImplementedError("gRPC metrics streaming requires generated protobuf service clients")
