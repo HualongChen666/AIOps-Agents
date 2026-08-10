@@ -11,6 +11,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
 
+from core.alert_service import alert_service
+from core.collector import collect_all
+
 
 @dataclass
 class Tool:
@@ -212,8 +215,7 @@ async def get_metrics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Get system metrics"""
     if arguments:
         raise ValueError("get_metrics does not accept any arguments")
-    # default_value - integrate with actual metrics collector
-    return {"cpu_usage": 45.2, "memory_usage": 68.3, "disk_usage": 52.1}
+    return collect_all()
 
 
 async def check_alerts_handler(arguments: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -224,15 +226,11 @@ async def check_alerts_handler(arguments: Dict[str, Any]) -> List[Dict[str, Any]
             raise ValueError("level must be a string")
         if level.lower() not in {"info", "warning", "error", "critical"}:
             raise ValueError("level must be one of info, warning, error, critical")
-    # default_value - integrate with actual alert engine
-    return [
-        {
-            "id": "alert-1",
-            "level": "warning",
-            "title": "High CPU usage",
-            "timestamp": "2024-01-01T00:00:00Z",
-        }
-    ]
+    alerts = alert_service.get_alerts(limit=20)["alerts"]
+    if level is not None:
+        level = level.lower()
+        alerts = [a for a in alerts if a.get("level", "").lower() == level]
+    return alerts
 
 
 def register_default_tools(registry: ToolRegistry) -> None:

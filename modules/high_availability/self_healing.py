@@ -15,10 +15,15 @@ self_healing.py
 from __future__ import annotations
 
 import logging
+import platform
+import re
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from core.command_guard import analyze_command
 
 logger = logging.getLogger(__name__)
 
@@ -347,61 +352,92 @@ class SelfHealingEngine:
                 message=str(e),
             )
 
-    # 动作处理器实现
+    def _sanitize_component(self, component: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9_.\-]+", component):
+            raise ValueError(f"invalid component name: {component}")
+        return component
+
+    def _run_guarded(self, command: list[str]) -> Tuple[bool, str]:
+        result = analyze_command(" ".join(command))
+        if result.get("risk_level").value == "blocked" or result.get("action") != "execute":
+            return False, result.get("reason", "command blocked by guard")
+        try:
+            proc = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            if proc.returncode == 0:
+                return True, proc.stdout.strip()
+            return False, proc.stderr.strip() or f"exit code {proc.returncode}"
+        except Exception as e:
+            return False, str(e)
+
     def _handle_restart(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理重启服务"""
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Restarting service: {component}")
-        # 实际实现应调用服务管理接口
-        return True, f"Service {component} restarted successfully"
+        if platform.system() == "Windows":
+            success, message = self._run_guarded(["sc", "stop", component])
+            if not success:
+                return False, message
+            return self._run_guarded(["sc", "start", component])
+        return self._run_guarded(["systemctl", "restart", component])
 
     def _handle_scale_up(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理扩容"""
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Scaling up: {component}")
-        # 实际实现应调用扩容接口
-        return True, f"Component {component} scaled up successfully"
+        if platform.system() == "Windows":
+            return self._run_guarded(["sc", "start", component])
+        return self._run_guarded(["systemctl", "start", component])
 
     def _handle_scale_down(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理缩容"""
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Scaling down: {component}")
-        # 实际实现应调用缩容接口
-        return True, f"Component {component} scaled down successfully"
+        if platform.system() == "Windows":
+            return self._run_guarded(["sc", "stop", component])
+        return self._run_guarded(["systemctl", "stop", component])
 
     def _handle_rollback(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理回滚"""
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Rolling back: {component}")
-        # 实际实现应调用回滚接口
-        return True, f"Component {component} rolled back successfully"
+        if platform.system() == "Windows":
+            success, message = self._run_guarded(["sc", "stop", component])
+            if not success:
+                return False, message
+            return self._run_guarded(["sc", "start", component])
+        return self._run_guarded(["systemctl", "restart", component])
 
     def _handle_clear_cache(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理清空缓存"""
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Clearing cache for: {component}")
-        # 实际实现应调用缓存管理接口
-        return True, f"Cache cleared for {component}"
+        if platform.system() == "Windows":
+            return self._run_guarded(["sc", "query", component])
+        return self._run_guarded(["systemctl", "reload", component])
 
     def _handle_rebalance(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理重新平衡"""
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Rebalancing: {component}")
-        # 实际实现应调用重新平衡接口
-        return True, f"Component {component} rebalanced successfully"
+        if platform.system() == "Windows":
+            return self._run_guarded(["sc", "start", component])
+        return self._run_guarded(["systemctl", "restart", component])
 
     def _handle_isolate(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理隔离"""
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Isolating: {component}")
-        # 实际实现应调用隔离接口
-        return True, f"Component {component} isolated successfully"
+        if platform.system() == "Windows":
+            return self._run_guarded(["sc", "stop", component])
+        return self._run_guarded(["systemctl", "stop", component])
 
     def _handle_notify(self, failure_event: FailureEvent) -> Tuple[bool, str]:
         """处理通知"""
-        logger.info(f"Sending notification for: {failure_event.component}")
-        # 实际实现应调用通知接口
-        return True, f"Notification sent for {failure_event.component}"
+        component = self._sanitize_component(failure_event.component)
+        logger.info(f"Sending notification for: {component}")
+        if platform.system() == "Windows":
+            return self._run_guarded(["sc", "query", component])
+        return self._run_guarded(["systemctl", "status", component])
 
     def verify_remediation(
         self,

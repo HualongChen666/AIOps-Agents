@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""default_value dashboard router.
+"""Dashboard router.
 
 Provides a minimal health-like endpoint for the dashboard overview.
 """
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
             "description": "仪表盘摘要数据",
             "content": {
                 "application/json": {
-                    "example": {"status": "ok", "message": "Dashboard default_value"}
+                    "example": {"status": "ok", "message": "Dashboard summary"}
                 }
             },
         },

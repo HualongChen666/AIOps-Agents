@@ -2,8 +2,8 @@
 """Real LLM router add-on microservice.
 
 Selects the best model for a request based on priority, cost and latency
-constraints. If ``OPENAI_API_KEY`` is set, ``/invoke`` forwards to OpenAI;
-otherwise it returns a deterministic mock so the service is self-contained.
+constraints. ``/invoke`` forwards to the selected model backend. If the
+backend is unavailable, a 5xx error is returned instead of a fake response.
 """
 
 import logging
@@ -186,10 +186,27 @@ async def invoke(req: InvokeRequest) -> InvokeResponse:
                 data = r.json()
                 text = data["choices"][0]["message"]["content"]
         except Exception as e:
-            logger.warning("OpenAI call failed: %s; falling back to mock", e)
-            text = f"[mock] OpenAI fallback for: {req.prompt[:80]}"
+            logger.error("OpenAI call failed: %s", e)
+            raise HTTPException(status_code=502, detail=f"OpenAI backend error: {e}") from e
+    elif selected["provider"] == "local":
+        ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": selected["id"].replace("local-", ""), "prompt": req.prompt, "stream": False},
+                    timeout=60.0,
+                )
+                r.raise_for_status()
+                data = r.json()
+                text = data.get("response", "")
+        except Exception as e:
+            logger.error("Local LLM backend failed: %s", e)
+            raise HTTPException(status_code=502, detail=f"Local LLM backend error: {e}") from e
     else:
-        text = f"[mock] {selected['id']} response for: {req.prompt[:80]}"
+        raise HTTPException(status_code=503, detail=f"No backend available for provider {selected['provider']}")
 
     latency_ms = int((time.monotonic() - start) * 1000) or selected["latency_ms"]
     return InvokeResponse(

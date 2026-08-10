@@ -1197,7 +1197,7 @@ class AutomaticAlertRouter:
             if self._match_conditions(alert, route.conditions):
                 target_channels.append(route.target_channel)
 
-        # ML-based routing (default_value for actual ML model)
+        # ML-based routing using a heuristic score model
         if self.strategy in [AlertRoutingStrategy.ML_BASED, AlertRoutingStrategy.HYBRID]:
             ml_channels = self._ml_route_alert(alert)
             target_channels.extend(ml_channels)

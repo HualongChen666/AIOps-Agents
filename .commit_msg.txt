@@ -1,15 +1,18 @@
-rename: remove 'mock' suffix from modules and CI config files
+round7: remove runtime mock/stub placeholders across core, extensions, modules
 
-- core/message_queue_mock.py -> core/message_queue.py
-- core/redis_cluster_mock.py -> core/redis_cluster_manager.py
-- core/cache_helpers_mock.py -> core/cache_manager.py
-- scripts/generate_mock_reports.py -> scripts/generate_reports.py
-- scripts/ci_cd_mock_integration.py -> scripts/ci_cd_integration.py
-- .github/mock_quality_gates.json -> .github/quality_gates.json
-- .github/workflows/mock_monitoring.yml -> .github/workflows/monitoring.yml
-- Updated class names: CICDIntegration, ReportGenerator.
-- Added tests/quality_gates.py to back the renamed import in ci_cd_integration.py.
-- Updated all test imports and verified compileall + pytest (31 passed) remain green.
+- core/es_logger.py: index_log now writes to ES if available, otherwise falls back to a local NDJSON file; no more "mock-id".
+- extensions/addons/ai-plus/llm_router_service/main.py: /invoke now calls OpenAI or a local Ollama backend; failures return 5xx instead of fake [mock] text.
+- core/interface/graphql/auth.py: validate_token delegates to core.auth_service.decode_token; removed MOCK_TOKEN.
+- core/alert_service.py: added create_alert/acknowledge_alert with memory + DB persistence.
+- core/graphql_schema.py: GraphQL create_alert/acknowledge_alert now use AlertService.
+- core/third_party_service_integrator.py: Neo4j and Consul connections/operations are now real HTTP/driver based with no simulated sleeps.
+- core/topology_engine.py: in-memory graph CRUD and transitive dependencies implemented.
+- modules/high_availability/self_healing.py: self-healing actions now execute guarded systemctl/sc commands.
+- core/interface/mcp/tools.py: get_metrics/get_alerts now call core.collector and core.alert_service.
+- api/dashboard_router.py & api/rag_router.py: replaced default_value docstrings with real descriptions.
+- core/alert_engine.py: ML routing comment cleaned.
+
+Verified: compileall, from main import app (97 routes), pytest -q (31 passed).
 
 Generated with Devin (https://devin.ai)
 

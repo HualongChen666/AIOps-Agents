@@ -97,9 +97,7 @@ TOPOLOGY_TYPES: Dict[str, str] = {
 
 
 def get_topology_status(topo_key: str) -> Dict[str, Any]:
-    """返回指定拓扑的简要运行状态（占位实现）。"""
-    # 实际实现应返回节点计数、活跃流等信息，这里返回空结构防止 500 错误
-    return {"node_count": 0, "active_flows": []}
+    return {"node_count": len(_nodes), "active_flows": _edges.copy()}
 
 
 async def get_full_link_topology(topo_key: str | None = None) -> Dict[str, Any]:
@@ -191,6 +189,10 @@ def update_node_health(node_id: str, status: str) -> bool:
 _topology_cache: Dict[str, Any] = {}
 
 
+_nodes: Dict[str, Dict[str, Any]] = {}
+_edges: List[Dict[str, Any]] = []
+
+
 async def insert_topology(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> str:
     """Persist topology and return an id."""
     import uuid
@@ -217,38 +219,85 @@ async def query_topology(topology_id: str) -> Any:
 
 
 async def insert_node(node: Dict[str, Any]) -> bool:
-    """default_value: insert a node."""
+    if not isinstance(node, dict):
+        return False
+    node_id = str(node.get("id", "")).strip()
+    if not node_id or node_id in _nodes:
+        return False
+    _nodes[node_id] = node
     return True
 
 
 async def delete_node(node_id: str) -> bool:
-    """default_value: delete a node."""
+    if node_id not in _nodes:
+        return False
+    del _nodes[node_id]
+    remaining = [e for e in _edges if e.get("source") != node_id and e.get("target") != node_id]
+    _edges.clear()
+    _edges.extend(remaining)
     return True
 
 
 async def insert_edge(edge: Dict[str, Any]) -> bool:
-    """default_value: insert an edge."""
+    if not isinstance(edge, dict):
+        return False
+    src = str(edge.get("source", "")).strip()
+    tgt = str(edge.get("target", "")).strip()
+    if not src or not tgt or src not in _nodes or tgt not in _nodes:
+        return False
+    for e in _edges:
+        if e.get("source") == src and e.get("target") == tgt:
+            return False
+    edge_id = edge.get("id") or f"{src}__{tgt}"
+    _edges.append({"id": edge_id, "source": src, "target": tgt})
     return True
 
 
 async def delete_edge(edge_id: str) -> bool:
-    """default_value: delete an edge."""
-    return True
+    for i, e in enumerate(_edges):
+        if e.get("id") == edge_id:
+            _edges.pop(i)
+            return True
+    for sep in ("__", "->"):
+        if sep in edge_id:
+            src, tgt = edge_id.split(sep, 1)
+            for i, e in enumerate(_edges):
+                if e.get("source") == src and e.get("target") == tgt:
+                    _edges.pop(i)
+                    return True
+            break
+    return False
 
 
 async def node_exists(node_id: str) -> bool:
-    """default_value: check if a node exists."""
-    return True
+    return node_id in _nodes
 
 
 async def query_dependencies(node_id: str) -> List[Dict[str, Any]]:
-    """default_value: return direct dependencies of a node."""
-    return []
+    if node_id not in _nodes:
+        return []
+    deps = []
+    for e in _edges:
+        if e.get("source") == node_id:
+            target = e.get("target")
+            node = _nodes.get(target)
+            if node is not None:
+                deps.append(node)
+    return deps
 
 
 async def get_transitive_dependencies(node_id: str) -> List[str]:
-    """default_value: return transitive dependencies of a node."""
-    return []
+    if node_id not in _nodes:
+        return []
+    G = nx.DiGraph()
+    for e in _edges:
+        src = e.get("source")
+        tgt = e.get("target")
+        if src and tgt:
+            G.add_edge(src, tgt)
+    if node_id not in G:
+        return []
+    return list(nx.descendants(G, node_id))
 
 
 # ------------------------------------------------------------

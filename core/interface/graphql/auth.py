@@ -89,7 +89,6 @@ async def get_current_user(
 
     # Validate token and get user info
     try:
-        # default_value - integrate with actual authentication system
         user_info = validate_token(token)
 
         return AuthContext(
@@ -104,7 +103,7 @@ async def get_current_user(
 
 def validate_token(token: str) -> Dict[str, Any]:
     """
-    Validate JWT token
+    Validate JWT token against the project authentication service.
 
     Args:
         token: JWT token string
@@ -115,12 +114,15 @@ def validate_token(token: str) -> Dict[str, Any]:
     Raises:
         ValueError: If token is invalid
     """
-    # default_value - implement actual JWT validation
-    # For now, return mock user info
-    if token == os.environ.get("MOCK_TOKEN", ""):
-        return {"user_id": "user-1", "role": Role.ADMIN, "permissions": [Permission.ADMIN]}
+    from core.auth_service import decode_token
 
-    raise ValueError("Invalid token")
+    payload = decode_token(token)
+    user_id = payload.get("sub") or payload.get("user_id") or "unknown"
+    role = payload.get("role") or Role.VIEWER
+    permissions = payload.get("permissions", [])
+    if not permissions:
+        permissions = ROLE_PERMISSIONS.get(role, [])
+    return {"user_id": user_id, "role": role, "permissions": permissions}
 
 
 def require_permission(permission: str):

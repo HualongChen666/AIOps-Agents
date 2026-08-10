@@ -166,27 +166,18 @@ class Mutation:
 
     @mutation
     async def create_alert(self, severity: str, message: str, source: str) -> Alert:
-        """
-        创建告警
-
-        Args:
-            severity: 严重程度
-            message: 消息
-            source: 来源
-
-        Returns:
-            创建的告警
-        """
+        """创建告警。"""
         try:
-            # 🔧 Fix: AlertService doesn't have create_alert method
-            # Return a mock alert for now
+            from core.alert_service import alert_service
+
+            created = await alert_service.create_alert(severity, message, source)
             return Alert(
-                id="mock_id",
-                severity=severity,
-                message=message,
-                source=source,
-                created_at=datetime.now(timezone.utc),
-                status="active",
+                id=created["id"],
+                severity=created["severity"],
+                message=created["message"],
+                source=created["source"],
+                created_at=created["created_at"],
+                status=created["status"],
             )
         except Exception as e:
             logger.error(f"Failed to create alert: {e}")
@@ -194,26 +185,25 @@ class Mutation:
 
     @mutation
     async def acknowledge_alert(self, alert_id: str) -> Alert:
-        """
-        确认告警
-
-        Args:
-            alert_id: 告警ID
-
-        Returns:
-            更新的告警
-        """
+        """确认告警。"""
         try:
-            # 🔧 Fix: AlertService doesn't have acknowledge_alert method
-            # Return a mock alert for now
-            return Alert(
-                id=alert_id,
-                severity="unknown",
-                message="",
-                source="",
-                created_at=datetime.now(timezone.utc),
-                status="acknowledged",
-            )
+            from core.alert_service import alert_service
+
+            found = await alert_service.acknowledge_alert(alert_id)
+            if not found:
+                raise ValueError(f"Alert not found: {alert_id}")
+
+            for alert in alert_history:
+                if alert.get("id") == alert_id:
+                    return Alert(
+                        id=alert["id"],
+                        severity=alert.get("severity", "unknown"),
+                        message=alert.get("message", ""),
+                        source=alert.get("source", ""),
+                        created_at=alert.get("created_at", datetime.now(timezone.utc)),
+                        status=alert.get("status", "acknowledged"),
+                    )
+            raise ValueError(f"Alert not found after acknowledgement: {alert_id}")
         except Exception as e:
             logger.error(f"Failed to acknowledge alert: {e}")
             raise Exception(f"Failed to acknowledge alert: {str(e)}")

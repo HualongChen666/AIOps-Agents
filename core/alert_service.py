@@ -10,6 +10,8 @@ alert_service.py
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from core.alert_engine import alert_history
@@ -142,6 +144,32 @@ class AlertService:
             logger.warning(f"告警状态持久化失败(已更新内存): {db_err}")
 
         return found
+
+    async def create_alert(
+        self, severity: str, message: str, source: str, status: str = "active"
+    ) -> dict[str, Any]:
+        """创建一条新告警并写入内存和数据库。"""
+        alert_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        alert = {
+            "id": alert_id,
+            "severity": severity,
+            "message": message,
+            "source": source,
+            "status": status,
+            "created_at": now,
+            "updated_at": now,
+        }
+        alert_history.appendleft(alert)
+        try:
+            await db_alert_repository.create(alert)
+        except Exception as db_err:
+            logger.warning(f"告警创建持久化失败(已写入内存): {db_err}")
+        return alert
+
+    async def acknowledge_alert(self, alert_id: str) -> bool:
+        """确认指定告警。"""
+        return await self.update_alert_status(alert_id, "acknowledged")
 
 
 # 默认服务实例

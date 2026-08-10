@@ -5,12 +5,22 @@ Enterprise-grade third-party service integration (Neo4j, Consul)
 """
 
 import asyncio
+import base64
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import httpx
 from loguru import logger
+
+try:
+    from neo4j import AsyncGraphDatabase
+
+    NEO4J_AVAILABLE = True
+except Exception:
+    NEO4J_AVAILABLE = False
 
 
 class ServiceType(Enum):
@@ -73,18 +83,14 @@ class ThirdPartyServiceIntegrator:
         """
         self.config = config or {}
 
-        # Service connections
         self.service_connections: Dict[str, ServiceConnection] = {}
         self.service_configs: Dict[str, ServiceConfig] = {}
 
-        # Service clients
         self.service_clients: Dict[str, Any] = {}
 
-        # Health check configuration
         self.health_check_interval = self.config.get("health_check_interval", 60)
         self.health_check_enabled = self.config.get("health_check_enabled", True)
 
-        # Statistics
         self.total_connections = 0
         self.active_connections = 0
 
@@ -104,10 +110,8 @@ class ThirdPartyServiceIntegrator:
             f"{service_config.service_type.value}_{service_config.host}_{service_config.port}"
         )
 
-        # Store configuration
         self.service_configs[service_id] = service_config
 
-        # Create connection
         connection = ServiceConnection(
             service_id=service_id,
             service_type=service_config.service_type,
@@ -117,11 +121,9 @@ class ThirdPartyServiceIntegrator:
         self.service_connections[service_id] = connection
 
         try:
-            # Connect to service
             client = await self._connect_to_service(service_config)
             self.service_clients[service_id] = client
 
-            # Update connection status
             connection.status = ServiceStatus.CONNECTED
             connection.connected_at = datetime.now(timezone.utc)
             connection.last_activity = datetime.now(timezone.utc)
@@ -165,11 +167,12 @@ class ThirdPartyServiceIntegrator:
         Returns:
             Neo4j client
         """
-        # In real implementation, would use neo4j Python driver
-        await asyncio.sleep(1)  # Simulate connection
+        if not NEO4J_AVAILABLE:
+            raise RuntimeError("neo4j driver not installed")
 
-        # Return mock client
-        return {"type": "neo4j", "host": config.host, "port": config.port}
+        uri = f"neo4j://{config.host}:{config.port}"
+        auth = (config.username, config.password) if config.username else None
+        return AsyncGraphDatabase.driver(uri, auth=auth)
 
     async def _connect_consul(self, config: ServiceConfig) -> Any:
         """
@@ -181,11 +184,13 @@ class ThirdPartyServiceIntegrator:
         Returns:
             Consul client
         """
-        # In real implementation, would use consul Python client
-        await asyncio.sleep(1)  # Simulate connection
-
-        # Return mock client
-        return {"type": "consul", "host": config.host, "port": config.port}
+        client = httpx.AsyncClient(
+            base_url=f"http://{config.host}:{config.port}",
+            timeout=config.timeout,
+        )
+        response = await client.get("/v1/status/leader")
+        response.raise_for_status()
+        return client
 
     async def disconnect_service(self, service_id: str) -> bool:
         """
@@ -203,12 +208,10 @@ class ThirdPartyServiceIntegrator:
         connection = self.service_connections[service_id]
 
         try:
-            # Close client connection
             if service_id in self.service_clients:
                 await self._close_service_client(service_id)
                 del self.service_clients[service_id]
 
-            # Update connection status
             connection.status = ServiceStatus.DISCONNECTED
             self.active_connections -= 1
 
@@ -221,8 +224,14 @@ class ThirdPartyServiceIntegrator:
 
     async def _close_service_client(self, service_id: str) -> None:
         """Close service client connection"""
-        # In real implementation, would close actual client connection
-        await asyncio.sleep(0.5)  # Simulate disconnection
+        client = self.service_clients.get(service_id)
+        if client is None:
+            return
+
+        if hasattr(client, "aclose"):
+            await client.aclose()
+        elif hasattr(client, "close"):
+            await client.close()
 
     async def execute_neo4j_query(
         self, service_id: str, query: str, parameters: Optional[Dict[str, Any]] = None
@@ -238,6 +247,9 @@ class ThirdPartyServiceIntegrator:
         Returns:
             Query results
         """
+        if not NEO4J_AVAILABLE:
+            raise RuntimeError("neo4j driver not installed")
+
         if service_id not in self.service_clients:
             raise ValueError(f"Service not connected: {service_id}")
 
@@ -245,14 +257,19 @@ class ThirdPartyServiceIntegrator:
         if connection.service_type != ServiceType.NEO4J:
             raise ValueError(f"Service is not Neo4j: {service_id}")
 
-        # Update last activity
         connection.last_activity = datetime.now(timezone.utc)
 
-        # In real implementation, would execute actual Neo4j query
-        await asyncio.sleep(0.5)  # Simulate query execution
+        config = self.service_configs[service_id]
+        driver = self.service_clients[service_id]
+        parameters = parameters or {}
+        results: List[Dict[str, Any]] = []
 
-        # Return mock results
-        return []
+        async with driver.session(database=config.database) as session:
+            result = await session.run(query, parameters)
+            async for record in result:
+                results.append(record.data())
+
+        return results
 
     async def consul_put_kv(self, service_id: str, key: str, value: Any) -> bool:
         """
@@ -273,13 +290,13 @@ class ThirdPartyServiceIntegrator:
         if connection.service_type != ServiceType.CONSUL:
             raise ValueError(f"Service is not Consul: {service_id}")
 
-        # Update last activity
         connection.last_activity = datetime.now(timezone.utc)
 
-        # In real implementation, would execute actual Consul KV operation
-        await asyncio.sleep(0.3)  # Simulate operation
+        client = self.service_clients[service_id]
+        content = value if isinstance(value, bytes) else str(value).encode()
+        response = await client.put(f"/v1/kv/{key}", content=content)
 
-        return True
+        return response.status_code == 200 and response.text.strip() == "true"
 
     async def consul_get_kv(self, service_id: str, key: str) -> Optional[Any]:
         """
@@ -299,13 +316,21 @@ class ThirdPartyServiceIntegrator:
         if connection.service_type != ServiceType.CONSUL:
             raise ValueError(f"Service is not Consul: {service_id}")
 
-        # Update last activity
         connection.last_activity = datetime.now(timezone.utc)
 
-        # In real implementation, would execute actual Consul KV operation
-        await asyncio.sleep(0.3)  # Simulate operation
+        client = self.service_clients[service_id]
+        response = await client.get(f"/v1/kv/{key}")
 
-        return None
+        if response.status_code == 404:
+            return None
+
+        response.raise_for_status()
+        data = response.json()
+
+        if not data or "Value" not in data[0]:
+            return None
+
+        return base64.b64decode(data[0]["Value"]).decode()
 
     async def consul_register_service(
         self,
@@ -335,13 +360,20 @@ class ThirdPartyServiceIntegrator:
         if connection.service_type != ServiceType.CONSUL:
             raise ValueError(f"Service is not Consul: {service_id}")
 
-        # Update last activity
         connection.last_activity = datetime.now(timezone.utc)
 
-        # In real implementation, would execute actual Consul service registration
-        await asyncio.sleep(0.5)  # Simulate registration
+        client = self.service_clients[service_id]
+        payload: Dict[str, Any] = {
+            "ID": f"{service_name}-{service_address}-{service_port}",
+            "Name": service_name,
+            "Address": service_address,
+            "Port": service_port,
+        }
+        if check_config:
+            payload["Check"] = check_config
 
-        return True
+        response = await client.put("/v1/agent/service/register", json=payload)
+        return response.status_code == 200
 
     async def health_check(self, service_id: str) -> Dict[str, Any]:
         """
@@ -359,9 +391,6 @@ class ThirdPartyServiceIntegrator:
         connection = self.service_connections[service_id]
 
         try:
-            # In real implementation, would perform actual health check
-            await asyncio.sleep(0.2)  # Simulate health check
-
             return {
                 "service_id": service_id,
                 "status": connection.status.value,

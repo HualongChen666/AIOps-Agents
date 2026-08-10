@@ -5,6 +5,9 @@
 # 依赖 elasticsearch[async] >= 8.13.0
 
 import logging
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -51,19 +54,30 @@ def get_es_client():
 
 
 async def index_log(index: str, doc: Dict[str, Any]) -> str:
-    """向指定索引写入单条日志文档，返回文档 ID"""
+    """向指定索引写入单条日志文档，返回文档 ID。ES 不可用时落地到本地 NDJSON fallback。"""
     client = get_es_client()
-    if client is None:
-        logger.warning("Elasticsearch client unavailable, index_log is a no-op")
-        return "mock-id"
+    if client is not None:
+        try:
+            resp = await client.index(index=index, document=doc)
+            doc_id = str(resp["_id"])
+            logger.debug(f"Indexed log into {index} id={doc_id}")
+            return doc_id
+        except Exception as e:
+            logger.error(f"Failed to index log to Elasticsearch: {e}, falling back to local file")
+
+    doc_id = str(uuid.uuid4())
+    timestamp = datetime.now(timezone.utc).isoformat()
+    fallback_path = Path("data/es_fallback") / f"{index}.ndjson"
+    fallback_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        resp = await client.index(index=index, document=doc)
-        doc_id = str(resp["_id"])
-        logger.debug(f"Indexed log into {index} id={doc_id}")
-        return doc_id
-    except Exception as e:
-        logger.error(f"Failed to index log to Elasticsearch: {e}", exc_info=True)
-        return "mock-id"
+        with fallback_path.open("a", encoding="utf-8") as f:
+            line = {"_id": doc_id, "@timestamp": timestamp, "document": doc}
+            f.write(__import__("json").dumps(line, ensure_ascii=False) + "\n")
+        logger.info(f"ES fallback: log written to {fallback_path} id={doc_id}")
+    except Exception as fallback_exc:
+        logger.error(f"ES fallback write failed: {fallback_exc}")
+        raise
+    return doc_id
 
 
 async def es_search_logs(

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""default_value RAG router.
+"""RAG router.
 
 Provides a single endpoint to perform semantic search via the ``core.rag_engine``
-default_value implementation.
+implementation.
 """
 
 from typing import Any, Dict, List, Optional
