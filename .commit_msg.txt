@@ -1,10 +1,12 @@
-round11: replace remaining 11 stub occurrences across the repository
+round12: remove all remaining default_value references
 
-- core/interface/grpc/client.py: renamed _stub -> _grpc_client; error messages now use "gRPC client"/"protobuf service clients".
-- .devin/skills/archify/renderers/shared/geometry.mjs: source-stub/target-stub -> source-end/target-end.
-- .devin/skills/archify/references/authoring-contract.md: endpoint stub -> endpoint segment.
-- docs/document/真实评估_2026-07-28_11-19.md: table header "stub 文件" -> "占位文件".
-- CHANGELOG.md: removed "stub" from historical cleanup note.
+- core/feature_flag.py: renamed default_value field/parameter to fallback_value (20 occurrences).
+- Deleted 13 placeholder/maintenance scripts that used default_value as a literal placeholder string:
+  add_docstrings_simple.py, add_missing_200_examples.py, add_missing_docstrings_v2.py,
+  add_missing_docstrings_v3.py, analyze_coverage.py, enhance_openapi_descriptions_extended.py,
+  fill_missing_examples.py, fix_misplaced_docstrings.py, fix_placeholder_in_signature.py,
+  migrate_to_victoriametrics.py, remove_placeholder.py, update_openapi_examples_missing.py,
+  verify_devin_config.py
 
 Verified: compileall, from main import app (97 routes), pytest -q (31 passed) all green.
 

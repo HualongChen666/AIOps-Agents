@@ -80,7 +80,7 @@ class FeatureFlag:
     description: str
     flag_type: FlagType
     status: FlagStatus
-    default_value: Any
+    fallback_value: Any
     rules: List[FlagRule]
     created_at: datetime
     updated_at: datetime
@@ -94,7 +94,7 @@ class FeatureFlag:
             "description": self.description,
             "flag_type": self.flag_type.value,
             "status": self.status.value,
-            "default_value": self.default_value,
+            "fallback_value": self.fallback_value,
             "rules": [
                 {"name": rule.name, "conditions": rule.conditions, "enabled": rule.enabled}
                 for rule in self.rules
@@ -161,7 +161,7 @@ class FeatureFlagManager:
                         description=flag_dict["description"],
                         flag_type=FlagType(flag_dict["flag_type"]),
                         status=FlagStatus(flag_dict["status"]),
-                        default_value=flag_dict["default_value"],
+                        fallback_value=flag_dict["fallback_value"],
                         rules=[
                             FlagRule(
                                 name=rule["name"],
@@ -195,7 +195,7 @@ class FeatureFlagManager:
         name: str,
         description: str,
         flag_type: FlagType,
-        default_value: Any = False,
+        fallback_value: Any = False,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[FeatureFlag]:
         """
@@ -206,7 +206,7 @@ class FeatureFlagManager:
             name: Flag name
             description: Flag description
             flag_type: Flag type
-            default_value: Default value
+            fallback_value: Default value
             metadata: Optional metadata
 
         Returns:
@@ -222,7 +222,7 @@ class FeatureFlagManager:
             description=description,
             flag_type=flag_type,
             status=FlagStatus.ENABLED,
-            default_value=default_value,
+            fallback_value=fallback_value,
             rules=[],
             created_at=datetime.now(),
             updated_at=datetime.now(),
@@ -243,7 +243,7 @@ class FeatureFlagManager:
         name: Optional[str] = None,
         description: Optional[str] = None,
         status: Optional[FlagStatus] = None,
-        default_value: Optional[Any] = None,
+        fallback_value: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
@@ -254,7 +254,7 @@ class FeatureFlagManager:
             name: New name
             description: New description
             status: New status
-            default_value: New default value
+            fallback_value: New default value
             metadata: New metadata
 
         Returns:
@@ -272,8 +272,8 @@ class FeatureFlagManager:
             flag.description = description
         if status is not None:
             flag.status = status
-        if default_value is not None:
-            flag.default_value = default_value
+        if fallback_value is not None:
+            flag.fallback_value = fallback_value
         if metadata is not None:
             flag.metadata = metadata
 
@@ -395,7 +395,7 @@ class FeatureFlagManager:
             return self._evaluate_multivariate(flag, user_id)
 
         # Return default value
-        return flag.default_value
+        return flag.fallback_value
 
     def _evaluate_percentage(self, flag: FeatureFlag, user_id: str) -> bool:
         """
@@ -408,7 +408,7 @@ class FeatureFlagManager:
         Returns:
             True if user is in rollout percentage
         """
-        percentage = flag.default_value if isinstance(flag.default_value, (int, float)) else 0
+        percentage = flag.fallback_value if isinstance(flag.fallback_value, (int, float)) else 0
 
         # Hash user ID to get consistent assignment
         hash_value = int(
@@ -431,7 +431,7 @@ class FeatureFlagManager:
         """
         variants = flag.metadata.get("variants", [])
         if not variants:
-            return flag.default_value
+            return flag.fallback_value
 
         # Hash user ID to get consistent variant assignment
         hash_value = int(
@@ -444,9 +444,9 @@ class FeatureFlagManager:
         for variant in variants:
             cumulative += variant.get("percentage", 0)
             if hash_percentage < cumulative:
-                return variant.get("value", flag.default_value)
+                return variant.get("value", flag.fallback_value)
 
-        return flag.default_value
+        return flag.fallback_value
 
     def get_flag(self, key: str) -> Optional[Dict[str, Any]]:
         """
