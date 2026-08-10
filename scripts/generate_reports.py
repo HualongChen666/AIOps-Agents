@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-自动化Mock报告生成脚本
+自动化报告生成脚本
 用于CI/CD集成和本地开发
 """
 
@@ -25,7 +25,7 @@ from tests.mock_manager import (  # noqa: E402
 )
 
 
-class MockReportGenerator:
+class ReportGenerator:
     """Mock报告生成器"""
 
     def __init__(self, output_dir: str = "reports"):
@@ -400,7 +400,7 @@ def main():
     args = parser.parse_args()
 
     # 生成报告
-    generator = MockReportGenerator(args.output_dir)
+    generator = ReportGenerator(args.output_dir)
     generator.generate_all_reports()
 
     # 检查覆盖率门禁

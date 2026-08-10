@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from core.message_queue_mock import MessageQueue
+from core.message_queue import MessageQueue
 
 
 @pytest.fixture

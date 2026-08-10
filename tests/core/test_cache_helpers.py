@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from core.cache_helpers_mock import (
+from core.cache_manager import (
     cache_result,
     flush_all,
     get_cache_stats,

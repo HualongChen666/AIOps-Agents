@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from core.redis_cluster_mock import RedisClusterManager
+from core.redis_cluster_manager import RedisClusterManager
 
 
 @pytest.fixture

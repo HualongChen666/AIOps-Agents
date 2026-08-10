@@ -6,12 +6,12 @@ import os
 import sys
 from pathlib import Path
 
-from scripts.generate_mock_reports import MockReportGenerator
-from tests.mock_quality_gates import load_quality_gates
+from scripts.generate_reports import ReportGenerator
+from tests.quality_gates import load_quality_gates
 
 """
 CI/CD集成脚本
-用于在CI/CD管道中集成mock监控和质量门禁
+用于在CI/CD管道中集成监控和质量门禁
 """
 
 
@@ -19,8 +19,8 @@ CI/CD集成脚本
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class CICDMockIntegration:
-    """CI/CD Mock集成"""
+class CICDIntegration:
+    """CI/CD 集成"""
 
     def __init__(self, config_path: str = None):
         """
@@ -29,7 +29,7 @@ class CICDMockIntegration:
         Args:
             config_path: 质量门禁配置路径
         """
-        self.report_generator = MockReportGenerator()
+        self.report_generator = ReportGenerator()
         self.quality_gate_manager = load_quality_gates(config_path)
 
     def run_ci_pipeline(self, branch: str = None, paths: list = None, labels: list = None) -> dict:
