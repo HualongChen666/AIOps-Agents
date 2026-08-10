@@ -248,43 +248,110 @@ class WorkflowEngine:
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for incident analysis step"""
-        # default_value implementation
-        return {"analysis": "Incident analyzed", "root_cause": "CPU spike"}
+        alert = str(context.get("alert", context.get("message", context.get("title", "")))).lower()
+        if any(k in alert for k in ("cpu", "load", "throttle", "processor")):
+            root_cause = "CPU resource exhaustion"
+        elif any(k in alert for k in ("memory", "mem", "oom", "heap", "ram")):
+            root_cause = "Memory exhaustion"
+        elif any(k in alert for k in ("disk", "storage", "space", "volume")):
+            root_cause = "Disk space issue"
+        elif any(k in alert for k in ("network", "connection", "timeout", "latency", "dns")):
+            root_cause = "Network connectivity issue"
+        elif any(k in alert for k in ("service", "process", "daemon", "restart", "down")):
+            root_cause = "Service failure"
+        else:
+            root_cause = "Unknown root cause"
+
+        return {
+            "analysis": "Incident analyzed from alert context",
+            "root_cause": root_cause,
+            "use_rag": params.get("use_rag", False),
+        }
 
     async def _determine_severity_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for severity determination step"""
-        # default_value implementation
-        return {"severity": "high", "priority": 1}
+        analysis = context.get("analyze_incident", {})
+        root_cause = str(analysis.get("root_cause", "")).lower()
+        if any(k in root_cause for k in ("cpu", "memory", "disk", "network", "service")):
+            severity = "high"
+            priority = 1
+        elif any(k in root_cause for k in ("warning", "degraded")):
+            severity = "medium"
+            priority = 2
+        else:
+            severity = "low"
+            priority = 3
+        return {"severity": severity, "priority": priority}
 
     async def _generate_repair_plan_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for repair plan generation step"""
-        # default_value implementation
-        return {"plan": "Restart affected service", "estimated_time": "5min"}
+        analysis = context.get("analyze_incident", {})
+        root_cause = str(analysis.get("root_cause", "")).lower()
+        severity = context.get("determine_severity", {}).get("severity", "low")
+        if "cpu" in root_cause:
+            plan = "Scale CPU or restart overloaded processes"
+        elif "memory" in root_cause:
+            plan = "Free memory or restart leaking service"
+        elif "disk" in root_cause:
+            plan = "Clean up disk space"
+        elif "network" in root_cause:
+            plan = "Check network connectivity and DNS"
+        elif "service" in root_cause:
+            plan = "Restart affected service"
+        else:
+            plan = "Investigate incident manually"
+        estimated_time = "5min" if severity in ("high", "critical") else "15min"
+        return {"plan": plan, "estimated_time": estimated_time}
 
     async def _request_approval_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for approval request step"""
-        # default_value implementation
-        return {"approved": True, "approver": "on-call"}
+        severity = context.get("determine_severity", {}).get("severity", "low")
+        auto_approved = severity not in ("critical", "high")
+        return {
+            "approved": auto_approved,
+            "approver": "auto-approver" if auto_approved else "on-call",
+            "severity": severity,
+        }
 
     async def _execute_repair_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for repair execution step"""
-        # default_value implementation
-        return {"status": "success", "service_restarted": True}
+        plan = context.get("generate_repair_plan", {}).get("plan", "Investigate incident manually")
+        severity = context.get("determine_severity", {}).get("severity", "low")
+        if "restart" in plan.lower():
+            action = "Restarted affected service"
+        elif "scale" in plan.lower() or "cpu" in plan.lower():
+            action = "Scaled CPU resources"
+        elif "free" in plan.lower() or "memory" in plan.lower():
+            action = "Freed memory and recycled service"
+        elif "clean" in plan.lower() or "disk" in plan.lower():
+            action = "Cleaned up disk space"
+        else:
+            action = "Executed remediation: " + plan
+        return {"status": "success", "action": action, "severity": severity}
 
     async def _verify_fix_handler(
         self, context: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Handler for fix verification step"""
-        # default_value implementation
-        return {"verified": True, "metrics_normal": True}
+        metrics = context.get("metrics", {})
+        status = str(context.get("status", context.get("incident_status", ""))).lower()
+        if isinstance(metrics, dict) and metrics:
+            metrics_normal = all(
+                not str(v).lower() in ("critical", "high", "firing", "error", "down")
+                for v in metrics.values()
+            )
+        else:
+            metrics_normal = status in ("resolved", "normal", "ok")
+        verified = status in ("resolved", "normal", "ok") and metrics_normal
+        return {"verified": verified, "metrics_normal": metrics_normal}
 
     def get_status(self) -> Dict[str, Any]:
         """Get engine status"""

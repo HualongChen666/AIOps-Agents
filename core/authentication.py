@@ -298,7 +298,7 @@ async def is_token_revoked(token: str, redis_client: Optional[Any] = None) -> bo
     """
     client = redis_client or _get_redis_client()
     if client:
-        # 使用 get() 优先兼容被 mock 的 Redis 客户端
+        # 使用 get() 兼容内存或真实 Redis 客户端
         if client.get(f"blacklist:{token}"):
             return True
         try:

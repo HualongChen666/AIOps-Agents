@@ -66,7 +66,7 @@ class ReadWriteRouter:
         self.master: Optional[DatabaseInstance] = None
         self.slaves: List[DatabaseInstance] = []
         self.current_slave_index = 0
-        self.stub_enabled = True
+        self.fallback_enabled = True
 
     def set_master(self, instance: DatabaseInstance):
         """设置主数据库"""
@@ -133,7 +133,7 @@ class RedisClusterAdapter:
         """初始化Redis集群适配器"""
         self._store: Dict[str, Any] = {}
         self._client: Any = None
-        self.stub_enabled = True
+        self.fallback_enabled = True
 
         if REDIS_AVAILABLE and redis is not None:
             try:
@@ -142,20 +142,20 @@ class RedisClusterAdapter:
                 )
                 if client.ping():
                     self._client = client
-                    self.stub_enabled = False
+                    self.fallback_enabled = False
                     _logger.info(f"Redis client ready: {REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
             except Exception as e:
-                _logger.warning(f"Redis client unavailable, using in-memory stub: {e}")
+                _logger.warning(f"Redis client unavailable, using in-memory fallback: {e}")
 
     def get(self, key: str) -> Optional[Any]:
         """获取值"""
-        if not self.stub_enabled and self._client is not None:
+        if not self.fallback_enabled and self._client is not None:
             return self._client.get(key)
         return self._store.get(key)
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """设置值"""
-        if not self.stub_enabled and self._client is not None:
+        if not self.fallback_enabled and self._client is not None:
             if ttl:
                 return bool(self._client.setex(key, ttl, value))
             return bool(self._client.set(key, value))
@@ -164,18 +164,18 @@ class RedisClusterAdapter:
 
     def delete(self, key: str) -> bool:
         """删除值"""
-        if not self.stub_enabled and self._client is not None:
+        if not self.fallback_enabled and self._client is not None:
             return bool(self._client.delete(key) == 1)
         return self._store.pop(key, None) is not None
 
     def exists(self, key: str) -> bool:
         """检查键是否存在"""
-        if not self.stub_enabled and self._client is not None:
+        if not self.fallback_enabled and self._client is not None:
             return bool(self._client.exists(key))
         return key in self._store
 
-    def get_stub_data(self) -> Dict[str, Any]:
-        """获取stub数据（用于测试）"""
+    def get_fallback_data(self) -> Dict[str, Any]:
+        """获取 fallback 数据（用于测试）"""
         return dict(self._store)
 
 

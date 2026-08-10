@@ -15,6 +15,7 @@ import asyncio
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from loguru import logger
@@ -260,7 +261,7 @@ def get_performance_recommendations() -> Dict[str, Any]:
             "platform": system,
         },
         "recommendations": recommendations,
-        "timestamp": "2026-06-12T00:00:00Z",  # default_value timestamp
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -270,7 +271,7 @@ def apply_comprehensive_tuning() -> Dict[str, Any]:
     Returns:
         Dictionary with all tuning results
     """
-    results: Dict[str, Any] = {"timestamp": "2026-06-12T00:00:00Z", "steps": {}}  # default_value
+    results: Dict[str, Any] = {"timestamp": datetime.now(timezone.utc).isoformat(), "steps": {}}
 
     # Step 1: Apply system limits
     logger.info("Step 1: Applying system resource limits...")
@@ -340,7 +341,7 @@ def monitor_performance_metrics() -> Dict[str, Any]:
                 "packets_sent": net_io.packets_sent,
                 "packets_recv": net_io.packets_recv,
             },
-            "timestamp": "2026-06-12T00:00:00Z",  # default_value
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:

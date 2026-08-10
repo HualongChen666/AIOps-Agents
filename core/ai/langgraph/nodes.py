@@ -57,7 +57,7 @@ class LLMNode(WorkflowNode):
             # Format prompt with context data
             prompt = self._format_prompt(context)
 
-            # Call LLM (default_value - integrate with actual LLM service)
+            # Call LLM through the existing AI engine fallback
             response = await self._call_llm(prompt)
 
             logger.info(f"LLM node {self.name} executed successfully")

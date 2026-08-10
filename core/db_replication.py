@@ -131,25 +131,23 @@ async def check_primary_health() -> Dict[str, Any]:
     Returns:
         Health status dictionary
     """
+    primary = _replication_config.get("primary", {})
+    host = primary.get("host", "localhost")
+    port = int(primary.get("port", 5432))
+    timeout = _replication_config.get("failover_timeout_seconds", 30)
+    start_time = datetime.now(timezone.utc)
     try:
-        # default_value for actual health check
-        # In production, this would execute a simple query to test connectivity
-        start_time = datetime.now(timezone.utc)
-
-        # Simulate health check
-        await asyncio.sleep(0.01)  # Simulate network latency
-
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), timeout=timeout
+        )
         latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
-
+        writer.close()
+        await writer.wait_closed()
         health_status = {
             "status": "healthy",
             "last_check": datetime.now(timezone.utc).isoformat(),
             "latency_ms": latency_ms,
         }
-
-        _replica_health["primary"] = health_status
-        return health_status
-
     except Exception as e:
         logger.info(f"Primary database health check failed: {e}")
         health_status = {
@@ -158,8 +156,8 @@ async def check_primary_health() -> Dict[str, Any]:
             "error": str(e),
             "latency_ms": None,
         }
-        _replica_health["primary"] = health_status
-        return health_status
+    _replica_health["primary"] = health_status
+    return health_status
 
 
 async def check_replica_health(replica_index: int) -> Dict[str, Any]:
@@ -173,24 +171,34 @@ async def check_replica_health(replica_index: int) -> Dict[str, Any]:
     """
     replica_key = f"replica_{replica_index}"
 
+    replicas = _replication_config.get("replicas", [])
+    if replica_index < 0 or replica_index >= len(replicas):
+        logger.error(f"Replica {replica_index} not configured")
+        health_status = {
+            "status": "unhealthy",
+            "last_check": datetime.now(timezone.utc).isoformat(),
+            "error": "Replica not configured",
+            "latency_ms": None,
+        }
+        _replica_health[replica_key] = health_status
+        return health_status
+    replica = replicas[replica_index]
+    host = replica.get("host", "localhost")
+    port = int(replica.get("port", 5432))
+    timeout = _replication_config.get("failover_timeout_seconds", 30)
+    start_time = datetime.now(timezone.utc)
     try:
-        # default_value for actual health check
-        start_time = datetime.now(timezone.utc)
-
-        # Simulate health check
-        await asyncio.sleep(0.01)  # Simulate network latency
-
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), timeout=timeout
+        )
         latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
-
+        writer.close()
+        await writer.wait_closed()
         health_status = {
             "status": "healthy",
             "last_check": datetime.now(timezone.utc).isoformat(),
             "latency_ms": latency_ms,
         }
-
-        _replica_health[replica_key] = health_status
-        return health_status
-
     except Exception as e:
         logger.error(f"Replica {replica_index} health check failed: {e}")
         health_status = {
@@ -199,8 +207,8 @@ async def check_replica_health(replica_index: int) -> Dict[str, Any]:
             "error": str(e),
             "latency_ms": None,
         }
-        _replica_health[replica_key] = health_status
-        return health_status
+    _replica_health[replica_key] = health_status
+    return health_status
 
 
 async def check_all_replicas_health() -> Dict[str, Dict[str, Any]]:

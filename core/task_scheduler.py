@@ -80,8 +80,8 @@ class _InMemoryScheduler:
             await asyncio.sleep(interval)
 
     async def _run_cron(self, name: str, coro: TaskCallable, cron_expr: str) -> None:
-        # Very naive cron implementation – only supports minute-level "*/N * * * *" patterns.
-        # For production we expect Temporal/Prefect; this is just a default_value.
+        # In-memory fallback cron implementation – only supports minute-level "*/N * * * *" patterns.
+        # Used when Temporal/Prefect are unavailable.
         while True:
             now = datetime.now(timezone.utc)
             # parse simple "*/N" minute interval

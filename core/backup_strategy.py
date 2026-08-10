@@ -243,9 +243,32 @@ async def perform_config_backup() -> Dict[str, Any]:
         backup_id = f"config_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         backup_path = os.path.join(_backup_config["backup_location"], backup_id)
 
-        # default_value for actual config backup
-        # In production, this would backup config files, environment variables, etc.
-        logger.info(f"Performing configuration backup to {backup_path}")
+        os.makedirs(backup_path, exist_ok=True)
+
+        config_items: List[str] = []
+        config_file = getattr(config, "__file__", None)
+        if config_file and os.path.isfile(config_file):
+            shutil.copy2(config_file, backup_path)
+            config_items.append(os.path.basename(config_file))
+
+        for src in [".env", ".env.example"]:
+            if os.path.isfile(src):
+                shutil.copy2(src, backup_path)
+                config_items.append(src)
+
+        if os.path.isdir("config"):
+            shutil.copytree("config", os.path.join(backup_path, "config"), dirs_exist_ok=True)
+            config_items.append("config/")
+
+        if _backup_config["compression_enabled"]:
+            archive_path = shutil.make_archive(backup_path, "gztar", backup_path)
+            shutil.rmtree(backup_path)
+            backup_path = archive_path
+
+        file_size = os.path.getsize(backup_path)
+        file_hash = calculate_file_hash(backup_path)
+
+        logger.info(f"Configuration backup completed: {backup_path}")
 
         result = {
             "backup_id": backup_id,
@@ -253,7 +276,9 @@ async def perform_config_backup() -> Dict[str, Any]:
             "status": "success",
             "path": backup_path,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "size_bytes": 0,
+            "size_bytes": file_size,
+            "file_hash": file_hash,
+            "files": config_items,
         }
 
         _backup_history.append(result)
@@ -280,9 +305,27 @@ async def perform_logs_backup() -> Dict[str, Any]:
         backup_id = f"logs_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         backup_path = os.path.join(_backup_config["backup_location"], backup_id)
 
-        # default_value for actual logs backup
-        # In production, this would archive and compress log files
-        logger.info(f"Performing logs backup to {backup_path}")
+        os.makedirs(backup_path, exist_ok=True)
+
+        log_items: List[str] = []
+        if os.path.isdir("logs"):
+            shutil.copytree("logs", os.path.join(backup_path, "logs"), dirs_exist_ok=True)
+            log_items.append("logs/")
+
+        for item in os.listdir("."):
+            if item.endswith(".log") and os.path.isfile(item):
+                shutil.copy2(item, backup_path)
+                log_items.append(item)
+
+        if _backup_config["compression_enabled"]:
+            archive_path = shutil.make_archive(backup_path, "gztar", backup_path)
+            shutil.rmtree(backup_path)
+            backup_path = archive_path
+
+        file_size = os.path.getsize(backup_path)
+        file_hash = calculate_file_hash(backup_path)
+
+        logger.info(f"Logs backup completed: {backup_path}")
 
         result = {
             "backup_id": backup_id,
@@ -290,7 +333,9 @@ async def perform_logs_backup() -> Dict[str, Any]:
             "status": "success",
             "path": backup_path,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "size_bytes": 0,
+            "size_bytes": file_size,
+            "file_hash": file_hash,
+            "files": log_items,
         }
 
         _backup_history.append(result)
@@ -345,16 +390,26 @@ async def cleanup_old_backups() -> int:
     retention_date = datetime.now(timezone.utc) - timedelta(days=_backup_config["retention_days"])
     cleaned_count = 0
 
-    # Filter out old backups from history
-    _backup_history[:] = [
-        backup
-        for backup in _backup_history
-        if datetime.fromisoformat(backup["timestamp"]) > retention_date
-    ]
+    # Remove old backup files and filter history
+    remaining: List[Dict[str, Any]] = []
+    for backup in _backup_history:
+        if datetime.fromisoformat(backup["timestamp"]) <= retention_date:
+            backup_path = backup.get("path")
+            if backup_path and os.path.exists(backup_path):
+                try:
+                    if os.path.isdir(backup_path):
+                        shutil.rmtree(backup_path)
+                    else:
+                        os.remove(backup_path)
+                    cleaned_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to remove old backup {backup_path}: {e}")
+            else:
+                cleaned_count += 1
+        else:
+            remaining.append(backup)
 
-    len(_backup_history)
-    # default_value for actual file cleanup
-    # In production, this would delete old backup files
+    _backup_history[:] = remaining
 
     logger.info(f"Cleaned up {cleaned_count} old backups")
     return cleaned_count
@@ -759,16 +814,95 @@ async def restore_backup(backup_id: str) -> Dict[str, Any]:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        # default_value for actual restore
-        # In production, this would restore from backup files
-        logger.info(f"Restoring from backup {backup_id}")
+        backup_type = backup.get("type")
+        backup_path = backup.get("path")
 
-        return {
-            "backup_id": backup_id,
-            "status": "success",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "restored_type": backup.get("type"),
-        }
+        if not backup_path or not os.path.exists(backup_path):
+            return {
+                "backup_id": backup_id,
+                "status": "failed",
+                "error": "Backup path not found",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        logger.info(f"Restoring {backup_type} backup {backup_id} from {backup_path}")
+
+        if backup_type == "database":
+            work_path = backup_path
+            if work_path.endswith(".enc"):
+                decrypted_path = work_path[:-4]
+                if not decrypt_file(work_path, decrypted_path):
+                    return {
+                        "backup_id": backup_id,
+                        "status": "failed",
+                        "error": "Failed to decrypt backup",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                work_path = decrypted_path
+
+            if work_path.endswith(".gz"):
+                sql_path = work_path[:-3]
+                with open(work_path, "rb") as f_in, open(sql_path, "wb") as f_out:
+                    shutil.copyfileobj(gzip.GzipFile(fileobj=f_in), f_out)
+                work_path = sql_path
+
+            env = os.environ.copy()
+            env["PGPASSWORD"] = config.POSTGRES_PASSWORD
+            cmd = [
+                "psql",
+                f"--host={config.POSTGRES_HOST}",
+                f"--port={config.POSTGRES_PORT}",
+                f"--username={config.POSTGRES_USER}",
+                f"--dbname={config.POSTGRES_DB}",
+                "-v", "ON_ERROR_STOP=1",
+                "-f", work_path,
+            ]
+            process = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                error_msg = stderr.decode() if stderr else "psql failed"
+                return {
+                    "backup_id": backup_id,
+                    "status": "failed",
+                    "error": error_msg,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            return {
+                "backup_id": backup_id,
+                "status": "success",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "restored_type": backup_type,
+            }
+
+        elif backup_type == "config":
+            restore_dir = f"restored_config_{backup_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            shutil.unpack_archive(backup_path, restore_dir)
+            return {
+                "backup_id": backup_id,
+                "status": "success",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "restored_type": backup_type,
+                "restored_path": restore_dir,
+            }
+
+        elif backup_type == "logs":
+            return {
+                "backup_id": backup_id,
+                "status": "success",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "restored_type": backup_type,
+                "message": "Log restore is a no-op; files are available at the backup path",
+            }
+
+        else:
+            return {
+                "backup_id": backup_id,
+                "status": "failed",
+                "error": f"Unsupported backup type: {backup_type}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
     except Exception as e:
         logger.error(f"Restore from backup {backup_id} failed: {e}")

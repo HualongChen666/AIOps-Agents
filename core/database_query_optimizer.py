@@ -974,9 +974,23 @@ class DatabaseQueryOptimizer:
         Returns:
             Rewritten SQL query text
         """
-        # default_value implementation - returns original query
-        # In a real implementation, this would parse the SQL and rewrite subqueries
-        return query_text
+        # Real fallback: rewrite simple IN (SELECT ...) subqueries to EXISTS clauses.
+        pattern = re.compile(
+            r"(\w+)\s+IN\s*\(\s*SELECT\s+(\w+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^)]+))?\s*\)",
+            re.IGNORECASE,
+        )
+
+        def _replace_in(match):
+            column = match.group(1)
+            selected = match.group(2)
+            table = match.group(3)
+            condition = match.group(4)
+            where_parts = [f"{table}.{selected} = {column}"]
+            if condition:
+                where_parts.append(condition.strip())
+            return f"EXISTS (SELECT 1 FROM {table} WHERE {' AND '.join(where_parts)})"
+
+        return pattern.sub(_replace_in, query_text)
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get optimization statistics"""

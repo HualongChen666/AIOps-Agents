@@ -63,13 +63,48 @@ class KnowledgeBase:
         return vectorized
 
     async def _store_in_vector_store(self, document: Document) -> None:
-        """Store document in vector store"""
+        """Store document chunks in the configured vector store"""
+        if not self.vector_store_client or not document.chunks:
+            return
+
         try:
-            # default_value - integrate with actual vector store
-            # for chunk in document.chunks:
-            #     self.vector_store_client.upsert(...)
-            chunk_count = len(document.chunks) if document.chunks else 0
-            logger.debug(f"Stored {chunk_count} chunks in vector store")
+            points = []
+            for chunk in document.chunks:
+                if chunk.embedding is None:
+                    continue
+                points.append(
+                    {
+                        "id": chunk.id,
+                        "vector": chunk.embedding,
+                        "payload": {
+                            "document_id": document.id,
+                            "content": chunk.content,
+                            **chunk.metadata,
+                        },
+                    }
+                )
+
+            if not points:
+                return
+
+            if hasattr(self.vector_store_client, "upsert_points"):
+                self.vector_store_client.upsert_points(self.name, points)
+            else:
+                try:
+                    from qdrant_client.models import PointStruct
+
+                    qdrant_points = [
+                        PointStruct(id=p["id"], vector=p["vector"], payload=p["payload"])
+                        for p in points
+                    ]
+                except Exception:
+                    qdrant_points = points
+                self.vector_store_client.upsert(
+                    collection_name=self.name,
+                    points=qdrant_points,
+                )
+
+            logger.debug(f"Stored {len(points)} chunks in vector store")
         except Exception as e:
             logger.error(f"Failed to store in vector store: {e}")
 

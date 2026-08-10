@@ -673,6 +673,37 @@ def _finalize_approval(alert_id: int, status: str) -> None:
         raise HTTPException(status_code=500, detail="Approval update failure")
 
 
+def _resolve_script_key(rule_name: str, alert_payload: Dict[str, Any]) -> str:
+    """
+    Resolve a registered repair script key for an alert.
+
+    Falls back through:
+      1. An explicit ``script_key`` in the alert payload.
+      2. A known rule-name to script-key mapping.
+      3. The generic ``service_restart_script`` as a safe default.
+    """
+    script_key = alert_payload.get("script_key")
+    if script_key and repair_script_library.get_script(script_key):
+        return script_key
+
+    rule_lower = (rule_name or "").lower()
+    mapping = {
+        "cpu": "cpu_high_script",
+        "high cpu": "cpu_high_script",
+        "memory": "memory_high_script",
+        "high memory": "memory_high_script",
+        "mem": "memory_high_script",
+        "disk": "disk_high_script",
+        "disk usage": "disk_high_script",
+        "service": "service_restart_script",
+    }
+    for keyword, key in mapping.items():
+        if keyword in rule_lower:
+            return key
+
+    return "service_restart_script"
+
+
 # ----------------------------------------------------------------------
 # 主业务入口
 # ----------------------------------------------------------------------
@@ -704,13 +735,13 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
     alert_id = asyncio.run(_create_alert_record(alert_payload))
 
     # ------------------------------------------------------------------
-    # 2️⃣ 根据告警获取修复脚本（这里用 default_value 实现）
+    # 2️⃣ 根据告警选择修复脚本
     # ------------------------------------------------------------------
-    rule_name = alert_payload.get("rule_name", "default_rule")
-    script_key = f"{rule_name}_script"
+    rule_name = alert_payload.get("rule_name", "")
+    script_key = _resolve_script_key(rule_name, alert_payload)
 
     # ------------------------------------------------------------------
-    # 3️⃣ 执行修复（模拟）
+    # 3️⃣ 执行修复
     # ------------------------------------------------------------------
     repair_result = simulate_repair(alert_payload, script_key)
 
@@ -802,31 +833,47 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ----------------------------------------------------------------------
-# 模拟修复、验证函数（占位实现，仅用于演示）
+# 修复执行与验证辅助函数
 # ----------------------------------------------------------------------
 def simulate_repair(alert: Dict[str, Any], script_key: str) -> Dict[str, Any]:
     """
-    占位修复函数，实际项目中应调用对应平台的修复脚本。
+    Execute the selected repair script through the cross-platform executor.
 
-    返回示例：
-    {
-        "success": True,
-        "duration": 12.3,
-        "output": "修复成功，已重启服务。"
-    }
+    Returns a normalized dict compatible with ``handle_alert``.
     """
-    _logger.debug("Simulating repair for script_key=%s", script_key)
-    # 简单模拟耗时与输出
-    return {
-        "success": True,
-        "duration": 5.0,
-        "output": f"Executed script {script_key} successfully.",
-    }
+    _logger.debug("Executing repair for script_key=%s", script_key)
+    result = cross_platform_executor.execute_script(script_key, alert)
+    if not result.get("success"):
+        result.setdefault("duration", 0.0)
+        result.setdefault("output", result.get("error", "Repair failed"))
+    return result
 
 
 def simulate_verify(alert: Dict[str, Any], repair_result: Dict[str, Any]) -> Dict[str, Any]:
-    """Simulate verification after repair (for testing)."""
-    return {"passed": True, "message": "Verification passed"}
+    """Verify the repair result and return a structured verdict."""
+    evidence = {
+        "repair_output": str(repair_result.get("output", "")),
+        "risk_assessment": repair_result.get("risk_assessment", {}),
+    }
+    if repair_result.get("success"):
+        return {
+            "verified": True,
+            "needs_human": False,
+            "strategy": "auto",
+            "confidence": repair_result.get("risk_assessment", {}).get("confidence_score", 0.0),
+            "evidence": evidence,
+            "duration_sec": repair_result.get("duration", 0.0),
+            "error_msg": "",
+        }
+    return {
+        "verified": False,
+        "needs_human": bool(repair_result.get("requires_approval")) or True,
+        "strategy": "manual",
+        "confidence": repair_result.get("risk_assessment", {}).get("confidence_score", 0.0),
+        "evidence": evidence,
+        "duration_sec": repair_result.get("duration", 0.0),
+        "error_msg": repair_result.get("error", "Repair failed or requires approval"),
+    }
 
 
 # component functions for test compatibility

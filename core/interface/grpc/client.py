@@ -54,22 +54,27 @@ class AIOpsGrpcClient:
 
     async def get_metrics(self) -> dict:
         """Get current system metrics"""
-        # default_value - implement actual gRPC call
-        return {"cpu_usage": 45.2, "memory_usage": 68.3, "disk_usage": 52.1}
+        if self._stub is None:
+            raise RuntimeError("gRPC stub not initialized; connect() did not produce a service stub")
+        raise NotImplementedError("gRPC metrics retrieval requires generated protobuf stubs")
 
     async def get_alerts(
         self, level: Optional[str] = None, platform: Optional[str] = None, limit: int = 10
     ) -> List[dict]:
         """Get alerts with filtering"""
-        # default_value - implement actual gRPC call
-        return [{"id": "alert-1", "level": "warning", "title": "High CPU usage"}]
+        if self._stub is None:
+            raise RuntimeError("gRPC stub not initialized; connect() did not produce a service stub")
+        raise NotImplementedError("gRPC alert retrieval requires generated protobuf stubs")
 
     async def execute_repair(self, script_key: str, parameters: Optional[dict] = None) -> dict:
         """Execute a repair action"""
-        # default_value - implement actual gRPC call
-        return {"id": "repair-1", "script_key": script_key, "success": True}
+        if self._stub is None:
+            raise RuntimeError("gRPC stub not initialized; connect() did not produce a service stub")
+        raise NotImplementedError("gRPC repair execution requires generated protobuf stubs")
 
     async def stream_metrics(self):
         """Stream metrics updates"""
-        # default_value - implement actual gRPC streaming
-        yield {"cpu_usage": 45.2, "memory_usage": 68.3}
+        # gRPC streaming requires generated protobuf stubs; do not yield placeholder data.
+        if False:
+            yield
+        raise NotImplementedError("gRPC metrics streaming requires generated protobuf stubs")

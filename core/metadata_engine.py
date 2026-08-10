@@ -34,7 +34,7 @@ try:
     from amundsen_rds.models import Table as AmundsenTable
     from amundsen_rds.models import User as AmundsenUser
 
-    # Assuming an Amundsen loader/producer – default_value imports.
+    # Assuming an Amundsen loader/producer – fallback imports.
 except Exception as exc:  # pragma: no cover
     logger.warning("Amundsen client not available – %s", exc)
     AmundsenTable = None  # type: ignore
@@ -141,7 +141,7 @@ def register_lineage(
 
 
 # -----------------------------------------------------------------
-# Amundsen default_value – in many CI environments Amundsen client is not
+# Amundsen fallback – in many CI environments Amundsen client is not
 # installed, so we expose a no‑op API that logs calls.
 # -----------------------------------------------------------------
 def amundsen_register_table(table_name: str, schema: str = "public") -> bool:

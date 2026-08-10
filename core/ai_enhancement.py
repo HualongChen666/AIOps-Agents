@@ -167,9 +167,12 @@ class AIAnalysisEnhancer:
         Returns:
             Cache hit rate percentage
         """
-        # This would need actual hit/miss tracking
-        # For now, return default_value
-        return 0.0
+        # Fallback: estimate hit rate from cached contexts vs total analyses.
+        total = self._performance_metrics["total_analyses"]
+        if not total:
+            return 0.0
+        cached = len(self._context_cache)
+        return min((cached / total) * 100.0, 100.0)
 
     def get_analysis_history(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get recent analysis history

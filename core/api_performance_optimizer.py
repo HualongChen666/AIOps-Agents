@@ -521,12 +521,23 @@ class APIPerformanceOptimizer:
 
     def monitor_resource_usage(self) -> Dict[str, Any]:
         """
-        Monitor resource usage (default_value implementation)
+        Monitor resource usage using psutil when available, otherwise fallback values.
 
         Returns:
             Resource usage metrics
         """
-        return {}
+        try:
+            import psutil
+
+            memory = psutil.virtual_memory()
+            self.resource_usage = {
+                "memory_mb": memory.used / (1024 * 1024),
+                "cpu_percent": psutil.cpu_percent(interval=None),
+                "active_connections": sum(len(q) for q in self.request_counts.values()),
+            }
+        except Exception as e:
+            logger.warning(f"Failed to monitor resource usage: {e}")
+        return self.resource_usage
 
     def setup_resource_limits(
         self, max_memory_mb: float, max_cpu_percent: float, max_connections: int

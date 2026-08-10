@@ -7,6 +7,7 @@ Provides integration with ITSM systems for incident management and workflow auto
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+import httpx
 from loguru import logger
 
 
@@ -69,21 +70,38 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            # default_value for actual ServiceNow API call
-            # In production, this would use the ServiceNow REST API
-            incident = {
-                "number": f"INC{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            base_url = f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            severity_map = {"low": "3", "medium": "2", "high": "1"}
+            payload = {
+                "short_description": title,
+                "description": description,
+                "urgency": severity_map.get(severity, "2"),
+                "priority": str(priority),
+            }
+            if assignment_group:
+                payload["assignment_group"] = assignment_group
+
+            async with httpx.AsyncClient(
+                auth=(self.servicenow_username, self.servicenow_password),
+                timeout=30.0,
+            ) as client:
+                response = await client.post(
+                    f"{base_url}/incident", json=payload
+                )
+                response.raise_for_status()
+                result = response.json().get("result", {})
+
+            logger.info(f"Created ServiceNow incident: {result.get('number')}")
+            return {
+                "number": result.get("number", ""),
                 "title": title,
                 "description": description,
                 "severity": severity,
                 "priority": priority,
                 "assignment_group": assignment_group,
-                "status": "New",
-                "created_at": datetime.now().isoformat(),
+                "status": result.get("state", "New"),
+                "created_at": result.get("sys_created_on", datetime.now().isoformat()),
             }
-
-            logger.info(f"Created ServiceNow incident: {incident['number']}")
-            return incident
 
         except Exception as e:
             logger.error(f"Failed to create ServiceNow incident: {e}")
@@ -106,13 +124,35 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            # default_value for actual ServiceNow API call
+            base_url = f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            async with httpx.AsyncClient(
+                auth=(self.servicenow_username, self.servicenow_password),
+                timeout=30.0,
+            ) as client:
+                lookup = await client.get(
+                    f"{base_url}/incident",
+                    params={
+                        "sysparm_query": f"number={incident_number}",
+                        "sysparm_limit": "1",
+                    },
+                )
+                lookup.raise_for_status()
+                results = lookup.json().get("result", [])
+                if not results:
+                    return {"error": "Incident not found"}
+                sys_id = results[0].get("sys_id")
+                response = await client.patch(
+                    f"{base_url}/incident/{sys_id}", json=updates
+                )
+                response.raise_for_status()
+                result = response.json().get("result", {})
+
             logger.info(f"Updated ServiceNow incident: {incident_number}")
             return {
                 "number": incident_number,
                 "updated": True,
                 "updates": updates,
-                "updated_at": datetime.now().isoformat(),
+                "updated_at": result.get("sys_updated_on", datetime.now().isoformat()),
             }
 
         except Exception as e:
@@ -145,10 +185,33 @@ class ITSMIntegration:
             return {"error": "Jira not enabled"}
 
         try:
-            # default_value for actual Jira API call
-            # In production, this would use the Jira REST API
-            issue = {
-                "key": f"AIOPS-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            if not project_key:
+                project_key = self.config.get("jira", {}).get("default_project")
+            if not project_key:
+                return {"error": "Project key is required"}
+
+            base_url = f"{self.jira_url.rstrip('/')}/rest/api/2/issue"
+            payload = {
+                "fields": {
+                    "project": {"key": project_key},
+                    "summary": summary,
+                    "description": description,
+                    "issuetype": {"name": issue_type},
+                    "priority": {"name": priority},
+                }
+            }
+
+            async with httpx.AsyncClient(
+                auth=(self.jira_username, self.jira_api_token),
+                timeout=30.0,
+            ) as client:
+                response = await client.post(base_url, json=payload)
+                response.raise_for_status()
+                result = response.json()
+
+            logger.info(f"Created Jira issue: {result.get('key')}")
+            return {
+                "key": result.get("key", ""),
                 "summary": summary,
                 "description": description,
                 "issue_type": issue_type,
@@ -157,9 +220,6 @@ class ITSMIntegration:
                 "status": "To Do",
                 "created_at": datetime.now().isoformat(),
             }
-
-            logger.info(f"Created Jira issue: {issue['key']}")
-            return issue
 
         except Exception as e:
             logger.error(f"Failed to create Jira issue: {e}")
@@ -180,7 +240,14 @@ class ITSMIntegration:
             return {"error": "Jira not enabled"}
 
         try:
-            # default_value for actual Jira API call
+            base_url = f"{self.jira_url.rstrip('/')}/rest/api/2/issue/{issue_key}"
+            async with httpx.AsyncClient(
+                auth=(self.jira_username, self.jira_api_token),
+                timeout=30.0,
+            ) as client:
+                response = await client.put(base_url, json={"fields": updates})
+                response.raise_for_status()
+
             logger.info(f"Updated Jira issue: {issue_key}")
             return {
                 "key": issue_key,

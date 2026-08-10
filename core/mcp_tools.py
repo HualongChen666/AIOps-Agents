@@ -47,9 +47,7 @@ def _validate_int(value: Any, name: str, min_val: int, max_val: int) -> int:
     return value
 
 
-# Attempt to import ``trigger_repair`` from ``core.auto_heal``.
-# 若实际实现不存在，则提供一个最小占位实现避免 ImportError。
-# trigger_repair doesn't exist in auto_heal, using default_value directly
+# trigger_repair delegates to core.heal_graph.run_heal for real repair execution.
 
 
 async def trigger_repair(alert_id: str, user: str, comment: str | None = None) -> Dict[str, Any]:
@@ -93,9 +91,7 @@ async def trigger_repair(alert_id: str, user: str, comment: str | None = None) -
         }
 
 
-# from .repair_engine import repair_engine  # Not needed for default_value implementation
-
-# from .verifier import verify_repair  # Not needed for MCP default_value
+# Module-level logger setup
 
 logger = logging.getLogger(__name__)
 

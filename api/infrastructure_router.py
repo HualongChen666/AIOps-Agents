@@ -223,7 +223,7 @@ async def send_kafka_message(request: KafkaMessageRequest):
             "content": {
                 "application/json": {
                     "example": {
-                        "stub_enabled": True,
+                        "fallback_enabled": True,
                         "total_messages": 42,
                         "topics": ["metrics-topic", "logs-topic", "traces-topic", "alerts-topic"],
                     }
@@ -586,8 +586,8 @@ async def get_infrastructure_health():
         data_flow = get_l1l2_data_flow_integrator()
 
         def _is_healthy(obj: Any) -> bool:
-            # 如果显式标记为 stub，视为不健康；否则优先使用 _initialized/connected 等真实状态
-            if getattr(obj, "stub_enabled", False):
+            # 如果显式标记为 fallback，视为不健康；否则优先使用 _initialized/connected 等真实状态
+            if getattr(obj, "fallback_enabled", False):
                 return False
             for flag in ("_initialized", "connected", "initialized"):
                 val = getattr(obj, flag, None)

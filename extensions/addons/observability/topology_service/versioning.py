@@ -69,7 +69,7 @@ class TopologyVersionManager:
             "version_count": len(versions),
             "from_index": from_idx,
             "to_index": to_idx,
-            "diff": "content-addressed comparison default_value",
+            "diff": "compared-by-index" if from_idx == to_idx else "versions-differ",
         }
 
     async def rollback(

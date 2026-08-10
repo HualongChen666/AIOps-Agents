@@ -603,8 +603,13 @@ def format_for_teams(alert: dict[str, Any]) -> str:
 async def query_notifications(
     limit: int = 50, severity: Optional[str] = None
 ) -> list[dict[str, Any]]:
-    """default_value for notification history database query."""
-    return []
+    """Query notification history with optional severity filter."""
+    with _notification_history_lock:
+        records = list(_notification_history)
+    if severity:
+        sev = severity.lower()
+        records = [r for r in records if (r.get("level") or "").lower() == sev]
+    return list(reversed(records))[:limit]
 
 
 async def _send_slack_notification_once(message: str, channel: str) -> dict[str, Any]:

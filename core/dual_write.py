@@ -108,11 +108,22 @@ class DualWriteStrategy:
             True if write succeeded
         """
         try:
-            # Call existing SQLite storage logic
-            pass
+            import datetime
 
-            # This is a default_value - actual implementation depends on metrics_history API
-            # metrics_history.add_metric(metric_data)
+            from core.metrics_history import metrics_history
+
+            service = (
+                labels.get("service", "default")
+                if isinstance(labels, dict)
+                else "default"
+            )
+            ts: datetime.datetime | None = None
+            if timestamp is not None:
+                ts = datetime.datetime.fromtimestamp(
+                    int(timestamp), tz=datetime.timezone.utc
+                )
+
+            metrics_history.push_metric(metric_name, value, service=service, timestamp=ts)
 
             self._stats["sqlite_writes"] += 1
             return True

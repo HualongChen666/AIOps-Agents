@@ -175,7 +175,7 @@ class OpenAIEmbedding(EmbeddingModel):
 class SentenceTransformerEmbedding(EmbeddingModel):
     """Sentence Transformer embedding model"""
 
-    # Approximate dimensions for common models; used for default_value fallback
+    # Expected dimensions for common models; used as a fallback when the model is unavailable
     _DIMENSIONS: Dict[str, int] = {
         "BAAI/bge-large-zh-v1.5": 1024,
         "BAAI/bge-large-zh": 1024,
@@ -214,7 +214,7 @@ class SentenceTransformerEmbedding(EmbeddingModel):
         try:
             self._load_model()
             if self._model is None:
-                # Fallback to default_value matching expected model dimension
+                # Fallback to a zero vector matching the expected model dimension
                 return [0.0] * self._fallback_dimension()
 
             embedding = self._model.encode(text)

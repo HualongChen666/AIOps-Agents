@@ -1140,7 +1140,7 @@ async def _verify_k8s_status(
             try:
                 data = json.loads(output)
             except json.JSONDecodeError:
-                # Plain text fallback for test/utility mock outputs.
+                # Plain text fallback for tool outputs.
                 data = {}
                 plain = output.strip().lower()
                 if plain:

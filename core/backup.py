@@ -224,9 +224,23 @@ class BackupManager:
             Size in bytes
         """
         try:
-            # This would use AWS SDK to get object size
-            # default_value implementation
-            return 0
+            import boto3
+
+            s3 = boto3.client(
+                "s3",
+                endpoint_url=self.s3_endpoint,
+                aws_access_key_id=self.aws_access_key or "",
+                aws_secret_access_key=self.aws_secret_key or "",
+            )
+            total = 0
+            prefix = backup_id
+            if not prefix.endswith("/"):
+                prefix += "/"
+            paginator = s3.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.s3_bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    total += obj.get("Size", 0)
+            return total
         except Exception as e:
             logger.error(f"Failed to get backup size: {e}")
             return 0
@@ -388,7 +402,7 @@ class BackupManager:
         self, backup_type: BackupType = BackupType.FULL, schedule: str = "0 2 * * *"
     ) -> bool:
         """
-        Schedule automated backup (default_value for cron/scheduler integration)
+        Schedule automated backup using the task scheduler.
 
         Args:
             backup_type: Type of backup to schedule
@@ -397,9 +411,22 @@ class BackupManager:
         Returns:
             True if scheduled successfully
         """
-        # This would integrate with a scheduler (e.g., APScheduler, Temporal)
-        logger.info(f"Scheduled {backup_type.value} backup with schedule: {schedule}")
-        return True
+        try:
+            from core.task_scheduler import scheduler
+
+            async def _backup_job() -> None:
+                await self.create_backup(backup_type)
+
+            scheduler.schedule_task(
+                f"backup_{backup_type.value}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}",
+                _backup_job,
+                cron=schedule,
+            )
+            logger.info(f"Scheduled {backup_type.value} backup with schedule: {schedule}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to schedule backup: {e}")
+            return False
 
 
 def create_backup_manager(config: Dict[str, Any]) -> Optional[BackupManager]:

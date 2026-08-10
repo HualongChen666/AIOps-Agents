@@ -106,6 +106,10 @@ def get_redis_mode() -> str:
 async def check_node_health(node_index: int) -> Dict[str, Any]:
     """Check Redis node health.
 
+    Performs a real RESP PING over TCP when a node is configured. If the node
+    is missing, the Redis port is unreachable, or the response is unexpected,
+    the node is reported as unhealthy.
+
     Args:
         node_index: Index of the node to check
 
@@ -113,14 +117,42 @@ async def check_node_health(node_index: int) -> Dict[str, Any]:
         Health status dictionary
     """
     node_key = f"node_{node_index}"
+    node = (
+        _redis_cluster_config["nodes"][node_index]
+        if 0 <= node_index < len(_redis_cluster_config["nodes"])
+        else {}
+    )
+    role = node.get("role", "unknown")
 
     try:
-        # default_value for actual health check
-        # In production, this would execute PING command
         start_time = datetime.now(timezone.utc)
 
-        # Simulate health check
-        await asyncio.sleep(0.01)  # Simulate network latency
+        if not node:
+            raise IndexError(f"Redis node index {node_index} is not configured")
+
+        host = node.get("host", "localhost")
+        port = int(node.get("port", 6379))
+        connect_timeout = float(
+            _redis_cluster_config.get("connection_timeout_seconds", 5)
+        )
+        socket_timeout = float(_redis_cluster_config.get("socket_timeout_seconds", 5))
+
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port),
+            timeout=connect_timeout,
+        )
+        try:
+            writer.write(b"PING\r\n")
+            await writer.drain()
+            response = await asyncio.wait_for(
+                reader.readline(),
+                timeout=socket_timeout,
+            )
+            if not response.startswith(b"+PONG"):
+                raise ConnectionError(f"Unexpected Redis response: {response!r}")
+        finally:
+            writer.close()
+            await writer.wait_closed()
 
         latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
@@ -128,7 +160,7 @@ async def check_node_health(node_index: int) -> Dict[str, Any]:
             "status": "healthy",
             "last_check": datetime.now(timezone.utc).isoformat(),
             "latency_ms": latency_ms,
-            "role": _redis_cluster_config["nodes"][node_index].get("role", "unknown"),
+            "role": role,
         }
 
         _node_health[node_key] = health_status
@@ -141,7 +173,7 @@ async def check_node_health(node_index: int) -> Dict[str, Any]:
             "last_check": datetime.now(timezone.utc).isoformat(),
             "error": str(e),
             "latency_ms": None,
-            "role": _redis_cluster_config["nodes"][node_index].get("role", "unknown"),
+            "role": role,
         }
         _node_health[node_key] = health_status
         return health_status

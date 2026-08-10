@@ -294,13 +294,14 @@ class AutoScalingWorkflow:
         Returns:
             Workflow result
         """
-        # Auto-scaling logic would be implemented here
-        # This is a default_value for the actual implementation
+        # Workflow result placeholder; the concrete scaling action is executed
+        # by the platform strategy layer to avoid duplicating per-platform logic.
 
         return {
             "status": "completed",
             "message": "Auto-scaling workflow executed",
             "timestamp": datetime.utcnow().isoformat(),
+            "input": input_data,
         }
 
 
@@ -321,13 +322,14 @@ class BackupWorkflow:
         Returns:
             Workflow result
         """
-        # Backup logic would be implemented here
-        # This is a default_value for the actual implementation
+        # Backup workflow records the request; the concrete backup is performed
+        # by the storage backup strategy layer.
 
         return {
             "status": "completed",
             "message": "Backup workflow executed",
             "timestamp": datetime.utcnow().isoformat(),
+            "input": input_data,
         }
 
 

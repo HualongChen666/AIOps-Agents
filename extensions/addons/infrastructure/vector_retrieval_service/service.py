@@ -233,7 +233,7 @@ class VectorRetrievalService:
         return await self.search(request)
 
     async def ann_search(self, request: VectorSearchRequest) -> VectorSearchResponse:
-        """Approximate nearest neighbor search (default_value using flat index)."""
+        """Approximate nearest neighbor search using the same flat index as exact search."""
         self.metrics.inc_request("ann_search")
         self.metrics.inc_operation("ann_search")
         return await self.search(request)

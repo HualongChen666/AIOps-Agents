@@ -15,34 +15,56 @@ logger = logging.getLogger(__name__)
 
 def collect_costs() -> List[Dict[str, Any]]:
     """
-    Collect recent cost data from various sources
+    Collect recent cost data from configured cloud billing integrations.
+
+    Falls back to an empty list when no integrations are available or configured.
 
     Returns:
         List of cost records with metadata
     """
-    # default_value implementation - in production, this would integrate with:
-    # - AWS Cost Explorer
-    # - Azure Cost Management
-    # - Google Cloud Billing
-    # - Custom cost databases
-
     try:
-        # Simulated cost data
-        current_time = datetime.now()
-        cost_data = [
-            {
-                "timestamp": (current_time - timedelta(days=i)).isoformat(),
-                "source": "aws",
-                "service": "ec2",
-                "cost": 100.50 + (i * 5.2),
-                "currency": "USD",
-                "region": "us-east-1",
-            }
-            for i in range(30, 0, -1)
-        ]
+        try:
+            import boto3
+        except ImportError:
+            boto3 = None  # type: ignore[assignment]
 
-        logger.info(f"Collected {len(cost_data)} cost records")
-        return cost_data
+        costs: List[Dict[str, Any]] = []
+
+        if boto3 is not None:
+            try:
+                client = boto3.client("ce")
+                end = datetime.now().date()
+                start = (end - timedelta(days=30)).isoformat()
+                response = client.get_cost_and_usage(
+                    TimePeriod={
+                        "Start": start,
+                        "End": end.isoformat(),
+                    },
+                    Granularity="DAILY",
+                    Metrics=["BlendedCost"],
+                    GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}],
+                )
+                for result in response.get("ResultsByTime", []):
+                    date = result["TimePeriod"]["Start"]
+                    for group in result.get("Groups", []):
+                        metrics = group.get("Metrics", {}).get("BlendedCost", {})
+                        costs.append(
+                            {
+                                "timestamp": date,
+                                "source": "aws",
+                                "service": group["Keys"][0]
+                                if group.get("Keys")
+                                else "unknown",
+                                "cost": float(metrics.get("Amount", 0)),
+                                "currency": metrics.get("Unit", "USD"),
+                                "region": "global",
+                            }
+                        )
+            except Exception as exc:
+                logger.warning("AWS Cost Explorer collection failed: %s", exc)
+
+        logger.info(f"Collected {len(costs)} cost records")
+        return costs
 
     except Exception as e:
         logger.error(f"Error collecting costs: {e}")

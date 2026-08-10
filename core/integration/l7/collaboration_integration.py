@@ -7,6 +7,7 @@ Provides integration with collaboration platforms for notifications and approval
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import httpx
 from loguru import logger
 
 
@@ -63,15 +64,34 @@ class CollaborationIntegration:
             return {"error": "Slack not enabled"}
 
         try:
-            # default_value for actual Slack API call
-            # In production, this would use the Slack Web API
             target_channel = channel or self.slack_channel
+            payload = {
+                "channel": target_channel,
+                "text": message,
+                "attachments": attachments or [],
+            }
+
+            async with httpx.AsyncClient(
+                headers={
+                    "Authorization": f"Bearer {self.slack_bot_token}",
+                    "Content-Type": "application/json; charset=utf-8",
+                },
+                timeout=30.0,
+            ) as client:
+                response = await client.post(
+                    "https://slack.com/api/chat.postMessage", json=payload
+                )
+                response.raise_for_status()
+                result = response.json()
+                if not result.get("ok"):
+                    raise RuntimeError(result.get("error", "Slack API error"))
 
             logger.info(f"Sent Slack notification to {target_channel}")
             return {
                 "success": True,
                 "channel": target_channel,
                 "timestamp": datetime.now().isoformat(),
+                "ts": result.get("ts"),
             }
 
         except Exception as e:
@@ -96,12 +116,51 @@ class CollaborationIntegration:
             return {"error": "Slack not enabled"}
 
         try:
-            # default_value for actual Slack API call with blocks
+            blocks = [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*{title}*\n{description}"},
+                }
+            ]
+            action_elements = [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": action["text"]},
+                    "value": action["value"],
+                    "action_id": action["value"],
+                }
+                for action in (actions or [])
+            ]
+            if action_elements:
+                blocks.append({"type": "actions", "elements": action_elements})
+
+            payload = {
+                "channel": self.slack_channel,
+                "text": title,
+                "blocks": blocks,
+            }
+
+            async with httpx.AsyncClient(
+                headers={
+                    "Authorization": f"Bearer {self.slack_bot_token}",
+                    "Content-Type": "application/json; charset=utf-8",
+                },
+                timeout=30.0,
+            ) as client:
+                response = await client.post(
+                    "https://slack.com/api/chat.postMessage", json=payload
+                )
+                response.raise_for_status()
+                result = response.json()
+                if not result.get("ok"):
+                    raise RuntimeError(result.get("error", "Slack API error"))
+
             logger.info(f"Sent Slack approval request: {title}")
             return {
                 "success": True,
                 "channel": self.slack_channel,
                 "timestamp": datetime.now().isoformat(),
+                "ts": result.get("ts"),
             }
 
         except Exception as e:
@@ -127,7 +186,23 @@ class CollaborationIntegration:
             return {"error": "Teams not enabled"}
 
         try:
-            # default_value for actual Teams webhook call
+            card = {
+                "@type": "MessageCard",
+                "@context": "https://schema.org/extensions",
+                "themeColor": color,
+                "summary": title or "Notification",
+                "sections": [
+                    {
+                        "activityTitle": title or "Notification",
+                        "activitySubtitle": message,
+                    }
+                ],
+            }
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(self.teams_webhook, json=card)
+                response.raise_for_status()
+
             logger.info("Sent Teams notification")
             return {"success": True, "timestamp": datetime.now().isoformat()}
 
@@ -153,7 +228,49 @@ class CollaborationIntegration:
             return {"error": "Teams not enabled"}
 
         try:
-            # default_value for actual Teams adaptive card API call
+            body = [
+                {
+                    "type": "TextBlock",
+                    "text": title,
+                    "weight": "bolder",
+                    "size": "medium",
+                }
+            ]
+            if description:
+                body.append(
+                    {"type": "TextBlock", "text": description, "wrap": True}
+                )
+
+            action_items = [
+                {
+                    "type": "Action.Submit",
+                    "title": action["text"],
+                    "data": {"value": action["value"]},
+                }
+                for action in (actions or [])
+            ]
+
+            card = {
+                "type": "message",
+                "attachments": [
+                    {
+                        "contentType": "application/vnd.microsoft.card.adaptive",
+                        "contentUrl": None,
+                        "content": {
+                            "$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
+                            "type": "AdaptiveCard",
+                            "version": "1.0",
+                            "body": body,
+                            "actions": action_items,
+                        },
+                    }
+                ],
+            }
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(self.teams_webhook, json=card)
+                response.raise_for_status()
+
             logger.info(f"Sent Teams approval card: {title}")
             return {"success": True, "timestamp": datetime.now().isoformat()}
 

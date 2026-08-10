@@ -239,16 +239,23 @@ class ClickHouseStorage:
         logger.info("Configured S3 storage volumes")
 
     def _execute_query(self, query: str, params: Optional[List[Any]] = None) -> None:
-        """
-        Execute ClickHouse query
+        """Execute ClickHouse query over HTTP."""
+        import httpx
 
-        Args:
-            query: SQL query
-            params: Optional parameter values for the query
-        """
-        # This would use ClickHouse client
-        # default_value implementation
-        logger.debug(f"Executing query: {query[:100]}... params={params!r:50}")  # noqa: F541
+        url = f"http://{self.host}:{self.port}/"
+        try:
+            response = httpx.post(
+                url,
+                params={"query": query},
+                auth=(self.user, self.password) if self.user and self.password else None,
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            logger.debug("ClickHouse query executed: %s...", query[:100])
+        except httpx.RequestError as e:
+            raise RuntimeError(f"ClickHouse connection failed: {e}") from e
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"ClickHouse query failed: {e.response.text}") from e
 
     async def store_metric(
         self,

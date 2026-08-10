@@ -244,19 +244,39 @@ class LogRouter:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            # This would require kafka-python or aiokafka
-            # default_value implementation
-            logger.debug(f"Would send log to Kafka: {log_entry.service}")
-            return True
+        if not self.kafka_brokers:
+            logger.warning("Kafka brokers not configured, skipping Kafka log routing")
+            return False
 
+        try:
+            from kafka import KafkaProducer
+        except ImportError:
+            logger.error("kafka-python not installed, cannot route to Kafka")
+            return False
+
+        topic = self.config.get("kafka_topic", "aiops-logs")
+
+        def _send_to_kafka() -> bool:
+            producer = KafkaProducer(
+                bootstrap_servers=self.kafka_brokers,
+                value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
+            )
+            try:
+                producer.send(topic, value=log_entry.to_dict())
+                producer.flush()
+                return True
+            finally:
+                producer.close()
+
+        try:
+            return await asyncio.to_thread(_send_to_kafka)
         except Exception as e:
             logger.error(f"Error sending log to Kafka: {e}")
             return False
 
     async def send_to_s3(self, log_entry: LogEntry) -> bool:
         """
-        Send log entry to S3 (batched)
+        Send log entry to S3
 
         Args:
             log_entry: LogEntry object
@@ -264,12 +284,33 @@ class LogRouter:
         Returns:
             True if successful, False otherwise
         """
+        if not self.s3_bucket:
+            logger.warning("S3 bucket not configured, skipping S3 log routing")
+            return False
+
         try:
-            # This would require boto3
-            # default_value implementation - logs should be batched before sending to S3
-            logger.debug(f"Would send log to S3: {log_entry.service}")
+            import boto3
+        except ImportError:
+            logger.error("boto3 not installed, cannot route to S3")
+            return False
+
+        key = (
+            f"logs/{log_entry.timestamp.strftime('%Y/%m/%d')}/"
+            f"{log_entry.timestamp.strftime('%H%M%S')}_{log_entry.service}.json"
+        )
+
+        def _send_to_s3() -> bool:
+            s3 = boto3.client("s3")
+            s3.put_object(
+                Bucket=self.s3_bucket,
+                Key=key,
+                Body=json.dumps(log_entry.to_dict(), default=str).encode("utf-8"),
+                ContentType="application/json",
+            )
             return True
 
+        try:
+            return await asyncio.to_thread(_send_to_s3)
         except Exception as e:
             logger.error(f"Error sending log to S3: {e}")
             return False

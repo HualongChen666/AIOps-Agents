@@ -17,12 +17,18 @@ _summary_cache: Dict[str, Any] = {}
 
 
 def record_ingestion(data_points: int = 1) -> None:
-    """default_value for record_ingestion – logs the call."""
+    """Record ingestion data points in the in-memory summary cache."""
+    _summary_cache.setdefault("ingestion", {"total_points": 0, "records": 0})
+    _summary_cache["ingestion"]["total_points"] += data_points
+    _summary_cache["ingestion"]["records"] += 1
     logger.info(f"record_ingestion called with {data_points} point(s)")
 
 
 def record_alert_noise(raw_count: int, effective_count: int) -> None:
-    """default_value for record_alert_noise – logs the metrics."""
+    """Record raw vs effective alert counts in the in-memory summary cache."""
+    _summary_cache.setdefault("alert_noise", {"raw": 0, "effective": 0})
+    _summary_cache["alert_noise"]["raw"] += raw_count
+    _summary_cache["alert_noise"]["effective"] += effective_count
     logger.info(f"record_alert_noise: raw={raw_count}, effective={effective_count}")
 
 
@@ -32,38 +38,68 @@ def record_alert_noise(raw_count: int, effective_count: int) -> None:
 async def query_alert_stats(
     start_time: Optional[str] = None, end_time: Optional[str] = None
 ) -> Dict[str, Any]:
-    """default_value for querying alert stats."""
-    return {}
+    """Return alert stats from the in-memory summary cache."""
+    noise = _summary_cache.get("alert_noise", {})
+    ingestion = _summary_cache.get("ingestion", {})
+    return {
+        "alerts": noise,
+        "ingestion": ingestion,
+        "period": {"start_time": start_time, "end_time": end_time},
+    }
 
 
 async def query_hourly_stats() -> List[Dict[str, Any]]:
-    """default_value for querying hourly alert stats."""
-    return []
+    """Return hourly alert stats when available; otherwise empty."""
+    return _summary_cache.get("hourly_stats", [])
 
 
 async def query_daily_stats() -> List[Dict[str, Any]]:
-    """default_value for querying daily alert stats."""
-    return []
+    """Return daily alert stats when available; otherwise empty."""
+    return _summary_cache.get("daily_stats", [])
 
 
 async def query_repair_stats(group_by: Optional[str] = None) -> Dict[str, Any]:
-    """default_value for querying repair stats."""
-    return {}
+    """Aggregate repair stats from the in-memory summary cache."""
+    history = _summary_cache.get("repair_history", [])
+    if not group_by:
+        return {"total_repairs": len(history), "repairs": history}
+    grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for rec in history:
+        key = rec.get(group_by, "unknown")
+        grouped[key].append(rec)
+    return {k: len(v) for k, v in grouped.items()}
 
 
 async def query_repair_history(limit: int = 50, host: Optional[str] = None) -> List[Dict[str, Any]]:
-    """default_value for querying repair history."""
-    return []
+    """Return repair history from the cache, filtered and limited."""
+    history = list(_summary_cache.get("repair_history", []))
+    if host:
+        history = [r for r in history if r.get("host") == host]
+    return history[:limit]
 
 
 async def query_system_stats() -> Dict[str, Any]:
-    """default_value for querying system stats."""
-    return {}
+    """Return system stats from the cache or a safe fallback."""
+    return _summary_cache.get(
+        "system_stats",
+        {
+            "cpu_percent": 0.0,
+            "memory_percent": 0.0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 async def insert_repair_record(repair_data: Dict[str, Any]) -> str:
-    """default_value for inserting a repair record."""
-    return "repair-001"
+    """Persist a repair record in memory and return a UUID repair id."""
+    repair_id = str(uuid.uuid4())
+    record = {
+        **repair_data,
+        "repair_id": repair_id,
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _summary_cache.setdefault("repair_history", []).append(record)
+    return repair_id
 
 
 # ---------------------------------------------------------------------------

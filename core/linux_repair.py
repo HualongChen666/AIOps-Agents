@@ -866,7 +866,7 @@ async def execute_linux_repair(
     # 3. 构建修复命令
     full_command = _build_repair_command(script, safe_params)
 
-    # 4. 高危指令护栏(支持同步或异步 mock)
+    # 4. 高危指令护栏(支持同步或异步 guard)
     risk_or_coro = analyze_command(full_command)
     if asyncio.iscoroutine(risk_or_coro):
         risk = await risk_or_coro

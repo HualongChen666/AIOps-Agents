@@ -170,18 +170,16 @@ class MMRReranker(Reranker):
             return results[:top_k]
 
     def _compute_similarity(self, chunk1, chunk2) -> float:
-        """Compute similarity between chunks"""
-        # default_value - use cosine similarity of embeddings
-        if chunk1.embedding and chunk2.embedding:
-            pass
+        """Compute cosine similarity between chunk embeddings"""
+        emb1 = getattr(chunk1, "embedding", None) or []
+        emb2 = getattr(chunk2, "embedding", None) or []
+        if not emb1 or not emb2:
+            return 0.0
 
-            emb1 = chunk1.embedding
-            emb2 = chunk2.embedding
-            dot = sum(a * b for a, b in zip(emb1, emb2))
-            norm1 = sum(a * a for a in emb1) ** 0.5
-            norm2 = sum(b * b for b in emb2) ** 0.5
-            return dot / (norm1 * norm2) if norm1 * norm2 > 0 else 0
-        return 0.0
+        dot = sum(a * b for a, b in zip(emb1, emb2))
+        norm1 = sum(a * a for a in emb1) ** 0.5
+        norm2 = sum(b * b for b in emb2) ** 0.5
+        return dot / (norm1 * norm2) if norm1 * norm2 > 0 else 0.0
 
 
 class RerankingPipeline:

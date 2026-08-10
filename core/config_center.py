@@ -64,11 +64,11 @@ class ConsulConfigCenter:
         """初始化Consul配置中心"""
         self.consul_host = consul_host
         self.consul_port = consul_port
-        self.stub_enabled = not CONSUL_AVAILABLE
+        self.fallback_enabled = not CONSUL_AVAILABLE
 
-        if self.stub_enabled:
+        if self.fallback_enabled:
             _logger.info("Consul not available, using component implementation")
-            self.stub_config: Dict[str, ConfigItem] = {}
+            self.fallback_config: Dict[str, ConfigItem] = {}
         else:
             try:
                 self.consul_client = consul.Consul(host=consul_host, port=consul_port)
@@ -77,8 +77,8 @@ class ConsulConfigCenter:
                 _logger.info(f"Consul client initialized: {consul_host}:{consul_port}")
             except Exception as e:
                 _logger.error(f"Failed to initialize Consul client: {e}")
-                self.stub_enabled = True
-                self.stub_config = {}
+                self.fallback_enabled = True
+                self.fallback_config = {}
 
         self.change_listeners: List[Callable[[ConfigChangeEvent], None]] = []
         self.watch_threads: Dict[str, threading.Thread] = {}
@@ -86,18 +86,18 @@ class ConsulConfigCenter:
     def set_config(self, key: str, value: Any, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """设置配置"""
         try:
-            if self.stub_enabled:
+            if self.fallback_enabled:
                 event_type = (
-                    ConfigEventType.UPDATE if key in self.stub_config else ConfigEventType.CREATE
+                    ConfigEventType.UPDATE if key in self.fallback_config else ConfigEventType.CREATE
                 )
-                if key in self.stub_config:
-                    self.stub_config[key].value = value
-                    self.stub_config[key].version += 1
-                    self.stub_config[key].updated_at = datetime.now(timezone.utc)
+                if key in self.fallback_config:
+                    self.fallback_config[key].value = value
+                    self.fallback_config[key].version += 1
+                    self.fallback_config[key].updated_at = datetime.now(timezone.utc)
                     if metadata:
-                        self.stub_config[key].metadata.update(metadata)
+                        self.fallback_config[key].metadata.update(metadata)
                 else:
-                    self.stub_config[key] = ConfigItem(
+                    self.fallback_config[key] = ConfigItem(
                         key=key,
                         value=value,
                         metadata=metadata or {},
@@ -108,11 +108,11 @@ class ConsulConfigCenter:
                         old_value=(
                             None
                             if event_type == ConfigEventType.CREATE
-                            else self.stub_config[key].value
+                            else self.fallback_config[key].value
                         ),
                         new_value=value,
                         event_type=event_type,
-                        version=self.stub_config[key].version,
+                        version=self.fallback_config[key].version,
                     )
                 )
                 return True
@@ -129,8 +129,8 @@ class ConsulConfigCenter:
 
     def get_config(self, key: str, default: Any = None) -> Optional[Any]:
         """获取配置"""
-        if self.stub_enabled:
-            item = self.stub_config.get(key)
+        if self.fallback_enabled:
+            item = self.fallback_config.get(key)
             return item.value if item else default
 
         try:
@@ -145,8 +145,8 @@ class ConsulConfigCenter:
 
     def get_config_item(self, key: str) -> Optional[ConfigItem]:
         """获取完整配置项（含 version 等元数据）"""
-        if self.stub_enabled:
-            return self.stub_config.get(key)
+        if self.fallback_enabled:
+            return self.fallback_config.get(key)
         try:
             if self.consul_client:
                 _, data = self.consul_client.kv.get(key)
@@ -164,10 +164,10 @@ class ConsulConfigCenter:
 
     def delete_config(self, key: str) -> bool:
         """删除配置"""
-        if self.stub_enabled:
-            if key not in self.stub_config:
+        if self.fallback_enabled:
+            if key not in self.fallback_config:
                 return False
-            old_value = self.stub_config.pop(key).value
+            old_value = self.fallback_config.pop(key).value
             self._notify_change(
                 ConfigChangeEvent(
                     key=key,
@@ -187,9 +187,9 @@ class ConsulConfigCenter:
 
     def watch_config(self, key: str, callback: Callable[[Any], None]):
         """监听配置变化"""
-        if self.stub_enabled:
-            _logger.info(f"Stub mode: Watching config {key}")
-            # 在stub模式下，我们通过手动触发来模拟
+        if self.fallback_enabled:
+            _logger.info(f"Fallback mode: Watching config {key}")
+            # 在 fallback 模式下，通过手动触发来刷新
             return
 
         def watch_thread():
@@ -229,8 +229,8 @@ class ConsulConfigCenter:
 
     def get_all_configs(self) -> Dict[str, Any]:
         """获取所有配置"""
-        if self.stub_enabled:
-            return {key: item.value for key, item in self.stub_config.items()}
+        if self.fallback_enabled:
+            return {key: item.value for key, item in self.fallback_config.items()}
 
         all_configs: Dict[str, Any] = {}
         try:
@@ -248,9 +248,9 @@ class ConsulConfigCenter:
             _logger.error(f"Failed to get all configs: {e}")
         return all_configs
 
-    def get_stub_configs(self) -> Dict[str, ConfigItem]:
+    def get_fallback_configs(self) -> Dict[str, ConfigItem]:
         """获取stub配置（用于测试）"""
-        return dict(self.stub_config)
+        return dict(self.fallback_config)
 
 
 class ServiceDiscovery:

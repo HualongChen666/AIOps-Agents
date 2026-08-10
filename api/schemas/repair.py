@@ -82,7 +82,7 @@ class WindowsRepairRequest(BaseModel):
     )
     params: dict[str, str] = Field(
         default_factory=dict,
-        description="Script default_value parameters (e.g., {'service_name': 'Spooler'})",
+        description="Script parameters (e.g., {'service_name': 'Spooler'})",
     )
 
     @field_validator("host_name")
