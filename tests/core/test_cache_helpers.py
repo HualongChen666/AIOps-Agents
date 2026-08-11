@@ -1,52 +1,72 @@
 # -*- coding: utf-8 -*-
+"""Unit tests for core/cache_helpers.py."""
+
 import pytest
 
-from core.cache_manager import (
-    cache_result,
-    flush_all,
-    get_cache_stats,
-    invalidate_cache,
+from core.cache_helpers import (
+    CacheStatistics,
+    CacheWarmer,
+    LRUCache,
+    ParametricTTLCache,
+    TTLCache,
+    generate_cache_key,
 )
 
 
-@pytest.fixture(autouse=True)
-def clean_cache():
-    flush_all()
-    yield
-    flush_all()
+def test_generate_cache_key():
+    key1 = generate_cache_key("test", 1, 2, a=3)
+    key2 = generate_cache_key("test", 1, 2, a=3)
+    assert key1 == key2
+    assert isinstance(key1, str)
 
 
-def test_cache_result_decorator():
-    call_count = {"n": 0}
-
-    @cache_result(ttl=300, track_stats=True)
-    def add(a, b):
-        call_count["n"] += 1
-        return a + b
-
-    assert add(2, 3) == 5
-    assert add(2, 3) == 5
-    assert call_count["n"] == 1
-    stats = get_cache_stats("add")
-    assert stats["total_hits"] >= 1
+def test_cache_statistics():
+    stats = CacheStatistics()
+    stats.record_hit()
+    stats.record_miss()
+    stats.record_eviction()
+    rate = stats.get_hit_rate()
+    assert 0.0 <= rate <= 100.0
+    assert isinstance(stats.get_stats(), dict)
 
 
-def test_invalidate_cache():
-    @cache_result(ttl=300)
-    def greet(name):
-        return f"hi {name}"
+def test_lru_cache():
+    cache = LRUCache(max_size=2, ttl_sec=1.0)
+    cache.set("a", 1)
+    cache.set("b", 2)
+    assert cache.get("a") == 1
+    cache.set("c", 3)
+    assert cache.get("b") is None
+    assert cache.invalidate("a") is True
+    cache.clear()
+    assert isinstance(cache.get_stats(), dict)
 
-    greet("alice")
-    removed = invalidate_cache("greet")
-    assert removed == 1
+
+def test_ttl_cache():
+    cache = TTLCache(ttl_sec=0.5)
+    cache.set({"key": "value"})
+    assert cache.get()["key"] == "value"
+    assert cache.is_valid() is True
+    cache.clear()
+    assert cache.get() is None
 
 
-def test_flush_all():
-    @cache_result(ttl=300)
-    def one():
-        return 1
+def test_parametric_ttl_cache():
+    cache = ParametricTTLCache(ttl_sec=0.5)
+    cache.set({"key": "value"}, param="x")
+    assert cache.get(param="x")["key"] == "value"
+    assert cache.get(param="y") is None
+    cache.clear()
 
-    one()
-    assert flush_all() is True
-    stats = get_cache_stats("one")
-    assert stats["cache_size"] == 0
+
+@pytest.mark.asyncio
+async def test_cache_warmer():
+    cache = LRUCache()
+    warmer = CacheWarmer(cache)
+
+    async def double(x):
+        return x * 2
+
+    warmer.register("double", double)
+    result = await warmer.warm("double", 5)
+    assert result == 10
