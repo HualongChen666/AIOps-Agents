@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Unit tests for core/agent/tools.py."""
 
+import pytest
+
 from core.agent.tools import (
     Tool,
+    ToolApprovalManager,
     ToolCategory,
     ToolExecutor,
     ToolRegistry,
@@ -57,3 +60,47 @@ def test_tool_selector():
     selector = ToolSelector(registry)
     selected = selector.select_tool("collect metrics", {})
     assert isinstance(selected, (Tool, type(None)))
+    selected = selector.select_tool("restart service", {})
+    assert isinstance(selected, (Tool, type(None)))
+
+
+def test_tool_validation():
+    tool = Tool(
+        name="echo",
+        description="Echo service",
+        category=ToolCategory.DIAGNOSTIC,
+        function=lambda service: f"ok {service}",
+        required_params=["service"],
+    )
+    with pytest.raises(ValueError):
+        tool.execute(service="foo; rm -rf")
+    with pytest.raises(ValueError):
+        tool.execute()
+
+
+def test_tool_approval_manager():
+    manager = ToolApprovalManager(approval_required=True)
+    request_id = manager.request_approval("restart", "admin")
+    assert isinstance(request_id, str)
+    assert manager.is_approved("restart") is False
+    manager.approve("restart", "approver")
+    assert manager.is_approved("restart") is True
+    manager.revoke("restart")
+    assert manager.is_approved("restart") is False
+
+
+def test_tool_registry_approval_flow():
+    registry = ToolRegistry(approval_required=True)
+    tool = Tool(
+        name="restart",
+        description="Restart",
+        category=ToolCategory.EXECUTION,
+        function=lambda service: f"restarted {service}",
+        required_params=["service"],
+    )
+    assert registry.is_tool_approved("restart") is False
+    request_id = registry.request_tool_approval("restart", "admin")
+    assert isinstance(request_id, str)
+    registry.approve_tool("restart", "approver")
+    assert registry.is_tool_approved("restart") is True
+    registry.register(tool)
