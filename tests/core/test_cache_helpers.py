@@ -4,10 +4,14 @@
 import pytest
 
 from core.cache_helpers import (
+    CacheInvalidationEvent,
     CacheStatistics,
     CacheWarmer,
+    IntelligentCacheWarmer,
     LRUCache,
+    MultiLevelCache,
     ParametricTTLCache,
+    ThreeLevelCache,
     TTLCache,
     generate_cache_key,
 )
@@ -70,3 +74,63 @@ async def test_cache_warmer():
     warmer.register("double", double)
     result = await warmer.warm("double", 5)
     assert result == 10
+
+
+class _FakeRedis:
+    def __init__(self, *args, **kwargs):
+        raise ConnectionError("redis disabled")
+
+
+def _patch_redis(monkeypatch):
+    try:
+        import redis
+
+        monkeypatch.setattr(redis, "Redis", _FakeRedis)
+    except ImportError:
+        pass
+
+
+def test_multi_level_cache(monkeypatch):
+    _patch_redis(monkeypatch)
+    cache = MultiLevelCache()
+    cache.set("k", "v")
+    assert cache.get("k") == "v"
+    cache.invalidate("k")
+    assert cache.get("k") is None
+    cache.clear()
+
+
+def test_three_level_cache(monkeypatch):
+    _patch_redis(monkeypatch)
+    cache = ThreeLevelCache()
+    cache.set("k", {"v": 1})
+    assert cache.get("k") == {"v": 1}
+    cache.invalidate("k")
+    assert cache.get("k") is None
+    cache.register_invalidation_callback(
+        CacheInvalidationEvent.MANUAL,
+        lambda key, meta: None,
+    )
+    cache._trigger_invalidation_event(CacheInvalidationEvent.MANUAL, "k")
+    stats = cache.get_stats()
+    assert isinstance(stats, dict)
+    cache.clear()
+
+
+@pytest.mark.asyncio
+async def test_intelligent_cache_warmer(monkeypatch):
+    _patch_redis(monkeypatch)
+    cache = ThreeLevelCache()
+    warmer = IntelligentCacheWarmer(cache)
+
+    async def double(x):
+        return x * 2
+
+    warmer.register("double", double)
+    assert await warmer.warm("double", 5) == 10
+    assert isinstance(warmer.predict_next_access("double"), float)
+    assert await warmer.warm_with_prediction("double", 5) == 10
+    await warmer.warm_high_priority()
+    stats = warmer.get_warming_stats()
+    assert isinstance(stats, dict)
+    assert "registered_functions" in stats
