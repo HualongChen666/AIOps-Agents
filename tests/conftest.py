@@ -15,6 +15,7 @@ os.environ["TRACING_ENABLED"] = "true"
 os.environ["LOG_AGGREGATION_ENABLED"] = "true"
 os.environ["TOPOLOGY_ENABLED"] = "true"
 os.environ["RATE_LIMITING_ENABLED"] = "false"
+os.environ["HARDWARE_REMEDIATION_ENABLED"] = "true"
 
 import pytest
 from fastapi.testclient import TestClient
