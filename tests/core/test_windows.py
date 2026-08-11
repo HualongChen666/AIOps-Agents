@@ -1,0 +1,31 @@
+# -*- coding: utf-8 -*-
+"""Tests for core/windows_collector.py and core/windows_repair.py."""
+
+import core.windows_collector
+import core.windows_repair
+
+
+async def test_collect_windows_host_without_winrm():
+    result = await core.windows_collector.collect_windows_host(
+        {"ip": "192.168.1.1", "name": "win1"}
+    )
+    assert "host" in result
+    assert "error" in result or "cpu_percent" in result
+
+
+async def test_collect_all_windows(monkeypatch):
+    monkeypatch.setattr(core.windows_collector, "WIN_HOSTS", [])
+    result = await core.windows_collector.collect_all_windows()
+    assert result == []
+
+
+async def test_execute_windows_repair():
+    result = await core.windows_repair.execute_windows_repair(
+        "restart_service", {"service_name": "foo"}
+    )
+    assert isinstance(result, dict)
+
+
+def test_get_windows_repair_history():
+    history = core.windows_repair.get_windows_repair_history(limit=5)
+    assert history == []
