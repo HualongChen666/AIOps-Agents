@@ -96,6 +96,7 @@ def _fill_path(path: str) -> str:
         "api.workflow_visualization_router",
     ],
 )
+@pytest.mark.smoke
 def test_uncovered_router(module_name):
     try:
         mod = importlib.import_module(module_name)
