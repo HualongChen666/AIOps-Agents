@@ -25,6 +25,7 @@ def _fill_path(path: str) -> str:
 @pytest.mark.parametrize(
     "module_name",
     [
+        # Part 1
         "api.chaos_router",
         "api.cloud_router",
         "api.database_optimization_router",
@@ -44,6 +45,27 @@ def _fill_path(path: str) -> str:
         "api.tracing_router",
         "api.unified_repair_router",
         "api.workflow_router",
+        # Part 2
+        "api.api_performance_router",
+        "api.apm_router",
+        "api.audit_router",
+        "api.autoheal_router",
+        "api.itsm_router",
+        "api.localization_adapter_router",
+        "api.localization_resource_router",
+        "api.log_router",
+        "api.maturity_router",
+        "api.metrics_router",
+        "api.notify_router",
+        "api.priority_router",
+        "api.qdrant_router",
+        "api.service_discovery_router",
+        "api.service_mesh_router",
+        "api.service_monitoring_router",
+        "api.slo_router",
+        "api.test_automation_router",
+        "api.test_coverage_router",
+        "api.test_framework_router",
     ],
 )
 def test_uncovered_router(module_name):
