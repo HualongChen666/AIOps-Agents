@@ -1,0 +1,215 @@
+replicaCount: 2
+image:
+  repository: aiops/aiops-agent
+  pullPolicy: IfNotPresent
+  tag: 1.0.0
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ''
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+service:
+  type: ClusterIP
+  port: 8080
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+  - host: aiops.staging.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls: []
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - aiops-agent
+        topologyKey: kubernetes.io/hostname
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+startupProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 30
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ''
+    database: aiops
+    existingSecret: ''
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+timescaledb:
+  enabled: true
+  image:
+    tag: latest-pg14
+  pgHbaConfiguration: 'local all all trust
+
+    host all all all md5
+
+    '
+  persistentVolume:
+    size: 50Gi
+qdrant:
+  enabled: true
+  persistence:
+    size: 20Gi
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+argocd:
+  enabled: false
+  global:
+    domain: argocd.example.com
+aiops:
+  logLevel: debug
+  otel:
+    enabled: true
+    endpoint: http://otel-collector:4317
+  prometheus:
+    enabled: true
+    port: 9090
+  anomalyDetection:
+    enabled: true
+    model: ensemble
+    threshold: 0.95
+  autoHeal:
+    enabled: true
+    maxRetries: 3
+  sampling:
+    enabled: true
+    defaultRate: 0.1
+    criticalRate: 1.0
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 60s
+    scrapeTimeout: 10s
+  prometheusRules:
+    enabled: true
+    rules:
+    - name: aiops-alerts
+      rules:
+      - alert: HighCPUUsage
+        expr: cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High CPU usage detected
+          description: CPU usage is {{ $value }}% for {{ $labels.instance }}
+      - alert: HighMemoryUsage
+        expr: memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High memory usage detected
+          description: Memory usage is {{ $value }}% for {{ $labels.instance }}
+      - alert: HighDiskUsage
+        expr: disk_usage_percent > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High disk usage detected
+          description: Disk usage is {{ $value }}% for {{ $labels.instance }}
+      - alert: ApplicationDown
+        expr: up{job="aiops-agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: AIOps Agent is down
+          description: AIOps Agent has been down for more than 1 minute
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High error rate detected
+          description: Error rate is {{ $value }} for {{ $labels.instance }}
+security:
+  cors:
+    enabled: true
+    allowedOrigins:
+    - https://aiops.example.com
+    allowedMethods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+    allowedHeaders:
+    - Content-Type
+    - Authorization
+  rateLimiting:
+    enabled: true
+    requestsPerMinute: 100
+    burst: 20
+  https:
+    enabled: true
+    redirectHTTP: true
+secret:
+  jwtSecretKey: ''
+  databaseUrl: ''
+  redisUrl: ''
+  openaiApiKey: ''
+  anthropicApiKey: ''
