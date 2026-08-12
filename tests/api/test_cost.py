@@ -10,6 +10,7 @@ _CASES = [
 ]
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("method,path,body,params,expected", _CASES)
 def test_cost_endpoint(client, admin_headers, method, path, body, params, expected):
     """Each B26 endpoint returns an expected status set."""

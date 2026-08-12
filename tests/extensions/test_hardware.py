@@ -4,6 +4,7 @@
 import pytest
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize(
     "module_name",
     [

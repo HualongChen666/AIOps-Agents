@@ -1,7 +1,9 @@
+import pytest
 # -*- coding: utf-8 -*-
 """Tests for core/mcp_server.py endpoints mounted via api/mcp_router.py."""
 
 
+@pytest.mark.smoke
 def test_mcp_get_host_health(client, admin_headers):
     resp = client.post(
         "/api/mcp/get_host_health",
@@ -11,6 +13,7 @@ def test_mcp_get_host_health(client, admin_headers):
     assert resp.status_code in (200, 500)
 
 
+@pytest.mark.smoke
 def test_mcp_trigger_repair(client, admin_headers):
     resp = client.post(
         "/api/mcp/trigger_repair_with_hitl",
@@ -20,6 +23,7 @@ def test_mcp_trigger_repair(client, admin_headers):
     assert resp.status_code in (200, 500)
 
 
+@pytest.mark.smoke
 def test_mcp_search_incident(client, admin_headers):
     resp = client.post(
         "/api/mcp/search_incident_history",
@@ -29,6 +33,7 @@ def test_mcp_search_incident(client, admin_headers):
     assert resp.status_code in (200, 500)
 
 
+@pytest.mark.smoke
 def test_mcp_get_metrics(client, admin_headers):
     resp = client.post(
         "/api/mcp/get_metrics",
@@ -38,6 +43,7 @@ def test_mcp_get_metrics(client, admin_headers):
     assert resp.status_code in (200, 500)
 
 
+@pytest.mark.smoke
 def test_mcp_approve_repair(client, admin_headers):
     resp = client.post(
         "/api/mcp/approve_repair",

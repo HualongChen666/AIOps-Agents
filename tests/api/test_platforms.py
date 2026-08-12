@@ -30,6 +30,7 @@ _CASES = [
 ]
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("method,path,body,params,expected", _CASES)
 def test_platform_endpoint(client, approval_headers, method, path, body, params, expected):
     """Each platform endpoint returns an expected status set."""

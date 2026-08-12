@@ -1,7 +1,9 @@
+import pytest
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for top-level main.py endpoints."""
 
 
+@pytest.mark.smoke
 def test_root_endpoint(client):
     """The root path serves static/index.html if it exists, otherwise 404/500."""
     resp = client.get("/")

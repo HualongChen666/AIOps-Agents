@@ -83,6 +83,7 @@ _CASES = [
 ]
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("method,path,body,params,expected", _CASES)
 def test_settings_tenant_i18n_endpoint(
     client, approval_headers, method, path, body, params, expected

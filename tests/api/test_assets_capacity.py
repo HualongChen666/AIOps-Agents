@@ -29,6 +29,7 @@ _CASES = [
 ]
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("method,path,body,params,expected", _CASES)
 def test_assets_capacity_endpoint(client, approval_headers, method, path, body, params, expected):
     """Each B13 endpoint returns an expected status set."""

@@ -20,6 +20,7 @@ _CASES = [
 ]
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("method,path,body,expected", _CASES)
 def test_user_endpoint(client, admin_headers, method, path, body, expected):
     """Each user_router endpoint returns an expected status set."""

@@ -22,6 +22,7 @@ def test_protected_endpoint_rejects_missing_token(client):
     assert response.status_code == 401
 
 
+@pytest.mark.smoke
 def test_write_endpoint_rejects_viewer(client):
     # A fake token with viewer role
     response = client.post(

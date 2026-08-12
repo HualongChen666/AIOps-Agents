@@ -19,6 +19,7 @@ _CASES = [
 ]
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("method,path,body,params,expected", _CASES)
 def test_protocol_endpoint(client, approval_headers, method, path, body, params, expected):
     """Each safe B19 HTTP endpoint returns an expected status set."""

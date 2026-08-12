@@ -1,3 +1,4 @@
+import pytest
 # -*- coding: utf-8 -*-
 """Tests for api/rag_history_router.py."""
 
@@ -14,6 +15,7 @@ def test_rag_history_page(client, admin_headers, tmp_path, monkeypatch):
     assert resp.headers["content-type"].startswith("text/html")
 
 
+@pytest.mark.smoke
 def test_rag_history_page_status(client, admin_headers):
     resp = client.get("/rag_history/", headers=admin_headers)
     assert resp.status_code in (200, 404)

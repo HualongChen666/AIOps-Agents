@@ -22,6 +22,7 @@ _CASES = [
 ]
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("method,path,body,params,expected", _CASES)
 def test_testing_endpoint(client, approval_headers, method, path, body, params, expected):
     """Each safe B24 endpoint returns an expected status set."""
