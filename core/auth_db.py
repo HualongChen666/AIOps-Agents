@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
 os.makedirs(_DATA_DIR, exist_ok=True)
-_DB_PATH = os.path.join(_DATA_DIR, "aiops.db").replace(os.sep, "/")
+_DB_PATH = os.environ.get("AIOPS_TEST_DB_PATH", os.path.join(_DATA_DIR, "aiops.db").replace(os.sep, "/"))
 
 engine = create_engine(
     f"sqlite:///{_DB_PATH}",

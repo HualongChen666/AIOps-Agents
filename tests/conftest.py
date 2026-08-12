@@ -17,6 +17,12 @@ os.environ["TOPOLOGY_ENABLED"] = "true"
 os.environ["RATE_LIMITING_ENABLED"] = "false"
 os.environ["HARDWARE_REMEDIATION_ENABLED"] = "true"
 
+# Per-worker SQLite path to avoid xdist database file races in tests.
+_worker = os.environ.get("PYTEST_XDIST_WORKER")
+_db_suffix = f"_{_worker}" if _worker else ""
+_db_file = os.path.join(os.path.dirname(__file__), "..", "data", f"aiops{_db_suffix}.db")
+os.environ["AIOPS_TEST_DB_PATH"] = os.path.abspath(_db_file).replace(os.sep, "/")
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -86,3 +92,11 @@ def admin_headers(admin_token):
 def approval_headers(admin_headers):
     """Admin headers plus the internal API key used by approval/AI routers."""
     return {**admin_headers, "X-Internal-Key": config.INTERNAL_API_KEY}
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if item.nodeid.startswith("tests/core"):
+            item.add_marker(pytest.mark.core)
+        elif item.nodeid.startswith("tests/api"):
+            item.add_marker(pytest.mark.api)

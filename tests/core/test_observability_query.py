@@ -2,6 +2,7 @@
 """Tests for core/observability_query.py."""
 
 import pytest
+import core.observability_query as _oq
 
 from core.observability_query import (
     QueryCache,
@@ -73,6 +74,7 @@ def test_sanitize_and_validate_tempoql():
 
 
 def test_cache_and_semaphore():
+    _oq._query_semaphore = None
     cache = QueryCache(ttl=60)
     key = make_cache_key("promql", "q")
     cache.set(key, {"data": []})

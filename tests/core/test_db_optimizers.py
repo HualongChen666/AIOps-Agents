@@ -20,6 +20,8 @@ def test_db_optimization_validation():
 
 
 def test_db_optimization_state():
+    core.db_optimization.reset_query_cache()
+    core.db_optimization.clear_slow_queries()
     core.db_optimization.configure_db_optimization({"enabled": True, "level": 3})
     assert core.db_optimization.is_db_optimization_enabled() is True
     assert core.db_optimization.get_db_optimization_config()["level"] == 3

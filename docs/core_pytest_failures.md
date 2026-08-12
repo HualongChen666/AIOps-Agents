@@ -103,3 +103,13 @@ elasticsearch not available, ES logging disabled: No module named 'elasticsearch
 ## ????
 
 ????????
+
+## 1.4.2 修复结果
+
+- 修复后 pytest -m core：426 passed, 1 skipped, exit code 0
+- 修复后 pytest -m core --cov=core --cov-report=term：exit code 0，core 覆盖率基线 31.49%
+- 修复内容：
+  1. 在 	ests/conftest.py 中自动为 	ests/core/ 下测试标记 @pytest.mark.core，使 pytest -m core 能选中测试。
+  2. 修复 	ests/core/test_db_optimizers.py::test_db_optimization_state 的共享 slow_queries 状态：测试开始时调用 clear_slow_queries()。
+  3. 修复 	ests/core/test_observability_query.py::test_cache_and_semaphore 的单例 semaphore：测试开始时重置 _query_semaphore。
+  4. 修复 xdist SQLite 并发冲突：core/auth_db.py 支持 AIOPS_TEST_DB_PATH 环境变量；	ests/conftest.py 按 worker 设置独立的 iops_gw*.db 文件。
