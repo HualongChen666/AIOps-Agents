@@ -21,8 +21,6 @@ import core.db_engine as db_engine
 import core.integration_ecosystem as ie
 from core.authentication import (
     ABACPolicy,
-    ComplianceFramework,
-    ComplianceManager,
     JWTAuthService,
     Permission,
     SSOProvider,
@@ -480,8 +478,8 @@ async def test_sso_provider():
 
 
 async def test_compliance_manager():
-    mgr = ComplianceManager()
-    iso = await mgr.run_compliance_check(ComplianceFramework.ISO27001)
+    mgr = auth.ComplianceManager()
+    iso = await mgr.run_compliance_check(auth.ComplianceFramework.ISO27001)
     assert iso["framework"] == "iso27001"
     assert iso["overall_status"] == "pass"
 
