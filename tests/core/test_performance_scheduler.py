@@ -25,4 +25,5 @@ def test_setup_jobs():
     assert "generate_daily_report" in job_ids
     assert "generate_weekly_report" in job_ids
     assert "generate_monthly_report" in job_ids
-    sched.scheduler.shutdown(wait=False)
+    if sched.scheduler.running:
+        sched.scheduler.shutdown(wait=False)
