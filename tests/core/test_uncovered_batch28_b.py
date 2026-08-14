@@ -916,6 +916,7 @@ def test_auto_heal_maintenance_window(auto_heal_module, monkeypatch):
     assert ah._is_in_maintenance_window()[0] is False
     monkeypatch.setenv("HEAL_MAINTENANCE_WINDOW", "00:00-23:59")
     assert ah._is_in_maintenance_window() == (True, "maintenance window 00:00-23:59")
+    monkeypatch.delenv("HEAL_MAINTENANCE_WINDOW")
 
 
 def test_auto_heal_escalation(auto_heal_module, monkeypatch):
