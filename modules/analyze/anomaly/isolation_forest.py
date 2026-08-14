@@ -203,7 +203,7 @@ class IsolationForestDetector:
         # 提取异常点
         anomalies = []
         for idx, (pred, score) in enumerate(
-            zip(predictions, scores_normalized if scores_normalized else [0] * len(predictions))
+            zip(predictions, scores_normalized if scores is not None else [0] * len(predictions))
         ):
             if pred == -1:  # 异常
                 anomaly = {

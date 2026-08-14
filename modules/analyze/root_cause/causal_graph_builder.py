@@ -229,7 +229,7 @@ class CausalGraphBuilder:
     def _preprocess_metrics(self, data: pd.DataFrame) -> pd.DataFrame:
         """预处理指标数据"""
         # 处理缺失值
-        data = data.fillna(method="ffill").fillna(0)
+        data = data.ffill().fillna(0)
 
         # 标准化
         from sklearn.preprocessing import StandardScaler

@@ -19,7 +19,7 @@ import platform
 import re
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -317,6 +317,7 @@ class SelfHealingEngine:
             # 设置冷却期
             self.cooldowns[policy.id] = datetime.now() + timedelta(seconds=policy.cooldown_seconds)
 
+        self.remediation_history.extend(results)
         return results
 
     def _execute_action(

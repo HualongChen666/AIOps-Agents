@@ -378,7 +378,7 @@ class TimeSeriesFeatureEngineer:
             df[f"{value_col}_lag_{lag}"] = df[value_col].shift(lag)
 
         # 填充 NaN
-        df = df.fillna(method="bfill").fillna(0)
+        df = df.bfill().fillna(0)
 
         logger.info(f"Added {len(lags)} lag features")
         return df
@@ -415,7 +415,7 @@ class TimeSeriesFeatureEngineer:
             df[f"{value_col}_rolling_max_{window}"] = df[value_col].rolling(window).max()
 
         # 填充 NaN
-        df = df.fillna(method="bfill").fillna(0)
+        df = df.bfill().fillna(0)
 
         logger.info(f"Added rolling features for windows: {windows}")
         return df
@@ -491,7 +491,7 @@ class TimeSeriesFeatureEngineer:
         df[f"{value_col}_diff"] = df[value_col].diff()
 
         # 填充 NaN
-        df = df.fillna(method="bfill").fillna(0)
+        df = df.bfill().fillna(0)
 
         logger.info("Added statistical features")
         return df
@@ -998,7 +998,7 @@ class MultiModalDataPreparer:
             # 简单的词频统计
             from sklearn.feature_extraction.text import TfidfVectorizer
 
-            vectorizer = TfidfVectorizer(max_features=64, max_length=max_length)
+            vectorizer = TfidfVectorizer(max_features=64)
             features = vectorizer.fit_transform(logs).toarray()
         else:
             # 使用嵌入模型

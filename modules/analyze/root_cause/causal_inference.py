@@ -657,6 +657,11 @@ class CausalRootCauseAnalyzer:
         if self.causal_graph is None:
             raise RuntimeError("Causal graph not learned. Call learn_causal_graph() first.")
 
+        if self.do_calculus is None:
+            self.do_calculus = DoCalculus(self.causal_graph)
+        if self.use_counterfactual and self.counterfactual is None:
+            self.counterfactual = CounterfactualReasoning(self.causal_graph)
+
         # 方法 1：使用必要原因分析
         if self.counterfactual is None:
             raise RuntimeError(

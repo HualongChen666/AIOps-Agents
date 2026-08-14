@@ -144,14 +144,18 @@ class AlertRule:
             raise ValueError(f"Unsafe condition: {condition}")
 
         # 提取变量名
-        tokens = re.split(r"[><=!&|()]+", condition)
+        tokens = re.split(r"[><=!&|()\s]+", condition)
         variables = [t.strip() for t in tokens if t.strip()]
 
-        # 验证所有变量都在 metrics 中
+        # 验证所有变量都在 metrics 中（数字常量除外）
         for var in variables:
             if var not in ["and", "or", "not"] and var not in metrics:
-                logger.warning(f"Variable {var} not in metrics, treating as False")
-                return False
+                try:
+                    float(var)
+                    continue
+                except ValueError:
+                    logger.warning(f"Variable {var} not in metrics, treating as False")
+                    return False
 
         # 使用 ast.literal_eval 的安全替代方案
         # 简单实现：解析并评估比较表达式
