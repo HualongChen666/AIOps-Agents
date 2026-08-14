@@ -129,7 +129,7 @@ async def rpc(method: str, payload: Optional[Dict[str, Any]] = Body(default=None
     if method == "list_methods":
         return orchestrator.list_methods()
     if method == "stats":
-        return orchestrator.get_stats()
+        return await orchestrator.get_stats()
     if method not in orchestrator.list_methods():
         raise HTTPException(status_code=404, detail=f"Unknown RPC method: {method}")
     try:
