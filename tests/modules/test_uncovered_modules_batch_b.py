@@ -297,24 +297,9 @@ sys.modules["kubernetes.client"] = _client
 sys.modules["kubernetes.config"] = _config
 sys.modules["kubernetes.client.rest"] = _rest
 
-# torch/transformer_model
+
+# helpers used by the train_transformer tests in this file
 import torch  # noqa: E402
-
-_tm = types.ModuleType("modules.analyze.anomaly.transformer_model")
-
-
-class _FakeDataset:
-    def __init__(self, data: np.ndarray, seq_len: int = 100, stride: int = 1, labels: Optional[np.ndarray] = None):
-        self.data = data
-        self.seq_len = seq_len
-        self.labels = labels
-        self.indices = list(range(0, max(1, len(data) - seq_len + 1), stride))
-
-    def __len__(self):
-        return len(self.indices)
-
-    def __getitem__(self, idx: int):
-        return torch.zeros((self.seq_len, self.data.shape[1] if len(self.data.shape) > 1 else 1)), None
 
 
 class _FakeModel:
@@ -345,22 +330,15 @@ class _FakeModel:
 
 
 class _FakeTrainer:
-    def __init__(self, **kw: Any):
+    def __init__(self, *a: Any, **k: Any):
         self.best_loss = float("inf")
 
     def train(self, *a: Any, **k: Any):
-        return 0.1
+        pass
 
     def load_model(self, *a: Any, **k: Any):
         pass
 
-
-_tm.TimeSeriesDataset = _FakeDataset
-_tm.TransformerAnomalyDetector = _FakeModel
-_tm.TransformerAnomalyDetectorWrapper = _FakeModel
-_tm.TransformerAnomalyTrainer = _FakeTrainer
-_tm.create_transformer_model = lambda **kw: _FakeModel(**kw)
-sys.modules["modules.analyze.anomaly.transformer_model"] = _tm
 
 # root_cause gnn fake
 _gnn = types.ModuleType("modules.analyze.root_cause.gnn")
@@ -1080,7 +1058,7 @@ class TestTrainTransformer:
         train_loader, val_loader, test_loader, input_dim = train_transformer.prepare_data(cfg)
         assert input_dim > 0 and train_loader is not None
 
-    def test_train_and_eval(self, tmp_path: Path):
+    def test_train_and_eval(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         cfg = train_transformer.TrainingConfig(model_dir=str(tmp_path), model_name="t.pth", n_epochs=1, batch_size=1)
 
         class FakeLoader:
@@ -1089,6 +1067,8 @@ class TestTrainTransformer:
             def __iter__(self):
                 yield torch.zeros((1, 2, 3)), None
 
+        monkeypatch.setattr(train_transformer, "create_transformer_model", lambda **kw: _FakeModel(**kw))
+        monkeypatch.setattr(train_transformer, "TransformerAnomalyTrainer", _FakeTrainer)
         model = train_transformer.train_model(cfg, FakeLoader(), FakeLoader(), 3)
         assert model is not None
         metrics = train_transformer.evaluate_model(model, FakeLoader(), cfg)
