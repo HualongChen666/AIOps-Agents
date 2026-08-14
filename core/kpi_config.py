@@ -13,7 +13,7 @@ _DATA_DIR = os.path.join(_BASE_DIR, "data")
 _KPI_CONFIG_PATH = os.path.join(_DATA_DIR, "kpi_config.json")
 
 os.makedirs(_DATA_DIR, exist_ok=True)
-_lock = threading.Lock()
+_lock = threading.RLock()
 
 
 def _default_configs() -> list[dict[str, Any]]:
