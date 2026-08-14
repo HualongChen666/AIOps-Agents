@@ -81,10 +81,8 @@ def test_kpi_config_crud_and_resolve(tmp_path, monkeypatch):
         kpi_config, "_KPI_CONFIG_PATH", str(tmp_path / "kpi_config.json")
     )
 
-    # Seed the file manually so _ensure_defaults does not call _write_configs
-    # while already holding _lock, which would deadlock with a non-reentrant Lock.
-    kpi_config._write_configs(kpi_config._default_configs())
-
+    # _ensure_defaults() now uses RLock, so calling _write_configs while holding
+    # the same lock no longer deadlocks even when the file does not yet exist.
     configs = kpi_config.list_kpi_configs()
     assert len(configs) == 9
     assert configs == sorted(configs, key=lambda x: x["order"])
