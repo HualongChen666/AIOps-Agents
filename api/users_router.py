@@ -218,6 +218,9 @@ def get_permissions(
 ):
     if not (has_role(current_user, "admin") or current_user.id == id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     perms = (
         db.query(UserAssetPermission)
         .filter(UserAssetPermission.user_id == id)

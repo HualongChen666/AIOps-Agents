@@ -168,7 +168,11 @@ class FrontendEnhancementManager:
         """
         user_pref = self.get_user_preferences(user_id)
 
-        # Update preferences
+        # Update preferences; coerce string enums back to their enum types
+        if "theme" in preferences:
+            preferences["theme"] = ThemeType(preferences["theme"])
+        if "view_mode" in preferences:
+            preferences["view_mode"] = ViewMode(preferences["view_mode"])
         for key, value in preferences.items():
             if hasattr(user_pref, key):
                 setattr(user_pref, key, value)

@@ -134,9 +134,17 @@ async def identify_slow_apis(
 
         optimizer = get_api_performance_optimizer()
         slow_apis = optimizer.identify_slow_apis()
+        data = []
+        for api in slow_apis[:limit]:
+            if hasattr(api, "model_dump"):
+                data.append(api.model_dump())
+            elif isinstance(api, dict):
+                data.append(api)
+            else:
+                data.append(vars(api))
         return {
             "status": "success",
-            "data": slow_apis[:limit],
+            "data": data,
             "total_slow_apis": len(slow_apis),
             "timestamp": datetime.utcnow().isoformat(),
         }

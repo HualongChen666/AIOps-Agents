@@ -5,9 +5,9 @@ Provides API endpoints for plugin system management
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from loguru import logger
 
 router = APIRouter(prefix="/api/plugin-system", tags=["Plugin System"])
@@ -77,9 +77,9 @@ async def get_system_status():
 async def define_plugin_interface(
     interface_id: str,
     interface_name: str,
-    methods: Dict[str, Any],
-    events: Dict[str, Any],
-    configuration: Optional[Dict[str, Any]] = None,
+    methods: List[Dict[str, Any]] = Body([]),
+    events: List[Dict[str, Any]] = Body([]),
+    configuration: Optional[Dict[str, Any]] = Body(None),
 ):
     """
     Define plugin interface specification
@@ -102,8 +102,8 @@ async def define_plugin_interface(
         interface = manager.define_plugin_interface(
             interface_id=interface_id,
             interface_name=interface_name,
-            methods=methods.get("methods", []),
-            events=events.get("events", []),
+            methods=methods,
+            events=events,
             configuration=configuration,
         )
 

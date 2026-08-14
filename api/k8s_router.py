@@ -11,8 +11,15 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 
-from core.k8s_collector import collect_all_k8s, get_k8s_collect_history
-from core.k8s_repair import execute_repair_sync, get_k8s_repair_history, repair_all_k8s
+try:
+    from core.k8s_collector import collect_all_k8s, get_k8s_collect_history
+    from core.k8s_repair import execute_repair_sync, get_k8s_repair_history, repair_all_k8s
+except ImportError:
+    collect_all_k8s = None
+    get_k8s_collect_history = None
+    execute_repair_sync = None
+    get_k8s_repair_history = None
+    repair_all_k8s = None
 
 
 class K8sRepairRequest(BaseModel):
