@@ -357,7 +357,7 @@ class EnterpriseFeatures:
 
         # 删除租户
         del self.tenants[tenant_id]
-        del self.tenant_isolation[tenant_id]
+        self.tenant_isolation.pop(tenant_id, None)
 
         # 记录审计日志
         await self._log_audit_event(
