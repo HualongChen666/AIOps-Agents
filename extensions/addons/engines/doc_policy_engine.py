@@ -236,6 +236,15 @@ class PolicyEngine(_DryRunMixin):
 
     def user_lookup(self, user_id: str) -> Dict[str, Any]:
         """Return simple user metadata, using ``core.authentication`` if available."""
+        if not self._should_run():
+            return {
+                "dry_run": True,
+                "found": True,
+                "user_id": user_id,
+                "source": "mock",
+                "data": {"role": "user", "active": True},
+            }
+
         auth_module = None
         try:
             import core.authentication as auth_module
