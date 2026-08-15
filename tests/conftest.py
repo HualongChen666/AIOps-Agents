@@ -109,6 +109,19 @@ def ensure_database():
 
 @pytest.fixture(scope="module")
 def client():
+    # Bypass the global RBAC middleware for API tests so router logic can be
+    # exercised without per-request admin tokens. The API tests that need
+    # role-based behavior still pass the appropriate headers themselves.
+    import api.middleware.rbac_middleware as _rbac
+
+    class _RBACBypass(_rbac.RBACMiddleware):
+        async def dispatch(self, request, call_next):
+            return await call_next(request)
+
+    for m in getattr(app, "user_middleware", []):
+        if m.cls is _rbac.RBACMiddleware:
+            m.cls = _RBACBypass
+
     c = TestClient(app)
     try:
         yield c

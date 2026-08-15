@@ -70,6 +70,8 @@ async def get_oncall(id: str) -> dict[str, Any]:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Failed to get on-call for team %s: %s", id, exc)
         raise HTTPException(

@@ -4,7 +4,8 @@ import copy
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from config import LINUX_HOSTS, LINUX_SSH_TIMEOUT
@@ -405,15 +406,18 @@ async def run_repair(req: LinuxRepairRequest, request: Request) -> dict[str, Any
         logger.info(
             f"Linux 修复已转入审批 | operator={operator_ip} | alert_id={result.get('alert_id')}"
         )
-        return {
-            "status": "pending_approval",
-            "alert_id": result.get("alert_id"),
-            "reason": result.get("reason"),
-            "proposal": result.get("proposal", ""),
-            "rule": result.get("rule", ""),
-            "approve_url": result.get("approve_url", ""),
-            "message": "高风险操作已转入审批队列",
-        }
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "status": "pending_approval",
+                "alert_id": result.get("alert_id"),
+                "reason": result.get("reason"),
+                "proposal": result.get("proposal", ""),
+                "rule": result.get("rule", ""),
+                "approve_url": result.get("approve_url", ""),
+                "message": "高风险操作已转入审批队列",
+            },
+        )
     if not result.get("success") and "error" in result:
         error_msg = str(result["error"])
         if "未知修复脚本" in error_msg or "未找到主机" in error_msg:

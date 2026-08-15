@@ -281,6 +281,8 @@ async def update_translation(
             "data": {"key": key, "namespace": namespace, "language": target_locale, "translation": translation},
             "timestamp": datetime.utcnow().isoformat(),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating translation: {e}")
         raise HTTPException(status_code=500, detail=str(e))

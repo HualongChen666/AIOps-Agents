@@ -15,7 +15,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -49,15 +49,19 @@ class RealtimeStatus(BaseModel):
     summary="SSE 实时事件流",
     response_class=StreamingResponse,
 )
-async def realtime_sse_events() -> StreamingResponse:
+async def realtime_sse_events(
+    count: int = Query(default=0, ge=0, description="最大推送事件数,0 表示无限"),
+) -> StreamingResponse:
     """推送 Server-Sent Events 实时事件"""
 
     async def event_stream():
-        count = 0
+        emitted = 0
         while True:
             now = datetime.utcnow().isoformat()
-            yield f'event: heartbeat\ndata: {{"count": {count}, "time": "{now}"}}\n\n'
-            count += 1
+            yield f'event: heartbeat\ndata: {{"count": {emitted}, "time": "{now}"}}\n\n'
+            emitted += 1
+            if count > 0 and emitted >= count:
+                break
             await asyncio.sleep(5)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

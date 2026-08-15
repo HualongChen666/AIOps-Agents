@@ -180,7 +180,7 @@ def _build_check_response(
     risk_level = analysis_result["risk_level"]
     return {
         "command": str(analysis_result.get("command", ""))[:2000],
-        "risk_level": risk_level.value,
+        "risk_level": getattr(risk_level, "value", str(risk_level)),
         "risk_name": str(analysis_result.get("risk_name", "")),
         "reason": str(analysis_result.get("reason", "")),
         "action": str(analysis_result.get("action", "")),

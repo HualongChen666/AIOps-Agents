@@ -65,6 +65,8 @@ def api_run_plugin(name: str, user=Depends(role_required("admin"))) -> Any:
             raise AttributeError("Plugin does not implement 'collect' method")
         result = plugin.collect()
         return {"plugin": name, "result": result}
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover
         raise HTTPException(status_code=500, detail=str(exc))
 

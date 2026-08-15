@@ -484,7 +484,7 @@ except ImportError:
 # Phase 1: Tracing Visualization Router
 
 # 新增 Teams 路由
-# from api.docker_router import router as docker_router
+from api.docker_router import router as docker_router
 # windows_repair_router 与 unified_repair_router 共存，提供平台级独立入口
 # 新增统一修复路由（替代各平台独立修复路由）
 
@@ -2004,6 +2004,7 @@ CORE_ROUTERS = [
     hitl_approval_router,
     linux_router,
     macos_router,
+    docker_router,
     repair_scripts_router,
     unified_repair_router,
     windows_repair_router,

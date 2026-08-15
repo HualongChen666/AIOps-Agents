@@ -314,7 +314,7 @@ async def query_logs(
     },
 )
 async def search(
-    keyword: str = Query(..., min_length=1, max_length=_KEYWORD_MAX_LEN),
+    keyword: str = Query(..., min_length=3, max_length=_KEYWORD_MAX_LEN),
     newest: int = Query(default=50, ge=1, le=500),
 ) -> dict[str, Any]:
     """
@@ -559,7 +559,7 @@ async def es_search(
 )
 async def linux_search(
     host_name: str = Query(..., min_length=1, max_length=128),
-    keyword: str = Query(..., min_length=1, max_length=_KEYWORD_MAX_LEN),
+    keyword: str = Query(..., min_length=3, max_length=_KEYWORD_MAX_LEN),
     newest: int = Query(default=100, ge=1, le=500),
     # 🔧 LG6 [P2]:case_sensitive 参数(默认 False,与 grep -i 一致)
     case_sensitive: bool = Query(

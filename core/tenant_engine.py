@@ -234,7 +234,7 @@ def delete_tenant(tenant_id: str) -> bool:
     with _LOCK:
         _load()
         original = len(_TENANTS)
-        _TENANTS = [t for t in _TENANTS if t.id != tenant_id]
+        _TENANTS[:] = [t for t in _TENANTS if t.id != tenant_id]
         if len(_TENANTS) != original:
             _save()
             return True
