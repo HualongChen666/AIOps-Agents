@@ -591,6 +591,10 @@ class TestVectorStore:
 
 
 class TestClickHouseStorage:
+    def setup_method(self):
+        # Ensure lightweight fakes remain in sys.modules across test isolation
+        sys.modules["httpx"] = _httpx
+
     def test_init(self):
         s = ClickHouseStorage({"read_only": True})
         assert s.database == "aiops"
@@ -1028,6 +1032,10 @@ class TestCausalGraphBuilder:
 
 
 class TestDataPreprocessing:
+    def setup_method(self):
+        # Ensure lightweight fake remains in sys.modules across test isolation
+        sys.modules["prometheus_api_client"] = _prom
+
     def test_csv_load(self, sample_df: pd.DataFrame, tmp_path: Path):
         p = tmp_path / "ts.csv"
         sample_df.to_csv(p, index=False)
