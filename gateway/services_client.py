@@ -8,6 +8,7 @@ gateway uses for local/e2e runs.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any, Dict, List, Optional, cast
@@ -73,6 +74,33 @@ except Exception as e:
     _HEAL_GRAPH_AVAILABLE = False
     _run_heal = None  # type: ignore[assignment]
     HealState = None  # type: ignore[assignment, misc]
+
+try:
+    from core.rag_engine import search_similar as _rag_search
+
+    _RAG_AVAILABLE = True
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    _RAG_AVAILABLE = False
+    _rag_search = None  # type: ignore[assignment]
+
+try:
+    from core.ai.llm_router import get_llm_router as _get_llm_router
+
+    _LLM_ROUTER_AVAILABLE = True
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    _LLM_ROUTER_AVAILABLE = False
+    _get_llm_router = None  # type: ignore[assignment]
+
+try:
+    from core.topology_engine import get_full_link_topology as _get_full_link_topology
+
+    _TOPOLOGY_AVAILABLE = True
+except Exception as e:
+    logging.exception("Unexpected exception: %s", e)
+    _TOPOLOGY_AVAILABLE = False
+    _get_full_link_topology = None  # type: ignore[assignment]
 
 
 async def process_alert(alert: Dict[str, Any]) -> Any:
@@ -172,26 +200,53 @@ async def _remote_call(
 
 
 async def remote_rag_query(query: str, top_k: int = 5) -> Any:
-    """Query the RAG add-on service."""
-    return await _remote_call("RAG_SERVICE_URL", "POST", "/search", {"query": query, "top_k": top_k})
+    """Query the RAG add-on service, falling back to the in-process RAG engine."""
+    if _is_remote() and os.getenv("RAG_SERVICE_URL"):
+        try:
+            return await _remote_call("RAG_SERVICE_URL", "POST", "/search", {"query": query, "top_k": top_k})
+        except Exception as exc:
+            logger.warning(f"remote RAG service call failed, falling back: {exc}")
+
+    if not _RAG_AVAILABLE or _rag_search is None:
+        raise RuntimeError("RAG engine is not available")
+    return await asyncio.to_thread(_rag_search, query, top_k=top_k)
 
 
 async def remote_llm_route(prompt: str, models: Optional[List[str]] = None) -> Any:
-    """Route a prompt through the LLM router add-on service."""
-    payload: Dict[str, Any] = {"prompt": prompt}
+    """Route a prompt through the LLM router add-on service, falling back to the in-process LLM router."""
+    if _is_remote() and os.getenv("LLM_ROUTER_SERVICE_URL"):
+        payload: Dict[str, Any] = {"prompt": prompt}
+        if models:
+            payload["force_model"] = models[0]
+        try:
+            return await _remote_call("LLM_ROUTER_SERVICE_URL", "POST", "/route", payload)
+        except Exception as exc:
+            logger.warning(f"remote LLM router service call failed, falling back: {exc}")
+
+    if not _LLM_ROUTER_AVAILABLE or _get_llm_router is None:
+        raise RuntimeError("LLM router is not available")
+    generate_kwargs: Dict[str, Any] = {"system": "", "temperature": 0.3, "max_new_tokens": 1500}
     if models:
-        payload["force_model"] = models[0]
-    return await _remote_call("LLM_ROUTER_SERVICE_URL", "POST", "/route", payload)
+        generate_kwargs["force_model"] = models[0]
+    return await _get_llm_router().generate(prompt, **generate_kwargs)
 
 
 async def remote_topology() -> Any:
-    """Fetch topology nodes and edges from the observability add-on service."""
-    nodes = await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/nodes")
-    edges = await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/edges")
-    return {
-        "nodes": nodes.get("nodes", []),
-        "edges": edges.get("edges", []),
-    }
+    """Fetch topology nodes and edges from the observability add-on service, falling back to the in-process topology engine."""
+    if _is_remote() and os.getenv("TOPOLOGY_SERVICE_URL"):
+        try:
+            nodes = await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/nodes")
+            edges = await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/edges")
+            return {
+                "nodes": nodes.get("nodes", []),
+                "edges": edges.get("edges", []),
+            }
+        except Exception as exc:
+            logger.warning(f"remote topology service call failed, falling back: {exc}")
+
+    if not _TOPOLOGY_AVAILABLE or _get_full_link_topology is None:
+        raise RuntimeError("Topology engine is not available")
+    return await _get_full_link_topology()
 
 
 async def remote_incident_list() -> Any:

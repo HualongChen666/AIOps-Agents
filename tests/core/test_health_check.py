@@ -14,6 +14,15 @@ from core.health_check import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _reset_health_state():
+    """Reset module-level caches so tests are isolated from one another."""
+    health_check._health_cache = {"last_check": None, "components": {}}
+    health_check._health_history = []
+    health_check._alert_callbacks = []
+    yield
+
+
 def test_liveness_and_readiness():
     live = get_liveness_status()
     assert live["status"] == "alive"
