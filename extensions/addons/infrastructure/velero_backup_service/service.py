@@ -3,13 +3,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from .cache import CacheManager
-from .config import settings
-from .metrics import MetricsCollector
-from .retry import RetryEngine
+from extensions.addons.engines.infra_executor import BaseInfraService
 
 BASE_METHODS: List[str] = [
     "get_state",
@@ -31,330 +27,65 @@ OPERATIONS: List[str] = [
     "test_and_optimize_velero_backup",
 ]
 
+_COMMAND_TEMPLATES: Dict[str, Dict[str, Any]] = {
+    "k8s_resource_backup": {
+        "executor": "k8s",
+        "command": ["velero", "backup", "create", "k8s-backup"],
+    },
+    "persistent_volume_backup": {
+        "executor": "k8s",
+        "command": ["velero", "backup", "create", "pv-backup", "--include-volumes"],
+    },
+    "scheduled_backup_policy": {
+        "executor": "k8s",
+        "command": ["velero", "schedule", "create", "daily", "--schedule=@daily"],
+    },
+    "backup_retention_policy": {
+        "executor": "k8s",
+        "command": ["velero", "backup", "delete", "old-backup"],
+    },
+    "backup_encryption": {
+        "executor": "k8s",
+        "command": ["velero", "backup", "create", "enc-backup", "--snapshot-volumes"],
+    },
+    "backup_compression": {
+        "executor": "k8s",
+        "command": ["velero", "backup", "create", "comp-backup", "--compressed"],
+    },
+    "backup_transfer_s3": {
+        "executor": "k8s",
+        "command": ["velero", "backup-location", "get"],
+    },
+    "backup_validation": {
+        "executor": "k8s",
+        "command": ["velero", "backup", "describe", "backup"],
+    },
+    "integrate_ops_service": {
+        "executor": "k8s",
+        "command": ["velero", "backup-location", "get"],
+    },
+    "test_and_optimize_velero_backup": {
+        "executor": "k8s",
+        "command": ["velero", "backup", "create", "test-backup"],
+    },
+}
 
-class VeleroBackupService:
+
+def _builder(op: str) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
+    spec = _COMMAND_TEMPLATES.get(op)
+    if spec:
+        return lambda params: spec
+    return lambda params: {"executor": "k8s", "command": ["velero", "backup", "create", op]}
+
+
+COMMAND_MAP: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
+    op: _builder(op) for op in OPERATIONS
+}
+
+
+class Service(BaseInfraService):
     """Domain service for Velero Backup."""
 
-    def __init__(
-        self,
-        redis_url: Optional[str] = None,
-        metrics: Optional[MetricsCollector] = None,
-        cache: Optional[CacheManager] = None,
-    ) -> None:
-        self.metrics = metrics or MetricsCollector(settings.service_name)
-        self.cache = cache or CacheManager(redis_url or settings.redis_url, self.metrics)
-        self.retry_engine = RetryEngine("exponential_fast", self.metrics)
-        self._state: Dict[str, Any] = {}
-        self._backups: Dict[str, Any] = {}
-        self._operations: Dict[str, int] = {}
-        self._feature_count = len(OPERATIONS)
-
-    @staticmethod
-    def _get_config(request: Any) -> Dict[str, Any]:
-        if request is None:
-            return {}
-        if hasattr(request, "model_dump"):
-            data = request.model_dump()
-        elif isinstance(request, dict):
-            data = request
-        else:
-            return {}
-        if not isinstance(data, dict):
-            return {}
-        return data.get("config", data) if "config" in data else data
-
-    async def get_state(self, request: Any = None) -> Dict[str, Any]:
-        self.metrics.inc_request("get_state")
-        config = self._get_config(request)
-        feature = config.get("feature") if isinstance(config, dict) else None
-        if feature and feature in self._state:
-            return {
-                "feature": "get_state",
-                "success": True,
-                "status": "found",
-                "config": {"feature": feature},
-                "result": {"state": self._state[feature]},
-                "message": f"State for {feature}",
-            }
-        return {
-            "feature": "get_state",
-            "success": False,
-            "status": "not_found",
-            "config": config,
-            "result": {},
-            "message": "State not found",
-        }
-
-    async def backup_state(self, request: Any = None) -> Dict[str, Any]:
-        self.metrics.inc_request("backup_state")
-        config = self._get_config(request)
-        name = config.get("name", "default") if isinstance(config, dict) else "default"
-        self._backups[name] = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "state": self._state.copy(),
-        }
-        self.metrics.inc_operation("backup_state")
-        return {
-            "feature": "backup_state",
-            "success": True,
-            "status": "backed_up",
-            "config": {"name": name},
-            "result": {"snapshot": name},
-            "message": f"Backup {name} created",
-        }
-
-    async def restore_state(self, request: Any = None) -> Dict[str, Any]:
-        self.metrics.inc_request("restore_state")
-        config = self._get_config(request)
-        name = config.get("name", "default") if isinstance(config, dict) else "default"
-        data = self._backups.get(name)
-        if not data:
-            return {
-                "feature": "restore_state",
-                "success": False,
-                "status": "not_found",
-                "config": {"name": name},
-                "result": {},
-                "message": f"Backup {name} not found",
-            }
-        self._state = data["state"].copy()
-        self.metrics.inc_operation("restore_state")
-        return {
-            "feature": "restore_state",
-            "success": True,
-            "status": "restored",
-            "config": {"name": name},
-            "result": {"snapshot": name},
-            "message": f"Backup {name} restored",
-        }
-
-    async def get_stats(self, request: Any = None) -> Dict[str, Any]:
-        self.metrics.inc_request("get_stats")
-        return {
-            "feature": "get_stats",
-            "success": True,
-            "status": "ok",
-            "config": {},
-            "result": {
-                "total_requests": self.metrics.request_count,
-                "cache_hits": self.metrics.cache_hits_count,
-                "cache_misses": self.metrics.cache_misses_count,
-                "operations": self._operations.copy(),
-                "index_size": len(self._state),
-                "feature_count": self._feature_count,
-            },
-            "message": "Statistics",
-        }
-
-    async def list_methods(self, request: Any = None) -> Dict[str, Any]:
-        self.metrics.inc_request("list_methods")
-        return {
-            "feature": "list_methods",
-            "success": True,
-            "status": "ok",
-            "config": {},
-            "result": {"methods": OPERATIONS + BASE_METHODS},
-            "message": "Methods listed",
-        }
-
-    async def k8s_resource_backup(self, request: Any = None) -> Dict[str, Any]:
-        """K8S Resource Backup."""
-        self.metrics.inc_request("k8s_resource_backup")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:k8s_resource_backup", config)
-        self._state["k8s_resource_backup"] = config
-        self._operations["k8s_resource_backup"] = self._operations.get("k8s_resource_backup", 0) + 1
-        self.metrics.inc_operation("k8s_resource_backup")
-        return {
-            "feature": "k8s_resource_backup",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "k8s_resource_backup completed",
-        }
-
-    async def persistent_volume_backup(self, request: Any = None) -> Dict[str, Any]:
-        """Persistent Volume Backup."""
-        self.metrics.inc_request("persistent_volume_backup")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:persistent_volume_backup", config)
-        self._state["persistent_volume_backup"] = config
-        self._operations["persistent_volume_backup"] = (
-            self._operations.get("persistent_volume_backup", 0) + 1
-        )
-        self.metrics.inc_operation("persistent_volume_backup")
-        return {
-            "feature": "persistent_volume_backup",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "persistent_volume_backup completed",
-        }
-
-    async def scheduled_backup_policy(self, request: Any = None) -> Dict[str, Any]:
-        """Scheduled Backup Policy."""
-        self.metrics.inc_request("scheduled_backup_policy")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:scheduled_backup_policy", config)
-        self._state["scheduled_backup_policy"] = config
-        self._operations["scheduled_backup_policy"] = (
-            self._operations.get("scheduled_backup_policy", 0) + 1
-        )
-        self.metrics.inc_operation("scheduled_backup_policy")
-        return {
-            "feature": "scheduled_backup_policy",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "scheduled_backup_policy completed",
-        }
-
-    async def backup_retention_policy(self, request: Any = None) -> Dict[str, Any]:
-        """Backup Retention Policy."""
-        self.metrics.inc_request("backup_retention_policy")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:backup_retention_policy", config)
-        self._state["backup_retention_policy"] = config
-        self._operations["backup_retention_policy"] = (
-            self._operations.get("backup_retention_policy", 0) + 1
-        )
-        self.metrics.inc_operation("backup_retention_policy")
-        return {
-            "feature": "backup_retention_policy",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "backup_retention_policy completed",
-        }
-
-    async def backup_encryption(self, request: Any = None) -> Dict[str, Any]:
-        """Backup Encryption."""
-        self.metrics.inc_request("backup_encryption")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:backup_encryption", config)
-        self._state["backup_encryption"] = config
-        self._operations["backup_encryption"] = self._operations.get("backup_encryption", 0) + 1
-        self.metrics.inc_operation("backup_encryption")
-        return {
-            "feature": "backup_encryption",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "backup_encryption completed",
-        }
-
-    async def backup_compression(self, request: Any = None) -> Dict[str, Any]:
-        """Backup Compression."""
-        self.metrics.inc_request("backup_compression")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:backup_compression", config)
-        self._state["backup_compression"] = config
-        self._operations["backup_compression"] = self._operations.get("backup_compression", 0) + 1
-        self.metrics.inc_operation("backup_compression")
-        return {
-            "feature": "backup_compression",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "backup_compression completed",
-        }
-
-    async def backup_transfer_s3(self, request: Any = None) -> Dict[str, Any]:
-        """Backup Transfer S3."""
-        self.metrics.inc_request("backup_transfer_s3")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:backup_transfer_s3", config)
-        self._state["backup_transfer_s3"] = config
-        self._operations["backup_transfer_s3"] = self._operations.get("backup_transfer_s3", 0) + 1
-        self.metrics.inc_operation("backup_transfer_s3")
-        return {
-            "feature": "backup_transfer_s3",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "backup_transfer_s3 completed",
-        }
-
-    async def backup_validation(self, request: Any = None) -> Dict[str, Any]:
-        """Backup Validation."""
-        self.metrics.inc_request("backup_validation")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:backup_validation", config)
-        self._state["backup_validation"] = config
-        self._operations["backup_validation"] = self._operations.get("backup_validation", 0) + 1
-        self.metrics.inc_operation("backup_validation")
-        return {
-            "feature": "backup_validation",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "backup_validation completed",
-        }
-
-    async def integrate_ops_service(self, request: Any = None) -> Dict[str, Any]:
-        """Integrate Ops Service."""
-        self.metrics.inc_request("integrate_ops_service")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:integrate_ops_service", config)
-        self._state["integrate_ops_service"] = config
-        self._operations["integrate_ops_service"] = (
-            self._operations.get("integrate_ops_service", 0) + 1
-        )
-        self.metrics.inc_operation("integrate_ops_service")
-        return {
-            "feature": "integrate_ops_service",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "integrate_ops_service completed",
-        }
-
-    async def test_and_optimize_velero_backup(self, request: Any = None) -> Dict[str, Any]:
-        """Test And Optimize Velero Backup."""
-        self.metrics.inc_request("test_and_optimize_velero_backup")
-        config = self._get_config(request)
-        await self.cache.set(f"{settings.service_name}:test_and_optimize_velero_backup", config)
-        self._state["test_and_optimize_velero_backup"] = config
-        self._operations["test_and_optimize_velero_backup"] = (
-            self._operations.get("test_and_optimize_velero_backup", 0) + 1
-        )
-        self.metrics.inc_operation("test_and_optimize_velero_backup")
-        return {
-            "feature": "test_and_optimize_velero_backup",
-            "success": True,
-            "status": "configured",
-            "config": config,
-            "result": {"service": settings.service_name, "display": "Velero Backup"},
-            "message": "test_and_optimize_velero_backup completed",
-        }
-
-    async def call(self, method: str, **kwargs: Any) -> Any:
-        self.metrics.inc_request("call")
-        if method == "list_methods":
-            return await self.list_methods(**kwargs)
-        if method == "get_stats":
-            return await self.get_stats(**kwargs)
-        if method == "get_state":
-            return await self.get_state(**kwargs)
-        if method == "backup_state":
-            return await self.backup_state(**kwargs)
-        if method == "restore_state":
-            return await self.restore_state(**kwargs)
-        if method in OPERATIONS:
-            fn = getattr(self, method, None)
-            if fn is None:
-                raise ValueError(f"Unknown method: {method}")
-            return await fn(**kwargs)
-        raise ValueError(f"Unknown method: {method}")
-
-
-Service = VeleroBackupService
+    OPERATIONS = OPERATIONS
+    COMMAND_MAP = COMMAND_MAP
+    display_name = "Velero Backup"
