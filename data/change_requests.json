@@ -1,0 +1,98 @@
+{
+  "CR-D7140D27": {
+    "id": "CR-D7140D27",
+    "tenant_id": "default",
+    "title": "Restart cache",
+    "description": "planned restart",
+    "requester": "admin",
+    "approver": "",
+    "status": "rolled_back",
+    "risk_level": "low",
+    "schedule": "",
+    "affected_services": [
+      "cache"
+    ],
+    "implementation_plan": "restart",
+    "rollback_plan": "start again",
+    "audit_log": [
+      {
+        "timestamp": "2026-08-15T07:31:05.687651+00:00",
+        "actor": "admin",
+        "action": "created",
+        "message": "创建变更请求"
+      },
+      {
+        "timestamp": "2026-08-15T07:31:05.728767+00:00",
+        "actor": "admin",
+        "action": "submit",
+        "message": "提交变更请求进入审批"
+      },
+      {
+        "timestamp": "2026-08-15T07:31:05.759847+00:00",
+        "actor": "admin",
+        "action": "approve",
+        "message": "审批通过"
+      },
+      {
+        "timestamp": "2026-08-15T07:31:05.796183+00:00",
+        "actor": "admin",
+        "action": "implement",
+        "message": "变更已实施"
+      },
+      {
+        "timestamp": "2026-08-15T07:31:05.832758+00:00",
+        "actor": "admin",
+        "action": "rollback",
+        "message": "变更已回滚"
+      }
+    ]
+  },
+  "CR-9ADCA86B": {
+    "id": "CR-9ADCA86B",
+    "tenant_id": "default",
+    "title": "Restart cache",
+    "description": "planned restart",
+    "requester": "admin",
+    "approver": "",
+    "status": "rolled_back",
+    "risk_level": "low",
+    "schedule": "",
+    "affected_services": [
+      "cache"
+    ],
+    "implementation_plan": "restart",
+    "rollback_plan": "start again",
+    "audit_log": [
+      {
+        "timestamp": "2026-08-15T07:36:58.691792+00:00",
+        "actor": "admin",
+        "action": "created",
+        "message": "创建变更请求"
+      },
+      {
+        "timestamp": "2026-08-15T07:36:58.744743+00:00",
+        "actor": "admin",
+        "action": "submit",
+        "message": "提交变更请求进入审批"
+      },
+      {
+        "timestamp": "2026-08-15T07:36:58.826605+00:00",
+        "actor": "admin",
+        "action": "approve",
+        "message": "审批通过"
+      },
+      {
+        "timestamp": "2026-08-15T07:36:58.895421+00:00",
+        "actor": "admin",
+        "action": "implement",
+        "message": "变更已实施"
+      },
+      {
+        "timestamp": "2026-08-15T07:36:58.986504+00:00",
+        "actor": "admin",
+        "action": "rollback",
+        "message": "变更已回滚"
+      }
+    ]
+  }
+}
