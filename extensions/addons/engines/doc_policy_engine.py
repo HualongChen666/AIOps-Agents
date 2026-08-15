@@ -192,7 +192,29 @@ class PolicyEngine(_DryRunMixin):
         }
 
     def load_config(self, key: str) -> Dict[str, Any]:
-        """Read configuration from a JSON/YAML file or an environment variable."""
+        """Read configuration from JSON/YAML files, environment variables, or core.config_manager.
+
+        In real execution, prefer core.config_manager.ConfigManager.get_config_value for
+        dot-notation config keys, then fall back to direct file/env reading.
+        """
+        if self._should_run():
+            try:
+                from core.config_manager import ConfigManager
+
+                cm = ConfigManager()
+                cm.load_config()
+                value = cm.get_config_value(key)
+                if value is not None:
+                    return {
+                        "dry_run": False,
+                        "source": "core.config_manager",
+                        "value": value,
+                    }
+            except Exception:
+                # ConfigManager unavailable or the key is not a known config path;
+                # fall through to legacy file/env lookup.
+                pass
+
         path = Path(key)
         if path.exists() and path.is_file():
             try:
@@ -241,7 +263,7 @@ class PolicyEngine(_DryRunMixin):
                 "dry_run": True,
                 "found": True,
                 "user_id": user_id,
-                "source": "mock",
+                "source": "synthetic",
                 "data": {"role": "user", "active": True},
             }
 
@@ -251,38 +273,35 @@ class PolicyEngine(_DryRunMixin):
         except Exception:
             auth_module = None
 
-        if auth_module is not None:
-            getter = getattr(auth_module, "get_user_by_username", None) or getattr(
-                auth_module, "get_user", None
-            )
-            if getter is not None:
-                try:
-                    user = getter(user_id)
-                    if user is not None:
-                        return {
-                            "dry_run": not self._should_run(),
-                            "found": True,
-                            "user_id": user_id,
-                            "source": "core.authentication",
-                            "data": user,
-                        }
+        getter = getattr(auth_module, "get_user_by_username", None) if auth_module is not None else None
+        if getter is not None:
+            try:
+                user = getter(user_id)
+                if user is not None:
                     return {
-                        "dry_run": not self._should_run(),
-                        "found": False,
+                        "dry_run": False,
+                        "found": True,
                         "user_id": user_id,
                         "source": "core.authentication",
+                        "data": user,
                     }
-                except Exception as exc:
-                    return {
-                        "dry_run": not self._should_run(),
-                        "found": False,
-                        "user_id": user_id,
-                        "source": "core.authentication",
-                        "error": str(exc),
-                    }
+                return {
+                    "dry_run": False,
+                    "found": False,
+                    "user_id": user_id,
+                    "source": "core.authentication",
+                }
+            except Exception as exc:
+                return {
+                    "dry_run": False,
+                    "found": False,
+                    "user_id": user_id,
+                    "source": "core.authentication",
+                    "error": str(exc),
+                }
 
         return {
-            "dry_run": not self._should_run(),
+            "dry_run": False,
             "found": True,
             "user_id": user_id,
             "source": "mock",

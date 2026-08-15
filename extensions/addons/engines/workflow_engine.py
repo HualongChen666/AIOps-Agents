@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import os
 import runpy
 import subprocess
+import tempfile
 from typing import Any, Dict, List, Optional
 
 try:
@@ -129,17 +131,10 @@ class WorkflowEngine:
             return self._execute_memory(step)
         return {"error": f"Unknown step type: {step_type}"}
 
-    def run_workflow(
-        self,
-        workflow_def: Any,
-        inputs: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Execute a workflow definition sequentially and return per-step results."""
-        inputs = inputs or {}
-        steps = workflow_def if isinstance(workflow_def, list) else workflow_def.get("steps", [])
+    def _run_sequential(self, steps: List[Dict[str, Any]], inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Sequential fallback used for dry-run and missing modules."""
         context = inputs.copy()
         results: List[Dict[str, Any]] = []
-
         for step in steps:
             try:
                 result = self._execute_step(step, context)
@@ -149,15 +144,91 @@ class WorkflowEngine:
             output_key = step.get("output")
             if output_key:
                 context[output_key] = result
-
         return {"success": True, "results": results, "context": context}
 
-    def get_scenario_memory(self, query: str) -> Dict[str, Any]:
-        """Call the RAG/memory engine, falling back to a synthetic placeholder."""
+    def run_workflow(
+        self,
+        workflow_def: Any,
+        inputs: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Execute a workflow definition and return per-step results."""
+        inputs = inputs or {}
+        steps = workflow_def if isinstance(workflow_def, list) else workflow_def.get("steps", [])
+
+        if not self._real_execution:
+            return self._run_sequential(steps, inputs)
+
+        # Real execution reuses core.ai.langgraph.workflow.Workflow.execute when importable.
         try:
-            from extensions.addons.engines.memory_engine import retrieve_scenario
-            return retrieve_scenario(query)
-        except Exception:  # pragma: no cover - Group 7 placeholder
+            from core.ai.langgraph.workflow import Workflow, WorkflowNode
+        except Exception:  # pragma: no cover - module not available
+            return self._run_sequential(steps, inputs)
+
+        if not steps:
+            return {"success": True, "results": [], "context": inputs}
+
+        class _StepNode(WorkflowNode):
+            __slots__ = ("engine", "step", "name", "node_type", "config")
+
+            def __init__(self, engine: "WorkflowEngine", step: Dict[str, Any]) -> None:
+                self.engine = engine
+                self.step = step
+                self.name = step.get("name") or f"{step.get('type', 'step')}_{id(self)}"
+                self.node_type = step.get("type", "python")
+                self.config = step
+
+            async def execute(self, context: Any) -> Any:
+                ctx: Dict[str, Any] = {**(context.input_data or {}), **(context.state_data or {})}
+                result = self.engine._execute_step(self.step, ctx)
+                output_key = self.step.get("output")
+                if output_key:
+                    context.set(output_key, result)
+                return result
+
+        workflow = Workflow(name="addon_workflow")
+        prev_node: Optional[str] = None
+        for step in steps:
+            node = _StepNode(self, step)
+            workflow.add_node(node)
+            if prev_node is None:
+                workflow.set_start_node(node.name)
+            else:
+                workflow.add_edge(prev_node, node.name)
+            prev_node = node.name
+        if prev_node:
+            workflow.add_end_node(prev_node)
+
+        try:
+            output = asyncio.run(workflow.execute(inputs))
+        except Exception as exc:  # pragma: no cover
+            return {"success": False, "error": str(exc), "results": [], "context": inputs}
+
+        history = output.get("history", [])
+        results = [{"step": entry["node"], "result": entry["result"]} for entry in history]
+        context = {**inputs, **(output.get("context", {}))}
+        return {
+            "success": output.get("status") == "completed",
+            "results": results,
+            "context": context,
+        }
+
+    def get_scenario_memory(self, query: str) -> Dict[str, Any]:
+        """Call the RAG/memory engine via modules VectorStore, falling back to synthetic."""
+        try:
+            from modules.analyze.runbook.vector_store import VectorStore
+
+            store = VectorStore()
+            hits = store.search(query)
+            matches = [
+                {
+                    "id": hit["id"],
+                    "text": (hit.get("payload") or {}).get("content", ""),
+                    "score": hit["score"],
+                }
+                for hit in hits
+            ]
+            return {"query": query, "matches": matches}
+        except Exception:  # pragma: no cover - vector store unavailable
             return {
                 "query": query,
                 "matches": [
@@ -197,16 +268,87 @@ class WorkflowEngine:
 
 
 class RunbookRunner:
-    """Thin wrapper around WorkflowEngine for incident runbooks."""
+    """Thin wrapper that routes incident runbooks to the appropriate executor."""
 
     def __init__(self, engine: Optional[WorkflowEngine] = None, dry_run: Optional[bool] = None) -> None:
         self.engine = engine or WorkflowEngine(dry_run=dry_run)
+
+    def _to_ansible_tasks(self, runbook: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Best-effort translation of engine step list to Ansible tasks."""
+        tasks: List[Dict[str, Any]] = []
+        for step in runbook:
+            st = step.get("type", "python")
+            if st == "cli":
+                command = step.get("command", "")
+                if isinstance(command, list):
+                    command = " ".join(str(c) for c in command)
+                tasks.append({"name": step.get("name", "cli step"), "shell": command})
+            elif st == "http":
+                uri_cfg: Dict[str, Any] = {
+                    "url": step["url"],
+                    "method": step.get("method", "GET"),
+                    "return_content": True,
+                }
+                if "headers" in step:
+                    uri_cfg["headers"] = step["headers"]
+                payload = step.get("body") if "body" in step else step.get("data")
+                if payload is not None:
+                    uri_cfg["body"] = payload
+                tasks.append({"name": step.get("name", "http step"), "uri": uri_cfg})
+            elif st == "decision":
+                cond = step.get("condition", "False")
+                tasks.append(
+                    {"name": step.get("name", "decision"), "set_fact": {"decision": "{{ " + cond + " }}"}}
+                )
+            elif st == "memory":
+                tasks.append(
+                    {"name": step.get("name", "memory"), "debug": {"msg": "Scenario memory lookup"}}
+                )
+            else:
+                tasks.append(
+                    {"name": step.get("name", f"{st} step"), "debug": {"msg": f"Unsupported step type: {st}"}}
+                )
+        return tasks
 
     def run_runbook(
         self,
         runbook: Any,
         inputs: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Alias for running an incident runbook through the workflow engine."""
+        """Execute a runbook, reusing PlaybookManager for real Ansible playbooks."""
+        inputs = inputs or {}
+
+        # Named Ansible playbook path: delegate directly to PlaybookManager.
+        if isinstance(runbook, str):
+            try:
+                from modules.execute.auto_heal.playbook_manager import PlaybookManager
+
+                manager = PlaybookManager(dry_run=not self.engine._real_execution)
+                return asyncio.run(manager.execute_playbook(runbook, extra_vars=inputs))
+            except Exception as exc:  # pragma: no cover
+                return {"success": False, "error": str(exc)}
+
+        # Legacy step-list runbooks: attempt translation to a temporary Ansible playbook,
+        # then fall back to the workflow engine if Ansible is unavailable.
+        if isinstance(runbook, list) and runbook:
+            try:
+                from modules.execute.auto_heal.playbook_manager import PlaybookManager
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    manager = PlaybookManager(
+                        playbook_dir=tmpdir,
+                        dry_run=not self.engine._real_execution,
+                    )
+                    name = "legacy_runbook"
+                    tasks = self._to_ansible_tasks(runbook)
+                    created = manager.create_playbook(name, tasks, vars=inputs)
+                    if created:
+                        manager.save_playbook(name)
+                        pb_result = asyncio.run(manager.execute_playbook(name, extra_vars=inputs))
+                        if pb_result.get("success"):
+                            return {"success": True, "runbook": runbook, "results": pb_result}
+            except Exception:  # pragma: no cover - PlaybookManager not usable
+                pass
+
         results = self.engine.run_workflow(runbook, inputs)
         return {"success": True, "runbook": runbook, "results": results}

@@ -94,6 +94,9 @@ class MonitoringProvider:
             dry_run = os.environ.get("INFRA_EXECUTE_ENABLED") != "true"
         self.dry_run = dry_run
 
+    def _should_run(self) -> bool:
+        return not self.dry_run
+
     def _request(self, method: str, url: str, **kwargs: Any) -> Any:
         """Make an HTTP request using ``requests`` when available, urllib otherwise."""
         if requests is not None:
@@ -269,7 +272,7 @@ class MonitoringProvider:
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Build and POST a Prometheus/Alertmanager alert rule or Datadog monitor."""
-        if self.dry_run:
+        if not self._should_run():
             return {
                 "status": "ok",
                 "data": {
@@ -278,6 +281,40 @@ class MonitoringProvider:
                     "fired": False,
                 },
             }
+
+        # Reuse modules.observability.smart_alerting for rule generation/evaluation.
+        smart_alerts: List[Dict[str, Any]] = []
+        try:
+            from modules.observability.smart_alerting import (
+                AlertRule,
+                AlertSeverity,
+                SmartAlertingEngine,
+            )
+
+            engine = SmartAlertingEngine()
+            sev_label = str((labels or {}).get("severity", "warning"))
+            try:
+                severity = AlertSeverity(sev_label)
+            except ValueError:
+                severity = AlertSeverity.WARNING
+            rule = AlertRule(
+                id=rule_name or "rule",
+                name=rule_name or "rule",
+                condition=expr or "up == 1",
+                severity=severity,
+                labels=(labels or {}),
+                annotations=(annotations or {}),
+            )
+            engine.add_rule(rule)
+            metrics = kwargs.get("metrics", {})
+            if not isinstance(metrics, dict):
+                metrics = {}
+            smart_alerts = [
+                alert.to_dict() for alert in engine.evaluate_metrics(metrics)
+            ]
+        except Exception:
+            pass
+
         target = (
             kwargs.get("target")
             or kwargs.get("alertmanager_url")
@@ -308,7 +345,7 @@ class MonitoringProvider:
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Pull topology from a CMDB or Prometheus service discovery."""
-        if self.dry_run or not source:
+        if not self._should_run() or not source:
             return {
                 "status": "ok",
                 "data": {
@@ -319,6 +356,39 @@ class MonitoringProvider:
                     "edges": [{"source": "svc-1", "target": "svc-2"}],
                 },
             }
+        # Reuse modules.apm.dependency_analyzer for topology discovery.
+        try:
+            from modules.apm.dependency_analyzer import DependencyAnalyzer
+
+            analyzer = DependencyAnalyzer()
+            if "method" in kwargs or any(
+                k in kwargs for k in ("trace_data", "config_data", "metrics_data")
+            ):
+                method = kwargs.get("method", "trace")
+                if method == "trace":
+                    topology = analyzer.discover_topology(
+                        method="trace",
+                        trace_data=kwargs.get("trace_data", []),
+                    )
+                elif method == "config":
+                    topology = analyzer.discover_topology(
+                        method="config",
+                        config_data=kwargs.get("config_data", {}),
+                    )
+                elif method == "metrics":
+                    topology = analyzer.discover_topology(
+                        method="metrics",
+                        metrics_data=kwargs.get("metrics_data", {}),
+                    )
+                else:
+                    topology = analyzer.discover_topology(method=method, **kwargs)
+                return {
+                    "status": "ok",
+                    "data": {**topology.to_dict(), "source": source},
+                }
+        except Exception:
+            pass
+
         if source.lower().startswith("http"):
             try:
                 url = source.rstrip("/") + "/api/v1/targets"

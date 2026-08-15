@@ -3,6 +3,10 @@
 
 Supports Redis, PostgreSQL, SQLite and Qdrant.  Real client usage is gated by
 ``dry_run`` and ``INFRA_EXECUTE_ENABLED`` so that addons are safe by default.
+
+Converged to reuse ``modules.storage.postgres.storage`` for SQL operations and
+``modules.analyze.runbook.vector_store`` for vector/semantic operations, while
+keeping Redis and raw Qdrant HTTP where no equivalent module exists.
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import urllib.parse
 from typing import Any, Dict, Iterable, List, Optional
 
 
@@ -104,31 +109,6 @@ class StorageDriver:
             return path
         return url
 
-    def _sql_postgres(self, query: str, params: Any, readonly: bool) -> Any:
-        try:
-            import psycopg
-
-            conn = psycopg.connect(self.database_url)
-        except Exception:
-            import psycopg2
-
-            conn = psycopg2.connect(self.database_url)
-
-        cur = conn.cursor()
-        cur.execute(query, params or ())
-        if readonly or query.strip().lower().startswith("select"):
-            rows = cur.fetchall()
-            desc = cur.description
-            columns = [col[0] for col in desc] if desc else []
-            cur.close()
-            conn.close()
-            return [dict(zip(columns, row)) for row in rows]
-        conn.commit()
-        affected = cur.rowcount
-        cur.close()
-        conn.close()
-        return affected
-
     def _sql_sqlite(self, query: str, params: Any, readonly: bool) -> Any:
         conn = sqlite3.connect(self._sqlite_path())
         conn.row_factory = sqlite3.Row
@@ -144,6 +124,28 @@ class StorageDriver:
             cur.close()
             conn.close()
 
+    def _get_postgres_storage(self) -> Any:
+        """Create and initialize a real PostgreSQLStorage instance."""
+        from modules.storage.postgres.storage import PostgreSQLStorage
+
+        parsed = urllib.parse.urlparse(self.database_url)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 5432
+        database = (parsed.path or "/postgres").lstrip("/") or "postgres"
+        user = parsed.username or "postgres"
+        password = parsed.password or ""
+
+        storage = PostgreSQLStorage(
+            host=host,
+            port=port,
+            database=database,
+            user=user,
+            password=password,
+        )
+        if not storage.initialize():
+            raise RuntimeError("Failed to initialize PostgreSQL storage")
+        return storage
+
     def sql(self, query: str, params: Any = None, readonly: bool = True, **kwargs: Any) -> Any:
         """Run a PostgreSQL or SQLite query."""
         if self.dry_run:
@@ -154,7 +156,12 @@ class StorageDriver:
 
         if self._is_sqlite_url():
             return self._sql_sqlite(query, params, readonly)
-        return self._sql_postgres(query, params, readonly)
+
+        try:
+            storage = self._get_postgres_storage()
+            return storage.execute_query(query, tuple(params or ()))
+        except Exception as exc:
+            return {"error": str(exc)}
 
     # ------------------------------------------------------------------
     # Qdrant / vectors
@@ -188,6 +195,23 @@ class StorageDriver:
         body = {"vectors": {"size": size, "distance": distance}}
         return self._qdrant_request("PUT", f"/collections/{name}", body)
 
+    def _vector_store(self, name: str) -> Any:
+        """Create and initialize a real VectorStore for the given collection."""
+        from modules.analyze.runbook.vector_store import (
+            QDRANT_AVAILABLE,
+            VectorStore,
+        )
+
+        if not QDRANT_AVAILABLE:
+            raise ImportError("qdrant-client not installed")
+
+        store = VectorStore(
+            collection_name=name,
+            qdrant_url=self.qdrant_url,
+        )
+        store.initialize()
+        return store
+
     def vector_upsert(
         self,
         name: str,
@@ -196,7 +220,7 @@ class StorageDriver:
         payloads: Optional[Iterable[Dict[str, Any]]] = None,
         **kwargs: Any,
     ) -> Any:
-        """Upsert vectors into a Qdrant collection."""
+        """Upsert vectors into a collection via the real VectorStore."""
         ids = list(ids)
         vectors = list(vectors)
         if payloads is None:
@@ -212,13 +236,30 @@ class StorageDriver:
             self._vector_count += len(ids)
             return {"upserted": len(ids)}
 
-        body = {"batch": {"ids": ids, "vectors": vectors, "payloads": payloads}}
-        return self._qdrant_request("PUT", f"/collections/{name}/points", body)
+        try:
+            store = self._vector_store(name)
+            documents = []
+            for point_id, vector, payload in zip(ids, vectors, payloads):
+                payload = payload or {}
+                content = payload.get("content", str(point_id))
+                metadata = dict(payload)
+                metadata["_raw_vector"] = list(vector)
+                documents.append(
+                    {
+                        "id": str(point_id),
+                        "content": content,
+                        "metadata": metadata,
+                    }
+                )
+            added = store.add_documents_batch(documents)
+            return {"upserted": added}
+        except Exception as exc:
+            return {"error": str(exc)}
 
     def vector_search(
         self, name: str, vector: Iterable[float], top: int = 5, **kwargs: Any
     ) -> Any:
-        """Search a Qdrant collection by vector similarity."""
+        """Search a collection by vector similarity via the real VectorStore."""
         vector = list(vector)
         if self.dry_run:
             coll = self._vectors.get(name, [])
@@ -227,8 +268,17 @@ class StorageDriver:
                 for p in coll[:top]
             ]
 
-        body = {"vector": vector, "limit": top}
-        return self._qdrant_request("POST", f"/collections/{name}/points/search", body)
+        try:
+            store = self._vector_store(name)
+            # VectorStore.search expects a text query. If a query string is not
+            # supplied, fall back to a deterministic text representation of the
+            # raw vector so the semantic search API can still be exercised.
+            query = kwargs.get("query")
+            if not isinstance(query, str):
+                query = " ".join(str(round(v, 6)) for v in vector)
+            return store.search(query=query, top_k=top)
+        except Exception as exc:
+            return {"error": str(exc)}
 
     # ------------------------------------------------------------------
     # Stats

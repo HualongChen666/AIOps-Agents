@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shlex
 import subprocess
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+from modules.execute.auto_heal.playbook_manager import PlaybookManager
 
 
 class CliExecutor:
@@ -106,10 +110,126 @@ class CliExecutor:
 
 
 class AnsibleExecutor(CliExecutor):
-    """Run Ansible playbooks with optional dry-run ``--check`` support."""
+    """Run Ansible playbooks, preferring modules.execute.auto_heal.playbook_manager.PlaybookManager when possible."""
 
     def run(self, args=None, cwd=None, env=None, check: bool = False):
-        return super().run("ansible-playbook", args=args, cwd=cwd, env=env, check=check)
+        if args is None:
+            raw_args = []
+        elif isinstance(args, str):
+            raw_args = shlex.split(args)
+        else:
+            raw_args = list(args)
+
+        command_str = "ansible-playbook"
+        if raw_args:
+            command_str += " " + " ".join(shlex.quote(str(a)) for a in raw_args)
+
+        if self.dry_run:
+            return {
+                "status": "ok",
+                "returncode": 0,
+                "stdout": "",
+                "stderr": "",
+                "command": command_str,
+                "dry_run": True,
+            }
+
+        if raw_args:
+            pm_result = self._run_with_playbook_manager(
+                raw_args[0], raw_args[1:], cwd, env, command_str
+            )
+            if pm_result is not None:
+                return pm_result
+
+        return super().run("ansible-playbook", args=raw_args, cwd=cwd, env=env, check=check)
+
+    def _run_with_playbook_manager(
+        self,
+        playbook_arg: str,
+        extra_args: List[str],
+        cwd: Optional[str],
+        env: Optional[Dict[str, str]],
+        command_str: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Attempt to execute via PlaybookManager. Returns None when not appropriate."""
+        playbook_path = Path(playbook_arg)
+        name = playbook_path.stem
+
+        if playbook_path.is_absolute():
+            playbook_dir = str(playbook_path.parent)
+        elif cwd is not None:
+            playbook_dir = cwd
+        else:
+            parent = str(playbook_path.parent)
+            playbook_dir = parent if parent and parent != "." else "playbooks"
+
+        candidate = Path(playbook_dir) / f"{name}.yml"
+        if not candidate.exists():
+            return None
+
+        extra_vars: Dict[str, Any] = {}
+        tags: Optional[List[str]] = None
+        limit: Optional[str] = None
+        check_mode = False
+        i = 0
+        while i < len(extra_args):
+            arg = str(extra_args[i])
+            if arg == "--check":
+                check_mode = True
+                i += 1
+            elif arg in ("--extra-vars", "-e"):
+                if i + 1 >= len(extra_args):
+                    return None
+                value = str(extra_args[i + 1])
+                try:
+                    extra_vars.update(json.loads(value))
+                except json.JSONDecodeError:
+                    if "=" in value:
+                        for pair in value.split():
+                            if "=" in pair:
+                                k, v = pair.split("=", 1)
+                                extra_vars[k] = v
+                    else:
+                        extra_vars[value] = True
+                i += 2
+            elif arg == "--tags":
+                if i + 1 >= len(extra_args):
+                    return None
+                tags = [t.strip() for t in str(extra_args[i + 1]).split(",") if t.strip()]
+                i += 2
+            elif arg == "--limit":
+                if i + 1 >= len(extra_args):
+                    return None
+                limit = str(extra_args[i + 1])
+                i += 2
+            else:
+                return None
+
+        pm = PlaybookManager(playbook_dir=playbook_dir, dry_run=check_mode)
+        if not pm.load_playbook(name):
+            return None
+
+        loop = asyncio.new_event_loop()
+        try:
+            raw = loop.run_until_complete(
+                pm.execute_playbook(
+                    name,
+                    extra_vars=extra_vars or None,
+                    tags=tags,
+                    limit=limit,
+                )
+            )
+        finally:
+            loop.close()
+
+        return {
+            "status": "ok" if raw.get("success") else "error",
+            "returncode": raw.get("return_code", 0 if raw.get("success") else 1),
+            "stdout": raw.get("stdout", ""),
+            "stderr": raw.get("stderr", ""),
+            "command": command_str,
+            "data": raw,
+        }
 
 
 class TerraformExecutor(CliExecutor):
