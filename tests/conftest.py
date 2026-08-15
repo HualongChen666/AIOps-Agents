@@ -35,6 +35,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import config
+import core.ai.rag  # preload real package so stub tests cannot replace it with a non-package fake
 import core.auth_db
 import core.authentication as _auth_module
 

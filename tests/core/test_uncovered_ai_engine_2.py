@@ -347,8 +347,10 @@ async def test_llm_analysis_service_runbook(monkeypatch):
 
 
 async def test_llm_analysis_service_search_similar_success(monkeypatch):
-    sys.modules["core.rag_engine"] = types.SimpleNamespace(
-        search_similar=lambda query, limit: [{"id": "1"}]
+    monkeypatch.setitem(
+        sys.modules,
+        "core.rag_engine",
+        types.SimpleNamespace(search_similar=lambda query, limit: [{"id": "1"}]),
     )
     monkeypatch.setattr(ai_engine, "AUDIT_LOGGER_AVAILABLE", True)
     monkeypatch.setattr(ai_engine, "log_audit_event", MagicMock())
@@ -359,8 +361,12 @@ async def test_llm_analysis_service_search_similar_success(monkeypatch):
 
 
 async def test_llm_analysis_service_search_similar_failure(monkeypatch):
-    sys.modules["core.rag_engine"] = types.SimpleNamespace(
-        search_similar=lambda query, limit: (_ for _ in ()).throw(RuntimeError("fail"))
+    monkeypatch.setitem(
+        sys.modules,
+        "core.rag_engine",
+        types.SimpleNamespace(
+            search_similar=lambda query, limit: (_ for _ in ()).throw(RuntimeError("fail"))
+        ),
     )
     monkeypatch.setattr(ai_engine, "AUDIT_LOGGER_AVAILABLE", True)
     monkeypatch.setattr(ai_engine, "log_audit_event", MagicMock(side_effect=RuntimeError("audit fail")))

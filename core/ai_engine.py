@@ -135,11 +135,10 @@ except ImportError:
     log_audit_event = None
 
 # Phase 2 集成: RAG 检索增强
+# 直接复用 core.rag_engine 的真实实现（MiniMax embedding + Qdrant），
+# 不再使用 core/ai/rag 里的 OpenAIEmbedding / VectorStoreRetrieval 占位代码。
 try:
-    from core.ai.rag import KnowledgeBase, RAGPipeline
-    from core.ai.rag.fusion import ConcatenationFusion
-    from core.ai.rag.retriever import Retriever, VectorStoreRetrieval
-    from core.ai.rag.vectorizer import SentenceTransformerEmbedding
+    from core.rag_engine import AIOpsRAG, search_similar
 
     RAG_AVAILABLE = True
 except ImportError:
@@ -150,26 +149,46 @@ except ImportError:
 # ============================================================
 # Phase 2 集成: RAG Pipeline 初始化
 # ============================================================
-_rag_pipeline: Optional[RAGPipeline] = None
-_knowledge_base: Optional[KnowledgeBase] = None
+class _AIOpsRAGPipeline:
+    """适配器：把 core.rag_engine.AIOpsRAG 包装成旧的 RAGPipeline 接口。
+
+    ``retrieve_and_generate`` 调用真实的 ``AIOpsRAG.search_similar`` 完成 Qdrant
+    语义检索，并把结果格式化为 ``core.ai_engine.analyze`` 所需的上下文字符串。
+    """
+
+    def __init__(self, rag: AIOpsRAG) -> None:
+        self.rag = rag
+
+    async def retrieve_and_generate(
+        self, query: str, top_k: int = 5, max_context_length: int = 4000
+    ) -> str:
+        """Search Qdrant through the real RAG engine and fuse results into context."""
+        try:
+            results = await asyncio.to_thread(self.rag.search_similar, query, top_k=top_k)
+        except Exception as e:
+            logger.warning(f"Phase 2 RAG search failed: {e}")
+            return ""
+
+        context_parts: List[str] = []
+        current_len = 0
+        for r in results:
+            payload = r.get("payload") or {}
+            text = payload.get("text", str(payload))
+            part = f"[Score: {r.get('score', 0.0):.2f}] {text}"
+            if current_len + len(part) > max_context_length:
+                break
+            context_parts.append(part)
+            current_len += len(part)
+        return "\n\n".join(context_parts)
+
+
+_rag_pipeline: Optional[_AIOpsRAGPipeline] = None
+_knowledge_base: Optional[Any] = None
 
 if RAG_AVAILABLE:
     try:
-        _rag_embedding_model = SentenceTransformerEmbedding(
-            model_name=os.environ.get("AIOPS_EMBEDDING_MODEL", "BAAI/bge-large-zh-v1.5")
-        )
-        _retriever = Retriever(
-            primary_strategy=VectorStoreRetrieval(
-                vector_store_client=None,
-                embedding_model=_rag_embedding_model,
-                collection_name="aiops_knowledge",
-            )
-        )
-        _rag_pipeline = RAGPipeline(
-            retriever=_retriever,
-            fusion_strategy=ConcatenationFusion(),
-        )
-        _knowledge_base = None  # 可后续按需绑定真实知识库
+        _rag_pipeline = _AIOpsRAGPipeline(AIOpsRAG())
+        _knowledge_base = AIOpsRAG()  # 真实知识库句柄，业务层可后续调用 upsert
         logger.info("Phase 2 RAG pipeline initialized")
     except Exception as e:
         logger.warning(f"Failed to initialize RAG pipeline: {e}")
