@@ -211,7 +211,61 @@ def _httpx_post(*a: Any, **k: Any):
 
 _httpx.post = _httpx_post
 _httpx.RequestError = Exception
+_httpx.ConnectError = Exception
+_httpx.TimeoutException = Exception
 _httpx.HTTPStatusError = type("HTTPStatusError", (Exception,), {"response": SimpleNamespace(text="boom")})
+_httpx.HTTPError = type("HTTPError", (Exception,), {})
+
+
+class _FakeHttpxClient:
+    """Placeholder synchronous client used by tests that patch httpx.Client."""
+
+    def __init__(self, *a: Any, **k: Any):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a: Any, **k: Any):
+        return False
+
+    def post(self, *a: Any, **k: Any):
+        return _FakeResponse()
+
+    def get(self, *a: Any, **k: Any):
+        return _FakeResponse()
+
+    def patch(self, *a: Any, **k: Any):
+        return _FakeResponse()
+
+
+class _FakeHttpxAsyncClient:
+    """Placeholder async client used by tests that patch httpx.AsyncClient."""
+
+    def __init__(self, *a: Any, **k: Any):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a: Any, **k: Any):
+        return False
+
+    async def post(self, *a: Any, **k: Any):
+        return _FakeResponse()
+
+    async def get(self, *a: Any, **k: Any):
+        return _FakeResponse()
+
+    async def patch(self, *a: Any, **k: Any):
+        return _FakeResponse()
+
+    async def aclose(self):
+        pass
+
+
+_httpx.Client = _FakeHttpxClient
+_httpx.AsyncClient = _FakeHttpxAsyncClient
 sys.modules["httpx"] = _httpx
 
 # kubernetes

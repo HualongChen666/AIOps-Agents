@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 import types
 from datetime import datetime
@@ -288,5 +289,9 @@ sys.modules["kubernetes"] = _k
 sys.modules["kubernetes.client"] = _kc
 sys.modules["kubernetes.config"] = _kcfg
 sys.modules["kubernetes.client.rest"] = _kr
+
+# Ensure the auto-heal operator binds to the fake kubernetes client above.
+import modules.execute.auto_heal.operator as _operator_module  # noqa: E402
+importlib.reload(_operator_module)
 
 

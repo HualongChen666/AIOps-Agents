@@ -311,8 +311,14 @@ def setup_loki_logging(loki_url: str, service_name: str = "aiops-agent") -> bool
     try:
         endpoint = f"{loki_url.rstrip('/')}/loki/api/v1/push"
 
+        state = {"cooldown_until": 0.0}
+
         def loki_sink(message: str) -> None:
-            """Best-effort Loki log shipper."""
+            """Best-effort Loki log shipper with backoff on connectivity failures."""
+            now = time.time()
+            if now < state["cooldown_until"]:
+                return
+
             try:
                 record = (
                     message.record if hasattr(message, "record") else None
@@ -334,10 +340,11 @@ def setup_loki_logging(loki_url: str, service_name: str = "aiops-agent") -> bool
                     endpoint,
                     content=data,
                     headers={"Content-Type": "application/json"},
-                    timeout=2,
+                    timeout=0.5,
                 )
             except httpx.RequestError:
-                logging.warning("Suppressed exception", exc_info=True)
+                state["cooldown_until"] = time.time() + 60
+                logging.warning("Suppressed Loki connectivity exception", exc_info=True)
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)
                 logging.warning("Suppressed exception", exc_info=True)

@@ -7,6 +7,7 @@ from core import linux_collector, linux_repair
 
 
 def test_get_last_snapshot():
+    linux_collector._last_collect_cache = {}
     assert linux_collector.get_last_snapshot() == {}
 
 

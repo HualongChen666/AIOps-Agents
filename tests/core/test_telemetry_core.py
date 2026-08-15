@@ -35,6 +35,7 @@ def test_instrument_noop():
 
 
 def test_apm_metrics():
+    reset_apm_metrics()
     record_apm_metric("request_count", 1.0, {"endpoint": "/api"})
     metrics = get_apm_metrics()
     assert metrics["request_count"] == 1.0

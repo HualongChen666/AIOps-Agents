@@ -23,7 +23,7 @@ class _FakeEndpoints:
 # Optional-dependency fakes (only install when missing so we don't clobber
 # more comprehensive fakes from earlier batch files if they were loaded first).
 # ----------------------------------------------------------------------
-if "kubernetes" not in sys.modules:
+if True:  # always install the module-compatible kubernetes fake for these tests
     _k = types.ModuleType("kubernetes")
     _kc = types.ModuleType("kubernetes.client")
     _kcfg = types.ModuleType("kubernetes.config")

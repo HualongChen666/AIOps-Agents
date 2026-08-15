@@ -6,9 +6,11 @@ import core.db_engine
 
 def test_query_and_count_alerts():
     core.db_engine.insert_alert({"id": "1", "message": "test"})
-    assert core.db_engine.query_alerts(limit=1) == []
-    assert core.db_engine.count_alerts() == 0
-    assert core.db_engine.clear_alerts() == 0
+    alerts = core.db_engine.query_alerts(limit=1)
+    assert len(alerts) == 1
+    assert alerts[0]["id"] == "1"
+    assert core.db_engine.count_alerts() == 1
+    assert core.db_engine.clear_alerts() == 1
 
 
 def test_repair_records():
@@ -22,8 +24,11 @@ def test_repair_records():
         platform="linux",
         output="ok",
     )
-    assert rid == -1
-    assert core.db_engine.query_repairs(limit=5) == []
+    assert rid == 0
+    repairs = core.db_engine.query_repairs(limit=5)
+    assert len(repairs) == 1
+    assert repairs[0]["success"] is True
+    assert repairs[0]["platform"] == "linux"
 
 
 def test_pending_approvals():
@@ -34,9 +39,11 @@ def test_pending_approvals():
         proposal="p",
         alert_json="{}",
     )
-    assert result == -1
-    assert core.db_engine.get_pending_approval("a1") is None
-    assert core.db_engine.get_all_pending_approvals() == []
+    assert result == 0
+    approval = core.db_engine.get_pending_approval("a1")
+    assert approval is not None
+    assert approval["alert_id"] == "a1"
+    assert core.db_engine.get_all_pending_approvals()
     core.db_engine.update_approval_status("a1", "approved")
     core.db_engine.update_approval_status_by_alert("a1", "rejected")
 

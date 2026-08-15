@@ -578,6 +578,8 @@ LINUX_HOSTS: dict[str, Any] = {
     "hosts": [],
 }
 
+MAC_HOSTS: list[dict[str, Any]] = []
+
 # ============================================================
 # L4 Storage Layer Configuration (7-Layer Architecture)
 # ============================================================

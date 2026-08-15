@@ -1073,16 +1073,17 @@ class ComplianceManager:
             Compliance check results
         """
         checks = []
-        if framework == ComplianceFramework.ISO27001:
+        framework_value = getattr(framework, "value", framework)
+        if framework_value == ComplianceFramework.ISO27001.value:
             checks = await self._check_iso27001()
-        elif framework == ComplianceFramework.SOC2:
+        elif framework_value == ComplianceFramework.SOC2.value:
             checks = await self._check_soc2()
-        elif framework == ComplianceFramework.GDPR:
+        elif framework_value == ComplianceFramework.GDPR.value:
             checks = await self._check_gdpr()
         else:
             checks = [{"name": "unsupported", "status": "skipped"}]
         return {
-            "framework": framework.value,
+            "framework": getattr(framework, "value", framework),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "checks": checks,
             "overall_status": "pass" if all(c["status"] == "pass" for c in checks) else "fail",

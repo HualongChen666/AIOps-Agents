@@ -20,6 +20,7 @@ try:
     NEO4J_AVAILABLE = True
 except Exception:
     NEO4J_AVAILABLE = False
+    AsyncGraphDatabase = None
 
 
 class ServiceType(Enum):

@@ -547,25 +547,25 @@ def test_setup_core_services(monkeypatch):
 
     fake_db = types.ModuleType("core.db_engine")
     fake_db.AsyncSessionLocal = MagicMock(name="AsyncSessionLocal")
-    sys.modules["core.db_engine"] = fake_db
+    monkeypatch.setitem(sys.modules, "core.db_engine", fake_db)
 
     fake_config = types.ModuleType("config")
     fake_config.REDIS_HOST = "localhost"
     fake_config.REDIS_PORT = 6379
     fake_config.REDIS_DB = 0
-    sys.modules["config"] = fake_config
+    monkeypatch.setitem(sys.modules, "config", fake_config)
 
     fake_redis = types.ModuleType("redis")
     fake_redis.Redis = MagicMock(name="Redis")
-    sys.modules["redis"] = fake_redis
+    monkeypatch.setitem(sys.modules, "redis", fake_redis)
 
     fake_ai = types.ModuleType("core.ai_engine")
     fake_ai.get_llm_router = MagicMock(return_value="router")
-    sys.modules["core.ai_engine"] = fake_ai
+    monkeypatch.setitem(sys.modules, "core.ai_engine", fake_ai)
 
     fake_alert = types.ModuleType("core.alert_service")
     fake_alert.AlertService = MagicMock(return_value="alert-svc")
-    sys.modules["core.alert_service"] = fake_alert
+    monkeypatch.setitem(sys.modules, "core.alert_service", fake_alert)
 
     result = di.setup_core_services()
     assert result["status"] == "success"
@@ -589,7 +589,7 @@ def test_setup_dependency_injection(monkeypatch):
         mod = types.ModuleType(name)
         for k, v in attrs.items():
             setattr(mod, k, v)
-        sys.modules[name] = mod
+        monkeypatch.setitem(sys.modules, name, mod)
 
     result = asyncio.run(di.setup_dependency_injection())
     assert result["status"] == "success"

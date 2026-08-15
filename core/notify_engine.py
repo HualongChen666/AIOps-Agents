@@ -1032,6 +1032,7 @@ async def send_alert_notification(alert: dict[str, Any]) -> dict[str, Any]:
             results[channel] = {"success": False, "skipped": True, "reason": "cooldown"}
             continue
 
+        _mark_sent(safe_alert, channel)
         result = await _send_one_channel(safe_alert, channel, NOTIFY_CONFIG)
         results[channel] = result
         if result.get("success"):

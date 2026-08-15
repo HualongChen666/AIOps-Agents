@@ -6,6 +6,7 @@ These fixtures are discovered by all test files under tests/.
 
 import asyncio
 import os
+import sys
 
 # Force test-friendly configuration before the app is imported.
 os.environ["ALLOWED_LOCAL_IPS"] = "127.0.0.1,::1,localhost,testserver"
@@ -35,6 +36,7 @@ from fastapi.testclient import TestClient
 
 import config
 import core.auth_db
+import core.authentication as _auth_module
 
 # Disable the global rate limiter so the full test suite is not throttled.
 import core.security_middleware as _security_middleware
@@ -42,15 +44,14 @@ from core.auth_db import Base, SessionLocal, User, engine
 from core.auth_service import hash_password
 from main import app
 
+_ORIG_GET_REDIS_CLIENT = _auth_module._get_redis_client
+
 # Main async DB (core.db_engine / core.models) shares per-worker SQLite for tests.
 from core.database import Base as MainBase
 from core.db_engine import AsyncSessionLocal, engine as main_engine
 from core.models import User as MainUser
 from sqlalchemy import select
-
-# Avoid trying to reach a real Redis during tests (no revocation checks needed).
-import core.authentication as _auth_module
-_auth_module._get_redis_client = lambda: None
+from sqlalchemy.exc import IntegrityError
 
 _security_middleware.rate_limiter.check_rate_limit = lambda client_id: (True, None)
 
@@ -74,7 +75,10 @@ def ensure_database():
             user = User(username="admin", role="admin", is_active=True)
             db.add(user)
         user.password_hash = hash_password("admin123")
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
     finally:
         db.close()
 
@@ -93,7 +97,10 @@ def ensure_database():
                         disabled=False,
                     )
                 )
-                await session.commit()
+                try:
+                    await session.commit()
+                except IntegrityError:
+                    await session.rollback()
 
     asyncio.run(_seed_main_db())
     yield
@@ -127,6 +134,68 @@ def admin_headers(admin_token):
 def approval_headers(admin_headers):
     """Admin headers plus the internal API key used by approval/AI routers."""
     return {**admin_headers, "X-Internal-Key": config.INTERNAL_API_KEY}
+
+
+# Snapshot of sys.modules before any sub-conftest injects fake optional
+# dependencies; used to isolate tests outside tests/modules from those fakes.
+_CLEAN_SYS_MODULES: dict[str, object] = {}
+
+# Optional-dependency modules that some tests replace with lightweight fakes.
+# Restore the real (or pre-test) module objects outside tests/modules so fakes
+# do not leak across xdist workers or test directories.
+_ISOLATED_OPTIONAL_MODULES = {
+    "httpx",
+    "kubernetes",
+    "kubernetes.client",
+    "kubernetes.config",
+    "kubernetes.client.rest",
+    "qdrant_client",
+    "qdrant_client.models",
+    "sentence_transformers",
+    "prophet",
+    "prophet.diagnostics",
+    "prometheus_api_client",
+    "redis",
+    "config",
+    "temporalio",
+    "temporalio.client",
+    "prefect",
+}
+
+
+def pytest_configure(config):
+    _CLEAN_SYS_MODULES.clear()
+    _CLEAN_SYS_MODULES.update(sys.modules)
+
+
+def pytest_runtest_setup(item):
+    # Avoid repeated Redis connection attempts in tests that do not exercise
+    # the real Redis client (only test_get_redis_client should hit the network).
+    if item.nodeid == "tests/core/test_uncovered_batch4_c.py::test_get_redis_client":
+        _auth_module._get_redis_client = _ORIG_GET_REDIS_CLIENT
+        _auth_module.redis_client = None
+        _auth_module._redis_available = False
+    else:
+        _auth_module._get_redis_client = lambda *a, **k: None
+
+    # tests/modules installs deliberate fakes for optional heavy dependencies;
+    # preserve that environment and isolate all other test directories.
+    if item.nodeid.startswith("tests/modules"):
+        return
+    current = sys.modules
+    clean = _CLEAN_SYS_MODULES
+    for name in _ISOLATED_OPTIONAL_MODULES:
+        real = clean.get(name)
+        fake = current.get(name)
+        if fake is real:
+            continue
+        if real is not None:
+            current[name] = real
+        elif fake is not None:
+            try:
+                del current[name]
+            except KeyError:
+                pass
 
 
 def pytest_collection_modifyitems(config, items):

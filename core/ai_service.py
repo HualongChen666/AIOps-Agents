@@ -133,13 +133,14 @@ class AIContextService:
 
         # 优先获取一次 snapshot，避免多个数据源重复调用 get_cached_snapshot
         cached_snapshot = snapshot
-        if not cached_snapshot or not isinstance(cached_snapshot, dict):
+        if cached_snapshot is None or not isinstance(cached_snapshot, dict):
             try:
                 cached_snapshot = get_cached_snapshot()
             except Exception as e:
                 logger.warning(f"富上下文:获取缓存快照失败 {e}")
                 cached_snapshot = {}
-        if not isinstance(cached_snapshot, dict):
+        snapshot_valid = isinstance(cached_snapshot, dict) and cached_snapshot
+        if not snapshot_valid:
             cached_snapshot = {}
 
         # 数据源 1: Top 5 进程
@@ -256,6 +257,8 @@ class AIContextService:
 
         # 数据源 7: 服务拓扑/依赖关系
         async def _fetch_topology():
+            if not snapshot_valid and not service_name:
+                return {}
             try:
                 from core.topology_engine import get_full_link_topology
 
