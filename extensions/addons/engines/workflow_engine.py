@@ -214,6 +214,17 @@ class WorkflowEngine:
 
     def get_scenario_memory(self, query: str) -> Dict[str, Any]:
         """Call the RAG/memory engine via modules VectorStore, falling back to synthetic."""
+        if self.dry_run:
+            return {
+                "query": query,
+                "matches": [
+                    {
+                        "id": "synthetic",
+                        "text": f"Scenario memory for {query}",
+                        "score": 0.95,
+                    }
+                ],
+            }
         try:
             from modules.analyze.runbook.vector_store import VectorStore
 

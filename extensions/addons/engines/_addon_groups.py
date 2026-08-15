@@ -6,7 +6,7 @@ Engine classes are left as placeholders (None) until they are assigned.
 
 ADDON_GROUPS = {
     "observability": {
-        "engine": None,
+        "engine": "extensions/addons/engines/monitoring_provider",
         "addons": [
             ("metrics_monitoring_service", "extensions/addons/observability/metrics_monitoring_service"),
             ("alert_rule_service", "extensions/addons/infrastructure/alert_rule_service"),
@@ -24,7 +24,7 @@ ADDON_GROUPS = {
         ],
     },
     "data_platform": {
-        "engine": None,
+        "engine": "extensions/addons/engines/storage_driver",
         "addons": [
             ("cache_service", "extensions/addons/infrastructure/cache_service"),
             ("redis_shard_service", "extensions/addons/infrastructure/redis_shard_service"),
@@ -52,7 +52,7 @@ ADDON_GROUPS = {
         ],
     },
     "security": {
-        "engine": None,
+        "engine": "extensions/addons/engines/security_scanner",
         "addons": [
             ("security_scanning_service", "extensions/addons/security/security_scanning_service"),
             ("security_audit_service", "extensions/addons/security/security_audit_service"),
@@ -63,7 +63,7 @@ ADDON_GROUPS = {
         ],
     },
     "integration": {
-        "engine": None,
+        "engine": "extensions/addons/engines/connector_bus",
         "addons": [
             ("kafka_event_service", "extensions/addons/integrations/kafka_event_service"),
             ("message_queue_service", "extensions/addons/integrations/message_queue_service"),
@@ -72,7 +72,7 @@ ADDON_GROUPS = {
         ],
     },
     "workflow": {
-        "engine": None,
+        "engine": "extensions/addons/engines/workflow_engine",
         "addons": [
             ("workflow_engine_service", "extensions/addons/operations/workflow_engine_service"),
             ("workflow_service", "extensions/addons/operations/workflow_service"),
@@ -82,7 +82,7 @@ ADDON_GROUPS = {
         ],
     },
     "governance": {
-        "engine": None,
+        "engine": "extensions/addons/engines/doc_policy_engine",
         "addons": [
             ("sphinx_documentation_service", "extensions/addons/documentation/sphinx_documentation_service"),
             ("api_standards_service", "extensions/addons/infrastructure/api_standards_service"),
