@@ -281,12 +281,12 @@ class IntegrationTestValidator:
             return
 
         execution = self.validation_executions[execution_id]
-        self.validation_tests[execution.test_id]
 
         try:
             # Update status
             execution.result = ValidationResult.SKIPPED
             execution.started_at = datetime.now(timezone.utc)
+            self.validation_tests[execution.test_id]
 
             # Simulate validation execution
             await asyncio.sleep(2)  # Simulate validation

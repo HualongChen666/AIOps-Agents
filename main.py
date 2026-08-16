@@ -1652,7 +1652,7 @@ async def lifespan(app: FastAPI):
         from core.storage.l4.tempo import TempoStorage  # noqa: E402
         from core.storage.l4.victoriametrics import VictoriaMetricsStorage  # noqa: E402
 
-        storage_config = L4_STORAGE_CONFIG.get("implementations", {})
+        storage_config = L4_STORAGE_CONFIG.get("implementations", L4_STORAGE_CONFIG)
 
         if storage_config.get("loki", {}).get("enabled", False):
             _loki_storage = LokiStorage(storage_config.get("loki", {}))

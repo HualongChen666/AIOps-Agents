@@ -648,6 +648,8 @@ async def query_integration(
             )
         else:
             raise HTTPException(status_code=400, detail=f"不支持的集成类型: {provider}")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"查询失败: {exc}") from exc
 
