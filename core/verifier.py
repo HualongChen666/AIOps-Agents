@@ -196,7 +196,7 @@ _SERVICE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.@]+$")
 # P1-2: mount_point / drive / target 校验(避免命令注入)
 _MOUNT_POINT_PATTERN = re.compile(r"^(/[a-zA-Z0-9_./-]*|[A-Z]:?\\?)$")
 _TARGET_PATTERN = re.compile(r"^[a-zA-Z0-9_\-.]+$")
-_K8S_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-.]+$|")
+_K8S_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-.]+$")
 
 # [FIX] VFB7:systemctl is-active 的合法成功状态 + 中间态(返回 None 跳过)
 _SYSTEMCTL_ACTIVE_STATES = frozenset(["active"])
@@ -859,7 +859,7 @@ async def _verify_disk_usage(
             if m:
                 mount_point = m.group(1)
                 break
-            m2 = re.search(r"([A-Za-z]:)\\\\?", cmd_str)
+            m2 = re.search(r"([A-Za-z]:)\\?", cmd_str)
             if m2:
                 mount_point = m2.group(1).upper() + "\\"
                 break
@@ -879,7 +879,7 @@ async def _verify_disk_usage(
         drive = mount_point[0].upper()
         verify_cmd = (
             f"Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID='{drive}:'\" | "
-            "Select-Object Size,FreeSpace | ForEach-Object {{ "
+            f"Select-Object Size,FreeSpace | ForEach-Object {{ "
             f"'{drive} ' + $_.Size + ' ' + $_.FreeSpace }}"
         )
 
@@ -1009,7 +1009,7 @@ async def _verify_network_check(
         verify_cmd = f"ping -c 1 -W 2 {shlex.quote(target)}"
     else:
         verify_cmd = (
-            f"Test-Connection -TargetName '{target}' -Count 1 -ErrorAction SilentlyContinue; "
+            f"Test-Connection -ComputerName '{target}' -Count 1 -ErrorAction SilentlyContinue; "
             "if ($?) { 'UP' } else { 'DOWN' }"
         )
 

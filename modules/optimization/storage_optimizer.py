@@ -492,7 +492,7 @@ class DataLifecycleManager:
             pattern = policy["pattern"]
             rules = policy["rules"]
 
-            for obj in self.storage_manager.objects.values():
+            for obj in list(self.storage_manager.objects.values()):
                 if pattern in obj.name:
                     # 检查是否需要转换存储类型
                     if "transition_after_days" in rules:
