@@ -11,6 +11,8 @@ from typing import Any, Callable, Dict, Optional
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 
+import importlib
+
 
 class MCPInterface:
     """
@@ -39,13 +41,13 @@ class MCPInterface:
         """Register available MCP tools"""
         # Import existing MCP tools
         try:
-            from core.mcp_tools import (
-                approve_repair,
-                get_host_health,
-                get_metrics,
-                search_incident_history,
-                trigger_repair_with_hitl,
-            )
+            tools_module = self.config.get("mcp_tools_module", "core.mcp_tools")
+            mcp_tools = importlib.import_module(tools_module)
+            get_host_health = getattr(mcp_tools, "get_host_health")
+            get_metrics = getattr(mcp_tools, "get_metrics")
+            search_incident_history = getattr(mcp_tools, "search_incident_history")
+            trigger_repair_with_hitl = getattr(mcp_tools, "trigger_repair_with_hitl")
+            approve_repair = getattr(mcp_tools, "approve_repair")
 
             self._tools = {
                 "get_host_health": {

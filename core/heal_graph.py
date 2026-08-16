@@ -260,7 +260,9 @@ def _is_approval_expired(approval: Optional[Dict[str, Any]]) -> bool:
         approved_time = datetime.fromisoformat(str(approved_at))
     except (TypeError, ValueError):
         return True
-    age_minutes = (datetime.now() - approved_time).total_seconds() / 60.0
+    if approved_time.tzinfo is None:
+        approved_time = approved_time.replace(tzinfo=timezone.utc)
+    age_minutes = (datetime.now(timezone.utc) - approved_time).total_seconds() / 60.0
     return age_minutes > _approval_validity_minutes()
 
 

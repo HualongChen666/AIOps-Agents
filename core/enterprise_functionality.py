@@ -46,6 +46,11 @@ except ImportError as e:
     EXISTING_ENTERPRISE_AVAILABLE = False
     logger.warning(f"Some enterprise components not available: {e}")
 
+    def mask_sensitive(value, mask_char="*"):
+        if not value or len(value) <= 4:
+            return mask_char * len(value) if value else ""
+        return value[:2] + mask_char * (len(value) - 4) + value[-2:]
+
 
 class ComplianceStandard(Enum):
     """Compliance standards"""

@@ -691,7 +691,9 @@ class IntegrationEcosystem:
         import hashlib
         import hmac
 
-        payload = json.dumps(data, sort_keys=True)
+        # The signature itself must not be part of the signed payload.
+        payload_data = {k: v for k, v in data.items() if k != "signature"}
+        payload = json.dumps(payload_data, sort_keys=True)
         signature = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
 
         return signature

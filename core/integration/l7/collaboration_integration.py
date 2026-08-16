@@ -30,6 +30,9 @@ class CollaborationIntegration:
         self.slack_enabled = config.get("slack", {}).get("enabled", False)
         self.slack_bot_token = config.get("slack", {}).get("bot_token", "")
         self.slack_channel = config.get("slack", {}).get("channel", "")
+        self.slack_api_url = config.get("slack", {}).get(
+            "api_url", "https://slack.com/api/chat.postMessage"
+        )
 
         # Teams configuration
         self.teams_enabled = config.get("teams", {}).get("enabled", False)
@@ -78,9 +81,7 @@ class CollaborationIntegration:
                 },
                 timeout=30.0,
             ) as client:
-                response = await client.post(
-                    "https://slack.com/api/chat.postMessage", json=payload
-                )
+                response = await client.post(self.slack_api_url, json=payload)
                 response.raise_for_status()
                 result = response.json()
                 if not result.get("ok"):
@@ -147,9 +148,7 @@ class CollaborationIntegration:
                 },
                 timeout=30.0,
             ) as client:
-                response = await client.post(
-                    "https://slack.com/api/chat.postMessage", json=payload
-                )
+                response = await client.post(self.slack_api_url, json=payload)
                 response.raise_for_status()
                 result = response.json()
                 if not result.get("ok"):
