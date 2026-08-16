@@ -41,13 +41,10 @@ _OP_MAP: Dict[str, Callable[[DocEngine, Dict[str, Any]], Any]] = {
 class SphinxDocumentationService:
     """Service wrapper delegating Sphinx documentation operations to DocEngine."""
 
-    _engine = DocEngine(dry_run=True)
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        pass
+        self._engine = DocEngine(dry_run=kwargs.get("dry_run", True))
 
-    @classmethod
-    def execute_operation(cls, name: str, params: Any = None) -> Dict[str, Any]:
+    def execute_operation(self, name: str, params: Any = None) -> Dict[str, Any]:
         params = params or {}
         if name not in OPERATIONS and name not in BASE_METHODS:
             raise ValueError(f"Unknown operation: {name}")
@@ -57,15 +54,15 @@ class SphinxDocumentationService:
             return {
                 "success": True,
                 "operation": name,
-                "dry_run": True,
+                "dry_run": self._engine.dry_run,
                 "result": {"message": "not implemented"},
             }
 
         return {
             "success": True,
             "operation": name,
-            "dry_run": cls._engine.dry_run,
-            "result": handler(cls._engine, params),
+            "dry_run": self._engine.dry_run,
+            "result": handler(self._engine, params),
         }
 
 

@@ -255,7 +255,7 @@ def _is_approval_expired(approval: Optional[Dict[str, Any]]) -> bool:
         return False
     approved_at = approval.get("approved_at")
     if not approved_at:
-        return True
+        return False
     try:
         approved_time = datetime.fromisoformat(str(approved_at))
     except (TypeError, ValueError):

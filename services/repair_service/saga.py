@@ -29,10 +29,16 @@ class SagaOrchestrator:
         actions: Dict[str, SagaAction],
         compensations: Dict[str, SagaCompensation],
     ) -> None:
+        normalized_steps = [
+            SagaStep.model_validate(
+                step.model_dump() if hasattr(step, "model_dump") else step
+            )
+            for step in steps
+        ]
         transaction = SagaTransaction(
             saga_id=saga_id,
-            task_id=steps[0].step_id if steps else "",
-            steps=steps,
+            task_id=normalized_steps[0].step_id if normalized_steps else "",
+            steps=normalized_steps,
         )
         self._transactions[saga_id] = transaction
         self._actions[saga_id] = actions

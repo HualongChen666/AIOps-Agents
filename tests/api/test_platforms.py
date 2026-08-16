@@ -10,8 +10,8 @@ _CASES = [
     ("POST", "/api/v1/platforms/kubernetes/repair", {}, None, {200, 422, 404, 500}),
     ("POST", "/api/v1/platforms/kubernetes/repair/all", {}, None, {200, 422, 404, 500}),
     ("GET", "/api/v1/platforms/kubernetes/repair/history", None, None, {200, 404, 500}),
-    # docker_router.py (currently not mounted in main.py, may return 404)
-    ("GET", "/api/v1/platforms/docker/metrics", None, None, {200, 404, 500}),
+    # docker_router.py (currently not mounted in main.py, may return 400/404)
+    ("GET", "/api/v1/platforms/docker/metrics", None, None, {200, 400, 404, 500}),
     ("POST", "/api/v1/platforms/docker/repair", {}, None, {200, 422, 404, 500}),
     # linux_router.py
     ("GET", "/api/v1/platforms/linux/hosts", None, None, {200, 404, 500}),

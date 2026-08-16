@@ -142,7 +142,7 @@ class RUMDataValidator:
         if "timestamp" in event_data:
             try:
                 datetime.fromisoformat(event_data["timestamp"])
-            except ValueError:
+            except (ValueError, TypeError):
                 errors.append("Invalid timestamp format")
 
         # 验证会话 ID 格式

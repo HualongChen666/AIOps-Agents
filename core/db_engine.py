@@ -172,6 +172,8 @@ async def async_init_db() -> None:
     ``main.py`` inside the lifespan event) to ensure the PostgreSQL
     schema exists.  It is idempotent – repeated calls have no effect.
     """
+    # Ensure ORM classes such as Alert are registered on Base.metadata.
+    import core.models  # noqa: F401
     db_url = _effective_database_url()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

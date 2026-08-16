@@ -72,6 +72,13 @@ class RBACMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Missing or invalid Authorization header"},
             )
 
+        parts = token.split(".")
+        if len(parts) != 3 or not all(parts):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Could not validate credentials"},
+            )
+
         try:
             payload = decode_token(token)
         except Exception:

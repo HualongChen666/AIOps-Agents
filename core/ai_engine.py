@@ -213,7 +213,7 @@ _langfuse_observe: Optional[Callable[..., Any]] = None
 _langfuse_client: Optional[Any] = None
 _langfuse_available: bool = False
 
-if LANGFUSE_CONFIG.get("enabled", False):
+if LANGFUSE_CONFIG.get("is_enabled", False):
     try:
         from langfuse import Langfuse
         from langfuse.decorators import langfuse_context  # noqa: F401

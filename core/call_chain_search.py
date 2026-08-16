@@ -10,7 +10,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from loguru import logger
+try:
+    from loguru import logger
+except Exception:  # pragma: no cover
+    import logging
+
+    logger = logging.getLogger(__name__)
 
 
 class SearchOperator(Enum):
@@ -162,7 +167,10 @@ class CallChainSearchManager:
         # Time index
         if start_time:
             if isinstance(start_time, str):
-                start_time = datetime.fromisoformat(start_time)
+                try:
+                    start_time = datetime.fromisoformat(start_time)
+                except ValueError:
+                    return
             self.time_index.append((start_time, trace_id))
             # Keep time index sorted
             self.time_index.sort(key=lambda x: x[0])

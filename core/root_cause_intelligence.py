@@ -23,7 +23,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+
+    logger = logging.getLogger("root_cause_intelligence")
 
 # ============================================================
 # 根因诊断阈值与限制

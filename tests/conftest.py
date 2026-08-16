@@ -84,6 +84,9 @@ def ensure_database():
         db.close()
 
     async def _seed_main_db() -> None:
+        # Ensure all ORM model tables (alerts, repair_records, etc.) are
+        # registered in MainBase.metadata before recreating the test schema.
+        import core.models  # noqa: F401
         async with main_engine.begin() as conn:
             await conn.run_sync(MainBase.metadata.drop_all)
             await conn.run_sync(MainBase.metadata.create_all)
@@ -118,15 +121,20 @@ def client():
         async def dispatch(self, request, call_next):
             return await call_next(request)
 
-    for m in getattr(app, "user_middleware", []):
-        if m.cls is _rbac.RBACMiddleware:
-            m.cls = _RBACBypass
+    original_classes = [
+        (m, m.cls) for m in getattr(app, "user_middleware", [])
+        if m.cls is _rbac.RBACMiddleware
+    ]
+    for m, _ in original_classes:
+        m.cls = _RBACBypass
 
     c = TestClient(app)
     try:
         yield c
     finally:
         c.close()
+        for m, cls in original_classes:
+            m.cls = cls
 
 
 @pytest.fixture(scope="module")

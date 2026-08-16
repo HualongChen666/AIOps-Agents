@@ -251,13 +251,11 @@ class OrchestratorApp:
         return result
 
 
-orchestrator_app: Optional[OrchestratorApp] = None
+orchestrator_app = OrchestratorApp()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global orchestrator_app
-    orchestrator_app = OrchestratorApp()
     await orchestrator_app.init()
     logger.info("Repair orchestrator started")
     yield

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, cast
@@ -29,7 +30,10 @@ class RepairVerifier:
     """Verify repair results with multiple strategies."""
 
     def __init__(self, timeout: int = 10) -> None:
-        self.health = HealthCheckEngine(timeout=timeout)
+        self.timeout = timeout
+        self.health: HealthCheckEngine = getattr(
+            sys.modules[__name__], "HealthCheckEngine"
+        )(timeout=timeout)
         self._strategies: List[str] = [
             "service_status",
             "process_check",
