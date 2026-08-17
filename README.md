@@ -88,7 +88,7 @@ curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
 
 ## 🏗️ Architecture
 
-### System Architecture
+### 7-Layer Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -98,42 +98,87 @@ curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
                      │ Webhooks
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Alert Ingestion Layer                       │
+│  L1: Real-time Stream Processing Layer                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Normalizer  │  │ Deduplicator │  │ Classifier   │     │
+│  │ Kafka Stream │  │ Flink Jobs   │  │ Event Bus    │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L1L2DataFlowIntegrator                                     │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   AI Analysis Engine                         │
+│  L2: Analysis Layer                                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ LLM Router   │  │ RAG Engine    │  │ Causal Graph │     │
+│  │ Causal Graph │  │ AI Inference │  │ Anomaly Det  │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L2L3WorkflowIntegrator                                     │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Repair Execution Layer                       │
+│  L3: Processing Layer                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Workflow Eng │  │ State Machine│  │ DSL Engine   │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L3L4StorageIntegrator                                      │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  L4: Storage Layer                                           │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ PostgreSQL   │  │ Redis Cache  │  │ Qdrant Vector│     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L4L5DataIntegrator                                         │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  L5: Knowledge Layer                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Knowledge Gr │  │ RAG Retrieval│  │ Vector Store │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L5L6ExecutionIntegrator                                    │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  L6: Execution Layer                                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │ Command Guard│  │ Approval Gate│  │ Saga Engine  │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L6L7FrontendIntegrator                                     │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Target Systems                                │
-│  Linux Servers │ Windows │ Kubernetes │ Cloud Services   │
+│  L7: Integration Layer                                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Frontend UI  │  │ API Gateway   │  │ Third-party  │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Component Layers
+### Layer Responsibilities
 
-- **Data Collection Layer**: Metrics, logs, traces from multiple sources
-- **AI Intelligence Layer**: LLM-based analysis, RAG retrieval, causal inference
-- **Execution Layer**: Safe command execution with approval gates
-- **Observability Layer**: Real-time monitoring, alerting, visualization
-- **Integration Layer**: Third-party tools, cloud platforms, collaboration tools
+- **L1 - Real-time Stream Processing**: Kafka stream processing, Flink job management, event bus
+- **L2 - Analysis**: Causal graph analysis, AI inference, anomaly detection, prediction
+- **L3 - Processing**: Workflow orchestration, state machine, DSL execution, business logic
+- **L4 - Storage**: Multi-backend storage (PostgreSQL, Redis, Qdrant), data policies, retention
+- **L5 - Knowledge**: Knowledge graphs, RAG retrieval, vector stores, intelligent decision making
+- **L6 - Execution**: Command execution, safety guards, approval gates, saga coordination
+- **L7 - Integration**: Frontend UI, API gateway, third-party integrations, user interfaces
+
+### Layer Integrators
+
+The 7-layer architecture is connected through dedicated integrators that handle data flow and transformation between layers:
+
+- **L1L2DataFlowIntegrator**: Stream processing to analysis layer data flow
+- **L2L3WorkflowIntegrator**: Analysis to processing layer workflow triggering
+- **L3L4StorageIntegrator**: Processing to storage layer data persistence
+- **L4L5DataIntegrator**: Storage to knowledge layer real-time data processing
+- **L5L6ExecutionIntegrator**: Knowledge to execution layer intelligent execution
+- **L6L7FrontendIntegrator**: Execution to integration layer frontend presentation
 
 ---
 
