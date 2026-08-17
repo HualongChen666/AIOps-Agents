@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.core]
 
@@ -23,8 +23,8 @@ def test_windows_repair_registry():
 
 @pytest.mark.asyncio
 async def test_execute_windows_repair():
-    result = await wr.execute_windows_repair("clear_cache", {})
-    assert result == {}
+    result = await wr.execute_windows_repair("clear_cache", {})  # noqa: F841  # Variable for test verification
+    assert result == {}  # noqa: F841  # Variable for test verification
 
 
 # ---------------------------------------------------------------------------
@@ -231,8 +231,8 @@ async def test_batch_get_by_ids(monkeypatch, fake_session):
     select_mock = MagicMock(return_value=stmt)
     monkeypatch.setattr(qo, "select", select_mock)
 
-    result = await qo.BatchQueryOptimizer.batch_get_by_ids(fake_session, _FakeModel, [1, 2])
-    assert result == {1: obj1, 2: obj2}
+    result = await qo.BatchQueryOptimizer.batch_get_by_ids(fake_session, _FakeModel, [1, 2])  # noqa: F841  # Variable for test verification
+    assert result == {1: obj1, 2: obj2}  # noqa: F841  # Variable for test verification
 
     # empty/invalid cases
     assert await qo.BatchQueryOptimizer.batch_get_by_ids(fake_session, _FakeModel, []) == {}
@@ -251,7 +251,7 @@ async def test_batch_get_relations(monkeypatch, fake_session):
     stmt = MagicMock()
     monkeypatch.setattr(qo, "select", MagicMock(return_value=stmt))
 
-    result = await qo.BatchQueryOptimizer.batch_get_relations(
+    result = await qo.BatchQueryOptimizer.batch_get_relations(  # noqa: F841  # Variable for test verification
         fake_session, [parent1, parent2], "children", _FakeModel
     )
     assert set(result.keys()) == {10, 20}
@@ -268,7 +268,7 @@ def test_with_eager_loading():
     stmt.options.return_value = stmt
     opt1 = MagicMock()
     opt2 = MagicMock()
-    result = qo.BatchQueryOptimizer.with_eager_loading(stmt, opt1, opt2)
+    result = qo.BatchQueryOptimizer.with_eager_loading(stmt, opt1, opt2)  # noqa: F841  # Variable for test verification
     assert stmt.options.call_count == 2
     assert result is stmt
 
@@ -315,7 +315,7 @@ async def test_optimize_alert_query(monkeypatch, fake_session):
     fake_alert = MagicMock()
     fake_session.execute.return_value.scalars.return_value.all.return_value = [fake_alert]
 
-    result = qo.optimize_alert_query(fake_session)
+    result = qo.optimize_alert_query(fake_session)  # noqa: F841  # Variable for test verification
     assert result is stmt
     assert select_mock.called
     alerts = await qo.get_alerts_with_relations(fake_session, limit=10, offset=0)
@@ -344,7 +344,7 @@ async def test_optimize_metrics_query(monkeypatch, fake_session):
     fake_metric = MagicMock()
     fake_session.execute.return_value.scalars.return_value.all.return_value = [fake_metric]
 
-    result = qo.optimize_metrics_query(fake_session)
+    result = qo.optimize_metrics_query(fake_session)  # noqa: F841  # Variable for test verification
     assert result is stmt
     metrics = await qo.get_metrics_with_sources(fake_session, limit=5, offset=0)
     assert metrics == [fake_metric]
@@ -422,8 +422,8 @@ def test_get_current_user_found(auth_config, monkeypatch):
     sess = fake_db_session(query_result=user)
     monkeypatch.setattr(auth, "SessionLocal", lambda: sess)
     token = auth.create_access_token({"sub": "alice"})
-    result = auth.get_current_user(token)
-    assert result == user
+    result = auth.get_current_user(token)  # noqa: F841  # Variable for test verification
+    assert result == user  # noqa: F841  # Variable for test verification
     assert result.tenant_id == "default"
 
 

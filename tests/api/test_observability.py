@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for metrics, logs, tracing and APM endpoints."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 _CASES = [
     # metrics_router.py

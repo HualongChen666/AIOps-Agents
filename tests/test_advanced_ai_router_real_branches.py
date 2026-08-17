@@ -8,10 +8,10 @@ core/advanced_ai_capabilities implementation behind it.
 """
 
 import importlib
-import os
+import os  # noqa: F401  # Imported for test setup
 import uuid
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 # Force the real add-on AI router to be mounted.

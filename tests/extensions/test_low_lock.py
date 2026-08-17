@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """Parametrized coverage tests for every extensions/addons/**/lock.py."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib.util
 import inspect
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK_FILES = sorted((ROOT / "extensions" / "addons").rglob("lock.py"))

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for core/security_testing_system.py."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.security_testing_system import (
     SecurityTest,
@@ -38,7 +38,7 @@ async def test_run_security_test():
     result_id = await system.run_security_test("sast_scan")
     assert result_id == "sast_scan"
     await asyncio.sleep(0)
-    result = system.get_test_result("sast_scan")
+    result = system.get_test_result("sast_scan")  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result["status"] in (TestStatus.RUNNING.value, TestStatus.COMPLETED.value)
 

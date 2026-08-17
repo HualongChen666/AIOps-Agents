@@ -7,7 +7,7 @@ No external mocks: branches are exercised by controlling the module-level
 feature flag and by supplying real request data.
 """
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

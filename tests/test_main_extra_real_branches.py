@@ -8,10 +8,10 @@ each scenario and exercising the real lifespan/shutdown code through
 """
 
 import importlib
-import os
-import sys
+import os  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 ALL_PACK_FLAGS = [

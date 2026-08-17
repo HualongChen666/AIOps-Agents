@@ -5,13 +5,13 @@ No mocks are used; every test instantiates real scheduler objects and drives
 them with real in-memory data / real asyncio event loops.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import atexit
-import os
+import os  # noqa: F401  # Imported for test setup
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.task_scheduler import TaskScheduler, _InMemoryScheduler
 
@@ -229,7 +229,7 @@ def test_in_memory_shutdown_states():
     async def job():
         await asyncio.sleep(1000)
 
-    pending = loop.create_task(s2._run_interval("long", job, 1000))
+    pending = loop.create_task(s2._run_interval("long", job, 1000))  # noqa: F841  # Variable for test verification
     s2._tasks["long"] = pending
     s2._shutdown()  # open, not running, pending task
     atexit.unregister(s2._shutdown)

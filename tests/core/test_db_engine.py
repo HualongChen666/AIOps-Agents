@@ -32,14 +32,14 @@ def test_repair_records():
 
 
 def test_pending_approvals():
-    result = core.db_engine.upsert_pending_approval(
+    result = core.db_engine.upsert_pending_approval(  # noqa: F841  # Variable for test verification
         alert_id="a1",
         rule_name="r",
         script_key="s",
         proposal="p",
         alert_json="{}",
     )
-    assert result == 0
+    assert result == 0  # noqa: F841  # Variable for test verification
     approval = core.db_engine.get_pending_approval("a1")
     assert approval is not None
     assert approval["alert_id"] == "a1"

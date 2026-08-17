@@ -30,6 +30,6 @@ def test_record_and_recommendations():
 
 def test_run_comprehensive_optimization():
     mgr = get_database_optimization_manager()
-    result = mgr.run_comprehensive_optimization()
+    result = mgr.run_comprehensive_optimization()  # noqa: F841  # Variable for test verification
     assert "timestamp" in result
     assert result["overall_status"] in ("complete", "partial", "failed")

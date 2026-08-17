@@ -3,7 +3,7 @@
 
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.verifier as verifier
 
@@ -36,24 +36,24 @@ def enabled_config(monkeypatch):
 
 async def test_verify_repair_disabled(patch_upsert, monkeypatch):
     monkeypatch.setattr(verifier, "VERIFY_CONFIG", {"enabled": False})
-    result = await verifier.verify_repair({}, "restart_service", {}, None, "")
+    result = await verifier.verify_repair({}, "restart_service", {}, None, "")  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
 
 async def test_verify_repair_invalid_alert(enabled_config, patch_upsert):
-    result = await verifier.verify_repair("bad", "restart_service", {}, None, "")
+    result = await verifier.verify_repair("bad", "restart_service", {}, None, "")  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "dict" in result["error_msg"]
 
 
 async def test_verify_repair_empty_script_key(enabled_config, patch_upsert):
-    result = await verifier.verify_repair({"platform": "linux"}, "", {}, None, "")
+    result = await verifier.verify_repair({"platform": "linux"}, "", {}, None, "")  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
 
 
 async def test_verify_repair_unknown_script(enabled_config, patch_upsert):
-    result = await verifier.verify_repair({"platform": "linux"}, "unknown", {}, None, "")
+    result = await verifier.verify_repair({"platform": "linux"}, "unknown", {}, None, "")  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert "skipped" in result["strategy"]
 
@@ -64,7 +64,7 @@ async def test_verify_repair_metric_wait_conflict(enabled_config, patch_upsert, 
         "VERIFY_CONFIG",
         {"enabled": True, "timeout_sec": 3.0, "metric_wait_sec": 5.0},
     )
-    result = await verifier.verify_repair({"platform": "linux"}, "free_cache", {}, None, "")
+    result = await verifier.verify_repair({"platform": "linux"}, "free_cache", {}, None, "")  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "metric_wait_sec" in result["recommendation"]
 
@@ -73,7 +73,7 @@ async def test_verify_repair_success(enabled_config, patch_upsert, monkeypatch):
     dispatch = AsyncMock(return_value=_ok_result())
     monkeypatch.setattr(verifier, "_dispatch_verification", dispatch)
 
-    result = await verifier.verify_repair(
+    result = await verifier.verify_repair(  # noqa: F841  # Variable for test verification
         {"platform": "linux"},
         "restart_service",
         {"service_name": "nginx"},
@@ -91,7 +91,7 @@ async def test_verify_repair_dispatch_exception(enabled_config, patch_upsert, mo
     monkeypatch.setattr(
         verifier, "_dispatch_verification", AsyncMock(side_effect=RuntimeError("boom"))
     )
-    result = await verifier.verify_repair({"platform": "linux"}, "restart_service", {}, None, "")
+    result = await verifier.verify_repair({"platform": "linux"}, "restart_service", {}, None, "")  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "RuntimeError" in result["error_msg"]
 

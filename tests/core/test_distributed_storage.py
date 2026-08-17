@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/distributed_storage.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.distributed_storage import (
     DatabaseInstance,

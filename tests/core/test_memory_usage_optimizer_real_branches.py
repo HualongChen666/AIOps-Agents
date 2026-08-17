@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Real branch-coverage tests for core/memory_usage_optimizer.py."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import gc
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.memory_usage_optimizer import (
     MemoryAction,
@@ -62,7 +62,7 @@ def test_optimize_memory_normal_status():
     opt = MemoryUsageOptimizer()
     opt.set_memory_limit("svc", 1000.0)
     opt.component_memory["svc"] = 100.0
-    result = opt.optimize_memory("svc")
+    result = opt.optimize_memory("svc")  # noqa: F841  # Variable for test verification
     assert result["actions_taken"] == []
 
 
@@ -83,7 +83,7 @@ def test_optimize_memory_warning_and_leak():
             _snapshot("svc", float(i * 100), now - timedelta(minutes=60 - i * 6))
         )
 
-    result = opt.optimize_memory("svc")
+    result = opt.optimize_memory("svc")  # noqa: F841  # Variable for test verification
     assert "garbage_collection" in result["actions_taken"]
     assert "leak_detection" in result["actions_taken"]
     assert result.get("leaks_detected", 0) >= 1

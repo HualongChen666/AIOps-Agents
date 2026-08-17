@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/observability_schema.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.observability_schema import (
     CommonLabels,

@@ -9,7 +9,7 @@ are stubbed with monkeypatch or unittest.mock so the suite runs quickly offline.
 from datetime import datetime
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.ai_engine as ai_engine
 import core.heal_graph as hg
@@ -169,7 +169,7 @@ async def test_root_cause_topology_discovery(rci_engine):
         "service": "svc1",
         "affected_services": ["app1"],
     }
-    result = await rci_engine.discover_topology_realtime(metrics_data, alert)
+    result = await rci_engine.discover_topology_realtime(metrics_data, alert)  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "discovered_nodes" in result
     assert "total_nodes" in result
@@ -261,7 +261,7 @@ async def test_root_cause_verify(rci_engine):
     verification_data = {
         "active_components": ["api", "svc"],
     }
-    result = await rci_engine.verify_root_cause(hypothesis, verification_data)
+    result = await rci_engine.verify_root_cause(hypothesis, verification_data)  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "verification_status" in result
     assert "verification_score" in result
@@ -306,7 +306,7 @@ def test_heal_state_defaults():
 
 
 def test_build_heal_graph():
-    import asyncio
+    import asyncio  # noqa: F401  # Imported for test setup
 
     runner = hg._build_graph()
     assert callable(runner)

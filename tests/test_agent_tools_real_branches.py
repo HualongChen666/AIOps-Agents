@@ -7,7 +7,7 @@ parameters and local files.  They do not mock or monkeypatch internal code.
 
 from pathlib import Path
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.agent.tools import (
     Tool,
@@ -109,7 +109,7 @@ def test_analyze_anomaly_empty_and_normal():
 def test_root_cause_analysis_with_alert_and_verification():
     reg = create_tool_registry()
     tool = reg.get_tool("root_cause_analysis")
-    result = tool.execute(
+    result = tool.execute(  # noqa: F841  # Variable for test verification
         alert_id="a1",
         alert={"id": "a1", "title": "incident"},
         verification_data={"verified": True},
@@ -152,7 +152,7 @@ def test_health_check_http_and_invalid_port():
 def test_run_diagnostic_localhost():
     reg = create_tool_registry()
     tool = reg.get_tool("run_diagnostic")
-    result = tool.execute(target="localhost", type="basic")
+    result = tool.execute(target="localhost", type="basic")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "health" in result
 
@@ -242,7 +242,8 @@ def test_tool_selector_empty_registry_and_happy_path():
     selector = ToolSelector(reg)
     assert (
         selector.select_tool(
-            "log metrics anomaly root cause restart scale change alert network database pod topology health",
+            "log metrics anomaly root cause restart scale change alert "
+            "network database pod topology health",
             {},
         )
         is None
@@ -275,31 +276,31 @@ def test_tool_executor_chain_break_and_auto_selection():
         executor.execute_with_auto_selection("foobar not matching anything", {})
 
     # infer target from service, optional level from context
-    result = executor.execute_with_auto_selection(
+    result = executor.execute_with_auto_selection(  # noqa: F841  # Variable for test verification
         "collect system logs", {"service": "nonexistent_xyz", "level": "ERROR"}
     )
     assert isinstance(result, list)
 
     # infer data from metrics
-    result = executor.execute_with_auto_selection("detect anomaly", {"metrics": [1.0, 2.0, 3.0]})
+    result = executor.execute_with_auto_selection("detect anomaly", {"metrics": [1.0, 2.0, 3.0]})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
     # infer required target from service
-    result = executor.execute_with_auto_selection("collect system metrics", {"service": "node"})
+    result = executor.execute_with_auto_selection("collect system metrics", {"service": "node"})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
     # infer required service from target
-    result = executor.execute_with_auto_selection(
+    result = executor.execute_with_auto_selection(  # noqa: F841  # Variable for test verification
         "collect system logs", {"target": "nonexistent_xyz"}
     )
     assert isinstance(result, list)
 
     # infer required service_name from target (restart_service)
-    result = executor.execute_with_auto_selection("restart nginx", {"target": "nginx"})
+    result = executor.execute_with_auto_selection("restart nginx", {"target": "nginx"})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
     # infer required alert_id from context alert
-    result = executor.execute_with_auto_selection("root cause analysis", {"alert": {"id": "a1"}})
+    result = executor.execute_with_auto_selection("root cause analysis", {"alert": {"id": "a1"}})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
 
@@ -342,7 +343,7 @@ def test_tool_selector_mismatched_tools():
     selector = ToolSelector(reg)
     # each keyword triggers a category, the single tool there does not match the
     # inner filter, so every for-loop exits and select_tool finally returns None
-    result = selector.select_tool(
+    result = selector.select_tool(  # noqa: F841  # Variable for test verification
         "log metrics anomaly root cause restart scale change network database pod topology health",
         {},
     )

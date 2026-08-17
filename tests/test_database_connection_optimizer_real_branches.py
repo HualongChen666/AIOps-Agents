@@ -6,7 +6,7 @@ sqlite database URLs (``sqlite:///:memory:``) without mocks or stubs.
 """
 
 import sqlite3
-import time
+import time  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta, timezone
 
 from core.database_connection_optimizer import (

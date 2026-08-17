@@ -4,7 +4,7 @@
 import importlib
 import re
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient

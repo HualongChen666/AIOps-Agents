@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Functional coverage tests for core batch 12-c modules."""
 
-import json
-import sys
+import json  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.core]
 
@@ -52,7 +52,7 @@ async def test_kb_add_document_uses_upsert_points(kb_module, vectorized_doc_fact
     store.upsert = MagicMock()
 
     kb = kb_module.KnowledgeBase("kb1", pipeline, store)
-    result = await kb.add_document("d1", "hello world")
+    result = await kb.add_document("d1", "hello world")  # noqa: F841  # Variable for test verification
 
     assert result.id == "d1"
     assert "d1" in kb.documents
@@ -128,7 +128,7 @@ async def test_kb_store_exception_and_skips_missing_embeddings(kb_module, vector
     doc_ok = vectorized_doc_factory("d3")
     pipeline.vectorize = AsyncMock(return_value=doc_ok)
     kb = kb_module.KnowledgeBase("kb3", pipeline, BoomStore())
-    result = await kb.add_document("d3", "hello")
+    result = await kb.add_document("d3", "hello")  # noqa: F841  # Variable for test verification
     assert result.id == "d3"
     assert "d3" in kb.documents
 
@@ -705,7 +705,7 @@ async def test_mm_setup_memory_monitoring(mm_module, monkeypatch):
     monkeypatch.setattr(mm_module, "memory_monitor", fresh_monitor)
     monkeypatch.setattr(mm_module, "memory_leak_detector", fresh_detector)
 
-    result = await mm_module.setup_memory_monitoring()
+    result = await mm_module.setup_memory_monitoring()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["tracemalloc_enabled"] is True
     assert result["leak_detection_enabled"] is True

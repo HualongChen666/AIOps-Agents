@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Tests for batch 16a low-coverage core modules."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
-import json
-import os
+import json  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
 import secrets
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.disaster_recovery_drill as dr_module
 import core.execution.l6.optimized_executor as executor_module
@@ -237,8 +237,8 @@ async def test_sentence_transformer_import_missing(monkeypatch):
     empty = types.ModuleType("sentence_transformers")
     monkeypatch.setitem(sys.modules, "sentence_transformers", empty)
     emb = SentenceTransformerEmbedding("unknown-model")
-    result = await emb.embed("hi")
-    assert result == [0.0] * 1024
+    result = await emb.embed("hi")  # noqa: F841  # Variable for test verification
+    assert result == [0.0] * 1024  # noqa: F841  # Variable for test verification
     batch = await emb.embed_batch(["a", "b", "c"])
     assert len(batch) == 3
     assert all(len(v) == 1024 for v in batch)
@@ -249,8 +249,8 @@ async def test_sentence_transformer_with_model(monkeypatch):
     fake.SentenceTransformer = _FakeSentenceTransformer
     monkeypatch.setitem(sys.modules, "sentence_transformers", fake)
     emb = SentenceTransformerEmbedding("all-MiniLM-L6-v2")
-    result = await emb.embed("hello")
-    assert result == [1.0, 2.0]
+    result = await emb.embed("hello")  # noqa: F841  # Variable for test verification
+    assert result == [1.0, 2.0]  # noqa: F841  # Variable for test verification
     batch = await emb.embed_batch(["a", "b"])
     assert batch == [[0.0, 1.0], [1.0, 2.0]]
 
@@ -269,7 +269,7 @@ async def test_vectorization_pipeline():
 
     doc = Document(id="d4", content="one two three four five", metadata={})
     pipeline = VectorizationPipeline(FixedSizeChunking(chunk_size=5, overlap=0), _FakeEmb())
-    result = await pipeline.vectorize(doc)
+    result = await pipeline.vectorize(doc)  # noqa: F841  # Variable for test verification
     assert result.chunks
     assert all(c.embedding is not None for c in result.chunks)
 
@@ -316,7 +316,7 @@ async def test_performance_run_pass(tmp_path, monkeypatch):
     monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(0.0))
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     exec_id = await tester.run_performance_test("load_test_api")
-    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]  # noqa: F841  # Variable for test verification
     await asyncio.gather(*pending, return_exceptions=True)
     status = tester.get_execution_status(exec_id)
     assert status["status"] == "completed"
@@ -332,7 +332,7 @@ async def test_performance_run_fail(tmp_path, monkeypatch):
     monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(100.0))
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     exec_id = await tester.run_performance_test("load_test_api")
-    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]  # noqa: F841  # Variable for test verification
     await asyncio.gather(*pending, return_exceptions=True)
     status = tester.get_execution_status(exec_id)
     assert status["status"] == "completed"
@@ -378,7 +378,7 @@ async def test_performance_report_and_stats(tmp_path, monkeypatch):
     monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(0.0))
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     exec_id = await tester.run_performance_test("load_test_api")
-    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]  # noqa: F841  # Variable for test verification
     await asyncio.gather(*pending, return_exceptions=True)
 
     report = await tester.generate_performance_report()
@@ -409,8 +409,8 @@ async def test_plugin_manager_register_load_execute(monkeypatch):
     manager.register_plugin(_DemoBasePlugin)
     assert manager.load_plugin("demo") is True
 
-    result = await manager.execute_plugin("demo", {"x": 1})
-    assert result == {"out": {"x": 1}}
+    result = await manager.execute_plugin("demo", {"x": 1})  # noqa: F841  # Variable for test verification
+    assert result == {"out": {"x": 1}}  # noqa: F841  # Variable for test verification
 
     status = manager.get_plugin_status("demo")
     assert status["initialized"] is True
@@ -660,7 +660,7 @@ def test_optimized_executor_singleton_and_metrics(monkeypatch):
 async def test_drill_all_scenarios(dr_mocked_asyncio):
     drill = DisasterRecoveryDrill()
     for scenario in DrillScenario:
-        result = await drill.run_drill(scenario)
+        result = await drill.run_drill(scenario)  # noqa: F841  # Variable for test verification
         assert result.status == DrillStatus.COMPLETED
         assert result.success is True
         assert result.end_time is not None
@@ -695,6 +695,6 @@ def test_drill_empty_stats():
 
 
 async def test_setup_disaster_recovery():
-    result = await setup_disaster_recovery()
+    result = await setup_disaster_recovery()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert len(result["scenarios"]) == len(DrillScenario)

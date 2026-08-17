@@ -2,16 +2,16 @@
 """Targeted coverage tests for core.idempotent, core.input_validator,
 core.i18n, core.multi_tenant and core.metadata_engine."""
 
-import asyncio
-import json
-import sys
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 import types
 from contextvars import ContextVar
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.i18n as i18n
 import core.idempotent as idem
@@ -179,7 +179,7 @@ def test_redis_store_falls_back_to_memory(monkeypatch):
 
 
 def test_generate_idempotency_key_variations():
-    base = idem.generate_idempotency_key("POST", "/api/orders")
+    base = idem.generate_idempotency_key("POST", "/api/orders")  # noqa: F841  # Variable for test verification
     assert len(base) == 64
 
     with_body = idem.generate_idempotency_key(

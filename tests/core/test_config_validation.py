@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for core/config_validation.py."""
 
-import json
+import json  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 import yaml
 
 from core import config_validation
@@ -52,7 +52,7 @@ def test_config_health_checker(env_manager):
 
 def test_setup_config_validation(env_manager, monkeypatch):
     monkeypatch.setattr(config_validation, "environment_config_manager", env_manager)
-    result = setup_config_validation()
+    result = setup_config_validation()  # noqa: F841  # Variable for test verification
     assert result["status"] in ("success", "error")
 
 

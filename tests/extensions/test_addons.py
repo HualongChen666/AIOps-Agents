@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for the extensions/addons plugin loader."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import extensions
 

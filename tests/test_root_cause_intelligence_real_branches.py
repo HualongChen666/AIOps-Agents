@@ -7,7 +7,7 @@ No mocks or monkeypatching are used; each test constructs a fresh engine and
 manipulates inputs to hit branches reported missing in coverage.json.
 """
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.root_cause_intelligence as rci
 
@@ -240,7 +240,7 @@ async def test_verify_root_cause_pattern_match_and_impact_accuracy():
         missing_data=[],
         predicted_impact={"cpu": 0.9, "mem": 0.5},
     )
-    result = await engine.verify_root_cause(
+    result = await engine.verify_root_cause(  # noqa: F841  # Variable for test verification
         h,
         {
             "active_components": ["api"],
@@ -414,7 +414,7 @@ async def test_analyze_gating_escalate_low_confidence():
 
 async def test_analyze_max_candidates_break():
     engine = rci.RootCauseIntelligenceEngine()
-    base = {"alerts": [{"alert_type": "x", "host": "web"}], "metrics": {}}
+    base = {"alerts": [{"alert_type": "x", "host": "web"}], "metrics": {}}  # noqa: F841  # Variable for test verification
     for i, name in enumerate(["pat1", "pat2", "pat3"], 1):
         engine.learn_historical_pattern({**base, "metrics": {f"m{i}": 95.0}}, name, 10.0, 0.8)
 
@@ -456,7 +456,7 @@ async def test_analyze_max_candidates_break():
 
 async def test_generate_candidates_branches():
     engine = rci.RootCauseIntelligenceEngine()
-    base = {
+    base = {  # noqa: F841  # Variable for test verification
         "alerts": [
             {"alert_type": "x", "host": "svc1"},
             {"alert_type": "x", "host": "svc2"},

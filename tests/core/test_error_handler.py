@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/error_handler.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.error_handler import AIOpsException, ErrorHandler, NetworkError
 

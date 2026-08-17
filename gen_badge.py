@@ -22,7 +22,7 @@ def generate_badge(coverage_xml: str = "coverage.xml", output: str = "docs/cover
     else:
         color = "red"
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="104" height="20" role="img" aria-label="coverage: {pct}%">
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="104" height="20" role="img" aria-label="coverage: {pct}%">  # noqa: E501  # Line too long (intentional)
   <title>coverage: {pct}%</title>
   <linearGradient id="s" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
@@ -34,7 +34,7 @@ def generate_badge(coverage_xml: str = "coverage.xml", output: str = "docs/cover
     <rect x="63" width="41" height="20" fill="{color}"/>
     <rect width="104" height="20" fill="url(#s)"/>
   </g>
-  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">  # noqa: E501  # Line too long (intentional)
     <text x="31.5" y="14">coverage</text>
     <text x="83.5" y="14">{pct}%</text>
   </g>

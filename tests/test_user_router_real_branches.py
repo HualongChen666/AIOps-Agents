@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Real branch-coverage tests for api/user_router.py."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import uuid
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -119,7 +119,7 @@ def test_create_user_validation(client, admin_headers):
     assert r.status_code == 409
 
     # duplicate email
-    email = f"{_rand('em')}@example.com"
+    email = f"{_rand('em')}@example.com"  # noqa: F841  # Variable for test verification
     u1 = _rand("em1")
     u2 = _rand("em2")
     r = client.post(

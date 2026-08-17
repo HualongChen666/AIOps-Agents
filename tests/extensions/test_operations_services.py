@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Happy-path tests for operations addon Service classes."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.engines.workflow_engine import WorkflowEngine
 from extensions.addons.operations.capacity_planning_service.service import (
@@ -38,7 +38,7 @@ class _FakeCache:
 def test_capacity_planning_service(monkeypatch):
     """Capacity planning analysis returns recommendations."""
     monkeypatch.setattr(CapacityPlanningService, "_engine", WorkflowEngine(dry_run=True))
-    result = CapacityPlanningService.execute_operation(
+    result = CapacityPlanningService.execute_operation(  # noqa: F841  # Variable for test verification
         "capacity_analysis",
         {"metrics": {"cpu": 80}, "forecasts": {"cpu": 95}},
     )
@@ -53,7 +53,7 @@ def test_incident_response_service(monkeypatch):
     service = IncidentResponseService(cache=_FakeCache())
     # This service exposes ``call`` as its dispatch method.
     service.execute_operation = service.call
-    result = asyncio.run(service.execute_operation("list_methods", request={}))
+    result = asyncio.run(service.execute_operation("list_methods", request={}))  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("success") is True
     assert result.get("status") == "ok"
@@ -71,7 +71,7 @@ def test_incident_runbook_service(monkeypatch):
         "results": {"results": [{"step": "decision", "result": {"decision": True}}]},
     }
     monkeypatch.setattr(IncidentRunbookService, "_engine", fake_engine)
-    result = IncidentRunbookService.execute_operation(
+    result = IncidentRunbookService.execute_operation(  # noqa: F841  # Variable for test verification
         "run_runbook",
         {
             "runbook": [
@@ -93,7 +93,7 @@ def test_incident_runbook_service(monkeypatch):
 def test_scenario_memory_service(monkeypatch):
     """Scenario Memory service returns synthetic memory matches."""
     monkeypatch.setattr(ScenarioMemoryService, "_engine", WorkflowEngine(dry_run=True))
-    result = ScenarioMemoryService.execute_operation(
+    result = ScenarioMemoryService.execute_operation(  # noqa: F841  # Variable for test verification
         "get_scenario_memory",
         {"query": "network outage"},
     )
@@ -105,7 +105,7 @@ def test_scenario_memory_service(monkeypatch):
 def test_workflow_engine_service(monkeypatch):
     """Workflow Engine service executes a workflow definition."""
     monkeypatch.setattr(WorkflowEngineService, "_engine", WorkflowEngine(dry_run=True))
-    result = WorkflowEngineService.execute_operation(
+    result = WorkflowEngineService.execute_operation(  # noqa: F841  # Variable for test verification
         "execute_workflow",
         {"workflow_def": [{"type": "http", "method": "GET", "url": "http://example.com"}]},
     )
@@ -117,7 +117,7 @@ def test_workflow_engine_service(monkeypatch):
 def test_workflow_service(monkeypatch):
     """Workflow service runs a workflow and returns step results."""
     monkeypatch.setattr(WorkflowService, "_engine", WorkflowEngine(dry_run=True))
-    result = WorkflowService.execute_operation(
+    result = WorkflowService.execute_operation(  # noqa: F841  # Variable for test verification
         "run_workflow",
         {"workflow_def": [{"type": "cli", "command": ["echo", "hello"]}]},
     )

@@ -6,7 +6,7 @@ real core.mcp_tools handlers. No mocks are used; fallback branches are reached
 by supplying an invalid/missing ``mcp_tools_module`` through the config.
 """
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.routing import APIRouter
 from fastapi.testclient import TestClient

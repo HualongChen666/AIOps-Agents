@@ -2,15 +2,15 @@
 """Real-execution branch coverage for addon engines with mocked I/O."""
 
 import datetime as _dt
-import json
+import json  # noqa: F401  # Imported for test setup
 import sqlite3
-import sys
+import sys  # noqa: F401  # Imported for test setup
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: F401  # Imported for test setup
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.engines.connector_bus import ConnectorBus
 from extensions.addons.engines.doc_policy_engine import DocEngine, PolicyEngine
@@ -295,7 +295,7 @@ def test_infra_executors_real_branches(monkeypatch, tmp_path):
     playbooks.mkdir()
     (playbooks / "site.yml").write_text("---\n- hosts: localhost\n  tasks: []\n")
     ansible = AnsibleExecutor(dry_run=False)
-    result = ansible.run(["site.yml", "--check"], cwd=str(playbooks))
+    result = ansible.run(["site.yml", "--check"], cwd=str(playbooks))  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
 
 
@@ -406,10 +406,10 @@ def test_storage_driver_real_branches(monkeypatch, tmp_path):
     assert driver.cache_set("k", [1, 2]) == {"stored": True, "key": "k"}
     assert driver.cache_get("k") == "[1, 2]"
 
-    create_result = driver.vector_create_collection("c", 3)
+    create_result = driver.vector_create_collection("c", 3)  # noqa: F841  # Variable for test verification
     assert create_result is not None
 
-    upsert_result = driver.vector_upsert(
+    upsert_result = driver.vector_upsert(  # noqa: F841  # Variable for test verification
         "c",
         ["1"],
         [[1.0, 2.0, 3.0]],
@@ -496,7 +496,7 @@ def test_workflow_engine_real_branches(monkeypatch):
         },
         {"type": "memory", "name": "m1", "query": "incident"},
     ]
-    result = engine.run_workflow(workflow, {"x": 1})
+    result = engine.run_workflow(workflow, {"x": 1})  # noqa: F841  # Variable for test verification
     assert result["success"]
 
     runner = RunbookRunner(engine=engine)

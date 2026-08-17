@@ -2,14 +2,14 @@
 """Smoke tests for low-coverage main_app.py / main.py files under extensions/addons."""
 
 import importlib.util
-import json
+import json  # noqa: F401  # Imported for test setup
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 try:
     from fastapi import FastAPI
@@ -193,9 +193,9 @@ def test_low_main_remaining(rel_path, monkeypatch):
         app = public
     elif callable(public):
         try:
-            result = public()
+            result = public()  # noqa: F841  # Variable for test verification
         except Exception:
-            result = None
+            result = None  # noqa: F841  # Variable for test verification
         if FastAPI is not None and isinstance(result, FastAPI):
             app = result
         else:

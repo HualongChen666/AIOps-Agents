@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for global RBAC middleware."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 from main import app

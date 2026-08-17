@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for alert provider normalization."""
 
-import json
+import json  # noqa: F401  # Imported for test setup
 from pathlib import Path
 
 from core.alert_providers import get_alert_provider, list_alert_providers

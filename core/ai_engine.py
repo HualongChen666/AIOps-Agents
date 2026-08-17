@@ -138,7 +138,7 @@ except ImportError:
 # 直接复用 core.rag_engine 的真实实现（MiniMax embedding + Qdrant），
 # 不再使用 core/ai/rag 里的 OpenAIEmbedding / VectorStoreRetrieval 占位代码。
 try:
-    from core.rag_engine import AIOpsRAG, search_similar
+    from core.rag_engine import AIOpsRAG
 
     RAG_AVAILABLE = True
 except ImportError:

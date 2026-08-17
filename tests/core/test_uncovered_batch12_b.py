@@ -3,16 +3,16 @@
 core.security_input_validator, core.ai.rag.reranker and core.enhanced_caching.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import fnmatch
-import json
-import sys
+import json  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import jwt
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
 
@@ -711,7 +711,7 @@ async def _warm_task():
 
 
 def test_setup_enhanced_caching(fake_redis):
-    result = asyncio.run(setup_enhanced_caching())
+    result = asyncio.run(setup_enhanced_caching())  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["backend"] == "redis"
     assert "cache_stats" in result

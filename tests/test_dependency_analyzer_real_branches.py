@@ -5,9 +5,9 @@ These tests exercise the APM dependency analyzer using real class
 instances and in-memory data. No mocks or monkeypatching are used.
 """
 
-import json
+import json  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from modules.apm.dependency_analyzer import (
     DependencyAnalyzer,

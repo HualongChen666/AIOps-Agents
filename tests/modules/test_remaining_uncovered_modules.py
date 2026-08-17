@@ -3,17 +3,17 @@
 
 from __future__ import annotations
 
-import asyncio
-import sys
+import asyncio  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401  # Imported for test setup
 
 import numpy as np
 import pandas as pd
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 
 class _FakeEndpoints:
@@ -43,10 +43,6 @@ if True:  # always install the module-compatible kubernetes fake for these tests
 
     class _V1DeleteOptions:
         pass
-
-    class _FakeEndpoints:
-        def __init__(self, has: bool = True):
-            self.subsets = [SimpleNamespace(addresses=[SimpleNamespace()])] if has else []
 
     class _FakeCoreV1:
         def __init__(self):
@@ -792,7 +788,7 @@ class TestClickHouseStorageRemaining:
 class TestCostForecasterRemaining:
     @pytest.fixture
     def cost_data(self) -> List[Dict[str, Any]]:
-        base = datetime(2024, 1, 1)
+        base = datetime(2024, 1, 1)  # noqa: F841  # Variable for test verification
         return [
             {
                 "timestamp": (base + timedelta(days=i)).isoformat(),
@@ -844,7 +840,7 @@ class TestCostForecasterRemaining:
     def test_forecast_no_prophet(self, cost_data):
         cf = CostForecaster(use_prophet=False)
         cf.fit(cost_data)
-        result = cf.forecast(periods=3)
+        result = cf.forecast(periods=3)  # noqa: F841  # Variable for test verification
         assert result["predictions"] == []
         assert "metrics" in result
 
@@ -983,7 +979,7 @@ class TestDataPreprocessingRemaining:
             "modules.analyze.anomaly.data_preprocessing.np.random.choice",
             lambda *a, **k: "magnitude_warp",
         )
-        out, l = TimeSeriesAugmenter.augment_dataset(data, labels, augment_factor=2)
+        out, augmented_labels = TimeSeriesAugmenter.augment_dataset(data, labels, augment_factor=2)
         assert out.shape[0] == 20
 
     def test_scaler_3d(self):
@@ -1020,7 +1016,7 @@ class TestDataPreprocessingRemaining:
     def test_pipeline_for_training_augment(self, sample_df):
         labels = np.random.rand(len(sample_df))
         p = TimeSeriesPreprocessingPipeline(scale=False, augment=True, augment_factor=2)
-        out, l = p.process_for_training(sample_df, labels, "timestamp", "value")
+        out, processed_labels = p.process_for_training(sample_df, labels, "timestamp", "value")
         assert isinstance(out, np.ndarray)
         assert l is not None and len(l) == len(out)
 

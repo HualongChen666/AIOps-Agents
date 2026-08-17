@@ -6,13 +6,13 @@ exception handling branches registered in main.py without mocking internal code.
 """
 
 import importlib
-import os
+import os  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 # Force a fast, branch-focused import of main.py for this test module.
-# Disabling add-ons at import time skips heavy optional integrations and also
+# Disabling add-ons at import time skips heavy optional integrations and also  # noqa: F401  # Imported for test setup
 # exercises the `if ENABLE_ADDONS:` false branch and the add-on skip path in
 # `main.py::lifespan`.
 os.environ["ENABLE_ADDONS"] = "false"
@@ -21,10 +21,10 @@ os.environ["AIOPS_DISABLE_SECURITY_SCAN"] = "1"
 import config
 
 importlib.reload(config)
-import main
+import main  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 importlib.reload(main)
-from main import app
+from main import app  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 
 @pytest.fixture(scope="module")

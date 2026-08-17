@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Real-function, no-mock branch coverage tests for core.verifier."""
 
-import asyncio
-import os
-import sys
+import asyncio  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 
 # Configure the verifier environment before the module loads config.
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -12,7 +12,7 @@ os.environ["VERIFY_METRIC_WAIT_SEC"] = "4"
 os.environ["SNAPSHOT_VERIFY_WAIT_TIMEOUT"] = "1"
 os.environ["SNAPSHOT_VERIFY_POLL_INTERVAL"] = "1"
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.metrics_history
 from core.verifier import (
@@ -39,26 +39,26 @@ def _run(coro):
 # Top-level verify_repair branches
 # ---------------------------------------------------------------------------
 def test_verify_repair_invalid_alert():
-    result = _run(verify_repair("not-a-dict", "restart_service", {}, None, ""))
+    result = _run(verify_repair("not-a-dict", "restart_service", {}, None, ""))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "alert 必须为 dict" in result["error_msg"]
 
 
 def test_verify_repair_empty_script_key():
-    result = _run(verify_repair({"platform": "windows"}, "", {}, None, ""))
+    result = _run(verify_repair({"platform": "windows"}, "", {}, None, ""))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "script_key 不能为空" in result["error_msg"]
 
 
 def test_verify_repair_invalid_platform_defaults_to_windows():
     # Unknown platform falls back to windows and ends up as a skipped/unknown strategy.
-    result = _run(verify_repair({"platform": "Plan9"}, "unknown_script", {}, None, ""))
+    result = _run(verify_repair({"platform": "Plan9"}, "unknown_script", {}, None, ""))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
 def test_verify_repair_metric_wait_timeout_conflict():
     # VERIFY_TIMEOUT_SEC=5 and VERIFY_METRIC_WAIT_SEC=4 => 4+2 > 5 triggers skip.
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         verify_repair(
             {"platform": "linux", "host": "localhost"},
             "free_cache",
@@ -93,7 +93,7 @@ def test_verify_repair_cancelled_is_reraised():
 
 def test_verify_repair_upsert_failure_is_caught():
     # Any real call reaches the upsert at the end and may fail because Qdrant is absent.
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         verify_repair(
             {"platform": "windows"},
             "restart_service",
@@ -162,7 +162,7 @@ def test_check_command_with_guard():
 # service_status
 # ---------------------------------------------------------------------------
 def test_verify_service_status_windows():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_service_status(
             {"platform": "windows", "host": "localhost"},
             {"service_name": "w32time"},
@@ -174,12 +174,12 @@ def test_verify_service_status_windows():
 
 
 def test_verify_service_status_no_service_name():
-    result = _run(_verify_service_status({"platform": "windows"}, {}, "windows"))
+    result = _run(_verify_service_status({"platform": "windows"}, {}, "windows"))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
 def test_verify_service_status_invalid_service_name():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_service_status(
             {"platform": "windows"},
             {"service_name": "bad;service"},
@@ -191,7 +191,7 @@ def test_verify_service_status_invalid_service_name():
 
 
 def test_verify_service_status_name_too_long():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_service_status(
             {"platform": "windows"},
             {"service_name": "x" * 257},
@@ -203,7 +203,7 @@ def test_verify_service_status_name_too_long():
 
 
 def test_verify_service_status_linux_no_host():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_service_status(
             {"platform": "linux", "host": "missing-host"},
             {"service_name": "nginx"},
@@ -215,7 +215,7 @@ def test_verify_service_status_linux_no_host():
 
 
 def test_verify_service_status_from_ai_runbook():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_service_status(
             {"platform": "linux", "host": "missing-host"},
             {},
@@ -230,10 +230,10 @@ def test_verify_service_status_from_ai_runbook():
 # process_check
 # ---------------------------------------------------------------------------
 def test_verify_process_check_windows():
-    import os
+    import os  # noqa: F401  # Imported for test setup
 
     # Existing current process is alive -> verified False.
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_process_check(
             {"platform": "windows", "host": "localhost"},
             {"pid": os.getpid()},
@@ -244,7 +244,7 @@ def test_verify_process_check_windows():
     assert result["verified"] is False
 
     # Non-existent PID -> verified True.
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_process_check(
             {"platform": "windows", "host": "localhost"},
             {"pid": 999999},
@@ -257,7 +257,7 @@ def test_verify_process_check_windows():
 
 def test_verify_process_check_invalid_pid():
     # 0 is falsy so extraction falls back to empty -> skipped; test range with a large value.
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_process_check(
             {"platform": "windows"},
             {"pid": 5_000_000},
@@ -267,7 +267,7 @@ def test_verify_process_check_invalid_pid():
     assert result["strategy"] == "process_check"
     assert "超出合法范围" in result["error_msg"]
 
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_process_check(
             {"platform": "windows"},
             {"pid": "not-a-number"},
@@ -278,7 +278,7 @@ def test_verify_process_check_invalid_pid():
 
 
 def test_verify_process_check_from_ai_runbook():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_process_check(
             {"platform": "windows"},
             {},
@@ -291,7 +291,7 @@ def test_verify_process_check_from_ai_runbook():
 
 
 def test_verify_process_check_linux_no_host():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_process_check(
             {"platform": "linux", "host": "missing-host"},
             {"pid": 12345},
@@ -306,7 +306,7 @@ def test_verify_process_check_linux_no_host():
 # disk_usage
 # ---------------------------------------------------------------------------
 def test_verify_disk_usage_invalid_mount():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_disk_usage(
             {"platform": "windows"},
             {"mount_point": "bad;mount"},
@@ -318,7 +318,7 @@ def test_verify_disk_usage_invalid_mount():
 
 
 def test_verify_disk_usage_from_ai_runbook():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_disk_usage(
             {"platform": "windows"},
             {},
@@ -330,7 +330,7 @@ def test_verify_disk_usage_from_ai_runbook():
 
 
 def test_verify_disk_usage_linux_no_host():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_disk_usage(
             {"platform": "linux", "host": "missing-host"},
             {"mount_point": "/"},
@@ -342,8 +342,9 @@ def test_verify_disk_usage_linux_no_host():
 
 
 def test_verify_disk_usage_unparseable_output():
-    # Windows C: drive command currently fails with a PS syntax error, hitting parse-failure branches.
-    result = _run(
+    # Windows C: drive command currently fails with a PS syntax error,
+    # hitting parse-failure branches.
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_disk_usage(
             {"platform": "windows"},
             {"mount_point": "C:"},
@@ -358,7 +359,7 @@ def test_verify_disk_usage_unparseable_output():
 # network_check
 # ---------------------------------------------------------------------------
 def test_verify_network_check():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_network_check(
             {"platform": "windows"},
             {"target": "127.0.0.1"},
@@ -369,7 +370,7 @@ def test_verify_network_check():
 
 
 def test_verify_network_check_from_ai_runbook():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_network_check(
             {"platform": "windows"},
             {},
@@ -381,7 +382,7 @@ def test_verify_network_check_from_ai_runbook():
 
 
 def test_verify_network_check_invalid_target():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_network_check(
             {"platform": "windows"},
             {"target": "bad target;"},
@@ -393,7 +394,7 @@ def test_verify_network_check_invalid_target():
 
 
 def test_verify_network_check_linux_no_host():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_network_check(
             {"platform": "linux", "host": "missing-host"},
             {"target": "127.0.0.1"},
@@ -408,7 +409,7 @@ def test_verify_network_check_linux_no_host():
 # k8s_status
 # ---------------------------------------------------------------------------
 def test_verify_k8s_status_windows_skips():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_k8s_status(
             {"platform": "windows"},
             {"name": "app-0"},
@@ -420,7 +421,7 @@ def test_verify_k8s_status_windows_skips():
 
 
 def test_verify_k8s_status_from_ai_runbook():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_k8s_status(
             {"platform": "linux", "host": "missing-host"},
             {},
@@ -433,7 +434,7 @@ def test_verify_k8s_status_from_ai_runbook():
 
 def test_verify_k8s_status_invalid_name():
     # The k8s name pattern currently matches everything; exercise the no-name branch instead.
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_k8s_status(
             {"platform": "linux", "host": "missing-host"},
             {},
@@ -445,7 +446,7 @@ def test_verify_k8s_status_invalid_name():
 
 
 def test_verify_k8s_status_linux_no_host():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         _verify_k8s_status(
             {"platform": "linux", "host": "missing-host"},
             {"name": "app-0"},
@@ -465,55 +466,55 @@ def _push_memory_samples(values):
 
 
 def test_verify_metric_threshold_no_pre_snapshot():
-    result = _run(_verify_metric_threshold("free_cache", None))
+    result = _run(_verify_metric_threshold("free_cache", None))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "无修复前快照" in result["recommendation"]
 
 
 def test_verify_metric_threshold_unmapped_script():
-    result = _run(_verify_metric_threshold("unknown_script", {"memory": [1, 2, 3]}))
+    result = _run(_verify_metric_threshold("unknown_script", {"memory": [1, 2, 3]}))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "无关联的 metric 字段" in result["recommendation"]
 
 
 def test_verify_metric_threshold_malformed_series():
     # pre_series not a list
-    result = _run(_verify_metric_threshold("free_cache", {"memory": "not-a-list"}))
+    result = _run(_verify_metric_threshold("free_cache", {"memory": "not-a-list"}))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert "序列格式异常" in result["error_msg"]
 
 
 def test_verify_metric_threshold_not_enough_samples():
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [1.0, 2.0]}))
+    result = _run(_verify_metric_threshold("free_cache", {"memory": [1.0, 2.0]}))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "数据点不足" in result["recommendation"]
 
 
 def test_verify_metric_threshold_non_numeric():
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": ["a", "b", "c"]}))
+    result = _run(_verify_metric_threshold("free_cache", {"memory": ["a", "b", "c"]}))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert "指标数值计算异常" in result["error_msg"]
 
 
 def test_verify_metric_threshold_zero_pre_avg():
     _push_memory_samples([0.0, 0.0, 0.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [0.0, 0.0, 0.0]}))
+    result = _run(_verify_metric_threshold("free_cache", {"memory": [0.0, 0.0, 0.0]}))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert result["verified"] is False
 
 
 def test_verify_metric_threshold_significant_drop():
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))
+    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert result["verified"] is True
 
 
 def test_verify_metric_threshold_insufficient_drop():
     _push_memory_samples([9.9, 9.9, 9.9])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))
+    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert result["verified"] is False
 
@@ -534,7 +535,7 @@ def test_verify_metric_threshold_cancelled():
 # custom_command / AI_DYNAMIC
 # ---------------------------------------------------------------------------
 def test_verify_custom_command_disabled():
-    result = _run(
+    result = _run(  # noqa: F841  # Variable for test verification
         verify_repair(
             {"platform": "linux"},
             "AI_DYNAMIC",

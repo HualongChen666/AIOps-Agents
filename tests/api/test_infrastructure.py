@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for infrastructure, cloud and integration read-only endpoints."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 _CASES = [
     # infrastructure_router.py - GET only to avoid starting external services

@@ -3,7 +3,7 @@
 
 import subprocess
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.security.penetration_testing_service.service import (
     Service as PenetrationTestingService,
@@ -23,7 +23,7 @@ from extensions.addons.security.sqlalchemy_security_service.service import (
 def _no_real_external_calls(monkeypatch):
     """Block real subprocess/network calls even if dry_run were disabled."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "false")
-    fake_result = type(
+    fake_result = type(  # noqa: F841  # Variable for test verification
         "_CompletedProcess",
         (),
         {
@@ -46,7 +46,7 @@ def _assert_service_result(result, feature):
 
 def test_penetration_testing_service_design_penetration_plan():
     service = PenetrationTestingService(dry_run=True)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "design_penetration_plan",
         {"target": "127.0.0.1", "dry_run": True},
     )
@@ -57,7 +57,7 @@ def test_penetration_testing_service_design_penetration_plan():
 
 def test_security_audit_service_run_zap_scan():
     service = SecurityAuditService(dry_run=True)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "run_zap_scan",
         {"target": "http://example.com", "dry_run": True},
     )
@@ -68,7 +68,7 @@ def test_security_audit_service_run_zap_scan():
 
 def test_security_scanning_service_manage_vulnerabilities():
     service = SecurityScanningService(dry_run=True)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "manage_vulnerabilities",
         {"dry_run": True},
     )
@@ -80,7 +80,7 @@ def test_security_scanning_service_manage_vulnerabilities():
 
 def test_sqlalchemy_security_service_parameterized_queries():
     service = SQLAlchemySecurityService(dry_run=True)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "parameterized_queries",
         {"dry_run": True},
     )

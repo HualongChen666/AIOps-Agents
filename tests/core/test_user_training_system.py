@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/user_training_system.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.user_training_system import (
     TrainingCourse,

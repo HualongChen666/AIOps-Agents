@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/linux_collector.py and core/linux_repair.py helpers."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core import linux_collector, linux_repair
 

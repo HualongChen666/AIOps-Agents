@@ -6,9 +6,9 @@ valid admin login and the internal API key. No mocks are used; data is seeded
 through the real in-memory SQLite database and the alert_history deque.
 """
 
-import json
+import json  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import api.autoheal_router as ar
 from core import alert_engine
@@ -266,7 +266,7 @@ def test_propose_runbook_disabled(client, admin_headers):
     """Temporarily disable the runbook module to cover the 503 branch."""
     original = ar.is_runbook_available
     ar.is_runbook_available = False
-    original_error = ar._runbook_import_error
+    original_error = ar._runbook_import_error  # noqa: F841  # Variable for test verification
     ar._runbook_import_error = "disabled for test"
     try:
         alert_id = "REAL-ALERT-011"
@@ -287,7 +287,7 @@ def test_propose_runbook_disabled(client, admin_headers):
         assert resp.status_code == 503
     finally:
         ar.is_runbook_available = original
-        ar._runbook_import_error = original_error
+        ar._runbook_import_error = original_error  # noqa: F841  # Variable for test verification
 
 
 # ---------------------------------------------------------------------------

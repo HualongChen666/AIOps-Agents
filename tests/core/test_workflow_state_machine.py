@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/workflow/engine/state_machine.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.workflow.engine.state_machine import (
     WorkflowEvent,

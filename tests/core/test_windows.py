@@ -6,7 +6,7 @@ import core.windows_repair
 
 
 async def test_collect_windows_host_without_winrm():
-    result = await core.windows_collector.collect_windows_host(
+    result = await core.windows_collector.collect_windows_host(  # noqa: F841  # Variable for test verification
         {"ip": "192.168.1.1", "name": "win1"}
     )
     assert "host" in result
@@ -15,12 +15,12 @@ async def test_collect_windows_host_without_winrm():
 
 async def test_collect_all_windows(monkeypatch):
     monkeypatch.setattr(core.windows_collector, "WIN_HOSTS", [])
-    result = await core.windows_collector.collect_all_windows()
-    assert result == []
+    result = await core.windows_collector.collect_all_windows()  # noqa: F841  # Variable for test verification
+    assert result == []  # noqa: F841  # Variable for test verification
 
 
 async def test_execute_windows_repair():
-    result = await core.windows_repair.execute_windows_repair(
+    result = await core.windows_repair.execute_windows_repair(  # noqa: F841  # Variable for test verification
         "restart_service", {"service_name": "foo"}
     )
     assert isinstance(result, dict)

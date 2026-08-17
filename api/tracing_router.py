@@ -64,7 +64,10 @@ def _generate_synthetic_trace(trace_id: str, seed: Optional[int] = None) -> Dict
                 "span_id": span_id,
                 "parent_id": parent_id if parent_id else None,
                 "service": service,
-                "operation": f"/api/v1/{service.replace('host-', '')}/{'health' if i % 2 == 0 else 'process'}",
+                "operation": (
+                    f"/api/v1/{service.replace('host-', '')}/"
+                    f"{'health' if i % 2 == 0 else 'process'}"
+                ),
                 "start_time": datetime.fromtimestamp(
                     base_time + i * 0.01, tz=timezone.utc
                 ).isoformat(),

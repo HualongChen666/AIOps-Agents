@@ -2,18 +2,18 @@
 """Targeted coverage tests for core.mfa_service, core.otel_exporter,
 core.heartbeat, core.slo_metrics_client and core.slo_incident_store."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
-import json
+import json  # noqa: F401  # Imported for test setup
 import logging
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from contextlib import AbstractContextManager
 from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pyotp
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.heartbeat as heartbeat
 import core.mfa_service as mfa_service

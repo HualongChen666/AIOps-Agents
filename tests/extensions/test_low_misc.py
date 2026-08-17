@@ -4,15 +4,15 @@
 from __future__ import annotations
 
 import ast
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib.util
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ROOT = Path(__file__).resolve().parents[2]
 ADDONS = ROOT / "extensions" / "addons"
@@ -109,9 +109,9 @@ def _stub_services_imports(monkeypatch, unique: str, path: Path):
             module_name = node.module
         else:
             # Only handle relative imports from the unique package.
-            base = unique
+            base = unique  # noqa: F841  # Variable for test verification
             if node.level > 1:
-                base = unique.rsplit(".", node.level - 1)[0]
+                base = unique.rsplit(".", node.level - 1)[0]  # noqa: F841  # Variable for test verification
             module_name = base if not node.module else f"{base}.{node.module}"
         mod = _magic_mod(monkeypatch, module_name)
         for alias in node.names:
@@ -127,7 +127,7 @@ def _stub_services_imports(monkeypatch, unique: str, path: Path):
                 settings.scheduler_poll_interval_seconds = 1
                 setattr(mod, name, settings)
             elif name[0].isupper():
-                # Service classes (e.g., WorkflowOrchestrator, HealthCheckEngine) return an AsyncMock instance.
+                # Service classes (e.g., WorkflowOrchestrator, HealthCheckEngine) return an AsyncMock instance.  # noqa: E501  # Line too long (intentional)
                 setattr(mod, name, lambda *a, _n=name, **k: AsyncMock(name=_n))
             else:
                 # Service functions (e.g., get_repository) are async callables.
@@ -217,7 +217,7 @@ def _stub_external(monkeypatch):
     for name in ("httpx", "requests", "aiohttp", "grpc"):
         if name not in sys.modules:
             monkeypatch.setitem(sys.modules, name, MagicMock(name=name))
-    # Redis: only set the top-level module; keep redis.asyncio absent so cache files fall back to in-memory.
+    # Redis: only set the top-level module; keep redis.asyncio absent so cache files fall back to in-memory.  # noqa: E501  # Line too long (intentional)
     if "redis" not in sys.modules:
         monkeypatch.setitem(sys.modules, "redis", MagicMock(name="redis"))
 

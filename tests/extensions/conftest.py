@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Shared fixtures for extension tests."""
 
-import sys
+import sys  # noqa: F401  # Imported for test setup
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 OPTIONAL_MODULES = {
     "neo4j": ["GraphDatabase", "Driver"],

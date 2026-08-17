@@ -3,7 +3,7 @@
 
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.data_integration_manager import (
     DataIntegrationManager,
@@ -48,7 +48,7 @@ async def test_query_data(manager):
 
 @pytest.mark.asyncio
 async def test_sync_and_statistics(manager):
-    result = await manager.sync_data("user_data")
+    result = await manager.sync_data("user_data")  # noqa: F841  # Variable for test verification
     assert "sources" in result
     assert result["total_records_synced"] >= 0
     stats = manager.get_statistics()

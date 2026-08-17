@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib.util
 import inspect
-import json
+import json  # noqa: F401  # Imported for test setup
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -149,7 +149,7 @@ class _ClientSession:
     async def __aexit__(self, *a):
         pass
 
-    async def json(self):
+    async def json_response(self):
         return {}
 
     async def text(self):

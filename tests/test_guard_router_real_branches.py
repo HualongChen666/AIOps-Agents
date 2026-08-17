@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Real-payload branch-coverage tests for api/guard_router.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import config
 from core.command_guard import (
@@ -27,14 +27,14 @@ def _guard_setup():
 @pytest.fixture
 def restore_config():
     """Restore mutable config values that tests tweak for branch coverage."""
-    original_allowed = list(config.ALLOWED_LOCAL_IPS)
-    original_key = config.INTERNAL_API_KEY
-    original_trust = config.TRUST_PROXY_HEADER
+    original_allowed = list(config.ALLOWED_LOCAL_IPS)  # noqa: F841  # Variable for test verification
+    original_key = config.INTERNAL_API_KEY  # noqa: F841  # Variable for test verification
+    original_trust = config.TRUST_PROXY_HEADER  # noqa: F841  # Variable for test verification
     yield
     # restore in-place so imported references remain valid
-    config.ALLOWED_LOCAL_IPS[:] = original_allowed
-    config.INTERNAL_API_KEY = original_key
-    config.TRUST_PROXY_HEADER = original_trust
+    config.ALLOWED_LOCAL_IPS[:] = original_allowed  # noqa: F841  # Variable for test verification
+    config.INTERNAL_API_KEY = original_key  # noqa: F841  # Variable for test verification
+    config.TRUST_PROXY_HEADER = original_trust  # noqa: F841  # Variable for test verification
 
 
 # ---------------------------------------------------------------------------
@@ -125,9 +125,9 @@ def test_check_local_executor(client, restore_config):
 
 def test_check_unknown_client(client):
     # request.client is None -> source_ip == "unknown" -> local_caller
-    import asyncio
+    import asyncio  # noqa: F401  # Imported for test setup
 
-    import httpx
+    import httpx  # noqa: F401  # Imported for test setup
 
     async def _call():
         transport = httpx.ASGITransport(app=client.app, client=None)

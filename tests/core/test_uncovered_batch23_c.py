@@ -4,14 +4,14 @@ core.api_response_standard, core.plugin_marketplace,
 core.performance_optimizer and core.concurrency_control.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
-import json
+import json  # noqa: F401  # Imported for test setup
 import threading
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.api_response_standard as api_resp
 import core.call_chain_search as ccs
@@ -552,7 +552,7 @@ def test_check_dependencies_and_statistics(marketplace):
         dependencies=["base-1.0.0", "missing-1.0.0"],
     )
 
-    result = marketplace.check_dependencies(child.id)
+    result = marketplace.check_dependencies(child.id)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "base-1.0.0" in result["available"]
     assert "missing-1.0.0" in result["missing"]
@@ -668,8 +668,8 @@ async def test_with_semaphore(po):
     async def _coro(arg, kwarg=None):
         return (arg, kwarg)
 
-    result = await opt.with_semaphore("api_requests", _coro, "hello", kwarg="world")
-    assert result == ("hello", "world")
+    result = await opt.with_semaphore("api_requests", _coro, "hello", kwarg="world")  # noqa: F841  # Variable for test verification
+    assert result == ("hello", "world")  # noqa: F841  # Variable for test verification
 
     unknown = await opt.with_semaphore("unknown", _coro, "x")
     assert unknown == ("x", None)

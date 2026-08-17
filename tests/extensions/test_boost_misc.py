@@ -1,14 +1,14 @@
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import builtins
 import importlib.util
 import inspect
 import pathlib
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 real_import = __import__
 
@@ -400,7 +400,6 @@ SENSIBLE = {
     "event": Fake,
     "execution": _make_execution,
     "exp": Fake,
-    "failed_nodes": [],
     "failed_nodes": [],
     "host": "localhost",
     "incident": Fake,

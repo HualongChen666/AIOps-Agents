@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.business_metrics as business_metrics
 import core.compliance_manager as compliance_manager
@@ -47,7 +47,7 @@ def patch_ai(monkeypatch):
 
 async def test_database_health_success(patch_db):
     checker = module_health_check.DatabaseModuleHealth()
-    result = await checker.health_check()
+    result = await checker.health_check()  # noqa: F841  # Variable for test verification
     assert result["module"] == "database"
     assert result["status"] == "healthy"
     assert result["message"] == "Database connection successful"
@@ -57,7 +57,7 @@ async def test_database_health_failure(monkeypatch):
     factory = MagicMock(side_effect=Exception("db down"))
     monkeypatch.setattr("core.db_engine.AsyncSessionLocal", factory)
     checker = module_health_check.DatabaseModuleHealth()
-    result = await checker.health_check()
+    result = await checker.health_check()  # noqa: F841  # Variable for test verification
     assert result["module"] == "database"
     assert result["status"] == "unhealthy"
     assert "db down" in result["error"]
@@ -65,7 +65,7 @@ async def test_database_health_failure(monkeypatch):
 
 async def test_redis_health_success(patch_redis):
     checker = module_health_check.RedisModuleHealth()
-    result = await checker.health_check()
+    result = await checker.health_check()  # noqa: F841  # Variable for test verification
     assert result["module"] == "redis"
     assert result["status"] == "healthy"
 
@@ -73,14 +73,14 @@ async def test_redis_health_success(patch_redis):
 async def test_redis_health_failure(monkeypatch):
     monkeypatch.setattr("redis.Redis", MagicMock(side_effect=Exception("redis down")))
     checker = module_health_check.RedisModuleHealth()
-    result = await checker.health_check()
+    result = await checker.health_check()  # noqa: F841  # Variable for test verification
     assert result["module"] == "redis"
     assert result["status"] == "unhealthy"
 
 
 async def test_ai_health_success(patch_ai):
     checker = module_health_check.AIModuleHealth()
-    result = await checker.health_check()
+    result = await checker.health_check()  # noqa: F841  # Variable for test verification
     assert result["module"] == "ai_engine"
     assert result["status"] == "healthy"
 
@@ -90,7 +90,7 @@ async def test_ai_health_failure(monkeypatch):
         "core.ai_engine.get_llm_router", MagicMock(side_effect=Exception("ai down"))
     )
     checker = module_health_check.AIModuleHealth()
-    result = await checker.health_check()
+    result = await checker.health_check()  # noqa: F841  # Variable for test verification
     assert result["module"] == "ai_engine"
     assert result["status"] == "unhealthy"
 
@@ -105,7 +105,7 @@ async def test_module_graceful_shutdowns():
 
 
 async def test_check_all_modules_health_success(monkeypatch, patch_db, patch_redis, patch_ai):
-    result = await module_health_check.check_all_modules_health()
+    result = await module_health_check.check_all_modules_health()  # noqa: F841  # Variable for test verification
     assert "database" in result
     assert "redis" in result
     assert "ai_engine" in result
@@ -125,7 +125,7 @@ async def test_check_all_modules_health_exception(monkeypatch):
         "module_health_registry",
         {"bad": BadHealth()},
     )
-    result = await module_health_check.check_all_modules_health()
+    result = await module_health_check.check_all_modules_health()  # noqa: F841  # Variable for test verification
     assert result["bad"]["status"] == "error"
     assert "boom" in result["bad"]["error"]
 
@@ -363,7 +363,7 @@ async def test_run_compliance_check_non_compliant_and_notifications(monkeypatch,
 async def test_compliance_check_exception(monkeypatch, compliance_mgr):
     monkeypatch.setattr("asyncio.sleep", AsyncMock())
     monkeypatch.setattr("random.random", lambda: (_ for _ in ()).throw(Exception("rng error")))
-    result = await compliance_mgr.run_compliance_check(rule_id="gdpr_data_minimization")
+    result = await compliance_mgr.run_compliance_check(rule_id="gdpr_data_minimization")  # noqa: F841  # Variable for test verification
     assert result[0].status == compliance_manager.ComplianceStatus.UNKNOWN
     assert "rng error" in result[0].findings[0]
 
@@ -629,6 +629,6 @@ def test_business_metrics_acknowledge_resolve_missing():
 
 
 async def test_setup_business_metrics():
-    result = await business_metrics.setup_business_metrics()
+    result = await business_metrics.setup_business_metrics()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["collector"] == "BusinessMetricsCollector"

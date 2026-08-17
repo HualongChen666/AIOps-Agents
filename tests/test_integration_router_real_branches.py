@@ -7,13 +7,13 @@ exercised.  No unittest.mock or monkeypatching is used; the only environment
 tweak is a short microservice timeout so remote add-on calls fail fast.
 """
 
-import hashlib
-import hmac
-import json
-import os
+import hashlib  # noqa: F401  # Imported for test setup
+import hmac  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
 import uuid
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

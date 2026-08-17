@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for the root cause analysis endpoints."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 _CASES = [
     ("GET", "/api/v1/root-cause/topology", None, None, {200, 503}),

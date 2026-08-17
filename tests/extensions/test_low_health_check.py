@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for every extensions/addons/**/health_check.py module."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib.util
 import inspect
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _ADDONS_ROOT = _PROJECT_ROOT / "extensions" / "addons"

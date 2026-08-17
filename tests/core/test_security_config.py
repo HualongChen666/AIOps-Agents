@@ -62,11 +62,11 @@ def test_enable_and_validate_tls(tmp_path):
     cert_path, key_path = _make_self_signed(tmp_path)
     config = SecurityConfig()
     config.enable_tls(cert_path, key_path)
-    result = config.validate_tls_certificates()
+    result = config.validate_tls_certificates()  # noqa: F841  # Variable for test verification
     assert "valid" in result
     assert "reason" in result
 
 
 def test_setup_enterprise_security():
-    result = setup_enterprise_security()
+    result = setup_enterprise_security()  # noqa: F841  # Variable for test verification
     assert "security_status" in result

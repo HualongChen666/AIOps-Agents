@@ -9,7 +9,7 @@ api/users_router.py.
 
 import uuid
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient

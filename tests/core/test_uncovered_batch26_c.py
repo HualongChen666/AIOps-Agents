@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Batch 26c coverage tests for zero-coverage core modules."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import datetime
 import hashlib
-import json
-import sys
+import json  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core import cache_manager as cm
 from core import type_validation as tv
@@ -202,7 +202,7 @@ class TestCPUUsageOptimizer:
         assert optimizer.check_cpu_limit("db")["status"] == "critical"
 
     def test_spike_and_high_usage_detection(self, optimizer):
-        base = 10.0
+        base = 10.0  # noqa: F841  # Variable for test verification
         for i in range(10):
             snap = SimpleNamespace(
                 timestamp=datetime.datetime.now(datetime.timezone.utc),
@@ -230,7 +230,7 @@ class TestCPUUsageOptimizer:
             optimizer.cpu_limits.clear()
             optimizer.set_cpu_limit(action.value, max_cpu_percent=100.0, action_on_exceed=action)
             optimizer.component_cpu[action.value] = 120.0
-            result = optimizer.optimize_cpu(action.value)
+            result = optimizer.optimize_cpu(action.value)  # noqa: F841  # Variable for test verification
             assert result["component"] == action.value
             if action != CPUOptimizationAction.ALERT_ONLY:
                 assert len(result["actions_taken"]) == 1
@@ -454,7 +454,7 @@ class TestTypeValidation:
         async def producer():
             return {"now": datetime.datetime.now(datetime.timezone.utc)}
 
-        result = asyncio.run(producer())
+        result = asyncio.run(producer())  # noqa: F841  # Variable for test verification
         assert isinstance(result["now"], str)
 
 

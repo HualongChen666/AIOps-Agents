@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Tests for the top-level config module helpers."""
 
-import os
+import os  # noqa: F401  # Imported for test setup
 from pathlib import Path
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from config import (
     _safe_bool,
@@ -77,7 +77,7 @@ def test_safe_float_parsing_and_bounds():
 
 
 def test_validate_config_returns_result_dict():
-    result = validate_config()
+    result = validate_config()  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "is_valid" in result
     assert "errors" in result

@@ -89,6 +89,6 @@ async def test_compliance_manager():
     mgr = ComplianceManager()
     await mgr.log_audit_event("login", "u1", "auth", "read")
     assert len(mgr.audit_logs) == 1
-    result = await mgr.run_compliance_check(ComplianceFramework.ISO27001)
+    result = await mgr.run_compliance_check(ComplianceFramework.ISO27001)  # noqa: F841  # Variable for test verification
     assert result["framework"] == "iso27001"
     assert result["overall_status"] == "pass"

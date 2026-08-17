@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Unit tests for core/cache_helpers.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.cache_helpers import (
     CacheInvalidationEvent,
@@ -72,8 +72,8 @@ async def test_cache_warmer():
         return x * 2
 
     warmer.register("double", double)
-    result = await warmer.warm("double", 5)
-    assert result == 10
+    result = await warmer.warm("double", 5)  # noqa: F841  # Variable for test verification
+    assert result == 10  # noqa: F841  # Variable for test verification
 
 
 class _FakeRedis:

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/database_cache_optimizer.py."""
 
-import time
+import time  # noqa: F401  # Imported for test setup
 
 from core.database_cache_optimizer import (
     DatabaseCacheOptimizer,

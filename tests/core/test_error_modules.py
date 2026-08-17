@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Unit tests for error handling modules."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.error_codes.manager import get_error_code_manager, get_error_message
 from core.error_logging.logger import get_structured_error_logger, log_error

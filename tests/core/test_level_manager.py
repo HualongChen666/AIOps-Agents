@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/logging/level/level_manager.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.logging.level.level_manager import (
     LogLevel,

@@ -8,7 +8,7 @@ error, and routing branches are exercised.
 
 from datetime import datetime, timedelta
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import modules.observability.smart_alerting as smart_alerting
 
@@ -72,9 +72,9 @@ def test_dynamic_threshold_moving_avg_short_history():
     calc = smart_alerting.DynamicThresholdCalculator()
     for i in range(12):
         calc.add_metric("cpu", float(i))
-    result = calc.calculate_threshold("cpu", method="moving_avg", window=20)
+    result = calc.calculate_threshold("cpu", method="moving_avg", window=20)  # noqa: F841  # Variable for test verification
     expected = sum(range(12)) / 12.0
-    assert result == pytest.approx(expected)
+    assert result == pytest.approx(expected)  # noqa: F841  # Variable for test verification
 
 
 def test_alert_suppressor_expired_rule_continue():

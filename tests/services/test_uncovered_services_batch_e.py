@@ -3,14 +3,14 @@
 
 from __future__ import annotations
 
-import asyncio
-import time as std_time
+import asyncio  # noqa: F401  # Imported for test setup
+import time as std_time  # noqa: F401  # Imported for test setup
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: F401  # Imported for test setup
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 import yaml
 from fastapi.testclient import TestClient
 
@@ -121,8 +121,8 @@ def test_alert_call_agent_orchestration(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(alert_main.httpx, "AsyncClient", FakeClient)
     monkeypatch.setattr(alert_main, "_AGENT_ORCH_URL", "http://agent-orch")
 
-    result = asyncio.run(alert_main._call_agent_orchestration({"id": "a3"}))
-    assert result == {"ok": True}
+    result = asyncio.run(alert_main._call_agent_orchestration({"id": "a3"}))  # noqa: F841  # Variable for test verification
+    assert result == {"ok": True}  # noqa: F841  # Variable for test verification
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +301,7 @@ def test_audit_orchestrator():
             tenant_id="t1",
             severity=AuditEventSeverity.LOW,
         )
-        result = await orchestrator.record_event(event)
+        result = await orchestrator.record_event(event)  # noqa: F841  # Variable for test verification
         assert result["event_id"] == "eo1"
 
         log = OperationLog(

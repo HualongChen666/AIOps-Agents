@@ -7,10 +7,10 @@ They do not use mocks: inputs are real Tool / ToolRegistry / ToolExecutor instan
 and real data where feasible.
 """
 
-import asyncio
-import time
+import asyncio  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.agent.tools import (
     Tool,
@@ -119,7 +119,7 @@ def test_analyze_anomaly_rejects_oversized_data_list():
 def test_dispatch_subagent_available_tools_list_branch():
     """_dispatch_subagent parses a list of available_tools."""
     reg = create_tool_registry()
-    result = reg._dispatch_subagent(
+    result = reg._dispatch_subagent(  # noqa: F841  # Variable for test verification
         goal="x",
         _depth=0,
         available_tools=["a", "b"],
@@ -132,7 +132,7 @@ def test_dispatch_subagent_available_tools_list_branch():
 def test_dispatch_subagent_available_tools_unhandled_type():
     """_dispatch_subagent leaves tools empty for unhandled available_tools types."""
     reg = create_tool_registry()
-    result = reg._dispatch_subagent(
+    result = reg._dispatch_subagent(  # noqa: F841  # Variable for test verification
         goal="x",
         _depth=0,
         available_tools=123,
@@ -193,7 +193,7 @@ def test_tool_executor_retry_and_success():
     """_execute_with_retry retries ConnectionError and records success."""
     reg = _custom_registry()
     executor = ToolExecutor(reg, retry_policy={"max_retries": 2, "backoff": [0, 0]})
-    result = executor.execute_tool("flaky", target="x")
+    result = executor.execute_tool("flaky", target="x")  # noqa: F841  # Variable for test verification
     assert result["ok"] is True
     assert result["attempts"] == 2
     assert executor.get_execution_statistics()["successful"] == 1
@@ -226,7 +226,7 @@ def test_tool_executor_dry_run_success():
     """A successful dry-run execution is recorded."""
     reg = create_tool_registry()
     executor = ToolExecutor(reg)
-    result = executor.execute_tool("collect_metrics", target="node", dry_run=True)
+    result = executor.execute_tool("collect_metrics", target="node", dry_run=True)  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
     assert executor.get_execution_statistics()["successful"] == 1
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for plugin system endpoints."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 _CASES = [
     # plugin_marketplace_router.py

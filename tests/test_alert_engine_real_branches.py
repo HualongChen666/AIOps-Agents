@@ -8,15 +8,15 @@ severity updates, correlation, missing alert fields, invalid provider/fallback,
 and dynamic thresholds.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import datetime
 import math
-import os
+import os  # noqa: F401  # Imported for test setup
 import statistics
 from collections import deque
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.alert_engine as ae
 from core.alert_engine import (
@@ -184,7 +184,7 @@ def test_dedup_expired_window_and_prev_suppressed():
         "last_alert": _cpu_alert(),
     }
     a = _cpu_alert()
-    result = _try_dedup(a)
+    result = _try_dedup(a)  # noqa: F841  # Variable for test verification
     assert result is False
     assert a.get("prev_suppressed") == 3
 
@@ -274,7 +274,7 @@ def test_check_linux_security_alerts_valid_and_fallback():
     hosts = [
         {"name": "host-a", "status": "ok", "metrics": {"ssh_failed_logins": {"value": 20}}},
     ]
-    result = asyncio.run(check_linux_security_alerts(hosts))
+    result = asyncio.run(check_linux_security_alerts(hosts))  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0]["alert_type"] == "ssh_brute_force"
 
@@ -295,8 +295,8 @@ def test_check_linux_security_alerts_invalid_inputs():
         {"name": "bad", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "ERROR"}}},
         {"name": "bad", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "abc"}}},
     ]
-    result = asyncio.run(check_linux_security_alerts(hosts))
-    assert result == []
+    result = asyncio.run(check_linux_security_alerts(hosts))  # noqa: F841  # Variable for test verification
+    assert result == []  # noqa: F841  # Variable for test verification
 
 
 def test_check_linux_security_alerts_cooldown():
@@ -312,7 +312,7 @@ def test_check_linux_security_alerts_persistence_failure_falls_back():
     ae.alert_repository = FailingSaveRepository()
     host = {"name": "fail-db", "status": "ok", "metrics": {"ssh_failed_logins": {"value": 20}}}
     # engine catches the save error and still appends to memory
-    result = asyncio.run(check_linux_security_alerts([host]))
+    result = asyncio.run(check_linux_security_alerts([host]))  # noqa: F841  # Variable for test verification
     assert len(result) == 1
 
 

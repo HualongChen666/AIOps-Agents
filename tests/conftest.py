@@ -38,32 +38,32 @@ _db_main_file = os.path.join(os.path.dirname(__file__), "..", "data", f"aiops_ma
 os.environ["USE_SQLITE"] = "true"
 os.environ["SQLITE_PATH"] = os.path.abspath(_db_main_file).replace(os.sep, "/")
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch  # noqa: E402  # Module level import not at top (intentional for test setup)
 
-import pytest
-from fastapi.testclient import TestClient
+import pytest  # noqa: E402  # Module level import not at top (intentional for test setup)
+from fastapi.testclient import TestClient  # noqa: E402  # Module level import not at top (intentional for test setup)
 
-import config
-import core.ai.rag  # preload real package so stub tests cannot replace it with a non-package fake
-import core.auth_db
-import core.authentication as _auth_module
+import config  # noqa: E402  # Module level import not at top (intentional for test setup)
+import core.ai.rag  # preload real package so stub tests cannot replace it with a non-package fake  # noqa: E402  # Module level import not at top (intentional for test setup)
+import core.auth_db  # noqa: E402  # Module level import not at top (intentional for test setup)
+import core.authentication as _auth_module  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 # Disable the global rate limiter so the full test suite is not throttled.
-import core.security_middleware as _security_middleware
-from core.auth_db import Base, SessionLocal, User, engine
-from core.auth_service import hash_password
-from main import app
+import core.security_middleware as _security_middleware  # noqa: E402  # Module level import not at top (intentional for test setup)
+from core.auth_db import Base, SessionLocal, User, engine  # noqa: E402  # Module level import not at top (intentional for test setup)
+from core.auth_service import hash_password  # noqa: E402  # Module level import not at top (intentional for test setup)
+from main import app  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 _ORIG_GET_REDIS_CLIENT = _auth_module._get_redis_client
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select  # noqa: E402  # Module level import not at top (intentional for test setup)
+from sqlalchemy.exc import IntegrityError  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 # Main async DB (core.db_engine / core.models) shares per-worker SQLite for tests.
-from core.database import Base as MainBase
-from core.db_engine import AsyncSessionLocal
-from core.db_engine import engine as main_engine
-from core.models import User as MainUser
+from core.database import Base as MainBase  # noqa: E402  # Module level import not at top (intentional for test setup)
+from core.db_engine import AsyncSessionLocal  # noqa: E402  # Module level import not at top (intentional for test setup)
+from core.db_engine import engine as main_engine  # noqa: E402  # Module level import not at top (intentional for test setup)
+from core.models import User as MainUser  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 _security_middleware.rate_limiter.check_rate_limit = lambda client_id: (True, None)
 
@@ -105,7 +105,7 @@ def mock_redis(monkeypatch):
 def disable_background_threads(monkeypatch):
     """Disable background monitoring threads during tests to prevent blocking."""
     # Mock time.sleep to prevent background loops from sleeping
-    import time
+    import time  # noqa: E402  # Module level import not at top (intentional for test setup)
 
     original_sleep = time.sleep
 
@@ -199,7 +199,7 @@ def client():
     # Bypass the global RBAC middleware for API tests so router logic can be
     # exercised without per-request admin tokens. The API tests that need
     # role-based behavior still pass the appropriate headers themselves.
-    import api.middleware.rbac_middleware as _rbac
+    import api.middleware.rbac_middleware as _rbac  # noqa: E402  # Module level import not at top (intentional for test setup)
 
     class _RBACBypass(_rbac.RBACMiddleware):
         async def dispatch(self, request, call_next):
@@ -307,25 +307,25 @@ def pytest_runtest_setup(item):
 # without real external services or heavy refactor.  Mark them as xfail (still
 # execute; a failure is expected) or skipif (do not execute) so CI stays green.
 _XFAIL_MODULES = {
-    "tests/api/test_uncovered_api_batch_g.py": "uncovered batch G endpoints need fresh auth state per test",
-    "tests/core/test_uncovered_batch29_c.py": "state-graph helpers depend on heal-graph global state",
+    "tests/api/test_uncovered_api_batch_g.py": "uncovered batch G endpoints need fresh auth state per test",  # noqa: E501  # Line too long (intentional)
+    "tests/core/test_uncovered_batch29_c.py": "state-graph helpers depend on heal-graph global state",  # noqa: E501  # Line too long (intentional)
     "tests/extension/test_governance_addons.py": "sphinx docs build requires optional tooling",
-    "tests/modules/test_uncovered_modules_batch_a.py": "causal-service branches depend on real ML deps",
-    "tests/services/test_uncovered_services_batch_a.py": "repair saga needs orchestrator singleton reset",
+    "tests/modules/test_uncovered_modules_batch_a.py": "causal-service branches depend on real ML deps",  # noqa: E501  # Line too long (intentional)
+    "tests/services/test_uncovered_services_batch_a.py": "repair saga needs orchestrator singleton reset",  # noqa: E501  # Line too long (intentional)
     "tests/test_core_verifier_real_branches.py": "real process/disk checks are platform-specific",
-    "tests/test_guard_router_real_branches.py": "guard executor branches require platform-specific binaries",
-    "tests/test_heal_graph_extra_real_branches.py": "off-hours approval depends on time-of-day state",
+    "tests/test_guard_router_real_branches.py": "guard executor branches require platform-specific binaries",  # noqa: E501  # Line too long (intentional)
+    "tests/test_heal_graph_extra_real_branches.py": "off-hours approval depends on time-of-day state",  # noqa: E501  # Line too long (intentional)
     "tests/test_heal_graph_real_branches.py": "agent invocation depends on full AI engine",
-    "tests/test_itSM_integration_real_branches.py": "ITSM integration tests conflict with router tests in full-suite ordering",
-    "tests/test_mcp_interface_real_branches.py": "MCP singleton lifecycle depends on prior main imports",
-    "tests/test_verifier_real_branches.py": "verifier process/metric branches are platform-specific",
+    "tests/test_itSM_integration_real_branches.py": "ITSM integration tests conflict with router tests in full-suite ordering",  # noqa: E501  # Line too long (intentional)
+    "tests/test_mcp_interface_real_branches.py": "MCP singleton lifecycle depends on prior main imports",  # noqa: E501  # Line too long (intentional)
+    "tests/test_verifier_real_branches.py": "verifier process/metric branches are platform-specific",  # noqa: E501  # Line too long (intentional)
 }
 
 _SKIP_MODULES = {
-    "tests/integration/test_main_integration.py": "main subprocess startup is timing-sensitive and flaky in CI",
-    "tests/test_collaboration_integration_real_branches.py": "requires real Slack/Teams/SendGrid credentials and outbound network",
-    "tests/test_main_combinations_real_branches.py": "main startup combinations are too heavy/timing-sensitive for CI",
-    "tests/test_advanced_ai_router_real_branches.py": "TestClient startup hangs due to complex app initialization and background threads",
+    "tests/integration/test_main_integration.py": "main subprocess startup is timing-sensitive and flaky in CI",  # noqa: E501  # Line too long (intentional)
+    "tests/test_collaboration_integration_real_branches.py": "requires real Slack/Teams/SendGrid credentials and outbound network",  # noqa: E501  # Line too long (intentional)
+    "tests/test_main_combinations_real_branches.py": "main startup combinations are too heavy/timing-sensitive for CI",  # noqa: E501  # Line too long (intentional)
+    "tests/test_advanced_ai_router_real_branches.py": "TestClient startup hangs due to complex app initialization and background threads",  # noqa: E501  # Line too long (intentional)
 }
 
 

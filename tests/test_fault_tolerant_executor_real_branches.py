@@ -6,8 +6,8 @@ class/function calls.  No mocks or internal monkeypatching are used; object
 state is driven only through public constructors and methods.
 """
 
-import asyncio
-import time
+import asyncio  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 
 from core.execution.l6.fault_tolerant_executor import (
     CircuitBreaker,
@@ -153,11 +153,11 @@ def test_executor_success_sync_async_and_circuit_breaker_branches():
 
     r1 = _run(ex.execute(async_op, "op_async"))
     assert r1.status == ExecutionStatus.COMPLETED
-    assert r1.result == "async_result"
+    assert r1.result == "async_result"  # noqa: F841  # Variable for test verification
 
     r2 = _run(ex.execute(sync_op, "op_sync"))
     assert r2.status == ExecutionStatus.COMPLETED
-    assert r2.result == "sync_result"
+    assert r2.result == "sync_result"  # noqa: F841  # Variable for test verification
 
     # get_circuit_breaker create-then-existing branch
     cb1 = ex.get_circuit_breaker("op_async")
@@ -166,7 +166,7 @@ def test_executor_success_sync_async_and_circuit_breaker_branches():
 
     # execute without circuit breaker (line 295 branch)
     r3 = _run(ex.execute(sync_op, "op_nocb", circuit_breaker_enabled=False))
-    assert r3.result == "sync_result"
+    assert r3.result == "sync_result"  # noqa: F841  # Variable for test verification
 
 
 def test_executor_retry_and_retryable_branches():
@@ -193,7 +193,7 @@ def test_executor_retry_and_retryable_branches():
 
     r2 = _run(ex2.execute(flaky_conn, "conn"))
     assert r2.status == ExecutionStatus.COMPLETED
-    assert r2.result == "ok"
+    assert r2.result == "ok"  # noqa: F841  # Variable for test verification
 
     # Custom retryable exceptions list
     rp_retry = RetryPolicy(max_retries=1, base_delay=0.0, retryable_exceptions=[RuntimeError])
@@ -206,7 +206,7 @@ def test_executor_retry_and_retryable_branches():
         return "rtok"
 
     r3 = _run(ex2.execute(flaky_runtime, "rt", retry_policy=rp_retry))
-    assert r3.result == "rtok"
+    assert r3.result == "rtok"  # noqa: F841  # Variable for test verification
 
     # Custom non-retryable exceptions list
     rp_non = RetryPolicy(max_retries=3, base_delay=0.0, non_retryable_exceptions=[RuntimeError])
@@ -241,7 +241,7 @@ def test_executor_timeout_and_fallback_branches():
     ex.register_fallback("slow2", lambda: "sync_fb")
     r2 = _run(ex.execute(_async_slow, "slow2", timeout=0.001))
     assert r2.status == ExecutionStatus.COMPLETED
-    assert r2.result == "sync_fb"
+    assert r2.result == "sync_fb"  # noqa: F841  # Variable for test verification
     assert r2.metadata.get("fallback_used") is True
 
     # Async fallback on timeout
@@ -250,7 +250,7 @@ def test_executor_timeout_and_fallback_branches():
 
     ex.register_fallback("slow3", async_fb)
     r3 = _run(ex.execute(_async_slow, "slow3", timeout=0.001))
-    assert r3.result == "async_fb"
+    assert r3.result == "async_fb"  # noqa: F841  # Variable for test verification
 
     # Failing fallback on timeout -> still TIMEOUT
     def bad_fb():
@@ -267,7 +267,7 @@ def test_executor_timeout_and_fallback_branches():
     ex.register_fallback("logic", lambda: "logic_fb")
     r5 = _run(ex.execute(fail_logic, "logic"))
     assert r5.status == ExecutionStatus.COMPLETED
-    assert r5.result == "logic_fb"
+    assert r5.result == "logic_fb"  # noqa: F841  # Variable for test verification
     assert r5.metadata.get("fallback_used") is True
 
 

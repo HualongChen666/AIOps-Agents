@@ -7,7 +7,7 @@ without mocks or internal monkeypatching.
 
 from datetime import datetime, timedelta
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from modules.rum.data_collector import (
     RUMDataAggregator,
@@ -191,7 +191,7 @@ def test_aggregator_all_event_types_and_browsers_and_stats():
     # empty stats
     assert aggregator.get_aggregation_statistics() == {}
 
-    base = _now_iso()
+    base = _now_iso()  # noqa: F841  # Variable for test verification
     page_view = RUMEvent(
         event_id="evt-pv",
         event_type=RUMEventType.PAGE_VIEW,

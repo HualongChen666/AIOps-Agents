@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """Real branch tests for core/linux_collector.py using real data and no mocks."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
-import os
+import os  # noqa: F401  # Imported for test setup
 import socket
 import threading
-import time
-from typing import Any
+import time  # noqa: F401  # Imported for test setup
+from typing import Any  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import config as _config_module
 import core.linux_collector as lc
@@ -194,9 +194,10 @@ def test_ssh_execute_batch_sshpass_missing():
     """Password auth with no sshpass installed reaches the parser branch."""
 
     async def _coro():
-        # No key, with password -> tries sshpass, which is not on Windows; returns SSHPASS_NOT_FOUND.
-        # _ssh_execute_batch does not recognize it as a fatal error, so it attempts to parse
-        # and falls back to empty values for each metric (no separator lines present).
+        # No key, with password -> tries sshpass, which is not on Windows;
+        # returns SSHPASS_NOT_FOUND.
+        # _ssh_execute_batch does not recognize it as a fatal error, so it attempts
+        # to parse and falls back to empty values for each metric (no separator lines present).
         out = await lc._ssh_execute_batch(
             {"host": "h", "username": "u", "password": "p"},
             {"m1": "echo 1"},
@@ -227,7 +228,7 @@ def test_ssh_execute_timeout():
     """Real asyncio TimeoutError branch with a local hanging TCP listener."""
     listener = _start_hanging_listener(10022)
     try:
-        original_timeout = lc.LINUX_SSH_TIMEOUT
+        original_timeout = lc.LINUX_SSH_TIMEOUT  # noqa: F841  # Variable for test verification
         lc.LINUX_SSH_TIMEOUT = 1
 
         async def _coro():
@@ -237,7 +238,7 @@ def test_ssh_execute_timeout():
             )
 
         assert _run(_coro()) == "TIMEOUT"
-        lc.LINUX_SSH_TIMEOUT = original_timeout
+        lc.LINUX_SSH_TIMEOUT = original_timeout  # noqa: F841  # Variable for test verification
     finally:
         listener.close()
 

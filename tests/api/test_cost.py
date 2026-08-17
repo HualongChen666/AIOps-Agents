@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for the cost monitoring endpoints."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 _CASES = [
     ("GET", "/api/cost/collect", None, None, {200, 404, 500}),

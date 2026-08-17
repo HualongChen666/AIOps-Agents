@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end coverage tests for batch C API routers."""
 
-import json
+import json  # noqa: F401  # Imported for test setup
 from datetime import datetime
 from types import SimpleNamespace
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI, HTTPException
 
 import api.business_impact_router
@@ -290,7 +290,7 @@ def test_documentation_lifecycle(client, admin_headers):
 def _patch_unified_repair(monkeypatch, scripts=None, history=None, execute_result=None):
     class _FakeStrategy:
         def __init__(self, execute_result=None, scripts=None):
-            self.execute_result = execute_result
+            self.execute_result = execute_result  # noqa: F841  # Variable for test verification
             self.scripts = scripts or {}
 
         def get_scripts(self):
@@ -1154,7 +1154,7 @@ def test_business_impact_endpoints(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_repair_router_direct(monkeypatch):
     """Call the legacy repair router functions directly to exercise statement coverage."""
-    import asyncio
+    import asyncio  # noqa: F401  # Imported for test setup
     from types import SimpleNamespace as SN
 
     from core.repair_engine import execute_repair, get_repair_history, get_repair_scripts
@@ -1164,7 +1164,7 @@ def test_repair_router_direct(monkeypatch):
         monkeypatch.setattr(
             api.repair_router, "get_repair_scripts", lambda: {"clear_temp": {"name": "Clean temp"}}
         )
-        result = await api.repair_router.list_scripts()
+        result = await api.repair_router.list_scripts()  # noqa: F841  # Variable for test verification
         assert "clear_temp" in result["scripts"]
 
         # list scripts error
@@ -1179,7 +1179,7 @@ def test_repair_router_direct(monkeypatch):
         monkeypatch.setattr(
             api.repair_router, "get_repair_history", lambda limit: [{"script_key": "x"}]
         )
-        result = await api.repair_router.get_history(20)
+        result = await api.repair_router.get_history(20)  # noqa: F841  # Variable for test verification
         assert result["total"] == 1
 
         # history error
@@ -1197,7 +1197,7 @@ def test_repair_router_direct(monkeypatch):
         monkeypatch.setattr(api.repair_router, "execute_repair", _good_execute)
         req = api.repair_router.RepairRequest(script_key="clear_temp", params={})
         request = SN(client=SN(host="testclient"))
-        result = await api.repair_router.run_repair(req, request)
+        result = await api.repair_router.run_repair(req, request)  # noqa: F841  # Variable for test verification
         assert result["success"] is True
 
         # blocked

@@ -10,7 +10,7 @@ and AsyncMock so the suite runs offline.
 from datetime import datetime
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.enhanced_ai_capabilities as ai
 import core.enhanced_root_cause_analyzer as rca
@@ -136,7 +136,7 @@ def ai_cap(monkeypatch):
 
 async def test_enhanced_ai_predict_timeseries(ai_cap):
     historical = [(datetime.now(), float(i)) for i in range(30)]
-    result = await ai_cap.predict_timeseries("cpu_usage", historical)
+    result = await ai_cap.predict_timeseries("cpu_usage", historical)  # noqa: F841  # Variable for test verification
     assert isinstance(result, ai.PredictionResult)
     assert result.prediction_type == ai.PredictionType.TIMESERIES
     assert isinstance(result.predicted_values, list)
@@ -146,7 +146,7 @@ async def test_enhanced_ai_predict_timeseries(ai_cap):
 
 async def test_enhanced_ai_predict_anomalies(ai_cap):
     historical = [(datetime.now(), float(i)) for i in range(50)]
-    result = await ai_cap.predict_anomalies("cpu_usage", 95.0, historical)
+    result = await ai_cap.predict_anomalies("cpu_usage", 95.0, historical)  # noqa: F841  # Variable for test verification
     assert isinstance(result, ai.AnomalyPrediction)
     assert isinstance(result.is_anomalous, bool)
     assert result.confidence >= 0.0
@@ -164,7 +164,7 @@ async def test_enhanced_ai_adaptive_learn(ai_cap):
 
 
 async def test_enhanced_ai_parse_natural_language(ai_cap):
-    result = await ai_cap.parse_natural_language("analyze cpu usage above 90 in the last hour")
+    result = await ai_cap.parse_natural_language("analyze cpu usage above 90 in the last hour")  # noqa: F841  # Variable for test verification
     assert isinstance(result, ai.NLParseResult)
     assert isinstance(result.intent, str)
     assert isinstance(result.entities, dict)
@@ -173,7 +173,7 @@ async def test_enhanced_ai_parse_natural_language(ai_cap):
 
 
 async def test_enhanced_ai_explain_decision(ai_cap):
-    result = await ai_cap.explain_decision("scale_up", {"metrics": {}, "confidence": 0.8})
+    result = await ai_cap.explain_decision("scale_up", {"metrics": {}, "confidence": 0.8})  # noqa: F841  # Variable for test verification
     assert isinstance(result, ai.DecisionExplanation)
     assert isinstance(result.reasoning, list)
     assert isinstance(result.alternative_options, list)
@@ -351,7 +351,7 @@ async def test_integration_manager_health_and_invoke(integration_manager):
     assert isinstance(health, dict)
     assert health["success"] is True
 
-    result = await integration_manager.trigger_jenkins_job(integration.integration_id, "build", {})
+    result = await integration_manager.trigger_jenkins_job(integration.integration_id, "build", {})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("success") is True
     assert "build" in result.get("message", "")
@@ -364,7 +364,7 @@ async def test_integration_manager_webhooks(integration_manager):
     assert isinstance(webhook_id, str)
     assert webhook_id in integration_manager.webhooks
 
-    result = await integration_manager.handle_webhook(webhook_id, {"text": "cpu high"})
+    result = await integration_manager.handle_webhook(webhook_id, {"text": "cpu high"})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("success") is True
     assert "event_id" in result

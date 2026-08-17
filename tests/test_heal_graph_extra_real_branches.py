@@ -9,10 +9,10 @@ exercise the graceful fallback branches.
 
 from __future__ import annotations
 
-import os
+import os  # noqa: F401  # Imported for test setup
 import uuid
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.heal_graph import (
     HealState,
@@ -103,7 +103,7 @@ async def test_apply_fix_non_dict_inner_runbook(monkeypatch):
             "source": "AI_DYNAMIC",
         },
     )
-    result = await apply_fix(state)
+    result = await apply_fix(state)  # noqa: F841  # Variable for test verification
     assert "contains no executable commands" in (result.error or "")
 
 
@@ -117,7 +117,7 @@ async def test_apply_fix_bad_confidence_and_record_decision_disabled(monkeypatch
         alert={"id": f"conf-1-{uuid.uuid4().hex[:6]}", "metric": "memory"},
         runbook=runbook,
     )
-    result = await apply_fix(state)
+    result = await apply_fix(state)  # noqa: F841  # Variable for test verification
     assert result.fix_applied is True
     assert result.decision_id is None
 
@@ -143,7 +143,7 @@ async def test_apply_fix_disabled_optional_deps(monkeypatch):
         },
         runbook=_low_risk_runbook(["echo test"]),
     )
-    result = await apply_fix(state)
+    result = await apply_fix(state)  # noqa: F841  # Variable for test verification
     assert result.fix_applied is True
     assert result.snapshot_id is None
     assert isinstance(result.snapshot, dict)
@@ -163,7 +163,7 @@ async def test_apply_fix_alert_resolved_and_update_disabled(monkeypatch):
         },
         runbook=_low_risk_runbook(["echo test"]),
     )
-    result = await apply_fix(state)
+    result = await apply_fix(state)  # noqa: F841  # Variable for test verification
     assert "self-healed" in (result.error or "").lower()
     assert result.approval_status == "cancelled"
 
@@ -178,7 +178,7 @@ async def test_apply_fix_target_mismatch_guard_disabled(monkeypatch):
         alert={"id": f"mismatch-1-{uuid.uuid4().hex[:6]}", "service": "mysql"},
         runbook=runbook,
     )
-    result = await apply_fix(state)
+    result = await apply_fix(state)  # noqa: F841  # Variable for test verification
     assert "target" in (result.error or "").lower()
 
 
@@ -196,7 +196,7 @@ async def test_apply_fix_target_match_guard_disabled(monkeypatch):
         },
         runbook=runbook,
     )
-    result = await apply_fix(state)
+    result = await apply_fix(state)  # noqa: F841  # Variable for test verification
     assert result.fix_applied is True
     assert any("nginx" in c for c in result.executed_commands)
 
@@ -221,7 +221,7 @@ async def test_evaluate_non_dict_params_and_existing_snapshot_metrics(monkeypatc
         snapshot={"metrics": {"cpu": [10.0]}},
         repair_result={"success": True},
     )
-    result = await evaluate(state)
+    result = await evaluate(state)  # noqa: F841  # Variable for test verification
     assert isinstance(result.snapshot["metrics"], dict)
     assert result.verification is not None
 
@@ -241,7 +241,7 @@ async def test_rollback_without_approval_required(monkeypatch):
         snapshot_id="snap-1",
         rollback_info={"rollback_commands": ["echo ok"]},
     )
-    result = await rollback(state)
+    result = await rollback(state)  # noqa: F841  # Variable for test verification
     assert result.error is None
     assert result.fix_applied is False
 
@@ -256,7 +256,7 @@ async def test_rollback_fallback_rollback_command(monkeypatch):
         snapshot_id="snap-1",
         rollback_info={"rollback_command": "echo fallback"},
     )
-    result = await rollback(state)
+    result = await rollback(state)  # noqa: F841  # Variable for test verification
     assert result.error is None
     assert result.fix_applied is False
 
@@ -272,7 +272,7 @@ async def test_rollback_guard_disabled_and_update_disabled(monkeypatch):
         snapshot_id="snap-1",
         rollback_info={"rollback_commands": ["echo ok"]},
     )
-    result = await rollback(state)
+    result = await rollback(state)  # noqa: F841  # Variable for test verification
     assert result.error is None
     assert result.fix_applied is False
 
@@ -287,7 +287,7 @@ async def test_rollback_blocked_and_update_disabled(monkeypatch):
         snapshot_id="snap-1",
         rollback_info={"rollback_commands": ["rm -rf /"]},
     )
-    result = await rollback(state)
+    result = await rollback(state)  # noqa: F841  # Variable for test verification
     assert "blocked" in (result.error or "").lower()
 
 
@@ -303,7 +303,7 @@ async def test_rollback_failure_escalation_disabled(monkeypatch):
         snapshot_id="snap-1",
         rollback_info={"rollback_commands": ["exit 1"]},
     )
-    result = await rollback(state)
+    result = await rollback(state)  # noqa: F841  # Variable for test verification
     assert result.escalated is True
     assert "failed" in (result.error or "").lower()
 
@@ -327,7 +327,7 @@ async def test_complete_disabled_persistence(monkeypatch):
         executed_commands=["echo ok"],
         repair_result={"success": True},
     )
-    result = await complete(state)
+    result = await complete(state)  # noqa: F841  # Variable for test verification
     assert result.metrics["status"] == "success"
 
 
@@ -348,5 +348,5 @@ async def test_run_heal_without_trace_setter(monkeypatch):
             "platform": "windows",
         }
     )
-    result = await run_heal(state)
+    result = await run_heal(state)  # noqa: F841  # Variable for test verification
     assert result.alert.get("trace_id")

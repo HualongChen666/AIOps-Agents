@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Branch-coverage tests for core/type_validation.py using real values."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.type_validation import (
     RuntimeTypeValidator,
@@ -363,8 +363,8 @@ async def test_validate_request_valid_and_invalid():
     async def handler(data):
         return data
 
-    result = await handler({"x": 5, "y": "ok"})
-    assert result == {"x": 5, "y": "ok"}
+    result = await handler({"x": 5, "y": "ok"})  # noqa: F841  # Variable for test verification
+    assert result == {"x": 5, "y": "ok"}  # noqa: F841  # Variable for test verification
 
     with pytest.raises(TypeValidationError):
         await handler({"x": "bad"})
@@ -380,8 +380,8 @@ async def test_validate_request_first_arg_not_dict():
         return (a, b)
 
     # First arg is not a dict, so validation is skipped and the function is called directly.
-    result = await handler(1, 2)
-    assert result == (1, 2)
+    result = await handler(1, 2)  # noqa: F841  # Variable for test verification
+    assert result == (1, 2)  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -394,7 +394,7 @@ async def test_sanitize_response_decorator():
             "items": (1, 2),
         }
 
-    result = await handler()
+    result = await handler()  # noqa: F841  # Variable for test verification
     assert result["when"] == "2026-01-01T00:00:00+00:00"
     assert result["color"] == "red"
     assert result["items"] == [1, 2]

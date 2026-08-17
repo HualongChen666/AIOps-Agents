@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """Real API coverage tests for the Phase 3/4 uncovered routers."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import pathlib
 import tempfile
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Any
+from typing import Any  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import api.ai_router
 import api.dashboard_router

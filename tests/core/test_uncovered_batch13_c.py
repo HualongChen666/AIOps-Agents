@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.chat_command_handler as cch
 import core.exceptions.critical as critical
@@ -40,7 +40,7 @@ def test_system_fatal_exception():
         service="auth",
         error_code_detail="AUTH_001",
         context={"host": "h1"},
-        original_exception=original,
+        original_exception=original,  # noqa: F841  # Variable for test verification
     )
     assert exc.message == "system down"
     assert exc.error_code == "20_15_0001"
@@ -250,9 +250,9 @@ def test_composite_filter(monkeypatch):
 @pytest.fixture
 def fresh_workflows(monkeypatch):
     """Provide an isolated copy of workflow definitions for mutating tests."""
-    original_raw = wf._WORKFLOW_DEFINITIONS_RAW
-    original_keys = wf._VALID_WF_KEYS
-    snapshot = copy.deepcopy(original_raw)
+    original_raw = wf._WORKFLOW_DEFINITIONS_RAW  # noqa: F841  # Variable for test verification
+    original_keys = wf._VALID_WF_KEYS  # noqa: F841  # Variable for test verification
+    snapshot = copy.deepcopy(original_raw)  # noqa: F841  # Variable for test verification
     monkeypatch.setattr(wf, "_WORKFLOW_DEFINITIONS_RAW", snapshot)
     monkeypatch.setattr(wf, "_VALID_WF_KEYS", frozenset(snapshot.keys()))
     yield snapshot
@@ -335,8 +335,8 @@ def test_safe_extract_step():
 @pytest.mark.asyncio
 async def test_execute_langgraph_workflow_not_available(monkeypatch):
     monkeypatch.setattr(wf, "_langgraph_executor", None)
-    result = await wf.execute_langgraph_workflow("w1", {"x": 1})
-    assert result == {"error": "LangGraph not available"}
+    result = await wf.execute_langgraph_workflow("w1", {"x": 1})  # noqa: F841  # Variable for test verification
+    assert result == {"error": "LangGraph not available"}  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -346,8 +346,8 @@ async def test_execute_langgraph_workflow_success(monkeypatch):
     monkeypatch.setattr(wf, "_langgraph_executor", executor)
     monkeypatch.setattr(wf, "Workflow", MagicMock(), raising=False)
     monkeypatch.setattr(wf, "LLMNode", MagicMock(), raising=False)
-    result = await wf.execute_langgraph_workflow("w1", {"x": 1})
-    assert result == {"ok": True}
+    result = await wf.execute_langgraph_workflow("w1", {"x": 1})  # noqa: F841  # Variable for test verification
+    assert result == {"ok": True}  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -357,7 +357,7 @@ async def test_execute_langgraph_workflow_failure(monkeypatch):
     monkeypatch.setattr(wf, "_langgraph_executor", executor)
     monkeypatch.setattr(wf, "Workflow", MagicMock(), raising=False)
     monkeypatch.setattr(wf, "LLMNode", MagicMock(), raising=False)
-    result = await wf.execute_langgraph_workflow("w1", {"x": 1})
+    result = await wf.execute_langgraph_workflow("w1", {"x": 1})  # noqa: F841  # Variable for test verification
     assert "error" in result
 
 
@@ -507,7 +507,7 @@ def test_parse_chat_command_roles(monkeypatch):
 
 def test_parse_chat_command_scenarios(monkeypatch):
     monkeypatch.setenv("CHAT_COMMAND_ROLES", "alice:admin,oncall,sre")
-    base = {"user_id": "alice", "user_name": "Alice", "channel": "slack", "verified": True}
+    base = {"user_id": "alice", "user_name": "Alice", "channel": "slack", "verified": True}  # noqa: F841  # Variable for test verification
 
     status = cch.parse_chat_command("现在状态如何", **base)
     assert status.action == cch.ActionType.STATUS
@@ -535,7 +535,7 @@ def test_parse_chat_command_scenarios(monkeypatch):
 
 
 def test_handle_instruction():
-    result = cch.handle_instruction("状态", user_id="admin", verified=True)
+    result = cch.handle_instruction("状态", user_id="admin", verified=True)  # noqa: F841  # Variable for test verification
     assert result["action"] == "status"
     assert result["allowed"] is True
     assert "risk_level" in result

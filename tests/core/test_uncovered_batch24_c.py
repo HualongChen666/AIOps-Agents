@@ -4,11 +4,11 @@ core.data_lineage, core.processing.l3.causal_graph, core.macos_collector
 and core.error_codes.manager.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import config
 import core.error_codes.manager as error_codes_manager
@@ -50,7 +50,7 @@ def test_batch_sqlite_to_prometheus():
         {"name": "a.b", "value": 1.0, "labels": {"x": "1"}, "timestamp": 1_000},
         {"name": "c-d", "value": 2.0, "labels": {}},
     ]
-    result = metrics_converter.MetricsConverter.batch_sqlite_to_prometheus(metrics)
+    result = metrics_converter.MetricsConverter.batch_sqlite_to_prometheus(metrics)  # noqa: F841  # Variable for test verification
     assert "a_b" in result
     assert "c_d" in result
     assert result.count("\n") == 2
@@ -82,7 +82,7 @@ def test_system_snapshot_to_prometheus_all_sections():
         "disk": {"usage_percent": 70.0, "total_gb": 512.0, "used_gb": 200.0},
         "network": {"rx_bytes": 1024, "tx_bytes": 2048},
     }
-    result = metrics_converter.MetricsConverter.system_snapshot_to_prometheus(snapshot)
+    result = metrics_converter.MetricsConverter.system_snapshot_to_prometheus(snapshot)  # noqa: F841  # Variable for test verification
     assert "aiops_cpu_usage_percent" in result
     assert "aiops_cpu_core_usage_percent" in result
     assert "aiops_memory_usage_percent" in result
@@ -391,7 +391,7 @@ def test_propagate_anomaly():
     graph.add_node(n1)
     graph.add_node(n2)
     graph.add_edge(causal_graph_module.CausalEdgeClass("src", "dst", 0.8))
-    result = graph.propagate_anomaly("src", 0.9)
+    result = graph.propagate_anomaly("src", 0.9)  # noqa: F841  # Variable for test verification
     assert result["source_node"] == "src"
     assert result["affected_count"] == 2
 
@@ -461,32 +461,32 @@ def mac_config(monkeypatch):
 
 
 def test_run_command_remote_not_supported():
-    result = asyncio.run(macos_collector._run_command("remote-host", "whoami"))
+    result = asyncio.run(macos_collector._run_command("remote-host", "whoami"))  # noqa: F841  # Variable for test verification
     assert "not supported" in result["stderr"]
     assert result["stdout"] == ""
 
 
 def test_run_command_success(mock_subprocess_factory):
     asyncio.run(mock_subprocess_factory(stdout=b"user\n", stderr=b""))
-    result = asyncio.run(macos_collector._run_command("localhost", "whoami"))
+    result = asyncio.run(macos_collector._run_command("localhost", "whoami"))  # noqa: F841  # Variable for test verification
     assert result["stdout"] == "user\n"
     assert result["stderr"] == ""
 
 
 def test_run_command_failure_and_timeout(mock_subprocess_factory):
     asyncio.run(mock_subprocess_factory(raise_=asyncio.TimeoutError("timed out")))
-    result = asyncio.run(macos_collector._run_command("localhost", "sleep 10"))
+    result = asyncio.run(macos_collector._run_command("localhost", "sleep 10"))  # noqa: F841  # Variable for test verification
     assert "timed out" in result["stderr"]
 
     asyncio.run(mock_subprocess_factory(raise_=OSError("boom")))
-    result = asyncio.run(macos_collector._run_command("localhost", "cmd"))
+    result = asyncio.run(macos_collector._run_command("localhost", "cmd"))  # noqa: F841  # Variable for test verification
     assert "boom" in result["stderr"]
 
 
 def test_collect_macos_metrics_not_darwin(monkeypatch, mac_config):
     monkeypatch.setattr("platform.system", lambda: "Windows")
     monkeypatch.setattr(macos_collector, "psutil", None)
-    result = asyncio.run(macos_collector.collect_macos_metrics(["localhost"]))
+    result = asyncio.run(macos_collector.collect_macos_metrics(["localhost"]))  # noqa: F841  # Variable for test verification
     assert "localhost" in result
     assert "Darwin" in result["localhost"]["error"]
 
@@ -494,7 +494,7 @@ def test_collect_macos_metrics_not_darwin(monkeypatch, mac_config):
 def test_collect_macos_metrics_psutil_missing(monkeypatch, mac_config):
     monkeypatch.setattr("platform.system", lambda: "Darwin")
     monkeypatch.setattr(macos_collector, "psutil", None)
-    result = asyncio.run(macos_collector.collect_macos_metrics(["localhost"]))
+    result = asyncio.run(macos_collector.collect_macos_metrics(["localhost"]))  # noqa: F841  # Variable for test verification
     assert "psutil is not installed" in result["localhost"]["error"]
 
 
@@ -506,7 +506,7 @@ def test_collect_macos_metrics_success(monkeypatch, mac_config):
     fake_psutil.disk_usage = lambda path: MagicMock(percent=67.0)
     monkeypatch.setattr(macos_collector, "psutil", fake_psutil)
 
-    result = asyncio.run(macos_collector.collect_macos_metrics(["localhost"]))
+    result = asyncio.run(macos_collector.collect_macos_metrics(["localhost"]))  # noqa: F841  # Variable for test verification
     assert result["localhost"]["status"] == "ok"
     assert result["localhost"]["cpu"] == 12.5
     assert result["localhost"]["mem"] == 45.0
@@ -514,7 +514,7 @@ def test_collect_macos_metrics_success(monkeypatch, mac_config):
 
 
 def test_collect_macos_metrics_remote_host_rejected(mac_config):
-    result = asyncio.run(macos_collector.collect_macos_metrics(["remote"]))
+    result = asyncio.run(macos_collector.collect_macos_metrics(["remote"]))  # noqa: F841  # Variable for test verification
     assert "only supported on localhost" in result["remote"]["error"]
 
 

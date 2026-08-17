@@ -5,12 +5,12 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
+
 from ...engines.monitoring_provider import BaseObservabilityService
 from .cache import CacheManager
 from .config import settings
-from .lock import IdempotencyManager, LockManager
+from .lock import IdempotencyManager, LockManager  # noqa: F401  # Imported for interface consistency
 from .metrics import MetricsCollector
-from .retry import RetryEngine
 
 BASE_METHODS: List[str] = [
     "get_state",

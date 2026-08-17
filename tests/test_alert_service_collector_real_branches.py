@@ -9,10 +9,10 @@ repository and message queue instances.
 
 from __future__ import annotations
 
-import time
+import time  # noqa: F401  # Imported for test setup
 from datetime import datetime
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -497,6 +497,6 @@ def test_health_metrics_and_list(client):
     m = client.get("/metrics")
     assert m.status_code == 200
 
-    l = client.get("/alerts?limit=1")
-    assert l.status_code == 200
-    assert l.json()["total"] >= 1
+    alerts_response = client.get("/alerts?limit=1")
+    assert alerts_response.status_code == 200
+    assert alerts_response.json()["total"] >= 1

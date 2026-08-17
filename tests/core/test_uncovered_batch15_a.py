@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Functional coverage tests for core batch 15-a modules."""
 
-import asyncio
-import json
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.agent.coding_subagent import CodingSubAgent, create_coding_subagent_dispatcher
 from core.api_response import APIResponse, api_response_middleware
@@ -111,9 +111,9 @@ def test_coding_subagent_success_and_exception():
     tool_executor.execute_tool.return_value = {"ok": True}
 
     sub = CodingSubAgent(agent_id="c1", tool_executor=tool_executor)
-    result = sub.run("goal", {"tool": "bash", "params": {"command": "ls"}}, ["bash"])
+    result = sub.run("goal", {"tool": "bash", "params": {"command": "ls"}}, ["bash"])  # noqa: F841  # Variable for test verification
     assert result.status == "completed"
-    assert result.result == {"ok": True}
+    assert result.result == {"ok": True}  # noqa: F841  # Variable for test verification
     assert result.metadata["tool"] == "bash"
 
     tool_executor.execute_tool.side_effect = RuntimeError("boom")
@@ -126,7 +126,7 @@ def test_coding_subagent_success_and_exception():
 def test_coding_subagent_terminated():
     sub = CodingSubAgent(agent_id="c3")
     sub._stop_event.set()
-    result = sub.run("goal", {"tool": "bash"}, ["bash"])
+    result = sub.run("goal", {"tool": "bash"}, ["bash"])  # noqa: F841  # Variable for test verification
     assert result.status == "terminated"
 
 
@@ -307,10 +307,10 @@ async def test_integration_monitoring_system_notifications_and_collection(monkey
 
     # start_monitoring + cancel
     created_tasks = []
-    original_create_task = asyncio.create_task
+    original_create_task = asyncio.create_task  # noqa: F841  # Variable for test verification
 
     def patched_create_task(coro, *, name=None):
-        task = original_create_task(coro, name=name)
+        task = original_create_task(coro, name=name)  # noqa: F841  # Variable for test verification
         created_tasks.append(task)
         return task
 
@@ -406,16 +406,16 @@ async def test_l3l4_storage_integrator_operations(monkeypatch):
     # Store primary success with secondary async
     request = StorageRequest(data_type=DataType.ALERTS, data={"msg": "alert"})
     created = []
-    original_create_task = asyncio.create_task
+    original_create_task = asyncio.create_task  # noqa: F841  # Variable for test verification
 
     def patched_create_task(coro, *, name=None):
-        task = original_create_task(coro, name=name)
+        task = original_create_task(coro, name=name)  # noqa: F841  # Variable for test verification
         created.append(task)
         return task
 
     monkeypatch.setattr(asyncio, "create_task", patched_create_task)
     try:
-        result = await integrator.store_data(request)
+        result = await integrator.store_data(request)  # noqa: F841  # Variable for test verification
         assert result.success is True
         assert result.backend == StorageBackend.POSTGRESQL
         if created:

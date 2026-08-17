@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -178,12 +178,12 @@ def _find_update_field_and_value(model, create_payload):
                 break
     if chosen is None:
         return None, None
-    base = _sensible_value(_field_annotation(fields[chosen]))
-    if base == "x":
+    base = _sensible_value(_field_annotation(fields[chosen]))  # noqa: F841  # Variable for test verification
+    if base == "x":  # noqa: F841  # Variable for test verification
         return chosen, "y"
-    if base == 0:
+    if base == 0:  # noqa: F841  # Variable for test verification
         return chosen, 1
-    if base == 0.0:
+    if base == 0.0:  # noqa: F841  # Variable for test verification
         return chosen, 1.1
     if base is True:
         return chosen, False
@@ -238,7 +238,7 @@ def test_addon_microservice_full_crud_flow(main_path: Path):
         pytest.skip(f"create failed for {main_path}: {create_resp.status_code}")
 
     data = create_resp.json()
-    result = data.get("result", {})
+    result = data.get("result", {})  # noqa: F841  # Variable for test verification
     item_id = _extract_id(result)
     if not item_id:
         pytest.skip(f"create did not return an id for {main_path}")

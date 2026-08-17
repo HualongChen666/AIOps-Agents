@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for batch E uncovered API routers."""
 
-import asyncio
-import json
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.api]
 
@@ -1322,7 +1322,7 @@ def test_windows_repair_router_error_paths(client, admin_headers, monkeypatch):
             wrr, "find_windows_host_config", lambda host, _ok=True: {"name": host, "ip": "1.1.1.1"}
         )
 
-        if result == "string":
+        if result == "string":  # noqa: F841  # Variable for test verification
             monkeypatch.setattr(wrr, "execute_windows_repair", make_execute("not a dict"))
         else:
             monkeypatch.setattr(wrr, "execute_windows_repair", make_execute(result))

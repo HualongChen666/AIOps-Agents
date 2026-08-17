@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/performance_scheduler.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytest.importorskip("apscheduler")
 

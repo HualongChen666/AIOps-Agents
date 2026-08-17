@@ -3,7 +3,7 @@
 
 from types import SimpleNamespace
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.observability.distributed_tracing_service.service import (
     Service as DistributedTracingService,
@@ -84,7 +84,7 @@ def _assert_valid_result(result, feature):
 
 def test_distributed_tracing_collect_traces_jaeger(fake_monitoring_provider):
     service = _make_service(DistributedTracingService)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "collect_traces_jaeger",
         {"service": "api", "limit": 10},
     )
@@ -93,7 +93,7 @@ def test_distributed_tracing_collect_traces_jaeger(fake_monitoring_provider):
 
 def test_log_aggregation_collect_logs_fluentd(fake_monitoring_provider):
     service = _make_service(LogAggregationService)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "collect_logs_fluentd",
         {"query": "*"},
     )
@@ -102,7 +102,7 @@ def test_log_aggregation_collect_logs_fluentd(fake_monitoring_provider):
 
 def test_metrics_monitoring_collect_metrics_prometheus(fake_monitoring_provider):
     service = _make_service(MetricsMonitoringService)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "collect_metrics_prometheus",
         {"target": "http://prometheus:9090", "metric": "up"},
     )
@@ -111,7 +111,7 @@ def test_metrics_monitoring_collect_metrics_prometheus(fake_monitoring_provider)
 
 def test_topology_discover_topology(fake_monitoring_provider):
     service = _make_service(TopologyService)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "discover_topology",
         {"source": "cmdb"},
     )
@@ -120,7 +120,7 @@ def test_topology_discover_topology(fake_monitoring_provider):
 
 def test_tracing_install_jaeger(fake_monitoring_provider):
     service = _make_service(TracingService)
-    result = service.execute_operation(
+    result = service.execute_operation(  # noqa: F841  # Variable for test verification
         "install_jaeger",
         {"service": "api"},
     )

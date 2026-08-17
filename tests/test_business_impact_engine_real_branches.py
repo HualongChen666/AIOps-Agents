@@ -5,7 +5,7 @@ These tests exercise the business impact engine using real function/class
 calls and project data.  No mocks or internal monkeypatching are used.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import hashlib
 
 import config
@@ -20,7 +20,7 @@ _LINUX_HOSTS = [
 ]
 
 # topology_engine reads config.LINUX_HOSTS at call time;
-# business_impact_engine loaded from config at import time, so we set both.
+# business_impact_engine loaded from config at import time, so we set both.  # noqa: F401  # Imported for test setup
 config.LINUX_HOSTS = _LINUX_HOSTS
 import core.business_impact_engine as bie  # noqa: E402
 from core.business_impact_engine import (  # noqa: E402

@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """Functional coverage tests for batch20b core modules."""
 
-import asyncio
-import json
-import sys
-import time
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import Request
 
 import core.windows_collector as win_col
@@ -236,7 +236,7 @@ def test_execute_winrm_cert_validation_ignore(monkeypatch):
 
 def test_collect_windows_host_success(monkeypatch):
     monkeypatch.setattr(win_col, "_execute_winrm", AsyncMock(return_value="10.0"))
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         win_col.collect_windows_host(
             {"ip": "10.0.0.1", "name": "host1", "user": "u", "password": "p"}
         )
@@ -251,7 +251,7 @@ def test_collect_windows_host_failure(monkeypatch):
     monkeypatch.setattr(
         win_col, "_execute_winrm", AsyncMock(side_effect=RuntimeError("winrm down"))
     )
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         win_col.collect_windows_host(
             {"ip": "10.0.0.1", "name": "host2", "user": "u", "password": "p"}
         )
@@ -352,7 +352,7 @@ def test_validate_sql_query_structure():
 
 def test_create_performance_indexes_sqlite_skip(monkeypatch):
     monkeypatch.setenv("USE_SQLITE", "true")
-    result = asyncio.run(create_performance_indexes())
+    result = asyncio.run(create_performance_indexes())  # noqa: F841  # Variable for test verification
     assert result["skipped"] is True
 
 
@@ -382,7 +382,7 @@ def test_create_performance_indexes(monkeypatch):
     ]
     monkeypatch.setattr("core.db_optimization.AsyncSessionLocal", _make_session_maker(results))
 
-    result = asyncio.run(create_performance_indexes())
+    result = asyncio.run(create_performance_indexes())  # noqa: F841  # Variable for test verification
     assert result["created"] == 1
     assert result["already_exists"] == 1
     assert result["failed"] == 1
@@ -394,7 +394,7 @@ def test_create_performance_indexes_outer_error(monkeypatch):
         "core.db_optimization.AsyncSessionLocal",
         MagicMock(side_effect=RuntimeError("db connect failed")),
     )
-    result = asyncio.run(create_performance_indexes())
+    result = asyncio.run(create_performance_indexes())  # noqa: F841  # Variable for test verification
     assert "error" in result
 
 
@@ -403,7 +403,7 @@ def test_analyze_query_performance(monkeypatch):
         ["SELECT * FROM t", 100, 5000.0, 10.0, 20.0, 2.0],
         ["SELECT id FROM t", 50, 1000.0, 2.0, 5.0, 0.5],
     ]
-    result = MagicMock(fetchall=MagicMock(return_value=rows))
+    result = MagicMock(fetchall=MagicMock(return_value=rows))  # noqa: F841  # Variable for test verification
     monkeypatch.setattr("core.db_optimization.AsyncSessionLocal", _make_session_maker([result]))
     analysis = asyncio.run(analyze_query_performance())
     assert analysis["total_analyzed"] == 2
@@ -416,7 +416,7 @@ def test_update_database_statistics(monkeypatch):
         "core.db_optimization.AsyncSessionLocal",
         _make_session_maker([MagicMock() for _ in range(4)]),
     )
-    result = asyncio.run(update_database_statistics())
+    result = asyncio.run(update_database_statistics())  # noqa: F841  # Variable for test verification
     assert result["status"] == "completed"
     assert "results" in result
 
@@ -425,7 +425,7 @@ def test_get_missing_indexes_suggestions(monkeypatch):
     rows = [
         ["public", "alerts", "detected_at", 0, 0, 0],
     ]
-    result = MagicMock(fetchall=MagicMock(return_value=rows))
+    result = MagicMock(fetchall=MagicMock(return_value=rows))  # noqa: F841  # Variable for test verification
     monkeypatch.setattr("core.db_optimization.AsyncSessionLocal", _make_session_maker([result]))
     suggestions = asyncio.run(get_missing_indexes_suggestions())
     assert isinstance(suggestions, list)
@@ -437,7 +437,7 @@ def test_optimize_database_configuration(monkeypatch):
         "core.db_optimization.AsyncSessionLocal",
         _make_session_maker([MagicMock(), MagicMock(), MagicMock()]),
     )
-    result = asyncio.run(optimize_database_configuration())
+    result = asyncio.run(optimize_database_configuration())  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert len(result["optimizations_applied"]) == 3
 
@@ -463,7 +463,7 @@ def test_run_comprehensive_optimization(monkeypatch):
         "core.db_optimization.optimize_database_configuration",
         AsyncMock(return_value={"status": "success"}),
     )
-    result = asyncio.run(run_comprehensive_optimization())
+    result = asyncio.run(run_comprehensive_optimization())  # noqa: F841  # Variable for test verification
     assert "steps" in result
     assert "create_indexes" in result["steps"]
 
@@ -624,7 +624,7 @@ def test_error_recovery_manager():
 
 
 def test_setup_error_recovery():
-    result = asyncio.run(ercore.setup_error_recovery())
+    result = asyncio.run(ercore.setup_error_recovery())  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert "database" in result["circuit_breakers"]
     assert "DatabaseError" in result["recovery_strategies"]

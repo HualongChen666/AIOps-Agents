@@ -315,7 +315,8 @@ class SecurityScanner:
 
         rules = [
             (
-                r"(cursor|session|db|conn|connection)\.execute\s*\([^)]*([+]|%s|%d|\.format|f[\"'])",
+                r"(cursor|session|db|conn|connection)\.execute\s*\([^)]*"
+                r"([+]|%s|%d|\.format|f[\"'])",
                 "Possible SQL injection in execute() call",
             ),
             (

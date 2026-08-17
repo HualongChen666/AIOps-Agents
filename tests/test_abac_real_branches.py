@@ -2,11 +2,11 @@
 """Real-branch coverage tests for core.abac without mocks or monkeypatching."""
 
 import datetime as dt
-import json
+import json  # noqa: F401  # Imported for test setup
 import re
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.abac import (
     ABACEngine,

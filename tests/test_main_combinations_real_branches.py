@@ -8,9 +8,9 @@ that environment.
 """
 
 import importlib
-import os
+import os  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 ALL_PACK_FLAGS = [

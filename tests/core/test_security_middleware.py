@@ -3,7 +3,7 @@
 
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from starlette.responses import Response
 
 from core.security_middleware import (

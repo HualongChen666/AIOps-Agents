@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import time
+import time  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.redis_cluster_manager import RedisClusterManager
 

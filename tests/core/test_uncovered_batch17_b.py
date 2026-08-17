@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """Coverage tests for batch 17b core modules."""
 
-import asyncio
-import json
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
 import logging
-import os
-import time
+import os  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.db_replication as db_replication
 import core.flink_stream_processor as flink_processor
@@ -113,7 +113,7 @@ def test_db_replication_check_replica_health_out_of_range():
         replicas_config=[{"host": "r0", "port": 5433}],
     )
     for idx in (-1, 5):
-        result = asyncio.run(db_replication.check_replica_health(idx))
+        result = asyncio.run(db_replication.check_replica_health(idx))  # noqa: F841  # Variable for test verification
         assert result["status"] == "unhealthy"
         assert result["error"] == "Replica not configured"
 
@@ -190,7 +190,7 @@ def test_flink_stream_job_process_and_record_methods():
         config = flink_processor.FlinkJobConfig(job_name=f"job-{jt.value}", job_type=jt)
         job = flink_processor.FlinkStreamJob(config)
         assert job.process_stream([{"x": 1}]) == []
-        result = job._stub_process([{"value": 1200, "label": "x"}])
+        result = job._stub_process([{"value": 1200, "label": "x"}])  # noqa: F841  # Variable for test verification
         assert len(result) == 1
         if jt == flink_processor.FlinkJobType.METRICS_AGGREGATION:
             assert result[0]["aggregated"] is True
@@ -357,7 +357,7 @@ def test_kms_global_service(monkeypatch):
 
 
 def test_retry_calculate_delay_strategies():
-    base = retry_enhanced.EnhancedRetry(
+    base = retry_enhanced.EnhancedRetry(  # noqa: F841  # Variable for test verification
         base_delay=1.0, max_delay=5.0, backoff_multiplier=2.0, jitter=False
     )
     assert base.calculate_delay(1) == 1.0

@@ -110,7 +110,9 @@ class CliExecutor:
 
 
 class AnsibleExecutor(CliExecutor):
-    """Run Ansible playbooks, preferring modules.execute.auto_heal.playbook_manager.PlaybookManager when possible."""
+    """Run Ansible playbooks, preferring modules.execute.auto_heal.
+
+    playbook_manager.PlaybookManager when possible."""
 
     def run(self, args=None, cwd=None, env=None, check: bool = False):
         if args is None:

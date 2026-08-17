@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/data_lifecycle_manager.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.data_lifecycle_manager import (
     DataCategory,
@@ -21,19 +21,19 @@ def test_get_retention_days():
 @pytest.mark.asyncio
 async def test_archive_old_data():
     manager = DataLifecycleManager()
-    result = await manager.archive_old_data(DataCategory.ALERTS)
+    result = await manager.archive_old_data(DataCategory.ALERTS)  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["category"] == DataCategory.ALERTS.value
-    result = await manager.archive_old_data(DataCategory.TEMPORARY)
+    result = await manager.archive_old_data(DataCategory.TEMPORARY)  # noqa: F841  # Variable for test verification
     assert result["status"] == "skipped"
-    result = await manager.archive_old_data("unknown")
+    result = await manager.archive_old_data("unknown")  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
 
 
 @pytest.mark.asyncio
 async def test_cleanup_temp_data():
     manager = DataLifecycleManager()
-    result = await manager.cleanup_temp_data()
+    result = await manager.cleanup_temp_data()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert "deleted_count" in result
 
@@ -41,9 +41,9 @@ async def test_cleanup_temp_data():
 @pytest.mark.asyncio
 async def test_apply_retention_policy():
     manager = DataLifecycleManager()
-    result = await manager.apply_retention_policy(DataCategory.METRICS)
+    result = await manager.apply_retention_policy(DataCategory.METRICS)  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
-    result = await manager.apply_retention_policy(DataCategory.CONFIGURATION)
+    result = await manager.apply_retention_policy(DataCategory.CONFIGURATION)  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
 
@@ -64,6 +64,6 @@ def test_rules_and_stats():
 
 @pytest.mark.asyncio
 async def test_setup_data_lifecycle():
-    result = await setup_data_lifecycle()
+    result = await setup_data_lifecycle()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert "rules_count" in result

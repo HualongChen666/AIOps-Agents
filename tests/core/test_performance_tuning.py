@@ -13,12 +13,12 @@ from core.performance_tuning import (
 
 
 def test_system_limits():
-    result = apply_system_limits()
+    result = apply_system_limits()  # noqa: F841  # Variable for test verification
     assert "max_open_files" in result
 
 
 def test_python_optimizations():
-    result = apply_python_optimizations()
+    result = apply_python_optimizations()  # noqa: F841  # Variable for test verification
     assert "gc_threshold" in result
 
 
@@ -28,17 +28,17 @@ def test_uvicorn_config():
 
 
 def test_environment_tuning():
-    result = apply_environment_tuning()
+    result = apply_environment_tuning()  # noqa: F841  # Variable for test verification
     assert "python_optimize" in result
 
 
 def test_recommendations():
-    result = get_performance_recommendations()
+    result = get_performance_recommendations()  # noqa: F841  # Variable for test verification
     assert "recommendations" in result
 
 
 def test_comprehensive_and_monitor():
-    result = apply_comprehensive_tuning()
+    result = apply_comprehensive_tuning()  # noqa: F841  # Variable for test verification
     assert "steps" in result
     assert "system_limits" in result["steps"]
     metrics = monitor_performance_metrics()

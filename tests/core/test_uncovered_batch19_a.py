@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Coverage tests for batch 19a core modules."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import logging
 from datetime import datetime
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.core]
 

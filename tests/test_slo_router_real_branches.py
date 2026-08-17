@@ -9,7 +9,7 @@ for role-based and CRUD branches.
 
 import uuid
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -343,7 +343,7 @@ def test_sla_report_branches(
     )
     assert r.status_code == 200
     assert r.json()["generated_ids"]
-    report_id = r.json()["generated_ids"][0]
+    report_id = r.json()["generated_ids"][0]  # noqa: F841  # Variable for test verification
 
     # Viewer cannot generate reports (no editable SLO).
     r = slo_client.post(
@@ -376,7 +376,7 @@ def test_sla_report_branches(
         params={"period": "30d"},
     )
     assert r.status_code == 200
-    report_id2 = r.json()["generated_ids"][0]
+    report_id2 = r.json()["generated_ids"][0]  # noqa: F841  # Variable for test verification
 
     # Viewer cannot delete an editable report.
     r = slo_client.delete(f"/api/v1/slo/reports/{report_id2}", headers=biz_view_headers)

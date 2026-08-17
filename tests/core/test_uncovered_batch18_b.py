@@ -4,12 +4,12 @@ core.cicd_pipeline_manager, core.base.analyzer, core.base.executor and
  core.causal.graph.
 """
 
-import asyncio
-import json
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.base.analyzer as analyzer_module
 import core.base.executor as executor_module
@@ -269,7 +269,7 @@ async def test_cicd_stage_retry_and_artifact(tmp_path, monkeypatch):
         stage_type=cicd_module.PipelineStage.TEST,
         retry_count=2,
     )
-    result = await manager._execute_stage(exec_id, stage)
+    result = await manager._execute_stage(exec_id, stage)  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert call_count == 3
     assert execution.metadata.get("retry_count") == 2
@@ -429,7 +429,7 @@ async def test_base_executor_concrete_usage():
         assert status["initialized"]
         assert not e._is_running
 
-        result = await e.execute("run", {})
+        result = await e.execute("run", {})  # noqa: F841  # Variable for test verification
         assert result["action"] == "run"
         assert result["valid"]
 

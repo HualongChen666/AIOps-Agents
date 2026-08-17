@@ -3,13 +3,13 @@
 core.intelligent_alert_analyzer.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.core]
 
@@ -89,7 +89,7 @@ def eca_full(monkeypatch):
 
 def test_causal_analysis_mode_and_result():
     assert eca.CausalAnalysisMode.BATCH.value == "batch"
-    result = eca.CausalAnalysisResult()
+    result = eca.CausalAnalysisResult()  # noqa: F841  # Variable for test verification
     assert result.root_causes == []
     assert result.confidence == 0.0
 
@@ -108,7 +108,7 @@ async def test_enhanced_analyze_with_full_components(eca_full):
         "disk": [1.0, 2.0, 1.0, 2.0],
     }
     timestamps = [datetime.now(timezone.utc) for _ in range(len(data["cpu"]))]
-    result = await eca_full.analyze_causal_relationships(data, timestamps, target_variable="cpu")
+    result = await eca_full.analyze_causal_relationships(data, timestamps, target_variable="cpu")  # noqa: F841  # Variable for test verification
     assert isinstance(result, eca.CausalAnalysisResult)
     assert result.confidence > 0.0
     assert "memory" in result.root_causes
@@ -132,7 +132,7 @@ async def test_enhanced_analyze_error_path(eca_full, monkeypatch):
     monkeypatch.setattr(eca, "TimeSeriesPreprocessor", BadPreprocessor)
     an = eca.get_enhanced_causal_analyzer(config={"mode": "realtime"})
     data = {"cpu": [1.0]}
-    result = await an.analyze_causal_relationships(
+    result = await an.analyze_causal_relationships(  # noqa: F841  # Variable for test verification
         data, [datetime.now(timezone.utc)], target_variable="cpu"
     )
     assert isinstance(result, eca.CausalAnalysisResult)
@@ -406,7 +406,7 @@ async def test_intelligent_noise_reduction_and_known_patterns():
         now,
     )
     # no matching pattern yet -> not suppressed
-    result = await a.reduce_alert_noise([alert])
+    result = await a.reduce_alert_noise([alert])  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0].id == "n1"
 

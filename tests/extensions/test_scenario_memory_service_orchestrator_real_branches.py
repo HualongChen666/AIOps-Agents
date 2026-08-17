@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.operations.scenario_memory_service.cache import CacheManager
 from extensions.addons.operations.scenario_memory_service.config import ScenarioMemorySettings

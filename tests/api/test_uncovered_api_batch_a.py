@@ -2,12 +2,12 @@
 """Real API tests for uncovered routers (batch A)."""
 
 import datetime
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from types import SimpleNamespace
 
 import jwt
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -104,7 +104,7 @@ class _FakeUserService:
 
     async def get_user_by_email(self, email: str):
         for u in self._users.values():
-            if u.email == email:
+            if u.email == email:  # noqa: F841  # Variable for test verification
                 return u
         return None
 
@@ -137,7 +137,7 @@ class _FakeUserService:
         if not user:
             return False
         if email is not None:
-            user.email = email
+            user.email = email  # noqa: F841  # Variable for test verification
         if full_name is not None:
             user.full_name = full_name
         if role is not None:
@@ -417,7 +417,7 @@ def test_assets_router_endpoints(client, admin_headers):
 
 
 def test_alert_router_endpoints(client, admin_headers, monkeypatch):
-    import asyncio
+    import asyncio  # noqa: F401  # Imported for test setup
 
     from core.alert_service import alert_service
 

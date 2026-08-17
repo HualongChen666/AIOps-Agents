@@ -11,7 +11,7 @@ Covers branches and edge cases in:
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.ai_engine as ai_engine
 import core.analysis.l2.enhanced_causal_analyzer as eca
@@ -171,11 +171,11 @@ def test_is_abnormal_false(rci_engine):
 
 
 async def test_topology_source_not_found(rci_engine):
-    result = await rci_engine.perform_cross_layer_tracking(
+    result = await rci_engine.perform_cross_layer_tracking(  # noqa: F841  # Variable for test verification
         {"id": "a1", "service": "missing"}, max_depth=3
     )
     assert isinstance(result, list)
-    assert result == ["missing"]
+    assert result == ["missing"]  # noqa: F841  # Variable for test verification
 
 
 async def test_find_common_upstream_single(rci_engine):
@@ -203,7 +203,7 @@ def test_learn_and_update_historical_pattern(rci_engine):
 async def test_causal_graph_analysis(rci_engine):
     alert = {"id": "a5", "source_service": "svc", "metric": "cpu", "value": 99}
     metrics = {"cpu": 99}
-    result = await rci_engine._causal_graph_analysis(alert, metrics)
+    result = await rci_engine._causal_graph_analysis(alert, metrics)  # noqa: F841  # Variable for test verification
     assert isinstance(result, list)
     assert all(isinstance(h, rci.RootCauseHypothesis) for h in result)
     assert result[0].causal_path[0] == "svc"
@@ -212,7 +212,7 @@ async def test_causal_graph_analysis(rci_engine):
 async def test_ml_based_analysis(rci_engine):
     alert = {"metric": "cpu", "value": 100, "threshold": 80}
     metrics = {"cpu": 10.0, "cpu2": 20.0}
-    result = await rci_engine._ml_based_analysis(alert, metrics)
+    result = await rci_engine._ml_based_analysis(alert, metrics)  # noqa: F841  # Variable for test verification
     assert isinstance(result, list)
     assert isinstance(result[0], rci.RootCauseHypothesis)
     assert 0.0 <= result[0].confidence <= 1.0
@@ -273,7 +273,7 @@ async def test_verify_root_cause_scenarios(rci_engine):
         "observed_symptoms": ["dns timeout"],
         "dns_resolution_error_rate": 2.0,
     }
-    result = await rci_engine.verify_root_cause(hyp, data)
+    result = await rci_engine.verify_root_cause(hyp, data)  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["verification_status"] in (
         "verified",
@@ -375,14 +375,14 @@ async def test_run_heal_success_path(monkeypatch, stub_heal):
 
 async def test_apply_fix_no_runbook(stub_heal):
     state = hg.HealState(alert={"id": "alert-3"})
-    result = await stub_heal.apply_fix(state)
+    result = await stub_heal.apply_fix(state)  # noqa: F841  # Variable for test verification
     assert isinstance(result, hg.HealState)
     assert "No valid runbook" in (result.error or "")
 
 
 async def test_apply_fix_missing_alert_id(stub_heal):
     state = hg.HealState(alert={"title": "no id"}, runbook={"success": True})
-    result = await stub_heal.apply_fix(state)
+    result = await stub_heal.apply_fix(state)  # noqa: F841  # Variable for test verification
     assert "Missing alert_id" in (result.error or "")
 
 
@@ -391,7 +391,7 @@ async def test_generate_runbook_success(stub_heal):
         alert={"id": "g1", "title": "x", "desc": "y"},
         analysis={"query": "x"},
     )
-    result = await stub_heal.generate_runbook(state)
+    result = await stub_heal.generate_runbook(state)  # noqa: F841  # Variable for test verification
     assert isinstance(result.runbook, dict)
     assert result.runbook.get("success") is True
 
@@ -402,7 +402,7 @@ async def test_evaluate_string_runbook(stub_heal):
         fix_applied=True,
         runbook="plain runbook text",
     )
-    result = await stub_heal.evaluate(state)
+    result = await stub_heal.evaluate(state)  # noqa: F841  # Variable for test verification
     assert isinstance(result.verification, dict)
     assert result.verification.get("passed") is True
 
@@ -415,7 +415,7 @@ async def test_rollback_blocked_without_approval(monkeypatch, stub_heal):
         approval_status=None,
         rollback_info={"rollback_commands": ["echo rollback"]},
     )
-    result = await stub_heal.rollback(state)
+    result = await stub_heal.rollback(state)  # noqa: F841  # Variable for test verification
     assert isinstance(result, hg.HealState)
     assert "not approved" in (result.error or "").lower()
 
@@ -428,7 +428,7 @@ async def test_rollback_no_commands(stub_heal):
         rollback_info={"rollback_commands": []},
         snapshot_id="snap-123",
     )
-    result = await stub_heal.rollback(state)
+    result = await stub_heal.rollback(state)  # noqa: F841  # Variable for test verification
     assert isinstance(result, hg.HealState)
 
 
@@ -438,13 +438,13 @@ async def test_complete_status_variants(stub_heal):
         fix_applied=True,
         verification={"passed": True},
     )
-    result = await stub_heal.complete(state)
+    result = await stub_heal.complete(state)  # noqa: F841  # Variable for test verification
     assert result.metrics.get("status") == "success"
 
     state.fix_applied = True
     state.verification = {"passed": False}
     state.error = "it failed"
-    result = await stub_heal.complete(state)
+    result = await stub_heal.complete(state)  # noqa: F841  # Variable for test verification
     assert result.metrics.get("status") == "failure"
 
 
@@ -494,7 +494,7 @@ async def test_langgraph_engine_analyze_fallback(l2_engine, monkeypatch):
             "escalation_recommended": False,
         },
     )
-    result = await l2_engine.analyze("dns latency", context={"cluster": "c1"})
+    result = await l2_engine.analyze("dns latency", context={"cluster": "c1"})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "candidates" in result or "error" in result
 
@@ -510,7 +510,7 @@ def test_langgraph_query_builders(l2_engine):
 
 
 def test_langgraph_assess_completeness(l2_engine):
-    result = l2_engine._assess_completeness({"data": []}, {"_data_completeness": "failed"})
+    result = l2_engine._assess_completeness({"data": []}, {"_data_completeness": "failed"})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["metrics_available"] is True
     assert result["logs_available"] is False
@@ -538,7 +538,7 @@ async def test_enhanced_causal_analyze_relationships(eca_analyzer):
         "disk": [1.0, 2.0, 3.0, 4.0],
     }
     timestamps = [datetime.now(timezone.utc) for _ in range(len(data["cpu"]))]
-    result = await eca_analyzer.analyze_causal_relationships(
+    result = await eca_analyzer.analyze_causal_relationships(  # noqa: F841  # Variable for test verification
         data, timestamps, target_variable="cpu"
     )
     assert isinstance(result, eca.CausalAnalysisResult)
@@ -548,7 +548,7 @@ async def test_enhanced_causal_analyze_relationships(eca_analyzer):
 
 async def test_enhanced_causal_realtime(eca_analyzer):
     stream = {"cpu": 80.0, "memory": 70.0}
-    result = await eca_analyzer.realtime_analysis(stream, window_size=10)
+    result = await eca_analyzer.realtime_analysis(stream, window_size=10)  # noqa: F841  # Variable for test verification
     assert isinstance(result, eca.CausalAnalysisResult)
     assert result.confidence == 0.7
     assert "cpu" in result.root_causes

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Batch B coverage tests for assigned service modules."""
 
-import asyncio
-import time
+import asyncio  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 from services.agent_orchestration_service.retry import AgentRetryEngine, RetryPolicy
@@ -53,7 +53,7 @@ def test_snapshot_store():
 @pytest.mark.asyncio
 async def test_rollback_engine_all_strategies():
     engine = RollbackEngine()
-    result = RepairExecutionResult(task_id="t1", success=False)
+    result = RepairExecutionResult(task_id="t1", success=False)  # noqa: F841  # Variable for test verification
     cases = [
         ("cpu_high", "process"),
         ("service_restart", "service"),
@@ -556,7 +556,7 @@ async def test_runbook_executor_success():
         name="ok",
         steps=[RepairStep(name="s1", command="echo ok")],
     )
-    result = await ex.execute("t1", rb)
+    result = await ex.execute("t1", rb)  # noqa: F841  # Variable for test verification
     assert result.success is True
     assert "executed_steps" in result.model_dump()
 
@@ -569,7 +569,7 @@ async def test_runbook_executor_failure():
         name="f",
         steps=[RepairStep(name="s1", command="this will fail")],
     )
-    result = await ex.execute("t1", rb)
+    result = await ex.execute("t1", rb)  # noqa: F841  # Variable for test verification
     assert result.success is False
 
 
@@ -577,7 +577,7 @@ async def test_runbook_executor_failure():
 async def test_runbook_executor_validation():
     ex = RunbookExecutor(dry_run=True)
     rb = RepairRunbook(runbook_id="bad", name="bad", steps=[])
-    result = await ex.execute("t1", rb)
+    result = await ex.execute("t1", rb)  # noqa: F841  # Variable for test verification
     assert result.success is False
     assert "must contain at least one step" in result.error
 
@@ -586,11 +586,11 @@ async def test_runbook_executor_validation():
 async def test_runbook_executor_strategy():
     ex = RunbookExecutor(dry_run=True)
     missing = RepairStrategy(name="x", script_key="does_not_exist", platform=PlatformType.LINUX)
-    result = await ex.execute_strategy("t1", missing)
+    result = await ex.execute_strategy("t1", missing)  # noqa: F841  # Variable for test verification
     assert result.success is False
 
     found = RepairStrategy(name="m", script_key="memory_high", platform=PlatformType.LINUX)
-    result = await ex.execute_strategy("t2", found)
+    result = await ex.execute_strategy("t2", found)  # noqa: F841  # Variable for test verification
     assert result.success is True
 
 

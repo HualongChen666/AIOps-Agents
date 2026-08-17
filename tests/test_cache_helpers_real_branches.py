@@ -7,13 +7,13 @@ used where needed so the Redis serialization / fallback / error branches
 are reached without requiring a live Redis server.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import fnmatch
-import json
-import time
+import json  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.cache_helpers import (
     CacheInvalidationEvent,
@@ -495,8 +495,8 @@ async def test_intelligent_warmer_basic():
     assert cache.get("warm_double:5") == 10
 
     assert warmer.predict_next_access("double") == 0.0
-    result = await warmer.warm_with_prediction("double", 3)
-    assert result == 6
+    result = await warmer.warm_with_prediction("double", 3)  # noqa: F841  # Variable for test verification
+    assert result == 6  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -520,8 +520,8 @@ async def test_intelligent_warmer_prediction():
     interval = warmer.predict_next_access("inc")
     assert interval > 0.0
 
-    result = await warmer.warm_with_prediction("inc", 5)
-    assert result == 6
+    result = await warmer.warm_with_prediction("inc", 5)  # noqa: F841  # Variable for test verification
+    assert result == 6  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio

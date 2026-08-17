@@ -34,7 +34,7 @@ def test_data_privacy_config():
 
 def test_detect_and_contains_pii():
     text = "Contact me at user@example.com or call 123-456-7890"
-    result = detect_pii(text)
+    result = detect_pii(text)  # noqa: F841  # Variable for test verification
     assert "email" in result
     assert contains_pii(text) is True
     assert contains_pii("no pii here") is False

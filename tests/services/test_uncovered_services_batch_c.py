@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
-import time
-from typing import Any, Dict, List, Optional
+import time  # noqa: F401  # Imported for test setup
+from typing import Any, Dict, List, Optional  # noqa: F401  # Imported for test setup
 from unittest.mock import AsyncMock
 
 import httpx
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -410,7 +410,7 @@ async def test_alert_collector_private_helpers():
     )
     assert _alert_priority(alert_resolved) == -1000
 
-    alert_pending = Alert(
+    alert_pending = Alert(  # noqa: F841  # Variable for test verification
         id="a",
         title="t",
         level=AlertSeverity.CRITICAL,
@@ -553,7 +553,7 @@ def test_repair_verifier_endpoints(verifier_client):
         },
         "result": {"service_name": "redis"},
     }
-    result = {"task_id": "t1", "success": True}
+    result = {"task_id": "t1", "success": True}  # noqa: F841  # Variable for test verification
     resp = verifier_client.post("/verify", json={"task": task, "result": result})
     assert resp.status_code == 200
     data = resp.json()
@@ -686,7 +686,7 @@ async def test_repair_repository():
     await repo.save(t2)
 
     assert await repo.count() == 2
-    pending = await repo.list(status=RepairStatus.PENDING)
+    pending = await repo.list(status=RepairStatus.PENDING)  # noqa: F841  # Variable for test verification
     assert len(pending) == 1
 
     ok = await repo.update("t2", {"status": RepairStatus.COMPLETED})
@@ -757,8 +757,6 @@ def test_repair_strategy_manager():
 
 
 async def test_health_check_engine(monkeypatch):
-    from services.repair_service.health_check import HealthCheckEngine
-
     # The real engine would shell out; mock _run for speed.
     engine = HealthCheckEngine(timeout=1)
 

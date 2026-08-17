@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for extensions/hardware_remediation."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 
 @pytest.mark.smoke

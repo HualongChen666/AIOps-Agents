@@ -492,8 +492,6 @@ def create_self_healing_engine() -> SelfHealingEngine:
 # 8️⃣ CLI 用于快速测试
 # ----------------------------------------------------------------------
 if __name__ == "__main__":  # pragma: no cover
-    from datetime import timedelta
-
     logging.basicConfig(level=logging.INFO)
 
     # 测试故障自愈引擎

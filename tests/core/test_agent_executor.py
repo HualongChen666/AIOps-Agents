@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Unit tests for core/agent/executor.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.agent.executor import (
     RiskAssessor,
@@ -68,7 +68,7 @@ def test_autonomous_executor_plan_dry_run():
     executor = create_autonomous_executor()
     executor.tool_executor.dry_run = True
     executor.set_execution_mode("hybrid")
-    result = executor.execute_plan(
+    result = executor.execute_plan(  # noqa: F841  # Variable for test verification
         goal="collect cpu metrics",
         context={"target": "system"},
         available_tools=["collect_metrics", "collect_logs"],

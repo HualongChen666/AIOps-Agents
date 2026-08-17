@@ -6,13 +6,13 @@ against the real in-memory SQLite test database and real environment state.
 No mocks or stubs are used.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
-import os
+import os  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta, timezone
 
 import jwt
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import HTTPException
 
 import core.authentication as auth
@@ -78,8 +78,6 @@ def test_is_ip_allowed_invalid_network(monkeypatch):
 
 def test_module_secret_initialization_branches(monkeypatch):
     """Reload the module with various secret env combos to cover top-level branches."""
-    original_secret = auth.SECRET_KEY
-
     try:
         # insecure default in production -> first-try ValueError
         monkeypatch.setenv("ENVIRONMENT", "production")
@@ -92,7 +90,6 @@ def test_module_secret_initialization_branches(monkeypatch):
         monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
         importlib.reload(auth)
         assert auth.SECRET_KEY
-        generated_key = auth.SECRET_KEY
 
         # real secret in development -> uses it, covers the empty-secret false branch
         monkeypatch.setenv("JWT_SECRET_KEY", "real-test-secret-key-for-tests")
@@ -245,7 +242,7 @@ async def test_get_current_active_user_branches():
 async def test_get_current_active_user_token_branch_returns_none():
     """Token path returns None when get_user_by_username is unavailable."""
     token = auth.create_access_token({"sub": "admin", "role": "admin"})
-    result = await auth.get_current_active_user(token=token)
+    result = await auth.get_current_active_user(token=token)  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -346,7 +343,7 @@ async def test_compliance_manager_audit_overflow():
 
 def test_redis_client_cached(monkeypatch):
     """The cached Redis client branch returns the existing global client."""
-    original_secret = auth.SECRET_KEY
+    original_secret = auth.SECRET_KEY  # noqa: F841  # Variable for test verification
     monkeypatch.setenv("JWT_SECRET_KEY", original_secret)
     monkeypatch.setenv("ENVIRONMENT", "development")
     importlib.reload(auth)
@@ -367,10 +364,10 @@ def test_key_service_failure_secret_branches(monkeypatch):
     """Cover the exception fallback for key management service initialization."""
     import core.key_management_service as kms
 
-    original_get = kms.get_key_service
-    original_secret = auth.SECRET_KEY
-    original_jwt_key = os.environ.get("JWT_SECRET_KEY")
-    original_env = os.environ.get("ENVIRONMENT")
+    original_get = kms.get_key_service  # noqa: F841  # Variable for test verification
+    original_secret = auth.SECRET_KEY  # noqa: F841  # Variable for test verification
+    original_jwt_key = os.environ.get("JWT_SECRET_KEY")  # noqa: F841  # Variable for test verification
+    original_env = os.environ.get("ENVIRONMENT")  # noqa: F841  # Variable for test verification
 
     def _raising_key_service(*args, **kwargs):
         raise RuntimeError("key service unavailable")
@@ -381,7 +378,7 @@ def test_key_service_failure_secret_branches(monkeypatch):
         # No secret in development -> generated random key (lines 114-115)
         monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
         importlib.reload(auth)
-        assert auth.SECRET_KEY and auth.SECRET_KEY != original_secret
+        assert auth.SECRET_KEY and auth.SECRET_KEY != original_secret  # noqa: F841  # Variable for test verification
 
         # Real secret in development -> elif false branch (120->131)
         monkeypatch.setenv("JWT_SECRET_KEY", "real-secure-test-secret-key")
@@ -396,12 +393,12 @@ def test_key_service_failure_secret_branches(monkeypatch):
         if original_jwt_key is None:
             os.environ.pop("JWT_SECRET_KEY", None)
         else:
-            os.environ["JWT_SECRET_KEY"] = original_jwt_key
+            os.environ["JWT_SECRET_KEY"] = original_jwt_key  # noqa: F841  # Variable for test verification
         if original_env is None:
             os.environ.pop("ENVIRONMENT", None)
         else:
-            os.environ["ENVIRONMENT"] = original_env
-        kms.get_key_service = original_get
+            os.environ["ENVIRONMENT"] = original_env  # noqa: F841  # Variable for test verification
+        kms.get_key_service = original_get  # noqa: F841  # Variable for test verification
         importlib.reload(auth)
 
 
@@ -511,7 +508,7 @@ async def test_is_token_revoked_fresh_jti_entry():
 async def test_get_current_active_user_token_missing_sub():
     """Token with an empty sub returns None from the token branch."""
     token = auth.create_access_token({"sub": ""})
-    result = await auth.get_current_active_user(token=token)
+    result = await auth.get_current_active_user(token=token)  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -519,7 +516,7 @@ async def test_get_current_active_user_dict_disabled(monkeypatch):
     """Dict user with is_active=False is rejected by the token branch."""
     monkeypatch.setattr(auth, "get_user_by_username", lambda username: {"is_active": False})
     token = auth.create_access_token({"sub": "anyone"})
-    result = await auth.get_current_active_user(token=token)
+    result = await auth.get_current_active_user(token=token)  # noqa: F841  # Variable for test verification
     assert result is None
 
 

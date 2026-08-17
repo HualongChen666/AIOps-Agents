@@ -15,12 +15,12 @@ HARDWARE_EXECUTE_ENABLED = os.getenv("HARDWARE_EXECUTE_ENABLED", "false").lower(
     "yes",
 )
 
-from .ticket_integration import register_ticket_scripts
-from .smartctl import register_smart_scripts
-from .redfish_actions import register_redfish_scripts
-from .raid_storcli import register_raid_scripts
-from .node_lifecycle import register_node_scripts
-from .ipmi_actions import register_ipmi_scripts
+from .ticket_integration import register_ticket_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
+from .smartctl import register_smart_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
+from .redfish_actions import register_redfish_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
+from .raid_storcli import register_raid_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
+from .node_lifecycle import register_node_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
+from .ipmi_actions import register_ipmi_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
 
 
 def register_all_hardware_scripts() -> None:

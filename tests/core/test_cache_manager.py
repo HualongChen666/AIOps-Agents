@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/cache_manager.py public API."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.cache_manager import (
     MemoryCacheBackend,

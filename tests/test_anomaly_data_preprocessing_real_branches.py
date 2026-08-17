@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from modules.analyze.anomaly.data_preprocessing import (
     MultiModalDataPreparer,
@@ -96,7 +96,7 @@ def test_load_from_database_valid_params_eventually_raises() -> None:
 )
 def test_handle_missing_values_methods(method: str, expected: pd.Series) -> None:
     df = pd.DataFrame({"value": [1.0, np.nan, 3.0]})
-    result = TimeSeriesCleaner.handle_missing_values(df, method=method)
+    result = TimeSeriesCleaner.handle_missing_values(df, method=method)  # noqa: F841  # Variable for test verification
     pd.testing.assert_series_equal(
         result["value"].reset_index(drop=True), expected, check_names=False
     )
@@ -104,13 +104,13 @@ def test_handle_missing_values_methods(method: str, expected: pd.Series) -> None
 
 def test_handle_missing_values_interpolate() -> None:
     df = pd.DataFrame({"value": [1.0, np.nan, 3.0, np.nan, 5.0]})
-    result = TimeSeriesCleaner.handle_missing_values(df, method="interpolate")
+    result = TimeSeriesCleaner.handle_missing_values(df, method="interpolate")  # noqa: F841  # Variable for test verification
     assert result["value"].notna().all()
 
 
 def test_handle_missing_values_drop() -> None:
     df = pd.DataFrame({"value": [1.0, np.nan, 3.0]})
-    result = TimeSeriesCleaner.handle_missing_values(df, method="drop")
+    result = TimeSeriesCleaner.handle_missing_values(df, method="drop")  # noqa: F841  # Variable for test verification
     assert len(result) == 2
 
 
@@ -122,25 +122,25 @@ def test_handle_missing_values_unknown_method_raises() -> None:
 
 def test_remove_outliers_iqr_removes_outliers() -> None:
     df = pd.DataFrame({"value": [1.0, 2.0, 3.0, 4.0, 100.0]})
-    result = TimeSeriesCleaner.remove_outliers(df, method="iqr", threshold=1.5)
+    result = TimeSeriesCleaner.remove_outliers(df, method="iqr", threshold=1.5)  # noqa: F841  # Variable for test verification
     assert len(result) < len(df)
 
 
 def test_remove_outliers_zscore() -> None:
     df = pd.DataFrame({"value": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]})
-    result = TimeSeriesCleaner.remove_outliers(df, method="zscore", threshold=2.0)
+    result = TimeSeriesCleaner.remove_outliers(df, method="zscore", threshold=2.0)  # noqa: F841  # Variable for test verification
     assert len(result) < len(df)
 
 
 def test_remove_outliers_isolation() -> None:
     df = pd.DataFrame({"value": list(range(20)) + [999.0]})
-    result = TimeSeriesCleaner.remove_outliers(df, method="isolation")
+    result = TimeSeriesCleaner.remove_outliers(df, method="isolation")  # noqa: F841  # Variable for test verification
     assert len(result) <= len(df)
 
 
 def test_remove_outliers_no_outliers() -> None:
     df = pd.DataFrame({"value": [1.0, 2.0, 3.0, 4.0, 5.0]})
-    result = TimeSeriesCleaner.remove_outliers(df, method="zscore", threshold=5.0)
+    result = TimeSeriesCleaner.remove_outliers(df, method="zscore", threshold=5.0)  # noqa: F841  # Variable for test verification
     assert len(result) == len(df)
 
 
@@ -155,7 +155,7 @@ def test_resample_aggregations(agg: str) -> None:
     n = 10
     timestamps = pd.date_range("2024-01-01", periods=n, freq="1min")
     df = pd.DataFrame({"timestamp": timestamps, "value": np.arange(n, dtype=float)})
-    result = TimeSeriesCleaner.resample(df, freq="5min", agg=agg)
+    result = TimeSeriesCleaner.resample(df, freq="5min", agg=agg)  # noqa: F841  # Variable for test verification
     assert isinstance(result, pd.DataFrame)
     assert "timestamp" in result.columns and "value" in result.columns
     assert len(result) > 0
@@ -174,7 +174,7 @@ def test_resample_unknown_aggregation_raises() -> None:
 
 def test_add_lag_features() -> None:
     df = _sample_df(10)
-    result = TimeSeriesFeatureEngineer.add_lag_features(df, lags=[1, 3])
+    result = TimeSeriesFeatureEngineer.add_lag_features(df, lags=[1, 3])  # noqa: F841  # Variable for test verification
     assert "value_lag_1" in result.columns
     assert "value_lag_3" in result.columns
     assert len(result) == len(df)
@@ -182,7 +182,7 @@ def test_add_lag_features() -> None:
 
 def test_add_rolling_features() -> None:
     df = _sample_df(10)
-    result = TimeSeriesFeatureEngineer.add_rolling_features(df, windows=[3])
+    result = TimeSeriesFeatureEngineer.add_rolling_features(df, windows=[3])  # noqa: F841  # Variable for test verification
     assert "value_rolling_mean_3" in result.columns
     assert "value_rolling_std_3" in result.columns
     assert len(result) == len(df)
@@ -190,7 +190,7 @@ def test_add_rolling_features() -> None:
 
 def test_add_time_features() -> None:
     df = _sample_df(10)
-    result = TimeSeriesFeatureEngineer.add_time_features(df)
+    result = TimeSeriesFeatureEngineer.add_time_features(df)  # noqa: F841  # Variable for test verification
     for col in [
         "hour",
         "day_of_week",
@@ -205,10 +205,10 @@ def test_add_time_features() -> None:
 
 def test_add_statistical_features() -> None:
     df = _sample_df(20)
-    result = TimeSeriesFeatureEngineer.add_statistical_features(df, window=5)
-    assert f"value_zscore" in result.columns
-    assert f"value_pct_change" in result.columns
-    assert f"value_diff" in result.columns
+    result = TimeSeriesFeatureEngineer.add_statistical_features(df, window=5)  # noqa: F841  # Variable for test verification
+    assert "value_zscore" in result.columns
+    assert "value_pct_change" in result.columns
+    assert "value_diff" in result.columns
 
 
 # ----------------------------------------------------------------------
@@ -218,19 +218,19 @@ def test_add_statistical_features() -> None:
 
 def test_add_noise() -> None:
     data = np.random.randn(20, 3)
-    result = TimeSeriesAugmenter.add_noise(data, noise_level=0.1)
+    result = TimeSeriesAugmenter.add_noise(data, noise_level=0.1)  # noqa: F841  # Variable for test verification
     assert result.shape == data.shape
 
 
 def test_time_warp() -> None:
     data = np.random.randn(20, 3)
-    result = TimeSeriesAugmenter.time_warp(data, sigma=0.2)
+    result = TimeSeriesAugmenter.time_warp(data, sigma=0.2)  # noqa: F841  # Variable for test verification
     assert result.shape == data.shape
 
 
 def test_magnitude_warp() -> None:
     data = np.random.randn(20, 3)
-    result = TimeSeriesAugmenter.magnitude_warp(data, sigma=0.2)
+    result = TimeSeriesAugmenter.magnitude_warp(data, sigma=0.2)  # noqa: F841  # Variable for test verification
     assert result.shape == data.shape
 
 
@@ -316,7 +316,7 @@ def test_train_val_test_split_with_labels_and_shuffle() -> None:
 def test_preprocessing_pipeline_all_defaults() -> None:
     df = _sample_df(50)
     pipeline = TimeSeriesPreprocessingPipeline()
-    result = pipeline.process(df)
+    result = pipeline.process(df)  # noqa: F841  # Variable for test verification
     assert isinstance(result, np.ndarray)
     assert result.shape[0] == len(df)
 
@@ -331,7 +331,7 @@ def test_preprocessing_pipeline_toggles() -> None:
         add_features=True,
         scale=False,
     )
-    result = pipeline.process(df, feature_cols=["value"])
+    result = pipeline.process(df, feature_cols=["value"])  # noqa: F841  # Variable for test verification
     assert isinstance(result, np.ndarray)
     assert result.shape[1] == 1
 
@@ -350,7 +350,7 @@ def test_process_for_training_augment() -> None:
 def test_create_preprocessing_pipeline() -> None:
     pipeline = create_preprocessing_pipeline(scale_method="minmax", add_features=False)
     df = _sample_df(20)
-    result = pipeline.process(df)
+    result = pipeline.process(df)  # noqa: F841  # Variable for test verification
     assert isinstance(result, np.ndarray)
     assert result.shape[0] == len(df)
 
@@ -415,7 +415,7 @@ def test_preprocessing_pipeline_clean_missing_false() -> None:
     # Introduce a missing value but disable missing-value cleaning.
     df.loc[df.index[5], "value"] = np.nan
     pipeline = TimeSeriesPreprocessingPipeline(clean_missing=False)
-    result = pipeline.process(df)
+    result = pipeline.process(df)  # noqa: F841  # Variable for test verification
     assert result.shape[0] == len(df)
 
 

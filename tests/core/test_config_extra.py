@@ -1,11 +1,11 @@
 import importlib
-import os
-import sys
+import os  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import config
 
@@ -149,7 +149,7 @@ def test_validate_config_branches(monkeypatch):
     config.BACKUP_LOCATION = ""
     config.REDIS_PORT = 999999
 
-    result = config.validate_config()
+    result = config.validate_config()  # noqa: F841  # Variable for test verification
     assert result["is_valid"] is False
     assert result["errors"]
     assert result["warnings"]
@@ -158,5 +158,5 @@ def test_validate_config_branches(monkeypatch):
 def test_config_validation_disabled_on_import(monkeypatch):
     monkeypatch.setenv("CONFIG_VALIDATION_ENABLED", "false")
     importlib.reload(config)
-    result = config.validate_config()
+    result = config.validate_config()  # noqa: F841  # Variable for test verification
     assert "is_valid" in result

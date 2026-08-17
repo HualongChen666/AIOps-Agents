@@ -3,7 +3,7 @@
 
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.ui_experience_support as ui
 

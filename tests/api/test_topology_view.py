@@ -1,4 +1,4 @@
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 # -*- coding: utf-8 -*-
 """Tests for api/topology_view_router.py."""

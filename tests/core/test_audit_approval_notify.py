@@ -42,7 +42,7 @@ def test_audit_logger():
 
 
 def test_audit_service_helpers():
-    result = audit_service.detect_security_event("test")
+    result = audit_service.detect_security_event("test")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert audit_service.verify_log_integrity({"id": 1}) is False or True
 

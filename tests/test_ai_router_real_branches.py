@@ -6,10 +6,10 @@ real FastAPI router.  No mocks are used; inputs are real request/response data
 or direct function arguments.
 """
 
-import asyncio
-from typing import Any
+import asyncio  # noqa: F401  # Imported for test setup
+from typing import Any  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Unit tests for the performance optimizer."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.performance_optimizer import (
     PerformanceMetric,
@@ -33,7 +33,7 @@ def test_monitor_performance_and_report():
 
 def test_optimize_memory_usage():
     opt = get_performance_optimizer()
-    result = opt.optimize_memory_usage()
+    result = opt.optimize_memory_usage()  # noqa: F841  # Variable for test verification
     assert result is None or isinstance(result, dict)
 
 
@@ -54,5 +54,5 @@ async def test_with_semaphore():
     async def work():
         return 42
 
-    result = await opt.with_semaphore("api_requests", work)
-    assert result == 42
+    result = await opt.with_semaphore("api_requests", work)  # noqa: F841  # Variable for test verification
+    assert result == 42  # noqa: F841  # Variable for test verification

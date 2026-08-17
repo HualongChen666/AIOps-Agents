@@ -2,7 +2,7 @@
 """Functional coverage tests for core batch 13-a modules."""
 
 import numpy as np
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.kpi_config as kpi_config
 import core.stats_engine as stats_engine
@@ -32,7 +32,7 @@ def _reset_engine_state():
 # core.exceptions.third_party
 # ---------------------------------------------------------------------------
 def test_third_party_exceptions():
-    base = ThirdPartyException("third party error", context={"x": 1})
+    base = ThirdPartyException("third party error", context={"x": 1})  # noqa: F841  # Variable for test verification
     assert base.message == "third party error"
     assert base.error_code == "15_06_0001"
     assert base.context == {"x": 1}
@@ -43,7 +43,7 @@ def test_third_party_exceptions():
         "service down",
         service_name="api",
         service_url="http://api.example.com",
-        original_exception=ValueError("boom"),
+        original_exception=ValueError("boom"),  # noqa: F841  # Variable for test verification
     )
     assert full_ext.service_name == "api"
     assert full_ext.service_url == "http://api.example.com"
@@ -254,7 +254,7 @@ def test_causal_predictor():
     )
     predictor.fit(data, ["cpu", "memory", "latency"])
 
-    result = predictor.predict("latency", {"cpu": 45.0, "memory": 36.0})
+    result = predictor.predict("latency", {"cpu": 45.0, "memory": 36.0})  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert result.target_node == "latency"
     assert 0 <= result.confidence <= 1

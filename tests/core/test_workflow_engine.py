@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/processing/l3/workflow_engine.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.processing.l3.workflow_engine as wfe
 from core.processing.l3.workflow_engine import (
@@ -36,7 +36,7 @@ async def test_execute_simple_workflow():
 
     wf = Workflow("calc").add_step(WorkflowStep("double", handler=step_handler, params={"x": 5}))
     engine.register_workflow(wf)
-    result = await engine.execute_workflow("calc", {})
+    result = await engine.execute_workflow("calc", {})  # noqa: F841  # Variable for test verification
     assert result["context"]["double"]["value"] == 10
 
 

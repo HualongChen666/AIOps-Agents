@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Unit tests for previously uncovered core helper modules."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.api_resource_optimizer import (
     ResourceType,
@@ -86,5 +86,5 @@ def test_log_router_create():
 async def test_log_router_batch():
     router = create_log_router({"enabled": True})
     entry = router.create_log_entry("INFO", "test message")
-    result = await router.batch_route_logs([entry])
+    result = await router.batch_route_logs([entry])  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)

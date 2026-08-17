@@ -10,14 +10,14 @@ branches without a real cluster.
 
 from __future__ import annotations
 
-import asyncio
-import os
+import asyncio  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
 import tempfile
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from modules.execute.auto_heal.operator import (
     ApiException,

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/dependency_injection.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.dependency_injection import (
     DIContainer,
@@ -71,5 +71,5 @@ async def test_inject_context():
 
 
 def test_setup_core_services():
-    result = setup_core_services()
+    result = setup_core_services()  # noqa: F841  # Variable for test verification
     assert result["status"] in ("success", "error")

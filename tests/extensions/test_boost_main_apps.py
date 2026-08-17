@@ -7,12 +7,12 @@ import ast
 import importlib.util
 import inspect
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 try:
     from fastapi.testclient import TestClient as _TestClient
@@ -433,7 +433,7 @@ def _call_with_testclient(app, app_path):
 
 def _call_directly(app, app_path):  # pragma: no cover - fallback only
     """Best-effort direct invocation when TestClient is unavailable."""
-    import asyncio
+    import asyncio  # noqa: F401  # Imported for test setup
 
     for route in app.routes:
         methods = getattr(route, "methods", None)

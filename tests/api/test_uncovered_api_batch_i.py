@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Real API tests for uncovered routers (batch I)."""
 
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.api]
 
@@ -364,7 +364,7 @@ def test_database_optimization_endpoints(client, monkeypatch):
         ("/api/database-optimization/connection-pool/optimize", "post", {}),
         ("/api/database-optimization/cache/setup?ttl_seconds=300", "post", {}),
         (
-            "/api/database-optimization/query/record?query_text=SELECT&duration_ms=1.2&database=db&table_name=t",
+            "/api/database-optimization/query/record?query_text=SELECT&duration_ms=1.2&database=db&table_name=t",  # noqa: E501  # Line too long (intentional)
             "post",
             {},
         ),

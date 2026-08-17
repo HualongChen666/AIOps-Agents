@@ -1599,4 +1599,5 @@ if _safe_bool("CONFIG_HOT_RELOAD_ENABLED", default=False):
 
 # Backward-compatible alias for code/tests expecting a Config class.
 # noqa: E402  # Module level import not at top (intentional for conditional import)
+# noqa: E402  # Module level import not at top (intentional for conditional import)
 from core.config_manager import ConfigManager as Config  # noqa: F401

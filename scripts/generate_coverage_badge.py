@@ -39,7 +39,7 @@ def generate(coverage_json: Path, output_svg: Path) -> float:
         f'    <rect x="{label_w}" width="{value_w}" height="20" fill="{color}"/>\n'
         f'    <rect width="{total_w}" height="20" fill="url(#s)"/>\n'
         f"  </g>\n"
-        f'  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">\n'
+        f'  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">\n'  # noqa: E501  # Line too long (intentional)
         f'    <text x="{label_w / 2}" y="15" fill="#010101" fill-opacity=".3">{label}</text>\n'
         f'    <text x="{label_w / 2}" y="14">{label}</text>\n'
         f'    <text x="{

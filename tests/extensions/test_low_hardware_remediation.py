@@ -2,13 +2,13 @@
 """Low-coverage tests for extensions/hardware_remediation modules."""
 
 import importlib.util
-import os
+import os  # noqa: F401  # Imported for test setup
 import subprocess
-import sys
+import sys  # noqa: F401  # Imported for test setup
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HARDWARE_DIR = os.path.join(PROJECT_ROOT, "extensions", "hardware_remediation")

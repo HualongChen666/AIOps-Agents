@@ -1,4 +1,4 @@
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 # -*- coding: utf-8 -*-
 """Tests for core/mcp_server.py endpoints mounted via api/mcp_router.py."""

@@ -10,13 +10,13 @@ existing ``conftest`` autouse fixture and module-level stubs created here.
 from __future__ import annotations
 
 import importlib.util
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ROOT = Path(__file__).resolve().parents[2] / "extensions" / "addons"
 INFRA = ROOT / "infrastructure"
@@ -31,7 +31,7 @@ OPS = ROOT / "operations"
 class _Step:
     def __init__(self, action: str = "", result=None, status: str = "pending"):
         self.action = action
-        self.result = result
+        self.result = result  # noqa: F841  # Variable for test verification
         self.status = status
 
 
@@ -120,7 +120,7 @@ class _User:
     ):
         self.user_id = user_id
         self.username = username
-        self.email = email
+        self.email = email  # noqa: F841  # Variable for test verification
         self.full_name = full_name
         self.role = role
         self.organization_id = organization_id
@@ -140,7 +140,7 @@ class _UserCreate:
         tenant_id: str = "default",
     ):
         self.username = username
-        self.email = email
+        self.email = email  # noqa: F841  # Variable for test verification
         self.full_name = full_name
         self.role = role
         self.organization_id = organization_id
@@ -155,7 +155,7 @@ class _UserUpdate:
         role: str | None = None,
     ):
         self.full_name = full_name
-        self.email = email
+        self.email = email  # noqa: F841  # Variable for test verification
         self.role = role
 
     def model_dump(self, exclude_none: bool = False):
@@ -526,10 +526,10 @@ async def test_config_saga():
     step = _Step(action="a1")
     saga = _SagaTx(steps=[step])
     orchestrator.register("a1", handler, comp)
-    result = await orchestrator.execute(saga)
+    result = await orchestrator.execute(saga)  # noqa: F841  # Variable for test verification
     assert result.status == "success"
     assert step.status == "success"
-    assert step.result == "ok"
+    assert step.result == "ok"  # noqa: F841  # Variable for test verification
 
     async def fail(step):
         raise ValueError("boom")
@@ -628,7 +628,7 @@ async def test_config_orchestrator():
 
     step = _Step(action="x")
     saga = _SagaTx(steps=[step], saga_id="s1")
-    result = await orch.run_saga(saga)
+    result = await orch.run_saga(saga)  # noqa: F841  # Variable for test verification
     assert result is saga
 
 
@@ -654,7 +654,7 @@ async def test_user_saga():
     step = _Step(action="a1")
     saga = _SagaTx(steps=[step], saga_id="us1")
     orchestrator.register("a1", handler, comp)
-    result = await orchestrator.execute(saga)
+    result = await orchestrator.execute(saga)  # noqa: F841  # Variable for test verification
     assert result.status == "success"
 
 

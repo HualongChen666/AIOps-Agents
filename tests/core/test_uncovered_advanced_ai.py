@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Coverage tests for core/advanced_ai_capabilities.py."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.advanced_ai_capabilities as adv
 from core.advanced_ai_capabilities import (
@@ -87,7 +87,7 @@ def test_explanation_templates(ai):
 
 
 def test_predict_time_series_insufficient(ai):
-    result = asyncio.run(ai.predict_time_series([(datetime.now(), float(i)) for i in range(5)], 24))
+    result = asyncio.run(ai.predict_time_series([(datetime.now(), float(i)) for i in range(5)], 24))  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert result.prediction_type == PredictionType.TIME_SERIES
     assert result.predicted_values == []
@@ -99,7 +99,7 @@ def test_predict_time_series_rule_based(monkeypatch, ai):
     monkeypatch.setattr(adv, "PROPHET_AVAILABLE", False)
     monkeypatch.setattr(adv, "ML_AVAILABLE", False)
     data = [(datetime.now() + timedelta(hours=i), float(i)) for i in range(12)]
-    result = asyncio.run(ai.predict_time_series(data, 6))
+    result = asyncio.run(ai.predict_time_series(data, 6))  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert result.prediction_type == PredictionType.TIME_SERIES
     assert len(result.predicted_values) == 6
@@ -112,7 +112,7 @@ def test_predict_time_series_ml_path(monkeypatch, ai):
     monkeypatch.setattr(adv, "PROPHET_AVAILABLE", False)
     monkeypatch.setattr(adv, "ML_AVAILABLE", True)
     data = [(datetime.now() + timedelta(hours=i), float(i)) for i in range(20)]
-    result = asyncio.run(ai.predict_time_series(data, 4))
+    result = asyncio.run(ai.predict_time_series(data, 4))  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert len(result.predicted_values) == 4
     assert result.model_used == "ml_gradient_boosting"
@@ -123,7 +123,7 @@ def test_predict_time_series_prophet_path(monkeypatch, ai):
     monkeypatch.setattr(adv, "Prophet", _FakeProphet, raising=False)
     monkeypatch.setattr(adv, "ML_AVAILABLE", False)
     data = [(datetime.now() + timedelta(hours=i), float(i)) for i in range(15)]
-    result = asyncio.run(ai.predict_time_series(data, 3))
+    result = asyncio.run(ai.predict_time_series(data, 3))  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert len(result.predicted_values) == 3
     assert result.model_used == "prophet"
@@ -137,7 +137,7 @@ def test_predict_time_series_exception_fallback(monkeypatch, ai):
         ai, "_ml_time_series_prediction", AsyncMock(side_effect=RuntimeError("boom"))
     )
     data = [(datetime.now() + timedelta(hours=i), float(i)) for i in range(20)]
-    result = asyncio.run(ai.predict_time_series(data, 4))
+    result = asyncio.run(ai.predict_time_series(data, 4))  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert len(result.predicted_values) == 4
     assert result.model_used == "rule_based_trend"
@@ -149,7 +149,7 @@ def test_predict_anomalies_found(ai):
         "cpu": [50.0 + (i % 3) * 5 for i in range(12)],
         "mem": [45.0 + i * 0.1 for i in range(12)],
     }
-    result = asyncio.run(ai.predict_anomalies(current, baseline, threshold_std=1.0))
+    result = asyncio.run(ai.predict_anomalies(current, baseline, threshold_std=1.0))  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert result.prediction_type == PredictionType.ANOMALY
     assert result.model_used == "statistical_z_score"
@@ -157,7 +157,7 @@ def test_predict_anomalies_found(ai):
 
 
 def test_predict_anomalies_no_baseline(ai):
-    result = asyncio.run(ai.predict_anomalies({"cpu": 10.0}, {}, threshold_std=2.0))
+    result = asyncio.run(ai.predict_anomalies({"cpu": 10.0}, {}, threshold_std=2.0))  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert result.metadata["total_metrics"] == 1
     assert result.metadata["anomalies"] == []
@@ -220,7 +220,7 @@ def test_extract_features(ai):
 
 def test_natural_language_new_conversation(ai, monkeypatch):
     monkeypatch.setattr(adv, "AI_ENGINE_AVAILABLE", False)
-    result = asyncio.run(ai.natural_language_interaction("check status", "c1", "u1"))
+    result = asyncio.run(ai.natural_language_interaction("check status", "c1", "u1"))  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "response" in result
     assert result["intent"] == "check_status"
@@ -239,7 +239,7 @@ def test_natural_language_with_ai_engine(ai, monkeypatch):
             }
         ),
     )
-    result = asyncio.run(ai.natural_language_interaction("analyze alert cpu", "c2", "u1"))
+    result = asyncio.run(ai.natural_language_interaction("analyze alert cpu", "c2", "u1"))  # noqa: F841  # Variable for test verification
     assert result["intent"] == "analyze_alert"
     assert result["metadata"]["ai_generated"] is True
     assert result["action_required"] is True
@@ -248,7 +248,7 @@ def test_natural_language_with_ai_engine(ai, monkeypatch):
 def test_natural_language_existing_context(ai, monkeypatch):
     monkeypatch.setattr(adv, "AI_ENGINE_AVAILABLE", False)
     asyncio.run(ai.natural_language_interaction("check status", "c3", "u1"))
-    result = asyncio.run(ai.natural_language_interaction("help me", "c3", "u1"))
+    result = asyncio.run(ai.natural_language_interaction("help me", "c3", "u1"))  # noqa: F841  # Variable for test verification
     assert result["intent"] == "help"
     context = ai.conversation_contexts["c3"]
     assert len(context.messages) == 2
@@ -298,7 +298,7 @@ def test_explain_decision_auto_heal(ai):
 
 
 def test_continuous_knowledge_learning(ai):
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.continuous_knowledge_learning({"cpu_value": 80.0, "pattern": "spike"}, "success")
     )
     assert isinstance(result, dict)

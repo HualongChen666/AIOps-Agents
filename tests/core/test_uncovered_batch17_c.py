@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Pytest coverage suite for batch17-c core modules."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
 
@@ -124,7 +124,7 @@ def test_l6l7_frontend_integrator_registration_and_statistics():
     integrator.register_event_handler(EventType.DATA_UPDATE, bad_handler)
     integrator.register_event_handler(EventType.DATA_UPDATE, good_handler)
 
-    binding = DataBinding(
+    binding = DataBinding(  # noqa: F841  # Variable for test verification
         binding_id="b1",
         source_component="c1",
         target_component="c2",
@@ -295,7 +295,7 @@ def test_sso_auth_enabled_flow(monkeypatch):
     # login
     redirect = RedirectResponse(url="https://idp.example.com/authorize")
     sso.oauth.oidc.authorize_redirect = AsyncMock(return_value=redirect)
-    result = asyncio.run(sso.login(request))
+    result = asyncio.run(sso.login(request))  # noqa: F841  # Variable for test verification
     assert isinstance(result, RedirectResponse)
     assert len(sso._state_store) == 1
     state = list(sso._state_store.keys())[0]
@@ -335,7 +335,7 @@ def test_sso_auth_enabled_flow(monkeypatch):
         }
     )
     sso.get_user = AsyncMock(return_value=None)
-    result = asyncio.run(sso.auth_callback(request, state="valid3"))
+    result = asyncio.run(sso.auth_callback(request, state="valid3"))  # noqa: F841  # Variable for test verification
     assert isinstance(result, RedirectResponse)
     assert "token=" in result.headers["location"]
 
@@ -350,13 +350,13 @@ def test_sso_auth_enabled_flow(monkeypatch):
         role="user",
     )
     sso.get_user = AsyncMock(return_value=existing)
-    result = asyncio.run(sso.auth_callback(request, state="valid4"))
+    result = asyncio.run(sso.auth_callback(request, state="valid4"))  # noqa: F841  # Variable for test verification
     assert isinstance(result, RedirectResponse)
 
     # valid callback, get_user raises
     sso._state_store["valid5"] = datetime.now(timezone.utc)
     sso.get_user = AsyncMock(side_effect=RuntimeError("db down"))
-    result = asyncio.run(sso.auth_callback(request, state="valid5"))
+    result = asyncio.run(sso.auth_callback(request, state="valid5"))  # noqa: F841  # Variable for test verification
     assert isinstance(result, RedirectResponse)
 
     # restore disabled state so other tests are not affected
@@ -490,7 +490,7 @@ def test_documentation_generator(tmp_path):
     assert gen.get_generated_document("d1") is not None
     assert gen.get_generated_document("missing") is None
 
-    docs = gen.list_generated_documents()
+    docs = gen.list_generated_documents()  # noqa: F841  # Variable for test verification
     assert any(d["doc_id"] == "d1" for d in docs)
 
     summary = gen.get_generator_summary()

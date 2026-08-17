@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.db_optimization import (
     clear_slow_queries,

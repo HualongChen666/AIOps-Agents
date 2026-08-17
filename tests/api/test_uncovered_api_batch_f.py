@@ -5,7 +5,7 @@ import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.api]
 
@@ -213,15 +213,15 @@ def _patch_batch_f(monkeypatch):
         title="Generated",
         generator_type=_FakeEnum("markdown"),
         content="# doc",
-        generated_at=_dt,
+        generated_at=_dt,  # noqa: F841  # Variable for test verification
     )
     _doc_generator = SimpleNamespace(
         get_generator_summary=lambda: {"available": True, "total_templates": 5},
         get_available_templates=lambda: ["api-doc"],
         generate_document=lambda *a, **k: _gen_doc,
-        get_generated_document=lambda d: _gen_doc if d == "doc-2" else None,
-        save_generated_document=lambda *a, **k: True,
-        list_generated_documents=lambda: [_gen_doc],
+        get_generated_document=lambda d: _gen_doc if d == "doc-2" else None,  # noqa: F841  # Variable for test verification
+        save_generated_document=lambda *a, **k: True,  # noqa: F841  # Variable for test verification
+        list_generated_documents=lambda: [_gen_doc],  # noqa: F841  # Variable for test verification
     )
     monkeypatch.setattr(_dg, "get_documentation_generator", lambda: _doc_generator)
     monkeypatch.setattr(_dg, "GeneratorType", _FakeEnum)
@@ -232,14 +232,14 @@ def _patch_batch_f(monkeypatch):
     _i18n_manager = SimpleNamespace(
         get_i18n_summary=lambda: {"enabled": True, "default_locale": "zh-CN", "total_locales": 5},
         get_supported_locales=lambda: ["zh-CN", "en-US"],
-        set_current_locale=lambda l: True,
-        translate=lambda k, n, l: f"[{l.value if l else 'zh-CN'}]{k}",
+        set_current_locale=lambda locale: True,
+        translate=lambda k, n, locale: f"[{locale.value if locale else 'zh-CN'}]{k}",
         locales={"zh-CN": SimpleNamespace(language="zh-CN")},
         current_locale=SimpleNamespace(language="zh-CN"),
-        set_translation=lambda l, n, k, t: True,
-        format_number=lambda n, l: f"{n}",
-        format_currency=lambda a, l: f"${a}",
-        format_date=lambda d, l: d.isoformat(),
+        set_translation=lambda locale, n, k, t: True,
+        format_number=lambda n, locale: f"{n}",
+        format_currency=lambda a, locale: f"${a}",
+        format_date=lambda d, locale: d.isoformat(),
     )
     monkeypatch.setattr(_im, "get_i18n_manager", lambda: _i18n_manager)
     monkeypatch.setattr(_im, "Language", _FakeEnum)
@@ -676,7 +676,7 @@ def test_i18n_router(client, monkeypatch):
     _bad_manager = SimpleNamespace(
         get_i18n_summary=lambda: im.get_i18n_manager().get_i18n_summary(),
         get_supported_locales=lambda: im.get_i18n_manager().get_supported_locales(),
-        set_current_locale=lambda l: im.get_i18n_manager().set_current_locale(l),
+        set_current_locale=lambda locale: im.get_i18n_manager().set_current_locale(locale),
         translate=lambda *a, **k: im.get_i18n_manager().translate(*a, **k),
         locales={"zh-CN": SimpleNamespace(language="zh-CN")},
         current_locale=SimpleNamespace(language="zh-CN"),

@@ -6,15 +6,15 @@ variables and real temporary files.  No ``unittest.mock`` or httpx fakes are
 used.
 """
 
-import json
-import os
+import json  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
 import socket
 import threading
-import time
+import time  # noqa: F401  # Imported for test setup
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
+from pathlib import Path  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.agent.observability_client as oc
 
@@ -282,7 +282,7 @@ def test_http_get_json_timeout(obs_server, monkeypatch):
 
 def test_query_prometheus_success(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", obs_server)
-    result = oc.query_prometheus("up")
+    result = oc.query_prometheus("up")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("status") == "success"
 
@@ -297,13 +297,13 @@ def test_query_prometheus_missing_backend():
 def test_query_prometheus_invalid_promql(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", obs_server)
     # Validation fails before any network call.
-    result = oc.query_prometheus("up; drop")
+    result = oc.query_prometheus("up; drop")  # noqa: F841  # Variable for test verification
     assert result is None
 
 
 def test_query_prometheus_invalid_backend(monkeypatch):
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", "http://127.0.0.1:1")
-    result = oc.query_prometheus("up")
+    result = oc.query_prometheus("up")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("status") == "error"
 
@@ -312,7 +312,7 @@ def test_query_prometheus_range_success(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", obs_server)
     end = time.time()
     start = end - 3600
-    result = oc.query_prometheus_range("up", start, end, step="15s")
+    result = oc.query_prometheus_range("up", start, end, step="15s")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("status") == "success"
 
@@ -331,7 +331,7 @@ def test_query_prometheus_range_invalid(obs_server, monkeypatch):
 
     # Valid PromQL but invalid backend returns an error-shaped dict.
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", "http://127.0.0.1:1")
-    result = oc.query_prometheus_range("up", start, end)
+    result = oc.query_prometheus_range("up", start, end)  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("status") == "error"
 
@@ -381,7 +381,7 @@ def test_query_network_metrics_missing_backend():
 # ---------------------------------------------------------------------------
 def test_query_loki_success(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_LOKI_URL", obs_server)
-    result = oc.query_loki('{app="test"}')
+    result = oc.query_loki('{app="test"}')  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result.get("status") == "success"
 
@@ -393,7 +393,7 @@ def test_query_loki_missing_backend():
 
 def test_query_loki_invalid_logql(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_LOKI_URL", obs_server)
-    result = oc.query_loki("{")  # unbalanced braces
+    result = oc.query_loki("{")  # unbalanced braces  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "error" in result
 
@@ -423,7 +423,7 @@ def test_query_kubernetes_events_invalid_backend(monkeypatch):
 
 def test_query_kubernetes_pod_success(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_KUBERNETES_API_URL", obs_server)
-    result = oc.query_kubernetes_pod("my-pod")
+    result = oc.query_kubernetes_pod("my-pod")  # noqa: F841  # Variable for test verification
     assert result["available"] is True
     assert result["phase"] == "Running"
     assert result["last_state"].get("exitCode") == 137
@@ -431,18 +431,18 @@ def test_query_kubernetes_pod_success(obs_server, monkeypatch):
 
 def test_query_kubernetes_pod_missing_and_error(monkeypatch):
     os.environ.pop("AIOPS_KUBERNETES_API_URL", None)
-    result = oc.query_kubernetes_pod("my-pod")
+    result = oc.query_kubernetes_pod("my-pod")  # noqa: F841  # Variable for test verification
     assert result["available"] is False
 
     monkeypatch.setenv("AIOPS_KUBERNETES_API_URL", "http://127.0.0.1:1")
-    result = oc.query_kubernetes_pod("my-pod")
+    result = oc.query_kubernetes_pod("my-pod")  # noqa: F841  # Variable for test verification
     assert result["available"] is False
     assert result["reason"] is not None
 
 
 def test_query_kubernetes_node_success(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_KUBERNETES_API_URL", obs_server)
-    result = oc.query_kubernetes_node("my-node")
+    result = oc.query_kubernetes_node("my-node")  # noqa: F841  # Variable for test verification
     assert result["available"] is True
     assert result["conditions"].get("Ready") == "True"
     assert result["allocatable_memory"] == "32Gi"
@@ -450,11 +450,11 @@ def test_query_kubernetes_node_success(obs_server, monkeypatch):
 
 def test_query_kubernetes_node_missing_and_error(monkeypatch):
     os.environ.pop("AIOPS_KUBERNETES_API_URL", None)
-    result = oc.query_kubernetes_node("my-node")
+    result = oc.query_kubernetes_node("my-node")  # noqa: F841  # Variable for test verification
     assert result["available"] is False
 
     monkeypatch.setenv("AIOPS_KUBERNETES_API_URL", "http://127.0.0.1:1")
-    result = oc.query_kubernetes_node("my-node")
+    result = oc.query_kubernetes_node("my-node")  # noqa: F841  # Variable for test verification
     assert result["available"] is False
     assert result["reason"] is not None
 

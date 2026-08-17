@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/observability_query.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.observability_query as _oq
 from core.observability_query import (

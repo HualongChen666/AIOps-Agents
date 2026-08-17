@@ -3,7 +3,7 @@
 
 from datetime import datetime, timezone
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.log_router
 import core.logging.analysis.log_alerting
@@ -36,7 +36,7 @@ def test_observability_query_build_and_helpers():
     assert core.observability_query.parse_duration_to_seconds("1h") == 3600.0
     assert isinstance(core.observability_query.sanitize_error_for_llm(ValueError("x")), str)
 
-    result = core.observability_query.prepare_for_llm({"key": "value"})
+    result = core.observability_query.prepare_for_llm({"key": "value"})  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["_llm_meta"]["redacted"] is True
 
@@ -56,8 +56,8 @@ async def test_observability_cached_query():
     async def dummy():
         return {"value": 42}
 
-    result = await core.observability_query.cached_query(cache, "k", dummy())
-    assert result == {"value": 42}
+    result = await core.observability_query.cached_query(cache, "k", dummy())  # noqa: F841  # Variable for test verification
+    assert result == {"value": 42}  # noqa: F841  # Variable for test verification
 
     result2 = await core.observability_query.cached_query(cache, "k", dummy())
     assert result2 == {"value": 42}

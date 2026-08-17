@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/type_validation.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.type_validation import (
     RuntimeTypeValidator,
@@ -88,5 +88,5 @@ async def test_validate_request_and_sanitize_response_decorators():
     async def handler(data):
         return {"x": data["x"] * 2}
 
-    result = await handler({"x": 5})
-    assert result == {"x": 10}
+    result = await handler({"x": 5})  # noqa: F841  # Variable for test verification
+    assert result == {"x": 10}  # noqa: F841  # Variable for test verification

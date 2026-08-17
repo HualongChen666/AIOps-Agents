@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for error handling, exceptions, error codes, logging and recovery."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI, Request
 
 import core.error_codes

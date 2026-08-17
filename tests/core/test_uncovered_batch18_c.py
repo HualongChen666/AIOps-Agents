@@ -13,7 +13,7 @@ Targets:
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.exceptions.business import (
     BusinessException,
@@ -82,7 +82,7 @@ class TestFrontendPerformanceOptimizer:
         opt = FrontendPerformanceOptimizer()
 
         # Successful optimization
-        result = await opt.apply_optimization(OptimizationType.BUNDLE_COMPRESSION)
+        result = await opt.apply_optimization(OptimizationType.BUNDLE_COMPRESSION)  # noqa: F841  # Variable for test verification
         assert result.success is True
         assert result.compression_ratio == 0.3
 
@@ -264,7 +264,7 @@ class TestL5L6ExecutionIntegrator:
         assert "boom" in status["error"]
 
     async def test_cancel_execution(self, integrator):
-        result = ExecutionResult(request_id="req_x", action_id="action_x", status="pending")
+        result = ExecutionResult(request_id="req_x", action_id="action_x", status="pending")  # noqa: F841  # Variable for test verification
         integrator.active_executions["req_x"] = result
         assert await integrator.cancel_execution("req_x") is True
         assert await integrator.cancel_execution("missing") is False

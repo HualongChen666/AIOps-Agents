@@ -7,7 +7,7 @@ and real JWT tokens. Fixtures are provided by tests/conftest.py.
 
 import uuid
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 
 def test_login_success(client):

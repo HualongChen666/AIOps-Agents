@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for db_optimization and database_*_optimizer modules."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.database_cache_optimizer
 import core.database_connection_optimizer

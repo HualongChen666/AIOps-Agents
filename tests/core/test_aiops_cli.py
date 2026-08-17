@@ -6,16 +6,16 @@ They do not mock httpx; instead they point the CLI at a non-listening
 local port so the real network error path is exercised.
 """
 
-import os
+import os  # noqa: F401  # Imported for test setup
 from importlib import reload
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 
 def _reload_cli_with_env(api_url: str, internal_key: str = "test-internal-key"):
     """Set environment variables and reload the cli module.
 
-    The cli module reads DEFAULT_BASE_URL and INTERNAL_KEY at import time,
+    The cli module reads DEFAULT_BASE_URL and INTERNAL_KEY at import time,  # noqa: F401  # Imported for test setup
     so we must set the environment before importing/reloading.
     """
     os.environ["AIOPS_API_URL"] = api_url

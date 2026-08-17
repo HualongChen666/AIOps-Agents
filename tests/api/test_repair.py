@@ -1,4 +1,4 @@
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for repair / auto-heal / approval endpoints.

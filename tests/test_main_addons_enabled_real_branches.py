@@ -7,9 +7,9 @@ mocking internal code.
 """
 
 import importlib
-import os
+import os  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 # Enable add-ons and all feature packs before main.py is imported.
@@ -20,13 +20,13 @@ os.environ["LOKI_ENABLED"] = "false"
 os.environ["TEMPO_ENABLED"] = "false"
 os.environ["VICTORIAMETRICS_ENABLED"] = "false"
 
-import config
+import config  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 importlib.reload(config)
-import main
+import main  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 importlib.reload(main)
-from main import app
+from main import app  # noqa: E402  # Module level import not at top (intentional for test setup)
 
 
 @pytest.fixture(scope="module")

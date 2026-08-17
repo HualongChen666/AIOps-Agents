@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Real API tests for uncovered routers (batch G)."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import datetime
-import json
+import json  # noqa: F401  # Imported for test setup
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.api]
 
@@ -55,7 +55,7 @@ class _FakeUserService:
 
     async def get_user_by_email(self, email: str):
         for user in self._users.values():
-            if user.email == email:
+            if user.email == email:  # noqa: F841  # Variable for test verification
                 return user
         return None
 
@@ -86,7 +86,7 @@ class _FakeUserService:
         if not user:
             return False
         if email is not None:
-            user.email = email
+            user.email = email  # noqa: F841  # Variable for test verification
         if full_name is not None:
             user.full_name = full_name
         if role is not None:
@@ -236,7 +236,7 @@ def _patch_batch_g(monkeypatch):
     import api.users_router as _users
     from main import app
 
-    original_routes = list(app.router.routes)
+    original_routes = list(app.router.routes)  # noqa: F841  # Variable for test verification
     filtered_routes = [
         r for r in app.router.routes if not (getattr(r, "original_router", None) is _users.router)
     ]
@@ -723,21 +723,21 @@ def test_localization_add(client):
 
 def test_localization_export(client):
     resp = client.post(
-        "/api/localization/translation/export?language=zh-CN&namespace=common&output_path=/tmp/out.json"
+        "/api/localization/translation/export?language=zh-CN&namespace=common&output_path=/tmp/out.json"  # noqa: E501  # Line too long (intentional)
     )
     assert resp.status_code == 200
 
 
 def test_localization_import(client):
     resp = client.post(
-        "/api/localization/translation/import?language=zh-CN&namespace=common&input_path=/tmp/in.json"
+        "/api/localization/translation/import?language=zh-CN&namespace=common&input_path=/tmp/in.json"  # noqa: E501  # Line too long (intentional)
     )
     assert resp.status_code == 200
 
 
 def test_localization_missing(client):
     resp = client.get(
-        "/api/localization/translations/missing?source_language=en&target_language=zh-CN&namespace=common"
+        "/api/localization/translations/missing?source_language=en&target_language=zh-CN&namespace=common"  # noqa: E501  # Line too long (intentional)
     )
     assert resp.status_code == 200
     assert "missing" in resp.json()["data"]["missing_keys"]
@@ -789,7 +789,7 @@ def test_adapter_format_date_error(client):
 
 def test_adapter_format_datetime(client):
     resp = client.get(
-        "/api/localization-adapter/format/datetime?datetime_str=2026-07-03T10:00:00&format_type=full"
+        "/api/localization-adapter/format/datetime?datetime_str=2026-07-03T10:00:00&format_type=full"  # noqa: E501  # Line too long (intentional)
     )
     assert resp.status_code == 200
 

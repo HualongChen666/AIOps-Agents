@@ -3,7 +3,7 @@
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.call_chain_search import (
     CallChainSearchManager,
@@ -115,7 +115,7 @@ def test_criteria_search_branches():
     """Exercise search_by_criteria and all internal filter branches."""
     manager = _make_manager()
 
-    base = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    base = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)  # noqa: F841  # Variable for test verification
     manager.add_call_chain(
         {
             "trace_id": "t-ok",
@@ -375,7 +375,7 @@ def test_match_score_and_result_dataclass():
     assert 0.0 < score < 1.0
 
     # SearchResult defaults
-    result = SearchResult(
+    result = SearchResult(  # noqa: F841  # Variable for test verification
         trace_id="x",
         service_name="s",
         operation_name="o",

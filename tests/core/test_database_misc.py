@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/database, db_query_optimization, db_read_write_router, db_replication."""
 
-import time
+import time  # noqa: F401  # Imported for test setup
 
 import core.database
 import core.db_query_optimization

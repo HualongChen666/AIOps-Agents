@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/health_check.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.health_check as health_check
 from core.health_check import (

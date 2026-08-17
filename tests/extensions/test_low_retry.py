@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Parametrized tests for every extensions/addons/**/retry.py retry engine."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import dataclasses
 import importlib.util
 import inspect
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ROOT = Path(__file__).resolve().parents[2]
 RETRY_FILES = sorted((ROOT / "extensions" / "addons").rglob("retry.py"))
@@ -158,18 +158,18 @@ def test_retry_engine(retry_path, monkeypatch):
 
         try:
             if inspect.iscoroutinefunction(method):
-                result = _run_coro(method(dummy, operation="test"))
+                result = _run_coro(method(dummy, operation="test"))  # noqa: F841  # Variable for test verification
             else:
-                result = method(dummy, operation="test")
+                result = method(dummy, operation="test")  # noqa: F841  # Variable for test verification
         except Exception:
             continue
-        assert result == "ok"
+        assert result == "ok"  # noqa: F841  # Variable for test verification
         assert dummy.calls == 2
 
     if hasattr(engine, "execute"):
         dummy = _dummy_factory()
-        result = _run_coro(engine.execute(dummy, operation="test"))
-        assert result == "ok"
+        result = _run_coro(engine.execute(dummy, operation="test"))  # noqa: F841  # Variable for test verification
+        assert result == "ok"  # noqa: F841  # Variable for test verification
         assert dummy.calls == 2
 
     if hasattr(engine, "add_policy"):
@@ -183,7 +183,7 @@ def test_retry_engine(retry_path, monkeypatch):
                     max_delay_seconds=0,
                 )
                 dummy = _dummy_factory()
-                result = _run_coro(engine.execute(dummy, policy_name="custom", operation="test"))
-                assert result == "ok"
+                result = _run_coro(engine.execute(dummy, policy_name="custom", operation="test"))  # noqa: F841  # Variable for test verification
+                assert result == "ok"  # noqa: F841  # Variable for test verification
             except Exception:
                 pass

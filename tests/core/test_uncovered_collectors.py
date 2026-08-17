@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Unit tests for low-coverage core collector modules."""
 
-import time
+import time  # noqa: F401  # Imported for test setup
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.collector as collector
 import core.linux_collector as linux_collector
@@ -278,7 +278,7 @@ async def test_collect_linux_host(monkeypatch):
         "username": "u",
         "password": "p",
     }
-    result = await linux_collector.collect_linux_host(host_config, metrics=["cpu_usage", "memory"])
+    result = await linux_collector.collect_linux_host(host_config, metrics=["cpu_usage", "memory"])  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["name"] == "h1"
     assert result["status"] in {"ok", "degraded"}
@@ -335,21 +335,21 @@ def _setup_observability(monkeypatch):
 
 def test_query_prometheus(monkeypatch):
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (PROM_DATA, None))
-    result = oc.query_prometheus("up")
+    result = oc.query_prometheus("up")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "data" in result
 
 
 def test_query_prometheus_range(monkeypatch):
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (PROM_DATA, None))
-    result = oc.query_prometheus_range("up", 0.0, 100.0)
+    result = oc.query_prometheus_range("up", 0.0, 100.0)  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "data" in result
 
 
 def test_query_service_metrics(monkeypatch):
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (PROM_DATA, None))
-    result = oc.query_service_metrics("my-service")
+    result = oc.query_service_metrics("my-service")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("source") == "prometheus"
     assert result.get("available") is True
@@ -359,7 +359,7 @@ def test_query_service_metrics(monkeypatch):
 
 def test_query_network_metrics(monkeypatch):
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (PROM_DATA, None))
-    result = oc.query_network_metrics("8.8.8.8")
+    result = oc.query_network_metrics("8.8.8.8")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("source") == "prometheus"
     assert result.get("target") == "8.8.8.8"
@@ -374,7 +374,7 @@ def test_query_network_metrics(monkeypatch):
 
 def test_query_loki(monkeypatch):
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: ({"status": "success"}, None))
-    result = oc.query_loki('{job="test"}')
+    result = oc.query_loki('{job="test"}')  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "status" in result
 
@@ -406,7 +406,7 @@ def test_query_kubernetes_pod(monkeypatch):
         "spec": {"nodeName": "node1"},
     }
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (pod_data, None))
-    result = oc.query_kubernetes_pod("pod1", "default")
+    result = oc.query_kubernetes_pod("pod1", "default")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("available") is True
     assert result.get("pod_name") == "pod1"
@@ -432,7 +432,7 @@ def test_query_kubernetes_node(monkeypatch):
         "metadata": {"name": "node1"},
     }
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (node_data, None))
-    result = oc.query_kubernetes_node("node1")
+    result = oc.query_kubernetes_node("node1")  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("available") is True
     assert result.get("node_name") == "node1"

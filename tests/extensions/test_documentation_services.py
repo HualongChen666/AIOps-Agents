@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Happy-path tests for documentation addon services."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.documentation.sphinx_documentation_service.service import Service
 
@@ -9,7 +9,7 @@ from extensions.addons.documentation.sphinx_documentation_service.service import
 @pytest.fixture
 def sphinx_service(monkeypatch):
     """Provide a Sphinx documentation service with a faked engine."""
-    fake_result = {
+    fake_result = {  # noqa: F841  # Variable for test verification
         "dry_run": True,
         "command": "sphinx-build docs _build",
         "source": "docs",
@@ -32,7 +32,7 @@ def sphinx_service(monkeypatch):
 def test_sphinx_build_docs_returns_expected_result(sphinx_service):
     """execute_operation for build_docs returns a dict with expected keys."""
     payload = {"source": "docs", "output": "_build"}
-    result = sphinx_service.execute_operation("build_docs", payload)
+    result = sphinx_service.execute_operation("build_docs", payload)  # noqa: F841  # Variable for test verification
 
     assert isinstance(result, dict)
     assert result["success"] is True
@@ -46,7 +46,7 @@ def test_sphinx_build_docs_returns_expected_result(sphinx_service):
 
 def test_sphinx_list_methods_returns_expected_result(sphinx_service):
     """execute_operation for list_methods returns a valid response."""
-    result = sphinx_service.execute_operation("list_methods")
+    result = sphinx_service.execute_operation("list_methods")  # noqa: F841  # Variable for test verification
 
     assert isinstance(result, dict)
     assert result["success"] is True
@@ -57,7 +57,7 @@ def test_sphinx_list_methods_returns_expected_result(sphinx_service):
 
 def test_sphinx_get_stats_returns_valid_dict(sphinx_service):
     """execute_operation for get_stats returns a valid dict."""
-    result = sphinx_service.execute_operation("get_stats", {})
+    result = sphinx_service.execute_operation("get_stats", {})  # noqa: F841  # Variable for test verification
 
     assert result is not None
     assert isinstance(result, dict)

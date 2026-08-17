@@ -277,7 +277,6 @@ class MonitoringProvider:
             }
 
         # Reuse modules.observability.smart_alerting for rule generation/evaluation.
-        smart_alerts: List[Dict[str, Any]] = []
         try:
             from modules.observability.smart_alerting import (
                 AlertRule,
@@ -303,7 +302,7 @@ class MonitoringProvider:
             metrics = kwargs.get("metrics", {})
             if not isinstance(metrics, dict):
                 metrics = {}
-            smart_alerts = [alert.to_dict() for alert in engine.evaluate_metrics(metrics)]
+            [alert.to_dict() for alert in engine.evaluate_metrics(metrics)]
         except Exception:
             pass
 

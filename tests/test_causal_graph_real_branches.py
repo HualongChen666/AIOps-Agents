@@ -5,10 +5,10 @@ These tests build real causal graphs from sample alert/metric data and exercise
 all branch paths in CausalGraph without using mocks.
 """
 
-import json
+import json  # noqa: F401  # Imported for test setup
 import tempfile
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import config as config_module
 from core.processing.l3.causal_graph import (
@@ -165,7 +165,7 @@ def test_edge_strength_mappings_and_invalid_strength():
 def test_propagate_anomaly_normal_and_low_score():
     """propagate_anomaly tracks downstream impact and stops on weak signals."""
     graph = _sample_metric_alert_graph()
-    result = graph.propagate_anomaly("db", 1.0)
+    result = graph.propagate_anomaly("db", 1.0)  # noqa: F841  # Variable for test verification
     assert result["source_node"] == "db"
     assert any(n["node_id"] == "app" for n in result["affected_nodes"])
 
@@ -183,7 +183,7 @@ def test_propagate_anomaly_unknown_and_cycle():
 
     assert graph.propagate_anomaly("not_there", 1.0)["affected_count"] == 0
 
-    result = graph.propagate_anomaly("a", 1.0)
+    result = graph.propagate_anomaly("a", 1.0)  # noqa: F841  # Variable for test verification
     assert result["affected_count"] == 2
     # The cycle should not produce a third visit.
     assert len(result["affected_nodes"]) == 2
@@ -212,7 +212,7 @@ def test_analyze_impact_with_cycle():
     graph.add_edge(CausalEdge("a", "b"))
     graph.add_edge(CausalEdge("b", "a"))
 
-    result = graph.analyze_impact("a", impact_threshold=0.1)
+    result = graph.analyze_impact("a", impact_threshold=0.1)  # noqa: F841  # Variable for test verification
     assert result["impacted_count"] == 2
 
 

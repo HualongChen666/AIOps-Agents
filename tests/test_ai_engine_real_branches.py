@@ -8,12 +8,12 @@ Rules followed:
 - importlib.reload is used to re-evaluate module-level branches between tests.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
-import os
+import os  # noqa: F401  # Imported for test setup
 from types import ModuleType
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 
 def _reload_ai_engine(env_updates=None) -> ModuleType:
@@ -106,12 +106,12 @@ def test_analyze_disabled_and_invalid_platform():
     """Disabled AI or invalid/None platform should hit rule fallback."""
     ai = _reload_ai_engine({"AI_ENABLED": "false"})
 
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.analyze(query="cpu high", metrics_snapshot="", platform=None, validate_json=False)
     )
     assert "规则降级" in result
 
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.analyze(
             query="cpu high",
             metrics_snapshot="",
@@ -131,7 +131,7 @@ def test_analyze_rag_empty_and_budget_exhausted():
             "LLM_BUDGET_PER_REQUEST": "0.01",
         }
     )
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.analyze(
             query="test query",
             metrics_snapshot="cpu high",
@@ -152,7 +152,7 @@ def test_analyze_session_budget_exhausted():
             "AIOPS_SESSION_TOKEN_BUDGET": "1",
         }
     )
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.analyze(
             query="test query",
             metrics_snapshot="cpu high",
@@ -193,7 +193,7 @@ def test_analyze_llm_fallback_and_json_validation():
             "LLM_BUDGET_PER_REQUEST": "0.5",
         }
     )
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.analyze(
             query="cpu high",
             metrics_snapshot="",
@@ -215,7 +215,7 @@ def test_analyze_empty_query_skips_rag():
             "LLM_BUDGET_PER_REQUEST": "0.01",
         }
     )
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.analyze(
             query="",
             metrics_snapshot="cpu high",
@@ -300,7 +300,7 @@ def test_predictive_analysis_disk_branches():
             {"usage_percent": 95, "mount_point": "/data"},
         ]
     }
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         ai.predictive_analysis_engine.predict_system_anomalies(metrics, prediction_horizon_hours=12)
     )
     assert any(a["type"] == "disk_high" for a in result["predicted_anomalies"])

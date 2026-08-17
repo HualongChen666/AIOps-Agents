@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Targeted functional coverage tests for batch21_c core modules."""
 
-import asyncio
-import json
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
 import threading
 import types
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.base.storage as storage
 import core.config_center as config_center

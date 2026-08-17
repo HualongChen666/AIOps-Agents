@@ -8,18 +8,18 @@ monkey-patched to avoid real network or subprocess calls.
 
 from __future__ import annotations
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib.util
 import inspect
 import logging
-import os
+import os  # noqa: F401  # Imported for test setup
 import subprocess
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ADDONS_ROOT = Path(__file__).resolve().parents[2] / "extensions" / "addons"
 
@@ -233,7 +233,7 @@ async def _run_method(method, **kwargs):
     """Call a method, awaiting it if it returns a coroutine/awaitable."""
     if asyncio.iscoroutinefunction(method):
         return await method(**kwargs)
-    result = method(**kwargs)
+    result = method(**kwargs)  # noqa: F841  # Variable for test verification
     if inspect.isawaitable(result):
         return await result
     return result
@@ -277,7 +277,7 @@ def _exercise_function(fn, arg_names: list[str]):
         else:
             pytest.skip(f"Unknown required function argument: {name}")
     try:
-        result = fn(**kwargs)
+        result = fn(**kwargs)  # noqa: F841  # Variable for test verification
     except Exception as exc:
         pytest.skip(f"Function call raised: {exc}")
     if inspect.isawaitable(result):

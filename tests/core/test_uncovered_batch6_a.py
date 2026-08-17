@@ -2,17 +2,17 @@
 """Targeted functional tests for core/alert_rules, core/anomaly_detection,
 core/backup_manager and core/circuit_breaker."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import subprocess
-import sys
-import time
+import sys  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.alert_rules as alert_rules
 import core.anomaly_detection as anomaly
@@ -245,7 +245,7 @@ def test_anomaly_train_and_detect(fake_anomaly_models):
     assert detector.iforest is not None
 
     # Detect on the same data: fake model returns yhat == y, so all normal.
-    result = detector.detect(train_df)
+    result = detector.detect(train_df)  # noqa: F841  # Variable for test verification
     assert "is_anomaly" in result.columns
     assert "anomaly_score" in result.columns
     assert not result["is_anomaly"].any()

@@ -612,7 +612,9 @@ async def query_integration(
     request: IntegrationQueryRequest,
     integration_id: str = Path(..., min_length=1, description="集成 ID"),
 ) -> dict[str, Any]:
-    """Query real data from an external integration (Datadog, Grafana, ELK, CloudWatch, PagerDuty)."""
+    """Query real data from an external integration.
+
+    (Datadog, Grafana, ELK, CloudWatch, PagerDuty)."""
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
 

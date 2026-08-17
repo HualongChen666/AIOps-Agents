@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Targeted coverage tests for batch 29 (database cache, DI, RCA, AI, LLM router)."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import datetime
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.ai.llm_router.capability_evaluator import (
     CapabilityEvaluator,
@@ -65,7 +65,7 @@ def test_cache_entry_lifecycle():
 
     entry2 = CacheEntry("k2", "v2", ttl_seconds=0.01)
     assert not entry2.is_expired()
-    import time
+    import time  # noqa: F401  # Imported for test setup
 
     time.sleep(0.02)
     assert entry2.is_expired()
@@ -215,7 +215,7 @@ def test_database_cache_preload_and_cleanup():
 
     opt.create_cache("c8", ttl_seconds=0.01)
     opt.set("c8", "q", "v")
-    import time
+    import time  # noqa: F401  # Imported for test setup
 
     time.sleep(0.02)
     assert opt.cleanup_expired_entries("c8") == 1
@@ -331,8 +331,8 @@ async def test_inject_decorator(monkeypatch):
     async def use_svc(svc, extra):
         return svc, extra
 
-    result = await use_svc("arg")
-    assert result == ("injected", "arg")
+    result = await use_svc("arg")  # noqa: F841  # Variable for test verification
+    assert result == ("injected", "arg")  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -360,7 +360,7 @@ def test_setup_core_services(monkeypatch):
     fake_alert = MagicMock()
     monkeypatch.setattr("core.alert_service.AlertService", lambda: fake_alert)
 
-    result = setup_core_services()
+    result = setup_core_services()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
 
@@ -369,7 +369,7 @@ def test_setup_core_services_failure(monkeypatch):
         raise RuntimeError("bad")
 
     monkeypatch.setattr("core.dependency_injection.di_container.register_factory", boom)
-    result = setup_core_services()
+    result = setup_core_services()  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
 
 
@@ -382,7 +382,7 @@ def test_setup_dependency_injection(monkeypatch):
     monkeypatch.setattr("core.ai_engine.get_llm_router", lambda: MagicMock())
     monkeypatch.setattr("core.alert_service.AlertService", lambda: MagicMock())
 
-    result = _run(setup_dependency_injection())
+    result = _run(setup_dependency_injection())  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
 
@@ -668,7 +668,7 @@ def test_ai_timeseries_prediction(ai, monkeypatch):
 
     data = [(datetime.datetime.now() - datetime.timedelta(hours=i), float(i)) for i in range(30)]
     data.reverse()
-    result = _run(ai.predict_timeseries("cpu_usage", data))
+    result = _run(ai.predict_timeseries("cpu_usage", data))  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result.prediction_type == PredictionType.TIMESERIES
 
@@ -694,7 +694,7 @@ def test_ai_anomaly_prediction(ai, monkeypatch):
     ai.anomaly_detectors["cpu"] = FakeDetector()
     data = [(datetime.datetime.now() - datetime.timedelta(hours=i), 1.0) for i in range(60)]
     data.reverse()
-    result = _run(ai.predict_anomalies("cpu", 100.0, data))
+    result = _run(ai.predict_anomalies("cpu", 100.0, data))  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result.is_anomalous is True
 

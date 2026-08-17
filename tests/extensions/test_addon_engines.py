@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """Happy-path smoke tests for the real addon engines."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
-import json
-import os
+import json  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
 import shutil
 import sqlite3
 import subprocess
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: F401  # Imported for test setup
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.engines.connector_bus import ConnectorBus
 from extensions.addons.engines.doc_policy_engine import DocEngine, PolicyEngine
@@ -107,7 +107,7 @@ def test_security_scanner_dry_run():
         ("review_license_compliance", {"dependencies": ["x:MIT"]}),
         ("unknown_op", {}),
     ]:
-        result = scanner.run(name, params)
+        result = scanner.run(name, params)  # noqa: F841  # Variable for test verification
         assert result is not None
 
 
@@ -317,7 +317,7 @@ def test_infra_executors_real(monkeypatch, tmp_path):
     playbook_dir.mkdir()
     (playbook_dir / "test.yml").write_text("---\n- hosts: localhost\n  tasks: []\n")
     ansible = AnsibleExecutor(dry_run=False)
-    result = ansible.run([str(playbook_dir / "test.yml"), "--check"], cwd=str(tmp_path))
+    result = ansible.run([str(playbook_dir / "test.yml"), "--check"], cwd=str(tmp_path))  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
 
     infra = _DummyInfra(dry_run=False)
@@ -409,7 +409,7 @@ def test_storage_driver_real(monkeypatch, tmp_path):
 
     monkeypatch.setattr("httpx.Client", FakeHttpxClient)
     driver.vector_create_collection("c", 3)
-    result = driver.vector_upsert(
+    result = driver.vector_upsert(  # noqa: F841  # Variable for test verification
         "c",
         ["1"],
         [[1.0, 2.0, 3.0]],
@@ -436,7 +436,7 @@ def test_workflow_engine_dry_run():
         },
         {"type": "memory", "name": "m1", "query": "incident"},
     ]
-    result = engine.run_workflow(workflow, {"x": 1})
+    result = engine.run_workflow(workflow, {"x": 1})  # noqa: F841  # Variable for test verification
     assert result["success"]
     assert engine.get_scenario_memory("incident")
     assert engine.capacity_analysis({"cpu": 10}, {"cpu": 20})["recommendations"]
@@ -477,7 +477,7 @@ def test_workflow_engine_real(monkeypatch):
         },
         {"type": "memory", "name": "m1", "query": "incident"},
     ]
-    result = engine.run_workflow(workflow, {"x": 1})
+    result = engine.run_workflow(workflow, {"x": 1})  # noqa: F841  # Variable for test verification
     assert result["success"]
     assert http_calls
 

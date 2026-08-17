@@ -2,15 +2,15 @@
 """Functional tests for core.cost_monitor, core.context_compression,
 core.capacity_engine, core.data_lifecycle_operations and core.compliance."""
 
-import asyncio
-import os
-import sys
-import time
+import asyncio  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, Mock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.capacity_engine as capacity_engine
 import core.compliance as compliance

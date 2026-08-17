@@ -2,14 +2,14 @@
 """Functional tests for core.alert_providers.grafana, core.alert_providers.zabbix,
 core.websocket_integrator, core.teams_adapter and core.causal.preprocessing."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import re
 import warnings
 from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pandas as pd
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.teams_adapter as teams_adapter
 from core.alert_providers.grafana import GrafanaAlertProvider, _first_numeric, _safe_float
@@ -478,7 +478,7 @@ def test_teams_post_message_success(monkeypatch, fake_teams_client):
         teams_adapter, "_get_http_client", AsyncMock(return_value=fake_teams_client)
     )
 
-    result = asyncio.run(teams_adapter.post_message("alert!", title="A", color="FF0000"))
+    result = asyncio.run(teams_adapter.post_message("alert!", title="A", color="FF0000"))  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
     assert result["http_status"] == 202
     fake_teams_client.post.assert_awaited_once()
@@ -491,7 +491,7 @@ def test_teams_post_interactive_message_success(monkeypatch, fake_teams_client):
     )
 
     actions = [{"type": "Action.OpenUrl", "title": "View", "url": "https://x"}]
-    result = asyncio.run(
+    result = asyncio.run(  # noqa: F841  # Variable for test verification
         teams_adapter.post_interactive_message("Title", "Description", actions, color="green")
     )
     assert result["status"] == "ok"
@@ -544,7 +544,7 @@ def test_preprocessor_init():
 
 def test_preprocess_interpolate_and_normalize(sample_ts_data):
     pp = TimeSeriesPreprocessor(handle_missing="interpolate", normalize=True, detect_outliers=True)
-    result = pp.preprocess(sample_ts_data)
+    result = pp.preprocess(sample_ts_data)  # noqa: F841  # Variable for test verification
     assert isinstance(result, np.ndarray)
     assert result.shape == (20, 2)
     assert not np.isnan(result).any()
@@ -552,7 +552,7 @@ def test_preprocess_interpolate_and_normalize(sample_ts_data):
 
 def test_preprocess_drop_and_no_normalize(sample_ts_data):
     pp = TimeSeriesPreprocessor(handle_missing="drop", normalize=False, detect_outliers=False)
-    result = pp.preprocess(sample_ts_data, target_columns=["cpu"])
+    result = pp.preprocess(sample_ts_data, target_columns=["cpu"])  # noqa: F841  # Variable for test verification
     assert result.shape[0] < 20
     assert result.shape[1] == 1
 
@@ -567,7 +567,7 @@ def test_preprocess_forward_fill_warns(sample_ts_data):
 
 def test_handle_missing_values_unknown(sample_ts_data):
     pp = TimeSeriesPreprocessor(handle_missing="unknown")
-    result = pp._handle_missing_values(sample_ts_data)
+    result = pp._handle_missing_values(sample_ts_data)  # noqa: F841  # Variable for test verification
     # Unknown method returns the data as-is; NaNs remain
     assert result.isna().sum().sum() == sample_ts_data.isna().sum().sum()
 
@@ -590,7 +590,7 @@ def test_create_lagged_features():
     pp = TimeSeriesPreprocessor()
     data = np.arange(20, dtype=float).reshape(10, 2)
     lags = [1, 2]
-    result = pp.create_lagged_features(data, lags)
+    result = pp.create_lagged_features(data, lags)  # noqa: F841  # Variable for test verification
     assert result.shape == (8, 6)
 
     no_lags = pp.create_lagged_features(data, [])

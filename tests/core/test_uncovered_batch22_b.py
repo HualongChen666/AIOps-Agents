@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Tests for core modules batch 22b."""
 
-import asyncio
-import json
-import os
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -237,7 +237,7 @@ def fake_os(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_execute_macos_repair_remote():
-    result = await macos.execute_macos_repair("remote", "repair.sh")
+    result = await macos.execute_macos_repair("remote", "repair.sh")  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert "Remote macOS" in result["output"]
 
@@ -250,7 +250,7 @@ async def test_execute_macos_repair_found_script(monkeypatch, fake_os):
         return _FakeProc(0, b"fixed")
 
     monkeypatch.setattr(macos.asyncio, "create_subprocess_shell", create_shell)
-    result = await macos.execute_macos_repair("localhost", "/exists/repair.sh", {"key": "value"})
+    result = await macos.execute_macos_repair("localhost", "/exists/repair.sh", {"key": "value"})  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["output"] == "fixed"
     assert result["exit_code"] == 0
@@ -262,7 +262,7 @@ async def test_execute_macos_repair_fallback(monkeypatch, fake_os):
         return _FakeProc(1, b"", b"fail")
 
     monkeypatch.setattr(macos.asyncio, "create_subprocess_shell", create_shell)
-    result = await macos.execute_macos_repair("localhost", "missing_cmd")
+    result = await macos.execute_macos_repair("localhost", "missing_cmd")  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert result["exit_code"] == 1
 

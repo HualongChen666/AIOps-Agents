@@ -6,12 +6,12 @@ returns real request/response payloads for the ServiceNow and Jira branches.
 No external ITSM services are contacted.
 """
 
-import json
-import sys
+import json  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

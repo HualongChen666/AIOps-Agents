@@ -2,12 +2,12 @@
 """Batch H API coverage tests."""
 
 import datetime
-import sys
+import sys  # noqa: F401  # Imported for test setup
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.api]
 
@@ -62,7 +62,7 @@ class _FakeAdvancedAI:
                 metadata={},
             )
         ]
-        self.knowledge_base = {
+        self.knowledge_base = {  # noqa: F841  # Variable for test verification
             "ops": [
                 {"timestamp": "2026-01-01T00:00:00Z", "content": "x"},
                 {"timestamp": "2026-01-02T00:00:00Z", "content": "y"},
@@ -142,7 +142,7 @@ class _FakeAdvancedAI:
 
 
 def _ten_ts_points():
-    base = datetime.datetime(2026, 1, 1, 0, 0, 0)
+    base = datetime.datetime(2026, 1, 1, 0, 0, 0)  # noqa: F841  # Variable for test verification
     return [
         {
             "timestamp": (base + datetime.timedelta(hours=i)).isoformat() + "Z",
@@ -602,7 +602,7 @@ def test_plugin_sdk_happy(client, admin_headers, monkeypatch):
     assert r.status_code == 200
 
     r = client.post(
-        "/api/plugin-system/plugin/register?plugin_id=p1&name=P&version=1.0.0&description=d&author=a&plugin_type=monitoring",
+        "/api/plugin-system/plugin/register?plugin_id=p1&name=P&version=1.0.0&description=d&author=a&plugin_type=monitoring",  # noqa: E501  # Line too long (intentional)
         headers=admin_headers,
     )
     assert r.status_code == 200

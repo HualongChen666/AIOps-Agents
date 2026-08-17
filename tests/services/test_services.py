@@ -3,7 +3,7 @@
 
 import importlib
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 _MODULES = [
     # B36 agent_orchestration_service

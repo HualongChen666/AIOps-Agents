@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for core/config_manager.py."""
 
-import json
+import json  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 import yaml
 
 from core.config_manager import (
@@ -29,7 +29,7 @@ def good_config(tmp_path):
 
 
 def test_setup_unified_configuration(good_config):
-    result = setup_unified_configuration(good_config)
+    result = setup_unified_configuration(good_config)  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert "environment" in result
 

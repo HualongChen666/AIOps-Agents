@@ -3,14 +3,14 @@
 and the L4 storage adapters (tempo, loki, victoriametrics).
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import concurrent.futures
-import sys
-import time
+import sys  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta, timezone
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 

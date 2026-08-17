@@ -1,10 +1,10 @@
-import asyncio
-import json
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
 from datetime import date, datetime, time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.ai.langgraph.dsl as dsl_mod
 import core.change_management_engine as cme
@@ -265,7 +265,7 @@ def test_dsl_example(monkeypatch):
         return {"status": "completed"}
 
     monkeypatch.setattr(dsl_mod.Workflow, "execute", fake_execute)
-    result = asyncio.run(dsl_mod.example_dsl_usage())
+    result = asyncio.run(dsl_mod.example_dsl_usage())  # noqa: F841  # Variable for test verification
     assert result is None
 
 

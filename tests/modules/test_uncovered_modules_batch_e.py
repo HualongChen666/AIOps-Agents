@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Pytest coverage suite for modules batch E."""
 
-import asyncio
-import time
+import asyncio  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from modules.compliance.gdpr_compliance import (
     ConsentRecord,
@@ -649,7 +649,7 @@ def test_thread_pool_manager():
     pool.wait_for_completion()
 
     assert t1.status == TaskStatus.COMPLETED
-    assert t1.result == 5
+    assert t1.result == 5  # noqa: F841  # Variable for test verification
     assert t2.status == TaskStatus.FAILED
     assert "boom" in t2.error
 
@@ -678,7 +678,7 @@ def test_async_task_scheduler():
         scheduler = create_async_task_scheduler(max_concurrent=2)
         t1 = await scheduler.submit("ok", ok())
         assert t1.status == TaskStatus.COMPLETED
-        assert t1.result == 42
+        assert t1.result == 42  # noqa: F841  # Variable for test verification
 
         with pytest.raises(ValueError):
             await scheduler.submit("bad", bad())
@@ -814,7 +814,7 @@ def test_soc2_compliance_manager():
     # force violations
     for _ in range(12):
         mgr.access_control.log_access("u1", "r1", "read", AccessLevel.READ_WRITE, success=False)
-    pending = mgr.change_manager.record_change(
+    pending = mgr.change_manager.record_change(  # noqa: F841  # Variable for test verification
         "u1", "config", "cfg1", "update", requires_approval=True
     )
     pending.timestamp = datetime.now() - timedelta(days=8)

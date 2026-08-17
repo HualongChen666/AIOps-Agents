@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for core/ai_service.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.ai_service import (
     AIContextService,

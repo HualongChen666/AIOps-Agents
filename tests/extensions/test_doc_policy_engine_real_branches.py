@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """Real-execution branch coverage for doc_policy_engine with real I/O."""
 
-import json
-import os
-import sys
+import json  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
+import sys  # noqa: F401  # Imported for test setup
 from pathlib import Path
 from textwrap import dedent
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from extensions.addons.engines.doc_policy_engine import DocEngine, PolicyEngine
 
@@ -57,7 +57,7 @@ def test_doc_engine_build_docs_success(monkeypatch, tmp_path):
     src.mkdir()
 
     doc = DocEngine(dry_run=False)
-    result = doc.build_docs(str(src), str(out))
+    result = doc.build_docs(str(src), str(out))  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["status"] == "completed"
     assert result["returncode"] == 0
@@ -79,7 +79,7 @@ def test_doc_engine_build_docs_failure(monkeypatch, tmp_path):
     src.mkdir()
 
     doc = DocEngine(dry_run=False)
-    result = doc.build_docs(str(src), str(out))
+    result = doc.build_docs(str(src), str(out))  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["status"] == "failed"
     assert result["returncode"] == 1
@@ -99,7 +99,7 @@ def test_doc_engine_build_docs_warnings(monkeypatch, tmp_path):
     src.mkdir()
 
     doc = DocEngine(dry_run=False)
-    result = doc.build_docs(str(src), str(out))
+    result = doc.build_docs(str(src), str(out))  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["status"] == "completed"
     # The code counts "WARNING:" (case-sensitive) + "warning:" (case-insensitive)
@@ -123,7 +123,7 @@ def test_doc_engine_build_docs_errors(monkeypatch, tmp_path):
     src.mkdir()
 
     doc = DocEngine(dry_run=False)
-    result = doc.build_docs(str(src), str(out))
+    result = doc.build_docs(str(src), str(out))  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["status"] == "failed"
     assert result["errors"] == 2  # One ERROR:, one SEVERE:
@@ -136,7 +136,7 @@ def test_doc_engine_build_docs_dry_run(tmp_path):
     src.mkdir()
 
     doc = DocEngine(dry_run=True)
-    result = doc.build_docs(str(src), str(out))
+    result = doc.build_docs(str(src), str(out))  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
     assert result["status"] == "would_run"
     assert result["warnings"] == 0
@@ -150,8 +150,8 @@ def test_load_dict_dict_input():
     """Test _load_dict with dict input."""
     policy = PolicyEngine()
     data = {"key": "value"}
-    result = policy._load_dict(data)
-    assert result == data
+    result = policy._load_dict(data)  # noqa: F841  # Variable for test verification
+    assert result == data  # noqa: F841  # Variable for test verification
 
 
 def test_load_dict_json_file(tmp_path):
@@ -159,8 +159,8 @@ def test_load_dict_json_file(tmp_path):
     policy = PolicyEngine()
     json_file = tmp_path / "test.json"
     json_file.write_text('{"key": "value"}')
-    result = policy._load_dict(str(json_file))
-    assert result == {"key": "value"}
+    result = policy._load_dict(str(json_file))  # noqa: F841  # Variable for test verification
+    assert result == {"key": "value"}  # noqa: F841  # Variable for test verification
 
 
 def test_load_dict_yaml_file(tmp_path, monkeypatch):
@@ -173,8 +173,8 @@ def test_load_dict_yaml_file(tmp_path, monkeypatch):
     policy = PolicyEngine()
     yaml_file = tmp_path / "test.yaml"
     yaml_file.write_text("key: yaml_value")
-    result = policy._load_dict(str(yaml_file))
-    assert result == {"key": "yaml_value"}
+    result = policy._load_dict(str(yaml_file))  # noqa: F841  # Variable for test verification
+    assert result == {"key": "yaml_value"}  # noqa: F841  # Variable for test verification
 
 
 def test_load_dict_yaml_file_no_yaml_module(tmp_path, monkeypatch):
@@ -184,23 +184,23 @@ def test_load_dict_yaml_file_no_yaml_module(tmp_path, monkeypatch):
     policy = PolicyEngine()
     yaml_file = tmp_path / "test.yaml"
     yaml_file.write_text('{"key": "value"}')  # Write JSON content
-    result = policy._load_dict(str(yaml_file))
+    result = policy._load_dict(str(yaml_file))  # noqa: F841  # Variable for test verification
     # Should fall back to JSON parsing
-    assert result == {"key": "value"}
+    assert result == {"key": "value"}  # noqa: F841  # Variable for test verification
 
 
 def test_load_dict_nonexistent_path():
     """Test _load_dict with nonexistent path."""
     policy = PolicyEngine()
-    result = policy._load_dict("/nonexistent/path.json")
-    assert result == {}
+    result = policy._load_dict("/nonexistent/path.json")  # noqa: F841  # Variable for test verification
+    assert result == {}  # noqa: F841  # Variable for test verification
 
 
 def test_load_dict_path_is_directory(tmp_path):
     """Test _load_dict with directory path."""
     policy = PolicyEngine()
-    result = policy._load_dict(str(tmp_path))
-    assert result == {}
+    result = policy._load_dict(str(tmp_path))  # noqa: F841  # Variable for test verification
+    assert result == {}  # noqa: F841  # Variable for test verification
 
 
 def test_load_dict_yaml_empty_content(tmp_path, monkeypatch):
@@ -212,8 +212,8 @@ def test_load_dict_yaml_empty_content(tmp_path, monkeypatch):
     policy = PolicyEngine()
     yaml_file = tmp_path / "test.yaml"
     yaml_file.write_text("")
-    result = policy._load_dict(str(yaml_file))
-    assert result == {}
+    result = policy._load_dict(str(yaml_file))  # noqa: F841  # Variable for test verification
+    assert result == {}  # noqa: F841  # Variable for test verification
 
 
 # ------------------------------------------------------------------
@@ -227,7 +227,7 @@ def test_lint_openapi_valid():
         "info": {"title": "Test API"},
         "paths": {},
     }
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
     assert result["issues"] == []
     assert result["version"] == "3.0.0"
@@ -237,7 +237,7 @@ def test_lint_openapi_missing_openapi():
     """Test lint_openapi with missing openapi field."""
     policy = PolicyEngine()
     spec = {"info": {"title": "Test API"}, "paths": {}}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "missing or empty 'openapi' version" in result["issues"]
 
@@ -246,7 +246,7 @@ def test_lint_openapi_empty_openapi():
     """Test lint_openapi with empty openapi field."""
     policy = PolicyEngine()
     spec = {"openapi": "", "info": {"title": "Test API"}, "paths": {}}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "missing or empty 'openapi' version" in result["issues"]
 
@@ -255,7 +255,7 @@ def test_lint_openapi_missing_title():
     """Test lint_openapi with missing title."""
     policy = PolicyEngine()
     spec = {"openapi": "3.0.0", "info": {}, "paths": {}}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "missing or empty 'info.title'" in result["issues"]
 
@@ -264,7 +264,7 @@ def test_lint_openapi_empty_title():
     """Test lint_openapi with empty title."""
     policy = PolicyEngine()
     spec = {"openapi": "3.0.0", "info": {"title": ""}, "paths": {}}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "missing or empty 'info.title'" in result["issues"]
 
@@ -273,7 +273,7 @@ def test_lint_openapi_missing_info():
     """Test lint_openapi with missing info."""
     policy = PolicyEngine()
     spec = {"openapi": "3.0.0", "paths": {}}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "missing or empty 'info.title'" in result["issues"]
 
@@ -282,7 +282,7 @@ def test_lint_openapi_missing_paths():
     """Test lint_openapi with missing paths."""
     policy = PolicyEngine()
     spec = {"openapi": "3.0.0", "info": {"title": "Test API"}}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "'paths' must be a dictionary" in result["issues"]
 
@@ -291,7 +291,7 @@ def test_lint_openapi_paths_not_dict():
     """Test lint_openapi with paths as non-dict."""
     policy = PolicyEngine()
     spec = {"openapi": "3.0.0", "info": {"title": "Test API"}, "paths": []}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "'paths' must be a dictionary" in result["issues"]
 
@@ -300,7 +300,7 @@ def test_lint_openapi_not_dict():
     """Test lint_openapi with non-dict spec."""
     policy = PolicyEngine()
     spec = "not a dict"
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     # When spec is not a dict, _load_dict returns {} and all checks fail
     # The "OpenAPI spec must be a dictionary" is NOT added because _load_dict handles it
@@ -315,7 +315,7 @@ def test_lint_openapi_multiple_issues():
     """Test lint_openapi with multiple issues."""
     policy = PolicyEngine()
     spec = {}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert len(result["issues"]) == 3  # openapi, title, paths
 
@@ -324,7 +324,7 @@ def test_lint_openapi_dry_run():
     """Test lint_openapi in dry-run mode."""
     policy = PolicyEngine(dry_run=True)
     spec = {"openapi": "3.0.0", "info": {"title": "Test API"}, "paths": {}}
-    result = policy.lint_openapi(spec)
+    result = policy.lint_openapi(spec)  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
 
 
@@ -338,7 +338,7 @@ def test_validate_schema_with_jsonschema_success(monkeypatch):
     monkeypatch.setattr("extensions.addons.engines.doc_policy_engine.jsonschema", fake_jsonschema)
 
     policy = PolicyEngine()
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})
+    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
     assert result["errors"] == []
     fake_jsonschema.validate.assert_called_once()
@@ -357,7 +357,7 @@ def test_validate_schema_with_jsonschema_validation_error(monkeypatch):
     monkeypatch.setattr("extensions.addons.engines.doc_policy_engine.jsonschema", fake_jsonschema)
 
     policy = PolicyEngine()
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})
+    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert len(result["errors"]) == 1
     assert "Validation failed" in result["errors"][0]
@@ -377,7 +377,7 @@ def test_validate_schema_with_jsonschema_generic_error(monkeypatch):
     monkeypatch.setattr("extensions.addons.engines.doc_policy_engine.jsonschema", fake_jsonschema)
 
     policy = PolicyEngine()
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})
+    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert len(result["errors"]) == 1
     assert "Unexpected error" in result["errors"][0]
@@ -389,7 +389,7 @@ def test_validate_schema_without_jsonschema(monkeypatch):
     # The jsonschema tests cover the validation functionality
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})
+    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
     assert result["errors"] == []
 
@@ -400,7 +400,7 @@ def test_validate_schema_fallback_not_dict(monkeypatch):
     # But jsonschema will handle it first and give its own error
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
-    result = policy.validate_schema("not a dict", "not a dict")
+    result = policy.validate_schema("not a dict", "not a dict")  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     # jsonschema provides its own error message when schema is invalid
     assert len(result["errors"]) > 0
@@ -413,7 +413,7 @@ def test_validate_schema_fallback_type_check(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for type checking
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})
+    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
 
 
@@ -424,7 +424,7 @@ def test_validate_schema_fallback_required(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for required checking
-    result = policy.validate_schema({"key": "value"}, {"required": ["key"]})
+    result = policy.validate_schema({"key": "value"}, {"required": ["key"]})  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
 
 
@@ -435,7 +435,7 @@ def test_validate_schema_fallback_properties(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for properties checking
-    result = policy.validate_schema({"key": "value"}, {"properties": {"key": {"type": "string"}}})
+    result = policy.validate_schema({"key": "value"}, {"properties": {"key": {"type": "string"}}})  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
 
 
@@ -446,7 +446,7 @@ def test_validate_schema_fallback_combined(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for combined checking
-    result = policy.validate_schema(
+    result = policy.validate_schema(  # noqa: F841  # Variable for test verification
         {"name": "test", "age": 30},
         {
             "type": "object",
@@ -460,7 +460,7 @@ def test_validate_schema_fallback_combined(monkeypatch):
 def test_validate_schema_dry_run():
     """Test validate_schema in dry-run mode."""
     policy = PolicyEngine(dry_run=True)
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})
+    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
 
 
@@ -480,7 +480,7 @@ def test_load_config_config_manager_success(monkeypatch):
     monkeypatch.setitem(sys.modules, "core.config_manager", fake_module)
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.load_config("some.key")
+    result = policy.load_config("some.key")  # noqa: F841  # Variable for test verification
     assert result["source"] == "core.config_manager"
     assert result["value"] == {"from": "config_manager"}
     assert result["dry_run"] is False
@@ -504,7 +504,7 @@ def test_load_config_config_manager_exception(monkeypatch, tmp_path):
     config_file.write_text('{"key": "value"}')
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.load_config(str(config_file))
+    result = policy.load_config(str(config_file))  # noqa: F841  # Variable for test verification
     # Should fall back to file reading
     assert result["source"] == str(config_file)
     assert result["value"] == {"key": "value"}
@@ -519,7 +519,7 @@ def test_load_config_json_file(tmp_path):
     policy = PolicyEngine()
     config_file = tmp_path / "config.json"
     config_file.write_text('{"key": "value"}')
-    result = policy.load_config(str(config_file))
+    result = policy.load_config(str(config_file))  # noqa: F841  # Variable for test verification
     assert result["source"] == str(config_file)
     assert result["value"] == {"key": "value"}
 
@@ -533,7 +533,7 @@ def test_load_config_yaml_file(tmp_path, monkeypatch):
     policy = PolicyEngine()
     config_file = tmp_path / "config.yaml"
     config_file.write_text("key: yaml_value")
-    result = policy.load_config(str(config_file))
+    result = policy.load_config(str(config_file))  # noqa: F841  # Variable for test verification
     assert result["source"] == str(config_file)
     assert result["value"] == {"key": "yaml_value"}
 
@@ -543,7 +543,7 @@ def test_load_config_file_parse_error(tmp_path):
     policy = PolicyEngine()
     config_file = tmp_path / "config.json"
     config_file.write_text("invalid json {{{")
-    result = policy.load_config(str(config_file))
+    result = policy.load_config(str(config_file))  # noqa: F841  # Variable for test verification
     assert result["source"] == str(config_file)
     assert result["value"] is None
     assert "error" in result
@@ -553,7 +553,7 @@ def test_load_config_env_var_json(monkeypatch):
     """Test load_config with JSON environment variable."""
     monkeypatch.setenv("TEST_CONFIG", '{"key": "env_value"}')
     policy = PolicyEngine()
-    result = policy.load_config("TEST_CONFIG")
+    result = policy.load_config("TEST_CONFIG")  # noqa: F841  # Variable for test verification
     assert result["source"] == "env"
     assert result["value"] == {"key": "env_value"}
 
@@ -562,7 +562,7 @@ def test_load_config_env_var_string(monkeypatch):
     """Test load_config with string environment variable (invalid JSON)."""
     monkeypatch.setenv("TEST_CONFIG", "just a string")
     policy = PolicyEngine()
-    result = policy.load_config("TEST_CONFIG")
+    result = policy.load_config("TEST_CONFIG")  # noqa: F841  # Variable for test verification
     assert result["source"] == "env"
     assert result["value"] == "just a string"
 
@@ -570,7 +570,7 @@ def test_load_config_env_var_string(monkeypatch):
 def test_load_config_not_found():
     """Test load_config when config is not found."""
     policy = PolicyEngine()
-    result = policy.load_config("nonexistent_key")
+    result = policy.load_config("nonexistent_key")  # noqa: F841  # Variable for test verification
     assert result["source"] is None
     assert result["value"] is None
     assert "error" in result
@@ -580,7 +580,7 @@ def test_load_config_not_found():
 def test_load_config_dry_run():
     """Test load_config in dry-run mode."""
     policy = PolicyEngine(dry_run=True)
-    result = policy.load_config("some.key")
+    result = policy.load_config("some.key")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
 
 
@@ -590,7 +590,7 @@ def test_load_config_dry_run():
 def test_user_lookup_dry_run():
     """Test user_lookup in dry-run mode."""
     policy = PolicyEngine(dry_run=True)
-    result = policy.user_lookup("alice")
+    result = policy.user_lookup("alice")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
     assert result["found"] is True
     assert result["source"] == "synthetic"
@@ -604,7 +604,7 @@ def test_user_lookup_real_execution_not_found(monkeypatch):
     # The real core.authentication module exists and get_user_by_username returns None by default
     # This tests the "not found" branch
     policy = PolicyEngine(dry_run=False)
-    result = policy.user_lookup("nonexistent")
+    result = policy.user_lookup("nonexistent")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["found"] is False
     assert result["source"] == "core.authentication"
@@ -623,7 +623,7 @@ def test_user_lookup_real_execution_found(monkeypatch):
     monkeypatch.setattr("core.authentication.get_user", fake_get_user)
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.user_lookup("alice")
+    result = policy.user_lookup("alice")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["found"] is True
     assert result["source"] == "core.authentication"
@@ -641,7 +641,7 @@ def test_user_lookup_real_execution_exception(monkeypatch):
     monkeypatch.setattr("core.authentication.get_user_by_username", fake_get_user_by_username)
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.user_lookup("alice")
+    result = policy.user_lookup("alice")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["found"] is False
     assert result["source"] == "core.authentication"
@@ -668,7 +668,7 @@ def test_user_lookup_no_auth_module(monkeypatch):
         del sys.modules["core"]
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.user_lookup("alice")
+    result = policy.user_lookup("alice")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["found"] is True
     assert result["source"] == "mock"
@@ -681,7 +681,7 @@ def test_user_lookup_no_auth_module(monkeypatch):
 def test_plugin_load_dry_run():
     """Test plugin_load in dry-run mode."""
     policy = PolicyEngine(dry_run=True)
-    result = policy.plugin_load("some_plugin")
+    result = policy.plugin_load("some_plugin")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
     assert result["loaded"] is False
     assert result["message"] == "would load"
@@ -692,7 +692,7 @@ def test_plugin_load_import_failure(monkeypatch):
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.plugin_load("nonexistent_module_xyz")
+    result = policy.plugin_load("nonexistent_module_xyz")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["loaded"] is False
     assert "error" in result
@@ -713,7 +713,7 @@ def test_plugin_load_success(monkeypatch, tmp_path):
 
     try:
         policy = PolicyEngine(dry_run=False)
-        result = policy.plugin_load("test_plugin")
+        result = policy.plugin_load("test_plugin")  # noqa: F841  # Variable for test verification
         assert result["dry_run"] is False
         assert result["loaded"] is True
         assert result["plugin_id"] == "test_plugin"
@@ -733,7 +733,7 @@ def test_plugin_load_success(monkeypatch, tmp_path):
 def test_plugin_unload_dry_run():
     """Test plugin_unload in dry-run mode."""
     policy = PolicyEngine(dry_run=True)
-    result = policy.plugin_unload("some_plugin")
+    result = policy.plugin_unload("some_plugin")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
     assert result["unloaded"] is False
     assert result["removed"] == []
@@ -748,7 +748,7 @@ def test_plugin_unload_no_match(monkeypatch):
         del sys.modules["nonexistent_plugin"]
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.plugin_unload("nonexistent_plugin")
+    result = policy.plugin_unload("nonexistent_plugin")  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["unloaded"] is False
     assert result["removed"] == []
@@ -774,7 +774,7 @@ def test_plugin_unload_with_submodules(monkeypatch, tmp_path):
         import real_test_plugin.sub2
 
         policy = PolicyEngine(dry_run=False)
-        result = policy.plugin_unload("real_test_plugin")
+        result = policy.plugin_unload("real_test_plugin")  # noqa: F841  # Variable for test verification
         assert result["dry_run"] is False
         assert result["unloaded"] is True
         assert "real_test_plugin" in result["removed"]
@@ -813,7 +813,7 @@ def test_plugin_unload_partial_match(monkeypatch, tmp_path):
         import plugin_ab
 
         policy = PolicyEngine(dry_run=False)
-        result = policy.plugin_unload("plugin_a")
+        result = policy.plugin_unload("plugin_a")  # noqa: F841  # Variable for test verification
         assert result["dry_run"] is False
         assert result["unloaded"] is True
         assert "plugin_a" in result["removed"]

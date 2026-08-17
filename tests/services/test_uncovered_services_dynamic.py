@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Dynamic smoke tests that import and exercise service modules to raise coverage."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib
 import inspect
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

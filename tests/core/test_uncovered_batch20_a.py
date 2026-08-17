@@ -4,12 +4,12 @@ core.performance_scheduler, core.crypto, core.priority.assessor and
 core.model_fine_tuner.
 """
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from cryptography.fernet import Fernet
 
 import core.crypto as crypto
@@ -198,7 +198,7 @@ def test_validate_environment_config_valid(env_fakes, tmp_path, monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
     (tmp_path / "production.yaml").write_text("prod")
     manager = env_config.EnvironmentConfigManager(tmp_path)
-    result = manager.validate_environment_config()
+    result = manager.validate_environment_config()  # noqa: F841  # Variable for test verification
     assert result["config_file_exists"] is True
     assert result["valid"] is True
     assert len(result["validation_errors"]) == 0
@@ -222,7 +222,7 @@ def test_validate_environment_config_invalid(env_fakes, tmp_path, monkeypatch):
     manager = env_config.EnvironmentConfigManager(tmp_path)
     bad_config = BadAppConfig()
     monkeypatch.setattr(manager, "load_environment_config", lambda: bad_config)
-    result = manager.validate_environment_config()
+    result = manager.validate_environment_config()  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert any("Debug mode" in e for e in result["validation_errors"])
     assert any("JWT secret" in e for e in result["validation_errors"])
@@ -234,7 +234,7 @@ def test_validate_environment_config_missing_file(tmp_path, monkeypatch):
     empty = tmp_path / "missing"
     empty.mkdir()
     manager = env_config.EnvironmentConfigManager(empty)
-    result = manager.validate_environment_config()
+    result = manager.validate_environment_config()  # noqa: F841  # Variable for test verification
     assert result["config_file_exists"] is False
     assert "valid" not in result
 
@@ -244,7 +244,7 @@ def test_setup_environment_configuration(monkeypatch, env_fakes, tmp_path):
     (tmp_path / "development.yaml").write_text("dev")
     manager = env_config.EnvironmentConfigManager(tmp_path)
     monkeypatch.setattr(env_config, "environment_config_manager", manager)
-    result = env_config.setup_environment_configuration()
+    result = env_config.setup_environment_configuration()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["environment"] == "development"
     assert result["unified_config_setup"]["ok"] is True
@@ -254,7 +254,7 @@ def test_setup_environment_configuration_error(monkeypatch):
     fake_manager = MagicMock()
     fake_manager.validate_environment_config.side_effect = RuntimeError("boom")
     monkeypatch.setattr(env_config, "environment_config_manager", fake_manager)
-    result = env_config.setup_environment_configuration()
+    result = env_config.setup_environment_configuration()  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert "boom" in result["error"]
 

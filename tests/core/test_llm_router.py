@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Unit tests for core/ai/llm_router/enhanced_router.py."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.ai.llm_router.capability_evaluator import TaskType
 from core.ai.llm_router.enhanced_router import EnhancedLLMRouter

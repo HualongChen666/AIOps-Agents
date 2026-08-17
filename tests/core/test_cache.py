@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for cache helpers, manager and strategy."""
 
-import time
+import time  # noqa: F401  # Imported for test setup
 
 import core.cache_helpers
 import core.cache_manager
@@ -15,7 +15,7 @@ def test_cache_statistics():
     stats.record_eviction()
     stats.size = 5
     stats.max_size = 10
-    result = stats.get_stats()
+    result = stats.get_stats()  # noqa: F841  # Variable for test verification
     assert result["hits"] == 1
     assert result["misses"] == 1
     assert result["evictions"] == 1

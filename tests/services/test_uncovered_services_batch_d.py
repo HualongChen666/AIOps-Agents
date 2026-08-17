@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Batch D coverage tests for assigned service modules."""
 
-import asyncio
-import time
+import asyncio  # noqa: F401  # Imported for test setup
+import time  # noqa: F401  # Imported for test setup
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 from fastapi.testclient import TestClient
 
 import services.agent_orchestration_service.main_app as agent_main
@@ -167,7 +167,7 @@ def test_audit_graphql():
     gql = graphql_api.AuditGraphQL(repo)
 
     async def run():
-        result = await gql.query(["event_id", "action"], tenant_id="t1", limit=10)
+        result = await gql.query(["event_id", "action"], tenant_id="t1", limit=10)  # noqa: F841  # Variable for test verification
         assert result["total"] == 2
         assert list(result["data"][0].keys()) == ["event_id", "action"]
 

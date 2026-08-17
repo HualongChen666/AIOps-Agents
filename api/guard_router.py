@@ -528,7 +528,10 @@ async def get_security_events(
                 "type": event_type,
                 "severity": severity,
                 "title": log.get("what", "未知命令"),
-                "description": f"执行者: {log.get('who', 'unknown')} @ {log.get('where', 'unknown')}，结果: {result}",
+                "description": (
+                    f"执行者: {log.get('who', 'unknown')} @ "
+                    f"{log.get('where', 'unknown')}，结果: {result}"
+                ),
                 "source": log.get("who", "unknown"),
                 "affectedAssets": 1,
                 "status": status,

@@ -213,7 +213,9 @@ async def remote_rag_query(query: str, top_k: int = 5) -> Any:
 
 
 async def remote_llm_route(prompt: str, models: Optional[List[str]] = None) -> Any:
-    """Route a prompt through the LLM router add-on service, falling back to the in-process LLM router."""
+    """Route a prompt through the LLM router add-on service.
+
+    falling back to the in-process LLM router."""
     if _is_remote() and os.getenv("LLM_ROUTER_SERVICE_URL"):
         payload: Dict[str, Any] = {"prompt": prompt}
         if models:
@@ -232,7 +234,9 @@ async def remote_llm_route(prompt: str, models: Optional[List[str]] = None) -> A
 
 
 async def remote_topology() -> Any:
-    """Fetch topology nodes and edges from the observability add-on service, falling back to the in-process topology engine."""
+    """Fetch topology nodes and edges from the observability add-on service.
+
+    falling back to the in-process topology engine."""
     if _is_remote() and os.getenv("TOPOLOGY_SERVICE_URL"):
         try:
             nodes = await _remote_call("TOPOLOGY_SERVICE_URL", "GET", "/nodes")

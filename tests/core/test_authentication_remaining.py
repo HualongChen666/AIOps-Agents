@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Additional tests for core/authentication.py remaining components."""
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.authentication import (
     ABACPolicy,
@@ -66,7 +66,7 @@ async def test_sso_provider():
 async def test_compliance_manager():
     manager = ComplianceManager()
     await manager.log_audit_event("login", "admin", "auth", "read")
-    result = await manager.run_compliance_check(ComplianceFramework.ISO27001)
+    result = await manager.run_compliance_check(ComplianceFramework.ISO27001)  # noqa: F841  # Variable for test verification
     assert result["overall_status"] == "pass"
     report = await manager.get_audit_report()
     assert report["total_events"] == 1

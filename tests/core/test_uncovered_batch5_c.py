@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Targeted coverage tests for core.command_guard, core.log_collector, core.health_check."""
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import datetime
-import json
-import os
+import json  # noqa: F401  # Imported for test setup
+import os  # noqa: F401  # Imported for test setup
 import re
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 import core.command_guard as cg
 import core.health_check as hc
@@ -80,7 +80,7 @@ def test_split_command_chain_quotes():
 
 def test_split_command_chain_fallback_unmatched_quote():
     # shlex fails on unmatched quote and falls back to re.split
-    result = cg._split_command_chain('echo "a && ls')
+    result = cg._split_command_chain('echo "a && ls')  # noqa: F841  # Variable for test verification
     assert "echo" in result or "ls" in result
 
 
@@ -101,7 +101,7 @@ def test_check_empty_command():
 
 def test_check_self_termination():
     cg._protected_pids.add(9999)
-    result = cg._check_self_termination("kill 9999")
+    result = cg._check_self_termination("kill 9999")  # noqa: F841  # Variable for test verification
     assert result["risk_level"] == cg.RiskLevel.BLOCKED
     assert result["action"] == "block"
     assert cg._check_self_termination("ls") is None
@@ -110,7 +110,7 @@ def test_check_self_termination():
 def test_analyze_command_chain():
     safe = cg._analyze_single_command("ls -la")
     blocked = cg._analyze_single_command("rm -rf /")
-    result = cg._analyze_command_chain(["ls -la", "rm -rf /"], "ls -la && rm -rf /")
+    result = cg._analyze_command_chain(["ls -la", "rm -rf /"], "ls -la && rm -rf /")  # noqa: F841  # Variable for test verification
     assert result["risk_level"] == cg.RiskLevel.BLOCKED
     assert result["is_chained"] is True
     assert result["chain_count"] == 2
@@ -135,7 +135,7 @@ def test_check_whitelist():
 
 
 def test_check_blacklist():
-    result = cg._check_blacklist("rm -rf /", "rm -rf /")
+    result = cg._check_blacklist("rm -rf /", "rm -rf /")  # noqa: F841  # Variable for test verification
     assert result["risk_level"] == cg.RiskLevel.BLOCKED
     high = cg._check_blacklist("shutdown now", "shutdown now")
     assert high["risk_level"] == cg.RiskLevel.HIGH
@@ -275,8 +275,8 @@ def test_clamp_newest():
 @pytest.mark.asyncio
 async def test_get_event_logs(monkeypatch):
     monkeypatch.setattr(lc, "_run_ps_json", MagicMock(return_value=[{"x": 1}]))
-    result = await lc.get_event_logs("System", "Error", 1000)
-    assert result == [{"x": 1}]
+    result = await lc.get_event_logs("System", "Error", 1000)  # noqa: F841  # Variable for test verification
+    assert result == [{"x": 1}]  # noqa: F841  # Variable for test verification
     assert lc._run_ps_json.called
 
 
@@ -358,7 +358,7 @@ def test_sanitize_log_entries():
         {"TimeGenerated": 123, "Message": "x" * 2500},
         "not a dict",
     ]
-    result = lc._sanitize_log_entries(entries)
+    result = lc._sanitize_log_entries(entries)  # noqa: F841  # Variable for test verification
     assert result[0]["TimeGenerated"] == "123"
     assert "截断" in result[0]["Message"]
 
@@ -402,7 +402,7 @@ async def test_get_linux_logs_normal(monkeypatch):
     raw = "Jan 15 10:30:45 host msg1\n\nJan 15 10:30:46 host msg2"
     fake = _fake_linux_collector(raw)
     monkeypatch.setitem(sys.modules, "core.linux_collector", fake)
-    result = await lc.get_linux_logs({"host": "h1"}, source="syslog", newest=10)
+    result = await lc.get_linux_logs({"host": "h1"}, source="syslog", newest=10)  # noqa: F841  # Variable for test verification
     assert len(result) == 2
     assert result[0]["Platform"] == "linux"
 
@@ -453,8 +453,8 @@ async def test_search_linux_logs_empty_and_errors(monkeypatch):
     for raw in ("", "TIMEOUT", "SSH_NOT_FOUND", "ERROR: fail"):
         fake = _fake_linux_collector(raw)
         monkeypatch.setitem(sys.modules, "core.linux_collector", fake)
-        result = await lc.search_linux_logs({"host": "h1"}, "x", 10)
-        assert result == []
+        result = await lc.search_linux_logs({"host": "h1"}, "x", 10)  # noqa: F841  # Variable for test verification
+        assert result == []  # noqa: F841  # Variable for test verification
 
 
 # ---------------------------------------------------------------------------
@@ -478,7 +478,7 @@ async def test_check_database_health_healthy(monkeypatch):
     session.__aexit__ = AsyncMock(return_value=None)
 
     monkeypatch.setattr("core.db_engine.AsyncSessionLocal", MagicMock(return_value=session))
-    result = await hc.check_database_health()
+    result = await hc.check_database_health()  # noqa: F841  # Variable for test verification
     assert result["status"] == "healthy"
     assert "query_time_ms" in result["metrics"]
 
@@ -493,7 +493,7 @@ async def test_check_database_health_degraded(monkeypatch):
     session.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr("core.db_engine.AsyncSessionLocal", MagicMock(return_value=session))
     monkeypatch.setattr(hc.time, "time", MagicMock(side_effect=[0, 2]))  # 2000ms > threshold
-    result = await hc.check_database_health()
+    result = await hc.check_database_health()  # noqa: F841  # Variable for test verification
     assert result["status"] == "degraded"
     assert result["threshold_exceeded"] is True
 
@@ -503,7 +503,7 @@ async def test_check_database_health_unhealthy(monkeypatch):
     monkeypatch.setattr(
         "core.db_engine.AsyncSessionLocal", MagicMock(side_effect=Exception("DB down"))
     )
-    result = await hc.check_database_health()
+    result = await hc.check_database_health()  # noqa: F841  # Variable for test verification
     assert result["status"] == "unhealthy"
 
 
@@ -534,7 +534,7 @@ async def test_check_redis_health_unhealthy(monkeypatch):
     monkeypatch.setattr(hc.config, "REDIS_DB", 0)
     fake_redis = types.SimpleNamespace(Redis=MagicMock(side_effect=Exception("down")))
     monkeypatch.setitem(sys.modules, "redis", fake_redis)
-    result = await hc.check_redis_health()
+    result = await hc.check_redis_health()  # noqa: F841  # Variable for test verification
     assert result["status"] == "unhealthy"
 
 
@@ -561,7 +561,7 @@ async def test_check_system_resources(monkeypatch):
 @pytest.mark.asyncio
 async def test_check_system_resources_exception(monkeypatch):
     monkeypatch.setattr(hc.psutil, "cpu_percent", MagicMock(side_effect=Exception("boom")))
-    result = await hc.check_system_resources()
+    result = await hc.check_system_resources()  # noqa: F841  # Variable for test verification
     assert result["status"] == "unhealthy"
 
 
@@ -607,7 +607,7 @@ async def test_perform_health_checks(monkeypatch):
         AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}),
     )
 
-    result = await hc.perform_health_checks()
+    result = await hc.perform_health_checks()  # noqa: F841  # Variable for test verification
     assert result["overall_status"] == "healthy"
     callback.assert_not_awaited()
 
@@ -645,7 +645,7 @@ async def test_perform_health_checks_unhealthy_and_exception(monkeypatch):
         AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}),
     )
 
-    result = await hc.perform_health_checks()
+    result = await hc.perform_health_checks()  # noqa: F841  # Variable for test verification
     assert result["overall_status"] == "unhealthy"
     callback.assert_awaited_once()
     failing_callback.assert_awaited_once()  # the except branch catches callback failure

@@ -2,11 +2,11 @@
 """Tests for core/exception_handler.py, core/smart_cache_strategy.py,
 core/phase3_metrics.py and core/rate_limiting.py."""
 
-import asyncio
-import json
+import asyncio  # noqa: F401  # Imported for test setup
+import json  # noqa: F401  # Imported for test setup
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.exception_handler import (
     AIException,

@@ -3,14 +3,14 @@
 
 from __future__ import annotations
 
-import asyncio
+import asyncio  # noqa: F401  # Imported for test setup
 import importlib.util
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ADDONS_ROOT = Path(__file__).resolve().parents[2] / "extensions" / "addons"
 ROOT_PKG = "__low_ai_plus"

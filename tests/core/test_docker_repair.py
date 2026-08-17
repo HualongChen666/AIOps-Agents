@@ -15,14 +15,14 @@ def test_get_repair_scripts():
 
 
 async def test_execute_repair_dry_run():
-    result = await execute_repair_sync("localhost", "ps", {})
+    result = await execute_repair_sync("localhost", "ps", {})  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["dry_run"] is True
     assert "docker_available" in result
 
 
 async def test_execute_repair_missing_param():
-    result = await execute_repair_sync("localhost", "restart_container", {})
+    result = await execute_repair_sync("localhost", "restart_container", {})  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 

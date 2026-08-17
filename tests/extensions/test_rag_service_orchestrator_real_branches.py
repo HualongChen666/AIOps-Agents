@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import datetime
 import importlib.util
-import sys
+import sys  # noqa: F401  # Imported for test setup
 import types
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List  # noqa: F401  # Imported for test setup
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 ADDONS_ROOT = Path(__file__).resolve().parents[2] / "extensions" / "addons"
 ROOT_PKG = "_rag_real_branches_test"
