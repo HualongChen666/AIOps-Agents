@@ -1,12 +1,38 @@
 # -*- coding: utf-8 -*-
 """Real TestClient tests for api/users_router.py.
 
-Uses main.app via the existing conftest fixtures (no mocks).  Exercises
-CRUD, permissions, RBAC, 404/403/400 branches, tenant header handling and
-edge payloads to drive branch coverage for api/users_router.py.
+Uses a small FastAPI app with only auth + users routers so startup is fast
+and deterministic.  Exercises CRUD, permissions, RBAC, 404/403/400 branches,
+tenant header handling and edge payloads to drive branch coverage for
+api/users_router.py.
 """
 
+import pytest
 import uuid
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.testclient import TestClient
+
+from api.auth_router import router as _auth_router
+from api.users_router import router as _users_router
+from core.api_error import (
+    api_error_handler,
+    general_exception_handler,
+    validation_error_handler,
+)
+
+_users_app = FastAPI()
+_users_app.include_router(_auth_router)
+_users_app.include_router(_users_router)
+_users_app.add_exception_handler(HTTPException, api_error_handler)
+_users_app.add_exception_handler(RequestValidationError, validation_error_handler)
+_users_app.add_exception_handler(Exception, general_exception_handler)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def client():
+    with TestClient(_users_app, raise_server_exceptions=False) as c:
+        yield c
 
 
 def _rand(prefix: str = "u") -> str:

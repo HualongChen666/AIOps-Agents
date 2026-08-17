@@ -7,29 +7,26 @@ internal-api-key authentication branches, while the real main.app is used
 for role-based and CRUD branches.
 """
 
-import os
 import uuid
 
-import importlib
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-os.environ["ENABLE_ADDONS"] = "false"
-os.environ["AIOPS_DISABLE_SECURITY_SCAN"] = "1"
-
-import config  # noqa: E402
-
-importlib.reload(config)
-import main  # noqa: E402
-
-importlib.reload(main)
-from main import app  # noqa: E402
-from config import INTERNAL_API_KEY  # noqa: E402
-from api.slo_router import router as _slo_router  # noqa: E402
+from config import INTERNAL_API_KEY
+from api.auth_router import router as _auth_router
+from api.assets_router import router as _assets_router
+from api.slo_router import router as _slo_router
+from api.users_router import router as _users_router
 
 _slo_only_app = FastAPI()
 _slo_only_app.include_router(_slo_router)
+
+_slo_app = FastAPI()
+_slo_app.include_router(_auth_router)
+_slo_app.include_router(_assets_router)
+_slo_app.include_router(_slo_router)
+_slo_app.include_router(_users_router)
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +34,7 @@ _slo_only_app.include_router(_slo_router)
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def slo_client():
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with TestClient(_slo_app, raise_server_exceptions=False) as client:
         yield client
 
 

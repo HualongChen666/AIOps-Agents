@@ -242,8 +242,6 @@ _SKIP_MODULES = {
     "tests/integration/test_main_integration.py": "main subprocess startup is timing-sensitive and flaky in CI",
     "tests/test_collaboration_integration_real_branches.py": "requires real Slack/Teams/SendGrid credentials and outbound network",
     "tests/test_main_combinations_real_branches.py": "main startup combinations are too heavy/timing-sensitive for CI",
-    "tests/test_slo_router_real_branches.py": "SLO router fixtures require real RBAC/tenant DB state",
-    "tests/test_users_router_real_branches.py": "user router fixtures require real RBAC/tenant DB state",
 }
 
 
