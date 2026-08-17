@@ -17,7 +17,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .gnn import HeterogeneousGNNModel
+try:
+    from .gnn import HeterogeneousGNNModel
+except Exception:
+    HeterogeneousGNNModel = Any  # type: ignore[assignment,misc]
 from .graph_builder import RootCauseGraphBuilder
 
 logger = logging.getLogger(__name__)

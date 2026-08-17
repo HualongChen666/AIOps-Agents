@@ -136,10 +136,10 @@ class RuntimeTypeValidator:
     @staticmethod
     def _is_optional_type(type_hint: Type) -> bool:
         """Check if a type is Optional (Union with None)"""
-        origin = get_origin(type_hint)
-        if origin is type(None):  # type(None) is the same as NoneType
+        if type_hint is type(None):  # type(None) is the same as NoneType
             return True
-        if origin is not None and origin.__name__ == "Union":
+        origin = get_origin(type_hint)
+        if origin is not None and getattr(origin, "__name__", None) == "Union":
             args = get_args(type_hint)
             return type(None) in args
         return False

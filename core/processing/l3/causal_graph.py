@@ -126,7 +126,7 @@ class CausalGraph:
         self._causal_predictor: Optional[CausalPredictor] = None
         self._preprocessor: Optional[TimeSeriesPreprocessor] = None
 
-        if CAUSAL_ANALYSIS_AVAILABLE:
+        if CAUSAL_ANALYSIS_AVAILABLE and not self.config.get("disable_full_causal"):
             try:
                 self._full_causal_graph = FullCausalGraph("l3_causal_graph")
                 self._root_cause_inference = RootCauseInference(self._full_causal_graph)

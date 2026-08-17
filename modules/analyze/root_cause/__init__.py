@@ -19,7 +19,10 @@ from .causal_inference import (
     DoCalculus,
     create_causal_analyzer,
 )
-from .gnn import HeterogeneousGNNModel
+try:
+    from .gnn import HeterogeneousGNNModel
+except Exception:
+    HeterogeneousGNNModel = None
 from .graph_builder import RootCauseGraphBuilder
 from .inference import RootCauseInference
 

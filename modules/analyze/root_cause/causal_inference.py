@@ -657,8 +657,7 @@ class CausalRootCauseAnalyzer:
         if self.causal_graph is None:
             raise RuntimeError("Causal graph not learned. Call learn_causal_graph() first.")
 
-        if self.do_calculus is None:
-            self.do_calculus = DoCalculus(self.causal_graph)
+        # do_calculus is expected to be initialized by learn_causal_graph().
         if self.use_counterfactual and self.counterfactual is None:
             self.counterfactual = CounterfactualReasoning(self.causal_graph)
 
@@ -774,8 +773,8 @@ class CausalRootCauseAnalyzer:
                         path.append(alert_var)
                         break
                     elif children:
-                        # 选择最可能的孩子（简化）
-                        current = list(children)[0]
+                        # 选择最可能的孩子（简化，按名称排序使路径可重现）
+                        current = sorted(children)[0]
                         path.append(current)
                     else:
                         break

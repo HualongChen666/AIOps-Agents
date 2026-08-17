@@ -701,7 +701,7 @@ async def get_notification_history(
         logging.exception("Unexpected exception: %s", e)
         notifications = []
     if severity:
-        notifications = [n for n in notifications if n.get("severity") == severity]
+        notifications = [n for n in notifications if n.get("level") == severity]
     return notifications
 
 

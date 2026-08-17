@@ -11,6 +11,7 @@ import importlib
 from datetime import datetime, timedelta, timezone
 
 import jwt
+import os
 import pytest
 from fastapi import HTTPException
 
@@ -347,3 +348,222 @@ async def test_compliance_manager_audit_overflow():
         await mgr.log_audit_event("login", f"user_{i}", "auth", "read")
     assert len(mgr.audit_logs) == 10000
     assert mgr.audit_logs[0]["user_id"] != "user_0"
+
+
+def test_redis_client_cached(monkeypatch):
+    """The cached Redis client branch returns the existing global client."""
+    original_secret = auth.SECRET_KEY
+    monkeypatch.setenv("JWT_SECRET_KEY", original_secret)
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    importlib.reload(auth)
+
+    class _FakeRedis:
+        pass
+
+    fake = _FakeRedis()
+    original = auth.redis_client
+    try:
+        auth.redis_client = fake
+        assert auth._get_redis_client() is fake
+    finally:
+        auth.redis_client = original
+
+
+def test_key_service_failure_secret_branches(monkeypatch):
+    """Cover the exception fallback for key management service initialization."""
+    import core.key_management_service as kms
+
+    original_get = kms.get_key_service
+    original_secret = auth.SECRET_KEY
+    original_jwt_key = os.environ.get("JWT_SECRET_KEY")
+    original_env = os.environ.get("ENVIRONMENT")
+
+    def _raising_key_service(*args, **kwargs):
+        raise RuntimeError("key service unavailable")
+
+    kms.get_key_service = _raising_key_service
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    try:
+        # No secret in development -> generated random key (lines 114-115)
+        monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+        importlib.reload(auth)
+        assert auth.SECRET_KEY and auth.SECRET_KEY != original_secret
+
+        # Real secret in development -> elif false branch (120->131)
+        monkeypatch.setenv("JWT_SECRET_KEY", "real-secure-test-secret-key")
+        importlib.reload(auth)
+        assert auth.SECRET_KEY == "real-secure-test-secret-key"
+
+        # Insecure default in development -> warning log branch (127)
+        monkeypatch.setenv("JWT_SECRET_KEY", "default-secret-key")
+        importlib.reload(auth)
+        assert auth.SECRET_KEY == "default-secret-key"
+    finally:
+        if original_jwt_key is None:
+            os.environ.pop("JWT_SECRET_KEY", None)
+        else:
+            os.environ["JWT_SECRET_KEY"] = original_jwt_key
+        if original_env is None:
+            os.environ.pop("ENVIRONMENT", None)
+        else:
+            os.environ["ENVIRONMENT"] = original_env
+        kms.get_key_service = original_get
+        importlib.reload(auth)
+
+
+async def test_revoke_expired_token_no_blacklist():
+    """Expired tokens have a non-positive TTL and are not added to the blacklist."""
+    auth._token_blacklist.clear()
+    exp = datetime.now(timezone.utc) - timedelta(minutes=5)
+    iat = exp - timedelta(minutes=1)
+    token = jwt.encode(
+        {
+            "sub": "u",
+            "exp": exp,
+            "iat": iat,
+            "iss": auth.JWT_ISSUER,
+            "aud": auth.JWT_AUDIENCE,
+            "type": "access",
+            "jti": "expired-jti",
+        },
+        auth.SECRET_KEY,
+        algorithm=auth.ALGORITHM,
+    )
+    await auth.revoke_token(token)
+    assert token not in auth._token_blacklist
+
+
+async def test_revoke_token_with_fake_redis_and_no_jti():
+    """Revoke with a real fake Redis client and a token without a jti."""
+    calls = []
+
+    class _FakeRedis:
+        def setex(self, name, ttl, value):
+            calls.append((name, ttl, value))
+
+    exp = datetime.now(timezone.utc) + timedelta(minutes=5)
+    iat = datetime.now(timezone.utc)
+    token = jwt.encode(
+        {
+            "sub": "u",
+            "exp": exp,
+            "iat": iat,
+            "iss": auth.JWT_ISSUER,
+            "aud": auth.JWT_AUDIENCE,
+            "type": "access",
+        },
+        auth.SECRET_KEY,
+        algorithm=auth.ALGORITHM,
+    )
+    await auth.revoke_token(token, redis_client=_FakeRedis())
+    assert any(name.startswith("blacklist:") for name, ttl, value in calls)
+    assert not any(name.startswith("blacklist:jti:") for name, ttl, value in calls)
+
+
+async def test_revoke_token_in_memory_no_jti():
+    """Revoke without a Redis client for a token that has no jti."""
+    auth._token_blacklist.clear()
+    exp = datetime.now(timezone.utc) + timedelta(minutes=5)
+    iat = datetime.now(timezone.utc)
+    token = jwt.encode(
+        {
+            "sub": "u",
+            "exp": exp,
+            "iat": iat,
+            "iss": auth.JWT_ISSUER,
+            "aud": auth.JWT_AUDIENCE,
+            "type": "access",
+        },
+        auth.SECRET_KEY,
+        algorithm=auth.ALGORITHM,
+    )
+    await auth.revoke_token(token)
+    assert token in auth._token_blacklist
+    assert not any(k.startswith("jti:") for k in auth._token_blacklist)
+
+
+async def test_is_token_revoked_with_fake_redis_client():
+    """Exercise the Redis-backed revocation check including decode errors."""
+    token = auth.create_access_token({"sub": "u"})
+    payload = auth._decode_for_revocation(token)
+    jti = payload["jti"]
+    store = {}
+
+    class _FakeRedis:
+        def get(self, key):
+            return store.get(key)
+
+        def setex(self, name, ttl, value):
+            store[name] = value
+
+    fake = _FakeRedis()
+    assert await auth.is_token_revoked(token, redis_client=fake) is False
+    fake.setex(f"blacklist:jti:{jti}", 60, "1")
+    assert await auth.is_token_revoked(token, redis_client=fake) is True
+    assert await auth.is_token_revoked("not.a.valid.token", redis_client=fake) is False
+
+
+async def test_is_token_revoked_fresh_jti_entry():
+    """A non-stale jti entry in the in-memory blacklist returns True."""
+    auth._token_blacklist.clear()
+    token = auth.create_access_token({"sub": "u"})
+    payload = auth._decode_for_revocation(token)
+    jti = payload["jti"]
+    auth._token_blacklist[f"jti:{jti}"] = datetime.now(timezone.utc) - timedelta(minutes=30)
+    assert await auth.is_token_revoked(token) is True
+    assert f"jti:{jti}" in auth._token_blacklist
+
+
+async def test_get_current_active_user_token_missing_sub():
+    """Token with an empty sub returns None from the token branch."""
+    token = auth.create_access_token({"sub": ""})
+    result = await auth.get_current_active_user(token=token)
+    assert result is None
+
+
+async def test_get_current_active_user_dict_disabled(monkeypatch):
+    """Dict user with is_active=False is rejected by the token branch."""
+    monkeypatch.setattr(auth, "get_user_by_username", lambda username: {"is_active": False})
+    token = auth.create_access_token({"sub": "anyone"})
+    result = await auth.get_current_active_user(token=token)
+    assert result is None
+
+
+async def test_get_current_active_user_object_disabled(monkeypatch):
+    """A disabled UserInDB object raises an HTTPException in the token branch."""
+    monkeypatch.setattr(
+        auth,
+        "get_user_by_username",
+        lambda username: auth.UserInDB(
+            username="disabled_user", hashed_password="irrelevant", disabled=True
+        ),
+    )
+    token = auth.create_access_token({"sub": "disabled_user", "role": "user"})
+    with pytest.raises(HTTPException) as exc:
+        await auth.get_current_active_user(token=token)
+    assert "Inactive user" in exc.value.detail
+
+
+def test_verify_token_pyjwt_error(monkeypatch):
+    """A raw PyJWTError falls through to the final except block."""
+    def _raise(*args, **kwargs):
+        raise jwt.PyJWTError("forced")
+
+    monkeypatch.setattr(auth.jwt, "decode", _raise)
+    assert auth.verify_token("some.token.here") is None
+
+
+def test_authenticate_user_get_user_exception(monkeypatch):
+    """Unexpected exceptions in the get_user fallback are caught and return None."""
+    def _raise(username: str):
+        raise RuntimeError("user lookup failed")
+
+    monkeypatch.setattr(auth, "get_user", _raise)
+    assert auth.authenticate_user("anyone", "password") is None
+
+
+async def test_tenant_access_false():
+    """Cached None tenant config causes validate_tenant_access to return False."""
+    ctx = auth.TenantContext()
+    ctx.tenant_cache["t1"] = None
+    assert await ctx.validate_tenant_access("t1", "u1") is False

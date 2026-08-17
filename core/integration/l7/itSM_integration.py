@@ -29,6 +29,9 @@ class ITSMIntegration:
         # ServiceNow configuration
         self.servicenow_enabled = config.get("servicenow", {}).get("enabled", False)
         self.servicenow_instance = config.get("servicenow", {}).get("instance", "")
+        self.servicenow_base_url = config.get("servicenow", {}).get(
+            "base_url", ""
+        )
         self.servicenow_username = config.get("servicenow", {}).get("username", "")
         self.servicenow_password = config.get("servicenow", {}).get("password", "")
 
@@ -70,7 +73,7 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            base_url = f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            base_url = self.servicenow_base_url or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
             severity_map = {"low": "3", "medium": "2", "high": "1"}
             payload = {
                 "short_description": title,
@@ -124,7 +127,7 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            base_url = f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            base_url = self.servicenow_base_url or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
             async with httpx.AsyncClient(
                 auth=(self.servicenow_username, self.servicenow_password),
                 timeout=30.0,

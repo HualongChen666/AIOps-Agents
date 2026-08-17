@@ -128,6 +128,7 @@ except Exception as e:
                 "JWT_SECRET_KEY is set to a default/insecure value. Please set a strong, unique"
                 " secret key for production use."
             )
+SECRET_KEY: str = _jwt_secret_key
 ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES: int = _parse_int_with_default("JWT_ACCESS_EXPIRE_MINUTES", 30)
 REFRESH_TOKEN_EXPIRE_DAYS: int = _parse_int_with_default("JWT_REFRESH_EXPIRE_DAYS", 7)
