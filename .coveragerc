@@ -34,6 +34,7 @@ omit =
     */tests/*
     */venv/*
     */virtualenv/*
+    scripts/*
     setup.py
     *.bak
     *.backup
