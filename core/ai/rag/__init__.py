@@ -12,7 +12,6 @@ from .retriever import (
     RetrievalResult,
     RetrievalStrategy,
     Retriever,
-    VectorStoreRetrieval,
 )
 from .vectorizer import (
     ChunkingStrategy,
@@ -32,7 +31,6 @@ __all__ = [
     "SemanticChunking",
     "RetrievalResult",
     "RetrievalStrategy",
-    "VectorStoreRetrieval",
     "HybridRetrieval",
     "BM25Retrieval",
     "Retriever",

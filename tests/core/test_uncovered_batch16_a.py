@@ -22,7 +22,6 @@ from core.ai.rag.vectorizer import (
     DocumentChunk,
     EmbeddingModel,
     FixedSizeChunking,
-    OpenAIEmbedding,
     SentenceTransformerEmbedding,
     SemanticChunking,
     VectorizationPipeline,
@@ -236,16 +235,6 @@ def test_chunking_strategy_not_implemented():
         ChunkingStrategy().chunk(Document(id="d3", content="", metadata={}))
 
 
-async def test_openai_embedding():
-    emb = OpenAIEmbedding()
-    result = await emb.embed("hello")
-    assert len(result) == 1536
-    assert all(v == 0.0 for v in result)
-    batch = await emb.embed_batch(["a", "b"])
-    assert len(batch) == 2
-    assert all(len(v) == 1536 for v in batch)
-
-
 async def test_sentence_transformer_import_missing(monkeypatch):
     empty = types.ModuleType("sentence_transformers")
     monkeypatch.setitem(sys.modules, "sentence_transformers", empty)
@@ -276,9 +265,13 @@ async def test_sentence_transformer_with_model(monkeypatch):
 
 
 async def test_vectorization_pipeline():
+    class _FakeEmb(EmbeddingModel):
+        async def embed(self, text: str):
+            return [0.1, 0.2]
+
     doc = Document(id="d4", content="one two three four five", metadata={})
     pipeline = VectorizationPipeline(
-        FixedSizeChunking(chunk_size=5, overlap=0), OpenAIEmbedding()
+        FixedSizeChunking(chunk_size=5, overlap=0), _FakeEmb()
     )
     result = await pipeline.vectorize(doc)
     assert result.chunks

@@ -31,41 +31,6 @@ class RetrievalStrategy:
         raise NotImplementedError
 
 
-class VectorStoreRetrieval(RetrievalStrategy):
-    """Vector store retrieval strategy"""
-
-    def __init__(
-        self, vector_store_client: Any, embedding_model: Any, collection_name: str = "documents"
-    ):
-        """
-        Initialize vector store retrieval
-
-        Args:
-            vector_store_client: Vector store client (Qdrant)
-            embedding_model: Embedding model
-            collection_name: Collection name
-        """
-        self.client = vector_store_client
-        self.embedding_model = embedding_model
-        self.collection_name = collection_name
-
-    async def retrieve(
-        self, query: str, top_k: int = 10, filters: Optional[Dict[str, Any]] = None
-    ) -> List[RetrievalResult]:
-        """
-        Retrieve from vector store
-
-        Args:
-            query: Query text
-            top_k: Number of results
-            filters: Optional metadata filters
-
-        Returns:
-            Retrieval results
-        """
-        return []
-
-
 class HybridRetrieval(RetrievalStrategy):
     """Hybrid retrieval combining multiple strategies"""
 

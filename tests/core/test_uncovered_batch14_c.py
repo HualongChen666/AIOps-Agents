@@ -723,15 +723,6 @@ def test_retrieval_strategy_abc():
         asyncio.run(retriever.RetrievalStrategy().retrieve("q"))
 
 
-def test_vector_store_retriever():
-    fake_client = MagicMock()
-    fake_embed = MagicMock()
-    strat = retriever.VectorStoreRetrieval(fake_client, fake_embed, "col")
-    assert strat.client is fake_client
-    result = asyncio.run(strat.retrieve("q", 5))
-    assert result == []
-
-
 @pytest.mark.asyncio
 async def test_hybrid_retrieval():
     chunks = [

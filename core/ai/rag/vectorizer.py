@@ -152,26 +152,6 @@ class EmbeddingModel:
         return embeddings
 
 
-class OpenAIEmbedding(EmbeddingModel):
-    """OpenAI embedding model"""
-
-    def __init__(self, model: str = "text-embedding-ada-002", api_key: Optional[str] = None):
-        """
-        Initialize OpenAI embedding
-
-        Args:
-            model: Model name
-            api_key: OpenAI API key
-        """
-        self.model = model
-        self.api_key = api_key
-
-    async def embed(self, text: str) -> List[float]:
-        """Generate embedding using OpenAI (offline fallback: 1536 zero vector)."""
-        # 离线降级：返回与 text-embedding-ada-002 等维度的占位向量
-        return [0.0] * 1536
-
-
 class SentenceTransformerEmbedding(EmbeddingModel):
     """Sentence Transformer embedding model"""
 
