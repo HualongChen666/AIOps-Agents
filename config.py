@@ -126,6 +126,7 @@ INTEGRATIONS_ENABLED: bool = _safe_bool("INTEGRATIONS_ENABLED", default=True)
 # Security & Compliance Pack
 SECURITY_SCANNING_ENABLED: bool = _safe_bool("SECURITY_SCANNING_ENABLED", default=True)
 PENETRATION_TESTING_ENABLED: bool = _safe_bool("PENETRATION_TESTING_ENABLED", default=True)
+VULNERABILITY_INTELLIGENCE_ENABLED: bool = _safe_bool("VULNERABILITY_INTELLIGENCE_ENABLED", default=True)
 
 # Infrastructure & Plugin Ecosystem Pack
 PLUGINS_ENABLED: bool = _safe_bool("PLUGINS_ENABLED", default=True)
@@ -329,6 +330,49 @@ JWT_AUDIENCE: str = os.getenv("JWT_AUDIENCE", "aiops-api").strip()
 # Password Hash Configuration
 # ============================================================
 BCRYPT_ROUNDS: int = _safe_int("BCRYPT_ROUNDS", default=12, min_val=4, max_val=14)
+
+# ============================================================
+# Vulnerability Intelligence Configuration
+# ============================================================
+VULNERABILITY_INTELLIGENCE_CONFIG: dict[str, Any] = {
+    "enabled": VULNERABILITY_INTELLIGENCE_ENABLED,
+    "nvd_api_key": os.getenv("NVD_API_KEY", "").strip(),
+    "nvd_api_url": os.getenv(
+        "NVD_API_URL",
+        "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    ).strip(),
+    "nvd_rate_limit": _safe_int("NVD_RATE_LIMIT", default=50, min_val=1, max_val=1000),
+    "osv_api_url": os.getenv("OSV_API_URL", "https://api.osv.dev/v1").strip(),
+    "monitoring_enabled": _safe_bool("VULNERABILITY_MONITORING_ENABLED", default=True),
+    "monitoring_interval": _safe_int(
+        "VULNERABILITY_MONITORING_INTERVAL", default=3600, min_val=300, max_val=86400
+    ),
+    "auto_incident_creation": _safe_bool("VULNERABILITY_AUTO_INCIDENT_CREATION", default=True),
+    "critical_severity_threshold": _safe_float(
+        "VULNERABILITY_CRITICAL_THRESHOLD", default=9.0, min_val=7.0, max_val=10.0
+    ),
+    "high_severity_threshold": _safe_float(
+        "VULNERABILITY_HIGH_THRESHOLD", default=7.0, min_val=4.0, max_val=9.0
+    ),
+    "advisory_retention_days": _safe_int(
+        "VULNERABILITY_ADVISORY_RETENTION_DAYS", default=90, min_val=7, max_val=365
+    ),
+}
+
+# Security System Integrator Configuration
+SECURITY_SYSTEM_INTEGRATOR_CONFIG: dict[str, Any] = {
+    "auto_reconnect": _safe_bool("SECURITY_AUTO_RECONNECT", default=True),
+    "health_check_interval": _safe_int(
+        "SECURITY_HEALTH_CHECK_INTERVAL", default=300, min_val=60, max_val=3600
+    ),
+    "vulnerability_monitoring_enabled": _safe_bool(
+        "SECURITY_VULNERABILITY_MONITORING_ENABLED", default=True
+    ),
+    "vulnerability_monitoring_interval": _safe_int(
+        "SECURITY_VULNERABILITY_MONITORING_INTERVAL", default=3600, min_val=300, max_val=86400
+    ),
+    "nvd_api_key": os.getenv("NVD_API_KEY", "").strip(),
+}
 
 # ============================================================
 # HTTPS/TLS Configuration
@@ -1178,6 +1222,18 @@ def validate_config() -> Dict[str, Any]:
             )
             validation_results["is_valid"] = False
 
+    # Vulnerability Intelligence validation
+    if VULNERABILITY_INTELLIGENCE_CONFIG["enabled"]:
+        if VULNERABILITY_INTELLIGENCE_CONFIG["nvd_api_key"]:
+            validation_results["info"].append(
+                "NVD API key is configured for vulnerability intelligence"
+            )
+        else:
+            validation_results["warnings"].append(
+                "VULNERABILITY_INTELLIGENCE_ENABLED is True but NVD_API_KEY is not configured. "
+                "Rate limits will apply."
+            )
+
     # Port validation
     ports_to_check = {
         "REDIS_PORT": REDIS_PORT,
@@ -1359,6 +1415,22 @@ def generate_config_documentation() -> str:
         "| `RATE_LIMIT_PER_HOUR` | Requests per hour limit | `1000` | No |",
         "| `RATE_LIMIT_PER_DAY` | Requests per day limit | `10000` | No |",
         "",
+        "### Vulnerability Intelligence Environment Variables",
+        "",
+        "| Variable | Description | Default | Required in Production |",
+        "|----------|-------------|---------|------------------------|",
+        "| `VULNERABILITY_INTELLIGENCE_ENABLED` | Enable vulnerability intelligence | `True` | No |",
+        "| `NVD_API_KEY` | NVD API key for increased rate limits | `` | Recommended |",
+        "| `NVD_API_URL` | NVD API endpoint URL | `https://services.nvd.nist.gov/rest/json/cves/2.0` | No |",
+        "| `NVD_RATE_LIMIT` | NVD API rate limit (requests per minute) | `50` | No |",
+        "| `OSV_API_URL` | OSV API endpoint URL | `https://api.osv.dev/v1` | No |",
+        "| `VULNERABILITY_MONITORING_ENABLED` | Enable background vulnerability monitoring | `True` | No |",
+        "| `VULNERABILITY_MONITORING_INTERVAL` | Monitoring interval in seconds | `3600` | No |",
+        "| `VULNERABILITY_AUTO_INCIDENT_CREATION` | Auto-create incidents for critical vulns | `True` | No |",
+        "| `VULNERABILITY_CRITICAL_THRESHOLD` | CVSS score threshold for critical severity | `9.0` | No |",
+        "| `VULNERABILITY_HIGH_THRESHOLD` | CVSS score threshold for high severity | `7.0` | No |",
+        "| `VULNERABILITY_ADVISORY_RETENTION_DAYS` | Advisory retention period in days | `90` | No |",
+        "",
         "## Configuration Sections",
         "",
         "### Core Configuration",
@@ -1385,7 +1457,7 @@ def generate_config_documentation() -> str:
         "### Security Configuration",
         "",
         "Security configuration includes JWT authentication, password hashing, CORS,",
-        "rate limiting, and HTTPS/TLS settings.",
+        "rate limiting, HTTPS/TLS settings, and vulnerability intelligence integration.",
         "",
         "### Integration Configuration",
         "",

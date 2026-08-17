@@ -155,6 +155,7 @@ from api.teams_router import router as teams_router
 from api.tenant_router import router as tenant_router
 from api.unified_repair_router import router as unified_repair_router
 from api.users_router import router as users_router
+from api.vulnerability_router import router as vulnerability_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
 from config import (
@@ -486,6 +487,7 @@ except ImportError:
 
 # 新增 Teams 路由
 from api.docker_router import router as docker_router
+from api.hardware_log_router import router as hardware_log_router
 
 # windows_repair_router 与 unified_repair_router 共存，提供平台级独立入口
 # 新增统一修复路由（替代各平台独立修复路由）
@@ -1785,6 +1787,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         _logger.error("Shutdown Storage implementations error: %s", exc, exc_info=True)
 
+    # 关闭漏洞情报客户端
+    try:
+        from core.vulnerability_intelligence import vulnerability_intelligence  # noqa: F402
+
+        await vulnerability_intelligence.close()
+        _logger.info("Vulnerability Intelligence clients closed successfully")
+    except Exception as exc:
+        _logger.error("Shutdown Vulnerability Intelligence error: %s", exc, exc_info=True)
+
     # 关闭 L5 Interface Layer
     try:
         from core.interface.l5.graphql_interface import get_graphql_interface  # noqa: E402
@@ -1999,6 +2010,7 @@ CORE_ROUTERS = [
     linux_router,
     macos_router,
     docker_router,
+    hardware_log_router,
     repair_scripts_router,
     unified_repair_router,
     windows_repair_router,
@@ -2013,6 +2025,7 @@ CORE_ROUTERS = [
     sso_router,
     slack_router,
     teams_router,
+    vulnerability_router,
     websocket_router,
     sse_router,
     stats_router,

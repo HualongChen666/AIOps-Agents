@@ -21,6 +21,10 @@ from .redfish_actions import register_redfish_scripts  # noqa: E402  # Module le
 from .raid_storcli import register_raid_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
 from .node_lifecycle import register_node_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
 from .ipmi_actions import register_ipmi_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
+from .hardware_log_analyzer import (  # noqa: E402  # Module level import not at top (intentional for env var setup)
+    get_hardware_log_analyzer,
+    HardwareLogAnalyzer,
+)
 
 
 def register_all_hardware_scripts() -> None:

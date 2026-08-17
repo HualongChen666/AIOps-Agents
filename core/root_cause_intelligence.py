@@ -1366,11 +1366,11 @@ class RootCauseIntelligenceEngine:
             try:
                 return datetime.fromisoformat(value.replace("Z", "+00:00"))
             except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
+                logger.exception("Unexpected exception: %s", e)
                 try:
                     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
                 except Exception as e:
-                    logging.exception("Unexpected exception: %s", e)
+                    logger.exception("Unexpected exception: %s", e)
                     return None
         return None
 
