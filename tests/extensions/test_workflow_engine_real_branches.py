@@ -16,6 +16,15 @@ from extensions.addons.engines.workflow_engine import RunbookRunner, WorkflowEng
 
 
 # ------------------------------------------------------------------
+# Fixtures
+# ------------------------------------------------------------------
+@pytest.fixture
+def _block_vector_store(monkeypatch):
+    """Force get_scenario_memory to take its exception fallback."""
+    monkeypatch.setitem(sys.modules, "modules.analyze.runbook.vector_store", None)
+
+
+# ------------------------------------------------------------------
 # WorkflowEngine.__init__ dry_run env resolution
 # ------------------------------------------------------------------
 def test_workflow_engine_init_dry_run_none_env_true(monkeypatch):
@@ -483,6 +492,7 @@ def test_execute_step_default_type(monkeypatch):
 def test_execute_step_memory_type(monkeypatch):
     """Test _execute_step with memory type."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
+    monkeypatch.setitem(sys.modules, "modules.analyze.runbook.vector_store", None)
     engine = WorkflowEngine(dry_run=False)
     step = {"type": "memory", "query": "test query"}
     result = engine._execute_step(step, {})
