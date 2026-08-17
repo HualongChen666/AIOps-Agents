@@ -62,26 +62,31 @@ def _no_external_calls(monkeypatch):
     monkeypatch.setattr(httpx, "request", _fake_http_get)
     try:
         import requests
+
         monkeypatch.setattr(requests, "get", _fake_http_get)
         monkeypatch.setattr(requests, "post", _fake_http_post)
     except ImportError:
         pass
     try:
         import redis
+
         monkeypatch.setattr(redis, "Redis", type("FakeRedis", (), {}))
     except ImportError:
         pass
     try:
         import redis.asyncio
+
         monkeypatch.setattr(redis.asyncio, "Redis", type("FakeAsyncRedis", (), {}))
     except (ImportError, AttributeError):
         pass
     try:
         import aiohttp
+
         monkeypatch.setattr(aiohttp, "ClientSession", type("FakeSession", (), {}))
     except ImportError:
         pass
     import subprocess
+
     monkeypatch.setattr(subprocess, "run", _fake_subprocess_run)
     monkeypatch.setattr(subprocess, "Popen", _no_op)
 
@@ -251,7 +256,10 @@ def test_addon_microservice_full_crud_flow(main_path: Path):
     actions = [
         ("list", {}),
         ("get", {"id": item_id}),
-        ("update", {"id": item_id, update_field: update_value} if update_field else {"id": item_id}),
+        (
+            "update",
+            {"id": item_id, update_field: update_value} if update_field else {"id": item_id},
+        ),
         ("query", query_payload),
         ("run", {"id": item_id}),
         ("export", {}),

@@ -86,8 +86,8 @@ class DataLoader:
             # Split into batches if needed
             batch_size = len(self._batch)
             for i in range(0, batch_size, self.max_batch_size):
-                batch_keys = self._batch[i: i + self.max_batch_size]
-                batch_callbacks = self._callbacks[i: i + self.max_batch_size]
+                batch_keys = self._batch[i : i + self.max_batch_size]
+                batch_callbacks = self._callbacks[i : i + self.max_batch_size]
 
                 try:
                     results = await self.batch_load_fn(batch_keys)

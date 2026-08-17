@@ -3,6 +3,7 @@
 core.performance_data_collector, core.anomaly_engine, core.qdrant_service and
 core.api_helpers.
 """
+
 import asyncio
 import datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -31,9 +32,7 @@ def _make_async_session(result_objects=None, raise_on=None, raise_on_commit=Fals
     result.scalar_one_or_none = MagicMock(
         return_value=result_objects[0] if result_objects else None
     )
-    result.scalars = MagicMock(
-        return_value=MagicMock(all=MagicMock(return_value=result_objects))
-    )
+    result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=result_objects)))
 
     if raise_on:
         session_execute = AsyncMock(side_effect=raise_on)
@@ -61,7 +60,9 @@ def _make_async_session(result_objects=None, raise_on=None, raise_on_commit=Fals
     session.add = MagicMock(side_effect=add)
     session.add_all = MagicMock(side_effect=add_all)
     session.refresh = AsyncMock(side_effect=refresh)
-    session.commit = AsyncMock(side_effect=RuntimeError("commit failed")) if raise_on_commit else AsyncMock()
+    session.commit = (
+        AsyncMock(side_effect=RuntimeError("commit failed")) if raise_on_commit else AsyncMock()
+    )
     session.close = AsyncMock(side_effect=close)
     session.__aenter__ = AsyncMock(return_value=session)
     session.__aexit__ = AsyncMock(return_value=False)
@@ -143,9 +144,7 @@ async def test_detect_regression_p99(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression(
-        "api-gateway", 200.0, metric_name="p99_time_ms"
-    )
+    result = await detector.detect_regression("api-gateway", 200.0, metric_name="p99_time_ms")
     assert result is not None
     assert result["baseline_value"] == 150.0
 
@@ -157,9 +156,7 @@ async def test_detect_regression_throughput(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression(
-        "api-gateway", 600.0, metric_name="throughput"
-    )
+    result = await detector.detect_regression("api-gateway", 600.0, metric_name="throughput")
     assert result is not None
     assert result["baseline_value"] == 500.0
 
@@ -171,9 +168,7 @@ async def test_detect_regression_unsupported_metric(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression(
-        "api-gateway", 10.0, metric_name="unknown"
-    )
+    result = await detector.detect_regression("api-gateway", 10.0, metric_name="unknown")
     assert result is None
 
 
@@ -185,9 +180,7 @@ async def test_detect_regression_baseline_none_metric(monkeypatch, mock_baseline
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression(
-        "api-gateway", 10.0, metric_name="p99_time_ms"
-    )
+    result = await detector.detect_regression("api-gateway", 10.0, metric_name="p99_time_ms")
     assert result is None
 
 
@@ -408,7 +401,15 @@ async def test_collect_metric_exception(monkeypatch):
     )
     collector = performance_data_collector.PerformanceDataCollector()
     with pytest.raises(RuntimeError):
-        await collector.collect_metric({"test_id": "t-1", "test_name": "x", "test_type": "api", "component": "api", "operation": "GET"})
+        await collector.collect_metric(
+            {
+                "test_id": "t-1",
+                "test_name": "x",
+                "test_type": "api",
+                "component": "api",
+                "operation": "GET",
+            }
+        )
 
 
 @pytest.mark.asyncio
@@ -420,8 +421,20 @@ async def test_collect_batch_metrics(monkeypatch):
     collector = performance_data_collector.PerformanceDataCollector()
     ids = await collector.collect_batch_metrics(
         [
-            {"test_id": "t-1", "test_name": "a", "test_type": "api", "component": "api", "operation": "GET"},
-            {"test_id": "t-2", "test_name": "b", "test_type": "api", "component": "api", "operation": "POST"},
+            {
+                "test_id": "t-1",
+                "test_name": "a",
+                "test_type": "api",
+                "component": "api",
+                "operation": "GET",
+            },
+            {
+                "test_id": "t-2",
+                "test_name": "b",
+                "test_type": "api",
+                "component": "api",
+                "operation": "POST",
+            },
         ]
     )
     assert len(ids) == 2
@@ -471,9 +484,7 @@ async def test_get_aggregated_metrics_day(monkeypatch, mock_metric_row):
         performance_data_collector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     collector = performance_data_collector.PerformanceDataCollector()
-    results = await collector.get_aggregated_metrics(
-        "api", "p95_time_ms", interval="day", hours=24
-    )
+    results = await collector.get_aggregated_metrics("api", "p95_time_ms", interval="day", hours=24)
     assert isinstance(results, list)
 
 
@@ -484,7 +495,13 @@ async def test_collect_performance_test_result(monkeypatch):
         performance_data_collector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     record_id = await performance_data_collector.collect_performance_test_result(
-        {"test_id": "t-1", "test_name": "x", "test_type": "api", "component": "api", "operation": "GET"}
+        {
+            "test_id": "t-1",
+            "test_name": "x",
+            "test_type": "api",
+            "component": "api",
+            "operation": "GET",
+        }
     )
     assert record_id == "1"
 
@@ -604,6 +621,7 @@ def qdrant_mocks(monkeypatch):
     # import inside qdrant_service.search resolves to our mocks.
     try:
         import qdrant_client.models as _qdrant_models
+
         monkeypatch.setattr(_qdrant_models, "Filter", qdrant_service.Filter)
         monkeypatch.setattr(_qdrant_models, "PointStruct", qdrant_service.PointStruct)
         monkeypatch.setattr(_qdrant_models, "VectorParams", qdrant_service.VectorParams)
@@ -718,9 +736,7 @@ def test_search_with_filter(qdrant_mocks):
     mock_result.payload = {"x": "y"}
     mock_client.search.return_value = [mock_result]
 
-    results = qdrant_service.search(
-        "incidents", [0.1, 0.2], top_k=3, filter={"tag": "x"}
-    )
+    results = qdrant_service.search("incidents", [0.1, 0.2], top_k=3, filter={"tag": "x"})
     assert len(results) == 1
     assert results[0]["id"] == "p1"
 

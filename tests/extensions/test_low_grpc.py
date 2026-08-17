@@ -74,9 +74,7 @@ def _stub_imports(source: str, package: str) -> None:
             continue
 
         if node.level > 0:
-            abs_mod = importlib.util.resolve_name(
-                "." * node.level + (module or ""), package
-            )
+            abs_mod = importlib.util.resolve_name("." * node.level + (module or ""), package)
         else:
             abs_mod = module
 
@@ -233,9 +231,7 @@ def _low_grpc_stubs(monkeypatch):
 
 
 TARGETS = sorted(
-    p.as_posix()
-    for p in ADDONS_ROOT.rglob("grpc/*.py")
-    if p.is_relative_to(ADDONS_ROOT)
+    p.as_posix() for p in ADDONS_ROOT.rglob("grpc/*.py") if p.is_relative_to(ADDONS_ROOT)
 )
 
 

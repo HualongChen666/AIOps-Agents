@@ -112,9 +112,7 @@ async def test_register_integration_validation_and_limits(ecosystem, monkeypatch
 
     # notification missing fields
     with pytest.raises(ValueError, match="Missing required field"):
-        await ecosystem.register_integration(
-            "Slack", ie.IntegrationType.NOTIFICATION, "slack", {}
-        )
+        await ecosystem.register_integration("Slack", ie.IntegrationType.NOTIFICATION, "slack", {})
 
 
 async def test_register_integration_and_activate_all_branches(ecosystem, monkeypatch):
@@ -123,16 +121,32 @@ async def test_register_integration_and_activate_all_branches(ecosystem, monkeyp
     ecosystem.http_session.get.return_value = MagicMock(status_code=200)
 
     configs = [
-        ("Prometheus", ie.IntegrationType.MONITORING, "prometheus", {"url": "http://prom", "port": 9090}),
+        (
+            "Prometheus",
+            ie.IntegrationType.MONITORING,
+            "prometheus",
+            {"url": "http://prom", "port": 9090},
+        ),
         ("Grafana", ie.IntegrationType.MONITORING, "grafana", {}),
         ("ELK", ie.IntegrationType.MONITORING, "elk", {}),
-        ("AWS", ie.IntegrationType.CLOUD, "aws", {}, {"access_key": "a", "secret_key": "s", "region": "us"}),
+        (
+            "AWS",
+            ie.IntegrationType.CLOUD,
+            "aws",
+            {},
+            {"access_key": "a", "secret_key": "s", "region": "us"},
+        ),
         ("Azure", ie.IntegrationType.CLOUD, "azure", {}),
         ("GCP", ie.IntegrationType.CLOUD, "gcp", {}),
         ("Jenkins", ie.IntegrationType.CICD, "jenkins", {}),
         ("GitLab", ie.IntegrationType.CICD, "gitlab", {}),
         ("GitHub", ie.IntegrationType.CICD, "github", {}, {"repo": "r", "token": "t"}),
-        ("Slack", ie.IntegrationType.NOTIFICATION, "slack", {"webhook_url": "http://s", "channel": "#c"}),
+        (
+            "Slack",
+            ie.IntegrationType.NOTIFICATION,
+            "slack",
+            {"webhook_url": "http://s", "channel": "#c"},
+        ),
         ("Teams", ie.IntegrationType.NOTIFICATION, "teams", {"webhook_url": "http://t"}),
         ("Jira", ie.IntegrationType.ITSM, "jira", {}),
     ]
@@ -160,7 +174,10 @@ async def test_send_notifications(ecosystem, monkeypatch):
     """send_notification covers all channels and failure modes."""
     # slack
     slack = await ecosystem.register_integration(
-        "Slack", ie.IntegrationType.NOTIFICATION, "slack", {"webhook_url": "http://s", "channel": "#c"}
+        "Slack",
+        ie.IntegrationType.NOTIFICATION,
+        "slack",
+        {"webhook_url": "http://s", "channel": "#c"},
     )
     ecosystem.http_session.post.return_value = MagicMock(status_code=200)
     assert await ecosystem.send_notification(ie.NotificationChannel.SLACK, "hello") is True
@@ -201,7 +218,12 @@ async def test_send_email(monkeypatch):
         "Email",
         ie.IntegrationType.NOTIFICATION,
         "email",
-        {"smtp_host": "smtp.example.com", "smtp_port": 587, "sender": "a@b", "default_recipient": "c@d"},
+        {
+            "smtp_host": "smtp.example.com",
+            "smtp_port": 587,
+            "sender": "a@b",
+            "default_recipient": "c@d",
+        },
         credentials={"password": "p"},
     )
 
@@ -212,7 +234,12 @@ async def test_send_email(monkeypatch):
     server.login = MagicMock()
     server.sendmail = MagicMock()
     monkeypatch.setattr(smtplib, "SMTP", MagicMock(return_value=server))
-    assert await e.send_notification(ie.NotificationChannel.EMAIL, "body", {"to": "c@d", "subject": "sub"}) is True
+    assert (
+        await e.send_notification(
+            ie.NotificationChannel.EMAIL, "body", {"to": "c@d", "subject": "sub"}
+        )
+        is True
+    )
 
     # missing recipient/host
     e.integrations = {}
@@ -300,10 +327,15 @@ async def test_query_prometheus_metrics(ecosystem, monkeypatch):
     """query_prometheus_metrics covers validation, cache and HTTP paths."""
     monkeypatch.setattr(ie, "validate_promql", lambda q: None)
     prom = await ecosystem.register_integration(
-        "Prometheus", ie.IntegrationType.MONITORING, "prometheus", {"url": "http://prom", "port": 9090}
+        "Prometheus",
+        ie.IntegrationType.MONITORING,
+        "prometheus",
+        {"url": "http://prom", "port": 9090},
     )
 
-    ecosystem.http_session.get.return_value = MagicMock(status_code=200, json=lambda: {"data": {"result": [1]}})
+    ecosystem.http_session.get.return_value = MagicMock(
+        status_code=200, json=lambda: {"data": {"result": [1]}}
+    )
     result = await ecosystem.query_prometheus_metrics("up", prom.id, time_range="1h")
     assert result == {"data": {"result": [1]}}
 
@@ -340,9 +372,15 @@ async def test_trigger_jenkins_and_create_jira(ecosystem):
     assert await ecosystem.trigger_jenkins_build("job", jenkins.id) is False
 
     jira = await ecosystem.register_integration(
-        "Jira", ie.IntegrationType.ITSM, "jira", {"url": "http://jira", "project_key": "OPS"}, {"username": "u", "api_token": "t"}
+        "Jira",
+        ie.IntegrationType.ITSM,
+        "jira",
+        {"url": "http://jira", "project_key": "OPS"},
+        {"username": "u", "api_token": "t"},
     )
-    ecosystem.http_session.post.return_value = MagicMock(status_code=201, json=lambda: {"key": "OPS-1"})
+    ecosystem.http_session.post.return_value = MagicMock(
+        status_code=201, json=lambda: {"key": "OPS-1"}
+    )
     assert await ecosystem.create_jira_ticket("sum", "desc", jira.id) == "OPS-1"
     ecosystem.http_session.post.return_value = MagicMock(status_code=500)
     assert await ecosystem.create_jira_ticket("sum", "desc", jira.id) is None
@@ -356,7 +394,11 @@ async def test_integration_lifecycle(ecosystem):
     """disable, enable, remove and cleanup."""
     await ecosystem.register_webhook("http://w", events=["x"])
     aws = await ecosystem.register_integration(
-        "AWS", ie.IntegrationType.CLOUD, "aws", {}, {"access_key": "a", "secret_key": "s", "region": "us"}
+        "AWS",
+        ie.IntegrationType.CLOUD,
+        "aws",
+        {},
+        {"access_key": "a", "secret_key": "s", "region": "us"},
     )
     await ecosystem.disable_integration(aws.id)
     assert aws.status == ie.IntegrationStatus.INACTIVE
@@ -370,7 +412,10 @@ async def test_integration_lifecycle(ecosystem):
 
     # remove with url cleanup
     await ecosystem.register_integration(
-        "Slack", ie.IntegrationType.NOTIFICATION, "slack", {"webhook_url": "http://w", "channel": "#c"}
+        "Slack",
+        ie.IntegrationType.NOTIFICATION,
+        "slack",
+        {"webhook_url": "http://w", "channel": "#c"},
     )
     assert len(ecosystem.webhooks) > 0
     for wid, wh in list(ecosystem.webhooks.items()):
@@ -381,7 +426,10 @@ async def test_integration_lifecycle(ecosystem):
 async def test_get_integration_statistics(ecosystem):
     """get_integration_statistics returns expected aggregates."""
     await ecosystem.register_integration(
-        "Prometheus", ie.IntegrationType.MONITORING, "prometheus", {"url": "http://prom", "port": 9090}
+        "Prometheus",
+        ie.IntegrationType.MONITORING,
+        "prometheus",
+        {"url": "http://prom", "port": 9090},
     )
     stats = await ecosystem.get_integration_statistics()
     assert stats["total_integrations"] >= 1
@@ -532,7 +580,9 @@ async def test_langgraph_analyze_with_graph(monkeypatch):
     assert result == {"ok": True}
 
     # invoke path
-    engine.graph = types.SimpleNamespace(invoke=MagicMock(return_value={"analysis_result": {"ok": 2}}))
+    engine.graph = types.SimpleNamespace(
+        invoke=MagicMock(return_value={"analysis_result": {"ok": 2}})
+    )
     result = await engine.analyze("latency")
     assert result == {"ok": 2}
 
@@ -556,7 +606,14 @@ async def test_langgraph_steps(monkeypatch):
     """Run each LangGraph step manually."""
     engine = l2e.LangGraphAnalysisEngine(config={})
 
-    state = {"input": "dns latency", "context": {}, "analysis_result": None, "tool_calls": [], "current_step": "", "error": None}
+    state = {
+        "input": "dns latency",
+        "context": {},
+        "analysis_result": None,
+        "tool_calls": [],
+        "current_step": "",
+        "error": None,
+    }
     state = engine._initialize_step(state)
     assert state["current_step"] == l2e.AnalysisStep.INITIALIZE.value
 
@@ -566,14 +623,48 @@ async def test_langgraph_steps(monkeypatch):
     loki = MagicMock()
     loki.query_range = AsyncMock(return_value=[{"log": "x"}])
     manager = stub_l4_manager(vm, loki)
-    monkeypatch.setitem(sys.modules, "core.storage.l4.storage_manager", types.SimpleNamespace(get_l4_storage_manager=lambda: manager))
+    monkeypatch.setitem(
+        sys.modules,
+        "core.storage.l4.storage_manager",
+        types.SimpleNamespace(get_l4_storage_manager=lambda: manager),
+    )
 
     # stub data sources
-    monkeypatch.setitem(sys.modules, "core.collector", types.SimpleNamespace(get_cached_snapshot=lambda: {"cpu": {}, "memory": {}, "disk": [], "network": {}, "system": {}}))
-    monkeypatch.setitem(sys.modules, "core.alert_engine", types.SimpleNamespace(alert_history=[{"id": "a1"}]))
-    monkeypatch.setitem(sys.modules, "core.config_manager", types.SimpleNamespace(config_manager=types.SimpleNamespace(_audit_log=[{"timestamp": "t", "change": "c", "details": "d"}])))
-    monkeypatch.setitem(sys.modules, "core.repair_engine", types.SimpleNamespace(repair_history=[{}]))
-    monkeypatch.setitem(sys.modules, "core.root_cause_intelligence", types.SimpleNamespace(root_cause_intelligence_engine=types.SimpleNamespace(topology_graph={"svc": ["db"]})))
+    monkeypatch.setitem(
+        sys.modules,
+        "core.collector",
+        types.SimpleNamespace(
+            get_cached_snapshot=lambda: {
+                "cpu": {},
+                "memory": {},
+                "disk": [],
+                "network": {},
+                "system": {},
+            }
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules, "core.alert_engine", types.SimpleNamespace(alert_history=[{"id": "a1"}])
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "core.config_manager",
+        types.SimpleNamespace(
+            config_manager=types.SimpleNamespace(
+                _audit_log=[{"timestamp": "t", "change": "c", "details": "d"}]
+            )
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules, "core.repair_engine", types.SimpleNamespace(repair_history=[{}])
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "core.root_cause_intelligence",
+        types.SimpleNamespace(
+            root_cause_intelligence_engine=types.SimpleNamespace(topology_graph={"svc": ["db"]})
+        ),
+    )
 
     state = await engine._collect_data_step(state)
     assert state["context"]["metrics"] is not None
@@ -595,13 +686,22 @@ async def test_langgraph_steps(monkeypatch):
 async def test_langgraph_collect_data_failure(monkeypatch):
     """_collect_data_step exception handling."""
     engine = l2e.LangGraphAnalysisEngine(config={})
-    state = {"input": "crash", "context": {}, "analysis_result": None, "tool_calls": [], "current_step": "", "error": None}
+    state = {
+        "input": "crash",
+        "context": {},
+        "analysis_result": None,
+        "tool_calls": [],
+        "current_step": "",
+        "error": None,
+    }
 
     # manager itself raises
     monkeypatch.setitem(
         sys.modules,
         "core.storage.l4.storage_manager",
-        types.SimpleNamespace(get_l4_storage_manager=lambda: (_ for _ in ()).throw(Exception("boom"))),
+        types.SimpleNamespace(
+            get_l4_storage_manager=lambda: (_ for _ in ()).throw(Exception("boom"))
+        ),
     )
     state = await engine._collect_data_step(state)
     assert state["error"] is not None
@@ -624,6 +724,7 @@ async def test_langgraph_collect_metrics_and_logs(monkeypatch):
     def raise_bad(q):
         if q != "up":
             raise ValueError("bad")
+
     monkeypatch.setattr(l2e, "validate_promql", raise_bad)
     result = await engine._collect_metrics(vm, "latency", start, end)
     assert result["query"] == "up"
@@ -649,6 +750,7 @@ async def test_langgraph_collect_metrics_and_logs(monkeypatch):
     def raise_log(q):
         if q != '{level=~"error|warn|warning"}':
             raise ValueError("bad")
+
     monkeypatch.setattr(l2e, "validate_logql", raise_log)
     result = await engine._collect_logs(loki, "error timeout", start, end)
     assert '{level=~"error|warn|warning"}' in result["query"]
@@ -731,15 +833,27 @@ def test_langgraph_validate_step():
     assert s1["error"] is not None
 
     # missing candidates
-    s2 = engine._validate_step({"analysis_result": {"escalation_recommended": False}, "error": None})
+    s2 = engine._validate_step(
+        {"analysis_result": {"escalation_recommended": False}, "error": None}
+    )
     assert "candidates" in s2["error"]
 
     # empty candidates
-    s3 = engine._validate_step({"analysis_result": {"candidates": [], "escalation_recommended": False}, "error": None})
+    s3 = engine._validate_step(
+        {"analysis_result": {"candidates": [], "escalation_recommended": False}, "error": None}
+    )
     assert "non-empty candidates" in s3["error"]
 
     # missing candidate key
-    s4 = engine._validate_step({"analysis_result": {"candidates": [{"root_cause": "x"}], "escalation_recommended": False}, "error": None})
+    s4 = engine._validate_step(
+        {
+            "analysis_result": {
+                "candidates": [{"root_cause": "x"}],
+                "escalation_recommended": False,
+            },
+            "error": None,
+        }
+    )
     assert "candidate" in s4["error"]
 
     # valid

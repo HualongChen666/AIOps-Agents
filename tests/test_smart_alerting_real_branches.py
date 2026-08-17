@@ -26,9 +26,7 @@ import modules.observability.smart_alerting as smart_alerting
 )
 def test_alert_rule_all_comparison_operators(condition, metrics, expected):
     """Cover the comparison-operator branches in _parse_and_evaluate."""
-    rule = smart_alerting.AlertRule(
-        "r1", "op", condition, smart_alerting.AlertSeverity.WARNING
-    )
+    rule = smart_alerting.AlertRule("r1", "op", condition, smart_alerting.AlertSeverity.WARNING)
     assert rule.evaluate(metrics) is expected
 
 
@@ -43,9 +41,7 @@ def test_alert_rule_literal_and_metric_both_sides():
 
 def test_alert_rule_boolean_and_error_fallbacks():
     """Cover boolean conditions, malformed expressions, and ValueError fallbacks."""
-    rule = smart_alerting.AlertRule(
-        "r3", "bool", "cpu_active", smart_alerting.AlertSeverity.INFO
-    )
+    rule = smart_alerting.AlertRule("r3", "bool", "cpu_active", smart_alerting.AlertSeverity.INFO)
     # condition used as a boolean key in metrics
     assert rule._parse_and_evaluate("cpu_active", {"cpu_active": True}) is True
     assert rule._parse_and_evaluate("cpu_active", {"cpu_active": 0}) is False

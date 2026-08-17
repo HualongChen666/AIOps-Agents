@@ -105,9 +105,7 @@ def test_do_calculus_ate_with_non_two_treatment_values():
     a = np.linspace(0.0, 10.0, 30)
     data = pd.DataFrame({"A": a, "C": a + 0.5})
     calc = DoCalculus(g)
-    effect = calc.estimate_causal_effect(
-        "A", "C", data, treatment_values=[0.0, 0.5, 1.0]
-    )
+    effect = calc.estimate_causal_effect("A", "C", data, treatment_values=[0.0, 0.5, 1.0])
     assert "ate" in effect
     assert effect["ate"] == pytest.approx(1.0)
 

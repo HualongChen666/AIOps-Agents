@@ -328,7 +328,9 @@ async def test_check_deployments_not_initialized():
 
 @pytest.mark.asyncio
 async def test_check_deployments_api_exception():
-    op = _operator_with_clients(deployments=[_InMemoryDeployment("d1", 3, 1)], apps_raise_on="list_deployments")
+    op = _operator_with_clients(
+        deployments=[_InMemoryDeployment("d1", 3, 1)], apps_raise_on="list_deployments"
+    )
     await op._check_deployments()
     assert not op.get_heal_tasks()
 
@@ -408,7 +410,13 @@ async def test_trigger_heal_existing_active_task():
 @pytest.mark.asyncio
 async def test_execute_heal_pod():
     op = _operator_with_clients(
-        pods=[_InMemoryPod("p1", "Running", owner_references=[SimpleNamespace(controller=True, kind="ReplicaSet")])]
+        pods=[
+            _InMemoryPod(
+                "p1",
+                "Running",
+                owner_references=[SimpleNamespace(controller=True, kind="ReplicaSet")],
+            )
+        ]
     )
     task = _make_task("Pod", "p1")
     await op._execute_heal(task)
@@ -478,7 +486,13 @@ async def test_execute_heal_exception():
 @pytest.mark.asyncio
 async def test_heal_pod_stateful_set():
     op = _operator_with_clients(
-        pods=[_InMemoryPod("p1", "Running", owner_references=[SimpleNamespace(controller=True, kind="StatefulSet")])]
+        pods=[
+            _InMemoryPod(
+                "p1",
+                "Running",
+                owner_references=[SimpleNamespace(controller=True, kind="StatefulSet")],
+            )
+        ]
     )
     task = _make_task("Pod", "p1")
     assert not await op._heal_pod(task)
@@ -503,7 +517,13 @@ async def test_heal_pod_pvc():
 @pytest.mark.asyncio
 async def test_heal_pod_delete_success():
     op = _operator_with_clients(
-        pods=[_InMemoryPod("p1", "Running", owner_references=[SimpleNamespace(controller=True, kind="ReplicaSet")])]
+        pods=[
+            _InMemoryPod(
+                "p1",
+                "Running",
+                owner_references=[SimpleNamespace(controller=True, kind="ReplicaSet")],
+            )
+        ]
     )
     task = _make_task("Pod", "p1")
     assert await op._heal_pod(task)
@@ -513,7 +533,13 @@ async def test_heal_pod_delete_success():
 @pytest.mark.asyncio
 async def test_heal_pod_api_exception():
     op = _operator_with_clients(
-        pods=[_InMemoryPod("p1", "Running", owner_references=[SimpleNamespace(controller=True, kind="ReplicaSet")])],
+        pods=[
+            _InMemoryPod(
+                "p1",
+                "Running",
+                owner_references=[SimpleNamespace(controller=True, kind="ReplicaSet")],
+            )
+        ],
         core_raise_on="read_pod",
     )
     task = _make_task("Pod", "p1")
@@ -536,7 +562,9 @@ async def test_heal_deployment_success():
 
 @pytest.mark.asyncio
 async def test_heal_deployment_api_exception():
-    op = _operator_with_clients(deployments=[_InMemoryDeployment("d1", 2, 2)], apps_raise_on="patch_deployment")
+    op = _operator_with_clients(
+        deployments=[_InMemoryDeployment("d1", 2, 2)], apps_raise_on="patch_deployment"
+    )
     task = _make_task("Deployment", "d1")
     assert not await op._heal_deployment(task)
 
@@ -607,7 +635,9 @@ async def test_verify_deployment_unhealthy():
 
 @pytest.mark.asyncio
 async def test_verify_deployment_api_exception():
-    op = _operator_with_clients(deployments=[_InMemoryDeployment("d1", 2, 2)], apps_raise_on="read_deployment")
+    op = _operator_with_clients(
+        deployments=[_InMemoryDeployment("d1", 2, 2)], apps_raise_on="read_deployment"
+    )
     assert not await op._verify_deployment("missing")
 
 
@@ -625,7 +655,9 @@ async def test_verify_service_unhealthy():
 
 @pytest.mark.asyncio
 async def test_verify_service_api_exception():
-    op = _operator_with_clients(endpoints={"s1": _InMemoryEndpoints(True)}, core_raise_on="read_endpoints")
+    op = _operator_with_clients(
+        endpoints={"s1": _InMemoryEndpoints(True)}, core_raise_on="read_endpoints"
+    )
     assert not await op._verify_service("missing")
 
 

@@ -291,7 +291,7 @@ class CallChainSearchManager:
         results.sort(key=lambda x: getattr(x, criteria.sort_by, x.start_time), reverse=reverse)
 
         # Apply pagination
-        results = results[criteria.offset: criteria.offset + criteria.limit]
+        results = results[criteria.offset : criteria.offset + criteria.limit]
 
         # Calculate search time
         search_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000

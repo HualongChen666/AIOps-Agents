@@ -4,14 +4,15 @@ Service Discovery Manager
 Enterprise-grade service discovery and health management
 """
 
-from loguru import logger
-from typing import Any, Dict, List, Optional
-from enum import Enum
-from datetime import datetime, timezone
-from dataclasses import dataclass, field
-from collections import defaultdict
 import asyncio
 import secrets
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from loguru import logger
 
 _random = secrets.SystemRandom()
 

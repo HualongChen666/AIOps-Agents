@@ -11,8 +11,8 @@ import pytest
 
 import core.backup as backup_module
 import core.backup_strategy as backup_strategy
-import core.task_scheduler as task_scheduler
 import core.enterprise_features as enterprise_features
+import core.task_scheduler as task_scheduler
 import core.tracing_visualization as tracing_visualization
 from core.backup import BackupManager, BackupType, create_backup_manager
 from core.enterprise_features import ComplianceStandard, EnterpriseFeatures
@@ -64,9 +64,7 @@ def _patch_backup_subprocess(monkeypatch):
 
     mock_boto = MagicMock()
     mock_client = MagicMock()
-    mock_client.get_paginator.return_value.paginate.return_value = [
-        {"Contents": [{"Size": 1024}]}
-    ]
+    mock_client.get_paginator.return_value.paginate.return_value = [{"Contents": [{"Size": 1024}]}]
     mock_boto.client.return_value = mock_client
     monkeypatch.setattr(backup_module, "boto3", mock_boto, raising=False)
 
@@ -149,9 +147,7 @@ async def test_backup_strategy_config_backup(monkeypatch, tmp_path):
     monkeypatch.setattr(backup_strategy, "_backup_history", [])
 
     monkeypatch.setattr(backup_strategy.os.path, "isfile", lambda p: True)
-    monkeypatch.setattr(
-        backup_strategy.os.path, "isdir", lambda p: str(p).endswith("config")
-    )
+    monkeypatch.setattr(backup_strategy.os.path, "isdir", lambda p: str(p).endswith("config"))
     monkeypatch.setattr(backup_strategy.shutil, "copy2", lambda *a, **k: None)
     monkeypatch.setattr(backup_strategy.shutil, "copytree", lambda *a, **k: None)
     monkeypatch.setattr(
@@ -248,9 +244,7 @@ async def test_enterprise_features(monkeypatch):
     assert await ef.update_tenant(tenant.id, {"name": "demo2"}) is True
     assert (await ef.get_tenant(tenant.id)).name == "demo2"
 
-    permission = await ef.grant_permission(
-        "user1", tenant.id, {"read", "write"}, ["admin"]
-    )
+    permission = await ef.grant_permission("user1", tenant.id, {"read", "write"}, ["admin"])
     assert permission.user_id == "user1"
     assert await ef.check_permission("user1", tenant.id, "read") is True
     assert await ef.check_permission("user1", tenant.id, "delete") is False

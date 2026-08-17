@@ -13,12 +13,7 @@ def is_blacklisted(jti: str) -> bool:
         return False
     db = SessionLocal()
     try:
-        return (
-            db.query(TokenBlacklist)
-            .filter(TokenBlacklist.jti == jti)
-            .first()
-            is not None
-        )
+        return db.query(TokenBlacklist).filter(TokenBlacklist.jti == jti).first() is not None
     finally:
         db.close()
 

@@ -91,6 +91,7 @@ class FailingRedis:
 # CacheStatistics
 # ============================================================
 
+
 def test_cache_statistics_zero_hit_rate():
     stats = CacheStatistics()
     assert stats.get_hit_rate() == 0.0
@@ -117,6 +118,7 @@ def test_cache_statistics_full_usage():
 # generate_cache_key
 # ============================================================
 
+
 def test_generate_cache_key_scalar():
     key1 = generate_cache_key("svc", "a", 1, 2.5, True, tag="x")
     key2 = generate_cache_key("svc", "a", 1, 2.5, True, tag="x")
@@ -134,6 +136,7 @@ def test_generate_cache_key_non_scalar():
 # ============================================================
 # LRUCache
 # ============================================================
+
 
 def test_lru_cache_hit_miss_ttl_eviction():
     cache = LRUCache(max_size=2, ttl_sec=0.2)
@@ -164,6 +167,7 @@ def test_lru_cache_update_existing_and_invalidate():
 # ============================================================
 # TTLCache
 # ============================================================
+
 
 def test_ttl_cache_valid_and_clear():
     cache = TTLCache(ttl_sec=0.5)
@@ -204,6 +208,7 @@ def test_ttl_cache_negative_elapsed():
 # ============================================================
 # ParametricTTLCache
 # ============================================================
+
 
 def test_parametric_ttl_cache_basic():
     cache = ParametricTTLCache(ttl_sec=0.5)
@@ -250,6 +255,7 @@ def test_parametric_ttl_cache_invalid_states():
 # CacheWarmer
 # ============================================================
 
+
 @pytest.mark.asyncio
 async def test_cache_warmer_register_and_warm():
     cache = LRUCache()
@@ -274,6 +280,7 @@ async def test_cache_warmer_unknown_raises():
 # ============================================================
 # MultiLevelCache
 # ============================================================
+
 
 def _attach_redis(cache, store):
     cache._redis_client = store
@@ -349,6 +356,7 @@ def test_multi_level_redis_invalidate_and_clear_error():
 # ============================================================
 # ThreeLevelCache
 # ============================================================
+
 
 def _attach_tlc_redis(cache, store):
     cache._redis_client = store
@@ -472,6 +480,7 @@ def test_three_level_db_not_available_branch():
 # ============================================================
 # IntelligentCacheWarmer
 # ============================================================
+
 
 @pytest.mark.asyncio
 async def test_intelligent_warmer_basic():

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Batch 26a coverage tests for uncovered core modules."""
+
 import asyncio
 import hashlib
 import json
@@ -275,9 +276,7 @@ def test_three_level_cache(monkeypatch):
     cache = ch.ThreeLevelCache()
     cache.set("k1", {"v": 1})
     assert cache.get("k1") == {"v": 1}
-    cache.register_invalidation_callback(
-        ch.CacheInvalidationEvent.MANUAL, lambda key, meta: None
-    )
+    cache.register_invalidation_callback(ch.CacheInvalidationEvent.MANUAL, lambda key, meta: None)
     cache._trigger_invalidation_event(ch.CacheInvalidationEvent.MANUAL, "k1")
     cache.invalidate("k1", ch.CacheInvalidationEvent.EVENT_BASED, {"x": 1})
     assert cache.get("k1") is None
@@ -457,13 +456,19 @@ def test_advanced_anomaly_and_learning(monkeypatch):
 
     update = _run(ai.adaptive_learning_update({"x": 1.0}, {"score": 0.9}, adv.LearningMode.ONLINE))
     assert update.learning_mode == adv.LearningMode.ONLINE
-    assert _run(
-        ai.adaptive_learning_update({"x": 1.0}, {"score": 0.5}, adv.LearningMode.BATCH)
-    ).learning_mode == adv.LearningMode.BATCH
+    assert (
+        _run(
+            ai.adaptive_learning_update({"x": 1.0}, {"score": 0.5}, adv.LearningMode.BATCH)
+        ).learning_mode
+        == adv.LearningMode.BATCH
+    )
     monkeypatch.setattr(adv, "ML_AVAILABLE", False)
-    assert _run(
-        ai.adaptive_learning_update({"x": 1.0}, {"score": 0.5}, adv.LearningMode.REINFORCEMENT)
-    ).performance_improvement > 0
+    assert (
+        _run(
+            ai.adaptive_learning_update({"x": 1.0}, {"score": 0.5}, adv.LearningMode.REINFORCEMENT)
+        ).performance_improvement
+        > 0
+    )
 
 
 def test_advanced_natural_language_and_explain(monkeypatch):
@@ -476,7 +481,9 @@ def test_advanced_natural_language_and_explain(monkeypatch):
     assert r2["intent"] == "help"
 
     monkeypatch.setattr(adv, "AI_ENGINE_AVAILABLE", True)
-    monkeypatch.setattr(adv, "analyze", AsyncMock(return_value={"analysis": "ok", "action_required": True}))
+    monkeypatch.setattr(
+        adv, "analyze", AsyncMock(return_value={"analysis": "ok", "action_required": True})
+    )
     r3 = _run(ai.natural_language_interaction("analyze alert", "c2", "u1"))
     assert r3["metadata"]["ai_generated"] is True
 
@@ -500,14 +507,16 @@ def test_advanced_knowledge_and_summary(monkeypatch):
 # core.runbook_generator
 # ============================================================
 def _valid_runbook():
-    return json.dumps({
-        "summary": "kill high cpu chrome",
-        "commands": ["taskkill /IM chrome.exe /F"],
-        "risk_level": "low",
-        "rollback": "无需回滚",
-        "confidence": 0.85,
-        "reasoning": "chrome uses too much cpu",
-    })
+    return json.dumps(
+        {
+            "summary": "kill high cpu chrome",
+            "commands": ["taskkill /IM chrome.exe /F"],
+            "risk_level": "low",
+            "rollback": "无需回滚",
+            "confidence": 0.85,
+            "reasoning": "chrome uses too much cpu",
+        }
+    )
 
 
 def _setup_runbook_mocks(monkeypatch, raw_output, command_risk=RiskLevel.LOW, upsert_ok=True):
@@ -566,7 +575,9 @@ async def test_runbook_success(monkeypatch):
 async def test_runbook_moderation_fail(monkeypatch):
     _setup_runbook_mocks(monkeypatch, _valid_runbook())
     monkeypatch.setattr(runbook, "moderate_content", lambda p: (False, ["injection"]))
-    result = await runbook.generate_repair_runbook({"id": "m1", "level": "high", "title": "x", "desc": "x"})
+    result = await runbook.generate_repair_runbook(
+        {"id": "m1", "level": "high", "title": "x", "desc": "x"}
+    )
     assert result["success"] is False
     assert "injection" in result["error"]
 
@@ -614,12 +625,14 @@ def test_runbook_helpers():
     rich = {"top_processes": [{"name": "x", "pid": 1, "cpu_percent": 10, "memory_percent": 5}]}
     assert "x" in runbook._build_metrics_snapshot(rich)
 
-    valid, _, normalized = runbook._validate_and_normalize_runbook({
-        "summary": "s",
-        "commands": ["cmd1"],
-        "risk_level": "low",
-        "confidence": 1.5,
-    })
+    valid, _, normalized = runbook._validate_and_normalize_runbook(
+        {
+            "summary": "s",
+            "commands": ["cmd1"],
+            "risk_level": "low",
+            "confidence": 1.5,
+        }
+    )
     assert valid is True
     assert normalized["confidence"] == 1.0
 
@@ -633,8 +646,14 @@ def test_runbook_helpers():
     assert runbook._extract_first_json_object(raw) == '{"a": 1}'
 
     assert runbook._infer_candidate_script_key({"metric": "cpu_percent"}) == "kill_high_cpu"
-    assert runbook._infer_candidate_script_key({"metric": "memory_percent", "platform": "windows"}) == "free_memory"
-    assert runbook._infer_candidate_script_key({"metric": "memory_percent", "platform": "linux"}) == "free_cache"
+    assert (
+        runbook._infer_candidate_script_key({"metric": "memory_percent", "platform": "windows"})
+        == "free_memory"
+    )
+    assert (
+        runbook._infer_candidate_script_key({"metric": "memory_percent", "platform": "linux"})
+        == "free_cache"
+    )
     assert runbook._infer_candidate_script_key({"metric": "unknown"}) is None
 
 
@@ -762,9 +781,7 @@ def test_rci_extra_scenarios():
     _run(engine.discover_topology_realtime({"hosts": [{"hostname": "h1"}]}, {}))
     _run(engine.discover_topology_realtime({"hosts": [{"hostname": "h1"}]}, {}))
 
-    nodes = engine._extract_nodes_from_metrics(
-        {}, {"affected_services": "svc", "service": "svc"}
-    )
+    nodes = engine._extract_nodes_from_metrics({}, {"affected_services": "svc", "service": "svc"})
     assert any(n["id"] == "svc" for n in nodes)
 
     alert = {
@@ -778,9 +795,7 @@ def test_rci_extra_scenarios():
     assert h is not None
 
     for prefix in ("pattern_", "change_", "cascade_"):
-        hyp = rci.RootCauseHypothesis(
-            hypothesis_id=f"{prefix}x", root_cause="x", confidence=0.5
-        )
+        hyp = rci.RootCauseHypothesis(hypothesis_id=f"{prefix}x", root_cause="x", confidence=0.5)
         populated = engine._populate_expected_and_missing(hyp, {})
         assert populated.expected_observations or populated.missing_data
 
@@ -804,16 +819,17 @@ def test_rci_extra_scenarios():
     )
     assert (
         engine._verify_scenario_metrics(
-            rci.RootCauseHypothesis(
-                hypothesis_id="h", root_cause="pod_oom_x", confidence=0.5
-            ),
+            rci.RootCauseHypothesis(hypothesis_id="h", root_cause="pod_oom_x", confidence=0.5),
             {"last_state": {"reason": "OOMKilled"}},
         )
         is True
     )
-    assert engine._verify_scenario_metrics(
-        rci.RootCauseHypothesis(hypothesis_id="h", root_cause="generic", confidence=0.5), {}
-    ) is None
+    assert (
+        engine._verify_scenario_metrics(
+            rci.RootCauseHypothesis(hypothesis_id="h", root_cause="generic", confidence=0.5), {}
+        )
+        is None
+    )
 
     assert engine._parse_timestamp("not-a-date") is None
 

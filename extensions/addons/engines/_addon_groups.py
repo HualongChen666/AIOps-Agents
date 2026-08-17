@@ -8,19 +8,46 @@ ADDON_GROUPS = {
     "observability": {
         "engine": "extensions/addons/engines/monitoring_provider",
         "addons": [
-            ("metrics_monitoring_service", "extensions/addons/observability/metrics_monitoring_service"),
+            (
+                "metrics_monitoring_service",
+                "extensions/addons/observability/metrics_monitoring_service",
+            ),
             ("alert_rule_service", "extensions/addons/infrastructure/alert_rule_service"),
-            ("performance_monitoring_service", "extensions/addons/infrastructure/performance_monitoring_service"),
-            ("cloud_monitoring_service", "extensions/addons/infrastructure/cloud_monitoring_service"),
+            (
+                "performance_monitoring_service",
+                "extensions/addons/infrastructure/performance_monitoring_service",
+            ),
+            (
+                "cloud_monitoring_service",
+                "extensions/addons/infrastructure/cloud_monitoring_service",
+            ),
             ("log_aggregation_service", "extensions/addons/observability/log_aggregation_service"),
             ("tracing_service", "extensions/addons/observability/tracing_service"),
-            ("distributed_tracing_service", "extensions/addons/observability/distributed_tracing_service"),
+            (
+                "distributed_tracing_service",
+                "extensions/addons/observability/distributed_tracing_service",
+            ),
             ("topology_service", "extensions/addons/observability/topology_service"),
-            ("datacenter_visualization_service", "extensions/addons/infrastructure/datacenter_visualization_service"),
-            ("prometheus_integration_service", "extensions/addons/integrations/prometheus_integration_service"),
-            ("grafana_integration_service", "extensions/addons/integrations/grafana_integration_service"),
-            ("datadog_integration_service", "extensions/addons/integrations/datadog_integration_service"),
-            ("elasticsearch_audit_service", "extensions/addons/integrations/elasticsearch_audit_service"),
+            (
+                "datacenter_visualization_service",
+                "extensions/addons/infrastructure/datacenter_visualization_service",
+            ),
+            (
+                "prometheus_integration_service",
+                "extensions/addons/integrations/prometheus_integration_service",
+            ),
+            (
+                "grafana_integration_service",
+                "extensions/addons/integrations/grafana_integration_service",
+            ),
+            (
+                "datadog_integration_service",
+                "extensions/addons/integrations/datadog_integration_service",
+            ),
+            (
+                "elasticsearch_audit_service",
+                "extensions/addons/integrations/elasticsearch_audit_service",
+            ),
         ],
     },
     "data_platform": {
@@ -28,25 +55,52 @@ ADDON_GROUPS = {
         "addons": [
             ("cache_service", "extensions/addons/infrastructure/cache_service"),
             ("redis_shard_service", "extensions/addons/infrastructure/redis_shard_service"),
-            ("postgresql_shard_service", "extensions/addons/infrastructure/postgresql_shard_service"),
+            (
+                "postgresql_shard_service",
+                "extensions/addons/infrastructure/postgresql_shard_service",
+            ),
             ("qdrant_shard_service", "extensions/addons/infrastructure/qdrant_shard_service"),
-            ("vector_retrieval_service", "extensions/addons/infrastructure/vector_retrieval_service"),
-            ("cache_optimization_service", "extensions/addons/infrastructure/cache_optimization_service"),
-            ("database_optimization_service", "extensions/addons/infrastructure/database_optimization_service"),
+            (
+                "vector_retrieval_service",
+                "extensions/addons/infrastructure/vector_retrieval_service",
+            ),
+            (
+                "cache_optimization_service",
+                "extensions/addons/infrastructure/cache_optimization_service",
+            ),
+            (
+                "database_optimization_service",
+                "extensions/addons/infrastructure/database_optimization_service",
+            ),
             ("data_access_service", "extensions/addons/infrastructure/data_access_service"),
         ],
     },
     "infra_automation": {
         "engine": "extensions/addons/engines/infra_executor",
         "addons": [
-            ("ansible_automation_service", "extensions/addons/infrastructure/ansible_automation_service"),
+            (
+                "ansible_automation_service",
+                "extensions/addons/infrastructure/ansible_automation_service",
+            ),
             ("terraform_iac_service", "extensions/addons/infrastructure/terraform_iac_service"),
-            ("kubernetes_orchestration_service", "extensions/addons/infrastructure/kubernetes_orchestration_service"),
-            ("automated_deployment_service", "extensions/addons/infrastructure/automated_deployment_service"),
+            (
+                "kubernetes_orchestration_service",
+                "extensions/addons/infrastructure/kubernetes_orchestration_service",
+            ),
+            (
+                "automated_deployment_service",
+                "extensions/addons/infrastructure/automated_deployment_service",
+            ),
             ("automated_ops_service", "extensions/addons/infrastructure/automated_ops_service"),
             ("velero_backup_service", "extensions/addons/infrastructure/velero_backup_service"),
-            ("pgbackrest_backup_service", "extensions/addons/infrastructure/pgbackrest_backup_service"),
-            ("backup_recovery_drill_service", "extensions/addons/infrastructure/backup_recovery_drill_service"),
+            (
+                "pgbackrest_backup_service",
+                "extensions/addons/infrastructure/pgbackrest_backup_service",
+            ),
+            (
+                "backup_recovery_drill_service",
+                "extensions/addons/infrastructure/backup_recovery_drill_service",
+            ),
             ("chaos_mesh_service", "extensions/addons/infrastructure/chaos_mesh_service"),
             ("service_mesh_service", "extensions/addons/infrastructure/service_mesh_service"),
         ],
@@ -56,10 +110,22 @@ ADDON_GROUPS = {
         "addons": [
             ("security_scanning_service", "extensions/addons/security/security_scanning_service"),
             ("security_audit_service", "extensions/addons/security/security_audit_service"),
-            ("penetration_testing_service", "extensions/addons/security/penetration_testing_service"),
-            ("sqlalchemy_security_service", "extensions/addons/security/sqlalchemy_security_service"),
-            ("fastapi_security_service", "extensions/addons/infrastructure/fastapi_security_service"),
-            ("open_source_license_service", "extensions/addons/infrastructure/open_source_license_service"),
+            (
+                "penetration_testing_service",
+                "extensions/addons/security/penetration_testing_service",
+            ),
+            (
+                "sqlalchemy_security_service",
+                "extensions/addons/security/sqlalchemy_security_service",
+            ),
+            (
+                "fastapi_security_service",
+                "extensions/addons/infrastructure/fastapi_security_service",
+            ),
+            (
+                "open_source_license_service",
+                "extensions/addons/infrastructure/open_source_license_service",
+            ),
         ],
     },
     "integration": {
@@ -67,7 +133,10 @@ ADDON_GROUPS = {
         "addons": [
             ("kafka_event_service", "extensions/addons/integrations/kafka_event_service"),
             ("message_queue_service", "extensions/addons/integrations/message_queue_service"),
-            ("github_repository_service", "extensions/addons/integrations/github_repository_service"),
+            (
+                "github_repository_service",
+                "extensions/addons/integrations/github_repository_service",
+            ),
             ("elk_stack_service", "extensions/addons/integrations/elk_stack_service"),
         ],
     },
@@ -84,7 +153,10 @@ ADDON_GROUPS = {
     "governance": {
         "engine": "extensions/addons/engines/doc_policy_engine",
         "addons": [
-            ("sphinx_documentation_service", "extensions/addons/documentation/sphinx_documentation_service"),
+            (
+                "sphinx_documentation_service",
+                "extensions/addons/documentation/sphinx_documentation_service",
+            ),
             ("api_standards_service", "extensions/addons/infrastructure/api_standards_service"),
             ("data_standards_service", "extensions/addons/infrastructure/data_standards_service"),
             ("config_service", "extensions/addons/infrastructure/config_service"),

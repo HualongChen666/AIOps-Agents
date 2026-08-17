@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Batch 28b tests for low-coverage core modules."""
+
 import asyncio
 import json
 import platform
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -115,7 +116,10 @@ def test_resource_allocator_basic():
 
 def test_resource_allocator_no_resources():
     allocator = ResourceAllocator()
-    assert allocator.allocate([{"id": "t", "priority": 1, "resource_requirement": {"cpu": 1}}], "cpu") == []
+    assert (
+        allocator.allocate([{"id": "t", "priority": 1, "resource_requirement": {"cpu": 1}}], "cpu")
+        == []
+    )
     assert allocator.get_utilization("missing") == {}
 
 
@@ -344,9 +348,9 @@ def test_log_analyzer_time_filter_and_patterns():
 
 def test_log_analyzer_to_dicts():
     from core.logging.analysis.log_analyzer import (
+        LogPattern,
         LogStatistics,
         LogTrends,
-        LogPattern,
     )
 
     s = LogStatistics()
@@ -425,9 +429,7 @@ async def test_workflow_executor_failure_and_timeout():
 
 @pytest.mark.asyncio
 async def test_workflow_executor_retry():
-    executor = WorkflowExecutor(
-        default_timeout=1, default_max_retries=2, retry_backoff_base=0.001
-    )
+    executor = WorkflowExecutor(default_timeout=1, default_max_retries=2, retry_backoff_base=0.001)
     attempts = {"n": 0}
 
     async def flaky(node, context):
@@ -701,7 +703,9 @@ async def test_db_engine_async_get_all_and_update_approvals(fake_db_session):
     fake_db_session.set_scalar_one_or_none(app)
     assert await db_engine.async_update_approval_status("e1", "approved", approver="admin")
     fake_db_session.set_scalar_one_or_none(app)
-    assert await db_engine.async_update_approval_status_by_alert("a1", "rejected", rejection_reason="no")
+    assert await db_engine.async_update_approval_status_by_alert(
+        "a1", "rejected", rejection_reason="no"
+    )
 
 
 @pytest.mark.asyncio
@@ -857,7 +861,12 @@ def test_db_engine_sync_wrapper_exceptions(monkeypatch):
     assert db_engine.clear_alerts() == 0
 
     monkeypatch.setattr("core.db_engine.async_insert_repair_record", _raise)
-    assert db_engine.insert_repair_record(True, "2024-01-01T00:00:00", "2024-01-01T00:00:01", 1.0, "r", "s", "windows", "out") == -1
+    assert (
+        db_engine.insert_repair_record(
+            True, "2024-01-01T00:00:00", "2024-01-01T00:00:01", 1.0, "r", "s", "windows", "out"
+        )
+        == -1
+    )
 
     monkeypatch.setattr("core.db_engine.async_query_repairs", _raise)
     assert db_engine.query_repairs(limit=5) == []
@@ -890,7 +899,9 @@ def auto_heal_module(monkeypatch, fake_db_session):
     """Import core.auto_heal and patch external deps."""
     import core.auto_heal as auto_heal
 
-    monkeypatch.setattr(auto_heal, "search_similar", lambda *a, **k: [{"payload": {"content": "doc"}}])
+    monkeypatch.setattr(
+        auto_heal, "search_similar", lambda *a, **k: [{"payload": {"content": "doc"}}]
+    )
     monkeypatch.setattr(auto_heal, "analyze", lambda *a, **k: "runbook text")
     # ensure ApprovalStatus values do not block the wrappers
     monkeypatch.setattr(auto_heal, "upsert_pending_approval", lambda *a, **k: 0)
@@ -936,7 +947,10 @@ def test_auto_heal_resolve_script_key(auto_heal_module):
     assert ah._resolve_script_key("mem", {}) == "memory_high_script"
     assert ah._resolve_script_key("disk usage", {}) == "disk_high_script"
     assert ah._resolve_script_key("service down", {}) == "service_restart_script"
-    assert ah._resolve_script_key("unknown", {"script_key": "memory_high_script"}) == "memory_high_script"
+    assert (
+        ah._resolve_script_key("unknown", {"script_key": "memory_high_script"})
+        == "memory_high_script"
+    )
 
 
 def test_auto_heal_risk_assessment(auto_heal_module, monkeypatch):
@@ -1058,12 +1072,8 @@ async def test_auto_heal_try_auto_heal(auto_heal_module, monkeypatch):
 @pytest.mark.asyncio
 async def test_auto_heal_approve_reject_and_pending(auto_heal_module, monkeypatch, fake_db_session):
     ah = auto_heal_module
-    monkeypatch.setattr(
-        ah, "async_update_approval_status_by_alert", AsyncMock(return_value=True)
-    )
-    monkeypatch.setattr(
-        ah, "async_get_all_pending_approvals", AsyncMock(return_value=[])
-    )
+    monkeypatch.setattr(ah, "async_update_approval_status_by_alert", AsyncMock(return_value=True))
+    monkeypatch.setattr(ah, "async_get_all_pending_approvals", AsyncMock(return_value=[]))
     import core.approval_store as approval_store
 
     monkeypatch.setattr(approval_store, "get_pending_only_snapshot", lambda: {})
@@ -1076,7 +1086,9 @@ async def test_auto_heal_approve_reject_and_pending(auto_heal_module, monkeypatc
 @pytest.mark.asyncio
 async def test_auto_heal_internal_errors(auto_heal_module, monkeypatch, fake_db_session):
     ah = auto_heal_module
-    monkeypatch.setattr("core.db_engine.alert_repository.save", AsyncMock(side_effect=RuntimeError("boom")))
+    monkeypatch.setattr(
+        "core.db_engine.alert_repository.save", AsyncMock(side_effect=RuntimeError("boom"))
+    )
     with pytest.raises(ah.HTTPException):
         await ah._create_alert_record({"id": "x"})
 

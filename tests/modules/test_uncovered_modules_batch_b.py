@@ -65,6 +65,7 @@ class _FakeCollections:
         class C:
             def __init__(self, n):
                 self.name = n
+
         self.collections = [C(n) for n in names]
 
 
@@ -142,7 +143,9 @@ class _FakeProphet:
         self._last_df = df
 
     def make_future_dataframe(self, periods: int, freq: str):
-        start = self._last_df["ds"].max() if self._last_df is not None else pd.Timestamp("2024-01-01")
+        start = (
+            self._last_df["ds"].max() if self._last_df is not None else pd.Timestamp("2024-01-01")
+        )
         freq = freq.replace("H", "h").replace("D", "D").replace("W", "W")
         return pd.DataFrame({"ds": pd.date_range(start, periods=periods, freq=freq)})
 
@@ -164,11 +167,15 @@ class _FakeProphet:
 
 
 def _fake_cross_validation(model: Any, initial: str, period: str, horizon: str):
-    return pd.DataFrame({"ds": pd.date_range("2024-01-01", periods=5, freq="D"), "y": [1.0] * 5, "yhat": [1.0] * 5})
+    return pd.DataFrame(
+        {"ds": pd.date_range("2024-01-01", periods=5, freq="D"), "y": [1.0] * 5, "yhat": [1.0] * 5}
+    )
 
 
 def _fake_performance_metrics(df: pd.DataFrame):
-    return pd.DataFrame({"mse": [1.0], "rmse": [1.0], "mae": [1.0], "mape": [1.0], "coverage": [0.95]})
+    return pd.DataFrame(
+        {"mse": [1.0], "rmse": [1.0], "mae": [1.0], "mape": [1.0], "coverage": [0.95]}
+    )
 
 
 _prophet.Prophet = _FakeProphet
@@ -213,7 +220,9 @@ _httpx.post = _httpx_post
 _httpx.RequestError = Exception
 _httpx.ConnectError = Exception
 _httpx.TimeoutException = Exception
-_httpx.HTTPStatusError = type("HTTPStatusError", (Exception,), {"response": SimpleNamespace(text="boom")})
+_httpx.HTTPStatusError = type(
+    "HTTPStatusError", (Exception,), {"response": SimpleNamespace(text="boom")}
+)
 _httpx.HTTPError = type("HTTPError", (Exception,), {})
 
 
@@ -409,29 +418,11 @@ class _FakeGNN:
 _gnn.HeterogeneousGNNModel = _FakeGNN
 sys.modules["modules.analyze.root_cause.gnn"] = _gnn
 
-# ----------------------------------------------------------------------
-# Import assigned modules
-# ----------------------------------------------------------------------
-from modules.analyze.runbook.vector_store import VectorStore  # noqa: E402
-from modules.storage.clickhouse.storage import (  # noqa: E402
-    ClickHouseStorage,
-    create_clickhouse_storage,
-)
-from modules.analyze.cost.forecast import CostForecaster  # noqa: E402
-from modules.analyze.anomaly.prophet_model import ProphetAnomalyDetector  # noqa: E402
-from modules.execute.auto_heal.operator import (  # noqa: E402
-    AutoHealOperator,
-    HealConditionType,
-    HealPhase,
-)
-from modules.analyze.anomaly.isolation_forest import IsolationForestDetector  # noqa: E402
-from modules.analyze.root_cause.causal_graph_builder import (  # noqa: E402
-    CausalGraphBuilder,
-    CausalGraphIntegrator,
-    CausalGraphPersistence,
-    CausalGraphVisualizer,
-    create_causal_graph_builder,
-)
+import modules.analyze.root_cause.causal_graph_builder as _cgb_mod  # noqa: E402
+import modules.analyze.runbook.vector_store as _vector_store_mod  # noqa: E402
+import modules.execute.auto_heal.operator as _operator_mod  # noqa: E402
+import modules.storage.clickhouse.storage as _storage_mod  # noqa: E402
+from modules.analyze.anomaly import train_transformer  # noqa: E402
 from modules.analyze.anomaly.data_preprocessing import (  # noqa: E402
     MultiModalDataPreparer,
     TimeSeriesAugmenter,
@@ -443,13 +434,31 @@ from modules.analyze.anomaly.data_preprocessing import (  # noqa: E402
     TimeSeriesSplitter,
     create_preprocessing_pipeline,
 )
-from modules.analyze.anomaly import train_transformer  # noqa: E402
+from modules.analyze.anomaly.isolation_forest import IsolationForestDetector  # noqa: E402
+from modules.analyze.anomaly.prophet_model import ProphetAnomalyDetector  # noqa: E402
+from modules.analyze.cost.forecast import CostForecaster  # noqa: E402
+from modules.analyze.root_cause.causal_graph_builder import (  # noqa: E402
+    CausalGraphBuilder,
+    CausalGraphIntegrator,
+    CausalGraphPersistence,
+    CausalGraphVisualizer,
+    create_causal_graph_builder,
+)
 from modules.analyze.root_cause.causal_inference import CausalGraph  # noqa: E402
 
-import modules.analyze.runbook.vector_store as _vector_store_mod  # noqa: E402
-import modules.storage.clickhouse.storage as _storage_mod  # noqa: E402
-import modules.execute.auto_heal.operator as _operator_mod  # noqa: E402
-import modules.analyze.root_cause.causal_graph_builder as _cgb_mod  # noqa: E402
+# ----------------------------------------------------------------------
+# Import assigned modules
+# ----------------------------------------------------------------------
+from modules.analyze.runbook.vector_store import VectorStore  # noqa: E402
+from modules.execute.auto_heal.operator import (  # noqa: E402
+    AutoHealOperator,
+    HealConditionType,
+    HealPhase,
+)
+from modules.storage.clickhouse.storage import (  # noqa: E402
+    ClickHouseStorage,
+    create_clickhouse_storage,
+)
 
 # ----------------------------------------------------------------------
 # Fixtures
@@ -480,7 +489,10 @@ def cost_data() -> List[Dict[str, Any]]:
 def prophet_data() -> List[Dict[str, Any]]:
     base = datetime(2024, 1, 1)
     return [
-        {"timestamp": (base + timedelta(hours=i)).isoformat(), "value": float(10 + np.random.rand())}
+        {
+            "timestamp": (base + timedelta(hours=i)).isoformat(),
+            "value": float(10 + np.random.rand()),
+        }
         for i in range(20)
     ]
 
@@ -544,6 +556,7 @@ class TestVectorStore:
             def __getattr__(self, name: str):
                 def raise_(*a: Any, **k: Any):
                     raise RuntimeError("boom")
+
                 return raise_
 
         vs.client = BadClient()
@@ -570,6 +583,7 @@ class TestVectorStore:
         class Bad:
             def __init__(self, *a: Any, **k: Any):
                 raise RuntimeError("fail")
+
         monkeypatch.setattr(_vector_store_mod, "SentenceTransformer", Bad)
         vs = VectorStore()
         vs.initialize()
@@ -579,6 +593,7 @@ class TestVectorStore:
         class Bad:
             def __init__(self, *a: Any, **k: Any):
                 raise RuntimeError("fail")
+
         monkeypatch.setattr(_vector_store_mod, "QdrantClient", Bad)
         vs = VectorStore()
         vs.initialize()
@@ -639,7 +654,9 @@ class TestClickHouseStorage:
     def _bad_httpx(self, exc: Exception):
         mod = types.ModuleType("httpx")
         mod.RequestError = Exception
-        mod.HTTPStatusError = type("HTTPStatusError", (Exception,), {"response": SimpleNamespace(text="err")})
+        mod.HTTPStatusError = type(
+            "HTTPStatusError", (Exception,), {"response": SimpleNamespace(text="err")}
+        )
         mod.post = lambda *a, **k: (_ for _ in ()).throw(exc)
         return mod
 
@@ -683,7 +700,9 @@ class TestCostForecaster:
 
     def test_monthly_and_recommend(self):
         cf = CostForecaster()
-        forecast = [{"timestamp": f"2024-01-{i+1:02d}T00:00:00", "cost": float(i + 1)} for i in range(10)]
+        forecast = [
+            {"timestamp": f"2024-01-{i+1:02d}T00:00:00", "cost": float(i + 1)} for i in range(10)
+        ]
         assert cf.predict_monthly_cost(forecast)["monthly_costs"]
         rec = cf.recommend_cost_optimization(forecast, budget=20.0, threshold=0.05)
         assert rec["budget_status"] == "exceeded"
@@ -778,10 +797,19 @@ class TestAutoHealOperator:
             p = Pod()
             p.metadata = SimpleNamespace(name=name, owner_references=[])
             p.spec = SimpleNamespace(containers=[SimpleNamespace()] * n_containers, volumes=[])
-            p.status = SimpleNamespace(phase=phase, reason="", message="", container_statuses=[SimpleNamespace(ready=ready)] * n_containers)
+            p.status = SimpleNamespace(
+                phase=phase,
+                reason="",
+                message="",
+                container_statuses=[SimpleNamespace(ready=ready)] * n_containers,
+            )
             return p
 
-        op._k8s_client.pods = [pod("p1", "Pending"), pod("p2", "Running", False, 2), pod("p3", "Running", True, 1)]
+        op._k8s_client.pods = [
+            pod("p1", "Pending"),
+            pod("p2", "Running", False, 2),
+            pod("p3", "Running", True, 1),
+        ]
         await op._check_pods()
 
     @pytest.mark.asyncio
@@ -823,7 +851,16 @@ class TestAutoHealOperator:
     async def test_execute_unknown_resource(self):
         op = AutoHealOperator()
         op.initialize()
-        task = {"task_id": "x", "resource_type": "Unknown", "resource_name": "x", "condition": "x", "details": {}, "phase": "pending", "created_at": datetime.now().isoformat(), "namespace": "default"}
+        task = {
+            "task_id": "x",
+            "resource_type": "Unknown",
+            "resource_name": "x",
+            "condition": "x",
+            "details": {},
+            "phase": "pending",
+            "created_at": datetime.now().isoformat(),
+            "namespace": "default",
+        }
         await op._execute_heal(task)
         assert task["phase"] == HealPhase.Failed.value
 
@@ -842,9 +879,20 @@ class TestAutoHealOperator:
         p = Pod()
         p.metadata = SimpleNamespace(name="p1", owner_references=[Ref()])
         p.spec = SimpleNamespace(containers=[SimpleNamespace()], volumes=[])
-        p.status = SimpleNamespace(phase="Running", reason="", message="", container_statuses=[SimpleNamespace(ready=True)])
+        p.status = SimpleNamespace(
+            phase="Running", reason="", message="", container_statuses=[SimpleNamespace(ready=True)]
+        )
         op._k8s_client.pods = [p]
-        task = {"task_id": "x", "resource_type": "Pod", "resource_name": "p1", "condition": HealConditionType.PodNotReady.value, "details": {}, "phase": "pending", "created_at": datetime.now().isoformat(), "namespace": "default"}
+        task = {
+            "task_id": "x",
+            "resource_type": "Pod",
+            "resource_name": "p1",
+            "condition": HealConditionType.PodNotReady.value,
+            "details": {},
+            "phase": "pending",
+            "created_at": datetime.now().isoformat(),
+            "namespace": "default",
+        }
         result = await op._heal_pod(task)
         assert not result
 
@@ -927,15 +975,24 @@ class TestCausalGraphBuilder:
 
     def test_build_metrics(self):
         b = create_causal_graph_builder()
-        df = pd.DataFrame({"a": np.random.randn(30), "b": np.random.randn(30), "c": np.random.randn(30)})
+        df = pd.DataFrame(
+            {"a": np.random.randn(30), "b": np.random.randn(30), "c": np.random.randn(30)}
+        )
         g = b.build_from_metrics(df, {"a": "s1"})
         assert len(g.nodes) == 3
 
     def test_build_logs_traces(self):
         b = create_causal_graph_builder()
-        logs = pd.DataFrame({"timestamp": pd.date_range("2024-01-01", periods=10, freq="min"), "level": ["INFO"] * 10})
+        logs = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=10, freq="min"),
+                "level": ["INFO"] * 10,
+            }
+        )
         assert b.build_from_logs(logs) is not None
-        traces = pd.DataFrame({"duration": np.random.rand(10), "error": np.random.randint(0, 2, 10)})
+        traces = pd.DataFrame(
+            {"duration": np.random.rand(10), "error": np.random.randint(0, 2, 10)}
+        )
         assert b.build_from_traces(traces) is not None
 
     def test_build_multimodal(self):
@@ -983,6 +1040,7 @@ class TestCausalGraphBuilder:
 
     def test_integrator(self):
         import networkx as nx
+
         from modules.analyze.root_cause.graph_builder import RootCauseGraphBuilder
 
         gb = RootCauseGraphBuilder()
@@ -1043,7 +1101,9 @@ class TestDataPreprocessing:
         assert "value" in df.columns
 
     def test_prometheus_load(self):
-        df = TimeSeriesDataLoader.load_from_prometheus("up", "2024-01-01T00:00:00Z", "2024-01-01T01:00:00Z")
+        df = TimeSeriesDataLoader.load_from_prometheus(
+            "up", "2024-01-01T00:00:00Z", "2024-01-01T01:00:00Z"
+        )
         assert "timestamp" in df.columns
 
     def test_cleaner(self, sample_df: pd.DataFrame):
@@ -1052,7 +1112,9 @@ class TestDataPreprocessing:
         assert out["value"].isna().sum() == 0
         with pytest.raises(ValueError):
             TimeSeriesCleaner.handle_missing_values(df, method="bad")
-        out_iqr = TimeSeriesCleaner.remove_outliers(pd.DataFrame({"value": [1.0, 2.0, 3.0, 100.0]}), threshold=0.1)
+        out_iqr = TimeSeriesCleaner.remove_outliers(
+            pd.DataFrame({"value": [1.0, 2.0, 3.0, 100.0]}), threshold=0.1
+        )
         assert len(out_iqr) <= 4
 
     def test_resample(self, sample_df: pd.DataFrame):
@@ -1121,15 +1183,20 @@ class TestTrainTransformer:
         assert input_dim > 0 and train_loader is not None
 
     def test_train_and_eval(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        cfg = train_transformer.TrainingConfig(model_dir=str(tmp_path), model_name="t.pth", n_epochs=1, batch_size=1)
+        cfg = train_transformer.TrainingConfig(
+            model_dir=str(tmp_path), model_name="t.pth", n_epochs=1, batch_size=1
+        )
 
         class FakeLoader:
             def __len__(self):
                 return 1
+
             def __iter__(self):
                 yield torch.zeros((1, 2, 3)), None
 
-        monkeypatch.setattr(train_transformer, "create_transformer_model", lambda **kw: _FakeModel(**kw))
+        monkeypatch.setattr(
+            train_transformer, "create_transformer_model", lambda **kw: _FakeModel(**kw)
+        )
         monkeypatch.setattr(train_transformer, "TransformerAnomalyTrainer", _FakeTrainer)
         model = train_transformer.train_model(cfg, FakeLoader(), FakeLoader(), 3)
         assert model is not None
@@ -1138,11 +1205,26 @@ class TestTrainTransformer:
 
     def test_main(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         import argparse
+
         csv = tmp_path / "main.csv"
         rng = pd.date_range("2024-01-01", periods=50, freq="min")
         pd.DataFrame({"timestamp": rng, "value": np.random.rand(50)}).to_csv(csv, index=False)
         monkeypatch.setattr(train_transformer, "prepare_data", lambda c: (None, None, None, 1))
         monkeypatch.setattr(train_transformer, "train_model", lambda c, tl, vl, d: _FakeModel())
         monkeypatch.setattr(train_transformer, "evaluate_model", lambda m, te, c: {"x": 1.0})
-        monkeypatch.setattr(argparse._sys, "argv", ["train", "--data_path", str(csv), "--model_dir", str(tmp_path), "--epochs", "1", "--batch_size", "1"])
+        monkeypatch.setattr(
+            argparse._sys,
+            "argv",
+            [
+                "train",
+                "--data_path",
+                str(csv),
+                "--model_dir",
+                str(tmp_path),
+                "--epochs",
+                "1",
+                "--batch_size",
+                "1",
+            ],
+        )
         train_transformer.main()

@@ -14,7 +14,6 @@ import numpy as np
 import pandas as pd
 import torch
 
-
 # ----------------------------------------------------------------------
 # sentence_transformers
 # ----------------------------------------------------------------------
@@ -82,6 +81,7 @@ class _FakeCollections:
         class C:
             def __init__(self, n):
                 self.name = n
+
         self.collections = [C(n) for n in names]
 
 
@@ -177,7 +177,9 @@ def _fake_cross_validation(model: Any, initial: str, period: str, horizon: str):
 
 
 def _fake_performance_metrics(df: pd.DataFrame):
-    return pd.DataFrame({"mse": [1.0], "rmse": [1.0], "mae": [1.0], "mape": [1.0], "coverage": [1.0]})
+    return pd.DataFrame(
+        {"mse": [1.0], "rmse": [1.0], "mae": [1.0], "mape": [1.0], "coverage": [1.0]}
+    )
 
 
 _prophet.Prophet = _FakeProphet
@@ -292,6 +294,5 @@ sys.modules["kubernetes.client.rest"] = _kr
 
 # Ensure the auto-heal operator binds to the fake kubernetes client above.
 import modules.execute.auto_heal.operator as _operator_module  # noqa: E402
+
 importlib.reload(_operator_module)
-
-

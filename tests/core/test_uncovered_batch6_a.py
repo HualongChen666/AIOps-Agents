@@ -84,9 +84,7 @@ def test_evaluate_alert_rule():
     assert alert_rules.evaluate_alert_rule("cpu_high", 90.0) is None
 
     alert_rules.enable_rule("cpu_high")
-    alert = alert_rules.evaluate_alert_rule(
-        "cpu_high", 90.0, metadata={"host": "web-01"}
-    )
+    alert = alert_rules.evaluate_alert_rule("cpu_high", 90.0, metadata={"host": "web-01"})
     assert alert is not None
     assert alert["rule_name"] == "cpu_high"
     assert alert["severity"] == "warning"

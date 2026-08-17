@@ -20,9 +20,7 @@ OPERATIONS: List[str] = [
 ]
 
 _OP_MAP: Dict[str, Callable[[PolicyEngine, Dict[str, Any]], Any]] = {
-    "user_lookup": lambda engine, params: engine.user_lookup(
-        params.get("user_id", "")
-    ),
+    "user_lookup": lambda engine, params: engine.user_lookup(params.get("user_id", "")),
 }
 
 

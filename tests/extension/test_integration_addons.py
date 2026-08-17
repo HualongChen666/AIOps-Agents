@@ -7,14 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from extensions.addons.integrations.elk_stack_service.service import Service as ElkService
+from extensions.addons.integrations.github_repository_service.service import (
+    Service as GitHubService,
+)
 from extensions.addons.integrations.kafka_event_service.service import Service as KafkaService
 from extensions.addons.integrations.message_queue_service.service import (
     Service as MessageQueueService,
 )
-from extensions.addons.integrations.github_repository_service.service import (
-    Service as GitHubService,
-)
-from extensions.addons.integrations.elk_stack_service.service import Service as ElkService
 
 
 @pytest.fixture

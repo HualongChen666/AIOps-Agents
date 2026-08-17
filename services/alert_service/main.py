@@ -1,9 +1,11 @@
-from core.auto_heal import try_auto_heal
-from fastapi import FastAPI
-import uvicorn
-import httpx
-import os
 import logging
+import os
+
+import httpx
+import uvicorn
+from fastapi import FastAPI
+
+from core.auto_heal import try_auto_heal
 
 """AIOps Alert Service.
 

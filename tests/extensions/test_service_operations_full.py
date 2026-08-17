@@ -454,9 +454,7 @@ def _stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     if "redis" in sys.modules:
         monkeypatch.setattr(sys.modules["redis"].Redis, "from_url", _fake_redis_from_url)
     if "redis.asyncio" in sys.modules:
-        monkeypatch.setattr(
-            sys.modules["redis.asyncio"].Redis, "from_url", _fake_redis_from_url
-        )
+        monkeypatch.setattr(sys.modules["redis.asyncio"].Redis, "from_url", _fake_redis_from_url)
     if "psycopg2" in sys.modules:
         psycopg2 = sys.modules["psycopg2"]
         monkeypatch.setattr(psycopg2.pool, "SimpleConnectionPool", _FakeConnectionPool)

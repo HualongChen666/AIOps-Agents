@@ -142,15 +142,11 @@ def test_clear_alerts_unknown_client_ip():
 
 
 def test_404_unknown_alert_path(app_client, admin_headers):
-    assert (
-        app_client.get("/api/v1/alerts/999", headers=admin_headers).status_code == 404
-    )
+    assert app_client.get("/api/v1/alerts/999", headers=admin_headers).status_code == 404
 
 
 def test_get_intelligence_statistics(app_client, admin_headers):
-    resp = app_client.get(
-        "/api/v1/alerts/intelligence/statistics", headers=admin_headers
-    )
+    resp = app_client.get("/api/v1/alerts/intelligence/statistics", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert "total_patterns" in data
@@ -328,9 +324,7 @@ def test_get_topology_context(app_client, admin_headers):
             "title": "slow",
         }
     )
-    resp = app_client.get(
-        "/api/v1/alerts/intelligence/topology", headers=admin_headers
-    )
+    resp = app_client.get("/api/v1/alerts/intelligence/topology", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert "nodes" in data
@@ -357,9 +351,7 @@ def test_route_alerts_intelligently(app_client, admin_headers):
             "title": "attack",
         }
     )
-    resp = app_client.post(
-        "/api/v1/alerts/intelligence/route-alerts", headers=admin_headers
-    )
+    resp = app_client.post("/api/v1/alerts/intelligence/route-alerts", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_alerts"] == 2
@@ -408,8 +400,6 @@ def test_intelligence_unavailable_503(app_client, admin_headers):
 
     # Sanity: after restoring, the engine is reachable again.
     assert (
-        app_client.get(
-            "/api/v1/alerts/intelligence/statistics", headers=admin_headers
-        ).status_code
+        app_client.get("/api/v1/alerts/intelligence/statistics", headers=admin_headers).status_code
         == 200
     )

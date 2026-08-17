@@ -172,9 +172,9 @@ def test_all_default_tools_real_inputs():
     results["collect_change_events"] = reg.get_tool("collect_change_events").execute(
         target="node", change_events=[{"timestamp": 1.0, "type": "deploy"}]
     )
-    results["collect_kubernetes_events"] = reg.get_tool(
-        "collect_kubernetes_events"
-    ).execute(namespace="default", limit=10)
+    results["collect_kubernetes_events"] = reg.get_tool("collect_kubernetes_events").execute(
+        namespace="default", limit=10
+    )
     results["collect_container_metrics"] = reg.get_tool("collect_container_metrics").execute(
         pod_name="pod1", namespace="default", container_metrics={"x": 1}
     )
@@ -240,7 +240,13 @@ def test_tool_selector_empty_registry_and_happy_path():
     reg = create_tool_registry()
     reg.tools.clear()
     selector = ToolSelector(reg)
-    assert selector.select_tool("log metrics anomaly root cause restart scale change alert network database pod topology health", {}) is None
+    assert (
+        selector.select_tool(
+            "log metrics anomaly root cause restart scale change alert network database pod topology health",
+            {},
+        )
+        is None
+    )
     assert selector.select_tools_for_chain(["log", "health"], {}) == []
 
     # happy path
@@ -275,15 +281,11 @@ def test_tool_executor_chain_break_and_auto_selection():
     assert isinstance(result, list)
 
     # infer data from metrics
-    result = executor.execute_with_auto_selection(
-        "detect anomaly", {"metrics": [1.0, 2.0, 3.0]}
-    )
+    result = executor.execute_with_auto_selection("detect anomaly", {"metrics": [1.0, 2.0, 3.0]})
     assert isinstance(result, dict)
 
     # infer required target from service
-    result = executor.execute_with_auto_selection(
-        "collect system metrics", {"service": "node"}
-    )
+    result = executor.execute_with_auto_selection("collect system metrics", {"service": "node"})
     assert isinstance(result, dict)
 
     # infer required service from target
@@ -293,15 +295,11 @@ def test_tool_executor_chain_break_and_auto_selection():
     assert isinstance(result, list)
 
     # infer required service_name from target (restart_service)
-    result = executor.execute_with_auto_selection(
-        "restart nginx", {"target": "nginx"}
-    )
+    result = executor.execute_with_auto_selection("restart nginx", {"target": "nginx"})
     assert isinstance(result, dict)
 
     # infer required alert_id from context alert
-    result = executor.execute_with_auto_selection(
-        "root cause analysis", {"alert": {"id": "a1"}}
-    )
+    result = executor.execute_with_auto_selection("root cause analysis", {"alert": {"id": "a1"}})
     assert isinstance(result, dict)
 
 

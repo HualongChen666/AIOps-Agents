@@ -110,9 +110,7 @@ def test_monitor_performance_metrics(monkeypatch):
     disk = types.SimpleNamespace(
         total=100 * 1024**3, used=50 * 1024**3, free=50 * 1024**3, percent=50.0
     )
-    net = types.SimpleNamespace(
-        bytes_sent=1000, bytes_recv=2000, packets_sent=10, packets_recv=20
-    )
+    net = types.SimpleNamespace(bytes_sent=1000, bytes_recv=2000, packets_sent=10, packets_recv=20)
     fake_psutil = MagicMock()
     fake_psutil.cpu_percent = MagicMock(return_value=12.34)
     fake_psutil.cpu_count = MagicMock(return_value=4)
@@ -143,9 +141,7 @@ def test_apply_comprehensive_tuning(monkeypatch):
     disk = types.SimpleNamespace(
         total=100 * 1024**3, used=50 * 1024**3, free=50 * 1024**3, percent=50.0
     )
-    net = types.SimpleNamespace(
-        bytes_sent=1000, bytes_recv=2000, packets_sent=10, packets_recv=20
-    )
+    net = types.SimpleNamespace(bytes_sent=1000, bytes_recv=2000, packets_sent=10, packets_recv=20)
     fake_psutil = MagicMock()
     fake_psutil.cpu_percent = MagicMock(return_value=5.0)
     fake_psutil.cpu_count = MagicMock(return_value=8)
@@ -183,9 +179,7 @@ def test_system_limits_non_windows(monkeypatch):
 
 
 def test_python_optimizations_asyncio_failure(monkeypatch):
-    monkeypatch.setattr(
-        pt.asyncio, "get_event_loop", MagicMock(side_effect=Exception("no loop"))
-    )
+    monkeypatch.setattr(pt.asyncio, "get_event_loop", MagicMock(side_effect=Exception("no loop")))
     result = pt.apply_python_optimizations()
     assert "error" not in result
     assert "Failed to set" in result["asyncio_threads"]
@@ -320,12 +314,8 @@ async def test_ssh_execute_key_auth(monkeypatch):
 @pytest.mark.asyncio
 async def test_ssh_execute_timeout(monkeypatch):
     proc = _ssh_proc(b"ok")
-    monkeypatch.setattr(
-        lc.asyncio, "create_subprocess_exec", AsyncMock(return_value=proc)
-    )
-    monkeypatch.setattr(
-        lc.asyncio, "wait_for", AsyncMock(side_effect=asyncio.TimeoutError())
-    )
+    monkeypatch.setattr(lc.asyncio, "create_subprocess_exec", AsyncMock(return_value=proc))
+    monkeypatch.setattr(lc.asyncio, "wait_for", AsyncMock(side_effect=asyncio.TimeoutError()))
     result = await lc._ssh_execute(
         {"host": "1.2.3.4", "username": "u", "key_file": "/key"}, "hostname"
     )
@@ -433,9 +423,7 @@ async def test_collect_linux_host_missing_config():
     result = await lc.collect_linux_host({"name": "h1"})
     assert result["status"] == "error"
 
-    result = await lc.collect_linux_host(
-        {"name": "h1", "host": "10.0.0.1", "username": "u"}
-    )
+    result = await lc.collect_linux_host({"name": "h1", "host": "10.0.0.1", "username": "u"})
     assert result["status"] == "skipped"
 
 
@@ -679,18 +667,20 @@ async def test_query_prometheus_metrics(im_mod):
     result = await mgr.query_prometheus_metrics(integration.integration_id, "up", "1h")
     assert "error" not in result
 
-    assert "Integration not found" in (
-        await mgr.query_prometheus_metrics("missing", "up", "1h")
-    )["error"]
+    assert (
+        "Integration not found"
+        in (await mgr.query_prometheus_metrics("missing", "up", "1h"))["error"]
+    )
 
     aws = await mgr.register_integration(
         im_mod.IntegrationType.CLOUD,
         "aws",
         {"access_key_id": "a", "secret_access_key": "s", "region": "r"},
     )
-    assert "Not a Prometheus integration" in (
-        await mgr.query_prometheus_metrics(aws.integration_id, "up", "1h")
-    )["error"]
+    assert (
+        "Not a Prometheus integration"
+        in (await mgr.query_prometheus_metrics(aws.integration_id, "up", "1h"))["error"]
+    )
 
     bad = await mgr.query_prometheus_metrics(integration.integration_id, "up", "bad")
     assert "Invalid time_range" in bad["error"]
@@ -721,9 +711,7 @@ async def test_query_cloudwatch_metrics(im_mod):
             "aws_secret_access_key": "s",
         },
     )
-    result = await mgr.query_cloudwatch_metrics(
-        integration.integration_id, "CPUUtilization", "1h"
-    )
+    result = await mgr.query_cloudwatch_metrics(integration.integration_id, "CPUUtilization", "1h")
     assert "error" not in result
     assert result["metric_name"] == "CPUUtilization"
 
@@ -735,9 +723,10 @@ async def test_query_cloudwatch_metrics(im_mod):
         "aws",
         {"access_key_id": "a", "secret_access_key": "s", "region": "r"},
     )
-    assert "Not a CloudWatch integration" in (
-        await mgr.query_cloudwatch_metrics(aws.integration_id, "CPUUtilization", "1h")
-    )["error"]
+    assert (
+        "Not a CloudWatch integration"
+        in (await mgr.query_cloudwatch_metrics(aws.integration_id, "CPUUtilization", "1h"))["error"]
+    )
 
 
 @pytest.mark.asyncio
@@ -922,9 +911,7 @@ def test_retry_sync(ehl_mod, monkeypatch):
 def test_retry_sync_unhandled_exception(ehl_mod, monkeypatch):
     monkeypatch.setattr(ehl_mod.time, "sleep", MagicMock())
     handler = ehl_mod.ErrorHandler()
-    handler.retry_policies["default"] = ehl_mod.RetryPolicy(
-        max_attempts=3, retry_on=[KeyError]
-    )
+    handler.retry_policies["default"] = ehl_mod.RetryPolicy(max_attempts=3, retry_on=[KeyError])
 
     @handler.with_retry("default")
     def fail_value():

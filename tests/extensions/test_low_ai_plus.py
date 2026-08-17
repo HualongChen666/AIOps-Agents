@@ -165,9 +165,7 @@ def _low_ai_plus_stubs(monkeypatch):
 
     starlette_pkg = sys.modules.setdefault("starlette", types.ModuleType("starlette"))
     starlette_res = types.ModuleType("starlette.responses")
-    starlette_res.Response = type(
-        "Response", (), {"__init__": lambda self, *a, **k: None}
-    )
+    starlette_res.Response = type("Response", (), {"__init__": lambda self, *a, **k: None})
     starlette_pkg.responses = starlette_res
     sys.modules["starlette.responses"] = starlette_res
 
@@ -271,6 +269,7 @@ def _low_ai_plus_stubs(monkeypatch):
 # Exercise helpers
 # ---------------------------------------------------------------------------
 
+
 def _exercise_kg_reasoning(mod):
     engine = mod.GraphReasoningEngine()
     Node = mod.GraphNode
@@ -286,9 +285,7 @@ def _exercise_kg_reasoning(mod):
         Edge(edge_id="e2", source_id="b", target_id="c", relation="r"),
     ]
     for rt in ("neighbors", "transitive", "pagerank", "paths"):
-        req = Request(
-            graph_id="g", node_id="a", reason_type=rt, relation="r", max_depth=2
-        )
+        req = Request(graph_id="g", node_id="a", reason_type=rt, relation="r", max_depth=2)
         resp = engine.reason("g", nodes, edges, req)
         assert resp.total >= 0
 
@@ -306,9 +303,7 @@ def _exercise_kg_query(mod):
         Edge(edge_id="e1", source_id="a", target_id="b", relation="r"),
         Edge(edge_id="e2", source_id="b", target_id="c", relation="r"),
     ]
-    req1 = mod.GraphQueryRequest(
-        graph_id="g", entity_id="a", depth=1, top_k=5
-    )
+    req1 = mod.GraphQueryRequest(graph_id="g", entity_id="a", depth=1, top_k=5)
     resp1 = engine.query("g", nodes, edges, req1)
     assert resp1.total >= 0
     req2 = mod.GraphQueryRequest(graph_id="g", relation="r", top_k=5)
@@ -328,13 +323,9 @@ def _exercise_kg_infrastructure(mod):
         schemas.InfrastructureComponent(
             component_id="web-1", component_type="vm", connections=["db-1"]
         ),
-        schemas.InfrastructureComponent(
-            component_id="db-1", component_type="db", connections=[]
-        ),
+        schemas.InfrastructureComponent(component_id="db-1", component_type="db", connections=[]),
     ]
-    req = mod.InfrastructureGraphRequest(
-        components=comps, connection_type="CONNECTS_TO"
-    )
+    req = mod.InfrastructureGraphRequest(components=comps, connection_type="CONNECTS_TO")
     resp = _run(inst.build(req))
     assert resp.built is True
 
@@ -362,14 +353,8 @@ def _exercise_kg_fault(mod):
     store_mod = sys.modules[f"{pkg}.graph_store"]
     graph_builder = builder_mod.GraphBuilder(store_mod.GraphStore())
     inst = mod.FaultPropagationGraphBuilder(graph_builder)
-    states = [
-        schemas.FaultState(component_id="host-1", fault_type="cpu", severity=1.0)
-    ]
-    rules = [
-        schemas.FaultRule(
-            source="host-1", target="app-1", condition="*", impact="high"
-        )
-    ]
+    states = [schemas.FaultState(component_id="host-1", fault_type="cpu", severity=1.0)]
+    rules = [schemas.FaultRule(source="host-1", target="app-1", condition="*", impact="high")]
     req = mod.FaultPropagationGraphRequest(states=states, rules=rules)
     resp = _run(inst.build(req))
     assert resp.built is True
@@ -384,15 +369,9 @@ def _exercise_kg_visualizer(mod):
             schemas.GraphNode(node_id="a", label="A"),
             schemas.GraphNode(node_id="b", label="B"),
         ],
-        edges=[
-            schemas.GraphEdge(
-                edge_id="e", source_id="a", target_id="b", relation="r"
-            )
-        ],
+        edges=[schemas.GraphEdge(edge_id="e", source_id="a", target_id="b", relation="r")],
     )
-    resp = mod.GraphVisualizer().visualize(
-        graph, mod.GraphVisualizationRequest(graph_id="g")
-    )
+    resp = mod.GraphVisualizer().visualize(graph, mod.GraphVisualizationRequest(graph_id="g"))
     assert len(resp.nodes) == 2
 
 
@@ -404,9 +383,7 @@ def _exercise_kg_graph_store(mod):
         await store.connect()
         n1 = schemas.GraphNode(node_id="a", label="A")
         n2 = schemas.GraphNode(node_id="b", label="B")
-        e = schemas.GraphEdge(
-            edge_id="e", source_id="a", target_id="b", relation="r"
-        )
+        e = schemas.GraphEdge(edge_id="e", source_id="a", target_id="b", relation="r")
         await store.add_node(n1)
         await store.add_node(n2)
         await store.add_edge(e)
@@ -415,9 +392,7 @@ def _exercise_kg_graph_store(mod):
         assert len(await store.query_nodes(node_type="entity")) >= 2
         assert len(await store.query_edges(relation="r")) == 1
         assert await store.find_paths("a", "b") == [["a", "b"]]
-        await store.load_graph(
-            schemas.Graph(graph_id="g", name="g", nodes=[n1, n2], edges=[e])
-        )
+        await store.load_graph(schemas.Graph(graph_id="g", name="g", nodes=[n1, n2], edges=[e]))
         g = await store.as_graph("g")
         assert g.graph_id == "g"
         await store.clear()
@@ -457,28 +432,20 @@ def _exercise_kg_orchestrator(mod):
         g = build_resp.graph_id
         assert build_resp.built is True
 
-        q = await orch.query_graph(
-            mod.GraphQueryRequest(graph_id=g, entity_id="x", top_k=5)
-        )
+        q = await orch.query_graph(mod.GraphQueryRequest(graph_id=g, entity_id="x", top_k=5))
         assert q.total >= 0
 
         inf = await orch.infer_graph(
-            mod.GraphReasonRequest(
-                graph_id=g, node_id="x", reason_type="neighbors"
-            )
+            mod.GraphReasonRequest(graph_id=g, node_id="x", reason_type="neighbors")
         )
         assert inf.total >= 0
 
-        viz = await orch.visualize_graph(
-            mod.GraphVisualizationRequest(graph_id=g)
-        )
+        viz = await orch.visualize_graph(mod.GraphVisualizationRequest(graph_id=g))
         assert viz.graph_id == g
 
         sd = await orch.build_service_dependency_graph(
             mod.ServiceDependencyGraphRequest(
-                services=[
-                    schemas.ServiceDependency(service="s", depends_on=["d"])
-                ]
+                services=[schemas.ServiceDependency(service="s", depends_on=["d"])]
             )
         )
         assert sd.built is True
@@ -503,9 +470,7 @@ def _exercise_kg_orchestrator(mod):
 
         fg = await orch.build_fault_propagation_graph(
             mod.FaultPropagationGraphRequest(
-                states=[
-                    schemas.FaultState(component_id="h", fault_type="cpu")
-                ],
+                states=[schemas.FaultState(component_id="h", fault_type="cpu")],
                 rules=[
                     schemas.FaultRule(
                         source="h",
@@ -569,9 +534,7 @@ def _exercise_kg_main_app(mod):
         assert build.built is True
 
         query = await mod.query_graph(
-            mod.GraphQueryRequest(
-                graph_id=build.graph_id, entity_id="y", top_k=5
-            )
+            mod.GraphQueryRequest(graph_id=build.graph_id, entity_id="y", top_k=5)
         )
         assert query.total >= 0
 
@@ -584,9 +547,7 @@ def _exercise_kg_main_app(mod):
         )
         assert reason.total >= 0
 
-        viz = await mod.visualize_graph(
-            mod.GraphVisualizationRequest(graph_id=build.graph_id)
-        )
+        viz = await mod.visualize_graph(mod.GraphVisualizationRequest(graph_id=build.graph_id))
         assert viz.graph_id == build.graph_id
 
         methods = await mod.rpc("list_methods")
@@ -601,9 +562,7 @@ def _exercise_llm_orchestrator(mod):
     async def _exercise():
         models = orch.list_models()
         assert models
-        route = await orch.route(
-            mod.RouteRequest(prompt="hello", use_cache=False)
-        )
+        route = await orch.route(mod.RouteRequest(prompt="hello", use_cache=False))
         assert route.model_name
 
         stats = orch.get_stats()
@@ -615,15 +574,11 @@ def _exercise_llm_orchestrator(mod):
         perf = await orch.get_performance_report()
         assert perf.total_requests >= 0
 
-        batch = await orch.route_batch(
-            [mod.RouteRequest(prompt="batch", use_cache=False)]
-        )
+        batch = await orch.route_batch([mod.RouteRequest(prompt="batch", use_cache=False)])
         assert len(batch) == 1
 
         completion = await orch.completion(
-            mod.LiteLLMRequest(
-                messages=[{"role": "user", "content": "hi"}]
-            )
+            mod.LiteLLMRequest(messages=[{"role": "user", "content": "hi"}])
         )
         assert completion.choices
 
@@ -692,20 +647,14 @@ def _exercise_llm_main_app(mod):
         stats = await mod.stats()
         assert "model_stats" in stats
 
-        route = await mod.route(
-            mod.RouteRequest(prompt="hi", use_cache=False)
-        )
+        route = await mod.route(mod.RouteRequest(prompt="hi", use_cache=False))
         assert "model_name" in route
 
-        gen = await mod.generate(
-            mod.RouteRequest(prompt="hi", model="gpt-3.5-turbo")
-        )
+        gen = await mod.generate(mod.RouteRequest(prompt="hi", model="gpt-3.5-turbo"))
         assert "content" in gen
 
         comp = await mod.completions(
-            mod.LiteLLMRequest(
-                messages=[{"role": "user", "content": "hello"}]
-            )
+            mod.LiteLLMRequest(messages=[{"role": "user", "content": "hello"}])
         )
         assert "choices" in comp
 
@@ -718,9 +667,7 @@ def _exercise_llm_main_app(mod):
         circuits = await mod.circuit_states()
         assert "states" in circuits
 
-        batch = await mod.batch_route(
-            [mod.RouteRequest(prompt="b", use_cache=False)]
-        )
+        batch = await mod.batch_route([mod.RouteRequest(prompt="b", use_cache=False)])
         assert len(batch) == 1
 
         rpc_methods = await mod.rpc("list_models")
@@ -739,9 +686,7 @@ def _exercise_rag_orchestrator(mod):
         assert stats["index_size"] == 0
 
         vec = await orch.vectorize_document(
-            mod.VectorizeRequest(
-                content="The quick brown fox jumps over the lazy dog." * 5
-            )
+            mod.VectorizeRequest(content="The quick brown fox jumps over the lazy dog." * 5)
         )
         assert vec.chunk_count > 0
 
@@ -755,15 +700,11 @@ def _exercise_rag_orchestrator(mod):
         )
         assert idx.status == "indexed"
 
-        search = await orch.semantic_search(
-            mod.SearchRequest(query="fox", top_k=3)
-        )
+        search = await orch.semantic_search(mod.SearchRequest(query="fox", top_k=3))
         assert search.total >= 0
 
         retrieve = await orch.retrieve(
-            mod.RetrieveRequest(
-                query="fox", top_k=3, filters={"chunk_index": 0}
-            )
+            mod.RetrieveRequest(query="fox", top_k=3, filters={"chunk_index": 0})
         )
         assert retrieve.total >= 0
 
@@ -773,9 +714,7 @@ def _exercise_rag_orchestrator(mod):
         ans = await orch.generate_answer(mod.GenerateRequest(query="fox"))
         assert ans.answer
 
-        hybrid = await orch.hybrid_search(
-            mod.HybridRequest(query="fox", top_k=3)
-        )
+        hybrid = await orch.hybrid_search(mod.HybridRequest(query="fox", top_k=3))
         assert hybrid.total >= 0
 
         rerank = await orch.rerank(
@@ -787,15 +726,11 @@ def _exercise_rag_orchestrator(mod):
         assert recall.total >= 0
 
         batch_vec = await orch.batch_vectorize(
-            mod.BatchVectorizeRequest(
-                documents=[mod.VectorizeRequest(content="hello world")]
-            )
+            mod.BatchVectorizeRequest(documents=[mod.VectorizeRequest(content="hello world")])
         )
         assert len(batch_vec) == 1
 
-        batch_search = await orch.batch_search(
-            mod.BatchSearchRequest(queries=["fox"], top_k=3)
-        )
+        batch_search = await orch.batch_search(mod.BatchSearchRequest(queries=["fox"], top_k=3))
         assert len(batch_search) == 1
 
         batch_idx = await orch.batch_index(
@@ -810,9 +745,7 @@ def _exercise_rag_orchestrator(mod):
         assert len(batch_idx) == 1
 
         link = await orch.link_to_knowledge_graph(
-            mod.KnowledgeGraphLinkageRequest(
-                document_id="doc_001", service="svc"
-            )
+            mod.KnowledgeGraphLinkageRequest(document_id="doc_001", service="svc")
         )
         assert link["linked"] is True
 
@@ -855,9 +788,7 @@ def _exercise_rag_main_app(mod):
         assert stats.index_size == 0
 
         vec = await mod.vectorize(
-            mod.VectorizeRequest(
-                content="hello world this is a test document for rag"
-            )
+            mod.VectorizeRequest(content="hello world this is a test document for rag")
         )
         assert vec.chunk_count > 0
 
@@ -873,9 +804,7 @@ def _exercise_rag_main_app(mod):
         search = await mod.search(mod.SearchRequest(query="hello", top_k=3))
         assert search.total >= 0
 
-        retrieve = await mod.retrieve(
-            mod.RetrieveRequest(query="hello", top_k=3)
-        )
+        retrieve = await mod.retrieve(mod.RetrieveRequest(query="hello", top_k=3))
         assert retrieve.total >= 0
 
         ctx = await mod.context(mod.ContextRequest(query="hello"))

@@ -123,7 +123,9 @@ def executor(monkeypatch):
     monkeypatch.setattr(executor_mod, "get_behavior_monitor", lambda: monitor)
     monkeypatch.setattr(executor_mod, "AUDIT_AVAILABLE", True)
     monkeypatch.setattr(executor_mod, "_log_audit_event", MagicMock())
-    monkeypatch.setattr(executor_mod, "_action_signature", lambda g, d, t, p: f"{g}|{d}|{t}|{str(p)}")
+    monkeypatch.setattr(
+        executor_mod, "_action_signature", lambda g, d, t, p: f"{g}|{d}|{t}|{str(p)}"
+    )
     monkeypatch.setattr("core.observability_query.prepare_for_llm", lambda result, **kw: result)
 
     planner = MagicMock()
@@ -134,7 +136,9 @@ def executor(monkeypatch):
     tool_executor = MagicMock()
     tool_executor.dry_run = False
     tool_executor.default_timeout = 30
-    tool_executor.selector.select_tool.return_value = MagicMock(category=ToolCategory.ANALYSIS, name="collect_metrics")
+    tool_executor.selector.select_tool.return_value = MagicMock(
+        category=ToolCategory.ANALYSIS, name="collect_metrics"
+    )
     tool_executor.execute_with_auto_selection.return_value = {"ok": True}
 
     exe = AutonomousExecutor(planner, tool_executor)
@@ -163,9 +167,14 @@ class TestRiskAssessor:
     def test_assess_risk_branches(self):
         sb = SafetyBoundary(forbidden_operations=["forbidden"])
         ra = RiskAssessor(sb)
-        ra.risk_history["op"] = [{"success": True, "error": None, "timestamp": datetime.now().isoformat()}]
+        ra.risk_history["op"] = [
+            {"success": True, "error": None, "timestamp": datetime.now().isoformat()}
+        ]
 
-        assert ra.assess_risk("forbidden", {}, None) == (RiskLevel.CRITICAL, "Operation forbidden is forbidden")
+        assert ra.assess_risk("forbidden", {}, None) == (
+            RiskLevel.CRITICAL,
+            "Operation forbidden is forbidden",
+        )
         assert ra.assess_risk("delete db", {}) == (RiskLevel.CRITICAL, "Destructive operation")
         assert ra.assess_risk("stop app", {}) == (RiskLevel.HIGH, "Service stop operation")
         assert ra.assess_risk("restart app", {}) == (RiskLevel.MEDIUM, "Service modification")
@@ -255,7 +264,12 @@ class TestExecutorHelpers:
         assert executor._get_execution_confidence({"execution_confidence": "0.9"}) == 0.9
         assert executor._get_execution_confidence({"execution_confidence": "bad"}) is None
         assert executor._get_execution_confidence({"diagnosis": {"confidence": 0.8}}) == 0.8
-        assert executor._get_execution_confidence({"root_cause_analysis": {"candidates": [{"confidence": 0.7}]}}) == 0.7
+        assert (
+            executor._get_execution_confidence(
+                {"root_cause_analysis": {"candidates": [{"confidence": 0.7}]}}
+            )
+            == 0.7
+        )
         assert executor._get_execution_confidence({"analysis": {"confidence": "x"}}) is None
 
     def test_is_remediation_action(self, executor):
@@ -330,7 +344,9 @@ class TestAutonomousExecutor:
         assert result["result"]["ok"]
 
     def test_execute_task_validation_fails(self, executor):
-        executor.validation_mechanism.register_validation("check cpu usage", lambda r, c: (False, "bad"))
+        executor.validation_mechanism.register_validation(
+            "check cpu usage", lambda r, c: (False, "bad")
+        )
         task = Task(id="t1", description="check cpu usage")
         result = executor.execute_task(task, {})
         assert result["status"] == "failed"
@@ -388,7 +404,9 @@ class TestAutonomousExecutor:
         ]
         executor.memory_bridge = None
         monkeypatch = None
-        result = executor.execute_plan("goal", {"__visited_goals": set(), "enable_memory": False}, ["tool"])
+        result = executor.execute_plan(
+            "goal", {"__visited_goals": set(), "enable_memory": False}, ["tool"]
+        )
         assert any("Repeated action" in r.get("error", "") for r in result["results"])
 
     def test_execute_plan_memory_retrieval_error(self, executor):
@@ -407,9 +425,10 @@ class TestAutonomousExecutor:
         tool.default_timeout = 30
         tool.selector = MagicMock()
         tool.execute_with_auto_selection = MagicMock(return_value={})
-        with patch("core.agent.planner.create_planner", return_value=planner) as cp, patch(
-            "core.agent.tools.create_tool_executor", return_value=tool
-        ) as ct:
+        with (
+            patch("core.agent.planner.create_planner", return_value=planner) as cp,
+            patch("core.agent.tools.create_tool_executor", return_value=tool) as ct,
+        ):
             exe = create_autonomous_executor()
             assert exe is not None
             cp.assert_called_once()
@@ -429,7 +448,9 @@ class TestAutonomousExecutor:
         dispatcher.dispatch_batch.return_value = [sub_res]
         dispatcher.shutdown.return_value = None
 
-        monkeypatch.setattr("core.agent.subagent.SubAgentDispatcher", MagicMock(return_value=dispatcher))
+        monkeypatch.setattr(
+            "core.agent.subagent.SubAgentDispatcher", MagicMock(return_value=dispatcher)
+        )
         result = executor.execute_plan_with_subagents("goal", {}, ["tool"])
         assert result["subagent_results"]
 
@@ -460,7 +481,9 @@ class TestAutonomousExecutor:
         dispatcher.dispatch_parallel.return_value = {"p1": sub_res, "p2": sub_res}
         dispatcher.shutdown.return_value = None
 
-        monkeypatch.setattr("core.agent.subagent.SubAgentDispatcher", MagicMock(return_value=dispatcher))
+        monkeypatch.setattr(
+            "core.agent.subagent.SubAgentDispatcher", MagicMock(return_value=dispatcher)
+        )
         result = executor.execute_plan_parallel("goal", {}, ["tool"])
         assert "results" in result
 
@@ -561,7 +584,13 @@ class TestABAC:
         assert engine.delete_policy("42")
 
         storage.execute_query.return_value = [
-            _policy_row(id=1, name="listed", subject_conditions={"role": "admin"}, resource_conditions={"type": "anomaly"}, environment_conditions={}),
+            _policy_row(
+                id=1,
+                name="listed",
+                subject_conditions={"role": "admin"},
+                resource_conditions={"type": "anomaly"},
+                environment_conditions={},
+            ),
         ]
         listed = engine.list_policies(enabled_only=True)
         assert listed
@@ -606,7 +635,9 @@ def _patch_bie(monkeypatch, topo, manager, summary, history, linux_hosts, priori
     monkeypatch.setattr(bie_mod, "get_full_link_topology", AsyncMock(return_value=topo))
     monkeypatch.setattr(bie_mod, "get_service_monitoring_manager", lambda: manager)
     monkeypatch.setattr(bie_mod, "get_real_summary", AsyncMock(return_value=summary))
-    monkeypatch.setattr(bie_mod, "metrics_history", MagicMock(to_dict=MagicMock(return_value=history)))
+    monkeypatch.setattr(
+        bie_mod, "metrics_history", MagicMock(to_dict=MagicMock(return_value=history))
+    )
     monkeypatch.setattr(bie_mod, "LINUX_HOSTS", linux_hosts)
     monkeypatch.setattr(bie_mod, "PRIORITY_AVAILABLE", priority_available)
     if priority_available:
@@ -631,14 +662,16 @@ class TestBusinessImpactEngine:
         manager = MagicMock()
         manager.get_monitoring_summary.return_value = {"services": ["api-service"]}
 
-        manager.analyze_service_performance = MagicMock(return_value={
-            "metric_analysis": {
-                "api_error_rate": {"avg": 0.15, "count": 10, "max": 0.2},
-                "api_response_time": {"avg": 1200.0, "count": 10},
-                "cpu_usage": {"avg": 80.0, "count": 10},
-                "memory_usage": {"avg": 90.0, "count": 10},
+        manager.analyze_service_performance = MagicMock(
+            return_value={
+                "metric_analysis": {
+                    "api_error_rate": {"avg": 0.15, "count": 10, "max": 0.2},
+                    "api_response_time": {"avg": 1200.0, "count": 10},
+                    "cpu_usage": {"avg": 80.0, "count": 10},
+                    "memory_usage": {"avg": 90.0, "count": 10},
+                }
             }
-        })
+        )
         manager.get_service_metrics.return_value = [
             SimpleNamespace(timestamp=datetime.now(timezone.utc)),
         ]
@@ -653,7 +686,9 @@ class TestBusinessImpactEngine:
 
         _patch_bie(monkeypatch, topo, manager, summary, history, linux_hosts)
 
-        monkeypatch.setattr("asyncio.get_event_loop", lambda: MagicMock(time=MagicMock(return_value=0.0)))
+        monkeypatch.setattr(
+            "asyncio.get_event_loop", lambda: MagicMock(time=MagicMock(return_value=0.0))
+        )
         eng = BusinessImpactEngine()
         if eng._assessor:
             assessment = MagicMock()
@@ -699,7 +734,9 @@ class TestBusinessImpactEngine:
         assert in_d == 0 and out_d == 0
 
     def test_get_metric_analysis(self, engine):
-        status, error_rate, response_time, cpu, memory, _ = engine._get_metric_analysis("payment-service")
+        status, error_rate, response_time, cpu, memory, _ = engine._get_metric_analysis(
+            "payment-service"
+        )
         assert status == "down"
         assert error_rate > 0.1
         assert response_time > 1000
@@ -718,17 +755,27 @@ class TestBusinessImpactEngine:
         manager = MagicMock()
         manager.get_monitoring_summary.return_value = {"services": []}
 
-        manager.analyze_service_performance = MagicMock(return_value={
-            "metric_analysis": {
-                "error_rate": {"avg": 0.01, "count": 5},
-                "response_time": {"avg": 100.0, "count": 5},
-                "cpu_usage": {"avg": 50.0, "count": 5},
-                "memory_usage": {"avg": 60.0, "count": 5},
+        manager.analyze_service_performance = MagicMock(
+            return_value={
+                "metric_analysis": {
+                    "error_rate": {"avg": 0.01, "count": 5},
+                    "response_time": {"avg": 100.0, "count": 5},
+                    "cpu_usage": {"avg": 50.0, "count": 5},
+                    "memory_usage": {"avg": 60.0, "count": 5},
+                }
             }
-        })
+        )
         manager.get_service_metrics.return_value = []
 
-        _patch_bie(monkeypatch, topo, manager, {}, {"cpu": [], "memory": [], "net_in": []}, {}, priority_available=False)
+        _patch_bie(
+            monkeypatch,
+            topo,
+            manager,
+            {},
+            {"cpu": [], "memory": [], "net_in": []},
+            {},
+            priority_available=False,
+        )
         eng = BusinessImpactEngine()
         impact = await eng._compute_impact("other-service")
         assert impact["status"] == "healthy"
@@ -740,17 +787,29 @@ class TestBusinessImpactEngine:
         manager = MagicMock()
         manager.get_monitoring_summary.return_value = {"services": []}
 
-        manager.analyze_service_performance = MagicMock(return_value={
-            "metric_analysis": {
-                "error_rate": {"avg": 0.05, "count": 5},
-                "response_time": {"avg": 600.0, "count": 5},
-                "cpu_usage": {"avg": 70.0, "count": 5},
-                "memory_usage": {"avg": 80.0, "count": 5},
+        manager.analyze_service_performance = MagicMock(
+            return_value={
+                "metric_analysis": {
+                    "error_rate": {"avg": 0.05, "count": 5},
+                    "response_time": {"avg": 600.0, "count": 5},
+                    "cpu_usage": {"avg": 70.0, "count": 5},
+                    "memory_usage": {"avg": 80.0, "count": 5},
+                }
             }
-        })
-        manager.get_service_metrics.return_value = [SimpleNamespace(timestamp=datetime.now(timezone.utc))]
+        )
+        manager.get_service_metrics.return_value = [
+            SimpleNamespace(timestamp=datetime.now(timezone.utc))
+        ]
 
-        _patch_bie(monkeypatch, topo, manager, {"alerts": {"total": 1}}, {"cpu": [], "memory": [], "net_in": []}, {}, priority_available=False)
+        _patch_bie(
+            monkeypatch,
+            topo,
+            manager,
+            {"alerts": {"total": 1}},
+            {"cpu": [], "memory": [], "net_in": []},
+            {},
+            priority_available=False,
+        )
         eng = BusinessImpactEngine()
         services = await eng.list_services()
         assert services
@@ -761,7 +820,12 @@ class TestBusinessImpactEngine:
         eng._get_all_service_names = AsyncMock(return_value=[])
         fallback2 = await eng.list_services()
         assert fallback2
-        assert fallback2[0]["name"] in {"api-service", "payment-service", "auth-service", "search-service"}
+        assert fallback2[0]["name"] in {
+            "api-service",
+            "payment-service",
+            "auth-service",
+            "search-service",
+        }
 
         assessed = await eng.assess("unknown-service")
         assert assessed["name"] == "unknown-service"
@@ -776,15 +840,19 @@ class TestBusinessImpactEngine:
         }
 
         manager = MagicMock()
-        manager.analyze_service_performance = MagicMock(return_value={
-            "metric_analysis": {
-                "error_rate": {"avg": 0.02, "count": 5},
-                "response_time": {"avg": 300.0, "count": 5},
-                "cpu_usage": {"avg": 60.0, "count": 5},
-                "memory_usage": {"avg": 70.0, "count": 5},
+        manager.analyze_service_performance = MagicMock(
+            return_value={
+                "metric_analysis": {
+                    "error_rate": {"avg": 0.02, "count": 5},
+                    "response_time": {"avg": 300.0, "count": 5},
+                    "cpu_usage": {"avg": 60.0, "count": 5},
+                    "memory_usage": {"avg": 70.0, "count": 5},
+                }
             }
-        })
-        manager.get_service_metrics.return_value = [SimpleNamespace(timestamp=datetime.now(timezone.utc))]
+        )
+        manager.get_service_metrics.return_value = [
+            SimpleNamespace(timestamp=datetime.now(timezone.utc))
+        ]
         manager.get_monitoring_summary.return_value = {"services": ["api-service"]}
 
         history = {
@@ -805,13 +873,18 @@ class TestBusinessImpactEngine:
         manager = MagicMock()
         manager.get_monitoring_summary.return_value = {"services": []}
         _patch_bie(monkeypatch, None, manager, {}, {"cpu": [], "memory": [], "net_in": []}, {})
-        monkeypatch.setattr(bie_mod, "get_full_link_topology", AsyncMock(side_effect=RuntimeError("topo")))
+        monkeypatch.setattr(
+            bie_mod, "get_full_link_topology", AsyncMock(side_effect=RuntimeError("topo"))
+        )
         eng = BusinessImpactEngine()
         topo = await eng._get_topology()
         assert topo == {"nodes": [], "edges": []}
 
     def test_service_id(self):
-        assert BusinessImpactEngine._service_id("foo") == f"SVC-{hashlib.md5('foo'.encode()).hexdigest()[:3].upper()}"
+        assert (
+            BusinessImpactEngine._service_id("foo")
+            == f"SVC-{hashlib.md5('foo'.encode()).hexdigest()[:3].upper()}"
+        )
 
     @pytest.mark.asyncio
     async def test_module_level_functions(self, monkeypatch):
@@ -819,17 +892,27 @@ class TestBusinessImpactEngine:
         manager = MagicMock()
         manager.get_monitoring_summary.return_value = {"services": []}
 
-        manager.analyze_service_performance = MagicMock(return_value={
-            "metric_analysis": {
-                "error_rate": {"avg": 0.01, "count": 5},
-                "response_time": {"avg": 100.0, "count": 5},
-                "cpu_usage": {"avg": 50.0, "count": 5},
-                "memory_usage": {"avg": 60.0, "count": 5},
+        manager.analyze_service_performance = MagicMock(
+            return_value={
+                "metric_analysis": {
+                    "error_rate": {"avg": 0.01, "count": 5},
+                    "response_time": {"avg": 100.0, "count": 5},
+                    "cpu_usage": {"avg": 50.0, "count": 5},
+                    "memory_usage": {"avg": 60.0, "count": 5},
+                }
             }
-        })
+        )
         manager.get_service_metrics.return_value = []
 
-        _patch_bie(monkeypatch, topo, manager, {}, {"cpu": [], "memory": [], "net_in": []}, {}, priority_available=False)
+        _patch_bie(
+            monkeypatch,
+            topo,
+            manager,
+            {},
+            {"cpu": [], "memory": [], "net_in": []},
+            {},
+            priority_available=False,
+        )
 
         monkeypatch.setattr(bie_mod, "_engine", BusinessImpactEngine())
         single = await assess_business_impact("payment-service")
@@ -838,6 +921,10 @@ class TestBusinessImpactEngine:
         all_services = await list_business_impact_services()
         assert isinstance(all_services, list)
 
-        monkeypatch.setattr(bie_mod, "metrics_history", MagicMock(to_dict=MagicMock(return_value={"cpu": [], "memory": [], "net_in": []})))
+        monkeypatch.setattr(
+            bie_mod,
+            "metrics_history",
+            MagicMock(to_dict=MagicMock(return_value={"cpu": [], "memory": [], "net_in": []})),
+        )
         ux = await list_business_impact_ux_metrics()
         assert len(ux) == 7

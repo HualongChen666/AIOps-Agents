@@ -12,7 +12,6 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path
 
-
 # 🔧 重构:使用策略模式
 from core.platform_strategies import get_all_platform_strategies, get_platform_strategy
 

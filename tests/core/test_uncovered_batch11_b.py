@@ -116,8 +116,10 @@ def _setup_rag_client(monkeypatch):
 
 def _make_fake_embed(vectors):
     """Return a fake _embed function."""
+
     def _embed(texts, embed_type="db"):
         return vectors
+
     return _embed
 
 
@@ -182,11 +184,21 @@ def test_rag_get_model_both_fail(monkeypatch):
 
 
 def test_rag_embed_success_with_group_id(monkeypatch):
-    monkeypatch.setattr(rag_engine, "httpx", FakeHttpx(FakeResponse({
-        "base_resp": {"status_code": 0},
-        "vectors": [[0.1, 0.2, 0.3]],
-    })))
-    monkeypatch.setattr(rag_engine, "AI_CONFIG", {"api_key": "ak", "base_url": "https://api.test/v1"})
+    monkeypatch.setattr(
+        rag_engine,
+        "httpx",
+        FakeHttpx(
+            FakeResponse(
+                {
+                    "base_resp": {"status_code": 0},
+                    "vectors": [[0.1, 0.2, 0.3]],
+                }
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        rag_engine, "AI_CONFIG", {"api_key": "ak", "base_url": "https://api.test/v1"}
+    )
     monkeypatch.setenv("MINIMAX_EMBEDDING_MODEL", "embo-01")
     monkeypatch.setenv("MINIMAX_GROUP_ID", "grp-1")
     vectors = rag_engine._embed(["restart service"], embed_type="query")
@@ -197,11 +209,21 @@ def test_rag_embed_success_with_group_id(monkeypatch):
 
 
 def test_rag_embed_success_without_group_id(monkeypatch):
-    monkeypatch.setattr(rag_engine, "httpx", FakeHttpx(FakeResponse({
-        "base_resp": {"status_code": 0},
-        "vectors": [[0.4, 0.5]],
-    })))
-    monkeypatch.setattr(rag_engine, "AI_CONFIG", {"api_key": "ak", "base_url": "https://api.test/v1/"})
+    monkeypatch.setattr(
+        rag_engine,
+        "httpx",
+        FakeHttpx(
+            FakeResponse(
+                {
+                    "base_resp": {"status_code": 0},
+                    "vectors": [[0.4, 0.5]],
+                }
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        rag_engine, "AI_CONFIG", {"api_key": "ak", "base_url": "https://api.test/v1/"}
+    )
     monkeypatch.setenv("MINIMAX_GROUP_ID", "")
     vectors = rag_engine._embed(["cpu high"], embed_type="db")
     assert vectors == [[0.4, 0.5]]
@@ -216,20 +238,36 @@ def test_rag_embed_missing_api_key(monkeypatch):
 
 
 def test_rag_embed_api_returns_error_status(monkeypatch):
-    monkeypatch.setattr(rag_engine, "httpx", FakeHttpx(FakeResponse({
-        "base_resp": {"status_code": -1, "status_msg": "denied"},
-        "vectors": [[0.1]],
-    })))
+    monkeypatch.setattr(
+        rag_engine,
+        "httpx",
+        FakeHttpx(
+            FakeResponse(
+                {
+                    "base_resp": {"status_code": -1, "status_msg": "denied"},
+                    "vectors": [[0.1]],
+                }
+            )
+        ),
+    )
     monkeypatch.setattr(rag_engine, "AI_CONFIG", {"api_key": "ak"})
     with pytest.raises(RuntimeError, match="MiniMax embedding error"):
         rag_engine._embed(["x"])
 
 
 def test_rag_embed_empty_vectors(monkeypatch):
-    monkeypatch.setattr(rag_engine, "httpx", FakeHttpx(FakeResponse({
-        "base_resp": {"status_code": 0},
-        "vectors": None,
-    })))
+    monkeypatch.setattr(
+        rag_engine,
+        "httpx",
+        FakeHttpx(
+            FakeResponse(
+                {
+                    "base_resp": {"status_code": 0},
+                    "vectors": None,
+                }
+            )
+        ),
+    )
     monkeypatch.setattr(rag_engine, "AI_CONFIG", {"api_key": "ak"})
     with pytest.raises(RuntimeError, match="No embedding vectors returned"):
         rag_engine._embed(["x"])
@@ -345,7 +383,9 @@ def _build_sample_graph():
     # chain: db_slow -> cpu_high -> api_latency
     # also db_slow -> api_latency direct
     g.add_edge(CausalEdge("db_slow", "cpu_high", strength=CausalStrength.STRONG, confidence=0.9))
-    g.add_edge(CausalEdge("cpu_high", "api_latency", strength=CausalStrength.MODERATE, confidence=0.8))
+    g.add_edge(
+        CausalEdge("cpu_high", "api_latency", strength=CausalStrength.MODERATE, confidence=0.8)
+    )
     g.add_edge(CausalEdge("db_slow", "api_latency", strength=CausalStrength.WEAK, confidence=0.6))
     # isolated
     g.add_node("network_blip")
@@ -416,7 +456,9 @@ def test_causal_trace_no_path():
 def test_causal_estimate_impact():
     g = _build_sample_graph()
     engine = RootCauseInference(g)
-    scores = engine.estimate_impact("db_slow", {"db_slow", "cpu_high", "api_latency", "network_blip"})
+    scores = engine.estimate_impact(
+        "db_slow", {"db_slow", "cpu_high", "api_latency", "network_blip"}
+    )
     assert scores["db_slow"] == 1.0
     # db_slow -> cpu_high (strong): base 1/2, multiplier 1.5
     assert scores["cpu_high"] == pytest.approx(1.0 / 2 * 1.5)
@@ -506,11 +548,15 @@ def test_dr_check_api(external_deps):
 
 def test_dr_simulate_failure():
     scenario = dr_scenarios.DRScenario("fail", "", [])
-    result = asyncio.run(scenario._execute_step({
-        "type": "simulate_failure",
-        "description": "simulate",
-        "failure_type": "disk_full",
-    }))
+    result = asyncio.run(
+        scenario._execute_step(
+            {
+                "type": "simulate_failure",
+                "description": "simulate",
+                "failure_type": "disk_full",
+            }
+        )
+    )
     assert result["status"] == "simulated"
     assert result["failure_type"] == "disk_full"
 

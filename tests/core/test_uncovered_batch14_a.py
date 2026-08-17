@@ -31,9 +31,7 @@ def test_system_exception_variants():
     assert exc.error_code == "20_15_0001"
     assert exc.context == {"x": 1}
 
-    db = exc_system.DatabaseException(
-        "db failed", host="localhost", port=5432, database="aiops"
-    )
+    db = exc_system.DatabaseException("db failed", host="localhost", port=5432, database="aiops")
     assert db.host == "localhost"
     assert db.port == 5432
     assert db.context["host"] == "localhost"
@@ -51,9 +49,7 @@ def test_system_exception_variants():
     assert cfg.config_key == "k"
     assert cfg.severity.value == "critical"
 
-    res = exc_system.ResourceException(
-        "oom", resource_type="memory", available=1.0, required=8.0
-    )
+    res = exc_system.ResourceException("oom", resource_type="memory", available=1.0, required=8.0)
     assert res.resource_type == "memory"
     assert res.available == 1.0
     assert res.required == 8.0
@@ -100,7 +96,9 @@ async def test_register_and_disconnect_component(fresh_integrator, no_sleep):
     ok = await fresh_integrator.disconnect_component("auth1")
     assert ok is True
     assert ssi.SecurityComponent.AUTHENTICATION not in fresh_integrator.component_refs
-    assert fresh_integrator.security_integrations["auth1"].status == ssi.IntegrationStatus.DISCONNECTED
+    assert (
+        fresh_integrator.security_integrations["auth1"].status == ssi.IntegrationStatus.DISCONNECTED
+    )
 
     missing = await fresh_integrator.disconnect_component("nope")
     assert missing is False
@@ -159,9 +157,7 @@ async def test_incident_lifecycle_and_handlers(fresh_integrator):
 
     listed = fresh_integrator.list_incidents(status="resolved")
     assert len(listed) == 1
-    listed_by_comp = fresh_integrator.list_incidents(
-        component=ssi.SecurityComponent.AUTHENTICATION
-    )
+    listed_by_comp = fresh_integrator.list_incidents(component=ssi.SecurityComponent.AUTHENTICATION)
     assert len(listed_by_comp) == 1
 
 
@@ -187,9 +183,7 @@ async def test_run_security_scan_scenarios(fresh_integrator, no_sleep):
             "critical_vulnerabilities": 1,
         }
     )
-    vuln_integ = _make_integration(
-        "vuln1", ssi.SecurityComponent.VULNERABILITY_MANAGER
-    )
+    vuln_integ = _make_integration("vuln1", ssi.SecurityComponent.VULNERABILITY_MANAGER)
     await fresh_integrator.register_component(vuln_integ, vuln_ref)
     scan2 = await fresh_integrator.run_security_scan()
     assert scan2["components"]["vuln1"]["has_vulnerabilities"] is True
@@ -197,9 +191,7 @@ async def test_run_security_scan_scenarios(fresh_integrator, no_sleep):
     assert len(scan2["incidents"]) == 1
 
     # Disabled component should be skipped
-    disabled = _make_integration(
-        "disabled1", ssi.SecurityComponent.SECURITY_AUDIT, enabled=False
-    )
+    disabled = _make_integration("disabled1", ssi.SecurityComponent.SECURITY_AUDIT, enabled=False)
     await fresh_integrator.register_component(disabled)
     scan3 = await fresh_integrator.run_security_scan()
     assert "disabled1" not in scan3["components"]

@@ -174,9 +174,7 @@ def test_collect_with_post_processing_collect_exception():
     def fail(_):
         raise RuntimeError("collect failed")
 
-    result = collect_with_post_processing(
-        fail, {"host": "h1"}, "p", max_failures=1, cooldown_sec=1
-    )
+    result = collect_with_post_processing(fail, {"host": "h1"}, "p", max_failures=1, cooldown_sec=1)
     assert result == {}
 
 
@@ -299,9 +297,7 @@ def _fake_neo4j_factory():
         def session(self, database=None):
             return FakeSession()
 
-    return types.SimpleNamespace(
-        driver=lambda uri, auth=None: FakeDriver()
-    )
+    return types.SimpleNamespace(driver=lambda uri, auth=None: FakeDriver())
 
 
 @pytest.fixture
@@ -311,7 +307,7 @@ def integrator():
 
 @pytest.mark.asyncio
 async def test_connect_consul_and_kv(integrator, monkeypatch):
-    leader_resp = _FakeHttpxResponse(status_code=200, text="\"leader\"")
+    leader_resp = _FakeHttpxResponse(status_code=200, text='"leader"')
     kv_resp = _FakeHttpxResponse(
         status_code=200,
         json_data=[{"Value": base64.b64encode(b"hello").decode()}],
@@ -355,12 +351,9 @@ async def test_connect_consul_and_kv(integrator, monkeypatch):
     assert await integrator.consul_get_kv(sid, "other") is None
 
 
-
 @pytest.mark.asyncio
 async def test_connect_neo4j_and_query(integrator, monkeypatch):
-    monkeypatch.setattr(
-        "core.third_party_service_integrator.NEO4J_AVAILABLE", True
-    )
+    monkeypatch.setattr("core.third_party_service_integrator.NEO4J_AVAILABLE", True)
     monkeypatch.setattr(
         "core.third_party_service_integrator.AsyncGraphDatabase",
         _fake_neo4j_factory(),
@@ -383,9 +376,7 @@ async def test_connect_neo4j_and_query(integrator, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_neo4j_unavailable(integrator, monkeypatch):
-    monkeypatch.setattr(
-        "core.third_party_service_integrator.NEO4J_AVAILABLE", False
-    )
+    monkeypatch.setattr("core.third_party_service_integrator.NEO4J_AVAILABLE", False)
     cfg = ServiceConfig(service_type=ServiceType.NEO4J, host="localhost", port=7687)
     sid = await integrator.connect_service(cfg)
     assert integrator.service_connections[sid].status == ServiceStatus.ERROR
@@ -641,15 +632,11 @@ def test_audit_log_truncation(uac):
 async def test_require_permission(monkeypatch):
     mock_uac = MagicMock()
     mock_uac.check_access = MagicMock(return_value=True)
-    monkeypatch.setattr(
-        "core.unified_access_control.unified_access_control", mock_uac
-    )
+    monkeypatch.setattr("core.unified_access_control.unified_access_control", mock_uac)
 
     dep = require_permission("service", "read")
     request = types.SimpleNamespace(
-        state=types.SimpleNamespace(
-            user={"id": "u", "type": "user", "roles": ["admin"]}
-        )
+        state=types.SimpleNamespace(user={"id": "u", "type": "user", "roles": ["admin"]})
     )
     assert await dep.dependency(request) is True
 
@@ -666,9 +653,7 @@ async def test_require_permission(monkeypatch):
 
 def test_setup_default_access_policies(monkeypatch):
     fresh = UnifiedAccessControl()
-    monkeypatch.setattr(
-        "core.unified_access_control.unified_access_control", fresh
-    )
+    monkeypatch.setattr("core.unified_access_control.unified_access_control", fresh)
     result = setup_default_access_policies()
     assert result["status"] == "success"
     assert result["rules_added"] == 3
@@ -682,9 +667,7 @@ async def test_add_access_control_middleware(monkeypatch):
     monkeypatch.setenv("AIOPS_ENFORCE_ABAC", "true")
     mock_uac = MagicMock()
     mock_uac.check_access = MagicMock(return_value=True)
-    monkeypatch.setattr(
-        "core.unified_access_control.unified_access_control", mock_uac
-    )
+    monkeypatch.setattr("core.unified_access_control.unified_access_control", mock_uac)
 
     app = MagicMock()
     captured = []
@@ -693,6 +676,7 @@ async def test_add_access_control_middleware(monkeypatch):
         def decorator(fn):
             captured.append(fn)
             return fn
+
         return decorator
 
     app.middleware = capture_middleware
@@ -705,9 +689,7 @@ async def test_add_access_control_middleware(monkeypatch):
     # OPTIONS should skip
     req = types.SimpleNamespace(
         method="OPTIONS",
-        state=types.SimpleNamespace(
-            user={"id": "u", "type": "user", "roles": ["admin"]}
-        ),
+        state=types.SimpleNamespace(user={"id": "u", "type": "user", "roles": ["admin"]}),
     )
     resp = await middleware(req, call_next)
     assert resp.status_code == 200
@@ -715,9 +697,7 @@ async def test_add_access_control_middleware(monkeypatch):
     # allowed
     req = types.SimpleNamespace(
         method="GET",
-        state=types.SimpleNamespace(
-            user={"id": "u", "type": "user", "roles": ["admin"]}
-        ),
+        state=types.SimpleNamespace(user={"id": "u", "type": "user", "roles": ["admin"]}),
     )
     resp = await middleware(req, call_next)
     assert resp.status_code == 200
@@ -743,6 +723,7 @@ async def test_access_control_middleware_not_enforced(monkeypatch):
         def decorator(fn):
             captured.append(fn)
             return fn
+
         return decorator
 
     app.middleware = capture_middleware
@@ -773,9 +754,7 @@ def test_register_workflow_and_handler(workflow_integrator):
     workflow_integrator.register_workflow(wf)
     assert "wf1" in workflow_integrator.workflows
 
-    workflow_integrator.register_trigger_handler(
-        WorkflowTriggerType.MANUAL, lambda: None
-    )
+    workflow_integrator.register_trigger_handler(WorkflowTriggerType.MANUAL, lambda: None)
     assert WorkflowTriggerType.MANUAL in workflow_integrator.trigger_handlers
 
 
@@ -796,9 +775,7 @@ async def test_trigger_workflow_and_unknown(workflow_integrator):
     assert execution_id
     assert execution_id in workflow_integrator.active_executions
     await asyncio.sleep(0.01)
-    assert execution_id in [
-        e.execution_id for e in workflow_integrator.execution_history
-    ]
+    assert execution_id in [e.execution_id for e in workflow_integrator.execution_history]
 
 
 @pytest.mark.asyncio
@@ -871,10 +848,12 @@ async def test_causal_analysis_step_branches(workflow_integrator):
             "target_variable": "cpu",
         }
     }
+
     class CausalResult:
         root_causes = ["cpu"]
         confidence = 0.9
         impact_scores = {"cpu": 0.9}
+
     workflow_integrator.causal_analyzer.analyze_causal_relationships = AsyncMock(
         return_value=CausalResult()
     )
@@ -945,9 +924,7 @@ async def test_execute_workflow_failure_and_cancel(workflow_integrator):
     execution = WorkflowExecution("e5", "wf4")
     workflow_integrator.active_executions["e5"] = execution
 
-    workflow_integrator._execute_step = AsyncMock(
-        side_effect=RuntimeError("boom")
-    )
+    workflow_integrator._execute_step = AsyncMock(side_effect=RuntimeError("boom"))
     await workflow_integrator._execute_workflow("e5")
     assert execution.status == WorkflowStatus.FAILED
     assert workflow_integrator.failed_executions == 1
@@ -1062,9 +1039,7 @@ async def test_notify_rollback_failure_with_webhook(monkeypatch):
             return None
 
     monkeypatch.setattr("httpx.AsyncClient", FakeClient)
-    await notify_rollback_failure(
-        "a2", "rollback", "err", snapshot_id="s2", extra={"team": "ops"}
-    )
+    await notify_rollback_failure("a2", "rollback", "err", snapshot_id="s2", extra={"team": "ops"})
     assert FakeClient.instances
     payload = FakeClient.instances[-1].post.call_args.kwargs["json"]
     assert payload["alert_id"] == "a2"

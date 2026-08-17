@@ -37,8 +37,8 @@ from core.alert_engine import (
     _safe_float,
     _try_dedup,
     alert_history,
-    alert_trend_predictor,
     alert_topology_correlation,
+    alert_trend_predictor,
     automatic_alert_router,
     broadcast,
     check_and_generate_alerts,
@@ -249,7 +249,9 @@ def test_ssh_brute_force_branches():
 def test_cleanup_ssh_brute_force_cache():
     now = datetime.datetime.now()
     ae._ssh_failed_window["expired"] = []
-    ae._ssh_failed_window["old"] = [(now - datetime.timedelta(seconds=ae._SSH_CACHE_EXPIRY_SEC + 5), 1)]
+    ae._ssh_failed_window["old"] = [
+        (now - datetime.timedelta(seconds=ae._SSH_CACHE_EXPIRY_SEC + 5), 1)
+    ]
     ae._ssh_last_alert_time["gone"] = now - datetime.timedelta(seconds=ae._SSH_CACHE_EXPIRY_SEC + 5)
     _cleanup_ssh_brute_force_cache()
     assert "expired" not in ae._ssh_failed_window

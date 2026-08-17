@@ -4,6 +4,7 @@
 import asyncio
 
 import pytest
+
 from core.agent.tools import (
     Tool,
     ToolApprovalManager,
@@ -233,8 +234,12 @@ def test_tool_executor_execute_chain_breaks_on_failure():
         raise ValueError("boom")
 
     registry = ToolRegistry(approval_required=False)
-    registry.register(Tool(name="ok", description="ok", category=ToolCategory.ANALYSIS, function=ok_fn))
-    registry.register(Tool(name="bad", description="bad", category=ToolCategory.ANALYSIS, function=bad_fn))
+    registry.register(
+        Tool(name="ok", description="ok", category=ToolCategory.ANALYSIS, function=ok_fn)
+    )
+    registry.register(
+        Tool(name="bad", description="bad", category=ToolCategory.ANALYSIS, function=bad_fn)
+    )
     executor = ToolExecutor(registry)
     results = executor.execute_chain([("ok", {}), ("bad", {}), ("ok", {})])
     assert results == ["ok"]
@@ -259,9 +264,7 @@ def test_tool_executor_infer_parameters():
     assert params == {"target": "host1", "duration": 15}
 
     restart_tool = executor.registry.get_tool("restart_service")
-    params = executor._infer_parameters(
-        restart_tool, {"service": "nginx", "timeout": 60}
-    )
+    params = executor._infer_parameters(restart_tool, {"service": "nginx", "timeout": 60})
     assert params == {"service_name": "nginx", "timeout": 60}
 
     anomaly_tool = executor.registry.get_tool("analyze_anomaly")

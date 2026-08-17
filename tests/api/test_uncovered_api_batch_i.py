@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Real API tests for uncovered routers (batch I)."""
+
 import sys
 import types
 from datetime import datetime
@@ -52,6 +53,7 @@ class _FakeBackupFailure:
 
 _dr.DisasterRecovery = _FakeBackupSuccess
 sys.modules["disaster_recovery"] = _dr
+
 
 # ---------------------------------------------------------------------------
 # 2. Helper fakes
@@ -119,6 +121,9 @@ class _FakeSubAgentDispatcher:
         return agent_id == "agent-1"
 
 
+import api.ai_feedback_router as ai_feedback_router
+import api.ai_router as ai_router
+
 # ---------------------------------------------------------------------------
 # 3. Import routers / core modules that tests will monkeypatch
 # ---------------------------------------------------------------------------
@@ -128,16 +133,13 @@ import api.backup_router as backup_router
 import api.cloud_router as cloud_router
 import api.database_optimization_router as dbopt_router
 import api.hitl_router as hitl_router
+import api.linux_router as linux_router
 import api.log_router as log_router
 import api.metrics_router as metrics_router
 import api.realtime_router as realtime_router
 import api.settings_router as settings_router
 import api.slack_router as slack_router
 import api.system_resource_router as sysres_router
-
-import api.ai_feedback_router as ai_feedback_router
-import api.ai_router as ai_router
-import api.linux_router as linux_router
 import config
 import core.alert_engine
 import core.auto_heal
@@ -157,13 +159,24 @@ import core.telemetry_core
 import core.websocket_manager
 import gateway.services_client
 
+
 # ---------------------------------------------------------------------------
 # 4. APM router
 # ---------------------------------------------------------------------------
 def test_apm_metrics_and_health(client, monkeypatch):
-    monkeypatch.setattr(core.telemetry_core, "get_apm_metrics", MagicMock(return_value={"request_count": 1}))
-    monkeypatch.setattr(core.health_check, "check_system_resources", AsyncMock(return_value={"status": "healthy", "metrics": {"cpu": 1.0}}))
-    monkeypatch.setattr(core.health_check, "perform_health_checks", AsyncMock(return_value={"status": "healthy", "checks": {}}))
+    monkeypatch.setattr(
+        core.telemetry_core, "get_apm_metrics", MagicMock(return_value={"request_count": 1})
+    )
+    monkeypatch.setattr(
+        core.health_check,
+        "check_system_resources",
+        AsyncMock(return_value={"status": "healthy", "metrics": {"cpu": 1.0}}),
+    )
+    monkeypatch.setattr(
+        core.health_check,
+        "perform_health_checks",
+        AsyncMock(return_value={"status": "healthy", "checks": {}}),
+    )
     monkeypatch.setattr(core.telemetry_core, "reset_apm_metrics", MagicMock())
 
     resp = client.get("/api/v1/apm/metrics")
@@ -180,11 +193,15 @@ def test_apm_metrics_and_health(client, monkeypatch):
 
 
 def test_apm_metrics_error(client, monkeypatch):
-    monkeypatch.setattr(core.telemetry_core, "get_apm_metrics", MagicMock(side_effect=Exception("boom")))
+    monkeypatch.setattr(
+        core.telemetry_core, "get_apm_metrics", MagicMock(side_effect=Exception("boom"))
+    )
     resp = client.get("/api/v1/apm/metrics")
     assert resp.status_code == 500
 
-    monkeypatch.setattr(core.health_check, "perform_health_checks", AsyncMock(side_effect=Exception("boom")))
+    monkeypatch.setattr(
+        core.health_check, "perform_health_checks", AsyncMock(side_effect=Exception("boom"))
+    )
     resp = client.get("/api/v1/apm/health")
     assert resp.status_code == 500
 
@@ -238,16 +255,24 @@ def test_realtime_websocket(client):
 # ---------------------------------------------------------------------------
 def test_slack_message_and_interactive(client, admin_headers, monkeypatch):
     monkeypatch.setattr(slack_router, "post_message", AsyncMock(return_value={"ts": "123"}))
-    monkeypatch.setattr(slack_router, "post_interactive_message", AsyncMock(return_value={"ts": "456"}))
+    monkeypatch.setattr(
+        slack_router, "post_interactive_message", AsyncMock(return_value={"ts": "456"})
+    )
     monkeypatch.setattr(slack_router, "verify_slack_signature", MagicMock(return_value=True))
-    monkeypatch.setattr(slack_router, "handle_instruction", MagicMock(return_value={"action": "doit"}))
+    monkeypatch.setattr(
+        slack_router, "handle_instruction", MagicMock(return_value={"action": "doit"})
+    )
     monkeypatch.setattr(config, "SLACK_BOT_TOKEN", "xoxb-test")
 
-    resp = client.post("/api/slack/message", json={"text": "hi", "channel": "#ops"}, headers=admin_headers)
+    resp = client.post(
+        "/api/slack/message", json={"text": "hi", "channel": "#ops"}, headers=admin_headers
+    )
     assert resp.status_code == 200
     assert resp.json()["success"] is True
 
-    resp = client.post("/api/slack/interactive", json={"text": "choose", "actions": []}, headers=admin_headers)
+    resp = client.post(
+        "/api/slack/interactive", json={"text": "choose", "actions": []}, headers=admin_headers
+    )
     assert resp.status_code == 200
 
     resp = client.get("/api/slack/health", headers=admin_headers)
@@ -255,17 +280,31 @@ def test_slack_message_and_interactive(client, admin_headers, monkeypatch):
     assert resp.json()["token_configured"] is True
 
     body = {"type": "url_verification", "challenge": "abc"}
-    resp = client.post("/api/slack/events", json=body, headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"})
+    resp = client.post(
+        "/api/slack/events",
+        json=body,
+        headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"},
+    )
     assert resp.status_code == 200
     assert resp.json()["challenge"] == "abc"
 
     body = {"event": {"type": "message", "text": "hello", "user": "U1", "channel": "C1"}}
-    resp = client.post("/api/slack/events", json=body, headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"})
+    resp = client.post(
+        "/api/slack/events",
+        json=body,
+        headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"},
+    )
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
-    body = {"event": {"type": "block_actions", "actions": [{"action_id": "approve_1", "value": "x"}]}}
-    resp = client.post("/api/slack/events", json=body, headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"})
+    body = {
+        "event": {"type": "block_actions", "actions": [{"action_id": "approve_1", "value": "x"}]}
+    }
+    resp = client.post(
+        "/api/slack/events",
+        json=body,
+        headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"},
+    )
     assert resp.status_code == 200
     assert resp.json()["action"]["type"] == "approve"
 
@@ -275,12 +314,18 @@ def test_slack_events_auth_failures(client, admin_headers, monkeypatch):
     assert resp.status_code == 403
 
     monkeypatch.setattr(slack_router, "verify_slack_signature", MagicMock(return_value=False))
-    resp = client.post("/api/slack/events", json={}, headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"})
+    resp = client.post(
+        "/api/slack/events",
+        json={},
+        headers={**admin_headers, "X-Slack-Signature": "s", "X-Slack-Timestamp": "1"},
+    )
     assert resp.status_code == 403
 
 
 def test_slack_message_runtime_error(client, admin_headers, monkeypatch):
-    monkeypatch.setattr(slack_router, "post_message", AsyncMock(side_effect=RuntimeError("no token")))
+    monkeypatch.setattr(
+        slack_router, "post_message", AsyncMock(side_effect=RuntimeError("no token"))
+    )
     resp = client.post("/api/slack/message", json={"text": "x"}, headers=admin_headers)
     assert resp.status_code == 503
 
@@ -290,11 +335,19 @@ def test_slack_message_runtime_error(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def _fake_dbopt_manager(fail=False):
     m = MagicMock()
-    attrs = ["get_optimization_status", "run_comprehensive_optimization", "analyze_slow_queries", "optimize_connection_pool", "setup_query_cache"]
+    attrs = [
+        "get_optimization_status",
+        "run_comprehensive_optimization",
+        "analyze_slow_queries",
+        "optimize_connection_pool",
+        "setup_query_cache",
+    ]
     for a in attrs:
         val = Exception("boom") if fail else {"ok": True}
         setattr(m, a, MagicMock(return_value=val) if not fail else MagicMock(side_effect=val))
-    m.record_query_execution = MagicMock(return_value=None) if not fail else MagicMock(side_effect=Exception("boom"))
+    m.record_query_execution = (
+        MagicMock(return_value=None) if not fail else MagicMock(side_effect=Exception("boom"))
+    )
     return m
 
 
@@ -310,7 +363,11 @@ def test_database_optimization_endpoints(client, monkeypatch):
         ("/api/database-optimization/slow-queries", "get", {}),
         ("/api/database-optimization/connection-pool/optimize", "post", {}),
         ("/api/database-optimization/cache/setup?ttl_seconds=300", "post", {}),
-        ("/api/database-optimization/query/record?query_text=SELECT&duration_ms=1.2&database=db&table_name=t", "post", {}),
+        (
+            "/api/database-optimization/query/record?query_text=SELECT&duration_ms=1.2&database=db&table_name=t",
+            "post",
+            {},
+        ),
         ("/api/database-optimization/metrics", "get", {}),
     ]:
         resp = getattr(client, method)(url, **kwargs)
@@ -355,11 +412,23 @@ def test_settings_save_error(client, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_cloud_endpoints(client, monkeypatch):
     monkeypatch.setattr(cloud_router, "CLOUD_PROVIDERS", [{"provider": "aws", "region": "us"}])
-    monkeypatch.setattr(cloud_router, "collect_all_cloud", MagicMock(return_value=[{"provider": "aws"}]))
-    monkeypatch.setattr(cloud_router, "collect_cloud", MagicMock(return_value={"provider": "aws", "metrics": []}))
-    monkeypatch.setattr(cloud_router, "get_cloud_collect_history", MagicMock(return_value=[{"provider": "aws"}, {"provider": "azure"}]))
-    monkeypatch.setattr(core.cloud_repair, "execute_cloud_repair", AsyncMock(return_value={"status": "ok"}))
-    monkeypatch.setattr(core.cloud_repair, "get_cloud_repair_history", MagicMock(return_value=[{"provider": "aws"}]))
+    monkeypatch.setattr(
+        cloud_router, "collect_all_cloud", MagicMock(return_value=[{"provider": "aws"}])
+    )
+    monkeypatch.setattr(
+        cloud_router, "collect_cloud", MagicMock(return_value={"provider": "aws", "metrics": []})
+    )
+    monkeypatch.setattr(
+        cloud_router,
+        "get_cloud_collect_history",
+        MagicMock(return_value=[{"provider": "aws"}, {"provider": "azure"}]),
+    )
+    monkeypatch.setattr(
+        core.cloud_repair, "execute_cloud_repair", AsyncMock(return_value={"status": "ok"})
+    )
+    monkeypatch.setattr(
+        core.cloud_repair, "get_cloud_repair_history", MagicMock(return_value=[{"provider": "aws"}])
+    )
 
     resp = client.get("/api/v1/platforms/cloud/metrics")
     assert resp.status_code == 200
@@ -379,7 +448,9 @@ def test_cloud_endpoints(client, monkeypatch):
     resp = client.get("/api/v1/platforms/cloud/aws/history")
     assert resp.status_code == 200
 
-    resp = client.post("/api/v1/platforms/cloud/aws/repair", json={"action": "restart", "params": {}})
+    resp = client.post(
+        "/api/v1/platforms/cloud/aws/repair", json={"action": "restart", "params": {}}
+    )
     assert resp.status_code == 200
 
     resp = client.get("/api/v1/platforms/cloud/aws/repair/history")
@@ -395,7 +466,9 @@ def test_cloud_errors(client, monkeypatch):
     resp = client.get("/api/v1/platforms/cloud/metrics")
     assert resp.status_code == 500
 
-    monkeypatch.setattr(core.cloud_repair, "execute_cloud_repair", AsyncMock(side_effect=Exception("boom")))
+    monkeypatch.setattr(
+        core.cloud_repair, "execute_cloud_repair", AsyncMock(side_effect=Exception("boom"))
+    )
     resp = client.post("/api/v1/platforms/cloud/aws/repair", json={"action": "x", "params": {}})
     assert resp.status_code == 500
 
@@ -405,7 +478,16 @@ def test_cloud_errors(client, monkeypatch):
 # ---------------------------------------------------------------------------
 def _fake_sysres_optimizer(fail=False):
     m = MagicMock()
-    for a in ["get_optimization_status", "get_resource_summary", "analyze_memory_usage", "optimize_memory", "analyze_cpu_usage", "optimize_cpu", "optimize_network", "run_comprehensive_optimization"]:
+    for a in [
+        "get_optimization_status",
+        "get_resource_summary",
+        "analyze_memory_usage",
+        "optimize_memory",
+        "analyze_cpu_usage",
+        "optimize_cpu",
+        "optimize_network",
+        "run_comprehensive_optimization",
+    ]:
         val = Exception("boom") if fail else {"ok": True}
         setattr(m, a, MagicMock(return_value=val) if not fail else MagicMock(side_effect=val))
     return m
@@ -494,7 +576,9 @@ def _setup_hitl(monkeypatch):
     workflow.cancel_request.return_value = True
     monkeypatch.setattr(hitl_router, "HITL_AVAILABLE", True)
     monkeypatch.setattr(hitl_router, "_approval_workflow", workflow)
-    monkeypatch.setattr(hitl_router, "_approval_notifier", MagicMock(send_approval_request=AsyncMock()))
+    monkeypatch.setattr(
+        hitl_router, "_approval_notifier", MagicMock(send_approval_request=AsyncMock())
+    )
     monkeypatch.setattr(hitl_router, "_approval_timeout_handler", MagicMock())
     monkeypatch.setattr(hitl_router, "ApprovalStep", _FakeApprovalStep)
     monkeypatch.setattr(hitl_router, "record_audit", MagicMock())
@@ -510,7 +594,11 @@ def test_hitl_health(client):
 def test_hitl_approval_flow(client, admin_headers, monkeypatch):
     workflow = _setup_hitl(monkeypatch)
 
-    resp = client.post("/hitl/approval/request", json={"steps": [{"step_id": "s1", "name": "n", "approver": "admin"}]}, headers=admin_headers)
+    resp = client.post(
+        "/hitl/approval/request",
+        json={"steps": [{"step_id": "s1", "name": "n", "approver": "admin"}]},
+        headers=admin_headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["request_id"] == "req-1"
 
@@ -549,7 +637,9 @@ def test_hitl_interrupt_agent(client, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_log_windows_endpoints(client, monkeypatch):
     monkeypatch.setattr(log_router, "get_system_errors", AsyncMock(return_value=[{"msg": "e"}]))
-    monkeypatch.setattr(log_router, "get_application_errors", AsyncMock(return_value=[{"msg": "e"}]))
+    monkeypatch.setattr(
+        log_router, "get_application_errors", AsyncMock(return_value=[{"msg": "e"}])
+    )
     monkeypatch.setattr(log_router, "get_event_logs", AsyncMock(return_value=[{"msg": "e"}]))
     monkeypatch.setattr(log_router, "search_logs", AsyncMock(return_value=[{"msg": "e"}]))
 
@@ -577,7 +667,9 @@ def test_log_windows_endpoints(client, monkeypatch):
 
 def test_log_linux_endpoints(client, monkeypatch):
     monkeypatch.setattr(log_router, "LINUX_HOSTS", [{"host": "server01"}])
-    monkeypatch.setattr(linux_router, "find_linux_host_config", MagicMock(return_value={"host": "server01"}))
+    monkeypatch.setattr(
+        linux_router, "find_linux_host_config", MagicMock(return_value={"host": "server01"})
+    )
     monkeypatch.setattr(log_router, "get_linux_errors", AsyncMock(return_value=[{"msg": "e"}]))
     monkeypatch.setattr(log_router, "get_linux_logs", AsyncMock(return_value=[{"msg": "e"}]))
     monkeypatch.setattr(log_router, "search_linux_logs", AsyncMock(return_value=[{"msg": "e"}]))
@@ -617,12 +709,30 @@ def test_log_errors(client, monkeypatch):
 # 14. Metrics router
 # ---------------------------------------------------------------------------
 def _patch_metrics(monkeypatch, dual=False):
-    monkeypatch.setattr(metrics_router, "get_real_summary", AsyncMock(return_value={"total_alerts": 5, "heal_rate": 90, "mttd_min": 10, "rca_accuracy": 95}))
-    monkeypatch.setattr(metrics_router, "collect_all", MagicMock(return_value={"cpu": {"usage_percent": 10}, "memory": {"usage_percent": 20}}))
+    monkeypatch.setattr(
+        metrics_router,
+        "get_real_summary",
+        AsyncMock(
+            return_value={"total_alerts": 5, "heal_rate": 90, "mttd_min": 10, "rca_accuracy": 95}
+        ),
+    )
+    monkeypatch.setattr(
+        metrics_router,
+        "collect_all",
+        MagicMock(return_value={"cpu": {"usage_percent": 10}, "memory": {"usage_percent": 20}}),
+    )
     monkeypatch.setattr(metrics_router, "get_top_processes", MagicMock(return_value=[]))
-    monkeypatch.setattr(metrics_router.metrics_history, "to_dict", MagicMock(return_value={"cpu": [1.0, 2.0], "memory": [3.0, 4.0], "net_in": [5.0, 6.0]}))
-    monkeypatch.setattr(metrics_router, "get_decision_accuracy", MagicMock(return_value={"accuracy": 0.9}))
-    monkeypatch.setattr(ai_feedback_router, "_compute_feedback_stats", MagicMock(return_value={"accuracy": 0.8}))
+    monkeypatch.setattr(
+        metrics_router.metrics_history,
+        "to_dict",
+        MagicMock(return_value={"cpu": [1.0, 2.0], "memory": [3.0, 4.0], "net_in": [5.0, 6.0]}),
+    )
+    monkeypatch.setattr(
+        metrics_router, "get_decision_accuracy", MagicMock(return_value={"accuracy": 0.9})
+    )
+    monkeypatch.setattr(
+        ai_feedback_router, "_compute_feedback_stats", MagicMock(return_value={"accuracy": 0.8})
+    )
     if not dual:
         monkeypatch.setattr(metrics_router, "_dual_write_strategy", None)
         monkeypatch.setattr(metrics_router, "_metrics_converter", None)
@@ -630,7 +740,23 @@ def _patch_metrics(monkeypatch, dual=False):
 
 def test_metrics_endpoints(client, monkeypatch):
     _patch_metrics(monkeypatch)
-    monkeypatch.setattr(metrics_router, "list_kpi_configs", MagicMock(return_value=[{"id": "1", "visible": True, "endpoint": "summary", "field_path": "total_alerts", "name": "A", "target": 10, "unit": ""}]))
+    monkeypatch.setattr(
+        metrics_router,
+        "list_kpi_configs",
+        MagicMock(
+            return_value=[
+                {
+                    "id": "1",
+                    "visible": True,
+                    "endpoint": "summary",
+                    "field_path": "total_alerts",
+                    "name": "A",
+                    "target": 10,
+                    "unit": "",
+                }
+            ]
+        ),
+    )
     monkeypatch.setattr(metrics_router, "create_kpi_config", MagicMock(return_value={"id": "1"}))
     monkeypatch.setattr(metrics_router, "update_kpi_config", MagicMock(return_value={"id": "1"}))
     monkeypatch.setattr(metrics_router, "delete_kpi_config", MagicMock(return_value=True))
@@ -681,11 +807,15 @@ def test_metrics_endpoints(client, monkeypatch):
 
 def test_metrics_errors(client, monkeypatch):
     _patch_metrics(monkeypatch)
-    monkeypatch.setattr(metrics_router, "get_real_summary", AsyncMock(side_effect=Exception("boom")))
+    monkeypatch.setattr(
+        metrics_router, "get_real_summary", AsyncMock(side_effect=Exception("boom"))
+    )
     resp = client.get("/api/v1/metrics/")
     assert resp.status_code == 500
 
-    monkeypatch.setattr(metrics_router.metrics_history, "to_dict", MagicMock(side_effect=Exception("boom")))
+    monkeypatch.setattr(
+        metrics_router.metrics_history, "to_dict", MagicMock(side_effect=Exception("boom"))
+    )
     resp = client.get("/api/v1/metrics/predictions")
     assert resp.status_code == 500
 
@@ -706,12 +836,26 @@ def _internal_headers(admin_headers):
 
 
 def _patch_autoheal(monkeypatch):
-    monkeypatch.setattr(autoheal_router, "get_pending_approvals", AsyncMock(return_value=[{"alert_id": "A1"}]))
-    monkeypatch.setattr(core.db_engine, "async_update_approval_status_by_alert", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        autoheal_router, "get_pending_approvals", AsyncMock(return_value=[{"alert_id": "A1"}])
+    )
+    monkeypatch.setattr(
+        core.db_engine, "async_update_approval_status_by_alert", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr(core.alert_engine, "alert_history", [{"id": "A1", "title": "CPU"}])
-    monkeypatch.setattr(gateway.services_client, "approve_and_execute", AsyncMock(return_value={"success": True, "alert_id": "A1", "output": "done"}))
-    monkeypatch.setattr(core.auto_heal, "reject_repair", AsyncMock(return_value={"success": True, "alert_id": "A1"}))
-    monkeypatch.setattr(autoheal_router, "generate_repair_runbook", AsyncMock(return_value={"success": True, "proposal": "restart", "risk_level": "MEDIUM"}))
+    monkeypatch.setattr(
+        gateway.services_client,
+        "approve_and_execute",
+        AsyncMock(return_value={"success": True, "alert_id": "A1", "output": "done"}),
+    )
+    monkeypatch.setattr(
+        core.auto_heal, "reject_repair", AsyncMock(return_value={"success": True, "alert_id": "A1"})
+    )
+    monkeypatch.setattr(
+        autoheal_router,
+        "generate_repair_runbook",
+        AsyncMock(return_value={"success": True, "proposal": "restart", "risk_level": "MEDIUM"}),
+    )
     monkeypatch.setattr(ai_router, "_collect_rich_context", AsyncMock(return_value={}))
     monkeypatch.setattr(core.collector, "collect_all", MagicMock(return_value={}))
     monkeypatch.setattr(autoheal_router, "is_runbook_available", True)
@@ -729,7 +873,9 @@ def test_autoheal_endpoints(client, admin_headers, monkeypatch):
     resp = client.patch("/api/v1/approvals/A1", headers=ih)
     assert resp.status_code == 200
 
-    resp = client.post("/api/v1/approvals/reject", json={"alert_id": "A1", "reason": "x"}, headers=ih)
+    resp = client.post(
+        "/api/v1/approvals/reject", json={"alert_id": "A1", "reason": "x"}, headers=ih
+    )
     assert resp.status_code == 200
 
     resp = client.post("/api/v1/approvals/takeover/A1", headers=ih)
@@ -749,14 +895,20 @@ def test_autoheal_auth_and_errors(client, admin_headers, monkeypatch):
     resp = client.get("/api/v1/approvals/pending")
     assert resp.status_code == 403
 
-    monkeypatch.setattr(autoheal_router, "get_pending_approvals", AsyncMock(side_effect=Exception("boom")))
+    monkeypatch.setattr(
+        autoheal_router, "get_pending_approvals", AsyncMock(side_effect=Exception("boom"))
+    )
     resp = client.get("/api/v1/approvals/pending", headers=_internal_headers(admin_headers))
     assert resp.status_code == 500
 
 
 def test_autoheal_approve_business_error(client, admin_headers, monkeypatch):
     _patch_autoheal(monkeypatch)
-    monkeypatch.setattr(gateway.services_client, "approve_and_execute", AsyncMock(return_value={"success": False, "error": "approved_no_script"}))
+    monkeypatch.setattr(
+        gateway.services_client,
+        "approve_and_execute",
+        AsyncMock(return_value={"success": False, "error": "approved_no_script"}),
+    )
     resp = client.patch("/api/v1/approvals/A1", headers=_internal_headers(admin_headers))
     assert resp.status_code == 400
     assert "approved_no_script" in resp.text
@@ -764,13 +916,25 @@ def test_autoheal_approve_business_error(client, admin_headers, monkeypatch):
 
 def test_autoheal_reject_business_error(client, admin_headers, monkeypatch):
     _patch_autoheal(monkeypatch)
-    monkeypatch.setattr(core.auto_heal, "reject_repair", AsyncMock(return_value={"success": False, "error": "reject failed"}))
-    resp = client.post("/api/v1/approvals/reject", json={"alert_id": "A1"}, headers=_internal_headers(admin_headers))
+    monkeypatch.setattr(
+        core.auto_heal,
+        "reject_repair",
+        AsyncMock(return_value={"success": False, "error": "reject failed"}),
+    )
+    resp = client.post(
+        "/api/v1/approvals/reject",
+        json={"alert_id": "A1"},
+        headers=_internal_headers(admin_headers),
+    )
     assert resp.status_code == 400
 
 
 def test_autoheal_propose_not_found(client, admin_headers, monkeypatch):
     _patch_autoheal(monkeypatch)
     monkeypatch.setattr(core.alert_engine, "alert_history", [])
-    resp = client.post("/api/v1/approvals/propose", json={"alert_id": "MISSING"}, headers=_internal_headers(admin_headers))
+    resp = client.post(
+        "/api/v1/approvals/propose",
+        json={"alert_id": "MISSING"},
+        headers=_internal_headers(admin_headers),
+    )
     assert resp.status_code == 404

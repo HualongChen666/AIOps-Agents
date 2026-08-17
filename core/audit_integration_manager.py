@@ -245,7 +245,7 @@ class AuditIntegrationManager:
 
             # Prune old trails
             if len(self.audit_trails) > self.max_trails:
-                self.audit_trails = self.audit_trails[-self.max_trails:]
+                self.audit_trails = self.audit_trails[-self.max_trails :]
 
         except Exception as e:
             logger.error(f"Failed to collect from source {source.source_id}: {e}")

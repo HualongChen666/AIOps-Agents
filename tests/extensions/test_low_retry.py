@@ -51,7 +51,9 @@ def _register_stubs(parent_dir, package_name, monkeypatch):
     if "services" not in sys.modules:
         monkeypatch.setitem(sys.modules, "services", types.ModuleType("services"))
 
-    wf_pkg = sys.modules.setdefault("services.workflow_service", types.ModuleType("services.workflow_service"))
+    wf_pkg = sys.modules.setdefault(
+        "services.workflow_service", types.ModuleType("services.workflow_service")
+    )
     monkeypatch.setitem(sys.modules, "services.workflow_service", wf_pkg)
 
     wf_metrics = types.ModuleType("services.workflow_service.metrics")

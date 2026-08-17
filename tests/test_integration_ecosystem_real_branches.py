@@ -228,16 +228,10 @@ async def test_webhook_signature_and_trigger():
     # Correct signature (excludes the signature key itself)
     payload = {"event": "alert"}
     expected = ecosystem._calculate_signature(payload, webhook.secret)
-    assert (
-        await ecosystem.trigger_webhook(webhook.id, {**payload, "signature": expected})
-        is False
-    )
+    assert await ecosystem.trigger_webhook(webhook.id, {**payload, "signature": expected}) is False
 
     # Wrong signature
-    assert (
-        await ecosystem.trigger_webhook(webhook.id, {**payload, "signature": "wrong"})
-        is False
-    )
+    assert await ecosystem.trigger_webhook(webhook.id, {**payload, "signature": "wrong"}) is False
 
     # No secret, invalid URL
     plain = await ecosystem.register_webhook(

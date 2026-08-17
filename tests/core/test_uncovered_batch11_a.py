@@ -119,7 +119,16 @@ async def test_tce_dashboards_and_empty_rotation(tce_tmp):
             "id": "T-EMPTY",
             "members": [{"user_id": "U-X"}],
             "rotation": {"type": "weekly", "start_date": "2026-01-01T00:00:00+00:00", "order": []},
-            "escalation_policy": {"levels": [{"level": 1, "delay_minutes": 5, "contact_methods": ["email"], "notify_role": "primary"}]},
+            "escalation_policy": {
+                "levels": [
+                    {
+                        "level": 1,
+                        "delay_minutes": 5,
+                        "contact_methods": ["email"],
+                        "notify_role": "primary",
+                    }
+                ]
+            },
         }
     )
     _write_teams(data)
@@ -395,6 +404,7 @@ async def test_k8s_blocked_by_guard(k8s_mocks):
     monkeypatch = k8s_mocks[0] if isinstance(k8s_mocks[0], object) else None  # placeholder
     # Guard patched in fixture; override to BLOCKED
     import unittest.mock
+
     with unittest.mock.patch.object(k8s_repair, "analyze_command", lambda cmd: RiskLevel.BLOCKED):
         result = await k8s_repair.execute_repair(
             {"host": "k8s-1"}, "restart_deployment", {"namespace": "default", "deployment": "api"}
@@ -462,9 +472,15 @@ def alert_svc(monkeypatch):
 
 def test_alert_service_get_and_clear(alert_svc):
     svc, history, _ = alert_svc
-    history.appendleft({"id": "A1", "severity": "critical", "message": "m", "source": "s", "tenant_id": "t1"})
-    history.appendleft({"id": "A2", "severity": "warning", "message": "m", "source": "s", "tenant_id": None})
-    history.appendleft({"id": "A3", "severity": "info", "message": "m", "source": "s", "tenant_id": "t1"})
+    history.appendleft(
+        {"id": "A1", "severity": "critical", "message": "m", "source": "s", "tenant_id": "t1"}
+    )
+    history.appendleft(
+        {"id": "A2", "severity": "warning", "message": "m", "source": "s", "tenant_id": None}
+    )
+    history.appendleft(
+        {"id": "A3", "severity": "info", "message": "m", "source": "s", "tenant_id": "t1"}
+    )
 
     all_alerts = svc.get_alerts(limit=10)
     assert all_alerts["total"] == 3
@@ -485,7 +501,9 @@ def test_alert_service_get_and_clear(alert_svc):
 def test_alert_service_clear_db_error(alert_svc, monkeypatch):
     svc, history, _ = alert_svc
     history.appendleft({"id": "A1", "severity": "critical", "message": "m", "source": "s"})
-    monkeypatch.setattr(alert_service_mod, "db_clear_alerts", lambda: (_ for _ in ()).throw(RuntimeError("db down")))
+    monkeypatch.setattr(
+        alert_service_mod, "db_clear_alerts", lambda: (_ for _ in ()).throw(RuntimeError("db down"))
+    )
     result = svc.clear_alerts("1.2.3.4")
     assert result["status"] == "ok"
     assert result["deleted_count"] == 1
@@ -735,7 +753,9 @@ async def test_router_generate_api_error(monkeypatch):
 
     class _BoomClient:
         def __init__(self, *a, **k):
-            self.chat = SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(side_effect=RuntimeError("api down"))))
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(create=AsyncMock(side_effect=RuntimeError("api down")))
+            )
 
     fake_openai.AsyncOpenAI = _BoomClient
     monkeypatch.setitem(sys.modules, "openai", fake_openai)

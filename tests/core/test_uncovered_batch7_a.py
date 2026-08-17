@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Targeted coverage tests for core.idempotent, core.input_validator,
 core.i18n, core.multi_tenant and core.metadata_engine."""
+
 import asyncio
 import json
 import sys
@@ -12,8 +13,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import core.idempotent as idem
 import core.i18n as i18n
+import core.idempotent as idem
 import core.input_validator as iv
 import core.metadata_engine as me
 import core.multi_tenant as mt
@@ -445,7 +446,7 @@ def test_validate_username():
 
 def test_sanitize_dict_and_list():
     raw = {
-        "name": '<script>alert(1)</script>',
+        "name": "<script>alert(1)</script>",
         "nested": {"tag": "<b>"},
         "items": ["<div>", {"inner": "<span>"}],
         "count": 42,
@@ -768,11 +769,14 @@ def test_register_dataset_emit_error(datahub_fakes, monkeypatch):
 
 
 def test_register_lineage_success(datahub_fakes):
-    assert me.register_lineage(
-        {"platform": "mysql", "name": "orders"},
-        {"platform": "snowflake", "name": "orders_agg"},
-        description="daily aggregation",
-    ) is True
+    assert (
+        me.register_lineage(
+            {"platform": "mysql", "name": "orders"},
+            {"platform": "snowflake", "name": "orders_agg"},
+            description="daily aggregation",
+        )
+        is True
+    )
     assert len(datahub_fakes["emitted"]) == 1
     assert datahub_fakes["emitted"][0] == (
         "urn:dataset:PROD:mysql.orders",
@@ -786,10 +790,13 @@ def test_register_lineage_emit_error(datahub_fakes, monkeypatch):
             raise RuntimeError("lineage failed")
 
     monkeypatch.setattr("core.metadata_engine.DatahubRestEmitter", FailingEmitter)
-    assert me.register_lineage(
-        {"platform": "a", "name": "a1"},
-        {"platform": "b", "name": "b1"},
-    ) is False
+    assert (
+        me.register_lineage(
+            {"platform": "a", "name": "a1"},
+            {"platform": "b", "name": "b1"},
+        )
+        is False
+    )
 
 
 def test_amundsen_register_table():

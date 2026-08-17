@@ -13,16 +13,17 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-import pytest
 import httpx
+import pytest
 
 # Set sane defaults before the first import of notify_engine.
 os.environ.setdefault("NOTIFY_ENABLED", "true")
 os.environ.setdefault("NOTIFY_MIN_LEVEL", "info")
 
+# noqa: E402  # Module level import not at top (intentional for env var setup)
 import core.notify_engine as notify_engine
+# noqa: E402  # Module level import not at top (intentional for env var setup)
 import core.oncall_adapter as oncall_adapter
-
 
 pytestmark = [pytest.mark.core]
 
@@ -30,6 +31,7 @@ pytestmark = [pytest.mark.core]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 @contextlib.contextmanager
 def _env_vars(**kwargs):
@@ -117,6 +119,7 @@ def webhook_server():
 # Validation and utilities
 # ---------------------------------------------------------------------------
 
+
 def test_validate_webhook_url_edge_cases():
     assert notify_engine._validate_webhook_url("http://example.com/hook", "x") is True
     assert notify_engine._validate_webhook_url("ftp://example.com/hook", "x") is False
@@ -170,7 +173,12 @@ def test_build_structured_alert_message_formats_and_link_dedup():
 
     # Branch where a link-like key is already present in the explicit links dict.
     dedup = notify_engine.build_structured_alert_message(
-        {"level": "high", "summary": "s", "links": {"dashboard_url": "http://d"}, "dashboard_url": "http://ignored"},
+        {
+            "level": "high",
+            "summary": "s",
+            "links": {"dashboard_url": "http://d"},
+            "dashboard_url": "http://ignored",
+        },
         fmt="text",
     )
     assert "http://ignored" not in dedup
@@ -212,6 +220,7 @@ def test_http_client_singleton_and_close():
         await notify_engine.close_http_client()
 
     import asyncio
+
     asyncio.run(_close())
     # closing when already None should not error (covers the false branch).
     asyncio.run(notify_engine.close_http_client())
@@ -229,19 +238,22 @@ def test_reload_notify_config():
 # Real routing with in-memory providers
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_send_alert_notification_routes_all_channels(webhook_server):
     url, server = webhook_server
     server.responses = {
         "/": (200, b"ok"),
     }
-    schedule = json.dumps({
-        "oncall": [
-            {"name": "alice", "email": "alice@example.com", "phone": "+8613800000001"},
-            {"name": "bob", "phone": "+8613800000002"},
-            {"name": "carol", "email": "carol@example.com"},
-        ]
-    })
+    schedule = json.dumps(
+        {
+            "oncall": [
+                {"name": "alice", "email": "alice@example.com", "phone": "+8613800000001"},
+                {"name": "bob", "phone": "+8613800000002"},
+                {"name": "carol", "email": "carol@example.com"},
+            ]
+        }
+    )
     env = {
         "NOTIFY_ENABLED": "true",
         "NOTIFY_MIN_LEVEL": "info",
@@ -322,6 +334,7 @@ async def test_send_alert_notification_warning_stops_after_first_success(webhook
 # send_notification routing
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_send_notification_channels_none_and_partial_success(webhook_server):
     url, server = webhook_server
@@ -358,6 +371,7 @@ async def test_send_notification_channels_none_and_partial_success(webhook_serve
 # Oncall-driven email / phone / SMS branches
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_send_one_channel_email_uses_oncall_and_fallback_admin(webhook_server):
     url, server = webhook_server
@@ -376,12 +390,14 @@ async def test_send_one_channel_email_uses_oncall_and_fallback_admin(webhook_ser
     # Case 1: oncall contact has an email address.
     env1 = {
         "ONCALL_PROVIDER": "json",
-        "ONCALL_SCHEDULE_JSON": json.dumps({
-            "ops": [
-                {"name": "noemail", "phone": "+8613800000001"},
-                {"name": "hasemail", "email": "oncall@example.com"},
-            ]
-        }),
+        "ONCALL_SCHEDULE_JSON": json.dumps(
+            {
+                "ops": [
+                    {"name": "noemail", "phone": "+8613800000001"},
+                    {"name": "hasemail", "email": "oncall@example.com"},
+                ]
+            }
+        ),
     }
     with _env_vars(**env1):
         _reload_notify_modules()
@@ -421,9 +437,9 @@ async def test_send_one_channel_phone_and_sms_branches(webhook_server):
     # Phone branch: oncall contacts have no phone number -> recipient unresolved.
     env1 = {
         "ONCALL_PROVIDER": "json",
-        "ONCALL_SCHEDULE_JSON": json.dumps({
-            "ops": [{"name": "nophone", "email": "only@example.com"}]
-        }),
+        "ONCALL_SCHEDULE_JSON": json.dumps(
+            {"ops": [{"name": "nophone", "email": "only@example.com"}]}
+        ),
         "PHONE_PROVIDER": url,
     }
     with _env_vars(**env1):
@@ -436,12 +452,14 @@ async def test_send_one_channel_phone_and_sms_branches(webhook_server):
     # SMS branches: oncall has a phone -> send succeeds, covering the loop body and send.
     env2 = {
         "ONCALL_PROVIDER": "json",
-        "ONCALL_SCHEDULE_JSON": json.dumps({
-            "ops": [
-                {"name": "nophone", "email": "only@example.com"},
-                {"name": "hasphone", "phone": "+8613800000001"},
-            ]
-        }),
+        "ONCALL_SCHEDULE_JSON": json.dumps(
+            {
+                "ops": [
+                    {"name": "nophone", "email": "only@example.com"},
+                    {"name": "hasphone", "phone": "+8613800000001"},
+                ]
+            }
+        ),
         "SMS_PROVIDER": url,
     }
     with _env_vars(**env2):
@@ -455,6 +473,7 @@ async def test_send_one_channel_phone_and_sms_branches(webhook_server):
 # ---------------------------------------------------------------------------
 # Dingtalk signing branches
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_send_dingtalk_existing_query_params(webhook_server):
@@ -524,6 +543,7 @@ async def test_send_dingtalk_sign_exception(webhook_server):
 # Teams and Slack branches
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_send_teams_notification_connection_error():
     with _env_vars():
@@ -549,6 +569,7 @@ async def test_slack_client_factory():
 # ---------------------------------------------------------------------------
 # History and status tracking
 # ---------------------------------------------------------------------------
+
 
 def test_notification_history_and_read_status():
     notify_engine._notification_history.clear()
@@ -617,6 +638,7 @@ def test_close_http_client_exception():
     notify_engine._http_client = None
     # Calling close on None should not raise
     import asyncio
+
     asyncio.run(notify_engine.close_http_client())
 
 
@@ -653,16 +675,17 @@ def test_get_slack_client_exception():
     """Test exception handling in _get_slack_client (lines 438-440)."""
     # Temporarily break the import to trigger exception
     import sys
-    slack_sdk = sys.modules.get('slack_sdk')
+
+    slack_sdk = sys.modules.get("slack_sdk")
     if slack_sdk:
-        del sys.modules['slack_sdk']
+        del sys.modules["slack_sdk"]
     try:
         client = notify_engine._get_slack_client()
         assert client is None
     finally:
         # Restore if it was there
         if slack_sdk:
-            sys.modules['slack_sdk'] = slack_sdk
+            sys.modules["slack_sdk"] = slack_sdk
 
 
 def test_is_valid_email_false():
@@ -870,16 +893,17 @@ async def test_resolve_oncall_recipients_import_error():
     """Test oncall adapter import failure (lines 799-801)."""
     # Temporarily break the import
     import sys
-    oncall_adapter = sys.modules.get('core.oncall_adapter')
+
+    oncall_adapter = sys.modules.get("core.oncall_adapter")
     if oncall_adapter:
-        del sys.modules['core.oncall_adapter']
+        del sys.modules["core.oncall_adapter"]
     try:
         result = await notify_engine._resolve_oncall_recipients({})
         assert result == []
     finally:
         # Restore
         if oncall_adapter:
-            sys.modules['core.oncall_adapter'] = oncall_adapter
+            sys.modules["core.oncall_adapter"] = oncall_adapter
 
 
 @pytest.mark.asyncio
@@ -1007,7 +1031,9 @@ async def test_send_one_channel_unsupported():
         "raw_time": "now",
         "links": {},
     }
-    result = await notify_engine._send_one_channel(alert, "unsupported", notify_engine.NOTIFY_CONFIG)
+    result = await notify_engine._send_one_channel(
+        alert, "unsupported", notify_engine.NOTIFY_CONFIG
+    )
     assert result["success"] is False
     assert "unsupported" in result.get("error", "").lower()
 
@@ -1035,9 +1061,11 @@ async def test_send_one_channel_exception_handling():
 
 def test_send_alert_notification_invalid_alert():
     """Test invalid alert validation (lines 966-968)."""
-    result = notify_engine.send_alert_notification.__wrapped__(
-        "not-a-dict"
-    ) if hasattr(notify_engine.send_alert_notification, "__wrapped__") else None
+    result = (
+        notify_engine.send_alert_notification.__wrapped__("not-a-dict")
+        if hasattr(notify_engine.send_alert_notification, "__wrapped__")
+        else None
+    )
     # Can't easily test this without running the async function
     pass
 
@@ -1142,7 +1170,9 @@ async def test_post_webhook_connect_error():
     """Test connect error exception (lines 1215-1221)."""
     result = await notify_engine._post_webhook("http://127.0.0.1:9999", {"test": "data"}, "test")
     assert result["success"] is False
-    assert "connect" in result.get("error", "").lower() or "network" in result.get("error", "").lower()
+    assert (
+        "connect" in result.get("error", "").lower() or "network" in result.get("error", "").lower()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1484,6 +1514,7 @@ async def test_send_dingtalk_no_secret():
 @pytest.mark.asyncio
 async def test_send_slack_notification_response_handling(monkeypatch):
     """Test Slack response handling branches with monkeypatched client."""
+
     # Monkeypatch the Slack client to test different response scenarios
     class MockResponse:
         def __init__(self, ok):
@@ -1511,6 +1542,7 @@ async def test_send_slack_notification_response_handling(monkeypatch):
 @pytest.mark.asyncio
 async def test_send_slack_notification_rate_limit(monkeypatch):
     """Test Slack rate limit error handling."""
+
     class MockClientRateLimit:
         async def chat_postMessage(self, channel, text):
             raise Exception("rate limit exceeded")
@@ -1530,10 +1562,13 @@ async def test_send_teams_non_200(monkeypatch):
     async def mock_post(self, url, json):
         class MockResponse:
             status = 500
+
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *args):
                 pass
+
         return MockResponse()
 
     monkeypatch.setattr(aiohttp.ClientSession, "post", mock_post)
@@ -1545,6 +1580,7 @@ async def test_send_teams_non_200(monkeypatch):
 @pytest.mark.asyncio
 async def test_query_notifications_exception(monkeypatch):
     """Test query_notifications exception handling."""
+
     # Monkeypatch query_notifications to raise an exception
     async def mock_query(limit, severity):
         raise Exception("test exception")
@@ -1558,6 +1594,7 @@ async def test_query_notifications_exception(monkeypatch):
 @pytest.mark.asyncio
 async def test_send_one_channel_email_exception(monkeypatch):
     """Test email channel exception handling."""
+
     # Monkeypatch send_email_notification to raise an exception
     async def mock_send_email(to, subject, body, smtp_host, smtp_port):
         raise Exception("SMTP error")

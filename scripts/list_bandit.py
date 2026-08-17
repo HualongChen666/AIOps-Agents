@@ -14,13 +14,13 @@ def main() -> None:
     for issue_m in issue_pat.finditer(text):
         bid, name, sev = issue_m.groups()
         # find the first Location after this issue header
-        tail = text[issue_m.end():]
+        tail = text[issue_m.end() :]
         loc_m = loc_pat.search(tail)
         if not loc_m:
             continue
         file, line, col = loc_m.groups()
         # next non-empty line is the code snippet
-        after = tail[loc_m.end():]
+        after = tail[loc_m.end() :]
         code_line = ""
         for raw in after.splitlines()[1:4]:
             stripped = raw.strip()

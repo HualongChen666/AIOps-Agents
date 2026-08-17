@@ -200,7 +200,14 @@ class FakePostgresStorage:
 def test_action_and_resource_type_enum_values() -> None:
     assert {a.value for a in ActionType} == {"read", "write", "delete", "execute", "admin"}
     assert {r.value for r in ResourceType} == {
-        "anomaly", "alert", "metric", "configuration", "policy", "workflow", "deployment", "service"
+        "anomaly",
+        "alert",
+        "metric",
+        "configuration",
+        "policy",
+        "workflow",
+        "deployment",
+        "service",
     }
 
 

@@ -151,34 +151,52 @@ class TestStorageOptimizerTiersAndSavings:
         optimizer = create_storage_optimizer(create_storage_manager())
 
         # each _recommend_storage_type return branch
-        assert optimizer._recommend_storage_type(
-            _make_object("a", "a.bin", 1, StorageType.HOT, 5, 2, 10)
-        ) == StorageType.HOT
+        assert (
+            optimizer._recommend_storage_type(
+                _make_object("a", "a.bin", 1, StorageType.HOT, 5, 2, 10)
+            )
+            == StorageType.HOT
+        )
 
         # if first condition true, second false => falls through to WARM
-        assert optimizer._recommend_storage_type(
-            _make_object("b", "b.bin", 1, StorageType.HOT, 10, 8, 30)
-        ) == StorageType.WARM
+        assert (
+            optimizer._recommend_storage_type(
+                _make_object("b", "b.bin", 1, StorageType.HOT, 10, 8, 30)
+            )
+            == StorageType.WARM
+        )
 
         # WARM second condition false (days too large), COLD true
-        assert optimizer._recommend_storage_type(
-            _make_object("c", "c.bin", 1, StorageType.HOT, 40, 35, 10)
-        ) == StorageType.COLD
+        assert (
+            optimizer._recommend_storage_type(
+                _make_object("c", "c.bin", 1, StorageType.HOT, 40, 35, 10)
+            )
+            == StorageType.COLD
+        )
 
         # WARM first condition false (frequency too low), COLD true
-        assert optimizer._recommend_storage_type(
-            _make_object("d", "d.bin", 1, StorageType.HOT, 50, 45, 1)
-        ) == StorageType.COLD
+        assert (
+            optimizer._recommend_storage_type(
+                _make_object("d", "d.bin", 1, StorageType.HOT, 50, 45, 1)
+            )
+            == StorageType.COLD
+        )
 
         # COLD second condition false => ARCHIVE
-        assert optimizer._recommend_storage_type(
-            _make_object("e", "e.bin", 1, StorageType.HOT, 100, 95, 3)
-        ) == StorageType.ARCHIVE
+        assert (
+            optimizer._recommend_storage_type(
+                _make_object("e", "e.bin", 1, StorageType.HOT, 100, 95, 3)
+            )
+            == StorageType.ARCHIVE
+        )
 
         # COLD first condition false => ARCHIVE
-        assert optimizer._recommend_storage_type(
-            _make_object("f", "f.bin", 1, StorageType.HOT, 200, 100, 0)
-        ) == StorageType.ARCHIVE
+        assert (
+            optimizer._recommend_storage_type(
+                _make_object("f", "f.bin", 1, StorageType.HOT, 200, 100, 0)
+            )
+            == StorageType.ARCHIVE
+        )
 
     def test_estimate_savings_branches(self):
         manager = create_storage_manager()
@@ -235,10 +253,10 @@ class TestUnusedAndDeletion:
     @pytest.mark.parametrize(
         "size,last_access,expected",
         [
-            (2 * 1024**3, 200, True),   # large and old
-            (1024, 200, False),          # small and old
-            (2 * 1024**3, 10, False),    # large and recent
-            (1024, 10, False),           # small and recent
+            (2 * 1024**3, 200, True),  # large and old
+            (1024, 200, False),  # small and old
+            (2 * 1024**3, 10, False),  # large and recent
+            (1024, 10, False),  # small and recent
         ],
     )
     def test_suggest_deletion_combinations(self, size, last_access, expected):
@@ -316,9 +334,7 @@ class TestDataLifecycleManagerRealData:
 
         actions = lifecycle.apply_lifecycle_policies()
 
-        transition_ids = {
-            a["object_id"] for a in actions if a["action"] == "transition"
-        }
+        transition_ids = {a["object_id"] for a in actions if a["action"] == "transition"}
         delete_ids = {a["object_id"] for a in actions if a["action"] == "delete"}
 
         assert "log-1" in transition_ids

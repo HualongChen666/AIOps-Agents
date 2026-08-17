@@ -81,15 +81,15 @@ def test_addon_routers_mounted(main_client, admin_headers):
     # Hit a few add-on endpoints to exercise the include_router paths.
     # These endpoints are read-only or validation-only to avoid side effects.
     addon_paths = [
-        "/api/v1/ai/models",          # ai_router
-        "/api/v1/rag/search",         # rag_router
-        "/api/v1/topology/nodes",     # topology_router
-        "/api/v1/metrics/health",     # metrics_router
+        "/api/v1/ai/models",  # ai_router
+        "/api/v1/rag/search",  # rag_router
+        "/api/v1/topology/nodes",  # topology_router
+        "/api/v1/metrics/health",  # metrics_router
         "/api/v1/workflow/templates",  # workflow_router
-        "/api/v1/integrations",       # integration_router
-        "/api/v1/plugins",            # plugin_router
-        "/api/v1/i18n/locales",       # i18n_router
-        "/api/v1/docs/list",          # documentation_router
+        "/api/v1/integrations",  # integration_router
+        "/api/v1/plugins",  # plugin_router
+        "/api/v1/i18n/locales",  # i18n_router
+        "/api/v1/docs/list",  # documentation_router
     ]
     for path in addon_paths:
         r = main_client.get(path, headers=admin_headers)

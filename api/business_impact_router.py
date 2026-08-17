@@ -14,7 +14,6 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-
 from core.business_impact_engine import (
     assess_business_impact,
     list_business_impact_services,

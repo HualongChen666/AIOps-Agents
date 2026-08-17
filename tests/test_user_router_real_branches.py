@@ -40,6 +40,7 @@ def admin_token():
 @pytest.fixture(autouse=True)
 def _patch_audit_log(monkeypatch):
     from core.audit_service import audit_service
+
     monkeypatch.setattr(audit_service, "log_action", AsyncMock(return_value=None))
 
 
@@ -57,9 +58,7 @@ def test_get_current_user_fallbacks(client):
     assert r.status_code == 200
 
     # valid token, unknown user -> FAKE_ADMIN -> 200
-    r = client.get(
-        "/api/v1/users/", headers=_headers(create_access_token({"sub": "nobody"}))
-    )
+    r = client.get("/api/v1/users/", headers=_headers(create_access_token({"sub": "nobody"})))
     assert r.status_code == 200
 
 

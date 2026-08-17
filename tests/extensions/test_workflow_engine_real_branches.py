@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -431,7 +431,12 @@ def test_execute_decision_eval_exception(monkeypatch):
     """Test _execute_decision when eval raises exception."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     engine = WorkflowEngine(dry_run=False)
-    step = {"type": "decision", "condition": "invalid syntax", "true": "branch_a", "false": "branch_b"}
+    step = {
+        "type": "decision",
+        "condition": "invalid syntax",
+        "true": "branch_a",
+        "false": "branch_b",
+    }
     result = engine._execute_decision(step, {})
     assert result["decision"] is False
     assert result["branch"] == "branch_b"
@@ -651,7 +656,9 @@ def test_run_workflow_langgraph_empty_steps(monkeypatch):
 
     # Mock langgraph workflow
     fake_workflow = MagicMock()
-    fake_workflow.execute = AsyncMock(return_value={"status": "completed", "history": [], "context": {}})
+    fake_workflow.execute = AsyncMock(
+        return_value={"status": "completed", "history": [], "context": {}}
+    )
 
     fake_module = MagicMock()
     fake_module.Workflow = MagicMock(return_value=fake_workflow)

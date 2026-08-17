@@ -3,15 +3,13 @@
 
 from __future__ import annotations
 
+import importlib
+import sys
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
-
-import importlib
-
-import sys
 
 from services.repair_service.schemas import RepairStatus, RepairTask
 
@@ -46,6 +44,7 @@ class RepairRepository(ABC):
 # import-time references and runtime factory instances stay the same object.
 _IN_MEMORY_REPO_KEY = "_aiops_repair_inmemory_repo_class"
 if _IN_MEMORY_REPO_KEY not in sys.modules:
+
     class InMemoryRepairRepository(RepairRepository):
         """In-memory repository for tests and local dev."""
 

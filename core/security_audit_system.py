@@ -238,7 +238,7 @@ class SecurityAuditSystem:
             # Check alert threshold
             recent_events = [
                 e
-                for e in self.audit_events[-policy.alert_threshold:]
+                for e in self.audit_events[-policy.alert_threshold :]
                 if e.event_type == event.event_type
             ]
 
@@ -309,7 +309,7 @@ class SecurityAuditSystem:
 
         # Prune old events
         if len(self.audit_events) > self.max_events:
-            self.audit_events = self.audit_events[-self.max_events:]
+            self.audit_events = self.audit_events[-self.max_events :]
 
     def query_events(
         self,

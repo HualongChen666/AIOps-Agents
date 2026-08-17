@@ -2,8 +2,8 @@
 """Tests for core/observability_query.py."""
 
 import pytest
-import core.observability_query as _oq
 
+import core.observability_query as _oq
 from core.observability_query import (
     QueryCache,
     align_time_window,

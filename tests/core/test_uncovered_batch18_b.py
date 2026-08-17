@@ -24,17 +24,14 @@ pytestmark = [pytest.mark.core]
 # core.documentation_manager
 # -----------------------------------------------------------------------------
 
+
 def test_documentation_manager_full_lifecycle(tmp_path, monkeypatch):
     """Exercise document creation, generation, update, listing and summary."""
     manager = doc_module.DocumentationManager({"default_author": "AIOps"})
 
     # Create documents
-    assert manager.create_document(
-        "doc-1", "First Doc", doc_module.DocType.USER_MANUAL, "body"
-    )
-    assert not manager.create_document(
-        "doc-1", "Duplicate", doc_module.DocType.USER_MANUAL, "body"
-    )
+    assert manager.create_document("doc-1", "First Doc", doc_module.DocType.USER_MANUAL, "body")
+    assert not manager.create_document("doc-1", "Duplicate", doc_module.DocType.USER_MANUAL, "body")
     manager.create_document(
         "doc-2",
         "Second Doc",
@@ -61,9 +58,7 @@ def test_documentation_manager_full_lifecycle(tmp_path, monkeypatch):
 
     # Update
     assert manager.update_document("doc-1", content="new body")
-    assert manager.update_document(
-        "doc-2", status=doc_module.DocStatus.PUBLISHED
-    )
+    assert manager.update_document("doc-2", status=doc_module.DocStatus.PUBLISHED)
     assert manager.published_documents == 1
     assert not manager.update_document("missing")
 
@@ -113,6 +108,7 @@ def test_documentation_manager_global_singleton():
 # -----------------------------------------------------------------------------
 # core.cicd_pipeline_manager
 # -----------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_cicd_success_and_status(tmp_path, monkeypatch):
@@ -312,10 +308,7 @@ async def test_cicd_cancel_and_trigger_validation(tmp_path, monkeypatch):
         status=cicd_module.PipelineStatus.RUNNING,
     )
     assert await manager.cancel_execution(exec_id)
-    assert (
-        manager.executions[exec_id].status
-        == cicd_module.PipelineStatus.CANCELLED
-    )
+    assert manager.executions[exec_id].status == cicd_module.PipelineStatus.CANCELLED
     assert not await manager.cancel_execution("missing")
     # Already not running
     assert not await manager.cancel_execution(exec_id)
@@ -339,9 +332,7 @@ async def test_cicd_pipeline_cancelled_during_run(tmp_path, monkeypatch):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            manager.executions[execution_id].status = (
-                cicd_module.PipelineStatus.CANCELLED
-            )
+            manager.executions[execution_id].status = cicd_module.PipelineStatus.CANCELLED
         return {
             "success": True,
             "stage_name": stage_config.stage_name,
@@ -382,6 +373,7 @@ async def test_cicd_pipeline_cancelled_during_run(tmp_path, monkeypatch):
 # core.base.analyzer
 # -----------------------------------------------------------------------------
 
+
 def test_base_analyzer_concrete_usage():
     """Cover the non-abstract methods of BaseAnalyzer."""
 
@@ -411,6 +403,7 @@ def test_base_analyzer_concrete_usage():
 # -----------------------------------------------------------------------------
 # core.base.executor
 # -----------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_base_executor_concrete_usage():
@@ -447,6 +440,7 @@ async def test_base_executor_concrete_usage():
 # core.causal.graph
 # -----------------------------------------------------------------------------
 
+
 def test_causal_graph_relationships_and_serialization():
     """Cover CausalGraph and CausalEdge operations plus serialization."""
     graph = causal_graph_module.CausalGraph("service-graph")
@@ -473,10 +467,7 @@ def test_causal_graph_relationships_and_serialization():
     paths = graph.find_causal_paths("db", "web")
     assert ["db", "api", "web"] in paths
 
-    assert (
-        graph.get_causal_strength("db", "api")
-        == causal_graph_module.CausalStrength.STRONG
-    )
+    assert graph.get_causal_strength("db", "api") == causal_graph_module.CausalStrength.STRONG
     assert graph.get_causal_strength("web", "db") is None
 
     d = graph.to_dict()

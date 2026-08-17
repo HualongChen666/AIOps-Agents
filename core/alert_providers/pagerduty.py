@@ -20,6 +20,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 def _extract_value(summary: str) -> float:
     """Try to pull a numeric value out of a PagerDuty summary string."""
     import re
+
     if not isinstance(summary, str):
         return 0.0
     matches = re.findall(r"[-+]?\d*\.?\d+", summary)
@@ -62,8 +63,9 @@ class PagerDutyAlertProvider(AlertProvider):
         return normalized
 
     def _normalize_one(self, raw: Dict[str, Any]) -> Dict[str, Any]:
-        title = raw.get("title") or raw.get("summary") or raw.get(
-            "description") or "pagerduty-incident"
+        title = (
+            raw.get("title") or raw.get("summary") or raw.get("description") or "pagerduty-incident"
+        )
         description = raw.get("description") or raw.get("summary") or ""
         status = str(raw.get("status") or "triggered").lower()
         severity = str(raw.get("urgency") or raw.get("priority", {}).get("name") or "high").lower()
@@ -86,8 +88,9 @@ class PagerDutyAlertProvider(AlertProvider):
             labels["priority"] = priority["name"]
 
         fingerprint = str(raw.get("id") or raw.get("incident_number") or uuid.uuid4().hex[:16])[:64]
-        started_at = raw.get("created_at") or raw.get(
-            "created") or datetime.now(timezone.utc).isoformat()
+        started_at = (
+            raw.get("created_at") or raw.get("created") or datetime.now(timezone.utc).isoformat()
+        )
         value = _safe_float(raw.get("value")) or _extract_value(description)
 
         return {

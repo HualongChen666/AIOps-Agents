@@ -90,9 +90,7 @@ async def test_workflow_executor_retry_then_success(monkeypatch):
     executor = WorkflowExecutor(max_retries=2, retry_delay=0)
     workflow = MagicMock()
     workflow.name = "retry_wf"
-    workflow.execute = AsyncMock(
-        side_effect=[RuntimeError("transient"), {"status": "recovered"}]
-    )
+    workflow.execute = AsyncMock(side_effect=[RuntimeError("transient"), {"status": "recovered"}])
 
     result = await executor.execute(workflow)
     assert result == {"status": "recovered"}
@@ -182,9 +180,7 @@ async def test_enterprise_compliance_and_report():
     assert any("encryption" in f.lower() for f in soc2.findings)
 
     # Make SOC2 pass.
-    mgr.audit_logs.append(
-        mgr.create_audit_log("t1", "u1", "access", "file", "r1", "success")
-    )
+    mgr.audit_logs.append(mgr.create_audit_log("t1", "u1", "access", "file", "r1", "success"))
     mgr.encryption_enabled = True
     mgr.encryption_level = EncryptionLevel.HIGH
     soc2_ok = await mgr.run_compliance_check(ComplianceStandard.SOC2)
@@ -297,9 +293,7 @@ def test_enterprise_encryption_failure(monkeypatch):
 @pytest.fixture
 def cicd_manager(monkeypatch, tmp_path):
     monkeypatch.setattr(cicd_mod.asyncio, "sleep", AsyncMock())
-    return CICDIntegrationManager(
-        config={"auto_approve": True, "default_timeout": 60}
-    )
+    return CICDIntegrationManager(config={"auto_approve": True, "default_timeout": 60})
 
 
 async def test_cicd_factory_and_init():
@@ -562,9 +556,7 @@ async def test_vuln_sla_monitoring(vuln_manager, monkeypatch):
     monkeypatch.setattr(vuln_manager, "_notify_overdue_vulnerabilities", notify)
 
     captured = []
-    monkeypatch.setattr(
-        vuln_mod.asyncio, "create_task", lambda coro: captured.append(coro) or coro
-    )
+    monkeypatch.setattr(vuln_mod.asyncio, "create_task", lambda coro: captured.append(coro) or coro)
 
     await vuln_manager.start_sla_monitoring()
     assert len(captured) == 1
@@ -577,9 +569,7 @@ async def test_vuln_sla_monitoring(vuln_manager, monkeypatch):
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def audit_system(tmp_path):
-    return SecurityAuditSystem(
-        config={"audit_log_dir": str(tmp_path / "audit"), "max_events": 5}
-    )
+    return SecurityAuditSystem(config={"audit_log_dir": str(tmp_path / "audit"), "max_events": 5})
 
 
 def test_audit_factory_and_init():
@@ -615,7 +605,9 @@ async def test_audit_log_and_query(audit_system):
         severity=AuditSeverity.CRITICAL,
     )
 
-    assert (audit_system.audit_log_dir / f"audit_{datetime.now(timezone.utc):%Y%m%d}.jsonl").exists()
+    assert (
+        audit_system.audit_log_dir / f"audit_{datetime.now(timezone.utc):%Y%m%d}.jsonl"
+    ).exists()
 
     all_events = audit_system.query_events()
     assert len(all_events) == 2

@@ -14,14 +14,13 @@ import services.agent_orchestration_service.main_app as agent_main
 import services.alert_service.escalator as escalator_module
 import services.alert_service.notifier as notifier
 import services.audit_service.encryption as audit_encryption
-import services.audit_service.grpc.server as audit_grpc_server
 import services.audit_service.graphql_api as graphql_api
+import services.audit_service.grpc.server as audit_grpc_server
 import services.audit_service.query as audit_query
 import services.audit_service.report_generator as report_generator
 import services.audit_service.repository as audit_repository
 import services.repair_service.audit as repair_audit
 import services.repair_service.main as repair_main
-
 from services.alert_service.schemas import Alert, AlertSeverity, EscalationRule
 from services.audit_service.schemas import (
     AuditEvent,
@@ -287,10 +286,7 @@ def test_agent_orchestration_endpoints(monkeypatch):
         assert client.get("/stats").status_code == 200
         assert client.get("/agents").status_code == 200
 
-        assert (
-            client.post("/decompose", json={"task": "monitor and report"}).status_code
-            == 200
-        )
+        assert client.post("/decompose", json={"task": "monitor and report"}).status_code == 200
         assert (
             client.post(
                 "/run/monitor",
@@ -301,17 +297,11 @@ def test_agent_orchestration_endpoints(monkeypatch):
         assert (
             client.post(
                 "/coordinate",
-                json={
-                    "subtasks": [
-                        {"task_id": "t1", "description": "d", "agent_type": "monitor"}
-                    ]
-                },
+                json={"subtasks": [{"task_id": "t1", "description": "d", "agent_type": "monitor"}]},
             ).status_code
             == 200
         )
-        assert (
-            client.post("/collaborate", json={"task": "fix"}).status_code == 200
-        )
+        assert client.post("/collaborate", json={"task": "fix"}).status_code == 200
         assert (
             client.post(
                 "/aggregate",
@@ -328,17 +318,11 @@ def test_agent_orchestration_endpoints(monkeypatch):
             ).status_code
             == 200
         )
-        assert (
-            client.post("/handle-error", json={"error": "timeout"}).status_code
-            == 200
-        )
+        assert client.post("/handle-error", json={"error": "timeout"}).status_code == 200
 
         assert client.post("/rpc/list_methods").status_code == 200
         assert client.post("/rpc/stats").status_code == 200
-        assert (
-            client.post("/rpc/decompose_task", json={"task": "monitor"}).status_code
-            == 200
-        )
+        assert client.post("/rpc/decompose_task", json={"task": "monitor"}).status_code == 200
         assert (
             client.post(
                 "/rpc/run_agent",
@@ -421,10 +405,7 @@ def test_audit_query():
 
     async def run():
         assert len(await q.search(tenant_id="t1", action="login")) == 2
-        assert (
-            len(await q.search(tenant_id="t1", severity=AuditEventSeverity.HIGH.value))
-            == 1
-        )
+        assert len(await q.search(tenant_id="t1", severity=AuditEventSeverity.HIGH.value)) == 1
         assert len(await q.search(tenant_id="t2")) == 1
         analysis = await q.analyze("t1")
         assert analysis["total"] == 2

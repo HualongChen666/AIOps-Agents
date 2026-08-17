@@ -5,6 +5,7 @@ Tests exercise the client with a real local HTTP server, real environment
 variables and real temporary files.  No ``unittest.mock`` or httpx fakes are
 used.
 """
+
 import json
 import os
 import socket
@@ -37,51 +38,65 @@ class _ObservabilityHandler(BaseHTTPRequestHandler):
 
     def _route(self, path):
         if path.startswith("/api/v1/query"):
-            self._send_json({"status": "success", "data": {"result": [{"value": [time.time(), "12.5"]}]}})
+            self._send_json(
+                {"status": "success", "data": {"result": [{"value": [time.time(), "12.5"]}]}}
+            )
         elif path.startswith("/api/v1/query_range"):
-            self._send_json({"status": "success", "data": {"result": [{"value": [time.time(), "12.5"]}]}})
+            self._send_json(
+                {"status": "success", "data": {"result": [{"value": [time.time(), "12.5"]}]}}
+            )
         elif path.startswith("/loki/api/v1/query_range"):
             self._send_json({"status": "success", "data": {"result": []}})
         elif path.startswith("/api/v1/events"):
-            self._send_json({
-                "items": [
-                    {
-                        "type": "Normal",
-                        "reason": "Created",
-                        "message": "Pod created",
-                        "involvedObject": {"name": "pod-1", "kind": "Pod"},
-                        "metadata": {"namespace": "default"},
-                        "lastTimestamp": "2024-01-01T00:00:00Z",
-                    }
-                ]
-            })
-        elif path == "/api/v1/namespaces/default/pods/my-pod":
-            self._send_json({
-                "status": {
-                    "phase": "Running",
-                    "containerStatuses": [
+            self._send_json(
+                {
+                    "items": [
                         {
-                            "name": "app",
-                            "lastState": {"terminated": {"exitCode": 137, "reason": "OOMKilled"}},
+                            "type": "Normal",
+                            "reason": "Created",
+                            "message": "Pod created",
+                            "involvedObject": {"name": "pod-1", "kind": "Pod"},
+                            "metadata": {"namespace": "default"},
+                            "lastTimestamp": "2024-01-01T00:00:00Z",
                         }
-                    ],
-                },
-                "spec": {"nodeName": "node-1"},
-            })
-        elif path == "/api/v1/nodes/my-node":
-            self._send_json({
-                "status": {
-                    "conditions": [{"type": "Ready", "status": "True"}],
-                    "allocatable": {"memory": "32Gi", "cpu": "8"},
+                    ]
                 }
-            })
+            )
+        elif path == "/api/v1/namespaces/default/pods/my-pod":
+            self._send_json(
+                {
+                    "status": {
+                        "phase": "Running",
+                        "containerStatuses": [
+                            {
+                                "name": "app",
+                                "lastState": {
+                                    "terminated": {"exitCode": 137, "reason": "OOMKilled"}
+                                },
+                            }
+                        ],
+                    },
+                    "spec": {"nodeName": "node-1"},
+                }
+            )
+        elif path == "/api/v1/nodes/my-node":
+            self._send_json(
+                {
+                    "status": {
+                        "conditions": [{"type": "Ready", "status": "True"}],
+                        "allocatable": {"memory": "32Gi", "cpu": "8"},
+                    }
+                }
+            )
         elif path.startswith("/events"):
             if "target=invalid" in path:
                 self._send_json({"status": "ok"})
             elif "target=list" in path:
                 self._send_json([])
             else:
-                self._send_json({"events": [{"timestamp": "2024-01-01T00:00:00Z", "target": "web"}]})
+                self._send_json(
+                    {"events": [{"timestamp": "2024-01-01T00:00:00Z", "target": "web"}]}
+                )
         elif path == "/error":
             self.send_response(500)
             self.end_headers()
@@ -107,7 +122,7 @@ class _ObservabilityHandler(BaseHTTPRequestHandler):
             if self.path == "/slow":
                 self._send_json({"ok": True})
             else:
-                self._route(self.path[len("/slow"):])
+                self._route(self.path[len("/slow") :])
         else:
             self._route(self.path)
 
@@ -228,7 +243,9 @@ def test_http_get_json_errors(obs_server, monkeypatch):
     # 500 from the server
     data, error = oc._http_get_json(f"{obs_server}/error")
     assert data is None
-    assert "500" in error or "Server error" in error or "Internal" in error or "error" in error.lower()
+    assert (
+        "500" in error or "Server error" in error or "Internal" in error or "error" in error.lower()
+    )
 
     # Non-JSON body
     data, error = oc._http_get_json(f"{obs_server}/invalid_json")

@@ -29,9 +29,7 @@ class ITSMIntegration:
         # ServiceNow configuration
         self.servicenow_enabled = config.get("servicenow", {}).get("enabled", False)
         self.servicenow_instance = config.get("servicenow", {}).get("instance", "")
-        self.servicenow_base_url = config.get("servicenow", {}).get(
-            "base_url", ""
-        )
+        self.servicenow_base_url = config.get("servicenow", {}).get("base_url", "")
         self.servicenow_username = config.get("servicenow", {}).get("username", "")
         self.servicenow_password = config.get("servicenow", {}).get("password", "")
 
@@ -73,7 +71,10 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            base_url = self.servicenow_base_url or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            base_url = (
+                self.servicenow_base_url
+                or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            )
             severity_map = {"low": "3", "medium": "2", "high": "1"}
             payload = {
                 "short_description": title,
@@ -88,9 +89,7 @@ class ITSMIntegration:
                 auth=(self.servicenow_username, self.servicenow_password),
                 timeout=30.0,
             ) as client:
-                response = await client.post(
-                    f"{base_url}/incident", json=payload
-                )
+                response = await client.post(f"{base_url}/incident", json=payload)
                 response.raise_for_status()
                 result = response.json().get("result", {})
 
@@ -127,7 +126,10 @@ class ITSMIntegration:
             return {"error": "ServiceNow not enabled"}
 
         try:
-            base_url = self.servicenow_base_url or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            base_url = (
+                self.servicenow_base_url
+                or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            )
             async with httpx.AsyncClient(
                 auth=(self.servicenow_username, self.servicenow_password),
                 timeout=30.0,
@@ -144,9 +146,7 @@ class ITSMIntegration:
                 if not results:
                     return {"error": "Incident not found"}
                 sys_id = results[0].get("sys_id")
-                response = await client.patch(
-                    f"{base_url}/incident/{sys_id}", json=updates
-                )
+                response = await client.patch(f"{base_url}/incident/{sys_id}", json=updates)
                 response.raise_for_status()
                 result = response.json().get("result", {})
 

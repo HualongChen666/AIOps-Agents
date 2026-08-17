@@ -10,10 +10,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from extensions.addons.infrastructure.cache_service.service import Service as CacheService
 from extensions.addons.infrastructure.cache_optimization_service.service import (
     Service as CacheOptimizationService,
 )
+from extensions.addons.infrastructure.cache_service.service import Service as CacheService
 from extensions.addons.infrastructure.data_access_service.service import (
     Service as DataAccessService,
 )
@@ -159,9 +159,7 @@ def _params_for(op: str, service_name: str) -> dict:
 
 
 @pytest.mark.parametrize("service_name, service_cls, driver_kwargs", ADDONS)
-def test_service_execute_operations(
-    mock_env_and_clients, service_name, service_cls, driver_kwargs
-):
+def test_service_execute_operations(mock_env_and_clients, service_name, service_cls, driver_kwargs):
     service = service_cls(dry_run=False, **driver_kwargs)
     for op in service_cls.OPERATIONS:
         params = _params_for(op, service_name)

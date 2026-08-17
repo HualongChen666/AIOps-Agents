@@ -324,9 +324,7 @@ async def test_simulate_non_dict_step(fresh_workflows, no_sleep, deterministic_r
 def test_safe_extract_step():
     assert wf._safe_extract_step(None, 0) == ("step-0", "步骤 1", "")
     assert wf._safe_extract_step({}, 3) == ("step-3", "步骤 4", "")
-    assert wf._safe_extract_step(
-        {"key": "k", "title": "t", "desc": "d"}, 0
-    ) == ("k", "t", "d")
+    assert wf._safe_extract_step({"key": "k", "title": "t", "desc": "d"}, 0) == ("k", "t", "d")
     long = {"key": "x" * 200, "title": "x" * 200, "desc": "x" * 300}
     key, title, desc = wf._safe_extract_step(long, 0)
     assert len(key) == 128
@@ -421,10 +419,13 @@ def test_validate_workflow_definition():
     with pytest.raises(ValueError, match="字典"):
         wf._validate_workflow_definition("x", {"name": "x", "steps": ["notdict"]})
 
-    safe = wf._validate_workflow_definition("ok", {
-        "name": "Ok",
-        "steps": [{"key": "s1", "title": "Step", "desc": "desc"}],
-    })
+    safe = wf._validate_workflow_definition(
+        "ok",
+        {
+            "name": "Ok",
+            "steps": [{"key": "s1", "title": "Step", "desc": "desc"}],
+        },
+    )
     assert safe["name"] == "Ok"
     assert safe["nodes"] == 1
     assert safe["time"] == "N/A"

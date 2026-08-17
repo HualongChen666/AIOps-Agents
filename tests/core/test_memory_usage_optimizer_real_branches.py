@@ -109,7 +109,9 @@ def test_get_memory_statistics_no_snapshots():
 
 
 def _base_dt_for(minute: int) -> datetime:
-    return (datetime.now(timezone.utc).replace(minute=minute, second=0, microsecond=0) + timedelta(hours=1))
+    return datetime.now(timezone.utc).replace(minute=minute, second=0, microsecond=0) + timedelta(
+        hours=1
+    )
 
 
 @pytest.mark.asyncio

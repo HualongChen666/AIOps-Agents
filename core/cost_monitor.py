@@ -52,9 +52,7 @@ def collect_costs() -> List[Dict[str, Any]]:
                             {
                                 "timestamp": date,
                                 "source": "aws",
-                                "service": group["Keys"][0]
-                                if group.get("Keys")
-                                else "unknown",
+                                "service": group["Keys"][0] if group.get("Keys") else "unknown",
                                 "cost": float(metrics.get("Amount", 0)),
                                 "currency": metrics.get("Unit", "USD"),
                                 "region": "global",

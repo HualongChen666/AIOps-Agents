@@ -166,7 +166,9 @@ class StorageDriver:
     # ------------------------------------------------------------------
     # Qdrant / vectors
     # ------------------------------------------------------------------
-    def _qdrant_request(self, method: str, path: str, json_body: Optional[Dict[str, Any]] = None) -> Any:
+    def _qdrant_request(
+        self, method: str, path: str, json_body: Optional[Dict[str, Any]] = None
+    ) -> Any:
         url = f"{self.qdrant_url}{path}"
         try:
             import httpx
@@ -229,8 +231,7 @@ class StorageDriver:
 
         if self.dry_run:
             points = [
-                {"id": i, "vector": v, "payload": p}
-                for i, v, p in zip(ids, vectors, payloads)
+                {"id": i, "vector": v, "payload": p} for i, v, p in zip(ids, vectors, payloads)
             ]
             self._vectors.setdefault(name, []).extend(points)
             self._vector_count += len(ids)
@@ -256,17 +257,12 @@ class StorageDriver:
         except Exception as exc:
             return {"error": str(exc)}
 
-    def vector_search(
-        self, name: str, vector: Iterable[float], top: int = 5, **kwargs: Any
-    ) -> Any:
+    def vector_search(self, name: str, vector: Iterable[float], top: int = 5, **kwargs: Any) -> Any:
         """Search a collection by vector similarity via the real VectorStore."""
         vector = list(vector)
         if self.dry_run:
             coll = self._vectors.get(name, [])
-            return [
-                {"id": p["id"], "score": 1.0, "payload": p["payload"]}
-                for p in coll[:top]
-            ]
+            return [{"id": p["id"], "score": 1.0, "payload": p["payload"]} for p in coll[:top]]
 
         try:
             store = self._vector_store(name)

@@ -854,8 +854,10 @@ async def restore_backup(backup_id: str) -> Dict[str, Any]:
                 f"--port={config.POSTGRES_PORT}",
                 f"--username={config.POSTGRES_USER}",
                 f"--dbname={config.POSTGRES_DB}",
-                "-v", "ON_ERROR_STOP=1",
-                "-f", work_path,
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-f",
+                work_path,
             ]
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env

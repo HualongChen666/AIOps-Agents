@@ -112,16 +112,10 @@ class DualWriteStrategy:
 
             from core.metrics_history import metrics_history
 
-            service = (
-                labels.get("service", "default")
-                if isinstance(labels, dict)
-                else "default"
-            )
+            service = labels.get("service", "default") if isinstance(labels, dict) else "default"
             ts: datetime.datetime | None = None
             if timestamp is not None:
-                ts = datetime.datetime.fromtimestamp(
-                    int(timestamp), tz=datetime.timezone.utc
-                )
+                ts = datetime.datetime.fromtimestamp(int(timestamp), tz=datetime.timezone.utc)
 
             metrics_history.push_metric(metric_name, value, service=service, timestamp=ts)
 

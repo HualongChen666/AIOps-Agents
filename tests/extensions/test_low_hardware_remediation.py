@@ -39,15 +39,15 @@ def _patch_hw_external_calls(monkeypatch):
     )
     try:
         import requests
+
         monkeypatch.setattr(requests, "request", lambda *args, **kwargs: MagicMock())
     except Exception:
         pass
     try:
         import httpx
+
         monkeypatch.setattr(httpx, "request", lambda *args, **kwargs: MagicMock())
-        monkeypatch.setattr(
-            httpx.Client, "send", lambda *args, **kwargs: MagicMock()
-        )
+        monkeypatch.setattr(httpx.Client, "send", lambda *args, **kwargs: MagicMock())
     except Exception:
         pass
 

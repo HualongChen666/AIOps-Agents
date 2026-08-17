@@ -236,9 +236,7 @@ class TestCodingToolsFunctions:
 
     def test_bash_timeout_with_string_stdout(self, monkeypatch, tmp_path):
         monkeypatch.setenv("AIOPS_AGENT_WORKSPACE", str(tmp_path))
-        exc = coding_tools.subprocess_runner.TimeoutExpired(
-            "cmd", 30, output="timed", stderr="err"
-        )
+        exc = coding_tools.subprocess_runner.TimeoutExpired("cmd", 30, output="timed", stderr="err")
         monkeypatch.setattr(coding_tools.subprocess_runner, "run", MagicMock(side_effect=exc))
         with pytest.raises(RuntimeError, match="Command timed out after"):
             coding_tools._bash("sleep 5")
@@ -439,7 +437,9 @@ class TestSubAgent:
         assert sa.is_terminated()
 
     def test_to_dict(self, fake_executor):
-        sa = subagent.SubAgent("a1", role="analyzer", planner=MagicMock(), tool_executor=MagicMock())
+        sa = subagent.SubAgent(
+            "a1", role="analyzer", planner=MagicMock(), tool_executor=MagicMock()
+        )
         sa.terminate()
         d = sa.to_dict()
         assert d["agent_id"] == "a1"
@@ -520,9 +520,7 @@ class TestSubAgentDispatcher:
             f_fail = MagicMock()
             f_fail.result.side_effect = Exception("x")
             dispatcher._executor.submit.side_effect = [f_ok, f_fail]
-            results = dispatcher.dispatch_batch(
-                [{"goal": "g1"}, {"goal": "g2"}], _depth=0
-            )
+            results = dispatcher.dispatch_batch([{"goal": "g1"}, {"goal": "g2"}], _depth=0)
             assert results[0].status == "completed"
             assert results[1].status == "failed"
         finally:
@@ -611,9 +609,7 @@ class TestSubAgentDispatcher:
         d.shutdown(wait=False)
 
     def test_dispatch_task(self, fake_executor, monkeypatch):
-        result = subagent.SubAgentResult(
-            agent_id="a1", task_id="t1", status="completed"
-        )
+        result = subagent.SubAgentResult(agent_id="a1", task_id="t1", status="completed")
         d = MagicMock()
         d.dispatch.return_value = result
         d.shutdown = MagicMock()
@@ -677,7 +673,9 @@ class TestLinuxRepairFindHostConfig:
         assert linux_repair._find_host_config("") is None
 
     def test_dict_hosts(self, monkeypatch):
-        monkeypatch.setattr(linux_repair, "LINUX_HOSTS", {"hosts": [{"name": "h1", "host": "1.2.3.4"}]})
+        monkeypatch.setattr(
+            linux_repair, "LINUX_HOSTS", {"hosts": [{"name": "h1", "host": "1.2.3.4"}]}
+        )
         assert linux_repair._find_host_config("h1")["host"] == "1.2.3.4"
 
     def test_list_hosts(self, monkeypatch):
@@ -694,11 +692,25 @@ class TestLinuxRepairRecordSqlite:
         assert linux_repair._record_to_sqlite_sync(True) is True
 
     def test_dict_success(self, fake_sqlite):
-        record = {"success": True, "host": "h", "script_key": "k", "rule_name": "r", "params": {"p": 1}, "output": "o"}
+        record = {
+            "success": True,
+            "host": "h",
+            "script_key": "k",
+            "rule_name": "r",
+            "params": {"p": 1},
+            "output": "o",
+        }
         assert linux_repair._record_to_sqlite_sync(record) is True
 
     def test_dict_bad_params(self, fake_sqlite):
-        record = {"success": True, "host": "h", "script_key": "k", "rule_name": "r", "params": "bad", "output": "o"}
+        record = {
+            "success": True,
+            "host": "h",
+            "script_key": "k",
+            "rule_name": "r",
+            "params": "bad",
+            "output": "o",
+        }
         assert linux_repair._record_to_sqlite_sync(record) is True
 
     def test_failure(self, monkeypatch):
@@ -805,7 +817,9 @@ class TestLinuxRepairSSH:
         assert result["output"] == "ok"
 
     async def test_run_ssh_command_nonzero(self, fake_asyncssh):
-        fake_asyncssh.run = AsyncMock(return_value=MagicMock(stdout="out", stderr="err", exit_status=1))
+        fake_asyncssh.run = AsyncMock(
+            return_value=MagicMock(stdout="out", stderr="err", exit_status=1)
+        )
         result = await linux_repair._run_ssh_command("h", "cmd")
         assert result["success"] is False
         assert "err" in result["error"]
@@ -851,15 +865,15 @@ class TestLinuxRepairSSH:
             "_run_ssh_command",
             AsyncMock(return_value={"success": True, "output": b"ok"}),
         )
-        output, success = await linux_repair._execute_ssh_command({"host": "h", "username": "root"}, "cmd")
+        output, success = await linux_repair._execute_ssh_command(
+            {"host": "h", "username": "root"}, "cmd"
+        )
         assert success is True
         assert output == "ok"
 
     async def test_execute_ssh_command_exception(self, monkeypatch):
         monkeypatch.setattr(
-            linux_repair,
-            "_run_ssh_command",
-            AsyncMock(side_effect=Exception("ssh"))
+            linux_repair, "_run_ssh_command", AsyncMock(side_effect=Exception("ssh"))
         )
         output, success = await linux_repair._execute_ssh_command({"host": "h"}, "cmd")
         assert success is False
@@ -882,15 +896,22 @@ class TestLinuxRepairValidateAndBuild:
         assert "nginx" in cmd
 
     def test_normalize_risk_level(self):
-        assert linux_repair._normalize_risk_level({"risk_level": RiskLevel.HIGH})[0] == RiskLevel.HIGH
+        assert (
+            linux_repair._normalize_risk_level({"risk_level": RiskLevel.HIGH})[0] == RiskLevel.HIGH
+        )
         assert linux_repair._normalize_risk_level({"risk_level": "low"})[0] == RiskLevel.LOW
         assert linux_repair._normalize_risk_level({"risk_level": "unknown"})[0] == RiskLevel.LOW
-        assert linux_repair._normalize_risk_level({"risk_level": "low", "allowed": False})[0] == RiskLevel.BLOCKED
+        assert (
+            linux_repair._normalize_risk_level({"risk_level": "low", "allowed": False})[0]
+            == RiskLevel.BLOCKED
+        )
 
 
 class TestLinuxRepairExecute:
     async def test_execute_repair_with_risk_check_blocked(self, monkeypatch):
-        monkeypatch.setattr(linux_repair, "_handle_blocked_risk", AsyncMock(return_value={"blocked": True}))
+        monkeypatch.setattr(
+            linux_repair, "_handle_blocked_risk", AsyncMock(return_value={"blocked": True})
+        )
         script = linux_repair._LINUX_REPAIR_SCRIPTS_RAW["clear_tmp"]
         result = await linux_repair._execute_repair_with_risk_check(
             {}, "cmd", "h", "clear_tmp", script, {"risk_level": RiskLevel.BLOCKED}, {}
@@ -898,7 +919,11 @@ class TestLinuxRepairExecute:
         assert result["blocked"] is True
 
     async def test_execute_repair_with_risk_check_high(self, monkeypatch):
-        monkeypatch.setattr(linux_repair, "_handle_high_risk_approval", AsyncMock(return_value={"pending_approval": True}))
+        monkeypatch.setattr(
+            linux_repair,
+            "_handle_high_risk_approval",
+            AsyncMock(return_value={"pending_approval": True}),
+        )
         script = linux_repair._LINUX_REPAIR_SCRIPTS_RAW["kill_process"]
         result = await linux_repair._execute_repair_with_risk_check(
             {}, "cmd", "h", "kill_process", script, {"risk_level": RiskLevel.HIGH}, {"pid": "123"}
@@ -952,7 +977,9 @@ class TestLinuxRepairExecute:
         assert result["success"] is True
 
     async def test_execute_linux_repair_exception(self, monkeypatch):
-        monkeypatch.setattr(linux_repair, "analyze_command", lambda cmd: {"risk_level": RiskLevel.LOW})
+        monkeypatch.setattr(
+            linux_repair, "analyze_command", lambda cmd: {"risk_level": RiskLevel.LOW}
+        )
         monkeypatch.setattr(
             linux_repair,
             "_execute_repair_with_risk_check",

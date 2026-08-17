@@ -10,6 +10,7 @@ import pytest
 
 pytestmark = [pytest.mark.core]
 
+import core.telemetry_core as tc
 from core.frontend_enhancement import (
     DashboardWidget,
     FrontendEnhancementManager,
@@ -22,9 +23,9 @@ from core.frontend_enhancement import (
 from core.integration_documentation_manager import (
     IntegrationDiagram,
     IntegrationDocStatus,
+    IntegrationDocType,
     IntegrationDocumentation,
     IntegrationDocumentationManager,
-    IntegrationDocType,
     get_integration_documentation_manager,
 )
 from core.kafka_stream_processor import (
@@ -47,7 +48,6 @@ from core.logging.level.routing_strategy import (
     LogLevelRouter,
     SystemRouter,
 )
-import core.telemetry_core as tc
 from core.telemetry_core import (
     get_apm_metrics,
     get_meter,
@@ -351,11 +351,14 @@ def test_user_preferences():
     assert exported["user_id"] == "u1"
     assert exported["language"] == "en-US"
 
-    imported = mgr.import_user_preferences("u2", {
-        "theme": "dark",
-        "view_mode": "list",
-        "language": "fr-FR",
-    })
+    imported = mgr.import_user_preferences(
+        "u2",
+        {
+            "theme": "dark",
+            "view_mode": "list",
+            "language": "fr-FR",
+        },
+    )
     assert imported.theme == ThemeType.DARK
     assert imported.view_mode == ViewMode.LIST
 
@@ -454,13 +457,30 @@ def _patch_telemetry(monkeypatch):
     monkeypatch.setattr(tc, "MeterProvider", MagicMock(name="MeterProvider"), raising=False)
     monkeypatch.setattr(tc, "Resource", MagicMock(name="Resource"), raising=False)
     monkeypatch.setattr(tc, "OTLPSpanExporter", MagicMock(name="OTLPSpanExporter"), raising=False)
-    monkeypatch.setattr(tc, "OTLPMetricExporter", MagicMock(name="OTLPMetricExporter"), raising=False)
-    monkeypatch.setattr(tc, "BatchSpanProcessor", MagicMock(name="BatchSpanProcessor"), raising=False)
-    monkeypatch.setattr(tc, "ConsoleSpanExporter", MagicMock(name="ConsoleSpanExporter"), raising=False)
-    monkeypatch.setattr(tc, "PeriodicExportingMetricReader", MagicMock(name="PeriodicExportingMetricReader"), raising=False)
-    monkeypatch.setattr(tc, "FastAPIInstrumentor", MagicMock(name="FastAPIInstrumentor"), raising=False)
-    monkeypatch.setattr(tc, "HTTPXClientInstrumentor", MagicMock(name="HTTPXClientInstrumentor"), raising=False)
-    monkeypatch.setattr(tc, "AsyncPGInstrumentor", MagicMock(name="AsyncPGInstrumentor"), raising=False)
+    monkeypatch.setattr(
+        tc, "OTLPMetricExporter", MagicMock(name="OTLPMetricExporter"), raising=False
+    )
+    monkeypatch.setattr(
+        tc, "BatchSpanProcessor", MagicMock(name="BatchSpanProcessor"), raising=False
+    )
+    monkeypatch.setattr(
+        tc, "ConsoleSpanExporter", MagicMock(name="ConsoleSpanExporter"), raising=False
+    )
+    monkeypatch.setattr(
+        tc,
+        "PeriodicExportingMetricReader",
+        MagicMock(name="PeriodicExportingMetricReader"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        tc, "FastAPIInstrumentor", MagicMock(name="FastAPIInstrumentor"), raising=False
+    )
+    monkeypatch.setattr(
+        tc, "HTTPXClientInstrumentor", MagicMock(name="HTTPXClientInstrumentor"), raising=False
+    )
+    monkeypatch.setattr(
+        tc, "AsyncPGInstrumentor", MagicMock(name="AsyncPGInstrumentor"), raising=False
+    )
     monkeypatch.setattr(tc, "RedisInstrumentor", MagicMock(name="RedisInstrumentor"), raising=False)
 
 

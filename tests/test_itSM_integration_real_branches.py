@@ -4,6 +4,7 @@
 These tests drive the real ``ITSMIntegration`` with a real local HTTP server,
 real in-memory configuration payloads and no network mocks.
 """
+
 import asyncio
 import json
 import socket
@@ -256,9 +257,7 @@ def test_create_servicenow_incident_success_all_severities_and_assignment(
             }
         )
         # severity "low" and no assignment_group (false branch)
-        r1 = await itsm.create_servicenow_incident(
-            "title1", "desc1", severity="low"
-        )
+        r1 = await itsm.create_servicenow_incident("title1", "desc1", severity="low")
         assert "error" not in r1
         assert r1["number"].startswith("INC")
         assert r1["severity"] == "low"
@@ -276,9 +275,7 @@ def test_create_servicenow_incident_success_all_severities_and_assignment(
         assert r2["assignment_group"] == "network-ops"
 
         # severity "high" and default priority
-        r3 = await itsm.create_servicenow_incident(
-            "title3", "desc3", severity="high", priority=1
-        )
+        r3 = await itsm.create_servicenow_incident("title3", "desc3", severity="high", priority=1)
         assert r3["severity"] == "high"
         assert r3["priority"] == 1
 
@@ -327,14 +324,10 @@ def test_update_servicenow_incident_found_and_close(itsm_server):
                 }
             }
         )
-        created = await itsm.create_servicenow_incident(
-            "alert", "something wrong", severity="high"
-        )
+        created = await itsm.create_servicenow_incident("alert", "something wrong", severity="high")
         number = created["number"]
         # close the incident via update
-        updated = await itsm.update_servicenow_incident(
-            number, {"state": "Closed"}
-        )
+        updated = await itsm.update_servicenow_incident(number, {"state": "Closed"})
         assert updated["updated"] is True
         assert updated["updates"]["state"] == "Closed"
         assert updated["number"] == number
@@ -356,9 +349,7 @@ def test_update_servicenow_incident_not_found(itsm_server):
                 }
             }
         )
-        result = await itsm.update_servicenow_incident(
-            "INC-UNKNOWN", {"state": "Closed"}
-        )
+        result = await itsm.update_servicenow_incident("INC-UNKNOWN", {"state": "Closed"})
         assert result == {"error": "Incident not found"}
 
     asyncio.run(_run())
@@ -408,9 +399,7 @@ def test_create_jira_issue_success_and_default_project(itsm_server):
             }
         )
         # explicit project_key covers first `if not project_key` false branch
-        r1 = await itsm.create_jira_issue(
-            "summary1", "desc1", project_key="PROJ"
-        )
+        r1 = await itsm.create_jira_issue("summary1", "desc1", project_key="PROJ")
         assert "error" not in r1
         assert r1["key"].startswith("PROJ-")
         assert r1["project_key"] == "PROJ"
@@ -472,9 +461,7 @@ def test_create_jira_issue_connection_error():
                 }
             }
         )
-        result = await itsm.create_jira_issue(
-            "summary", "desc", project_key="PROJ"
-        )
+        result = await itsm.create_jira_issue("summary", "desc", project_key="PROJ")
         assert "error" in result
 
     asyncio.run(_run())
@@ -492,13 +479,9 @@ def test_update_jira_issue_success(itsm_server):
                 }
             }
         )
-        created = await itsm.create_jira_issue(
-            "summary", "desc", project_key="PROJ"
-        )
+        created = await itsm.create_jira_issue("summary", "desc", project_key="PROJ")
         key = created["key"]
-        updated = await itsm.update_jira_issue(
-            key, {"summary": "updated summary"}
-        )
+        updated = await itsm.update_jira_issue(key, {"summary": "updated summary"})
         assert updated["updated"] is True
         assert updated["key"] == key
 
@@ -572,9 +555,7 @@ def test_sync_alert_to_itsm_all_targets(itsm_server):
         assert "servicenow" not in r2
 
         # target_system both
-        r3 = await itsm_both.sync_alert_to_itsm(
-            "A-3", {"description": "oom"}, target_system="both"
-        )
+        r3 = await itsm_both.sync_alert_to_itsm("A-3", {"description": "oom"}, target_system="both")
         assert "servicenow" in r3
         assert "jira" in r3
 

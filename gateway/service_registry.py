@@ -12,7 +12,6 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-
 from gateway.services_client import _DEFAULT_SERVICE_URLS, _get_http_client
 
 logger = logging.getLogger(__name__)

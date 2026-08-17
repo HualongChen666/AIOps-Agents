@@ -13,11 +13,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from config import INTERNAL_API_KEY
-from api.auth_router import router as _auth_router
 from api.assets_router import router as _assets_router
+from api.auth_router import router as _auth_router
 from api.slo_router import router as _slo_router
 from api.users_router import router as _users_router
+from config import INTERNAL_API_KEY
 
 _slo_only_app = FastAPI()
 _slo_only_app.include_router(_slo_router)
@@ -64,9 +64,7 @@ def _clean_slo_state(slo_client, admin_headers):
     r = slo_client.get("/api/v1/slo/reports", headers=admin_headers)
     if r.status_code == 200:
         for rep in r.json().get("reports", []):
-            slo_client.delete(
-                f"/api/v1/slo/reports/{rep['id']}", headers=admin_headers
-            )
+            slo_client.delete(f"/api/v1/slo/reports/{rep['id']}", headers=admin_headers)
     yield
 
 
@@ -164,23 +162,17 @@ def test_internal_auth_branches(internal_client):
     assert r.status_code == 401
 
     # Valid internal key -> 200
-    r = internal_client.get(
-        "/api/v1/slo/", headers={"X-Internal-Key": INTERNAL_API_KEY}
-    )
+    r = internal_client.get("/api/v1/slo/", headers={"X-Internal-Key": INTERNAL_API_KEY})
     assert r.status_code == 200
 
     # Invalid internal key, no token -> 401
-    r = internal_client.get(
-        "/api/v1/slo/", headers={"X-Internal-Key": "wrong-key"}
-    )
+    r = internal_client.get("/api/v1/slo/", headers={"X-Internal-Key": "wrong-key"})
     assert r.status_code == 401
 
 
 def test_create_slo_business_editor(slo_client, biz_edit_headers, slo_asset):
     """Business user with edit permission can create an SLO."""
-    slo_id = _create_slo(
-        slo_client, biz_edit_headers, slo_asset["service"], name="biz-ok"
-    )
+    slo_id = _create_slo(slo_client, biz_edit_headers, slo_asset["service"], name="biz-ok")
     r = slo_client.get(f"/api/v1/slo/{slo_id}", headers=biz_edit_headers)
     assert r.status_code == 200
     assert r.json()["name"] == "biz-ok"
@@ -223,12 +215,8 @@ def test_list_and_get_slo_business(
     slo_client, admin_headers, biz_edit_headers, biz_view_headers, biz_none_headers, slo_asset
 ):
     """List and GET filter SLOs by business user view permission."""
-    visible_id = _create_slo(
-        slo_client, biz_edit_headers, slo_asset["service"], name="visible"
-    )
-    hidden_id = _create_slo(
-        slo_client, admin_headers, "unknown-service", name="hidden"
-    )
+    visible_id = _create_slo(slo_client, biz_edit_headers, slo_asset["service"], name="visible")
+    hidden_id = _create_slo(slo_client, admin_headers, "unknown-service", name="hidden")
 
     # Business viewer sees only the SLO for the allowed service.
     r = slo_client.get("/api/v1/slo/", headers=biz_view_headers)
@@ -281,9 +269,7 @@ def test_update_slo_business(
         },
     )
 
-    slo_id = _create_slo(
-        slo_client, biz_edit_headers, slo_asset["service"], name="to-update"
-    )
+    slo_id = _create_slo(slo_client, biz_edit_headers, slo_asset["service"], name="to-update")
 
     # Update with target/window/alert_threshold present to cover conversion branches.
     r = slo_client.put(
@@ -368,18 +354,13 @@ def test_sla_report_branches(
     assert r.status_code == 403
 
     # Viewer can list reports for the viewable service; none-user cannot.
-    r = slo_client.get(
-        "/api/v1/slo/reports", headers=biz_view_headers, params={"period": "30d"}
-    )
+    r = slo_client.get("/api/v1/slo/reports", headers=biz_view_headers, params={"period": "30d"})
     assert r.status_code == 200
     assert any(rep.get("service") == slo_asset["service"] for rep in r.json()["reports"])
 
     r = slo_client.get("/api/v1/slo/reports", headers=biz_none_headers)
     assert r.status_code == 200
-    assert all(
-        rep.get("service") != slo_asset["service"]
-        for rep in r.json()["reports"]
-    )
+    assert all(rep.get("service") != slo_asset["service"] for rep in r.json()["reports"])
 
     # Viewer can GET the report; none-user cannot.
     r = slo_client.get(f"/api/v1/slo/reports/{report_id}", headers=biz_view_headers)
@@ -398,9 +379,7 @@ def test_sla_report_branches(
     report_id2 = r.json()["generated_ids"][0]
 
     # Viewer cannot delete an editable report.
-    r = slo_client.delete(
-        f"/api/v1/slo/reports/{report_id2}", headers=biz_view_headers
-    )
+    r = slo_client.delete(f"/api/v1/slo/reports/{report_id2}", headers=biz_view_headers)
     assert r.status_code == 403
 
     # Editor can delete the original report.

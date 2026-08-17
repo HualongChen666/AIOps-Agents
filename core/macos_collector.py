@@ -52,10 +52,8 @@ async def collect_macos_metrics(hosts: List[str] = None) -> Dict[str, Dict[str, 
                     f"macOS metrics collection is only supported on localhost (got {host})"
                 )
             if platform.system() != "Darwin":
-                raise RuntimeError(
-                    f"macOS metrics collection is only supported on Darwin (got {
-                        platform.system()})"
-                )
+                raise RuntimeError(f"macOS metrics collection is only supported on Darwin (got {
+                        platform.system()})")
             if psutil is None:
                 raise RuntimeError("psutil is not installed; cannot collect macOS metrics")
 

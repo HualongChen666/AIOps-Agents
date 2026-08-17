@@ -3,7 +3,6 @@
 
 import asyncio
 import builtins
-from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib
 import json
@@ -14,6 +13,7 @@ import sys
 import time
 import types
 import urllib.parse
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,9 +32,7 @@ def _make_subprocess_mock(stdout=b"fake sql", returncode=0, raise_on_communicate
     proc = MagicMock()
     proc.returncode = returncode
     proc.communicate = AsyncMock(
-        side_effect=raise_on_communicate
-        if raise_on_communicate
-        else None,
+        side_effect=raise_on_communicate if raise_on_communicate else None,
         return_value=(stdout, b""),
     )
     return AsyncMock(return_value=proc)
@@ -42,18 +40,14 @@ def _make_subprocess_mock(stdout=b"fake sql", returncode=0, raise_on_communicate
 
 @pytest.mark.asyncio
 async def test_backup_database_no_compression_no_encryption(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        backup, "_backup_config", {**backup._backup_config, "enabled": True}
-    )
+    monkeypatch.setattr(backup, "_backup_config", {**backup._backup_config, "enabled": True})
     backup.configure_backup_strategy(
         backup_location=str(tmp_path),
         compression_enabled=False,
         encryption_enabled=False,
         backup_types=["database"],
     )
-    monkeypatch.setattr(
-        "asyncio.create_subprocess_exec", _make_subprocess_mock(b"fake sql", 0)
-    )
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _make_subprocess_mock(b"fake sql", 0))
     result = await backup.perform_database_backup()
     assert result["status"] == "success"
 
@@ -67,9 +61,7 @@ async def test_backup_database_integrity_failure(monkeypatch, tmp_path):
         encryption_enabled=True,
         backup_types=["database"],
     )
-    monkeypatch.setattr(
-        "asyncio.create_subprocess_exec", _make_subprocess_mock(b"fake sql", 0)
-    )
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _make_subprocess_mock(b"fake sql", 0))
     result = await backup.perform_database_backup()
     assert result["status"] == "failed"
 
@@ -79,9 +71,7 @@ async def test_backup_config_raises(monkeypatch, tmp_path):
     backup._backup_history.clear()
     backup.configure_backup_strategy(backup_location=str(tmp_path), compression_enabled=False)
     monkeypatch.setattr(backup, "_backup_config", backup.get_backup_config())
-    monkeypatch.setattr(
-        shutil, "copy2", MagicMock(side_effect=RuntimeError("boom"))
-    )
+    monkeypatch.setattr(shutil, "copy2", MagicMock(side_effect=RuntimeError("boom")))
     result = await backup.perform_config_backup()
     assert result["status"] == "failed"
 
@@ -90,9 +80,7 @@ async def test_backup_config_raises(monkeypatch, tmp_path):
 async def test_backup_logs_raises(monkeypatch, tmp_path):
     backup._backup_history.clear()
     backup.configure_backup_strategy(backup_location=str(tmp_path), compression_enabled=False)
-    monkeypatch.setattr(
-        "os.listdir", MagicMock(side_effect=RuntimeError("boom"))
-    )
+    monkeypatch.setattr("os.listdir", MagicMock(side_effect=RuntimeError("boom")))
     result = await backup.perform_logs_backup()
     assert result["status"] == "failed"
 
@@ -106,9 +94,7 @@ async def test_full_backup_and_cleanup(monkeypatch, tmp_path):
         encryption_enabled=False,
         backup_types=["database", "config", "logs"],
     )
-    monkeypatch.setattr(
-        "asyncio.create_subprocess_exec", _make_subprocess_mock(b"fake sql", 0)
-    )
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _make_subprocess_mock(b"fake sql", 0))
     await backup.perform_full_backup()
     # Empty cleanup
     assert await backup.cleanup_old_backups() == 0
@@ -123,12 +109,8 @@ async def test_full_backup_and_cleanup(monkeypatch, tmp_path):
                 "status": "success",
             }
         )
-    monkeypatch.setattr(
-        "os.path.exists", MagicMock(side_effect=[False, True])
-    )
-    monkeypatch.setattr(
-        shutil, "rmtree", MagicMock(side_effect=RuntimeError("locked"))
-    )
+    monkeypatch.setattr("os.path.exists", MagicMock(side_effect=[False, True]))
+    monkeypatch.setattr(shutil, "rmtree", MagicMock(side_effect=RuntimeError("locked")))
     assert await backup.cleanup_old_backups() == 1
 
 
@@ -136,9 +118,7 @@ async def test_full_backup_and_cleanup(monkeypatch, tmp_path):
 async def test_backup_database_subprocess_fail(monkeypatch, tmp_path):
     backup._backup_history.clear()
     backup.configure_backup_strategy(backup_location=str(tmp_path), compression_enabled=False)
-    monkeypatch.setattr(
-        "asyncio.create_subprocess_exec", _make_subprocess_mock(b"", 1)
-    )
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _make_subprocess_mock(b"", 1))
     result = await backup.perform_database_backup()
     assert result["status"] == "failed"
 
@@ -212,6 +192,7 @@ async def test_restore_database_validation_and_decompress(monkeypatch, tmp_path)
     original.write_bytes(b"create table x;")
     gz = bdir / "testdb.sql.gz"
     import gzip as GZ
+
     with open(original, "rb") as f_in:
         with GZ.open(gz, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
@@ -233,9 +214,7 @@ async def test_restore_database_validation_and_decompress(monkeypatch, tmp_path)
         "manifest": manifest,
     }
     backup._backup_history.append(record)
-    monkeypatch.setattr(
-        "asyncio.create_subprocess_exec", _make_subprocess_mock(b"", 1)
-    )
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _make_subprocess_mock(b"", 1))
     result = await backup.restore_database_backup(bid)
     assert result["status"] == "failed" or "psql" in result.get("error", "")
 
@@ -306,9 +285,7 @@ async def test_restore_backup_scenarios(monkeypatch, tmp_path):
             "encrypted": False,
         }
     )
-    monkeypatch.setattr(
-        "asyncio.create_subprocess_exec", _make_subprocess_mock(b"", 1)
-    )
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _make_subprocess_mock(b"", 1))
     res = await backup.restore_backup("db")
     assert res["status"] == "failed"
 
@@ -386,15 +363,9 @@ async def test_http_client_lifecycle(monkeypatch):
 
 
 def test_validate_webhook_url_and_load_config(monkeypatch):
-    monkeypatch.setenv(
-        "WECOM_WEBHOOK", "not-a-valid-url"
-    )
-    monkeypatch.setenv(
-        "DINGTALK_WEBHOOK", "bad://dt.com"
-    )
-    monkeypatch.setenv(
-        "FEISHU_WEBHOOK", " " + "https" + "://" * 1500
-    )
+    monkeypatch.setenv("WECOM_WEBHOOK", "not-a-valid-url")
+    monkeypatch.setenv("DINGTALK_WEBHOOK", "bad://dt.com")
+    monkeypatch.setenv("FEISHU_WEBHOOK", " " + "https" + "://" * 1500)
     monkeypatch.setenv("EMAIL_WEBHOOK", "ftp://email")
     notify.reload_notify_config()
     assert notify.NOTIFY_CONFIG["wecom_webhook"] == ""
@@ -492,13 +463,19 @@ async def test_send_notification_routing(monkeypatch):
     notify.reload_notify_config()
 
     monkeypatch.setattr(
-        notify, "send_slack_notification", AsyncMock(return_value={"success": True, "recipient": "r"})
+        notify,
+        "send_slack_notification",
+        AsyncMock(return_value={"success": True, "recipient": "r"}),
     )
     monkeypatch.setattr(
-        notify, "send_teams_notification", AsyncMock(return_value={"success": True, "recipient": "r"})
+        notify,
+        "send_teams_notification",
+        AsyncMock(return_value={"success": True, "recipient": "r"}),
     )
     monkeypatch.setattr(
-        notify, "send_email_notification", AsyncMock(return_value={"success": True, "recipient": "r"})
+        notify,
+        "send_email_notification",
+        AsyncMock(return_value={"success": True, "recipient": "r"}),
     )
     # single configured channel succeeds
     res = await notify.send_notification(
@@ -507,14 +484,10 @@ async def test_send_notification_routing(monkeypatch):
     )
     assert res["success"] is True
     # no channels
-    res = await notify.send_notification(
-        {"type": "alert", "message": "m"}, channels=[]
-    )
+    res = await notify.send_notification({"type": "alert", "message": "m"}, channels=[])
     assert res["success"] is False
     # unsupported channel
-    res = await notify.send_notification(
-        {"type": "alert", "message": "m"}, channels=["weird"]
-    )
+    res = await notify.send_notification({"type": "alert", "message": "m"}, channels=["weird"])
     assert res["success"] is False
 
 
@@ -576,9 +549,7 @@ async def test_resolve_oncall_and_phone_sms(monkeypatch):
     assert res["success"] is False
 
     # sms no recipient
-    res = await notify._send_sms_notification(
-        {"level": "critical"}, {"sms_provider": "https://s"}
-    )
+    res = await notify._send_sms_notification({"level": "critical"}, {"sms_provider": "https://s"})
     assert res["success"] is False
 
     # sms with oncall then exception
@@ -618,9 +589,7 @@ async def test_send_alert_notification(monkeypatch):
     async def fake(channel):
         return {"success": True, "recipient": "r"}
 
-    monkeypatch.setattr(
-        notify, "_send_one_channel", lambda alert, ch, cfg: fake(ch)
-    )
+    monkeypatch.setattr(notify, "_send_one_channel", lambda alert, ch, cfg: fake(ch))
     res = await notify.send_alert_notification(
         {
             "type": "alert",
@@ -647,9 +616,19 @@ def test_heal_helpers_and_stategraph(monkeypatch):
     assert heal._is_approval_expired({"approved_at": None}) is True
     assert heal._is_approval_expired({"approved_at": "2020-01-01T00:00:00"}) is True
     assert heal._is_alert_resolved({"status": "resolved"}) is True
-    assert heal._is_alert_resolved({"resolved_condition": {"metric": "m", "operator": "<=", "threshold": 1}}) is False
-    assert heal._pre_execution_check({"x": 1}, {"approved_at": "garbage"}) == (False, "approval expired or missing approved_at")
-    assert heal._pre_execution_check({"status": "resolved"}, {"approved_at": datetime.now().isoformat()}) == (False, "alert self-healed before execution")
+    assert (
+        heal._is_alert_resolved(
+            {"resolved_condition": {"metric": "m", "operator": "<=", "threshold": 1}}
+        )
+        is False
+    )
+    assert heal._pre_execution_check({"x": 1}, {"approved_at": "garbage"}) == (
+        False,
+        "approval expired or missing approved_at",
+    )
+    assert heal._pre_execution_check(
+        {"status": "resolved"}, {"approved_at": datetime.now().isoformat()}
+    ) == (False, "alert self-healed before execution")
     assert heal._off_hours_auto_approve_allowed() is False
     monkeypatch.setenv("HEAL_OFFHOURS_AUTO_APPROVE", "true")
     assert heal._off_hours_auto_approve_allowed() is True
@@ -665,10 +644,13 @@ def test_heal_helpers_and_stategraph(monkeypatch):
 
     # StateGraph branches
     sg = heal.StateGraph()
+
     async def a(state):
         return state
+
     async def b(state):
         raise RuntimeError("boom")
+
     sg.add_node("start", a)
     sg.add_node("boom", b)
     sg.set_entry_point("start")
@@ -705,7 +687,11 @@ async def test_generate_runbook(monkeypatch):
     fake_lib.repair_script_library.get_script = MagicMock(return_value=script)
     monkeypatch.setitem(sys.modules, "core.auto_heal", fake_lib)
     monkeypatch.setattr(
-        heal, "RiskLevel", type("RiskLevel", (), {"HIGH": "high", "BLOCKED": "blocked", "SAFE": "safe", "LOW": "low"})()
+        heal,
+        "RiskLevel",
+        type(
+            "RiskLevel", (), {"HIGH": "high", "BLOCKED": "blocked", "SAFE": "safe", "LOW": "low"}
+        )(),
     )
     monkeypatch.setattr(heal, "record_audit", MagicMock())
     state = heal.HealState(alert={"title": "ipmi failure", "metric": "ipmi"})
@@ -720,9 +706,7 @@ async def test_generate_runbook(monkeypatch):
 async def test_evaluate(monkeypatch):
     fake_verifier = types.ModuleType("core.verifier")
     fake_verifier.verify_repair = AsyncMock(
-        return_value=MagicMock(
-            model_dump=lambda: {"verified": True}
-        )
+        return_value=MagicMock(model_dump=lambda: {"verified": True})
     )
     monkeypatch.setitem(sys.modules, "core.verifier", fake_verifier)
     state = heal.HealState(fix_applied=True, runbook="string")
@@ -741,20 +725,14 @@ async def test_evaluate(monkeypatch):
 @pytest.mark.asyncio
 async def test_rollback(monkeypatch):
     monkeypatch.setenv("HEAL_EXECUTE_ENABLED", "true")
-    monkeypatch.setattr(
-        heal, "SNAPSHOT_CONFIG", {"rollback_approval_required": False}
-    )
+    monkeypatch.setattr(heal, "SNAPSHOT_CONFIG", {"rollback_approval_required": False})
     monkeypatch.setattr(
         heal,
         "analyze_command",
         lambda cmd: {"risk_level": "LOW"},
     )
-    monkeypatch.setattr(
-        heal, "update_snapshot_status", AsyncMock(return_value=None)
-    )
-    monkeypatch.setattr(
-        heal, "notify_rollback_failure", AsyncMock(return_value=None)
-    )
+    monkeypatch.setattr(heal, "update_snapshot_status", AsyncMock(return_value=None))
+    monkeypatch.setattr(heal, "notify_rollback_failure", AsyncMock(return_value=None))
     monkeypatch.setattr(
         asyncio,
         "create_subprocess_exec",
@@ -777,12 +755,8 @@ async def test_rollback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_complete(monkeypatch):
-    monkeypatch.setattr(
-        heal, "update_snapshot_status", AsyncMock(return_value=None)
-    )
-    monkeypatch.setattr(
-        heal, "async_insert_repair_record", AsyncMock(return_value=None)
-    )
+    monkeypatch.setattr(heal, "update_snapshot_status", AsyncMock(return_value=None))
+    monkeypatch.setattr(heal, "async_insert_repair_record", AsyncMock(return_value=None))
     if not hasattr(heal, "_HEAL_METRIC_COUNTERS"):
         monkeypatch.setattr(heal, "_HEAL_METRIC_COUNTERS", {})
     state = heal.HealState(
@@ -873,7 +847,9 @@ async def test_query_prometheus_branches(monkeypatch):
         config={"url": "http://g"},
     )
     mgr.integrations["other-1"] = cfg2
-    assert (await mgr.query_prometheus_metrics("other-1", "up"))["error"] == "Not a Prometheus integration"
+    assert (await mgr.query_prometheus_metrics("other-1", "up"))[
+        "error"
+    ] == "Not a Prometheus integration"
     # invalid promql
     monkeypatch.setattr(im, "validate_promql", MagicMock(side_effect=ValueError("bad")))
     res = await mgr.query_prometheus_metrics("prom-1", "bad")
@@ -902,7 +878,9 @@ async def test_query_prometheus_branches(monkeypatch):
 @pytest.mark.asyncio
 async def test_query_cloudwatch_branches(monkeypatch):
     mgr = im.IntegrationManager()
-    assert (await mgr.query_cloudwatch_metrics("missing", "CPUUtilization"))["error"] == "Integration not found"
+    assert (await mgr.query_cloudwatch_metrics("missing", "CPUUtilization"))[
+        "error"
+    ] == "Integration not found"
     cfg = im.IntegrationConfig(
         integration_id="cw-1",
         integration_type=im.IntegrationType.CLOUD,
@@ -935,7 +913,9 @@ async def test_query_pagerduty_jenkins_jira(monkeypatch):
         config={},
     )
     mgr.integrations["pd-1"] = cfg
-    assert (await mgr.query_pagerduty_incidents("pd-1", ""))["error"] == "Missing api_key or token in config"
+    assert (await mgr.query_pagerduty_incidents("pd-1", ""))[
+        "error"
+    ] == "Missing api_key or token in config"
     cfg.config = {"api_key": "k"}
     monkeypatch.setattr(im, "parse_duration_to_seconds", MagicMock(side_effect=ValueError("bad")))
     res = await mgr.query_pagerduty_incidents("pd-1", "q", "bad")
@@ -972,8 +952,14 @@ async def test_query_pagerduty_jenkins_jira(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_send_and_process_notification(monkeypatch):
-    mgr = im.IntegrationManager(config={"notification_channels": {"ch1": {"type": "webhook", "config": {"url": "https://x"}}} })
-    mgr.http_client = AsyncMock(post=AsyncMock(return_value=MagicMock(raise_for_status=MagicMock())))
+    mgr = im.IntegrationManager(
+        config={
+            "notification_channels": {"ch1": {"type": "webhook", "config": {"url": "https://x"}}}
+        }
+    )
+    mgr.http_client = AsyncMock(
+        post=AsyncMock(return_value=MagicMock(raise_for_status=MagicMock()))
+    )
     msg = await mgr.send_notification("ch1", "r", "s", "b")
     assert msg.error is None
     assert msg.sent is True
@@ -990,7 +976,12 @@ async def test_send_and_process_notification(monkeypatch):
     msg = await mgr.send_notification("ch1", "r", "s", "b")
     assert "Unsupported" in msg.error
     # HTTP not available -> exception in _send_webhook_notification
-    mgr.notification_channels["ch3"] = {"name": "ch3", "type": "webhook", "config": {"url": "https://y"}, "enabled": True}
+    mgr.notification_channels["ch3"] = {
+        "name": "ch3",
+        "type": "webhook",
+        "config": {"url": "https://y"},
+        "enabled": True,
+    }
     monkeypatch.setattr(im, "HTTP_AVAILABLE", False)
     msg = await mgr.send_notification("ch3", "r", "s", "b")
     assert msg.error is not None

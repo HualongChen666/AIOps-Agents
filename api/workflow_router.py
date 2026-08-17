@@ -20,7 +20,6 @@ from fastapi import APIRouter, HTTPException, Path, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-
 from core.workflow.engine import WorkflowExecutor, parse_json_workflow
 from core.workflow_engine import (
     WORKFLOW_DEFINITIONS,
@@ -32,9 +31,7 @@ from core.workflow_engine import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
-    prefix="/api/v1/workflows", tags=["工作流"]
-)
+router = APIRouter(prefix="/api/v1/workflows", tags=["工作流"])
 
 
 # ============================================================
@@ -102,6 +99,7 @@ async def _task_handler(node: Any, context: Any) -> dict[str, Any]:
         }
 
     raise ValueError(f"Unsupported task action '{action}' for node {node.id}")
+
 
 _executor.register_handler("noop", _noop_handler)
 _executor.register_handler("delay", _delay_handler)
@@ -326,8 +324,9 @@ class WorkflowStep(BaseModel):
 
 
 class WorkflowCreate(BaseModel):
-    wf_key: str = Field(..., min_length=1, max_length=64,
-                        pattern=r"^[a-zA-Z0-9_-]+$", description="工作流唯一键")
+    wf_key: str = Field(
+        ..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$", description="工作流唯一键"
+    )
     name: str = Field(..., min_length=1, max_length=128, description="工作流名称")
     description: str = Field(default="", max_length=512, description="工作流描述")
     steps: list[WorkflowStep] = Field(..., min_length=1, description="工作流节点列表")
@@ -338,15 +337,18 @@ class WorkflowCreate(BaseModel):
 class WorkflowUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128, description="工作流名称")
     description: str | None = Field(default=None, max_length=512, description="工作流描述")
-    steps: list[WorkflowStep] | None = Field(default=None, min_length=1, description="工作流节点列表")
+    steps: list[WorkflowStep] | None = Field(
+        default=None, min_length=1, description="工作流节点列表"
+    )
     time: str | None = Field(default=None, max_length=32, description="平均耗时展示文本")
     rate: str | None = Field(default=None, max_length=32, description="成功率展示文本")
 
 
 def _to_engine_dict(data: WorkflowCreate | WorkflowUpdate) -> dict[str, Any]:
     """Pydantic 模型转引擎所需的普通 dict"""
-    payload = data.model_dump(exclude_unset=True, exclude={
-                              "wf_key"} if isinstance(data, WorkflowCreate) else set())
+    payload = data.model_dump(
+        exclude_unset=True, exclude={"wf_key"} if isinstance(data, WorkflowCreate) else set()
+    )
     # model_dump 已经递归把 WorkflowStep 转成 dict
     if "steps" in payload and payload["steps"] is not None:
         payload["steps"] = [dict(s) for s in payload["steps"]]
@@ -409,7 +411,9 @@ def update_workflow(
             raise HTTPException(status_code=400, detail="请求体不能为空")
         return update_workflow_definition(wf_key, payload)
     except ValueError as exc:
-        raise HTTPException(status_code=404 if "不存在" in str(exc) else 400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404 if "不存在" in str(exc) else 400, detail=str(exc)
+        ) from exc
 
 
 @router.delete(

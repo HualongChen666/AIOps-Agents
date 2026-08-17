@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-from main import app
-from core.metrics_history import metrics_history
-from core.database import Base
-from core.authentication import get_current_active_user
-from sqlalchemy import create_engine
-from fastapi.testclient import TestClient
 import logging
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+
+from core.authentication import get_current_active_user
+from core.database import Base
+from core.metrics_history import metrics_history
+from main import app
 
 """End-to-end test: Prometheus alert -> approval -> repair -> audit."""
 import json

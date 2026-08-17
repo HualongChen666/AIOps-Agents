@@ -170,8 +170,7 @@ class MetricsHistory:
         """写入单个 MetricPoint,支持任意 metric / service"""
         if not isinstance(metric, str):
             logger.warning(
-                "MetricsHistory.push_metric() metric 必须是字符串,本次跳过 | "
-                f"metric={metric!r}"
+                "MetricsHistory.push_metric() metric 必须是字符串,本次跳过 | " f"metric={metric!r}"
             )
             return
 

@@ -218,7 +218,9 @@ def test_flink_stream_job_record_error(monkeypatch):
         job_name="agg", job_type=flink_processor.FlinkJobType.METRICS_AGGREGATION
     )
     job = flink_processor.FlinkStreamJob(config)
-    monkeypatch.setattr(job, "_aggregate_metrics", lambda r: (_ for _ in ()).throw(TypeError("boom")))
+    monkeypatch.setattr(
+        job, "_aggregate_metrics", lambda r: (_ for _ in ()).throw(TypeError("boom"))
+    )
     assert job._process_record({"x": 1}) is None
 
 
@@ -300,9 +302,7 @@ def test_kms_service_env_and_required_keys(monkeypatch):
 
 
 def test_kms_service_file_backend(tmp_path):
-    svc = kms.KeyManagementService(
-        backend_type="file", file_path=str(tmp_path / "svc.json")
-    )
+    svc = kms.KeyManagementService(backend_type="file", file_path=str(tmp_path / "svc.json"))
     assert svc.set_key("k1", "v1") is True
     assert svc.get_key("k1") == "v1"
     assert svc.key_exists("k1") is True
@@ -317,9 +317,7 @@ def test_kms_service_unsupported_backend():
 
 def test_kms_service_cache_and_stats(monkeypatch):
     monkeypatch.setenv("AIOPS_CACHED_KEY", "cached_value")
-    svc = kms.KeyManagementService(
-        backend_type="environment", cache_ttl=0.01
-    )
+    svc = kms.KeyManagementService(backend_type="environment", cache_ttl=0.01)
     assert svc.get_key_with_cache("cached_key") == "cached_value"
     assert svc.get_key_with_cache("cached_key") == "cached_value"
     assert svc.get_cache_stats()["cached_keys"] == 1
@@ -335,9 +333,7 @@ def test_kms_service_cache_and_stats(monkeypatch):
 
 
 def test_kms_service_rotate_and_cleanup(tmp_path):
-    svc = kms.KeyManagementService(
-        backend_type="file", file_path=str(tmp_path / "rot.json")
-    )
+    svc = kms.KeyManagementService(backend_type="file", file_path=str(tmp_path / "rot.json"))
     assert svc.set_key("db_pass", "old") is True
     assert svc.rotate_key("db_pass", "new", old_value_retention=0) is True
     assert svc.get_key("db_pass") == "new"
@@ -389,9 +385,7 @@ def test_retry_calculate_delay_strategies():
     )
     assert immediate.calculate_delay(5) == 0.0
 
-    jittered = retry_enhanced.EnhancedRetry(
-        base_delay=10.0, jitter=True, jitter_range=0.1
-    )
+    jittered = retry_enhanced.EnhancedRetry(base_delay=10.0, jitter=True, jitter_range=0.1)
     assert jittered.calculate_delay(1) >= 0.0
 
 
@@ -410,15 +404,11 @@ def test_retry_should_retry_conditions():
     assert er.should_retry(ServerErr()) is True
     assert er.should_retry(RateLimit()) is True
 
-    er_custom = retry_enhanced.EnhancedRetry(
-        retry_on=lambda e: not isinstance(e, ConnectionError)
-    )
+    er_custom = retry_enhanced.EnhancedRetry(retry_on=lambda e: not isinstance(e, ConnectionError))
     assert er_custom.should_retry(ConnectionError()) is False
     assert er_custom.should_retry(TimeoutError()) is True
 
-    er_exc = retry_enhanced.EnhancedRetry(
-        retry_on_exceptions=(RuntimeError,)
-    )
+    er_exc = retry_enhanced.EnhancedRetry(retry_on_exceptions=(RuntimeError,))
     assert er_exc.should_retry(RuntimeError()) is True
     assert er_exc.should_retry(ConnectionError()) is False
 
@@ -453,9 +443,7 @@ def test_retry_sync_wrapper_success_after_retry():
 
 
 def test_retry_sync_wrapper_non_retryable_raises():
-    @retry_enhanced.retry_with_enhanced_retry(
-        max_attempts=2, base_delay=0.0, jitter=False
-    )
+    @retry_enhanced.retry_with_enhanced_retry(max_attempts=2, base_delay=0.0, jitter=False)
     def always_bad():
         raise RuntimeError("not retryable")
 

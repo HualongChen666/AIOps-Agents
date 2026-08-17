@@ -77,9 +77,7 @@ def test_third_party_exceptions():
 # core.kpi_config
 # ---------------------------------------------------------------------------
 def test_kpi_config_crud_and_resolve(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        kpi_config, "_KPI_CONFIG_PATH", str(tmp_path / "kpi_config.json")
-    )
+    monkeypatch.setattr(kpi_config, "_KPI_CONFIG_PATH", str(tmp_path / "kpi_config.json"))
 
     # _ensure_defaults() now uses RLock, so calling _write_configs while holding
     # the same lock no longer deadlocks even when the file does not yet exist.
@@ -152,9 +150,7 @@ async def test_stats_engine_alerts_and_ingestion():
 
 @pytest.mark.asyncio
 async def test_stats_engine_repairs_and_history():
-    valid = await stats_engine.record_repair(
-        {"script_key": "clear_temp", "host": "srv1"}
-    )
+    valid = await stats_engine.record_repair({"script_key": "clear_temp", "host": "srv1"})
     assert valid["success"] is True
     assert "repair_id" in valid
 
@@ -222,15 +218,10 @@ def test_stats_engine_decision_accuracy():
 
 
 def test_stats_engine_validation_and_client():
-    assert stats_engine.validate_stats(
-        {"total": 10, "success": 6, "failure": 4}
-    ) == {"valid": True}
+    assert stats_engine.validate_stats({"total": 10, "success": 6, "failure": 4}) == {"valid": True}
     assert stats_engine.validate_stats("not a dict")["valid"] is False
     assert stats_engine.validate_stats({"total": "x"})["valid"] is False
-    assert (
-        stats_engine.validate_stats({"total": 10, "success": 6, "failure": 3})["valid"]
-        is False
-    )
+    assert stats_engine.validate_stats({"total": 10, "success": 6, "failure": 3})["valid"] is False
 
     client = stats_engine._get_http_client()
     assert client is not None
@@ -272,23 +263,17 @@ def test_causal_predictor():
     assert no_parent.confidence == 0.0
     assert no_parent.predicted_value == 45.0
 
-    what_if = predictor.what_if(
-        "cpu", 100.0, "latency", {"cpu": 45.0, "memory": 36.0}
-    )
+    what_if = predictor.what_if("cpu", 100.0, "latency", {"cpu": 45.0, "memory": 36.0})
     assert what_if["has_effect"] is True
     assert "baseline_value" in what_if
     assert "predicted_value" in what_if
     assert "predicted_change" in what_if
 
-    no_path = predictor.what_if(
-        "cpu", 100.0, "memory", {"cpu": 45.0, "memory": 36.0}
-    )
+    no_path = predictor.what_if("cpu", 100.0, "memory", {"cpu": 45.0, "memory": 36.0})
     assert no_path["has_effect"] is False
     assert "reason" in no_path
 
-    counter = predictor.counterfactual(
-        70.0, "latency", "cpu", {"cpu": 45.0, "memory": 36.0}
-    )
+    counter = predictor.counterfactual(70.0, "latency", "cpu", {"cpu": 45.0, "memory": 36.0})
     assert "counterfactual_effect" in counter
     assert "observed_outcome" in counter
 

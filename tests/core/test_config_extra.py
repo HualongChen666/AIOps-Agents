@@ -29,9 +29,7 @@ def _reload_default_config():
 def test_core_config_raises_when_spec_missing(monkeypatch):
     import core.config as core_config
 
-    monkeypatch.setattr(
-        core_config.importlib.util, "spec_from_file_location", lambda *a, **k: None
-    )
+    monkeypatch.setattr(core_config.importlib.util, "spec_from_file_location", lambda *a, **k: None)
     with pytest.raises(ImportError):
         importlib.reload(core_config)
 

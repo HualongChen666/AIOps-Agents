@@ -9,24 +9,6 @@ import pytest
 from fastapi import Response
 from pydantic import ValidationError
 
-from core.test_automation_manager import (
-    AutomationStatus,
-    TestAutomationManager,
-    get_automation_manager,
-)
-from core.test_coverage_manager import (
-    CoverageLevel,
-    TestCoverageManager,
-    get_coverage_manager,
-)
-from core.frontend_cache_strategy import (
-    CacheStrategy,
-    FrontendCacheStrategies,
-    apply_cache_headers,
-    cache_response,
-    get_etag_for_data,
-    setup_cache_headers_middleware,
-)
 from core.error_handling import (
     AIEngineError,
     AIOpsException,
@@ -36,11 +18,21 @@ from core.error_handling import (
     ErrorCode,
     NotFoundError,
     PermissionDeniedError,
-    ValidationError as AIOpsValidationError,
+)
+from core.error_handling import ValidationError as AIOpsValidationError
+from core.error_handling import (
     create_error_response,
     handle_aiops_exception,
     handle_generic_exception,
     log_error,
+)
+from core.frontend_cache_strategy import (
+    CacheStrategy,
+    FrontendCacheStrategies,
+    apply_cache_headers,
+    cache_response,
+    get_etag_for_data,
+    setup_cache_headers_middleware,
 )
 from core.observability_schema import (
     CommonLabels,
@@ -48,6 +40,16 @@ from core.observability_schema import (
     MetricInfo,
     TraceContext,
     build_log_record,
+)
+from core.test_automation_manager import (
+    AutomationStatus,
+    TestAutomationManager,
+    get_automation_manager,
+)
+from core.test_coverage_manager import (
+    CoverageLevel,
+    TestCoverageManager,
+    get_coverage_manager,
 )
 
 pytestmark = [pytest.mark.core]
@@ -213,13 +215,34 @@ class TestFrontendCacheStrategy:
         assert "public" in public.to_cache_control_header()
 
     def test_endpoint_strategies(self):
-        assert FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/alerts") is FrontendCacheStrategies.ALERT_LIST
-        assert FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/metrics") is FrontendCacheStrategies.DASHBOARD_DATA
-        assert FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/realtime") is FrontendCacheStrategies.REALTIME_DATA
-        assert FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/config") is FrontendCacheStrategies.USER_CONFIG
-        assert FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/health") is FrontendCacheStrategies.REALTIME_DATA
-        assert FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/auth") is FrontendCacheStrategies.SENSITIVE_DATA
-        assert FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/other") is FrontendCacheStrategies.DASHBOARD_DATA
+        assert (
+            FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/alerts")
+            is FrontendCacheStrategies.ALERT_LIST
+        )
+        assert (
+            FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/metrics")
+            is FrontendCacheStrategies.DASHBOARD_DATA
+        )
+        assert (
+            FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/realtime")
+            is FrontendCacheStrategies.REALTIME_DATA
+        )
+        assert (
+            FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/config")
+            is FrontendCacheStrategies.USER_CONFIG
+        )
+        assert (
+            FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/health")
+            is FrontendCacheStrategies.REALTIME_DATA
+        )
+        assert (
+            FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/auth")
+            is FrontendCacheStrategies.SENSITIVE_DATA
+        )
+        assert (
+            FrontendCacheStrategies.get_strategy_for_endpoint("/api/v1/other")
+            is FrontendCacheStrategies.DASHBOARD_DATA
+        )
 
     def test_apply_cache_headers_and_etag(self):
         response = Response(content="hello")
@@ -295,9 +318,7 @@ class TestErrorHandling:
 # ---------------------------------------------------------------------------
 class TestObservabilitySchema:
     def test_common_labels(self):
-        labels = CommonLabels(
-            service="svc", env="dev", region="us", tenant="t1", instance="pod-1"
-        )
+        labels = CommonLabels(service="svc", env="dev", region="us", tenant="t1", instance="pod-1")
         assert labels.env == "dev"
 
     def test_common_labels_validation_error(self):

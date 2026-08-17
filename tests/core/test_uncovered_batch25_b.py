@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Targeted coverage tests for core.analysis.l2.enhanced_causal_analyzer and
- core.intelligent_alert_analyzer.
+core.intelligent_alert_analyzer.
 """
 
 import asyncio
@@ -15,7 +15,6 @@ pytestmark = [pytest.mark.core]
 
 import core.analysis.l2.enhanced_causal_analyzer as eca
 import core.intelligent_alert_analyzer as analyzer
-
 
 # -----------------------------------------------------------------------------
 # core.analysis.l2.enhanced_causal_analyzer
@@ -109,9 +108,7 @@ async def test_enhanced_analyze_with_full_components(eca_full):
         "disk": [1.0, 2.0, 1.0, 2.0],
     }
     timestamps = [datetime.now(timezone.utc) for _ in range(len(data["cpu"]))]
-    result = await eca_full.analyze_causal_relationships(
-        data, timestamps, target_variable="cpu"
-    )
+    result = await eca_full.analyze_causal_relationships(data, timestamps, target_variable="cpu")
     assert isinstance(result, eca.CausalAnalysisResult)
     assert result.confidence > 0.0
     assert "memory" in result.root_causes
@@ -155,12 +152,8 @@ def test_enhanced_simplified_helpers(eca_fallback):
     g = eca.FallbackCausalGraph(name="g")
     for n in ("cpu", "memory", "disk"):
         g.add_node(n)
-    g.add_edge(
-        eca.FallbackCausalEdge("memory", "cpu", eca.FallbackCausalStrength.MODERATE, 0.9)
-    )
-    g.add_edge(
-        eca.FallbackCausalEdge("disk", "cpu", eca.FallbackCausalStrength.STRONG, 0.95)
-    )
+    g.add_edge(eca.FallbackCausalEdge("memory", "cpu", eca.FallbackCausalStrength.MODERATE, 0.9))
+    g.add_edge(eca.FallbackCausalEdge("disk", "cpu", eca.FallbackCausalStrength.STRONG, 0.95))
 
     roots = eca_fallback._infer_root_causes_simplified(g, "cpu")
     assert "memory" in roots
@@ -173,9 +166,7 @@ def test_enhanced_simplified_helpers(eca_fallback):
 
     g2 = eca.FallbackCausalGraph(name="g2")
     g2.add_node("cpu")
-    g2.add_edge(
-        eca.FallbackCausalEdge("memory", "cpu", eca.FallbackCausalStrength.MODERATE, 0.9)
-    )
+    g2.add_edge(eca.FallbackCausalEdge("memory", "cpu", eca.FallbackCausalStrength.MODERATE, 0.9))
     g2.add_edge("not-an-edge")
     assert eca_fallback._get_edge_confidence(g2, "memory", "cpu") == 0.9
     assert eca_fallback._get_edge_confidence(g2, "missing", "cpu") == 0.0
@@ -304,9 +295,7 @@ async def test_intelligent_trend_prediction(monkeypatch):
             pass
 
         def make_future_dataframe(self, periods):
-            return pd.DataFrame(
-                {"ds": pd.date_range("2026-01-01", periods=periods, freq="h")}
-            )
+            return pd.DataFrame({"ds": pd.date_range("2026-01-01", periods=periods, freq="h")})
 
         def predict(self, future):
             df = future.copy()
@@ -402,10 +391,7 @@ def test_intelligent_suppression_rules():
     )
     assert a._matches_suppression_rule(alert, {"pattern": "noise"}) is True
     assert a._matches_suppression_rule(alert, {"pattern": "xyz"}) is False
-    assert (
-        a._matches_suppression_rule(alert, {"time_window": 60, "max_frequency": 10})
-        is False
-    )
+    assert a._matches_suppression_rule(alert, {"time_window": 60, "max_frequency": 10}) is False
 
 
 async def test_intelligent_noise_reduction_and_known_patterns():

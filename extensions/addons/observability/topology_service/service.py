@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from .config import settings
 from ...engines.monitoring_provider import BaseObservabilityService
+from .config import settings
 
 BASE_METHODS: List[str] = [
     "get_state",

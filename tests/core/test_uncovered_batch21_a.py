@@ -263,7 +263,16 @@ async def test_alert_intelligence_analysis(engine, monkeypatch):
 
 def test_alert_intelligence_features_and_signature(engine):
     f = engine._extract_alert_features(
-        [{"level": "critical", "category": "security", "title": "t", "desc": "d", "host": "h", "metric": "m"}]
+        [
+            {
+                "level": "critical",
+                "category": "security",
+                "title": "t",
+                "desc": "d",
+                "host": "h",
+                "metric": "m",
+            }
+        ]
     )
     assert f.shape[0] == 1
     assert engine._encode_severity("critical") == 4
@@ -301,9 +310,7 @@ async def test_alert_intelligence_noise_and_patterns(engine):
 
 @pytest.mark.asyncio
 async def test_alert_intelligence_routing_and_topology(engine):
-    engine.add_routing_rule(
-        {"destination": "custom", "conditions": {"host": "h1"}}
-    )
+    engine.add_routing_rule({"destination": "custom", "conditions": {"host": "h1"}})
     engine.add_suppression_rule({"condition": "x"})
 
     alerts = [
@@ -352,8 +359,22 @@ def test_alert_intelligence_ancestors(engine):
 @pytest.mark.asyncio
 async def test_alert_intelligence_ml_clustering(engine):
     alerts = [
-        {"level": "critical", "category": "perf", "title": "a", "desc": "d", "host": "h", "metric": "m"},
-        {"level": "high", "category": "perf", "title": "b", "desc": "d", "host": "h", "metric": "m"},
+        {
+            "level": "critical",
+            "category": "perf",
+            "title": "a",
+            "desc": "d",
+            "host": "h",
+            "metric": "m",
+        },
+        {
+            "level": "high",
+            "category": "perf",
+            "title": "b",
+            "desc": "d",
+            "host": "h",
+            "metric": "m",
+        },
     ]
     features = engine._extract_alert_features(alerts)
 
@@ -620,9 +641,7 @@ async def test_ai_context_service_gather_cancel(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ai_context_service_gather_error(monkeypatch):
-    monkeypatch.setattr(
-        "core.ai_service.asyncio.gather", MagicMock(side_effect=ValueError("boom"))
-    )
+    monkeypatch.setattr("core.ai_service.asyncio.gather", MagicMock(side_effect=ValueError("boom")))
     svc = ai_service.AIContextService()
     with pytest.raises(ValueError):
         await svc.collect_rich_context()
@@ -706,9 +725,7 @@ def test_redis_redis_fallback(monkeypatch):
     client.delete.side_effect = Exception("redis down")
     client.ping.side_effect = Exception("redis down")
     client.info.side_effect = Exception("redis down")
-    monkeypatch.setattr(
-        "core.redis_cluster_manager._create_redis_client", lambda *a, **k: client
-    )
+    monkeypatch.setattr("core.redis_cluster_manager._create_redis_client", lambda *a, **k: client)
     mgr = RedisClusterManager(connection_string="redis://x")
     assert mgr.is_connected is True
     assert mgr.set("k", "v") is True

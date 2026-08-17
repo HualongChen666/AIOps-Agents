@@ -202,9 +202,7 @@ async def test_audit_count_audit_logs(audit_service_module, monkeypatch):
 async def test_audit_user_activity_summary(audit_service_module, monkeypatch):
     rows = [SimpleNamespace(action="login", count=5)]
     _patch_audit_session(monkeypatch, count=10, rows=rows)
-    summary = await audit_service_module.AuditService.get_user_activity_summary(
-        "admin", days=7
-    )
+    summary = await audit_service_module.AuditService.get_user_activity_summary("admin", days=7)
     assert summary["username"] == "admin"
     assert summary["total_actions"] == 10
     assert summary["actions_by_type"]["login"] == 5
@@ -228,16 +226,18 @@ async def test_audit_cleanup_old_logs_no_deletion(audit_service_module, monkeypa
 async def test_audit_detect_suspicious_activity(audit_service_module, monkeypatch):
     now = datetime.datetime.now()
     fake_logs = [
-        _FakeAuditLog(action="login_failure", success=False, ip_address=f"10.0.0.{i % 4}", created_at=now)
+        _FakeAuditLog(
+            action="login_failure", success=False, ip_address=f"10.0.0.{i % 4}", created_at=now
+        )
         for i in range(5)
     ] + [
-        _FakeAuditLog(action="permission_denied", success=False, ip_address="10.0.0.1", created_at=now)
+        _FakeAuditLog(
+            action="permission_denied", success=False, ip_address="10.0.0.1", created_at=now
+        )
         for _ in range(3)
     ]
     _patch_audit_session(monkeypatch, all_logs=fake_logs)
-    result = await audit_service_module.AuditService.detect_suspicious_activity(
-        "admin", hours=24
-    )
+    result = await audit_service_module.AuditService.detect_suspicious_activity("admin", hours=24)
     types = [r["type"] for r in result]
     assert "multiple_failed_logins" in types
     assert "multiple_permission_denied" in types
@@ -325,9 +325,7 @@ async def test_audit_cleanup_old_audit_logs(audit_service_module, monkeypatch):
 @pytest.mark.asyncio
 async def test_audit_context_success(audit_service_module, monkeypatch):
     _patch_audit_session(monkeypatch)
-    async with audit_service_module.audit_context(
-        action="view", resource_type="alert"
-    ):
+    async with audit_service_module.audit_context(action="view", resource_type="alert"):
         pass
 
 
@@ -335,9 +333,7 @@ async def test_audit_context_success(audit_service_module, monkeypatch):
 async def test_audit_context_failure(audit_service_module, monkeypatch):
     _patch_audit_session(monkeypatch)
     with pytest.raises(ValueError):
-        async with audit_service_module.audit_context(
-            action="delete", resource_type="alert"
-        ):
+        async with audit_service_module.audit_context(action="delete", resource_type="alert"):
             raise ValueError("boom")
 
 
@@ -389,7 +385,7 @@ def _make_trace(trace_id, spans):
 
 
 def test_cce_span_properties():
-    from core.call_chain_analysis_engine import Span, SpanStatus, SpanKind
+    from core.call_chain_analysis_engine import Span, SpanKind, SpanStatus
 
     s = _make_span("s1", "t1", "op", duration=0.0, status="error")
     assert s.is_error is True
@@ -459,18 +455,12 @@ def test_cce_filters(cce):
         "t1",
         [
             _make_span("a", "t1", "op", 100.0, attributes={"service.name": "svc1"}),
-            _make_span(
-                "b", "t1", "error", 50.0, status="error", tags={"env": "prod"}
-            ),
+            _make_span("b", "t1", "error", 50.0, status="error", tags={"env": "prod"}),
         ],
     )
     t2 = _make_trace(
         "t2",
-        [
-            _make_span(
-                "c", "t2", "op", 3000.0, attributes={"service.name": "svc2"}
-            )
-        ],
+        [_make_span("c", "t2", "op", 3000.0, attributes={"service.name": "svc2"})],
     )
     cce.add_trace(t1)
     cce.add_trace(t2)
@@ -515,9 +505,7 @@ def test_cce_bottlenecks(cce):
     t1 = _make_trace(
         "t1",
         [
-            _make_span(
-                "a", "t1", "slow", 6000.0, attributes={"service.name": "svc"}
-            ),
+            _make_span("a", "t1", "slow", 6000.0, attributes={"service.name": "svc"}),
             _make_span("b", "t1", "fast", 10.0),
         ],
     )
@@ -529,8 +517,8 @@ def test_cce_bottlenecks(cce):
 
 def test_cce_global_instance():
     from core.call_chain_analysis_engine import (
-        get_call_chain_analysis_engine,
         CallChainAnalysisEngine,
+        get_call_chain_analysis_engine,
     )
 
     e1 = get_call_chain_analysis_engine()
@@ -552,25 +540,19 @@ def optimizer():
 def test_api_rate_limit_strategies(optimizer):
     from core.api_throughput_optimizer import RateLimitStrategy
 
-    optimizer.set_rate_limit(
-        "/api", 10, 20, RateLimitStrategy.TOKEN_BUCKET
-    )
+    optimizer.set_rate_limit("/api", 10, 20, RateLimitStrategy.TOKEN_BUCKET)
     optimizer.rate_limit_state["/api"]["tokens"] = 5
     assert optimizer.check_rate_limit("/api", tokens=1) is True
     for _ in range(4):
         assert optimizer.check_rate_limit("/api", tokens=1) is True
     assert optimizer.check_rate_limit("/api", tokens=1) is False
 
-    optimizer.set_rate_limit(
-        "/sliding", 5, 10, RateLimitStrategy.SLIDING_WINDOW
-    )
+    optimizer.set_rate_limit("/sliding", 5, 10, RateLimitStrategy.SLIDING_WINDOW)
     for _ in range(5):
         assert optimizer.check_rate_limit("/sliding") is True
     assert optimizer.check_rate_limit("/sliding") is False
 
-    optimizer.set_rate_limit(
-        "/fixed", 3, 10, RateLimitStrategy.FIXED_WINDOW
-    )
+    optimizer.set_rate_limit("/fixed", 3, 10, RateLimitStrategy.FIXED_WINDOW)
     for _ in range(3):
         assert optimizer.check_rate_limit("/fixed", tokens=1) is True
     assert optimizer.check_rate_limit("/fixed", tokens=1) is False
@@ -580,8 +562,8 @@ def test_api_rate_limit_strategies(optimizer):
 
 def test_api_backend_servers(optimizer):
     from core.api_throughput_optimizer import (
-        LoadBalancingStrategy,
         BackendServer,
+        LoadBalancingStrategy,
     )
 
     optimizer.add_backend_server("s1", "10.0.0.1", 80, weight=2)
@@ -805,7 +787,9 @@ class _ListDeleteSubprocess:
             old = [
                 {
                     "backup_name": "old_backup",
-                    "start_time": (datetime.datetime.now() - datetime.timedelta(days=8)).isoformat(),
+                    "start_time": (
+                        datetime.datetime.now() - datetime.timedelta(days=8)
+                    ).isoformat(),
                 }
             ]
             return SimpleNamespace(returncode=0, stdout=json.dumps(old), stderr="")

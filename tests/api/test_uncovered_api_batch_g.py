@@ -59,9 +59,7 @@ class _FakeUserService:
                 return user
         return None
 
-    async def create_user(
-        self, username, hashed_password, email=None, full_name=None, role="user"
-    ):
+    async def create_user(self, username, hashed_password, email=None, full_name=None, role="user"):
         if username in self._users:
             return None
         user = SimpleNamespace(
@@ -83,9 +81,7 @@ class _FakeUserService:
     async def list_users(self, limit=100, offset=0):
         return list(self._users.values())[offset : offset + limit]
 
-    async def update_user(
-        self, username, email=None, full_name=None, role=None, disabled=None
-    ):
+    async def update_user(self, username, email=None, full_name=None, role=None, disabled=None):
         user = self._users.get(username)
         if not user:
             return False
@@ -166,9 +162,7 @@ class _FakeResourceManager:
     def import_translations(self, language: str, namespace: str, input_path: str):
         return True
 
-    def get_missing_translations(
-        self, source_language: str, target_language: str, namespace: str
-    ):
+    def get_missing_translations(self, source_language: str, target_language: str, namespace: str):
         return ["missing"]
 
 
@@ -220,9 +214,7 @@ class _FakeMeshManager:
         return SimpleNamespace(service_name=service_name, routing_rules=routing_rules)
 
     def generate_mtls_config(self, mesh_id, namespace, strict_mode):
-        return SimpleNamespace(
-            mesh_id=mesh_id, mtls_enabled=True, authentication_policies=[]
-        )
+        return SimpleNamespace(mesh_id=mesh_id, mtls_enabled=True, authentication_policies=[])
 
 
 @pytest.fixture(autouse=True)
@@ -240,18 +232,13 @@ def _patch_batch_g(monkeypatch):
     # Mount the real user_router for this batch by temporarily replacing
     # the /api/v1/users routes in the global app (users_router currently
     # shadows user_router because only users_router is wired in main.py).
-    from main import app
-
     import api.user_router as _ur
     import api.users_router as _users
+    from main import app
 
     original_routes = list(app.router.routes)
     filtered_routes = [
-        r
-        for r in app.router.routes
-        if not (
-            getattr(r, "original_router", None) is _users.router
-        )
+        r for r in app.router.routes if not (getattr(r, "original_router", None) is _users.router)
     ]
     monkeypatch.setattr(app.router, "routes", filtered_routes + list(_ur.router.routes))
 
@@ -298,9 +285,7 @@ def _patch_batch_g(monkeypatch):
         _tcr, "get_team_oncall", _async_return({"primary": "u1", "secondary": "u2"})
     )
     monkeypatch.setattr(_tcr, "create_handoff", _async_return({"handoff_id": "h1"}))
-    monkeypatch.setattr(
-        _tcr, "list_handoffs", _async_return([{"id": "h1", "notes": "n"}])
-    )
+    monkeypatch.setattr(_tcr, "list_handoffs", _async_return([{"id": "h1", "notes": "n"}]))
     monkeypatch.setattr(_tcr, "escalate_incident", _async_return({"escalated": True}))
     monkeypatch.setattr(_tcr, "list_dashboards", _async_return([{"id": "d1"}]))
 
@@ -386,9 +371,7 @@ def _patch_batch_g(monkeypatch):
     monkeypatch.setattr(
         _slo, "list_sla_reports", lambda period=None: [{"id": "r1", "period": period or "30d"}]
     )
-    monkeypatch.setattr(
-        _slo, "get_sla_report", lambda rid: {"id": rid, "period": "30d"}
-    )
+    monkeypatch.setattr(_slo, "get_sla_report", lambda rid: {"id": rid, "period": "30d"})
     monkeypatch.setattr(_slo, "delete_sla_report", lambda rid: True)
 
     def _fake_user_factory(*roles, **kwargs):
@@ -412,9 +395,7 @@ def _patch_batch_g(monkeypatch):
         "get_configured_hosts",
         lambda: [{"name": "h1", "host": "1.1.1.1", "role": "app"}],
     )
-    monkeypatch.setattr(
-        _lrx, "get_available_metrics", lambda: [{"key": "cpu", "name": "CPU"}]
-    )
+    monkeypatch.setattr(_lrx, "get_available_metrics", lambda: [{"key": "cpu", "name": "CPU"}])
     monkeypatch.setattr(
         _lrx,
         "collect_all_linux",
@@ -425,9 +406,7 @@ def _patch_batch_g(monkeypatch):
         "collect_linux_host",
         _async_return({"host": "h1", "cpu": {"usage_percent": 1.0}}),
     )
-    monkeypatch.setattr(
-        _lrx, "get_linux_repair_scripts", lambda: [{"key": "clear_tmp"}]
-    )
+    monkeypatch.setattr(_lrx, "get_linux_repair_scripts", lambda: [{"key": "clear_tmp"}])
     monkeypatch.setattr(
         _lrx,
         "execute_linux_repair",
@@ -804,9 +783,7 @@ def test_adapter_format_date(client):
 
 
 def test_adapter_format_date_error(client):
-    resp = client.get(
-        "/api/localization-adapter/format/date?date_str=invalid&format_type=short"
-    )
+    resp = client.get("/api/localization-adapter/format/date?date_str=invalid&format_type=short")
     assert resp.status_code == 500
 
 
@@ -892,9 +869,7 @@ def test_user_create_invalid_password(client, admin_headers, monkeypatch):
 def test_user_create_conflict(client, admin_headers, monkeypatch):
     import api.user_router as _ur
 
-    monkeypatch.setattr(
-        _ur.user_service, "get_user_by_username", _async_return(SimpleNamespace())
-    )
+    monkeypatch.setattr(_ur.user_service, "get_user_by_username", _async_return(SimpleNamespace()))
     resp = client.post(
         "/api/v1/users/",
         headers=admin_headers,
@@ -1463,9 +1438,7 @@ def test_linux_repair_blocked(client, monkeypatch):
     monkeypatch.setattr(
         _lrx,
         "execute_linux_repair",
-        _async_return(
-            {"blocked": True, "reason": "unsafe", "safe_alternative": "use-rm-safe"}
-        ),
+        _async_return({"blocked": True, "reason": "unsafe", "safe_alternative": "use-rm-safe"}),
     )
     resp = client.post(
         "/api/v1/platforms/linux/repair/execute",

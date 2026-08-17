@@ -77,9 +77,7 @@ def test_get_host_health_wrong_type(default_client):
 
 
 def test_get_host_health_unexpected_param(default_client):
-    r = default_client.post(
-        "/mcp/tools/get_host_health", json={"host_id": "h1", "foo": "bar"}
-    )
+    r = default_client.post("/mcp/tools/get_host_health", json={"host_id": "h1", "foo": "bar"})
     assert r.status_code == 422
 
 
@@ -134,9 +132,7 @@ def test_search_incident_history_validation(default_client):
 
 def test_approve_repair_validation(default_client):
     # Missing approved
-    r = default_client.post(
-        "/mcp/tools/approve_repair", json={"repair_id": "r1"}
-    )
+    r = default_client.post("/mcp/tools/approve_repair", json={"repair_id": "r1"})
     assert r.status_code == 422
 
     # approved not a boolean

@@ -91,9 +91,7 @@ async def test_verify_repair_dispatch_exception(enabled_config, patch_upsert, mo
     monkeypatch.setattr(
         verifier, "_dispatch_verification", AsyncMock(side_effect=RuntimeError("boom"))
     )
-    result = await verifier.verify_repair(
-        {"platform": "linux"}, "restart_service", {}, None, ""
-    )
+    result = await verifier.verify_repair({"platform": "linux"}, "restart_service", {}, None, "")
     assert result["strategy"] == "error"
     assert "RuntimeError" in result["error_msg"]
 
@@ -117,27 +115,19 @@ def test_select_strategy_ai_dynamic():
         == "service_status"
     )
     assert (
-        verifier._select_strategy(
-            "AI_DYNAMIC", ai_runbook={"commands": ["kill 12345"]}
-        )
+        verifier._select_strategy("AI_DYNAMIC", ai_runbook={"commands": ["kill 12345"]})
         == "process_check"
     )
     assert (
-        verifier._select_strategy(
-            "AI_DYNAMIC", ai_runbook={"commands": ["df /tmp"]}
-        )
+        verifier._select_strategy("AI_DYNAMIC", ai_runbook={"commands": ["df /tmp"]})
         == "disk_usage"
     )
     assert (
-        verifier._select_strategy(
-            "AI_DYNAMIC", ai_runbook={"commands": ["ping 8.8.8.8"]}
-        )
+        verifier._select_strategy("AI_DYNAMIC", ai_runbook={"commands": ["ping 8.8.8.8"]})
         == "network_check"
     )
     assert (
-        verifier._select_strategy(
-            "AI_DYNAMIC", ai_runbook={"commands": ["kubectl get pods"]}
-        )
+        verifier._select_strategy("AI_DYNAMIC", ai_runbook={"commands": ["kubectl get pods"]})
         == "k8s_status"
     )
     assert verifier._select_strategy("AI_DYNAMIC") == "custom_command"

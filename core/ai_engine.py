@@ -513,7 +513,7 @@ def _validate_root_cause_output(raw: str) -> Optional[str]:
             cleaned = cleaned.strip("`")
             for lang in ("json", "JSON"):
                 if cleaned.startswith(lang):
-                    cleaned = cleaned[len(lang):].strip()
+                    cleaned = cleaned[len(lang) :].strip()
                     break
         try:
             data = json.loads(cleaned)

@@ -160,7 +160,6 @@ from modules.analyze.runbook.generator import RunbookGenerator
 from modules.execute.scheduler import temporal_worker
 from modules.storage.postgres import storage as postgres_storage
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -304,9 +303,7 @@ def fake_postgres(monkeypatch):
                 table = from_match.group(1) if from_match else "unknown"
                 rows = list(tables.get(table, []))
 
-                where_match = re.search(
-                    r"WHERE\s+(.+?)(?:ORDER BY|LIMIT|$)", q, re.IGNORECASE
-                )
+                where_match = re.search(r"WHERE\s+(.+?)(?:ORDER BY|LIMIT|$)", q, re.IGNORECASE)
                 param_idx = 0
                 if where_match:
                     where = where_match.group(1)
@@ -925,10 +922,12 @@ def test_anomaly_detection_workflow(monkeypatch):
     assert result2["status"] == "completed"
 
     failure = asyncio.run(
-        temporal_worker.AnomalyDetectionWorkflow().run({
-            "context": {},
-            "anomaly_detected": False,
-        })
+        temporal_worker.AnomalyDetectionWorkflow().run(
+            {
+                "context": {},
+                "anomaly_detected": False,
+            }
+        )
     )
     # detection reports no anomaly
     assert failure["status"] == "no_anomaly"
@@ -1030,7 +1029,11 @@ def test_runbook_generator_llm_branches():
         chat=SimpleNamespace(
             completions=SimpleNamespace(
                 create=lambda *a, **k: SimpleNamespace(
-                    choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps({"problem_summary": "x"})))]
+                    choices=[
+                        SimpleNamespace(
+                            message=SimpleNamespace(content=json.dumps({"problem_summary": "x"}))
+                        )
+                    ]
                 )
             )
         )
@@ -1054,15 +1057,17 @@ def test_runbook_generator_llm_branches():
 
 def test_runbook_parser():
     gen = RunbookGenerator(vector_store=FakeVectorStore())
-    valid = json.dumps({
-        "problem_summary": "x",
-        "root_cause_analysis": "x",
-        "immediate_actions": ["a"],
-        "long_term_solutions": ["b"],
-        "verification_steps": ["c"],
-        "rollback_plan": ["d"],
-        "risk_assessment": "x",
-    })
+    valid = json.dumps(
+        {
+            "problem_summary": "x",
+            "root_cause_analysis": "x",
+            "immediate_actions": ["a"],
+            "long_term_solutions": ["b"],
+            "verification_steps": ["c"],
+            "rollback_plan": ["d"],
+            "risk_assessment": "x",
+        }
+    )
     assert "problem_summary" in gen._parse_runbook(valid)
     bad = "not json {valid"
     parsed = gen._parse_runbook(bad)
@@ -1257,10 +1262,20 @@ def test_temporal_activities(monkeypatch):
         async def send(self, input_data):
             return {"sent": True}
 
-    monkeypatch.setitem(sys.modules, "core.anomaly_detection", SimpleNamespace(AnomalyDetector=AnomalyDetector))
-    monkeypatch.setitem(sys.modules, "core.auto_heal", SimpleNamespace(AutoHealEngine=AutoHealEngine))
-    monkeypatch.setitem(sys.modules, "core.runbook_generator", SimpleNamespace(RunbookGenerator=RunbookGeneratorCore))
-    monkeypatch.setitem(sys.modules, "core.notify_engine", SimpleNamespace(NotificationEngine=NotificationEngine))
+    monkeypatch.setitem(
+        sys.modules, "core.anomaly_detection", SimpleNamespace(AnomalyDetector=AnomalyDetector)
+    )
+    monkeypatch.setitem(
+        sys.modules, "core.auto_heal", SimpleNamespace(AutoHealEngine=AutoHealEngine)
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "core.runbook_generator",
+        SimpleNamespace(RunbookGenerator=RunbookGeneratorCore),
+    )
+    monkeypatch.setitem(
+        sys.modules, "core.notify_engine", SimpleNamespace(NotificationEngine=NotificationEngine)
+    )
 
     async def _analyze(self, input_data):
         return {"root": "cpu"}
@@ -1292,15 +1307,22 @@ def test_anomaly_detection_workflow_failure(monkeypatch):
 
 def test_temporal_workflow_manager_branches(monkeypatch):
     # connect returns False
-    monkeypatch.setattr(temporal_worker.Client, "connect", lambda *a, **k: (_ for _ in ()).throw(ConnectionError("x")))
+    monkeypatch.setattr(
+        temporal_worker.Client,
+        "connect",
+        lambda *a, **k: (_ for _ in ()).throw(ConnectionError("x")),
+    )
     manager = temporal_worker.TemporalWorkflowManager()
     assert asyncio.run(manager.connect()) is False
 
     # start_worker returns False
     async def _ok_connect(*args, **kwargs):
         return SimpleNamespace(execute_workflow=_fake_execute_workflow, close=_fake_close)
+
     monkeypatch.setattr(temporal_worker.Client, "connect", _ok_connect)
-    monkeypatch.setattr(temporal_worker.worker, "Worker", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
+    monkeypatch.setattr(
+        temporal_worker.worker, "Worker", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x"))
+    )
     manager2 = temporal_worker.TemporalWorkflowManager()
     assert asyncio.run(manager2.connect()) is True
     assert asyncio.run(manager2.start_worker()) is False
@@ -1311,6 +1333,7 @@ def test_temporal_workflow_manager_branches(monkeypatch):
             execute_workflow=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")),
             close=lambda *a, **k: None,
         )
+
     monkeypatch.setattr(temporal_worker.Client, "connect", _bad_client)
     monkeypatch.setattr(temporal_worker.worker, "Worker", lambda *a, **k: SimpleNamespace())
     manager3 = temporal_worker.TemporalWorkflowManager()
@@ -1324,6 +1347,7 @@ def test_temporal_workflow_manager_branches(monkeypatch):
             execute_workflow=_fake_execute_workflow,
             close=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")),
         )
+
     monkeypatch.setattr(temporal_worker.Client, "connect", _bad_close)
     manager4 = temporal_worker.TemporalWorkflowManager()
     asyncio.run(manager4.connect())
@@ -1362,10 +1386,12 @@ def test_causal_service_error_paths_and_router():
     class _FailBuilder:
         def build_from_metrics(self, *args, **kwargs):
             raise RuntimeError("x")
+
         def get_analyzer(self):
             pass
 
     import modules.analyze.root_cause.causal_service as cs_mod
+
     original = cs_mod.create_causal_graph_builder
     cs_mod.create_causal_graph_builder = lambda **k: _FailBuilder()
     try:
@@ -1375,7 +1401,9 @@ def test_causal_service_error_paths_and_router():
         cs_mod.create_causal_graph_builder = original
 
     # load not found and bad file
-    svc2 = causal_service.CausalAnalysisService(model_dir=str(Path.home() / ".aiops" / f"causal_nf_{uuid.uuid4().hex}"))
+    svc2 = causal_service.CausalAnalysisService(
+        model_dir=str(Path.home() / ".aiops" / f"causal_nf_{uuid.uuid4().hex}")
+    )
     assert svc2.load_model("missing") is False
     svc2.model_dir.mkdir(parents=True, exist_ok=True)
     (svc2.model_dir / "bad.json").write_text("not json")
@@ -1400,7 +1428,9 @@ def test_causal_service_error_paths_and_router():
     assert resp.status_code == 200
     resp = client.post("/root-cause/causal/model/load", params={"name": "saved_graph"})
     assert resp.status_code == 200
-    resp = client.post("/root-cause/causal/root-cause", params={"alert_var": "service_C"}, json=payload)
+    resp = client.post(
+        "/root-cause/causal/root-cause", params={"alert_var": "service_C"}, json=payload
+    )
     assert resp.status_code == 200
     causal_service.shutdown_service()
 
@@ -1423,7 +1453,11 @@ def test_runbook_more_branches(monkeypatch):
         chat=SimpleNamespace(
             completions=SimpleNamespace(
                 create=lambda *a, **k: SimpleNamespace(
-                    choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps({"problem_summary": "x"})))]
+                    choices=[
+                        SimpleNamespace(
+                            message=SimpleNamespace(content=json.dumps({"problem_summary": "x"}))
+                        )
+                    ]
                 )
             )
         )

@@ -11,7 +11,6 @@ import pytest
 
 import core.root_cause_intelligence as rci
 
-
 pytestmark = [pytest.mark.core]
 
 
@@ -44,7 +43,9 @@ def test_verify_scenario_metrics_branches():
     assert engine._verify_scenario_metrics(h, {"slow_query_rate": 0.0}) is False
 
     h.root_cause = "pod_oom_app"
-    assert engine._verify_scenario_metrics(h, {"memory_usage_percent": 80, "last_state": {}}) is False
+    assert (
+        engine._verify_scenario_metrics(h, {"memory_usage_percent": 80, "last_state": {}}) is False
+    )
 
 
 def test_populate_expected_and_missing_branches():
@@ -229,9 +230,7 @@ async def test_verify_root_cause_pattern_match_and_impact_accuracy():
         10.0,
         0.8,
     )
-    await engine.discover_topology_realtime(
-        {"services": [{"name": "api", "health": "unhealthy"}]}
-    )
+    await engine.discover_topology_realtime({"services": [{"name": "api", "health": "unhealthy"}]})
     h = rci.RootCauseHypothesis(
         confidence=0.5,
         hypothesis_id="h",
@@ -296,9 +295,7 @@ async def test_analyze_rejected_candidate_continue():
     }
     metrics = {"service": "web", "target": "api"}
     context = {
-        "change_events": [
-            {"target": "api", "type": "deploy", "timestamp": "2026-08-12T15:00:00"}
-        ],
+        "change_events": [{"target": "api", "type": "deploy", "timestamp": "2026-08-12T15:00:00"}],
         "verification_data": {"active_components": [], "observed_symptoms": []},
     }
     results = await engine.analyze_root_causes_enhanced(alert, metrics, context)
@@ -488,9 +485,7 @@ async def test_generate_candidates_branches():
         metrics_data={"e1": 5.0, "e2": 5.0},
         affected=["svc2"],
         related_alerts=[{"host": "svc2", "alert_type": "x"}],
-        change_events=[
-            {"target": "svc1", "type": "deploy", "timestamp": "2026-08-12T15:00:00"}
-        ],
+        change_events=[{"target": "svc1", "type": "deploy", "timestamp": "2026-08-12T15:00:00"}],
         excluded_ids=set(),
         seen_roots={"pat1"},  # force pattern continue for pat1
     )

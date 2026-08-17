@@ -42,6 +42,7 @@ async def _async_slow():
 def _make_fail(exc):
     def _fail(*args, **kwargs):
         raise exc
+
     return _fail
 
 
@@ -75,11 +76,13 @@ def test_circuit_breaker_call_branches():
     assert _run(cb.call(_async_identity, 2)) == ((2,), {})
 
     # OPEN -> raise (recovery_timeout is huge, so reset should not be attempted)
-    cb_open = CircuitBreaker(
-        CircuitBreakerConfig(failure_threshold=1, recovery_timeout=1000.0)
-    )
+    cb_open = CircuitBreaker(CircuitBreakerConfig(failure_threshold=1, recovery_timeout=1000.0))
     try:
-        _run(cb_open.call(_make_fail(ValueError("first")), ))
+        _run(
+            cb_open.call(
+                _make_fail(ValueError("first")),
+            )
+        )
     except ValueError:
         pass
     assert cb_open.get_state() == CircuitBreakerState.OPEN
@@ -162,18 +165,14 @@ def test_executor_success_sync_async_and_circuit_breaker_branches():
     assert cb1 is cb2
 
     # execute without circuit breaker (line 295 branch)
-    r3 = _run(
-        ex.execute(sync_op, "op_nocb", circuit_breaker_enabled=False)
-    )
+    r3 = _run(ex.execute(sync_op, "op_nocb", circuit_breaker_enabled=False))
     assert r3.result == "sync_result"
 
 
 def test_executor_retry_and_retryable_branches():
     """Cover _execute_with_retry loops and _is_retryable exception branches."""
     # max_retries=0, default not retryable -> immediate failure
-    ex = get_fault_tolerant_executor(
-        {"max_retries": 0, "base_delay": 0.0, "default_timeout": 1.0}
-    )
+    ex = get_fault_tolerant_executor({"max_retries": 0, "base_delay": 0.0, "default_timeout": 1.0})
 
     def fail_value():
         raise ValueError("no retry")
@@ -183,9 +182,7 @@ def test_executor_retry_and_retryable_branches():
     assert r.failure_type == FailureType.LOGIC_ERROR
 
     # Retryable default (ConnectionError) then success (attempt > 0 branch)
-    ex2 = get_fault_tolerant_executor(
-        {"max_retries": 2, "base_delay": 0.0, "default_timeout": 1.0}
-    )
+    ex2 = get_fault_tolerant_executor({"max_retries": 2, "base_delay": 0.0, "default_timeout": 1.0})
     attempts = []
 
     def flaky_conn():
@@ -221,9 +218,7 @@ def test_executor_retry_and_retryable_branches():
     assert r4.status == ExecutionStatus.FAILED
 
     # Max retries exceeded (attempt < max_retries false on last attempt)
-    ex3 = get_fault_tolerant_executor(
-        {"max_retries": 1, "base_delay": 0.0, "default_timeout": 1.0}
-    )
+    ex3 = get_fault_tolerant_executor({"max_retries": 1, "base_delay": 0.0, "default_timeout": 1.0})
 
     def always_fail():
         raise ConnectionError("always")
@@ -235,9 +230,7 @@ def test_executor_retry_and_retryable_branches():
 
 def test_executor_timeout_and_fallback_branches():
     """Cover timeout path and fallback handler (sync/async/failing)."""
-    ex = get_fault_tolerant_executor(
-        {"default_timeout": 1.0, "base_delay": 0.0}
-    )
+    ex = get_fault_tolerant_executor({"default_timeout": 1.0, "base_delay": 0.0})
 
     # Timeout without fallback -> TIMEOUT
     r1 = _run(ex.execute(_async_slow, "slow", timeout=0.001))
@@ -314,9 +307,18 @@ def test_helper_method_branches():
     assert ex._is_retryable(asyncio.TimeoutError(), default) is True
 
     # _calculate_retry_delay exponential true/false and max_delay cap
-    assert ex._calculate_retry_delay(2, RetryPolicy(base_delay=1.0, exponential_backoff=True)) == 4.0
-    assert ex._calculate_retry_delay(2, RetryPolicy(base_delay=2.0, exponential_backoff=False)) == 2.0
-    assert ex._calculate_retry_delay(10, RetryPolicy(base_delay=1.0, max_delay=5.0, exponential_backoff=True)) == 5.0
+    assert (
+        ex._calculate_retry_delay(2, RetryPolicy(base_delay=1.0, exponential_backoff=True)) == 4.0
+    )
+    assert (
+        ex._calculate_retry_delay(2, RetryPolicy(base_delay=2.0, exponential_backoff=False)) == 2.0
+    )
+    assert (
+        ex._calculate_retry_delay(
+            10, RetryPolicy(base_delay=1.0, max_delay=5.0, exponential_backoff=True)
+        )
+        == 5.0
+    )
 
     # _update_avg_duration branches (total == 0, then > 0)
     ex._update_avg_duration("zero", 1.0)

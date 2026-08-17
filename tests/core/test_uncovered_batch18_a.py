@@ -32,8 +32,8 @@ from core.change_management_engine import (
 )
 from core.localization_adapter import (
     DateFormat,
-    LocalizationAdapter,
     LocaleFormat,
+    LocalizationAdapter,
     NumberFormat,
     UnitSystem,
     get_localization_adapter,
@@ -112,7 +112,10 @@ def reset_change_engine(monkeypatch, tmp_path):
 
 def test_tenant_internal_helpers():
     """Cover quota/billing/date helpers and dict conversion."""
-    assert _next_billing_date() == (datetime.utcnow() + __import__("datetime").timedelta(days=30)).date().isoformat()
+    assert (
+        _next_billing_date()
+        == (datetime.utcnow() + __import__("datetime").timedelta(days=30)).date().isoformat()
+    )
 
     quota = _compute_quota("pro")
     assert quota.maxUsers == 50
@@ -122,13 +125,15 @@ def test_tenant_internal_helpers():
     assert billing.amount == 5000
     assert _compute_billing("nope").amount == 500  # basic fallback
 
-    t = _dict_to_tenant({
-        "id": "t-1",
-        "name": "Demo",
-        "quota": {"cpu": 2.0},
-        "usage": {"users": 5},
-        "billing": {"cycle": "yearly"},
-    })
+    t = _dict_to_tenant(
+        {
+            "id": "t-1",
+            "name": "Demo",
+            "quota": {"cpu": 2.0},
+            "usage": {"users": 5},
+            "billing": {"cycle": "yearly"},
+        }
+    )
     assert t.id == "t-1"
     assert t.quota.cpu == 2.0
     assert t.usage.users == 5
@@ -210,6 +215,7 @@ def test_tenant_load_malformed(reset_tenant_engine, monkeypatch):
 
 def test_workflow_builder_valid():
     """Cover all builder methods and a successful build."""
+
     def condition(ctx):
         return True
 
@@ -254,6 +260,7 @@ def test_workflow_builder_invalid():
 
 def test_dsl_example(monkeypatch):
     """Cover the example DSL usage coroutine without external execution."""
+
     async def fake_execute(self, input_data=None):
         return {"status": "completed"}
 
@@ -269,6 +276,7 @@ def test_dsl_example(monkeypatch):
 
 def test_change_request_lifecycle(reset_change_engine):
     """Cover create, list, get, submit, approve, implement, rollback, reject."""
+
     async def run():
         req = await create_request(
             {"title": "Update DNS", "description": "change dns", "requester": "alice"},
@@ -318,6 +326,7 @@ def test_change_request_lifecycle(reset_change_engine):
 
 def test_change_request_errors_and_reject(reset_change_engine):
     """Cover state-transition error paths and reject."""
+
     async def run():
         req = await create_request(
             {"title": "Patch", "requester": "bob"},
@@ -349,6 +358,7 @@ def test_change_request_errors_and_reject(reset_change_engine):
 
 def test_change_request_state_double_operations(reset_change_engine):
     """Cover double submit/approve/rollback/etc raising errors."""
+
     async def run():
         req = await create_request(
             {"title": "Config", "requester": "carl"},

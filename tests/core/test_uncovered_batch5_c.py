@@ -145,12 +145,14 @@ def test_check_blacklist():
 
 def test_check_blacklist_regex_error(monkeypatch):
     first = True
+
     def fake_search(*args, **kwargs):
         nonlocal first
         if first:
             first = False
             raise re.error("bad")
         return None
+
     monkeypatch.setattr(cg.re, "search", fake_search)
     assert cg._check_blacklist("ls", "ls") is None
 
@@ -322,7 +324,9 @@ def test_execute_powershell_with_timeout_timeout(monkeypatch):
 
 
 def test_execute_powershell_with_timeout_file_not_found(monkeypatch):
-    monkeypatch.setattr(lc.subprocess_runner, "Popen", MagicMock(side_effect=FileNotFoundError("no")))
+    monkeypatch.setattr(
+        lc.subprocess_runner, "Popen", MagicMock(side_effect=FileNotFoundError("no"))
+    )
     p, out, err = lc._execute_powershell_with_timeout("cmd")
     assert p is None
 
@@ -360,15 +364,21 @@ def test_sanitize_log_entries():
 
 
 def test_run_ps_json(monkeypatch):
-    monkeypatch.setattr(lc, "_execute_powershell_with_timeout", MagicMock(return_value=(MagicMock(), "out", "")))
+    monkeypatch.setattr(
+        lc, "_execute_powershell_with_timeout", MagicMock(return_value=(MagicMock(), "out", ""))
+    )
     monkeypatch.setattr(lc, "_parse_powershell_json_output", MagicMock(return_value=[{"x": 1}]))
     monkeypatch.setattr(lc, "_sanitize_log_entries", MagicMock(return_value=[{"x": 1}]))
     assert lc._run_ps_json("cmd") == [{"x": 1}]
 
-    monkeypatch.setattr(lc, "_execute_powershell_with_timeout", MagicMock(return_value=(None, "", "")))
+    monkeypatch.setattr(
+        lc, "_execute_powershell_with_timeout", MagicMock(return_value=(None, "", ""))
+    )
     assert lc._run_ps_json("cmd") == []
 
-    monkeypatch.setattr(lc, "_execute_powershell_with_timeout", MagicMock(return_value=(MagicMock(), "", "")))
+    monkeypatch.setattr(
+        lc, "_execute_powershell_with_timeout", MagicMock(return_value=(MagicMock(), "", ""))
+    )
     assert lc._run_ps_json("cmd") == []
 
 
@@ -403,7 +413,9 @@ async def test_get_linux_logs_special_sources(monkeypatch):
     monkeypatch.setitem(sys.modules, "core.linux_collector", fake)
     assert await lc.get_linux_errors({"host": "h1"}, newest=5)
     assert await lc.get_linux_logs({"host": "h1"}, source="dmesg", newest=5)
-    assert await lc.get_linux_logs({"host": "h1"}, source="unknown", newest=5)  # falls back to syslog
+    assert await lc.get_linux_logs(
+        {"host": "h1"}, source="unknown", newest=5
+    )  # falls back to syslog
 
 
 @pytest.mark.asyncio
@@ -451,6 +463,7 @@ async def test_search_linux_logs_empty_and_errors(monkeypatch):
 def test_register_alert_callback():
     async def cb(status, data):
         pass
+
     hc.register_alert_callback(cb)
     assert cb in hc._alert_callbacks
 
@@ -487,7 +500,9 @@ async def test_check_database_health_degraded(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_check_database_health_unhealthy(monkeypatch):
-    monkeypatch.setattr("core.db_engine.AsyncSessionLocal", MagicMock(side_effect=Exception("DB down")))
+    monkeypatch.setattr(
+        "core.db_engine.AsyncSessionLocal", MagicMock(side_effect=Exception("DB down"))
+    )
     result = await hc.check_database_health()
     assert result["status"] == "unhealthy"
 
@@ -498,7 +513,9 @@ async def test_check_redis_health_healthy_and_degraded(monkeypatch):
     monkeypatch.setattr(hc.config, "REDIS_PORT", 6379)
     monkeypatch.setattr(hc.config, "REDIS_DB", 0)
 
-    client = MagicMock(ping=MagicMock(), info=MagicMock(return_value={"connected_clients": 1, "used_memory": 1024}))
+    client = MagicMock(
+        ping=MagicMock(), info=MagicMock(return_value={"connected_clients": 1, "used_memory": 1024})
+    )
     fake_redis = types.SimpleNamespace(Redis=MagicMock(return_value=client))
     monkeypatch.setitem(sys.modules, "redis", fake_redis)
     monkeypatch.setattr(hc.time, "time", MagicMock(side_effect=[0, 0.00001]))
@@ -567,12 +584,28 @@ async def test_perform_health_checks(monkeypatch):
     callback = AsyncMock()
     hc.register_alert_callback(callback)
 
-    monkeypatch.setattr(hc, "check_database_health", AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}))
-    monkeypatch.setattr(hc, "check_redis_health", AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}))
+    monkeypatch.setattr(
+        hc,
+        "check_database_health",
+        AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}),
+    )
+    monkeypatch.setattr(
+        hc,
+        "check_redis_health",
+        AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}),
+    )
     monkeypatch.setattr(hc, "check_metrics_health", AsyncMock(return_value={"status": "healthy"}))
-    monkeypatch.setattr(hc, "check_alert_engine_health", AsyncMock(return_value={"status": "healthy"}))
-    monkeypatch.setattr(hc, "check_repair_engine_health", AsyncMock(return_value={"status": "healthy"}))
-    monkeypatch.setattr(hc, "check_system_resources", AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}))
+    monkeypatch.setattr(
+        hc, "check_alert_engine_health", AsyncMock(return_value={"status": "healthy"})
+    )
+    monkeypatch.setattr(
+        hc, "check_repair_engine_health", AsyncMock(return_value={"status": "healthy"})
+    )
+    monkeypatch.setattr(
+        hc,
+        "check_system_resources",
+        AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}),
+    )
 
     result = await hc.perform_health_checks()
     assert result["overall_status"] == "healthy"
@@ -585,12 +618,32 @@ async def test_perform_health_checks_unhealthy_and_exception(monkeypatch):
     failing_callback = AsyncMock(side_effect=Exception("cb fail"))
     hc._alert_callbacks = [callback, failing_callback]
 
-    monkeypatch.setattr(hc, "check_database_health", AsyncMock(return_value={"status": "unhealthy", "message": "db bad"}))
-    monkeypatch.setattr(hc, "check_redis_health", AsyncMock(return_value={"status": "degraded", "threshold_exceeded": True, "message": "redis slow"}))
-    monkeypatch.setattr(hc, "check_metrics_health", AsyncMock(side_effect=Exception("metrics boom")))
-    monkeypatch.setattr(hc, "check_alert_engine_health", AsyncMock(return_value={"status": "healthy"}))
-    monkeypatch.setattr(hc, "check_repair_engine_health", AsyncMock(return_value={"status": "healthy"}))
-    monkeypatch.setattr(hc, "check_system_resources", AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}))
+    monkeypatch.setattr(
+        hc,
+        "check_database_health",
+        AsyncMock(return_value={"status": "unhealthy", "message": "db bad"}),
+    )
+    monkeypatch.setattr(
+        hc,
+        "check_redis_health",
+        AsyncMock(
+            return_value={"status": "degraded", "threshold_exceeded": True, "message": "redis slow"}
+        ),
+    )
+    monkeypatch.setattr(
+        hc, "check_metrics_health", AsyncMock(side_effect=Exception("metrics boom"))
+    )
+    monkeypatch.setattr(
+        hc, "check_alert_engine_health", AsyncMock(return_value={"status": "healthy"})
+    )
+    monkeypatch.setattr(
+        hc, "check_repair_engine_health", AsyncMock(return_value={"status": "healthy"})
+    )
+    monkeypatch.setattr(
+        hc,
+        "check_system_resources",
+        AsyncMock(return_value={"status": "healthy", "threshold_exceeded": False}),
+    )
 
     result = await hc.perform_health_checks()
     assert result["overall_status"] == "unhealthy"
@@ -660,13 +713,25 @@ def test_get_recovery_suggestions():
     redis_bad = {"components": {"redis": {"status": "unhealthy"}}}
     assert any("Redis" in s for s in hc.get_recovery_suggestions(redis_bad))
 
-    cpu_bad = {"components": {"system_resources": {"status": "degraded", "issues": ["High CPU usage: 95%"]}}}
+    cpu_bad = {
+        "components": {
+            "system_resources": {"status": "degraded", "issues": ["High CPU usage: 95%"]}
+        }
+    }
     assert any("CPU" in s for s in hc.get_recovery_suggestions(cpu_bad))
 
-    mem_bad = {"components": {"system_resources": {"status": "degraded", "issues": ["High memory usage: 95%"]}}}
+    mem_bad = {
+        "components": {
+            "system_resources": {"status": "degraded", "issues": ["High memory usage: 95%"]}
+        }
+    }
     assert any("memory" in s for s in hc.get_recovery_suggestions(mem_bad))
 
-    disk_bad = {"components": {"system_resources": {"status": "degraded", "issues": ["High disk usage: 95%"]}}}
+    disk_bad = {
+        "components": {
+            "system_resources": {"status": "degraded", "issues": ["High disk usage: 95%"]}
+        }
+    }
     assert any("disk" in s or "storage" in s for s in hc.get_recovery_suggestions(disk_bad))
 
     alert_bad = {"components": {"alert_engine": {"status": "unhealthy"}}}

@@ -1,4 +1,5 @@
 import pytest
+
 # -*- coding: utf-8 -*-
 """Tests for api/rag_history_router.py."""
 

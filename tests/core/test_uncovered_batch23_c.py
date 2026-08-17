@@ -25,12 +25,15 @@ pytestmark = [pytest.mark.core]
 # core.call_chain_search
 # -----------------------------------------------------------------------------
 
+
 @pytest.fixture
 def chain_manager():
     return ccs.get_call_chain_search_manager()
 
 
-def _sample_trace(trace_id, service, operation, status, duration, start, tags=None, metadata=None, **kwargs):
+def _sample_trace(
+    trace_id, service, operation, status, duration, start, tags=None, metadata=None, **kwargs
+):
     data = {
         "trace_id": trace_id,
         "service_name": service,
@@ -47,8 +50,12 @@ def _sample_trace(trace_id, service, operation, status, duration, start, tags=No
 
 
 def test_add_and_search_call_chains(chain_manager):
-    t1 = _sample_trace("t1", "svc-a", "op-x", "ok", 120, datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc))
-    t2 = _sample_trace("t2", "svc-b", "op-y", "error", 250, datetime(2024, 1, 1, 12, 1, 0, tzinfo=timezone.utc))
+    t1 = _sample_trace(
+        "t1", "svc-a", "op-x", "ok", 120, datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    )
+    t2 = _sample_trace(
+        "t2", "svc-b", "op-y", "error", 250, datetime(2024, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+    )
 
     chain_manager.add_call_chain(t1)
     chain_manager.add_call_chain(t2)
@@ -69,8 +76,12 @@ def test_add_and_search_call_chains(chain_manager):
 def test_search_by_criteria_all_paths(chain_manager):
     start = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     t1 = _sample_trace("t1", "svc-a", "op-x", "ok", 120, start, tags={"env": "prod"}, region="us")
-    t2 = _sample_trace("t2", "svc-a", "op-y", "error", 250, start + timedelta(minutes=2), tags={"env": "dev"})
-    t3 = _sample_trace("t3", "svc-b", "op-x", "ok", 80, start + timedelta(minutes=5), tags={"env": "prod"})
+    t2 = _sample_trace(
+        "t2", "svc-a", "op-y", "error", 250, start + timedelta(minutes=2), tags={"env": "dev"}
+    )
+    t3 = _sample_trace(
+        "t3", "svc-b", "op-x", "ok", 80, start + timedelta(minutes=5), tags={"env": "prod"}
+    )
 
     for t in (t1, t2, t3):
         chain_manager.add_call_chain(t)
@@ -121,7 +132,12 @@ def test_search_by_criteria_all_paths(chain_manager):
 def test_custom_filter_operators(chain_manager):
     start = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     t = _sample_trace(
-        "op", "svc", "op", "ok", 120, start,
+        "op",
+        "svc",
+        "op",
+        "ok",
+        120,
+        start,
         count=10,
         name="hello world",
         items=["a", "b"],
@@ -167,20 +183,23 @@ def test_parse_datetime_and_missing_fields(chain_manager):
     assert chain_manager.search_by_trace_id("missing") is None
 
     # start_time as datetime object directly
-    chain_manager.add_call_chain({
-        "trace_id": "dt",
-        "service_name": "svc",
-        "operation_name": "op",
-        "status": "ok",
-        "duration_ms": 100,
-        "start_time": datetime.now(timezone.utc),
-    })
+    chain_manager.add_call_chain(
+        {
+            "trace_id": "dt",
+            "service_name": "svc",
+            "operation_name": "op",
+            "status": "ok",
+            "duration_ms": 100,
+            "start_time": datetime.now(timezone.utc),
+        }
+    )
     assert chain_manager.search_by_trace_id("dt") is not None
 
 
 # -----------------------------------------------------------------------------
 # core.api_response_standard
 # -----------------------------------------------------------------------------
+
 
 def test_api_response_dicts():
     ok = api_resp.create_success_response({"id": 1}, message="Created")
@@ -224,16 +243,20 @@ def test_pagination_and_paginated_response():
 
 def test_api_response_middleware_wraps_json():
     async def app(scope, receive, send):
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [(b"content-type", b"application/json")],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": json.dumps({"hello": "world"}).encode(),
-            "more_body": False,
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"application/json")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": json.dumps({"hello": "world"}).encode(),
+                "more_body": False,
+            }
+        )
 
     middleware = api_resp.APIResponseMiddleware(app)
     scope = {"type": "http"}
@@ -252,16 +275,20 @@ def test_api_response_middleware_wraps_json():
 
 def test_api_response_middleware_error_and_non_json():
     async def error_app(scope, receive, send):
-        await send({
-            "type": "http.response.start",
-            "status": 422,
-            "headers": [(b"content-type", b"application/json")],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": json.dumps({"detail": "invalid"}).encode(),
-            "more_body": False,
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 422,
+                "headers": [(b"content-type", b"application/json")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": json.dumps({"detail": "invalid"}).encode(),
+                "more_body": False,
+            }
+        )
 
     received = []
 
@@ -276,16 +303,20 @@ def test_api_response_middleware_error_and_non_json():
 
     # Non-json content type is passed through unchanged
     async def plain_app(scope, receive, send):
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [(b"content-type", b"text/plain")],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": b"ok",
-            "more_body": False,
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"text/plain")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"ok",
+                "more_body": False,
+            }
+        )
 
     received2 = []
 
@@ -313,11 +344,13 @@ def test_api_response_middleware_error_and_non_json():
 def test_api_response_middleware_already_wrapped():
     async def app(scope, receive, send):
         payload = json.dumps({"code": 0, "data": []}).encode()
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [(b"content-type", b"application/json")],
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"application/json")],
+            }
+        )
         await send({"type": "http.response.body", "body": payload, "more_body": False})
 
     received = []
@@ -343,16 +376,20 @@ def test_create_http_exception():
 # core.plugin_marketplace
 # -----------------------------------------------------------------------------
 
+
 @pytest.fixture
 def marketplace():
     storage = MagicMock()
     storage.load.return_value = {}
     storage.save.return_value = None
-    return pm.create_plugin_marketplace(storage=storage, config={
-        "private_key": "secret-key",
-        "public_key": "public-key",
-        "signature_algorithm": "SHA256",
-    })
+    return pm.create_plugin_marketplace(
+        storage=storage,
+        config={
+            "private_key": "secret-key",
+            "public_key": "public-key",
+            "signature_algorithm": "SHA256",
+        },
+    )
 
 
 def _package(data: bytes = b"package-data"):
@@ -572,13 +609,16 @@ def test_create_plugin_marketplace_failure(monkeypatch):
 # core.performance_optimizer
 # -----------------------------------------------------------------------------
 
+
 @pytest.fixture
 def po(monkeypatch):
     import psutil
+
     monkeypatch.setattr(psutil, "cpu_percent", lambda interval=None: 5.0)
     monkeypatch.setattr(psutil, "virtual_memory", lambda: type("M", (), {"percent": 55.0})())
     monkeypatch.setattr(threading.Thread, "start", lambda self: None)
     import core.performance_optimizer as po_module
+
     return po_module
 
 
@@ -701,23 +741,27 @@ def test_internal_monitoring_methods(po, monkeypatch):
     # Cleanup
     old = now - timedelta(days=2)
     opt.metrics_history["response_time"].append((old, 1.0))
-    opt.bottlenecks.append(po.PerformanceBottleneck(
-        bottleneck_id="old",
-        component="x",
-        metric=po.PerformanceMetric.CPU_USAGE,
-        severity="critical",
-        current_value=1.0,
-        threshold_value=1.0,
-        description="x",
-        detected_at=now - timedelta(hours=2),
-    ))
-    opt.performance_alerts.append({
-        "alert_id": "old_alert",
-        "metric": "x",
-        "current_value": 1.0,
-        "threshold": 1.0,
-        "timestamp": (now - timedelta(hours=8)).isoformat(),
-    })
+    opt.bottlenecks.append(
+        po.PerformanceBottleneck(
+            bottleneck_id="old",
+            component="x",
+            metric=po.PerformanceMetric.CPU_USAGE,
+            severity="critical",
+            current_value=1.0,
+            threshold_value=1.0,
+            description="x",
+            detected_at=now - timedelta(hours=2),
+        )
+    )
+    opt.performance_alerts.append(
+        {
+            "alert_id": "old_alert",
+            "metric": "x",
+            "current_value": 1.0,
+            "threshold": 1.0,
+            "timestamp": (now - timedelta(hours=8)).isoformat(),
+        }
+    )
     opt._cleanup_old_metrics()
     assert all(ts > now - timedelta(hours=25) for ts, _ in opt.metrics_history["response_time"])
     assert not any(b.bottleneck_id == "old" for b in opt.bottlenecks)
@@ -763,6 +807,7 @@ def test_cache_disabled_mode(po, monkeypatch):
 def test_memory_monitor_failure(po, monkeypatch):
     def _boom():
         raise RuntimeError("psutil unavailable")
+
     monkeypatch.setattr(po.psutil, "virtual_memory", _boom)
     opt = po.PerformanceOptimizer()
     assert opt._initialize_memory_monitor() is False
@@ -793,6 +838,7 @@ def test_optimize_memory_usage_handles_cache_clear_error(po, monkeypatch):
 # core.concurrency_control
 # -----------------------------------------------------------------------------
 
+
 def test_concurrency_control_default():
     assert cc.AGENT_SESSION_LIMIT == 50
     assert cc.agent_session_semaphore is not None
@@ -802,6 +848,7 @@ def test_concurrency_control_default():
     async def _runner():
         async def _coro():
             return "done"
+
         return await controller.run_with_limit(_coro())
 
     assert asyncio.run(_runner()) == "done"

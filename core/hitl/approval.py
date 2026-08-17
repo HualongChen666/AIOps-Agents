@@ -203,7 +203,12 @@ class ApprovalWorkflow:
         return request
 
     def approve_step(
-        self, request_id: str, step_id: str, approver: str, comment: Optional[str] = None, tenant_id: str | None = None
+        self,
+        request_id: str,
+        step_id: str,
+        approver: str,
+        comment: Optional[str] = None,
+        tenant_id: str | None = None,
     ) -> bool:
         """
         Approve a step
@@ -259,7 +264,12 @@ class ApprovalWorkflow:
             return True
 
     def reject_step(
-        self, request_id: str, step_id: str, approver: str, comment: Optional[str] = None, tenant_id: str | None = None
+        self,
+        request_id: str,
+        step_id: str,
+        approver: str,
+        comment: Optional[str] = None,
+        tenant_id: str | None = None,
     ) -> bool:
         """
         Reject a step
@@ -330,8 +340,9 @@ class ApprovalWorkflow:
                     request.current_step = i
                     break
 
-    def cancel_request(self, request_id: str, reason: str = "manual takeover",
-                       tenant_id: str | None = None) -> bool:
+    def cancel_request(
+        self, request_id: str, reason: str = "manual takeover", tenant_id: str | None = None
+    ) -> bool:
         """Cancel / manually take over an active workflow and move it to completed."""
         with self._get_request_lock(request_id):
             request = self.active_requests.get(request_id)

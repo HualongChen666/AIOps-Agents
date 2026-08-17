@@ -271,10 +271,12 @@ def test_validate_dict_and_list(validator):
     is_valid, error = validator.validate_dict({"name": "safe", "items": ["a", "b"]})
     assert is_valid is True
 
-    is_valid, error = validator.validate_dict({
-        "name": "safe",
-        "nested": {"bad": "<script>alert(1)</script>"},
-    })
+    is_valid, error = validator.validate_dict(
+        {
+            "name": "safe",
+            "nested": {"bad": "<script>alert(1)</script>"},
+        }
+    )
     assert is_valid is False
     assert "XSS" in error
 

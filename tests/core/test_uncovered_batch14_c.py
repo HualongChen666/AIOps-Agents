@@ -161,7 +161,9 @@ def test_timeout_and_validity(fresh_workflow, monkeypatch):
     assert wf.is_timed_out(req.request_id) is False
 
     # fake created_at in the past
-    req.created_at = __import__("datetime").datetime.now() - __import__("datetime").timedelta(minutes=2)
+    req.created_at = __import__("datetime").datetime.now() - __import__("datetime").timedelta(
+        minutes=2
+    )
     assert wf.is_timed_out(req.request_id) is True
 
     # completed / invalid request
@@ -177,7 +179,9 @@ def test_timeout_and_validity(fresh_workflow, monkeypatch):
     wf2.approve_step(req2.request_id, "s1", "alice")
     assert wf2.is_approval_valid(req2.request_id) is True
     # expire
-    s1b.expires_at = __import__("datetime").datetime.now() - __import__("datetime").timedelta(seconds=1)
+    s1b.expires_at = __import__("datetime").datetime.now() - __import__("datetime").timedelta(
+        seconds=1
+    )
     assert wf2.is_approval_valid(req2.request_id) is False
 
 
@@ -220,6 +224,7 @@ def test_revalidate_before_execution(fresh_workflow):
     # async precondition
     async def async_ok(r):
         return True
+
     req.precondition_checker = async_ok
     ok, _ = wf.revalidate_before_execution(req.request_id)
     assert ok is True
@@ -308,9 +313,7 @@ async def test_run_experiment_concurrent_error(chaos):
 async def test_run_latency_injection(chaos, monkeypatch):
     chaos.enable()
     monkeypatch.setattr(ce._random, "randint", lambda a, b: 200)
-    result = await chaos.run_experiment(
-        ce.ChaosExperiment.LATENCY_INJECTION, {"delay_ms": 200}
-    )
+    result = await chaos.run_experiment(ce.ChaosExperiment.LATENCY_INJECTION, {"delay_ms": 200})
     assert result.status == ce.ExperimentStatus.COMPLETED
     assert result.success is True
     assert result.metrics["injected_latency_ms"] == 200
@@ -374,9 +377,7 @@ async def test_run_unknown_experiment(chaos):
 @pytest.mark.asyncio
 async def test_run_experiment_failure(chaos, monkeypatch):
     chaos.enable()
-    monkeypatch.setattr(
-        chaos, "_inject_latency", AsyncMock(side_effect=RuntimeError("boom"))
-    )
+    monkeypatch.setattr(chaos, "_inject_latency", AsyncMock(side_effect=RuntimeError("boom")))
     result = await chaos.run_experiment(ce.ChaosExperiment.LATENCY_INJECTION)
     assert result.status == ce.ExperimentStatus.FAILED
     assert result.success is False
@@ -388,9 +389,7 @@ async def test_experiment_history_and_stats(chaos, monkeypatch):
     chaos.enable()
     await chaos.run_experiment(ce.ChaosExperiment.LATENCY_INJECTION)
     await chaos.run_experiment(ce.ChaosExperiment.FAULT_INJECTION, {"fault_type": "api_error"})
-    await chaos.run_experiment(
-        ce.ChaosExperiment.SERVICE_FAILURE, {"service_name": "x"}
-    )
+    await chaos.run_experiment(ce.ChaosExperiment.SERVICE_FAILURE, {"service_name": "x"})
 
     history = chaos.get_experiment_history(limit=2)
     assert len(history) == 2
@@ -645,9 +644,7 @@ def test_alert_manager_thresholds():
     assert triggered[0].alert_type == "threshold"
 
     # disabled alert
-    manager.threshold_alerts["t2"] = alerting.ThresholdAlert(
-        "t2", "error_rate", 0.1, enabled=False
-    )
+    manager.threshold_alerts["t2"] = alerting.ThresholdAlert("t2", "error_rate", 0.1, enabled=False)
     triggered = manager.check_thresholds()
     assert len(triggered) == 1  # t1 still active
 
@@ -683,9 +680,11 @@ def test_alert_manager_anomalies_and_run_check(monkeypatch):
     bad_handler.handle_alert = MagicMock(side_effect=RuntimeError("boom"))
     manager.add_alert_handler(bad_handler)
     monkeypatch.setattr(alerting.logger, "error", MagicMock())
-    manager.trigger_alert(alerting.LogAlert(
-        "a", "t", alerting.AlertSeverity.INFO, "m", __import__("datetime").datetime.now()
-    ))
+    manager.trigger_alert(
+        alerting.LogAlert(
+            "a", "t", alerting.AlertSeverity.INFO, "m", __import__("datetime").datetime.now()
+        )
+    )
     alerting.logger.error.assert_called_once()
 
 
@@ -730,13 +729,17 @@ async def test_hybrid_retrieval():
         DocumentChunk("c2", "d1", "world", 0, {}),
     ]
     s1 = MagicMock(spec=retriever.RetrievalStrategy)
-    s1.retrieve = AsyncMock(return_value=[
-        retriever.RetrievalResult(chunk=chunks[0], score=1.0, metadata={}),
-    ])
+    s1.retrieve = AsyncMock(
+        return_value=[
+            retriever.RetrievalResult(chunk=chunks[0], score=1.0, metadata={}),
+        ]
+    )
     s2 = MagicMock(spec=retriever.RetrievalStrategy)
-    s2.retrieve = AsyncMock(return_value=[
-        retriever.RetrievalResult(chunk=chunks[1], score=2.0, metadata={}),
-    ])
+    s2.retrieve = AsyncMock(
+        return_value=[
+            retriever.RetrievalResult(chunk=chunks[1], score=2.0, metadata={}),
+        ]
+    )
 
     hybrid = retriever.HybridRetrieval([s1, s2], weights=[0.5, 1.0])
     results = await hybrid.retrieve("q", top_k=1)
@@ -792,9 +795,13 @@ def test_bm25_retrieval_with_fake_rankbm25(monkeypatch):
 async def test_retriever_primary_and_fallback():
     chunk = DocumentChunk("c1", "d1", "content", 0, {})
     primary = MagicMock(spec=retriever.RetrievalStrategy)
-    primary.retrieve = AsyncMock(return_value=[retriever.RetrievalResult(chunk=chunk, score=1.0, metadata={})])
+    primary.retrieve = AsyncMock(
+        return_value=[retriever.RetrievalResult(chunk=chunk, score=1.0, metadata={})]
+    )
     fallback = MagicMock(spec=retriever.RetrievalStrategy)
-    fallback.retrieve = AsyncMock(return_value=[retriever.RetrievalResult(chunk=chunk, score=0.5, metadata={})])
+    fallback.retrieve = AsyncMock(
+        return_value=[retriever.RetrievalResult(chunk=chunk, score=0.5, metadata={})]
+    )
 
     r = retriever.Retriever(primary, [fallback])
     results = await r.retrieve("q", top_k=1)

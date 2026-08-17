@@ -9,23 +9,24 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from services.agent_orchestration_service.retry import AgentRetryEngine, RetryPolicy
 from services.alert_service.aggregator import TimeWindowAggregator
 from services.alert_service.dedup import Deduplicator
 from services.alert_service.noise_suppressor import NoiseSuppressor
-from services.alert_service.repository import InMemoryAlertRepository, get_repository as get_alert_repo
+from services.alert_service.repository import (
+    InMemoryAlertRepository,
+)
+from services.alert_service.repository import get_repository as get_alert_repo
 from services.alert_service.schemas import Alert, AlertSeverity, SuppressionRule
-
 from services.audit_service.event_tracker import AuditEventTracker
 from services.audit_service.repository import InMemoryAuditRepository
 from services.audit_service.retention import RetentionManager
 from services.audit_service.schemas import AuditEvent, AuditEventSeverity, AuditEventStatus
-
-from services.agent_orchestration_service.retry import AgentRetryEngine, RetryPolicy
-
-from services.repair_service.executor import app as executor_api, RunbookExecutor
-from services.repair_service.orchestrator import app as orchestrator_api, OrchestratorApp
+from services.repair_service.executor import RunbookExecutor
+from services.repair_service.executor import app as executor_api
+from services.repair_service.orchestrator import OrchestratorApp
+from services.repair_service.orchestrator import app as orchestrator_api
 from services.repair_service.rollback import RollbackEngine, SnapshotStore
-from services.repair_service.state_machine import RepairStateMachine
 from services.repair_service.schemas import (
     PlatformType,
     RepairExecutionResult,
@@ -36,6 +37,7 @@ from services.repair_service.schemas import (
     RepairStrategy,
     RepairTask,
 )
+from services.repair_service.state_machine import RepairStateMachine
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +184,9 @@ def test_deduplicator_eviction(monkeypatch):
         host="h1",
         level=AlertSeverity.WARNING,
     )
-    monkeypatch.setattr("services.alert_service.dedup.time.time", MagicMock(side_effect=[0.0, 1000.0]))
+    monkeypatch.setattr(
+        "services.alert_service.dedup.time.time", MagicMock(side_effect=[0.0, 1000.0])
+    )
     assert d.is_duplicate(a) is False
     # Old entry expired, should be treated as new alert
     assert d.is_duplicate(a) is False
@@ -191,7 +195,10 @@ def test_deduplicator_eviction(monkeypatch):
 def test_deduplicator_max_entries(monkeypatch):
     d = Deduplicator(window_seconds=300, max_entries=1)
     # The deduplicator evicts before insertion, so size is capped at max + 1.
-    monkeypatch.setattr("services.alert_service.dedup.time.time", MagicMock(side_effect=[float(i) for i in range(6)]))
+    monkeypatch.setattr(
+        "services.alert_service.dedup.time.time",
+        MagicMock(side_effect=[float(i) for i in range(6)]),
+    )
     for i in range(5):
         a = Alert(id=str(i), title=f"t{i}", category="c", alert_type="a", metric="m", host=f"h{i}")
         d.is_duplicate(a)
@@ -496,7 +503,9 @@ def test_retry_jitter_delay(monkeypatch):
         def random(self):
             return 0.5
 
-    monkeypatch.setattr("services.agent_orchestration_service.retry.secrets.SystemRandom", FakeRandom)
+    monkeypatch.setattr(
+        "services.agent_orchestration_service.retry.secrets.SystemRandom", FakeRandom
+    )
     delay = engine._compute_delay(1, policy)
     assert delay == policy.base_delay_seconds * (0.5 + 0.5)
 

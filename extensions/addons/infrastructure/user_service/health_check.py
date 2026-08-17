@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import time
+
 from services.user_service.schemas import ServiceHealth
 
 _START_TIME = time.time()
@@ -17,6 +18,7 @@ class HealthCheckEngine:
         status = "ok"
         try:
             import psutil
+
             if psutil.virtual_memory().percent > 95 or psutil.disk_usage("/").percent > 98:
                 status = "degraded"
         except Exception:

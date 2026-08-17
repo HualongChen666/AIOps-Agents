@@ -27,7 +27,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNNER = Path(__file__).with_name("main_integration_runner.py")
-BROKEN_ADDON_FIXTURE = REPO_ROOT / "tests" / "integration" / "fixtures" / "broken_hardware_remediation"
+BROKEN_ADDON_FIXTURE = (
+    REPO_ROOT / "tests" / "integration" / "fixtures" / "broken_hardware_remediation"
+)
 
 # (scenario, env_overrides)
 SCENARIOS = [
@@ -121,7 +123,9 @@ def test_main_startup_scenario(scenario, overrides):
         if completed.returncode != 0 or not Path(result_file).exists():
             print("STDOUT:\n", completed.stdout, file=sys.stderr)
             print("STDERR:\n", completed.stderr, file=sys.stderr)
-            pytest.fail(f"integration runner for scenario '{scenario}' exited with {completed.returncode}")
+            pytest.fail(
+                f"integration runner for scenario '{scenario}' exited with {completed.returncode}"
+            )
 
         result = json.loads(Path(result_file).read_text(encoding="utf-8"))
         assert result.get("status") == "ok", (

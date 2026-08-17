@@ -115,7 +115,9 @@ def _run_addon_failure(client):
     # The broken hardware_remediation fixture raises on import; main.py must catch
     # the error and continue to start up.
     health = client.get("/health")
-    assert health.status_code == 200, f"addon-failure startup: /health returned {health.status_code}"
+    assert (
+        health.status_code == 200
+    ), f"addon-failure startup: /health returned {health.status_code}"
     return {"addon_failure_degraded": True}
 
 
@@ -146,7 +148,9 @@ def _run_tls_enforced(client):
 def _run_disable_security_scan(client):
     # AIOPS_DISABLE_SECURITY_SCAN=1 should skip the security testing system init.
     health = client.get("/health")
-    assert health.status_code == 200, f"disable-security-scan startup: /health returned {health.status_code}"
+    assert (
+        health.status_code == 200
+    ), f"disable-security-scan startup: /health returned {health.status_code}"
     return {"security_scan_skipped": True}
 
 

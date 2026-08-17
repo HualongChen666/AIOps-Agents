@@ -10,7 +10,6 @@ import json
 import pytest
 
 from modules.apm.dependency_analyzer import (
-    create_dependency_analyzer,
     DependencyAnalyzer,
     DependencyDiscoverer,
     DependencyEdge,
@@ -20,6 +19,7 @@ from modules.apm.dependency_analyzer import (
     HealthStatus,
     ServiceNode,
     TopologyVisualizer,
+    create_dependency_analyzer,
 )
 
 
@@ -100,7 +100,9 @@ def test_config_discovery_existing_dep_and_invalid_type():
     assert topology.nodes["cache"].name == "Cache"  # first add from bad-type dep
     assert len(topology.edges) == 5  # duplicate dep still creates another edge
 
-    web_api_types = {e.dependency_type for e in topology.edges if e.source == "web" and e.target == "api"}
+    web_api_types = {
+        e.dependency_type for e in topology.edges if e.source == "web" and e.target == "api"
+    }
     assert DependencyType.SYNC in web_api_types
     assert DependencyType.MESSAGE_QUEUE in web_api_types
     other = {(e.source, e.target): e.dependency_type for e in topology.edges}
@@ -207,20 +209,28 @@ def test_health_assessor_all_branches():
 
     # Edge health: error_rate thresholds
     assert (
-        assessor.assess_dependency_health(DependencyEdge("A", "B", DependencyType.SYNC, error_rate=0.1))
+        assessor.assess_dependency_health(
+            DependencyEdge("A", "B", DependencyType.SYNC, error_rate=0.1)
+        )
         == HealthStatus.UNHEALTHY
     )
     assert (
-        assessor.assess_dependency_health(DependencyEdge("A", "B", DependencyType.SYNC, error_rate=0.03))
+        assessor.assess_dependency_health(
+            DependencyEdge("A", "B", DependencyType.SYNC, error_rate=0.03)
+        )
         == HealthStatus.DEGRADED
     )
     # Latency thresholds
     assert (
-        assessor.assess_dependency_health(DependencyEdge("A", "B", DependencyType.SYNC, latency=6000))
+        assessor.assess_dependency_health(
+            DependencyEdge("A", "B", DependencyType.SYNC, latency=6000)
+        )
         == HealthStatus.UNHEALTHY
     )
     assert (
-        assessor.assess_dependency_health(DependencyEdge("A", "B", DependencyType.SYNC, latency=2000))
+        assessor.assess_dependency_health(
+            DependencyEdge("A", "B", DependencyType.SYNC, latency=2000)
+        )
         == HealthStatus.DEGRADED
     )
     # Low error_rate falls through to latency checks, then both fall through to HEALTHY
@@ -238,7 +248,9 @@ def test_health_assessor_all_branches():
         == HealthStatus.HEALTHY
     )
     assert (
-        assessor.assess_dependency_health(DependencyEdge("A", "B", DependencyType.SYNC, latency=100))
+        assessor.assess_dependency_health(
+            DependencyEdge("A", "B", DependencyType.SYNC, latency=100)
+        )
         == HealthStatus.HEALTHY
     )
 
@@ -299,7 +311,11 @@ def test_analyzer_factory_and_full_workflow():
     config_data = {
         "services": [
             {"id": "frontend", "name": "Frontend", "dependencies": []},
-            {"id": "backend", "name": "Backend", "dependencies": [{"id": "frontend", "type": "sync"}]},
+            {
+                "id": "backend",
+                "name": "Backend",
+                "dependencies": [{"id": "frontend", "type": "sync"}],
+            },
         ]
     }
     topology = analyzer.discover_topology("config", config_data=config_data)

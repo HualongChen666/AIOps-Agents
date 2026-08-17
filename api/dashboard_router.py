@@ -4,7 +4,6 @@
 Provides a minimal health-like endpoint for the dashboard overview.
 """
 
-
 from fastapi import APIRouter, Depends
 
 from config import LINUX_HOSTS
@@ -22,9 +21,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
         200: {
             "description": "仪表盘摘要数据",
             "content": {
-                "application/json": {
-                    "example": {"status": "ok", "message": "Dashboard summary"}
-                }
+                "application/json": {"example": {"status": "ok", "message": "Dashboard summary"}}
             },
         },
         401: {"description": "未授权"},

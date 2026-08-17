@@ -56,6 +56,7 @@ def _reset_notify_state(monkeypatch):
 # alert_engine remaining branches
 # ============================================================
 
+
 def test_check_and_generate_alerts_invalid_inputs():
     """``check_and_generate_alerts`` defensively handles bad inputs."""
     assert alert_engine.check_and_generate_alerts(None) == []
@@ -110,7 +111,11 @@ async def test_check_linux_security_alerts_edge_cases():
         {"status": "error", "name": "bad-status"},
         {"status": "ok", "name": "bad-metrics", "metrics": "nope"},
         {"status": "ok", "name": "timeout", "metrics": {"ssh_failed_logins": {"value": "TIMEOUT"}}},
-        {"status": "ok", "name": "error", "metrics": {"ssh_failed_logins": {"value": "ERROR: foo"}}},
+        {
+            "status": "ok",
+            "name": "error",
+            "metrics": {"ssh_failed_logins": {"value": "ERROR: foo"}},
+        },
         {"status": "ok", "name": "invalid", "metrics": {"ssh_failed_logins": {"value": "abc"}}},
     ]
     alerts = await alert_engine.check_linux_security_alerts(results)
@@ -206,6 +211,7 @@ def test_alert_trend_predictor_linear_regression():
 # notify_engine remaining branches
 # ============================================================
 
+
 def test_email_validation_and_cooldown():
     """``_is_valid_email`` rejects malformed addresses and cooldown works."""
     assert notify_engine._is_valid_email("ops@example.com") is True
@@ -220,9 +226,7 @@ def test_email_validation_and_cooldown():
 
 async def test_notification_query_and_read_not_found():
     """History, status, and read APIs handle missing records gracefully."""
-    notify_engine._track_notification_status(
-        {"id": "N1", "level": "warning"}, "wecom", "delivered"
-    )
+    notify_engine._track_notification_status({"id": "N1", "level": "warning"}, "wecom", "delivered")
     history = await notify_engine.query_notifications(limit=10, severity="warning")
     assert any(r["id"] == "N1" for r in history)
 
@@ -232,7 +236,9 @@ async def test_notification_query_and_read_not_found():
 
     # get_notification_history exception fallback
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(notify_engine, "query_notifications", AsyncMock(side_effect=RuntimeError("boom")))
+        mp.setattr(
+            notify_engine, "query_notifications", AsyncMock(side_effect=RuntimeError("boom"))
+        )
         result = await notify_engine.get_notification_history(limit=5)
         assert result == []
 
@@ -308,23 +314,31 @@ async def test_post_webhook_error_paths(monkeypatch):
         client.post = AsyncMock(side_effect=exc)
         return client
 
-    monkeypatch.setattr(notify_engine, "_get_http_client", lambda: make_client(
-        httpx.HTTPStatusError("boom", request=req, response=httpx.Response(500, request=req))
-    ))
+    monkeypatch.setattr(
+        notify_engine,
+        "_get_http_client",
+        lambda: make_client(
+            httpx.HTTPStatusError("boom", request=req, response=httpx.Response(500, request=req))
+        ),
+    )
     r = await notify_engine._post_webhook("https://example.com/hook", {"x": 1}, "wecom")
     assert r["success"] is False
     assert "500" in r["error"]
 
-    monkeypatch.setattr(notify_engine, "_get_http_client", lambda: make_client(
-        httpx.TimeoutException("timeout", request=req)
-    ))
+    monkeypatch.setattr(
+        notify_engine,
+        "_get_http_client",
+        lambda: make_client(httpx.TimeoutException("timeout", request=req)),
+    )
     r = await notify_engine._post_webhook("https://example.com/hook", {"x": 1}, "wecom")
     assert r["success"] is False
     assert "超时" in r["error"] or "timeout" in r["error"].lower()
 
-    monkeypatch.setattr(notify_engine, "_get_http_client", lambda: make_client(
-        httpx.ConnectError("conn", request=req)
-    ))
+    monkeypatch.setattr(
+        notify_engine,
+        "_get_http_client",
+        lambda: make_client(httpx.ConnectError("conn", request=req)),
+    )
     r = await notify_engine._post_webhook("https://example.com/hook", {"x": 1}, "wecom")
     assert r["success"] is False
 
@@ -369,11 +383,21 @@ async def test_send_wecom_dingtalk_feishu(monkeypatch):
 async def test_send_alert_notification_critical_all_channels(monkeypatch):
     """``send_alert_notification`` sends to all high-priority channels for fatal alerts."""
     monkeypatch.setattr(notify_engine, "_post_webhook", AsyncMock(return_value={"success": True}))
-    monkeypatch.setattr(notify_engine, "send_slack_notification", AsyncMock(return_value={"success": True}))
-    monkeypatch.setattr(notify_engine, "send_teams_notification", AsyncMock(return_value={"success": True}))
-    monkeypatch.setattr(notify_engine, "send_email_notification", AsyncMock(return_value={"success": True}))
-    monkeypatch.setattr(notify_engine, "_send_phone_notification", AsyncMock(return_value={"success": True}))
-    monkeypatch.setattr(notify_engine, "_send_sms_notification", AsyncMock(return_value={"success": True}))
+    monkeypatch.setattr(
+        notify_engine, "send_slack_notification", AsyncMock(return_value={"success": True})
+    )
+    monkeypatch.setattr(
+        notify_engine, "send_teams_notification", AsyncMock(return_value={"success": True})
+    )
+    monkeypatch.setattr(
+        notify_engine, "send_email_notification", AsyncMock(return_value={"success": True})
+    )
+    monkeypatch.setattr(
+        notify_engine, "_send_phone_notification", AsyncMock(return_value={"success": True})
+    )
+    monkeypatch.setattr(
+        notify_engine, "_send_sms_notification", AsyncMock(return_value={"success": True})
+    )
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-fake")
 
     monkeypatch.setattr(
@@ -409,7 +433,9 @@ async def test_send_alert_notification_critical_all_channels(monkeypatch):
 async def test_send_alert_notification_warning_break_and_all_failed(monkeypatch):
     """``send_alert_notification`` breaks after first success for warning and reports all_failed."""
     monkeypatch.setattr(notify_engine, "_post_webhook", AsyncMock(return_value={"success": True}))
-    monkeypatch.setattr(notify_engine, "send_email_notification", AsyncMock(return_value={"success": True}))
+    monkeypatch.setattr(
+        notify_engine, "send_email_notification", AsyncMock(return_value={"success": True})
+    )
     monkeypatch.setattr(
         notify_engine,
         "NOTIFY_CONFIG",
@@ -466,6 +492,7 @@ async def test_phone_and_sms_notifications(monkeypatch):
 # intelligent_alert_analyzer (0% -> covered)
 # ============================================================
 
+
 async def test_intelligent_alert_analyzer_lifecycle():
     """``IntelligentAlertAnalyzer`` initializes and reports statistics."""
     a = analyzer.IntelligentAlertAnalyzer()
@@ -507,8 +534,10 @@ async def test_intelligent_alert_analyzer_trend_prediction(monkeypatch):
     class FakeProphet:
         def __init__(self, *args, **kwargs):
             pass
+
         def make_future_dataframe(self, periods):
             return pd.DataFrame({"ds": pd.date_range("2026-01-01", periods=periods, freq="h")})
+
         def predict(self, future):
             df = future.copy()
             df["yhat"] = 1.0

@@ -6,42 +6,43 @@ Test file covering missing branches in core/agent/tools.py using real classes.
 import asyncio
 import os
 import sys
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from typing import Any, Dict, List, Optional
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Import the real classes
 from core.agent.tools import (
-    Tool,
-    ToolCategory,
-    ToolRegistry,
-    ToolApprovalManager,
-    ToolSelector,
-    ToolExecutor,
-    _audit_tool,
-    _guard_command_param,
-    COMMAND_GUARD_AVAILABLE,
-    AUDIT_AVAILABLE,
-    RiskLevel,
-    _analyze_command,
-    _log_audit_event,
+    _BOOL_PARAM_NAMES,
+    _COMMAND_PARAM_NAMES,
+    _DATA_CONTAINER_NAMES,
     _DEFAULT_TOOL_TIMEOUT,
+    _FLOAT_PARAM_NAMES,
+    _FLOAT_PARAM_RANGES,
+    _INT_PARAM_NAMES,
+    _INT_PARAM_RANGES,
+    _LIST_PARAM_NAMES,
+    _MAX_CONTEXT_DEPTH,
+    _MAX_LIST_LENGTH,
     _MAX_PARAM_LEN,
     _MAX_TEXT_LEN,
-    _MAX_LIST_LENGTH,
-    _MAX_CONTEXT_DEPTH,
     _NAME_PATTERNS,
     _SAFE_TEXT_PATTERN,
     _SHELL_METACHAR_PATTERN,
-    _INT_PARAM_NAMES,
-    _INT_PARAM_RANGES,
-    _FLOAT_PARAM_NAMES,
-    _FLOAT_PARAM_RANGES,
-    _BOOL_PARAM_NAMES,
-    _LIST_PARAM_NAMES,
     _TEXT_PARAM_NAMES,
-    _DATA_CONTAINER_NAMES,
-    _COMMAND_PARAM_NAMES,
+    AUDIT_AVAILABLE,
+    COMMAND_GUARD_AVAILABLE,
+    RiskLevel,
+    Tool,
+    ToolApprovalManager,
+    ToolCategory,
+    ToolExecutor,
+    ToolRegistry,
+    ToolSelector,
+    _analyze_command,
+    _audit_tool,
+    _guard_command_param,
+    _log_audit_event,
 )
 
 
@@ -75,21 +76,21 @@ class TestAuditTool:
 
     def test_audit_tool_unavailable(self):
         """Test _audit_tool when audit is unavailable."""
-        with patch('core.agent.tools.AUDIT_AVAILABLE', False):
+        with patch("core.agent.tools.AUDIT_AVAILABLE", False):
             # Should not raise, just return silently
             _audit_tool("test_tool", "success")
 
     def test_audit_tool_exception(self):
         """Test _audit_tool when log_audit_event raises exception."""
-        with patch('core.agent.tools.AUDIT_AVAILABLE', True):
-            with patch('core.agent.tools._log_audit_event', side_effect=Exception("Audit failed")):
+        with patch("core.agent.tools.AUDIT_AVAILABLE", True):
+            with patch("core.agent.tools._log_audit_event", side_effect=Exception("Audit failed")):
                 # Should not raise, just log warning
                 _audit_tool("test_tool", "success")
 
     def test_audit_tool_success(self):
         """Test _audit_tool successful call."""
-        with patch('core.agent.tools.AUDIT_AVAILABLE', True):
-            with patch('core.agent.tools._log_audit_event') as mock_audit:
+        with patch("core.agent.tools.AUDIT_AVAILABLE", True):
+            with patch("core.agent.tools._log_audit_event") as mock_audit:
                 _audit_tool("test_tool", "success", {"key": "value"})
                 mock_audit.assert_called_once()
 
@@ -102,7 +103,7 @@ class TestGuardCommandParam:
 
     def test_guard_command_unavailable(self):
         """Test when command_guard is not available."""
-        with patch('core.agent.tools.COMMAND_GUARD_AVAILABLE', False):
+        with patch("core.agent.tools.COMMAND_GUARD_AVAILABLE", False):
             # Should return silently
             _guard_command_param("command", "rm -rf /")
 
@@ -122,29 +123,38 @@ class TestGuardCommandParam:
 
     def test_guard_command_risk_level_none(self):
         """Test when RiskLevel is None."""
-        with patch('core.agent.tools.COMMAND_GUARD_AVAILABLE', True):
-            with patch('core.agent.tools.RiskLevel', None):
-                with patch('core.agent.tools._analyze_command', return_value={"risk_level": "HIGH"}):
+        with patch("core.agent.tools.COMMAND_GUARD_AVAILABLE", True):
+            with patch("core.agent.tools.RiskLevel", None):
+                with patch(
+                    "core.agent.tools._analyze_command", return_value={"risk_level": "HIGH"}
+                ):
                     _guard_command_param("command", "test")
 
     def test_guard_command_low_risk(self):
         """Test with low risk command."""
-        with patch('core.agent.tools.COMMAND_GUARD_AVAILABLE', True):
+        with patch("core.agent.tools.COMMAND_GUARD_AVAILABLE", True):
             # Create a proper mock enum
             from enum import Enum
-            MockRiskLevel = Enum('MockRiskLevel', ['BLOCKED', 'HIGH', 'LOW'])
-            with patch('core.agent.tools.RiskLevel', MockRiskLevel):
-                with patch('core.agent.tools._analyze_command', return_value={"risk_level": MockRiskLevel.LOW}):
+
+            MockRiskLevel = Enum("MockRiskLevel", ["BLOCKED", "HIGH", "LOW"])
+            with patch("core.agent.tools.RiskLevel", MockRiskLevel):
+                with patch(
+                    "core.agent.tools._analyze_command",
+                    return_value={"risk_level": MockRiskLevel.LOW},
+                ):
                     _guard_command_param("command", "safe-command")
 
     def test_guard_command_high_risk_blocked(self):
         """Test with high risk blocked command."""
-        with patch('core.agent.tools.COMMAND_GUARD_AVAILABLE', True):
+        with patch("core.agent.tools.COMMAND_GUARD_AVAILABLE", True):
             mock_risk = Mock()
             mock_risk.BLOCKED = "blocked"
             mock_risk.HIGH = "high"
-            with patch('core.agent.tools.RiskLevel', mock_risk):
-                with patch('core.agent.tools._analyze_command', return_value={"risk_level": "blocked", "reason": "dangerous"}):
+            with patch("core.agent.tools.RiskLevel", mock_risk):
+                with patch(
+                    "core.agent.tools._analyze_command",
+                    return_value={"risk_level": "blocked", "reason": "dangerous"},
+                ):
                     with pytest.raises(ValueError, match="blocked by command_guard"):
                         _guard_command_param("command", "rm -rf /")
 
@@ -157,6 +167,7 @@ class TestToolExecuteTimeout:
 
     def test_missing_required_params(self):
         """Test missing required parameters."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -172,6 +183,7 @@ class TestToolExecuteTimeout:
 
     def test_timeout_from_params(self):
         """Test timeout from tool parameters."""
+
         def dummy_func(target: str, timeout: int = 10):
             return {"result": "ok", "timeout": timeout}
 
@@ -190,6 +202,7 @@ class TestToolExecuteTimeout:
 
     def test_timeout_default(self):
         """Test default timeout when not specified."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -205,6 +218,7 @@ class TestToolExecuteTimeout:
 
     def test_timeout_invalid(self):
         """Test invalid timeout value."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -220,6 +234,7 @@ class TestToolExecuteTimeout:
 
     def test_timeout_removed_when_not_allowed(self):
         """Test timeout removed when function doesn't accept it."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -236,6 +251,7 @@ class TestToolExecuteTimeout:
 
     def test_timeout_not_in_allowed_params(self):
         """Test when timeout is not in allowed params."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -252,6 +268,7 @@ class TestToolExecuteTimeout:
 
     def test_timeout_var_keyword_allowed(self):
         """Test timeout handling with **kwargs in function signature."""
+
         # This test covers the branch where function has **kwargs
         # The actual behavior depends on signature inspection
         def dummy_func(target: str, **kwargs):
@@ -270,6 +287,7 @@ class TestToolExecuteTimeout:
 
     def test_timeout_signature_exception(self):
         """Test when inspect.signature raises exception."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -280,13 +298,14 @@ class TestToolExecuteTimeout:
             function=dummy_func,
             required_params=["target"],
         )
-        with patch('inspect.signature', side_effect=TypeError("Cannot inspect")):
+        with patch("inspect.signature", side_effect=TypeError("Cannot inspect")):
             # Should handle gracefully
             result = tool.execute(target="test", timeout=10)
             assert result["result"] == "ok"
 
     def test_dry_run_mode(self):
         """Test dry_run mode."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -310,6 +329,7 @@ class TestClampParameterRanges:
 
     def test_key_not_in_params(self):
         """Test when key is not in params."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -326,6 +346,7 @@ class TestClampParameterRanges:
 
     def test_type_conversion_failure(self):
         """Test when type conversion fails."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -343,6 +364,7 @@ class TestClampParameterRanges:
 
     def test_within_range(self):
         """Test value within range."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -359,6 +381,7 @@ class TestClampParameterRanges:
 
     def test_below_minimum(self):
         """Test value below minimum."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -376,6 +399,7 @@ class TestClampParameterRanges:
 
     def test_above_maximum(self):
         """Test value above maximum."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -400,6 +424,7 @@ class TestExecuteWithTimeout:
 
     def test_async_function(self):
         """Test with async function."""
+
         async def async_func(target: str):
             await asyncio.sleep(0.01)
             return {"result": "ok"}
@@ -416,6 +441,7 @@ class TestExecuteWithTimeout:
 
     def test_sync_function(self):
         """Test with sync function."""
+
         def sync_func(target: str):
             return {"result": "ok"}
 
@@ -431,6 +457,7 @@ class TestExecuteWithTimeout:
 
     def test_no_running_loop(self):
         """Test when no event loop is running."""
+
         def sync_func(target: str):
             return {"result": "ok"}
 
@@ -454,6 +481,7 @@ class TestValidateParameters:
 
     def test_var_keyword_allowed(self):
         """Test with **kwargs in function signature."""
+
         def func_with_kwargs(target: str, **kwargs):
             return {"result": "ok"}
 
@@ -469,6 +497,7 @@ class TestValidateParameters:
 
     def test_signature_exception(self):
         """Test when inspect.signature raises exception."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -479,12 +508,13 @@ class TestValidateParameters:
             function=dummy_func,
             required_params=["target"],
         )
-        with patch('inspect.signature', side_effect=TypeError("Cannot inspect")):
+        with patch("inspect.signature", side_effect=TypeError("Cannot inspect")):
             # Should handle gracefully
             tool._validate_parameters({"target": "test"})
 
     def test_parameter_not_allowed(self):
         """Test with parameter not in allowed list."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -507,6 +537,7 @@ class TestValidateValue:
 
     def test_depth_exceeded(self):
         """Test when depth exceeds maximum."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -522,6 +553,7 @@ class TestValidateValue:
 
     def test_data_container_list_too_long(self):
         """Test data container with list too long."""
+
         def dummy_func(data: List):
             return {"result": "ok"}
 
@@ -538,6 +570,7 @@ class TestValidateValue:
 
     def test_data_container_dict_with_command_key(self):
         """Test data container dict with command key."""
+
         def dummy_func(alert: Dict):
             return {"result": "ok"}
 
@@ -549,11 +582,12 @@ class TestValidateValue:
             required_params=["alert"],
         )
         # Should validate command key in data container
-        with patch('core.agent.tools.COMMAND_GUARD_AVAILABLE', False):
+        with patch("core.agent.tools.COMMAND_GUARD_AVAILABLE", False):
             tool._validate_value("alert", {"command": "test"}, depth=0)
 
     def test_data_container_dict_without_command_key(self):
         """Test data container dict without command key."""
+
         def dummy_func(alert: Dict):
             return {"result": "ok"}
 
@@ -569,6 +603,7 @@ class TestValidateValue:
 
     def test_data_container_nested_dict(self):
         """Test data container with nested dict."""
+
         def dummy_func(alert: Dict):
             return {"result": "ok"}
 
@@ -584,6 +619,7 @@ class TestValidateValue:
 
     def test_data_container_name_match(self):
         """Test data container with name match."""
+
         def dummy_func(alert: Dict):
             return {"result": "ok"}
 
@@ -599,6 +635,7 @@ class TestValidateValue:
 
     def test_data_container_name_suffix_match(self):
         """Test data container with name suffix match."""
+
         def dummy_func(custom_alert: Dict):
             return {"result": "ok"}
 
@@ -614,6 +651,7 @@ class TestValidateValue:
 
     def test_boolean_parameter_success(self):
         """Test boolean parameter with valid value."""
+
         def dummy_func(wait: bool):
             return {"result": "ok"}
 
@@ -630,6 +668,7 @@ class TestValidateValue:
 
     def test_integer_parameter_success(self):
         """Test integer parameter with valid value."""
+
         def dummy_func(duration: int):
             return {"result": "ok"}
 
@@ -645,6 +684,7 @@ class TestValidateValue:
 
     def test_integer_parameter_not_in_ranges(self):
         """Test integer parameter not in _INT_PARAM_RANGES."""
+
         def dummy_func(custom_int: int):
             return {"result": "ok"}
 
@@ -660,6 +700,7 @@ class TestValidateValue:
 
     def test_float_parameter_success(self):
         """Test float parameter with valid value."""
+
         def dummy_func(threshold: float):
             return {"result": "ok"}
 
@@ -675,6 +716,7 @@ class TestValidateValue:
 
     def test_float_parameter_not_in_ranges(self):
         """Test float parameter not in _FLOAT_PARAM_RANGES."""
+
         def dummy_func(custom_float: float):
             return {"result": "ok"}
 
@@ -690,6 +732,7 @@ class TestValidateValue:
 
     def test_list_parameter_string_success(self):
         """Test list parameter with comma-separated string."""
+
         def dummy_func(tools: str):
             return {"result": "ok"}
 
@@ -705,6 +748,7 @@ class TestValidateValue:
 
     def test_list_parameter_string_empty_items(self):
         """Test list parameter string with empty items."""
+
         def dummy_func(tools: str):
             return {"result": "ok"}
 
@@ -720,6 +764,7 @@ class TestValidateValue:
 
     def test_list_parameter_string_no_pattern(self):
         """Test list parameter string when pattern is None."""
+
         def dummy_func(custom_list: str):
             return {"result": "ok"}
 
@@ -735,6 +780,7 @@ class TestValidateValue:
 
     def test_dict_parameter_with_bool_value(self):
         """Test dict parameter with boolean value."""
+
         def dummy_func(config: Dict):
             return {"result": "ok"}
 
@@ -750,6 +796,7 @@ class TestValidateValue:
 
     def test_dict_parameter_with_scalar_value(self):
         """Test dict parameter with scalar value."""
+
         def dummy_func(config: Dict):
             return {"result": "ok"}
 
@@ -765,6 +812,7 @@ class TestValidateValue:
 
     def test_dict_parameter_value_not_string(self):
         """Test dict parameter with non-string value."""
+
         def dummy_func(config: Dict):
             return {"result": "ok"}
 
@@ -780,6 +828,7 @@ class TestValidateValue:
 
     def test_list_item_pattern_match(self):
         """Test list item pattern match."""
+
         def dummy_func(tools: str):
             return {"result": "ok"}
 
@@ -795,6 +844,7 @@ class TestValidateValue:
 
     def test_list_value_not_string_or_list(self):
         """Test list parameter with value that is neither string nor list."""
+
         def dummy_func(custom_list: int):
             return {"result": "ok"}
 
@@ -810,6 +860,7 @@ class TestValidateValue:
 
     def test_list_value_list_not_too_long(self):
         """Test list parameter with list not too long."""
+
         def dummy_func(tools: List):
             return {"result": "ok"}
 
@@ -825,6 +876,7 @@ class TestValidateValue:
 
     def test_list_item_validation_return(self):
         """Test list item validation returns."""
+
         def dummy_func(tools: List):
             return {"result": "ok"}
 
@@ -840,6 +892,7 @@ class TestValidateValue:
 
     def test_pattern_match_success(self):
         """Test pattern match success."""
+
         def dummy_func(service_name: str):
             return {"result": "ok"}
 
@@ -855,6 +908,7 @@ class TestValidateValue:
 
     def test_safe_text_pattern_match(self):
         """Test safe text pattern match."""
+
         def dummy_func(custom_param: str):
             return {"result": "ok"}
 
@@ -870,6 +924,7 @@ class TestValidateValue:
 
     def test_dict_with_command(self):
         """Test dict with command key."""
+
         def dummy_func(config: Dict):
             return {"result": "ok"}
 
@@ -880,12 +935,13 @@ class TestValidateValue:
             function=dummy_func,
             required_params=["config"],
         )
-        with patch('core.agent.tools.COMMAND_GUARD_AVAILABLE', False):
+        with patch("core.agent.tools.COMMAND_GUARD_AVAILABLE", False):
             # Should not raise when command_guard unavailable
             tool._validate_value("config", {"command": "safe"}, depth=0)
 
     def test_boolean_fail(self):
         """Test boolean parameter with non-bool value."""
+
         def dummy_func(wait: bool):
             return {"result": "ok"}
 
@@ -901,6 +957,7 @@ class TestValidateValue:
 
     def test_integer_bool_fail(self):
         """Test integer parameter with bool value."""
+
         def dummy_func(duration: int):
             return {"result": "ok"}
 
@@ -916,6 +973,7 @@ class TestValidateValue:
 
     def test_integer_conversion_fail(self):
         """Test integer parameter with non-convertible value."""
+
         def dummy_func(duration: int):
             return {"result": "ok"}
 
@@ -931,6 +989,7 @@ class TestValidateValue:
 
     def test_integer_range_fail(self):
         """Test integer parameter out of range."""
+
         def dummy_func(duration: int):
             return {"result": "ok"}
 
@@ -946,6 +1005,7 @@ class TestValidateValue:
 
     def test_float_bool_fail(self):
         """Test float parameter with bool value."""
+
         def dummy_func(threshold: float):
             return {"result": "ok"}
 
@@ -961,6 +1021,7 @@ class TestValidateValue:
 
     def test_float_conversion_fail(self):
         """Test float parameter with non-convertible value."""
+
         def dummy_func(threshold: float):
             return {"result": "ok"}
 
@@ -976,6 +1037,7 @@ class TestValidateValue:
 
     def test_float_range_fail(self):
         """Test float parameter out of range."""
+
         def dummy_func(threshold: float):
             return {"result": "ok"}
 
@@ -991,6 +1053,7 @@ class TestValidateValue:
 
     def test_list_string_too_long(self):
         """Test list parameter with string too long."""
+
         def dummy_func(tools: str):
             return {"result": "ok"}
 
@@ -1007,6 +1070,7 @@ class TestValidateValue:
 
     def test_list_invalid_item(self):
         """Test list parameter with invalid item."""
+
         def dummy_func(tools: List):
             return {"result": "ok"}
 
@@ -1017,12 +1081,13 @@ class TestValidateValue:
             function=dummy_func,
             required_params=["tools"],
         )
-        with patch.object(tool, '_validate_value', side_effect=ValueError("Invalid item")):
+        with patch.object(tool, "_validate_value", side_effect=ValueError("Invalid item")):
             with pytest.raises(ValueError, match="Invalid item"):
                 tool._validate_value("tools", ["tool1", "tool2"], depth=0)
 
     def test_list_too_long(self):
         """Test list parameter too long."""
+
         def dummy_func(tools: List):
             return {"result": "ok"}
 
@@ -1039,6 +1104,7 @@ class TestValidateValue:
 
     def test_not_list(self):
         """Test list parameter with non-list value (not in _LIST_PARAM_NAMES)."""
+
         def dummy_func(custom_list: str):
             return {"result": "ok"}
 
@@ -1055,6 +1121,7 @@ class TestValidateValue:
 
     def test_dict_recursive(self):
         """Test dict parameter with recursive validation."""
+
         def dummy_func(config: Dict):
             return {"result": "ok"}
 
@@ -1077,6 +1144,7 @@ class TestValidateStringValue:
 
     def test_not_string(self):
         """Test with non-string value."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -1092,6 +1160,7 @@ class TestValidateStringValue:
 
     def test_empty_name_pattern(self):
         """Test empty string with name pattern."""
+
         def dummy_func(service_name: str):
             return {"result": "ok"}
 
@@ -1107,6 +1176,7 @@ class TestValidateStringValue:
 
     def test_empty_int_param(self):
         """Test empty string for int parameter."""
+
         def dummy_func(duration: str):
             return {"result": "ok"}
 
@@ -1122,6 +1192,7 @@ class TestValidateStringValue:
 
     def test_empty_text_param(self):
         """Test empty string for text parameter (allowed)."""
+
         def dummy_func(description: str):
             return {"result": "ok"}
 
@@ -1137,6 +1208,7 @@ class TestValidateStringValue:
 
     def test_empty_unpatterned(self):
         """Test empty string for unpatterned parameter (allowed)."""
+
         def dummy_func(custom_param: str):
             return {"result": "ok"}
 
@@ -1152,6 +1224,7 @@ class TestValidateStringValue:
 
     def test_too_long(self):
         """Test string too long."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -1168,6 +1241,7 @@ class TestValidateStringValue:
 
     def test_text_too_long(self):
         """Test text parameter too long."""
+
         def dummy_func(description: str):
             return {"result": "ok"}
 
@@ -1184,6 +1258,7 @@ class TestValidateStringValue:
 
     def test_path_traversal(self):
         """Test path traversal attempt."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -1199,6 +1274,7 @@ class TestValidateStringValue:
 
     def test_path_traversal_windows(self):
         """Test Windows path traversal attempt."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -1214,6 +1290,7 @@ class TestValidateStringValue:
 
     def test_shell_metacharacters(self):
         """Test shell metacharacters."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -1229,6 +1306,7 @@ class TestValidateStringValue:
 
     def test_custom_pattern(self):
         """Test custom pattern from tool."""
+
         def dummy_func(target: str):
             return {"result": "ok"}
 
@@ -1245,6 +1323,7 @@ class TestValidateStringValue:
 
     def test_name_pattern(self):
         """Test name-based pattern."""
+
         def dummy_func(service_name: str):
             return {"result": "ok"}
 
@@ -1260,6 +1339,7 @@ class TestValidateStringValue:
 
     def test_default_safe_text(self):
         """Test default safe text pattern."""
+
         def dummy_func(custom_param: str):
             return {"result": "ok"}
 
@@ -1363,11 +1443,13 @@ class TestToolRegistry:
     def test_register_non_existent(self):
         """Test register after tool exists (override)."""
         registry = ToolRegistry(approval_required=False)
+
         def func1(target: str):
             return {"result": "func1"}
+
         def func2(target: str):
             return {"result": "func2"}
-        
+
         tool1 = Tool(
             name="test_tool",
             description="Test tool",
@@ -1382,7 +1464,7 @@ class TestToolRegistry:
             function=func2,
             required_params=["target"],
         )
-        
+
         registry.register(tool1)
         registry.register(tool2)  # Should override
         assert registry.get_tool("test_tool").function == func2
@@ -1435,14 +1517,17 @@ class TestDefaultToolImplementations:
     def test_collect_metrics_prometheus_exception(self):
         """Test collect_metrics when Prometheus raises exception."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.get_prometheus_url', side_effect=Exception("Prometheus error")):
+        with patch(
+            "core.agent.tools.observability_client.get_prometheus_url",
+            side_effect=Exception("Prometheus error"),
+        ):
             result = registry._collect_metrics("test-target")
             assert "note" in result
 
     def test_collect_logs_all_paths_fail(self):
         """Test collect_logs when all log paths fail."""
         registry = ToolRegistry(approval_required=False)
-        with patch('pathlib.Path.is_file', return_value=False):
+        with patch("pathlib.Path.is_file", return_value=False):
             result = registry._collect_logs("test-service")
             assert "No log file found" in result[0]
 
@@ -1462,22 +1547,22 @@ class TestDefaultToolImplementations:
     def test_root_cause_analysis_engine_exception(self):
         """Test root_cause_analysis when engine raises exception."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client._safe_label', return_value="test"):
+        with patch("core.agent.tools.observability_client._safe_label", return_value="test"):
             result = asyncio.run(registry._root_cause_analysis("test-alert"))
             assert "escalation_recommended" in result
 
     def test_restart_service_no_systemctl(self):
         """Test restart_service when systemctl not available."""
         registry = ToolRegistry(approval_required=False)
-        with patch('shutil.which', return_value=None):
+        with patch("shutil.which", return_value=None):
             result = registry._restart_service("test-service")
             assert "systemctl not available" in result["note"]
 
     def test_restart_service_not_forced(self):
         """Test restart_service when not forced."""
         registry = ToolRegistry(approval_required=False)
-        with patch('shutil.which', return_value="/usr/bin/systemctl"):
-            with patch('subprocess.run') as mock_run:
+        with patch("shutil.which", return_value="/usr/bin/systemctl"):
+            with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
                 with patch.dict(os.environ, {}, clear=True):
                     result = registry._restart_service("test-service")
@@ -1486,43 +1571,52 @@ class TestDefaultToolImplementations:
     def test_scale_service_no_kubectl(self):
         """Test scale_service when kubectl not available."""
         registry = ToolRegistry(approval_required=False)
-        with patch('shutil.which', return_value=None):
+        with patch("shutil.which", return_value=None):
             result = registry._scale_service("test-service", 3)
             assert "kubectl not available" in result["note"]
 
     def test_check_health_http_failure(self):
         """Test check_health with HTTP failure."""
         registry = ToolRegistry(approval_required=False)
-        with patch('httpx.get', side_effect=Exception("Connection error")):
+        with patch("httpx.get", side_effect=Exception("Connection error")):
             result = registry._check_health("http://example.com")
             assert result["healthy"] is False
 
     def test_check_health_tcp_failure(self):
         """Test check_health with TCP failure."""
         registry = ToolRegistry(approval_required=False)
-        with patch('socket.create_connection', side_effect=Exception("Connection refused")):
+        with patch("socket.create_connection", side_effect=Exception("Connection refused")):
             result = registry._check_health("localhost:8080")
             assert result["healthy"] is False
 
     def test_collect_service_metrics_no_prometheus_no_manager(self):
         """Test collect_service_metrics without Prometheus or manager."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.get_prometheus_url', return_value=None):
-            with patch('core.service_monitoring_manager.get_service_monitoring_manager', side_effect=Exception("No manager")):
+        with patch("core.agent.tools.observability_client.get_prometheus_url", return_value=None):
+            with patch(
+                "core.service_monitoring_manager.get_service_monitoring_manager",
+                side_effect=Exception("No manager"),
+            ):
                 result = registry._collect_service_metrics("test-service")
                 assert "note" in result
 
     def test_collect_network_metrics_exception(self):
         """Test collect_network_metrics with exception."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.query_network_metrics', side_effect=Exception("Network error")):
+        with patch(
+            "core.agent.tools.observability_client.query_network_metrics",
+            side_effect=Exception("Network error"),
+        ):
             result = registry._collect_network_metrics("test-target")
             assert "note" in result
 
     def test_collect_kubernetes_events_exception(self):
         """Test collect_kubernetes_events with exception."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.query_kubernetes_events', side_effect=Exception("K8s error")):
+        with patch(
+            "core.agent.tools.observability_client.query_kubernetes_events",
+            side_effect=Exception("K8s error"),
+        ):
             result = registry._collect_kubernetes_events("default")
             assert result == []
 
@@ -1550,15 +1644,18 @@ class TestDefaultToolImplementations:
     def test_collect_correlated_alerts_exception(self):
         """Test collect_correlated_alerts with exception."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.alert_engine.alert_history', side_effect=Exception("Alert error")):
+        with patch("core.alert_engine.alert_history", side_effect=Exception("Alert error")):
             result = registry._collect_correlated_alerts("test-service")
             assert result == []
 
     def test_collect_topology_import_failure(self):
         """Test collect_topology with import failure."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client._safe_label', return_value="test"):
-            with patch('core.root_cause_intelligence.root_cause_intelligence_engine', side_effect=Exception("Import error")):
+        with patch("core.agent.tools.observability_client._safe_label", return_value="test"):
+            with patch(
+                "core.root_cause_intelligence.root_cause_intelligence_engine",
+                side_effect=Exception("Import error"),
+            ):
                 result = registry._collect_topology("test-service")
                 # When import fails, returns empty dependencies
                 assert "downstream_dependencies" in result
@@ -1567,18 +1664,28 @@ class TestDefaultToolImplementations:
     def test_collect_metrics_prometheus_success(self):
         """Test collect_metrics with Prometheus success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.get_prometheus_url', return_value="http://prometheus:9090"):
-            with patch('core.agent.tools.observability_client.query_prometheus_range', return_value="0.5"):
-                with patch('core.agent.tools.observability_client.query_prometheus', return_value="1000000"):
-                    with patch('core.agent.tools.observability_client._extract_prom_scalar_value', return_value=0.5):
+        with patch(
+            "core.agent.tools.observability_client.get_prometheus_url",
+            return_value="http://prometheus:9090",
+        ):
+            with patch(
+                "core.agent.tools.observability_client.query_prometheus_range", return_value="0.5"
+            ):
+                with patch(
+                    "core.agent.tools.observability_client.query_prometheus", return_value="1000000"
+                ):
+                    with patch(
+                        "core.agent.tools.observability_client._extract_prom_scalar_value",
+                        return_value=0.5,
+                    ):
                         result = registry._collect_metrics("test-target")
                         assert "source" in result
 
     def test_collect_logs_file_found(self):
         """Test collect_logs when log file is found."""
         registry = ToolRegistry(approval_required=False)
-        with patch('pathlib.Path.is_file', return_value=True):
-            with patch('pathlib.Path.open', side_effect=Exception("Read error")):
+        with patch("pathlib.Path.is_file", return_value=True):
+            with patch("pathlib.Path.open", side_effect=Exception("Read error")):
                 result = registry._collect_logs("test-service")
                 # Should handle read error gracefully
                 assert len(result) > 0
@@ -1593,16 +1700,19 @@ class TestDefaultToolImplementations:
     def test_root_cause_analysis_with_engine(self):
         """Test root_cause_analysis with engine available."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client._safe_label', return_value="test"):
-            with patch('core.root_cause_intelligence.root_cause_intelligence_engine', side_effect=ImportError("No module")):
+        with patch("core.agent.tools.observability_client._safe_label", return_value="test"):
+            with patch(
+                "core.root_cause_intelligence.root_cause_intelligence_engine",
+                side_effect=ImportError("No module"),
+            ):
                 result = asyncio.run(registry._root_cause_analysis("test-alert"))
                 assert "candidates" in result
 
     def test_restart_service_with_systemctl(self):
         """Test restart_service with systemctl available."""
         registry = ToolRegistry(approval_required=False)
-        with patch('shutil.which', return_value="/usr/bin/systemctl"):
-            with patch('subprocess.run') as mock_run:
+        with patch("shutil.which", return_value="/usr/bin/systemctl"):
+            with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
                 with patch.dict(os.environ, {"FORCE_REPAIR_COMMANDS": "0"}):
                     result = registry._restart_service("test-service")
@@ -1611,8 +1721,8 @@ class TestDefaultToolImplementations:
     def test_scale_service_with_kubectl(self):
         """Test scale_service with kubectl available."""
         registry = ToolRegistry(approval_required=False)
-        with patch('shutil.which', return_value="/usr/bin/kubectl"):
-            with patch('subprocess.run') as mock_run:
+        with patch("shutil.which", return_value="/usr/bin/kubectl"):
+            with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
                 with patch.dict(os.environ, {"FORCE_REPAIR_COMMANDS": "0"}):
                     result = registry._scale_service("test-service", 3)
@@ -1621,7 +1731,7 @@ class TestDefaultToolImplementations:
     def test_check_health_http_success(self):
         """Test check_health with HTTP success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('httpx.get') as mock_get:
+        with patch("httpx.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_get.return_value = mock_response
@@ -1631,23 +1741,30 @@ class TestDefaultToolImplementations:
     def test_check_health_tcp_success(self):
         """Test check_health with TCP success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('socket.create_connection'):
+        with patch("socket.create_connection"):
             result = registry._check_health("localhost:8080")
             assert result["healthy"] is True
 
     def test_collect_service_metrics_prometheus_success(self):
         """Test collect_service_metrics with Prometheus success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.get_prometheus_url', return_value="http://prometheus:9090"):
-            with patch('core.agent.tools.observability_client.query_service_metrics', return_value={}):
+        with patch(
+            "core.agent.tools.observability_client.get_prometheus_url",
+            return_value="http://prometheus:9090",
+        ):
+            with patch(
+                "core.agent.tools.observability_client.query_service_metrics", return_value={}
+            ):
                 result = registry._collect_service_metrics("test-service")
                 assert "prometheus_available" in result
 
     def test_collect_service_metrics_manager_success(self):
         """Test collect_service_metrics with manager success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.get_prometheus_url', return_value=None):
-            with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_mgr:
+        with patch("core.agent.tools.observability_client.get_prometheus_url", return_value=None):
+            with patch(
+                "core.service_monitoring_manager.get_service_monitoring_manager"
+            ) as mock_mgr:
                 mock_instance = Mock()
                 mock_mgr.return_value = mock_instance
                 # Create a mock metric object
@@ -1662,15 +1779,18 @@ class TestDefaultToolImplementations:
     def test_collect_change_events_external_success(self):
         """Test collect_change_events with external API success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.query_change_events', return_value=[]):
+        with patch("core.agent.tools.observability_client.query_change_events", return_value=[]):
             result = registry._collect_change_events("test-target")
             assert isinstance(result, list)
 
     def test_collect_change_events_local_success(self):
         """Test collect_change_events with local audit log."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.query_change_events', side_effect=Exception("API error")):
-            with patch('core.config_manager.config_manager') as mock_config:
+        with patch(
+            "core.agent.tools.observability_client.query_change_events",
+            side_effect=Exception("API error"),
+        ):
+            with patch("core.config_manager.config_manager") as mock_config:
                 mock_config._audit_log = []
                 result = registry._collect_change_events("test-target")
                 assert isinstance(result, list)
@@ -1678,36 +1798,68 @@ class TestDefaultToolImplementations:
     def test_collect_kubernetes_events_success(self):
         """Test collect_kubernetes_events with success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.query_kubernetes_events', return_value=[]):
+        with patch(
+            "core.agent.tools.observability_client.query_kubernetes_events", return_value=[]
+        ):
             result = registry._collect_kubernetes_events("default")
             assert result == []
 
     def test_collect_container_metrics_kubernetes_success(self):
         """Test collect_container_metrics with Kubernetes success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.query_kubernetes_pod', return_value={"available": True}):
-            with patch('core.agent.tools.observability_client.get_prometheus_url', return_value="http://prometheus:9090"):
-                with patch('core.agent.tools.observability_client.query_prometheus', return_value="1000000"):
-                    with patch('core.agent.tools.observability_client._extract_prom_scalar_value', return_value=1000000):
+        with patch(
+            "core.agent.tools.observability_client.query_kubernetes_pod",
+            return_value={"available": True},
+        ):
+            with patch(
+                "core.agent.tools.observability_client.get_prometheus_url",
+                return_value="http://prometheus:9090",
+            ):
+                with patch(
+                    "core.agent.tools.observability_client.query_prometheus", return_value="1000000"
+                ):
+                    with patch(
+                        "core.agent.tools.observability_client._extract_prom_scalar_value",
+                        return_value=1000000,
+                    ):
                         result = registry._collect_container_metrics("test-pod")
                         assert "kubernetes_available" in result
 
     def test_collect_host_metrics_kubernetes_success(self):
         """Test collect_host_metrics with Kubernetes success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.query_kubernetes_node', return_value={"available": True}):
-            with patch('core.agent.tools.observability_client.get_prometheus_url', return_value="http://prometheus:9090"):
-                with patch('core.agent.tools.observability_client.query_prometheus', return_value="50.0"):
-                    with patch('core.agent.tools.observability_client._extract_prom_scalar_value', return_value=50.0):
+        with patch(
+            "core.agent.tools.observability_client.query_kubernetes_node",
+            return_value={"available": True},
+        ):
+            with patch(
+                "core.agent.tools.observability_client.get_prometheus_url",
+                return_value="http://prometheus:9090",
+            ):
+                with patch(
+                    "core.agent.tools.observability_client.query_prometheus", return_value="50.0"
+                ):
+                    with patch(
+                        "core.agent.tools.observability_client._extract_prom_scalar_value",
+                        return_value=50.0,
+                    ):
                         result = registry._collect_host_metrics("test-node")
                         assert "kubernetes_available" in result
 
     def test_collect_database_metrics_prometheus_success(self):
         """Test collect_database_metrics with Prometheus success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client.get_prometheus_url', return_value="http://prometheus:9090"):
-            with patch('core.agent.tools.observability_client.query_prometheus', return_value="0.1"):
-                with patch('core.agent.tools.observability_client._extract_prom_scalar_value', return_value=0.1):
+        with patch(
+            "core.agent.tools.observability_client.get_prometheus_url",
+            return_value="http://prometheus:9090",
+        ):
+            with patch(
+                "core.agent.tools.observability_client.query_prometheus", return_value="0.1"
+            ):
+                with patch(
+                    "core.agent.tools.observability_client._extract_prom_scalar_value",
+                    return_value=0.1,
+                ):
                     result = registry._collect_database_metrics("test-db")
                     assert "slow_query_rate" in result
 
@@ -1715,15 +1867,29 @@ class TestDefaultToolImplementations:
         """Test collect_correlated_alerts with success."""
         registry = ToolRegistry(approval_required=False)
         # Use "all" to match any alert
-        with patch('core.alert_engine.alert_history', [{"title": "test", "desc": "test alert", "host": "localhost", "source": "prometheus", "level": "warning", "raw_time": "2024-01-01"}]):
+        with patch(
+            "core.alert_engine.alert_history",
+            [
+                {
+                    "title": "test",
+                    "desc": "test alert",
+                    "host": "localhost",
+                    "source": "prometheus",
+                    "level": "warning",
+                    "raw_time": "2024-01-01",
+                }
+            ],
+        ):
             result = registry._collect_correlated_alerts("all")
             assert len(result) > 0
 
     def test_collect_topology_success(self):
         """Test collect_topology with success."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.tools.observability_client._safe_label', return_value="test"):
-            with patch('core.root_cause_intelligence.root_cause_intelligence_engine') as mock_engine:
+        with patch("core.agent.tools.observability_client._safe_label", return_value="test"):
+            with patch(
+                "core.root_cause_intelligence.root_cause_intelligence_engine"
+            ) as mock_engine:
                 mock_engine.topology_graph = {"service1": ["service2"], "service2": []}
                 result = registry._collect_topology("service1")
                 assert "downstream_dependencies" in result
@@ -1731,12 +1897,12 @@ class TestDefaultToolImplementations:
     def test_dispatch_subagent_wait_false(self):
         """Test dispatch_subagent with wait=False."""
         registry = ToolRegistry(approval_required=False)
-        with patch('core.agent.subagent.SubAgentDispatcher') as mock_dispatcher:
+        with patch("core.agent.subagent.SubAgentDispatcher") as mock_dispatcher:
             mock_instance = Mock()
             mock_dispatcher.return_value = mock_instance
             mock_future = Mock()
             mock_instance.dispatch.return_value = mock_future
-            
+
             result = registry._dispatch_subagent("test goal", wait=False)
             assert result["status"] == "dispatched"
             assert "future" in result
@@ -1752,7 +1918,7 @@ class TestToolSelector:
         """Test all keyword branches in select_tool."""
         registry = ToolRegistry(approval_required=False)
         selector = ToolSelector(registry)
-        
+
         # Test each keyword branch
         # Note: Some keywords may match multiple tools, so we just verify a tool is selected
         test_cases = [
@@ -1771,7 +1937,7 @@ class TestToolSelector:
             ("拓扑依赖", "topolog"),
             ("健康检查", "health"),
         ]
-        
+
         for task, expected_name in test_cases:
             tool = selector.select_tool(task, {})
             assert tool is not None
@@ -1786,7 +1952,7 @@ class TestToolSelector:
         """Test select_tools_for_chain with no matches."""
         registry = ToolRegistry(approval_required=False)
         selector = ToolSelector(registry)
-        
+
         tools = selector.select_tools_for_chain(["invalid task 1", "invalid task 2"], {})
         assert tools == []
 
@@ -1801,15 +1967,10 @@ class TestToolExecutor:
         """Test sanitize_params with nested dict."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry)
-        
+
         params = {
             "target": "test",
-            "config": {
-                "password": "secret123",
-                "nested": {
-                    "api_key": "key123"
-                }
-            }
+            "config": {"password": "secret123", "nested": {"api_key": "key123"}},
         }
         sanitized = executor._sanitize_params(params)
         assert sanitized["config"]["password"] == "***"
@@ -1819,11 +1980,8 @@ class TestToolExecutor:
         """Test sanitize_params with list containing string items."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry)
-        
-        params = {
-            "target": "test",
-            "items": ["item1", "item2", "item3"]
-        }
+
+        params = {"target": "test", "items": ["item1", "item2", "item3"]}
         sanitized = executor._sanitize_params(params)
         assert sanitized["items"] == ["item1", "item2", "item3"]
 
@@ -1831,7 +1989,7 @@ class TestToolExecutor:
         """Test _should_retry with execution category."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry)
-        
+
         tool = Tool(
             name="test_tool",
             description="Test tool",
@@ -1844,7 +2002,7 @@ class TestToolExecutor:
         """Test _should_retry with non-retryable error."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry)
-        
+
         tool = Tool(
             name="test_tool",
             description="Test tool",
@@ -1857,14 +2015,14 @@ class TestToolExecutor:
         """Test _execute_with_retry with backoff exhaustion."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry, retry_policy={"max_retries": 1, "backoff": [0.01]})
-        
+
         tool = Tool(
             name="test_tool",
             description="Test tool",
             category=ToolCategory.MONITORING,
             function=lambda: (_ for _ in ()).throw(Exception("error")),
         )
-        
+
         with pytest.raises(Exception, match="error"):
             executor._execute_with_retry(tool, False, 10.0, {})
 
@@ -1872,14 +2030,14 @@ class TestToolExecutor:
         """Test _execute_with_retry with empty backoff."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry, retry_policy={"max_retries": 1, "backoff": []})
-        
+
         tool = Tool(
             name="test_tool",
             description="Test tool",
             category=ToolCategory.MONITORING,
             function=lambda: (_ for _ in ()).throw(ConnectionError("connection failed")),
         )
-        
+
         with pytest.raises(ConnectionError, match="connection failed"):
             executor._execute_with_retry(tool, False, 10.0, {})
 
@@ -1887,8 +2045,8 @@ class TestToolExecutor:
         """Test execute_tool with successful audit."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry)
-        
-        with patch('core.agent.tools._audit_tool') as mock_audit:
+
+        with patch("core.agent.tools._audit_tool") as mock_audit:
             result = executor.execute_tool("collect_metrics", target="test")
             mock_audit.assert_called()
 
@@ -1896,10 +2054,14 @@ class TestToolExecutor:
         """Test execute_tool with failure audit."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry)
-        
+
         # Patch the tool function to raise an exception
-        with patch.object(registry.get_tool("collect_metrics"), 'function', side_effect=Exception("Tool execution failed")):
-            with patch('core.agent.tools._audit_tool') as mock_audit:
+        with patch.object(
+            registry.get_tool("collect_metrics"),
+            "function",
+            side_effect=Exception("Tool execution failed"),
+        ):
+            with patch("core.agent.tools._audit_tool") as mock_audit:
                 with pytest.raises(Exception, match="Tool execution failed"):
                     executor.execute_tool("collect_metrics", target="test")
                 mock_audit.assert_called()
@@ -1908,7 +2070,7 @@ class TestToolExecutor:
         """Test _infer_parameters with all alias branches."""
         registry = ToolRegistry(approval_required=False)
         executor = ToolExecutor(registry)
-        
+
         # Test target alias
         tool = Tool(
             name="test_tool",
@@ -1919,7 +2081,7 @@ class TestToolExecutor:
         )
         params = executor._infer_parameters(tool, {"service": "test-service"})
         assert params["target"] == "test-service"
-        
+
         # Test service alias
         tool = Tool(
             name="test_tool",
@@ -1930,7 +2092,7 @@ class TestToolExecutor:
         )
         params = executor._infer_parameters(tool, {"target": "test-target"})
         assert params["service"] == "test-target"
-        
+
         # Test service_name alias
         tool = Tool(
             name="test_tool",
@@ -1941,7 +2103,7 @@ class TestToolExecutor:
         )
         params = executor._infer_parameters(tool, {"service": "test-service"})
         assert params["service_name"] == "test-service"
-        
+
         # Test data alias
         tool = Tool(
             name="test_tool",
@@ -1952,7 +2114,7 @@ class TestToolExecutor:
         )
         params = executor._infer_parameters(tool, {"metrics": [1, 2, 3]})
         assert params["data"] == [1, 2, 3]
-        
+
         # Test alert_id alias
         tool = Tool(
             name="test_tool",

@@ -32,10 +32,7 @@ def save_slos() -> None:
     _ensure_data_dir()
     data = {
         "counter": _slo_engine._slo_counter,
-        "slos": {
-            slo_id: asdict(rule)
-            for slo_id, rule in _slo_engine._slo_store.items()
-        },
+        "slos": {slo_id: asdict(rule) for slo_id, rule in _slo_engine._slo_store.items()},
     }
     with _SLOS_FILE.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

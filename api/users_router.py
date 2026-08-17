@@ -175,11 +175,7 @@ def update_user(
         user.role = req.role
 
     if req.is_active is not None:
-        if (
-            not req.is_active
-            and user.role == "admin"
-            and admin_count(db) <= 1
-        ):
+        if not req.is_active and user.role == "admin" and admin_count(db) <= 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot deactivate the last admin",
@@ -221,11 +217,7 @@ def get_permissions(
     user = db.query(User).filter(User.id == id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    perms = (
-        db.query(UserAssetPermission)
-        .filter(UserAssetPermission.user_id == id)
-        .all()
-    )
+    perms = db.query(UserAssetPermission).filter(UserAssetPermission.user_id == id).all()
     return [
         {"asset_id": p.asset_id, "permission": p.permission, "created_at": p.created_at}
         for p in perms
@@ -258,11 +250,7 @@ def set_permissions(
             )
         )
     db.commit()
-    perms = (
-        db.query(UserAssetPermission)
-        .filter(UserAssetPermission.user_id == id)
-        .all()
-    )
+    perms = db.query(UserAssetPermission).filter(UserAssetPermission.user_id == id).all()
     return [
         {"asset_id": p.asset_id, "permission": p.permission, "created_at": p.created_at}
         for p in perms

@@ -48,20 +48,14 @@ def resolve_operation(name: str) -> str:
         for keyword in ("topology", "discovery", "cmdb", "dependency", "service discovery")
     ):
         return "get_topology"
-    if any(
-        keyword in normalized
-        for keyword in ("log", "loki", "elk", "fluentd", "audit_log")
-    ):
+    if any(keyword in normalized for keyword in ("log", "loki", "elk", "fluentd", "audit_log")):
         return "logs"
     if any(
         keyword in normalized
         for keyword in ("trace", "tracing", "jaeger", "zipkin", "skywalking", "otel")
     ):
         return "traces"
-    if any(
-        keyword in normalized
-        for keyword in ("health", "status", "probe", "ping")
-    ):
+    if any(keyword in normalized for keyword in ("health", "status", "probe", "ping")):
         return "health"
     return "query"
 
@@ -309,9 +303,7 @@ class MonitoringProvider:
             metrics = kwargs.get("metrics", {})
             if not isinstance(metrics, dict):
                 metrics = {}
-            smart_alerts = [
-                alert.to_dict() for alert in engine.evaluate_metrics(metrics)
-            ]
+            smart_alerts = [alert.to_dict() for alert in engine.evaluate_metrics(metrics)]
         except Exception:
             pass
 
@@ -431,8 +423,7 @@ class MonitoringProvider:
             data = json.loads(result.stdout)
             items = data.get("items", [])
             nodes = [
-                {"id": item["metadata"]["name"], "name": item["metadata"]["name"]}
-                for item in items
+                {"id": item["metadata"]["name"], "name": item["metadata"]["name"]} for item in items
             ]
             return {
                 "status": "ok",
@@ -458,9 +449,7 @@ class MonitoringProvider:
         if self.dry_run or not (target or query):
             return {
                 "status": "ok",
-                "data": [
-                    {"timestamp": _now(), "line": "synthetic log line"}
-                ],
+                "data": [{"timestamp": _now(), "line": "synthetic log line"}],
             }
         target = target or os.environ.get("LOKI_URL", "http://loki:3100")
         if "elasticsearch" in target.lower() or ":9200" in target:
@@ -781,12 +770,12 @@ class BaseObservabilityService:
 
     def __getattr__(self, name: str) -> Any:
         if name in getattr(self, "OPERATIONS", []):
+
             async def _handler(request: Any = None):
                 return self.execute_operation(name, self._get_config(request))
+
             return _handler
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{name}'"
-        )
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     async def call(self, method: str, **kwargs: Any) -> Any:
         self.metrics.inc_request("call")

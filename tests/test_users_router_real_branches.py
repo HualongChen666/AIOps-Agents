@@ -7,8 +7,9 @@ tenant header handling and edge payloads to drive branch coverage for
 api/users_router.py.
 """
 
-import pytest
 import uuid
+
+import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
@@ -40,9 +41,7 @@ def _rand(prefix: str = "u") -> str:
 
 
 def _token_for(client, username: str, password: str) -> str:
-    resp = client.post(
-        "/api/v1/auth/login", json={"username": username, "password": password}
-    )
+    resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200, resp.text
     return resp.json()["access_token"]
 
@@ -282,30 +281,22 @@ def test_update_user_admin_fields_and_errors(client, admin_headers):
     uid = resp.json()["id"]
 
     # change role
-    resp = client.put(
-        f"/api/v1/users/{uid}", headers=admin_headers, json={"role": "operator"}
-    )
+    resp = client.put(f"/api/v1/users/{uid}", headers=admin_headers, json={"role": "operator"})
     assert resp.status_code == 200
     assert resp.json()["role"] == "operator"
 
     # deactivate
-    resp = client.put(
-        f"/api/v1/users/{uid}", headers=admin_headers, json={"is_active": False}
-    )
+    resp = client.put(f"/api/v1/users/{uid}", headers=admin_headers, json={"is_active": False})
     assert resp.status_code == 200
     assert resp.json()["is_active"] is False
 
     # invalid role
-    resp = client.put(
-        f"/api/v1/users/{uid}", headers=admin_headers, json={"role": "hacker"}
-    )
+    resp = client.put(f"/api/v1/users/{uid}", headers=admin_headers, json={"role": "hacker"})
     assert resp.status_code == 400
     assert "Invalid role" in _err_msg(resp)
 
     # 404
-    resp = client.put(
-        "/api/v1/users/99999", headers=admin_headers, json={"role": "operator"}
-    )
+    resp = client.put("/api/v1/users/99999", headers=admin_headers, json={"role": "operator"})
     assert resp.status_code == 404
 
     # non-admin cannot update another user
@@ -354,16 +345,12 @@ def test_update_user_last_admin_and_promotion(client, admin_headers):
         )
         vid = resp.json()["id"]
         created_ids.append(vid)
-        resp = client.put(
-            f"/api/v1/users/{vid}", headers=admin_headers, json={"role": "admin"}
-        )
+        resp = client.put(f"/api/v1/users/{vid}", headers=admin_headers, json={"role": "admin"})
         assert resp.status_code == 200
         assert resp.json()["role"] == "admin"
 
         # change that admin back to viewer (not last admin)
-        resp = client.put(
-            f"/api/v1/users/{vid}", headers=admin_headers, json={"role": "viewer"}
-        )
+        resp = client.put(f"/api/v1/users/{vid}", headers=admin_headers, json={"role": "viewer"})
         assert resp.status_code == 200
         assert resp.json()["role"] == "viewer"
 
@@ -409,9 +396,7 @@ def test_update_user_last_admin_and_promotion(client, admin_headers):
         )
         v2_id = r3.json()["id"]
         created_ids.append(v2_id)
-        resp = client.put(
-            f"/api/v1/users/{v2_id}", headers=admin_headers, json={"role": "admin"}
-        )
+        resp = client.put(f"/api/v1/users/{v2_id}", headers=admin_headers, json={"role": "admin"})
         assert resp.status_code == 400
         assert "Maximum number of admins" in _err_msg(resp)
     finally:

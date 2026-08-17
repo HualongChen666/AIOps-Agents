@@ -112,7 +112,7 @@ def main():
                 text = (
                     text[: run_block.start()]
                     + run_text.replace(omit_value, new_omit, 1)
-                    + text[run_block.end():]
+                    + text[run_block.end() :]
                 )
         coveragerc_path.write_text(text, encoding="utf-8")
     else:

@@ -60,7 +60,9 @@ from modules.high_availability.multi_region import (
 from modules.observability.auto_discovery import (
     AutoDiscoveryEngine,
     DiscoveredResource,
-    ResourceType as ADResourceType,
+)
+from modules.observability.auto_discovery import ResourceType as ADResourceType
+from modules.observability.auto_discovery import (
     ServiceRelation,
     create_auto_discovery_engine,
 )
@@ -87,7 +89,9 @@ from modules.optimization.resource_optimizer import (
     ResourceMetric,
     ResourceMonitor,
     ResourceOptimizer,
-    ResourceType as ResResourceType,
+)
+from modules.optimization.resource_optimizer import ResourceType as ResResourceType
+from modules.optimization.resource_optimizer import (
     create_cost_analyzer,
     create_resource_monitor,
     create_resource_optimizer,
@@ -530,12 +534,15 @@ def test_storage_statistics_to_dict():
 # ==============================================================================
 # modules/optimization/cache_optimizer.py
 # ==============================================================================
-@pytest.mark.parametrize("strategy", [
-    CacheStrategy.LRU,
-    CacheStrategy.LFU,
-    CacheStrategy.FIFO,
-    CacheStrategy.TTL,
-])
+@pytest.mark.parametrize(
+    "strategy",
+    [
+        CacheStrategy.LRU,
+        CacheStrategy.LFU,
+        CacheStrategy.FIFO,
+        CacheStrategy.TTL,
+    ],
+)
 def test_cache_manager_eviction(strategy):
     cache = create_cache_manager(max_size=2, strategy=strategy)
     cache.set("a", "1")
@@ -688,7 +695,9 @@ def test_multi_region_routing():
     for strategy in RoutingStrategy:
         manager.set_routing_strategy(strategy)
         region = manager.route_request(
-            request_context={"location": "us-east"} if strategy == RoutingStrategy.GEOGRAPHIC else None
+            request_context=(
+                {"location": "us-east"} if strategy == RoutingStrategy.GEOGRAPHIC else None
+            )
         )
         assert region is not None
 
@@ -910,21 +919,29 @@ def test_transformer_model_manager_load_and_errors(tmp_path, monkeypatch):
     # missing file
     assert manager.load_model(str(tmp_path / "missing.pth"), threshold=0.5) is False
     # valid load
-    assert manager.load_model(str(model_path), threshold=0.5, input_dim=1, d_model=8, n_heads=2, n_layers=1, d_ff=16) is True
+    assert (
+        manager.load_model(
+            str(model_path), threshold=0.5, input_dim=1, d_model=8, n_heads=2, n_layers=1, d_ff=16
+        )
+        is True
+    )
     assert manager.is_loaded
     assert manager.model is not None
     assert manager.wrapper is not None
 
     manager.unload_model()
     assert not manager.is_loaded
-    assert manager.reload_model(
-        model_path=str(model_path),
-        input_dim=1,
-        d_model=8,
-        n_heads=2,
-        n_layers=1,
-        d_ff=16,
-    ) is True
+    assert (
+        manager.reload_model(
+            model_path=str(model_path),
+            input_dim=1,
+            d_model=8,
+            n_heads=2,
+            n_layers=1,
+            d_ff=16,
+        )
+        is True
+    )
 
 
 def test_transformer_service_detect(tmp_path, monkeypatch):
@@ -941,7 +958,9 @@ def test_transformer_service_detect(tmp_path, monkeypatch):
     model_path.write_text("")
 
     manager = TransformerModelManager(model_dir=str(model_dir))
-    assert manager.load_model(str(model_path), input_dim=1, d_model=8, n_heads=2, n_layers=1, d_ff=16)
+    assert manager.load_model(
+        str(model_path), input_dim=1, d_model=8, n_heads=2, n_layers=1, d_ff=16
+    )
 
     # use only the raw value column so tensor shape matches input_dim=1
     manager.preprocessor = TimeSeriesPreprocessingPipeline(
@@ -957,10 +976,12 @@ def test_transformer_service_detect(tmp_path, monkeypatch):
     assert "is_anomaly" in result
     assert isinstance(result["anomaly_count"], int)
 
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2024-01-01", periods=5, freq="1min"),
-        "value": [1.0, 2.0, 3.0, 4.0, 5.0],
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-01", periods=5, freq="1min"),
+            "value": [1.0, 2.0, 3.0, 4.0, 5.0],
+        }
+    )
     df_result = service.detect_from_dataframe(df)
     assert "is_anomaly" in df_result.columns
     assert "anomaly_score" in df_result.columns
@@ -989,14 +1010,17 @@ def test_transformer_service_global_and_router(tmp_path, monkeypatch):
     manager = get_model_manager()
     manager.model_dir = model_dir
     manager.model_name = "model.pth"
-    assert initialize_service(
-        model_path=str(model_path),
-        input_dim=1,
-        d_model=8,
-        n_heads=2,
-        n_layers=1,
-        d_ff=16,
-    ) is True
+    assert (
+        initialize_service(
+            model_path=str(model_path),
+            input_dim=1,
+            d_model=8,
+            n_heads=2,
+            n_layers=1,
+            d_ff=16,
+        )
+        is True
+    )
 
     svc = get_service()
     assert svc is not None

@@ -1,4 +1,5 @@
 """Parametrized coverage tests for extensions/addons cache and metrics modules."""
+
 from __future__ import annotations
 
 import asyncio
@@ -251,6 +252,7 @@ async def _maybe_await(result):
 
 async def _exercise_cache(instance):
     """Exercise a cache manager with successful and failing redis backends."""
+
     async def _call_if(name, *args, **kwargs):
         if hasattr(instance, name):
             return await _maybe_await(getattr(instance, name)(*args, **kwargs))

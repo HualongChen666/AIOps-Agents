@@ -6,6 +6,7 @@ The goal is to push each of these four modules above 80% statement coverage
 using only this test file.  External/optional dependencies are stubbed with
 monkeypatch and AsyncMock.
 """
+
 import asyncio
 import hashlib
 import os
@@ -17,12 +18,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 import config
-import core.db_engine as db_engine
-import core.root_cause_intelligence as rci
-import core.heal_graph as hg
-import core.topology_engine as te
 import core.audit_service as audit_service
+import core.db_engine as db_engine
+import core.heal_graph as hg
 import core.phase3_metrics as phase3_metrics
+import core.root_cause_intelligence as rci
+import core.topology_engine as te
 
 pytestmark = [pytest.mark.core]
 
@@ -57,6 +58,7 @@ def stub_phase3_metrics(monkeypatch):
 @pytest.fixture
 def stub_heal(monkeypatch, stub_phase3_metrics):
     """Heal graph with all heavy side effects replaced by stubs."""
+
     # Risk / command guard
     class RL:
         BLOCKED = "BLOCKED"
@@ -65,9 +67,7 @@ def stub_heal(monkeypatch, stub_phase3_metrics):
         SAFE = "SAFE"
 
     monkeypatch.setattr(hg, "RiskLevel", RL)
-    monkeypatch.setattr(
-        hg, "analyze_command", lambda cmd: {"risk_level": RL.LOW, "reason": "ok"}
-    )
+    monkeypatch.setattr(hg, "analyze_command", lambda cmd: {"risk_level": RL.LOW, "reason": "ok"})
 
     # Audit / trace helpers
     monkeypatch.setattr(hg, "_set_trace_id", lambda _tid: None)
@@ -98,9 +98,7 @@ def stub_heal(monkeypatch, stub_phase3_metrics):
     monkeypatch.setattr(hg, "record_outcome", lambda *a, **k: None)
 
     # Metrics history used inside nodes
-    monkeypatch.setattr(
-        hg, "_metrics_history", MagicMock(to_dict=lambda: {"cpu": [1.0, 2.0]})
-    )
+    monkeypatch.setattr(hg, "_metrics_history", MagicMock(to_dict=lambda: {"cpu": [1.0, 2.0]}))
 
     # Snapshot configuration
     monkeypatch.setattr(
@@ -124,6 +122,7 @@ def stub_heal(monkeypatch, stub_phase3_metrics):
     import core.priority_engine as priority_engine
     import core.runbook_generator as runbook_generator
     import core.verifier as verifier
+
     # Make the verifier module reachable via string-path monkeypatch targets
     sys.modules["core"].verifier = verifier
     import core.auto_heal as auto_heal
@@ -275,9 +274,7 @@ def test_rci_is_abnormal_branches():
     assert rci.RootCauseIntelligenceEngine._is_abnormal({"cpu_usage_percent": 95.0}) is True
     assert rci.RootCauseIntelligenceEngine._is_abnormal({"memory_usage_percent": 90.0}) is True
     assert (
-        rci.RootCauseIntelligenceEngine._is_abnormal(
-            {"last_state": {"reason": "OOMKilled"}}
-        )
+        rci.RootCauseIntelligenceEngine._is_abnormal({"last_state": {"reason": "OOMKilled"}})
         is True
     )
     assert rci.RootCauseIntelligenceEngine._is_abnormal({"cpu_usage_percent": 50.0}) is False
@@ -507,7 +504,10 @@ def test_rci_parse_timestamp(rci_engine):
 
 
 async def test_rci_predict_root_causes(rci_engine):
-    symptoms = {"alerts": [{"alert_type": "oom", "host": "h1"}], "metrics": {"memory_usage_percent": 96.0}}
+    symptoms = {
+        "alerts": [{"alert_type": "oom", "host": "h1"}],
+        "metrics": {"memory_usage_percent": 96.0},
+    }
     rci_engine.learn_historical_pattern(symptoms, "pod_oom", 60.0, 0.85)
     pred = await rci_engine.predict_root_causes(symptoms, prediction_horizon=30)
     assert pred["prediction_horizon"] == 30
@@ -541,9 +541,12 @@ def test_heal_graph_helpers(stub_heal):
         )
         is False
     )
-    assert hg._is_alert_resolved(
-        {"resolved_condition": {"metric": "x", "operator": ">", "threshold": 0.5}}
-    ) is False  # no metrics history present
+    assert (
+        hg._is_alert_resolved(
+            {"resolved_condition": {"metric": "x", "operator": ">", "threshold": 0.5}}
+        )
+        is False
+    )  # no metrics history present
 
     assert hg._is_hardware_alert({"category": "hardware"}) is True
     assert hg._is_hardware_alert({"metric": "ipmi fan failure"}) is True
@@ -1085,7 +1088,9 @@ async def test_get_full_link_topology(monkeypatch):
     monkeypatch.setattr(
         db_engine,
         "alert_repository",
-        SimpleNamespace(get_recent=AsyncMock(return_value=[{"source": "s", "target": "t", "weight": 1}])),
+        SimpleNamespace(
+            get_recent=AsyncMock(return_value=[{"source": "s", "target": "t", "weight": 1}])
+        ),
     )
     topo = await te.get_full_link_topology("default")
     assert "nodes" in topo
@@ -1199,10 +1204,12 @@ def test_validate_topology():
     assert valid["valid"] is True
     assert valid["warnings"] == []
 
-    orphan = te.validate_topology({
-        "nodes": [{"id": "a"}, {"id": "b"}],
-        "edges": [],
-    })
+    orphan = te.validate_topology(
+        {
+            "nodes": [{"id": "a"}, {"id": "b"}],
+            "edges": [],
+        }
+    )
     assert orphan["valid"] is True
     assert any("orphan" in w for w in orphan["warnings"])
 
@@ -1268,7 +1275,9 @@ async def test_audit_log_action_failure(audit_session, fake_session_factory, mon
 
 async def test_audit_redaction(monkeypatch):
     monkeypatch.setattr(audit_service, "DATA_PRIVACY_AVAILABLE", True)
-    monkeypatch.setattr(audit_service, "anonymize_dict", lambda d: {"masked": True} if d is not None else None)
+    monkeypatch.setattr(
+        audit_service, "anonymize_dict", lambda d: {"masked": True} if d is not None else None
+    )
     details, metadata = audit_service._redact_details({"pwd": "x"}, {"ip": "1.2.3.4"})
     assert details == {"masked": True}
     assert metadata == {"masked": True}
@@ -1387,9 +1396,7 @@ async def test_audit_detect_suspicious(audit_session, fake_session_factory, monk
         SimpleNamespace(action="permission_denied", ip_address="6.6.6.6", created_at=now),
         SimpleNamespace(action="permission_denied", ip_address="7.7.7.7", created_at=now),
     ]
-    result = MagicMock(
-        scalars=MagicMock(return_value=MagicMock(all=lambda: records))
-    )
+    result = MagicMock(scalars=MagicMock(return_value=MagicMock(all=lambda: records)))
     monkeypatch.setattr(
         audit_session,
         "AsyncSessionLocal",
@@ -1406,9 +1413,7 @@ async def test_audit_detect_suspicious(audit_session, fake_session_factory, monk
 async def test_audit_verify_integrity_db(audit_session, fake_session_factory, monkeypatch):
     now = datetime.now()
     status = "success"
-    integrity_data = (
-        f"login:user:1:admin:{status}:{''}:{now.isoformat()}"
-    )
+    integrity_data = f"login:user:1:admin:{status}:{''}:{now.isoformat()}"
     stored_hash = hashlib.sha256(integrity_data.encode()).hexdigest()
     log = SimpleNamespace(
         id=1,
@@ -1891,7 +1896,9 @@ async def test_apply_fix_auto_approved(stub_heal, monkeypatch):
 async def test_apply_fix_metrics_history_exception(stub_heal, monkeypatch):
     monkeypatch.setenv("HEAL_EXECUTE_ENABLED", "false")
     monkeypatch.setenv("HEAL_AUTO_APPROVE_SAFE_LOW", "true")
-    monkeypatch.setattr(hg, "_metrics_history", MagicMock(to_dict=MagicMock(side_effect=RuntimeError("x"))))
+    monkeypatch.setattr(
+        hg, "_metrics_history", MagicMock(to_dict=MagicMock(side_effect=RuntimeError("x")))
+    )
     monkeypatch.setattr(
         hg,
         "async_get_approval_by_alert",
@@ -2041,6 +2048,10 @@ async def test_complete_prometheus_import_error(stub_heal, monkeypatch):
 
 
 def test_build_graph_checkpoint_error(stub_heal, monkeypatch):
-    monkeypatch.setattr(hg, "CheckpointSQLite", type("Bad", (), {"__init__": lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x"))}))
+    monkeypatch.setattr(
+        hg,
+        "CheckpointSQLite",
+        type("Bad", (), {"__init__": lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x"))}),
+    )
     runner = hg._build_graph()
     assert callable(runner)

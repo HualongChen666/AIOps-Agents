@@ -311,8 +311,12 @@ def test_filter_helpers_and_parse_datetime_directly():
     assert "t-1" in manager._filter_by_time_range(
         candidate_ids, now - timedelta(seconds=1), now + timedelta(seconds=2)
     )
-    assert "t-2" not in manager._filter_by_time_range(candidate_ids, now, now + timedelta(seconds=2))
-    assert "missing" not in manager._filter_by_time_range(candidate_ids, now, now + timedelta(seconds=2))
+    assert "t-2" not in manager._filter_by_time_range(
+        candidate_ids, now, now + timedelta(seconds=2)
+    )
+    assert "missing" not in manager._filter_by_time_range(
+        candidate_ids, now, now + timedelta(seconds=2)
+    )
     # end_time before trace start triggers line 336
     assert "t-1" not in manager._filter_by_time_range(
         candidate_ids, now - timedelta(seconds=2), now - timedelta(seconds=1)

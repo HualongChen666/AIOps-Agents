@@ -16,13 +16,13 @@ from pathlib import Path
 import pytest
 
 from core.integration_test_validator import (
-    get_integration_test_validator,
     IntegrationTestValidator,
     ValidationCategory,
     ValidationExecution,
     ValidationResult,
     ValidationSuite,
     ValidationTest,
+    get_integration_test_validator,
 )
 
 

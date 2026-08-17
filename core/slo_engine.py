@@ -17,7 +17,6 @@ Key concepts
 """
 
 from __future__ import annotations
-from core.slo_storage import load_slos  # type: ignore
 
 import datetime
 import logging
@@ -25,6 +24,8 @@ import math
 import statistics
 from dataclasses import dataclass
 from typing import Any, Optional
+
+from core.slo_storage import load_slos  # type: ignore
 
 logger = logging.getLogger(__name__)
 

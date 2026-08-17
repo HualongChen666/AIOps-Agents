@@ -52,10 +52,12 @@ class DatadogAlertProvider(AlertProvider):
         metric = alert_metric or (list(metric_snapshot.keys())[0] if metric_snapshot else "")
         value = _safe_float(list(metric_snapshot.values())[0] if metric_snapshot else None)
 
-        event_type = str(raw.get("event_type") or raw.get("alert_transition")
-                         or raw.get("status") or "trigger").lower()
-        status = "resolved" if event_type in (
-            "recovery", "recovered", "ok", "resolved") else "firing"
+        event_type = str(
+            raw.get("event_type") or raw.get("alert_transition") or raw.get("status") or "trigger"
+        ).lower()
+        status = (
+            "resolved" if event_type in ("recovery", "recovered", "ok", "resolved") else "firing"
+        )
 
         priority = str(raw.get("priority") or "normal").lower()
         severity_map = {
@@ -72,10 +74,12 @@ class DatadogAlertProvider(AlertProvider):
         }
         severity = severity_map.get(priority, priority if priority else "warning")
 
-        fingerprint = str(raw.get("alert_id") or raw.get(
-            "id") or raw.get("event_id") or uuid.uuid4().hex[:16])[:64]
-        started_at = raw.get("date") or raw.get(
-            "date_event") or datetime.now(timezone.utc).isoformat()
+        fingerprint = str(
+            raw.get("alert_id") or raw.get("id") or raw.get("event_id") or uuid.uuid4().hex[:16]
+        )[:64]
+        started_at = (
+            raw.get("date") or raw.get("date_event") or datetime.now(timezone.utc).isoformat()
+        )
 
         tags = raw.get("tags")
         labels: Dict[str, Any] = {}

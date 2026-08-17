@@ -10,12 +10,12 @@ functions, and the notification formatters.
 """
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 import core.alert_engine as alert_engine
 import core.notify_engine as notify_engine
-
 
 pytestmark = [pytest.mark.core]
 
@@ -81,9 +81,7 @@ def test_check_and_generate_alerts():
     metrics = {
         "cpu": {"usage_percent": 99},
         "memory": {"usage_percent": 92},
-        "disk": [
-            {"device": "C:", "usage_percent": 95, "used_gb": 80, "total_gb": 100}
-        ],
+        "disk": [{"device": "C:", "usage_percent": 95, "used_gb": 80, "total_gb": 100}],
     }
     alerts = alert_engine.check_and_generate_alerts(metrics)
     assert len(alerts) == 3
@@ -307,9 +305,7 @@ async def test_send_email_notification(monkeypatch):
             pass
 
     monkeypatch.setattr(notify_engine.smtplib, "SMTP", FakeSMTP)
-    good = await notify_engine.send_email_notification(
-        "ops@example.com", "Subject", "body"
-    )
+    good = await notify_engine.send_email_notification("ops@example.com", "Subject", "body")
     assert good["success"] is True
 
     bad = await notify_engine.send_email_notification("invalid", "Subject", "body")

@@ -144,15 +144,27 @@ MICROSERVICE_MODE: str = os.getenv("MICROSERVICE_MODE", "local").strip().lower()
 ADDON_SERVICE_URLS: Dict[str, str] = {
     "RAG_SERVICE_URL": os.getenv("RAG_SERVICE_URL", "http://localhost:8001"),
     "LLM_ROUTER_SERVICE_URL": os.getenv("LLM_ROUTER_SERVICE_URL", "http://localhost:8002"),
-    "KNOWLEDGE_GRAPH_SERVICE_URL": os.getenv("KNOWLEDGE_GRAPH_SERVICE_URL", "http://localhost:8003"),
+    "KNOWLEDGE_GRAPH_SERVICE_URL": os.getenv(
+        "KNOWLEDGE_GRAPH_SERVICE_URL", "http://localhost:8003"
+    ),
     "TOPOLOGY_SERVICE_URL": os.getenv("TOPOLOGY_SERVICE_URL", "http://localhost:8011"),
-    "METRICS_MONITORING_SERVICE_URL": os.getenv("METRICS_MONITORING_SERVICE_URL", "http://localhost:8012"),
+    "METRICS_MONITORING_SERVICE_URL": os.getenv(
+        "METRICS_MONITORING_SERVICE_URL", "http://localhost:8012"
+    ),
     "TRACING_SERVICE_URL": os.getenv("TRACING_SERVICE_URL", "http://localhost:8014"),
-    "LOG_AGGREGATION_SERVICE_URL": os.getenv("LOG_AGGREGATION_SERVICE_URL", "http://localhost:8015"),
-    "INCIDENT_RESPONSE_SERVICE_URL": os.getenv("INCIDENT_RESPONSE_SERVICE_URL", "http://localhost:8021"),
+    "LOG_AGGREGATION_SERVICE_URL": os.getenv(
+        "LOG_AGGREGATION_SERVICE_URL", "http://localhost:8015"
+    ),
+    "INCIDENT_RESPONSE_SERVICE_URL": os.getenv(
+        "INCIDENT_RESPONSE_SERVICE_URL", "http://localhost:8021"
+    ),
     "WORKFLOW_SERVICE_URL": os.getenv("WORKFLOW_SERVICE_URL", "http://localhost:8023"),
-    "DATADOG_INTEGRATION_SERVICE_URL": os.getenv("DATADOG_INTEGRATION_SERVICE_URL", "http://localhost:8031"),
-    "GRAFANA_INTEGRATION_SERVICE_URL": os.getenv("GRAFANA_INTEGRATION_SERVICE_URL", "http://localhost:8032"),
+    "DATADOG_INTEGRATION_SERVICE_URL": os.getenv(
+        "DATADOG_INTEGRATION_SERVICE_URL", "http://localhost:8031"
+    ),
+    "GRAFANA_INTEGRATION_SERVICE_URL": os.getenv(
+        "GRAFANA_INTEGRATION_SERVICE_URL", "http://localhost:8032"
+    ),
     "ELK_STACK_SERVICE_URL": os.getenv("ELK_STACK_SERVICE_URL", "http://localhost:8033"),
 }
 
@@ -1586,4 +1598,5 @@ if _safe_bool("CONFIG_HOT_RELOAD_ENABLED", default=False):
 
 
 # Backward-compatible alias for code/tests expecting a Config class.
+# noqa: E402  # Module level import not at top (intentional for conditional import)
 from core.config_manager import ConfigManager as Config  # noqa: F401

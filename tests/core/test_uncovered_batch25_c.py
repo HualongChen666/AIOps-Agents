@@ -32,11 +32,14 @@ async def test_initialize_schedules_background_loops(support, monkeypatch):
     assert "en" in support.translations
 
 
-@pytest.mark.parametrize("lang,key,expected", [
-    ("zh", "dashboard", "仪表板"),
-    ("missing_lang", "dashboard", "Dashboard"),  # fallback to English
-    ("en", "missing_key", "missing_key"),  # fallback to key name
-])
+@pytest.mark.parametrize(
+    "lang,key,expected",
+    [
+        ("zh", "dashboard", "仪表板"),
+        ("missing_lang", "dashboard", "Dashboard"),  # fallback to English
+        ("en", "missing_key", "missing_key"),  # fallback to key name
+    ],
+)
 async def test_get_translation_fallback(support, lang, key, expected):
     await support._load_translations()
     assert support.get_translation(lang, key) == expected
@@ -170,10 +173,12 @@ async def test_get_chart_data_with_history_and_empty(support):
     now = datetime.now()
     # Data points 20 and 40 minutes ago are inside the 1-hour range; 80 minutes is outside.
     for minutes_ago, value in [(20, 1), (40, 2), (80, 3)]:
-        support.realtime_data_cache["req"].append({
-            "value": value,
-            "timestamp": (now - timedelta(minutes=minutes_ago)).isoformat(),
-        })
+        support.realtime_data_cache["req"].append(
+            {
+                "value": value,
+                "timestamp": (now - timedelta(minutes=minutes_ago)).isoformat(),
+            }
+        )
     chart = await support._get_chart_data(
         {"type": "chart", "data_source": "req", "chart_type": "line"}, "1h"
     )
@@ -188,31 +193,37 @@ async def test_get_chart_data_with_history_and_empty(support):
     assert empty["data"] is None
 
 
-@pytest.mark.parametrize("time_range, expected", [
-    ("1h", timedelta(hours=1)),
-    ("6h", timedelta(hours=6)),
-    ("24h", timedelta(hours=24)),
-    ("7d", timedelta(days=7)),
-    ("unknown", timedelta(hours=1)),
-])
+@pytest.mark.parametrize(
+    "time_range, expected",
+    [
+        ("1h", timedelta(hours=1)),
+        ("6h", timedelta(hours=6)),
+        ("24h", timedelta(hours=24)),
+        ("7d", timedelta(days=7)),
+        ("unknown", timedelta(hours=1)),
+    ],
+)
 def test_parse_time_range(support, time_range, expected):
     assert support._parse_time_range(time_range) == expected
 
 
 async def test_get_dashboard_data_with_layout(support):
     await support._load_dashboard_templates()
-    await support.set_ui_settings("u1", {
-        "theme": "dark",
-        "language": "zh",
-        "dashboard_layout": {
-            "widgets": [
-                {"type": "metric", "data_source": None},
-                {"type": "chart", "data_source": "cpu_usage", "chart_type": "line"},
-                {"type": "topology"},
-                {"type": "unknown"},
-            ]
+    await support.set_ui_settings(
+        "u1",
+        {
+            "theme": "dark",
+            "language": "zh",
+            "dashboard_layout": {
+                "widgets": [
+                    {"type": "metric", "data_source": None},
+                    {"type": "chart", "data_source": "cpu_usage", "chart_type": "line"},
+                    {"type": "topology"},
+                    {"type": "unknown"},
+                ]
+            },
         },
-    })
+    )
     data = await support.get_dashboard_data("u1", "24h")
     assert data["theme"] == "dark"
     assert len(data["widgets"]) == 4
@@ -221,10 +232,13 @@ async def test_get_dashboard_data_with_layout(support):
 async def test_set_ui_settings_partial_update(support):
     first = await support.set_ui_settings("u1", {"theme": "dark"})
     assert first.theme == ui.ThemeMode.DARK
-    updated = await support.set_ui_settings("u1", {
-        "preferences": {"refresh": 5},
-        "dashboard_layout": {"x": 0},
-    })
+    updated = await support.set_ui_settings(
+        "u1",
+        {
+            "preferences": {"refresh": 5},
+            "dashboard_layout": {"x": 0},
+        },
+    )
     assert updated.theme == ui.ThemeMode.DARK
     assert updated.language == "en"
     assert updated.preferences == {"refresh": 5}

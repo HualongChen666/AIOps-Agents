@@ -236,9 +236,7 @@ class CollaborationIntegration:
                 }
             ]
             if description:
-                body.append(
-                    {"type": "TextBlock", "text": description, "wrap": True}
-                )
+                body.append({"type": "TextBlock", "text": description, "wrap": True})
 
             action_items = [
                 {

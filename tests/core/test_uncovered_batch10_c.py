@@ -83,9 +83,7 @@ def test_visualizer_to_ascii(visualizer_module, sample_workflow):
 
 
 @pytest.mark.asyncio
-async def test_visualizer_render_mermaid_to_file(
-    visualizer_module, sample_workflow, tmp_path
-):
+async def test_visualizer_render_mermaid_to_file(visualizer_module, sample_workflow, tmp_path):
     out = tmp_path / "workflow.mmd"
     result = await visualizer_module.WorkflowVisualizer.render_mermaid(
         sample_workflow, output_path=str(out)
@@ -95,9 +93,7 @@ async def test_visualizer_render_mermaid_to_file(
 
 
 @pytest.mark.asyncio
-async def test_visualizer_render_mermaid_without_path(
-    visualizer_module, sample_workflow
-):
+async def test_visualizer_render_mermaid_without_path(visualizer_module, sample_workflow):
     result = await visualizer_module.WorkflowVisualizer.render_mermaid(sample_workflow)
     assert "graph TD" in result
 
@@ -119,9 +115,7 @@ async def test_visualizer_render_graphviz_to_file(
 
 
 @pytest.mark.asyncio
-async def test_visualizer_render_graphviz_without_path(
-    visualizer_module, sample_workflow
-):
+async def test_visualizer_render_graphviz_without_path(visualizer_module, sample_workflow):
     result = await visualizer_module.WorkflowVisualizer.render_graphviz(sample_workflow)
     assert "digraph workflow {" in result
 
@@ -154,9 +148,7 @@ def victoriametrics_manager():
 @pytest.mark.asyncio
 async def test_dual_write_disabled(dual_write_module):
     strategy = dual_write_module.DualWriteStrategy()
-    ok = await strategy.write_metric(
-        "cpu", 0.5, {"service": "web"}, timestamp=1700000000
-    )
+    ok = await strategy.write_metric("cpu", 0.5, {"service": "web"}, timestamp=1700000000)
     assert ok is True
     stats = strategy.get_stats()
     assert stats["sqlite_writes"] == 1
@@ -192,9 +184,7 @@ async def test_dual_write_initialize_enabled(
 ):
     import core.storage.l4.storage_manager as l4
 
-    monkeypatch.setattr(
-        l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager
-    )
+    monkeypatch.setattr(l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager)
     strategy = dual_write_module.DualWriteStrategy(victoria_metrics_enabled=True)
     await strategy.initialize()
     assert strategy.victoria_metrics_enabled is True
@@ -202,17 +192,13 @@ async def test_dual_write_initialize_enabled(
 
 
 @pytest.mark.asyncio
-async def test_dual_write_initialize_fails(
-    dual_write_module, victoriametrics_manager, monkeypatch
-):
+async def test_dual_write_initialize_fails(dual_write_module, victoriametrics_manager, monkeypatch):
     import core.storage.l4.storage_manager as l4
 
     victoriametrics_manager.get_victoriametrics.return_value.initialize = MagicMock(
         return_value=False
     )
-    monkeypatch.setattr(
-        l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager
-    )
+    monkeypatch.setattr(l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager)
     strategy = dual_write_module.DualWriteStrategy(victoria_metrics_enabled=True)
     await strategy.initialize()
     assert strategy.victoria_metrics_enabled is False
@@ -224,13 +210,9 @@ async def test_dual_write_vm_async_and_sync(
 ):
     import core.storage.l4.storage_manager as l4
 
-    monkeypatch.setattr(
-        l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager
-    )
+    monkeypatch.setattr(l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager)
 
-    strategy = dual_write_module.DualWriteStrategy(
-        victoria_metrics_enabled=True, async_write=True
-    )
+    strategy = dual_write_module.DualWriteStrategy(victoria_metrics_enabled=True, async_write=True)
     await strategy.initialize()
     ok = await strategy.write_metric("cpu", 0.5, {"service": "web"})
     assert ok is True
@@ -242,9 +224,7 @@ async def test_dual_write_vm_async_and_sync(
 
     # switch to synchronous write with a failing store
     strategy.async_write = False
-    victoriametrics_manager.get_victoriametrics.return_value.store = AsyncMock(
-        return_value=False
-    )
+    victoriametrics_manager.get_victoriametrics.return_value.store = AsyncMock(return_value=False)
     ok2 = await strategy.write_metric("cpu", 0.6, {"service": "web"})
     assert ok2 is True  # sqlite still works
     stats = strategy.get_stats()
@@ -253,20 +233,14 @@ async def test_dual_write_vm_async_and_sync(
 
 
 @pytest.mark.asyncio
-async def test_dual_write_vm_exception(
-    dual_write_module, victoriametrics_manager, monkeypatch
-):
+async def test_dual_write_vm_exception(dual_write_module, victoriametrics_manager, monkeypatch):
     import core.storage.l4.storage_manager as l4
 
-    monkeypatch.setattr(
-        l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager
-    )
+    monkeypatch.setattr(l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager)
     victoriametrics_manager.get_victoriametrics.return_value.store = AsyncMock(
         side_effect=RuntimeError("network")
     )
-    strategy = dual_write_module.DualWriteStrategy(
-        victoria_metrics_enabled=True, async_write=False
-    )
+    strategy = dual_write_module.DualWriteStrategy(victoria_metrics_enabled=True, async_write=False)
     await strategy.initialize()
     ok = await strategy.write_metric("cpu", 0.5, {"service": "web"})
     assert ok is True
@@ -277,12 +251,8 @@ async def test_dual_write_vm_exception(
 async def test_dual_write_batch_metrics(dual_write_module, victoriametrics_manager, monkeypatch):
     import core.storage.l4.storage_manager as l4
 
-    monkeypatch.setattr(
-        l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager
-    )
-    strategy = dual_write_module.DualWriteStrategy(
-        victoria_metrics_enabled=True, async_write=False
-    )
+    monkeypatch.setattr(l4, "init_l4_storage_manager", lambda _cfg: victoriametrics_manager)
+    strategy = dual_write_module.DualWriteStrategy(victoria_metrics_enabled=True, async_write=False)
     await strategy.initialize()
 
     metrics = [
@@ -373,8 +343,8 @@ class _FakeProcess:
 
 @pytest.fixture
 def repair_module(monkeypatch):
-    import core.repair_engine._impl as impl
     import core.command_guard as cg
+    import core.repair_engine._impl as impl
     import core.stats_engine as stats
 
     class _Risk:
@@ -432,10 +402,7 @@ def test_repair_sanitize_param(repair_module):
 def test_repair_render_command(repair_module):
     assert repair_module._render_command("", {}) == ""
     assert repair_module._render_command("echo", {}) == "echo"
-    assert (
-        repair_module._render_command("echo {name}", {"name": "world"})
-        == "echo world"
-    )
+    assert repair_module._render_command("echo {name}", {"name": "world"}) == "echo world"
     # empty key ignored
     assert repair_module._render_command("echo {name}", {"": "x", "name": "y"}) == "echo y"
 
@@ -456,9 +423,7 @@ def test_repair_get_scripts_and_history(repair_module):
     assert "kill_high_cpu" in keys
     # deep copy protection
     scripts[0]["params"].append("injected")
-    assert "injected" not in repair_module.REPAIR_SCRIPTS[scripts[0]["key"]].get(
-        "params", []
-    )
+    assert "injected" not in repair_module.REPAIR_SCRIPTS[scripts[0]["key"]].get("params", [])
 
     assert repair_module.get_repair_history(limit=5) == []
     assert repair_module.get_repair_history(limit=200) == []
@@ -566,9 +531,9 @@ async def test_repair_execute_pop_exception(repair_module):
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def slo_engine(monkeypatch):
+    import core.metrics_history as mh
     import core.slo_engine as slo
     import core.slo_storage as storage
-    import core.metrics_history as mh
 
     monkeypatch.setattr(storage, "save_slos", lambda: None)
     monkeypatch.setattr(storage, "load_slos", lambda: None)
@@ -610,13 +575,17 @@ def test_slo_aggregation_and_metrics_helpers(slo_engine):
     assert slo_engine._metric_point_value(SimpleNamespace(value=0.5), "other") == 0.5
 
     rule = slo_engine.SLORule(
-        id="x", name="x", service="s", metric="availability", target=0.95,
-        window=1, alert_threshold=0.9
+        id="x",
+        name="x",
+        service="s",
+        metric="availability",
+        target=0.95,
+        window=1,
+        alert_threshold=0.9,
     )
     assert slo_engine._point_is_good(SimpleNamespace(value=0.96), rule) is True
     rule2 = slo_engine.SLORule(
-        id="x2", name="x2", service="s", metric="cpu", target=0.8,
-        window=1, alert_threshold=0.9
+        id="x2", name="x2", service="s", metric="cpu", target=0.8, window=1, alert_threshold=0.9
     )
     assert slo_engine._point_is_good(SimpleNamespace(value=75.0), rule2) is True
     assert slo_engine._point_is_good(SimpleNamespace(value=85.0), rule2) is False
@@ -633,8 +602,14 @@ def test_slo_aggregation_and_metrics_helpers(slo_engine):
 
 def test_slo_uptime_ratio(slo_engine):
     rule = slo_engine.SLORule(
-        id="u", name="u", service="s", metric="availability", target=0.95,
-        window=1, alert_threshold=0.9, aggregation="uptime"
+        id="u",
+        name="u",
+        service="s",
+        metric="availability",
+        target=0.95,
+        window=1,
+        alert_threshold=0.9,
+        aggregation="uptime",
     )
     assert slo_engine._uptime_ratio([], rule) == 1.0
     assert slo_engine._uptime_ratio([_make_point(1.0)], rule) == 1.0
@@ -664,9 +639,7 @@ def test_slo_crud(slo_engine):
     assert slo_engine.get_slo("slo-001") is rule
     assert len(slo_engine.list_slos()) == 1
 
-    updated = slo_engine.update_slo(
-        "slo-001", target=0.85, aggregation="mean_lt"
-    )
+    updated = slo_engine.update_slo("slo-001", target=0.85, aggregation="mean_lt")
     assert updated is not None
     assert updated.target == 0.85
     assert updated.aggregation == "mean_lt"
@@ -679,8 +652,12 @@ def test_slo_crud(slo_engine):
 
 def test_slo_evaluate_empty_and_aggregations(slo_engine):
     rule = slo_engine.create_slo(
-        name="avail", service="web", metric="availability", target=0.95,
-        window=24, aggregation="good_ratio"
+        name="avail",
+        service="web",
+        metric="availability",
+        target=0.95,
+        window=24,
+        aggregation="good_ratio",
     )
     empty = slo_engine.evaluate_slo(rule, [])
     assert empty["status"] == "healthy"
@@ -691,22 +668,24 @@ def test_slo_evaluate_empty_and_aggregations(slo_engine):
     assert result["status"] in {"healthy", "warning", "critical"}
 
     rule2 = slo_engine.create_slo(
-        name="latency", service="api", metric="latency", target=0.1,
-        window=1, aggregation="p99_lt"
+        name="latency", service="api", metric="latency", target=0.1, window=1, aggregation="p99_lt"
     )
     p99_result = slo_engine.evaluate_slo(rule2, [_make_point(0.05), _make_point(0.2)])
     assert p99_result["current"] in {0.0, 1.0}
 
     rule3 = slo_engine.create_slo(
-        name="cpu-mean", service="db", metric="cpu", target=0.6,
-        window=1, aggregation="mean_lt"
+        name="cpu-mean", service="db", metric="cpu", target=0.6, window=1, aggregation="mean_lt"
     )
     mean_result = slo_engine.evaluate_slo(rule3, [_make_point(80), _make_point(60)])
     assert "status" in mean_result
 
     rule4 = slo_engine.create_slo(
-        name="perfect", service="svc", metric="availability", target=1.0,
-        window=1, aggregation="good_ratio"
+        name="perfect",
+        service="svc",
+        metric="availability",
+        target=1.0,
+        window=1,
+        aggregation="good_ratio",
     )
     perfect = slo_engine.evaluate_slo(rule4, [_make_point(0.5)])
     assert perfect["error_budget_remaining_percent"] == 0.0

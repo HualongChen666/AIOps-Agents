@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """In-memory incident store and downtime calculator for SLA reporting."""
+
 from __future__ import annotations
 
 import logging

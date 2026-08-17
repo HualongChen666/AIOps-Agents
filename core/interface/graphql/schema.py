@@ -147,9 +147,7 @@ class Query:
 
             if filter:
                 if filter.level:
-                    alerts_data = [
-                        a for a in alerts_data if a.get("level") == filter.level.value
-                    ]
+                    alerts_data = [a for a in alerts_data if a.get("level") == filter.level.value]
                 if filter.platform:
                     alerts_data = [
                         a for a in alerts_data if a.get("platform") == filter.platform.value

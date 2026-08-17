@@ -289,7 +289,7 @@ def test_frontend_unavailable_returns_503_for_all_guarded_endpoints(client):
         path = item[1]
         kwargs = item[2] if len(item) > 2 else {}
         r = getattr(client, method)(path, **kwargs)
-        assert r.status_code == 503, (
-            f"{method.upper()} {path} expected 503, got {r.status_code}: {r.text}"
-        )
+        assert (
+            r.status_code == 503
+        ), f"{method.upper()} {path} expected 503, got {r.status_code}: {r.text}"
         assert "前端增强管理器不可用" in r.json()["detail"]

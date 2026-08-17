@@ -9,16 +9,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import core.caching_strategy as caching_strategy
+import core.database_cache_optimizer as cache_opt_mod
+import core.database_connection_optimizer as conn_opt_mod
+import core.database_optimization_manager as dom
+import core.database_query_optimizer as query_opt_mod
+import core.dependency_injection as di
+
 # Load slo_engine first so that the cyclic slo_storage import resolves cleanly.
 import core.slo_engine as _slo_engine  # noqa: F401
 import core.slo_storage as slo_storage
-
-import core.caching_strategy as caching_strategy
-import core.database_optimization_manager as dom
-import core.database_query_optimizer as query_opt_mod
-import core.database_connection_optimizer as conn_opt_mod
-import core.database_cache_optimizer as cache_opt_mod
-import core.dependency_injection as di
 import core.workflow.engine.dag as dag
 
 pytestmark = [pytest.mark.core]
@@ -82,7 +82,9 @@ def test_save_and_load_slos(fresh_slo_storage, monkeypatch):
 
 def test_load_slos_missing_file(fresh_slo_storage, monkeypatch):
     debug_calls = []
-    monkeypatch.setattr(slo_storage.logger, "debug", lambda *args, **kwargs: debug_calls.append(args))
+    monkeypatch.setattr(
+        slo_storage.logger, "debug", lambda *args, **kwargs: debug_calls.append(args)
+    )
     slo_storage.load_slos()
     assert any("No SLO persistence file" in str(c) for c in debug_calls)
 
@@ -90,7 +92,9 @@ def test_load_slos_missing_file(fresh_slo_storage, monkeypatch):
 def test_load_slos_invalid_json(fresh_slo_storage, monkeypatch):
     slo_storage._SLOS_FILE.write_text("not-json", encoding="utf-8")
     warning_calls = []
-    monkeypatch.setattr(slo_storage.logger, "warning", lambda *args, **kwargs: warning_calls.append(args))
+    monkeypatch.setattr(
+        slo_storage.logger, "warning", lambda *args, **kwargs: warning_calls.append(args)
+    )
     slo_storage.load_slos()
     assert any("Failed to load SLOs" in str(c) for c in warning_calls)
     assert not _slo_engine._slo_store

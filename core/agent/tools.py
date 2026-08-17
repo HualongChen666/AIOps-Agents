@@ -965,8 +965,12 @@ class ToolRegistry:
 
         logger.info(f"Analyzing anomaly with {method}")
         if not data:
-            return {"method": method, "is_anomaly": False,
-                    "anomaly_score": 0.0, "reason": "empty data"}
+            return {
+                "method": method,
+                "is_anomaly": False,
+                "anomaly_score": 0.0,
+                "reason": "empty data",
+            }
 
         values = [float(v) for v in data]
         mean = statistics.mean(values)
@@ -1206,8 +1210,11 @@ class ToolRegistry:
         """运行基础诊断：健康检查 + 简单指标采集"""
         logger.info(f"Running {type} diagnostic for {target}")
         health = self._check_health(target)
-        metrics = self._collect_service_metrics(target) if hasattr(
-            self, "_collect_service_metrics") else {}
+        metrics = (
+            self._collect_service_metrics(target)
+            if hasattr(self, "_collect_service_metrics")
+            else {}
+        )
         result = {
             "target": target,
             "type": type,

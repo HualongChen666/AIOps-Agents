@@ -29,6 +29,7 @@ pytestmark = [pytest.mark.core]
 # core.metrics_converter
 # -----------------------------------------------------------------------------
 
+
 def test_sqlite_to_prometheus_basic_and_timestamp():
     line = metrics_converter.MetricsConverter.sqlite_to_prometheus(
         "cpu.usage", 42.0, {"host": "h1"}
@@ -58,12 +59,17 @@ def test_batch_sqlite_to_prometheus():
 def test_sanitize_metric_name():
     assert metrics_converter.MetricsConverter.sanitize_metric_name("metric-name") == "metric_name"
     assert metrics_converter.MetricsConverter.sanitize_metric_name("123_metric") == "_123_metric"
-    assert metrics_converter.MetricsConverter.sanitize_metric_name("valid_metric:1") == "valid_metric:1"
+    assert (
+        metrics_converter.MetricsConverter.sanitize_metric_name("valid_metric:1")
+        == "valid_metric:1"
+    )
     assert metrics_converter.MetricsConverter.sanitize_metric_name("") == ""
 
 
 def test_format_labels_and_escape():
-    formatted = metrics_converter.MetricsConverter.format_labels({"host": "my-host", "path": 'a"b\\c'})
+    formatted = metrics_converter.MetricsConverter.format_labels(
+        {"host": "my-host", "path": 'a"b\\c'}
+    )
     assert 'host="my-host"' in formatted
     assert 'path="a\\"b\\\\c"' in formatted
     assert metrics_converter.MetricsConverter.format_labels({}) == ""
@@ -112,6 +118,7 @@ def test_prometheus_to_sqlite_parsing_and_errors():
 # -----------------------------------------------------------------------------
 # core.data_lineage
 # -----------------------------------------------------------------------------
+
 
 @pytest.fixture
 def lineage_manager():
@@ -223,7 +230,9 @@ def test_relationship_management(lineage_manager):
 def test_list_and_search_entities(lineage_manager):
     e1 = lineage_manager.register_entity("alpha", EntityType.DATASET, "alpha dataset", owner="o1")
     e2 = lineage_manager.register_entity("beta", EntityType.JOB, "beta job", owner="o2")
-    _ = lineage_manager.register_entity("gamma", EntityType.SERVICE, "gamma service", owner="o1", tags={"t1"})
+    _ = lineage_manager.register_entity(
+        "gamma", EntityType.SERVICE, "gamma service", owner="o1", tags={"t1"}
+    )
 
     all_entities = lineage_manager.list_entities()
     assert len(all_entities) == 3
@@ -318,15 +327,14 @@ def test_initialize_storage_failure(monkeypatch):
 
 
 def test_create_data_lineage_manager_failure(monkeypatch):
-    monkeypatch.setattr(
-        "core.data_lineage.DataLineageManager.initialize", lambda self: False
-    )
+    monkeypatch.setattr("core.data_lineage.DataLineageManager.initialize", lambda self: False)
     assert create_data_lineage_manager() is None
 
 
 # -----------------------------------------------------------------------------
 # core.processing.l3.causal_graph
 # -----------------------------------------------------------------------------
+
 
 def test_causal_node_relationships():
     node = causal_graph_module.CausalNode("n1", "Node 1", "metric")
@@ -345,7 +353,9 @@ def test_causal_graph_add_and_query():
     assert graph.get_node("n1") is n1
     assert graph.get_children("n1") == []
 
-    edge = causal_graph_module.CausalEdgeClass("n1", "n2", causal_graph_module.CausalStrength.STRONG)
+    edge = causal_graph_module.CausalEdgeClass(
+        "n1", "n2", causal_graph_module.CausalStrength.STRONG
+    )
     graph.add_edge(edge)
     children = graph.get_children("n1")
     assert len(children) == 1
@@ -359,8 +369,16 @@ def test_find_root_causes():
     n3 = causal_graph_module.CausalNode("leaf", "Leaf", "metric")
     for n in (n1, n2, n3):
         graph.add_node(n)
-    graph.add_edge(causal_graph_module.CausalEdgeClass("root", "mid", causal_graph_module.CausalStrength.STRONG))
-    graph.add_edge(causal_graph_module.CausalEdgeClass("mid", "leaf", causal_graph_module.CausalStrength.MODERATE))
+    graph.add_edge(
+        causal_graph_module.CausalEdgeClass(
+            "root", "mid", causal_graph_module.CausalStrength.STRONG
+        )
+    )
+    graph.add_edge(
+        causal_graph_module.CausalEdgeClass(
+            "mid", "leaf", causal_graph_module.CausalStrength.MODERATE
+        )
+    )
     n3.is_anomaly = True
     causes = graph.find_root_causes("leaf", max_depth=5)
     assert len(causes) >= 1
@@ -384,13 +402,19 @@ def test_analyze_impact():
     n2 = causal_graph_module.CausalNode("app", "App", "service")
     graph.add_node(n1)
     graph.add_node(n2)
-    graph.add_edge(causal_graph_module.CausalEdgeClass("db", "app", causal_graph_module.CausalStrength.MODERATE))
+    graph.add_edge(
+        causal_graph_module.CausalEdgeClass(
+            "db", "app", causal_graph_module.CausalStrength.MODERATE
+        )
+    )
     impact = graph.analyze_impact("db", impact_threshold=0.2)
     assert impact["impacted_count"] == 2
 
 
 def test_build_system_topology(monkeypatch):
-    monkeypatch.setattr(config, "LINUX_HOSTS", {"hosts": [{"host": "linux1"}, {"hostname": "linux2"}]})
+    monkeypatch.setattr(
+        config, "LINUX_HOSTS", {"hosts": [{"host": "linux1"}, {"hostname": "linux2"}]}
+    )
     monkeypatch.setattr(config, "K8S_HOSTS", [{"host": "k8s1"}, {"name": "k8s2"}])
     monkeypatch.setattr(config, "DOCKER_HOSTS", [{"host": "docker1"}])
     monkeypatch.setattr(config, "WIN_HOSTS", [{"host": "win1"}])
@@ -408,12 +432,14 @@ def test_get_causal_graph_singleton():
     assert causal_graph_module.get_causal_graph() is graph
     # Reset for other tests is not strictly necessary but avoids singleton leakage
     import core.processing.l3.causal_graph as mod
+
     mod._causal_graph = None
 
 
 # -----------------------------------------------------------------------------
 # core.macos_collector
 # -----------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_subprocess_factory(monkeypatch):
@@ -425,6 +451,7 @@ def mock_subprocess_factory(monkeypatch):
             proc.communicate = AsyncMock(return_value=(stdout, stderr))
         proc.returncode = returncode
         monkeypatch.setattr(asyncio, "create_subprocess_shell", AsyncMock(return_value=proc))
+
     return _factory
 
 
@@ -494,6 +521,7 @@ def test_collect_macos_metrics_remote_host_rejected(mac_config):
 # -----------------------------------------------------------------------------
 # core.error_codes.manager
 # -----------------------------------------------------------------------------
+
 
 def test_error_code_manager_basic():
     manager = error_codes_manager.ErrorCodeManager()

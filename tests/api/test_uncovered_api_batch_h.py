@@ -160,7 +160,9 @@ def test_docker_metrics_and_repair(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(mod, "DOCKER_HOSTS", [{"host": "h1"}])
     monkeypatch.setattr(mod, "collect_docker", lambda cfg: {"host": cfg["host"], "containers": []})
-    monkeypatch.setattr(mod, "execute_repair_sync", AsyncMock(return_value={"success": True, "output": "ok"}))
+    monkeypatch.setattr(
+        mod, "execute_repair_sync", AsyncMock(return_value={"success": True, "output": "ok"})
+    )
 
     r = client.get("/api/v1/platforms/docker/metrics", headers=admin_headers)
     assert r.status_code == 200
@@ -177,6 +179,7 @@ def test_docker_metrics_and_repair(client, admin_headers, monkeypatch):
 
 def test_docker_metrics_empty_hosts(client, admin_headers, monkeypatch):
     import api.docker_router as mod
+
     monkeypatch.setattr(mod, "DOCKER_HOSTS", [])
     r = client.get("/api/v1/platforms/docker/metrics", headers=admin_headers)
     assert r.status_code == 400
@@ -184,6 +187,7 @@ def test_docker_metrics_empty_hosts(client, admin_headers, monkeypatch):
 
 def test_docker_repair_404_and_500(client, admin_headers, monkeypatch):
     import api.docker_router as mod
+
     monkeypatch.setattr(mod, "DOCKER_HOSTS", [{"host": "h2"}])
     r = client.post(
         "/api/v1/platforms/docker/repair",
@@ -207,8 +211,13 @@ def test_docker_repair_404_and_500(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_business_impact_happy(client, admin_headers, monkeypatch):
     import api.business_impact_router as mod
-    monkeypatch.setattr(mod, "list_business_impact_services", AsyncMock(return_value=[{"id": "SVC-1"}]))
-    monkeypatch.setattr(mod, "list_business_impact_ux_metrics", AsyncMock(return_value=[{"id": "UX-1"}]))
+
+    monkeypatch.setattr(
+        mod, "list_business_impact_services", AsyncMock(return_value=[{"id": "SVC-1"}])
+    )
+    monkeypatch.setattr(
+        mod, "list_business_impact_ux_metrics", AsyncMock(return_value=[{"id": "UX-1"}])
+    )
     monkeypatch.setattr(mod, "assess_business_impact", AsyncMock(return_value={"name": "svc"}))
 
     r = client.get("/api/v1/business-impact/services", headers=admin_headers)
@@ -224,7 +233,10 @@ def test_business_impact_happy(client, admin_headers, monkeypatch):
 
 def test_business_impact_errors(client, admin_headers, monkeypatch):
     import api.business_impact_router as mod
-    monkeypatch.setattr(mod, "list_business_impact_services", AsyncMock(side_effect=RuntimeError("boom")))
+
+    monkeypatch.setattr(
+        mod, "list_business_impact_services", AsyncMock(side_effect=RuntimeError("boom"))
+    )
     r = client.get("/api/v1/business-impact/services", headers=admin_headers)
     assert r.status_code == 500
 
@@ -292,6 +304,7 @@ def test_tenant_errors(client, admin_headers):
 # ---------------------------------------------------------------------------
 def test_anomaly_endpoints(client, admin_headers, monkeypatch):
     import api.anomaly_router as mod
+
     monkeypatch.setattr(mod, "detect_all_anomalies", lambda history: [{"id": "a1"}])
     monkeypatch.setattr(mod, "detect_anomalies", lambda history, metric: [{"id": f"{metric}-a"}])
 
@@ -322,7 +335,10 @@ def test_anomaly_endpoints(client, admin_headers, monkeypatch):
 
 def test_anomaly_errors(client, admin_headers, monkeypatch):
     import api.anomaly_router as mod
-    monkeypatch.setattr(mod, "detect_all_anomalies", lambda history: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    monkeypatch.setattr(
+        mod, "detect_all_anomalies", lambda history: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     r = client.get("/api/v1/anomaly/records", headers=admin_headers)
     assert r.status_code == 500
 
@@ -340,6 +356,7 @@ def test_anomaly_errors(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_itsm_create_and_resolve(client, admin_headers, monkeypatch):
     import api.itsm_router as mod
+
     monkeypatch.setattr(mod, "SERVICE_NOW_URL", "http://snow.example")
     monkeypatch.setattr(mod, "SERVICE_NOW_TOKEN", "tok")
     monkeypatch.setattr(mod, "JIRA_URL", "http://jira.example")
@@ -371,6 +388,7 @@ def test_itsm_create_and_resolve(client, admin_headers, monkeypatch):
 
 def test_itsm_errors(client, admin_headers, monkeypatch):
     import api.itsm_router as mod
+
     monkeypatch.setattr(mod, "SERVICE_NOW_URL", "")
     monkeypatch.setattr(mod, "SERVICE_NOW_TOKEN", "")
     r = client.post(
@@ -393,6 +411,7 @@ def test_itsm_errors(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def _patch_advanced_ai(monkeypatch):
     import api.advanced_ai_router as mod
+
     monkeypatch.setattr(mod, "ADVANCED_AI_AVAILABLE", True)
     monkeypatch.setattr(mod, "advanced_ai_capabilities", _FakeAdvancedAI())
     monkeypatch.setattr(mod, "LearningMode", _FakeLearningMode)
@@ -515,6 +534,7 @@ def test_advanced_ai_knowledge_and_history(client, admin_headers, monkeypatch):
 
 def test_advanced_ai_unavailable(client, admin_headers, monkeypatch):
     import api.advanced_ai_router as mod
+
     monkeypatch.setattr(mod, "ADVANCED_AI_AVAILABLE", False)
     r = client.post(
         "/api/v1/ai-advanced/predict/time-series",
@@ -621,6 +641,7 @@ def test_plugin_sdk_errors(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def _patch_notify(monkeypatch, enabled=True):
     import api.notify_router as mod
+
     cfg = {
         "enabled": enabled,
         "min_level": "critical",
@@ -630,14 +651,22 @@ def _patch_notify(monkeypatch, enabled=True):
         "email_webhook": "http://e",
     }
     monkeypatch.setattr(mod._notify_engine, "NOTIFY_CONFIG", cfg)
-    monkeypatch.setattr(mod, "send_alert_notification", AsyncMock(return_value={"wecom": True, "dingtalk": True, "feishu": True}))
+    monkeypatch.setattr(
+        mod,
+        "send_alert_notification",
+        AsyncMock(return_value={"wecom": True, "dingtalk": True, "feishu": True}),
+    )
     monkeypatch.setattr(mod, "reload_notify_config", lambda: cfg)
     monkeypatch.setattr(mod._notify_engine, "get_notification_status", lambda **k: [{"id": "1"}])
     monkeypatch.setattr(mod._notify_engine, "mark_notification_read", lambda mid, ch: True)
 
     class FakeAdapter:
         async def lookup_async(self, **kwargs):
-            return [SimpleNamespace(name="a", email="", phone="", channel="wecom", team="ops", role="oncall")]
+            return [
+                SimpleNamespace(
+                    name="a", email="", phone="", channel="wecom", team="ops", role="oncall"
+                )
+            ]
 
     monkeypatch.setattr(mod, "get_oncall_adapter", lambda: FakeAdapter())
 
@@ -674,7 +703,9 @@ def test_notify_happy(client, admin_headers, monkeypatch):
     assert r.status_code == 200
     assert r.json()["count"] == 1
 
-    r = client.post("/api/notify/read", headers=admin_headers, json={"message_id": "m1", "channel": "wecom"})
+    r = client.post(
+        "/api/notify/read", headers=admin_headers, json={"message_id": "m1", "channel": "wecom"}
+    )
     assert r.status_code == 200
     assert r.json()["updated"] is True
 
@@ -710,6 +741,7 @@ def test_notify_disabled_and_invalid(client, admin_headers, monkeypatch):
 
 def test_notify_errors(client, admin_headers, monkeypatch):
     import api.notify_router as mod
+
     _patch_notify(monkeypatch, enabled=True)
     monkeypatch.setattr(mod, "send_alert_notification", AsyncMock(side_effect=RuntimeError("boom")))
     r = client.post(
@@ -719,11 +751,17 @@ def test_notify_errors(client, admin_headers, monkeypatch):
     )
     assert r.status_code == 500
 
-    monkeypatch.setattr(mod, "reload_notify_config", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        mod, "reload_notify_config", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     r = client.post("/api/notify/reload", headers=admin_headers)
     assert r.status_code == 500
 
-    monkeypatch.setattr(mod._notify_engine, "get_notification_status", lambda **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        mod._notify_engine,
+        "get_notification_status",
+        lambda **k: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     r = client.get("/api/notify/status", headers=admin_headers)
     assert r.status_code == 500
 
@@ -736,7 +774,9 @@ def test_notify_errors(client, admin_headers, monkeypatch):
     assert r.status_code == 500
 
     monkeypatch.setattr(mod._notify_engine, "mark_notification_read", lambda mid, ch: False)
-    r = client.post("/api/notify/read", headers=admin_headers, json={"message_id": "m1", "channel": "wecom"})
+    r = client.post(
+        "/api/notify/read", headers=admin_headers, json={"message_id": "m1", "channel": "wecom"}
+    )
     assert r.status_code == 200
     assert r.json()["status"] == "not_found"
 
@@ -746,13 +786,20 @@ def test_notify_errors(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def _patch_collaboration(monkeypatch):
     import api.collaboration_router as mod
+
     monkeypatch.setattr(mod, "engine_list_workspaces", lambda *a, **k: [{"id": "ws1"}])
-    monkeypatch.setattr(mod, "engine_get_workspace", lambda wid: None if wid == "missing" else {"id": wid, "name": "x"})
+    monkeypatch.setattr(
+        mod,
+        "engine_get_workspace",
+        lambda wid: None if wid == "missing" else {"id": wid, "name": "x"},
+    )
     monkeypatch.setattr(mod, "engine_create_workspace", lambda **k: {"id": "new"})
     monkeypatch.setattr(mod, "engine_post_message", lambda *a, **k: {"message": "ok"})
     monkeypatch.setattr(mod, "engine_add_task", lambda *a, **k: {"task": "ok"})
     monkeypatch.setattr(mod, "engine_assign_task", lambda *a, **k: {"task": "ok"})
-    monkeypatch.setattr(mod, "engine_resolve_workspace", lambda wid: {"id": wid, "status": "resolved"})
+    monkeypatch.setattr(
+        mod, "engine_resolve_workspace", lambda wid: {"id": wid, "status": "resolved"}
+    )
     monkeypatch.setattr(mod, "engine_get_active_context", lambda: {"alerts": []})
 
 
@@ -803,16 +850,21 @@ def test_collaboration_happy(client, admin_headers, monkeypatch):
 
 def test_collaboration_errors(client, admin_headers, monkeypatch):
     import api.collaboration_router as mod
+
     _patch_collaboration(monkeypatch)
 
     r = client.get("/api/v1/collaboration/workspaces/missing", headers=admin_headers)
     assert r.status_code == 404
 
-    monkeypatch.setattr(mod, "engine_create_workspace", lambda **k: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(
+        mod, "engine_create_workspace", lambda **k: (_ for _ in ()).throw(ValueError("bad"))
+    )
     r = client.post("/api/v1/collaboration/workspaces", headers=admin_headers, json={"name": "x"})
     assert r.status_code == 400
 
-    monkeypatch.setattr(mod, "engine_post_message", lambda *a, **k: (_ for _ in ()).throw(ValueError("missing")))
+    monkeypatch.setattr(
+        mod, "engine_post_message", lambda *a, **k: (_ for _ in ()).throw(ValueError("missing"))
+    )
     r = client.post(
         "/api/v1/collaboration/workspaces/ws1/messages",
         headers=admin_headers,
@@ -820,7 +872,9 @@ def test_collaboration_errors(client, admin_headers, monkeypatch):
     )
     assert r.status_code == 404
 
-    monkeypatch.setattr(mod, "engine_list_workspaces", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        mod, "engine_list_workspaces", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     r = client.get("/api/v1/collaboration/workspaces", headers=admin_headers)
     assert r.status_code == 500
 
@@ -847,6 +901,7 @@ def _change_req():
 
 def _patch_change(monkeypatch):
     import api.change_management_router as mod
+
     monkeypatch.setattr(mod, "list_requests", AsyncMock(return_value=[_change_req()]))
     monkeypatch.setattr(mod, "create_request", AsyncMock(return_value=_change_req()))
     monkeypatch.setattr(mod, "get_request", AsyncMock(return_value=_change_req()))
@@ -893,17 +948,26 @@ def test_change_management_happy(client, admin_headers, monkeypatch):
 
 def test_change_management_errors(client, admin_headers, monkeypatch):
     import api.change_management_router as mod
+
     _patch_change(monkeypatch)
 
     monkeypatch.setattr(mod, "list_requests", AsyncMock(side_effect=RuntimeError("boom")))
     r = client.get("/api/v1/change-management/requests", headers=admin_headers)
     assert r.status_code == 500
 
-    monkeypatch.setattr(mod, "create_request", AsyncMock(side_effect=mod.ChangeManagementError("bad")))
-    r = client.post("/api/v1/change-management/requests", headers=admin_headers, json={"title": "t", "requester": "r"})
+    monkeypatch.setattr(
+        mod, "create_request", AsyncMock(side_effect=mod.ChangeManagementError("bad"))
+    )
+    r = client.post(
+        "/api/v1/change-management/requests",
+        headers=admin_headers,
+        json={"title": "t", "requester": "r"},
+    )
     assert r.status_code == 400
 
-    monkeypatch.setattr(mod, "get_request", AsyncMock(side_effect=mod.ChangeManagementError("missing")))
+    monkeypatch.setattr(
+        mod, "get_request", AsyncMock(side_effect=mod.ChangeManagementError("missing"))
+    )
     r = client.get("/api/v1/change-management/requests/cr1", headers=admin_headers)
     assert r.status_code == 404
 
@@ -917,7 +981,10 @@ def test_change_management_errors(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_ai_analyze(client, admin_headers, monkeypatch):
     import api.ai_router as mod
-    monkeypatch.setattr(mod, "analyze", AsyncMock(return_value={"analysis": "ok", "confidence": 0.9}))
+
+    monkeypatch.setattr(
+        mod, "analyze", AsyncMock(return_value={"analysis": "ok", "confidence": 0.9})
+    )
 
     r = client.post(
         "/api/ai/analyze",
@@ -930,6 +997,7 @@ def test_ai_analyze(client, admin_headers, monkeypatch):
 
 def test_ai_analyze_errors(client, admin_headers, monkeypatch):
     import api.ai_router as mod
+
     r = client.post(
         "/api/ai/analyze",
         headers=admin_headers,
@@ -1161,6 +1229,7 @@ def test_infrastructure_happy(client, admin_headers, monkeypatch):
 
 def test_infrastructure_errors(client, admin_headers, monkeypatch):
     import api.infrastructure_router as mod
+
     _patch_infrastructure(monkeypatch)
 
     def boom():

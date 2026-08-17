@@ -252,9 +252,7 @@ class _FakeConfigRepo:
 
     async def list_configs(self, namespace: str, limit: int = 100):
         return [
-            c
-            for c in list(self._configs.values())
-            if getattr(c, "namespace", "") == namespace
+            c for c in list(self._configs.values()) if getattr(c, "namespace", "") == namespace
         ][:limit]
 
     async def save_config(self, config):
@@ -928,7 +926,9 @@ async def test_incident_response_service(monkeypatch):
     assert (await svc.get_stats())["status"] == "ok"
     assert (await svc.get_state())["status"] == "not_found"
 
-    await svc.design_response_framework({"config": {"feature": "design_response_framework", "x": 1}})
+    await svc.design_response_framework(
+        {"config": {"feature": "design_response_framework", "x": 1}}
+    )
     state = await svc.get_state({"config": {"feature": "design_response_framework"}})
     assert state["status"] == "found"
 

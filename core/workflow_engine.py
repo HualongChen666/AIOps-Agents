@@ -553,11 +553,13 @@ def _validate_workflow_definition(wf_key: str, definition: dict[str, Any]) -> di
         step_key = str(step.get("key") or f"{wf_key}-step-{idx}").strip()
         step_title = str(step.get("title") or f"步骤 {idx + 1}").strip()
         step_desc = str(step.get("desc") or "").strip()
-        validated_steps.append({
-            "key": step_key[:128],
-            "title": step_title[:128],
-            "desc": step_desc[:256],
-        })
+        validated_steps.append(
+            {
+                "key": step_key[:128],
+                "title": step_title[:128],
+                "desc": step_desc[:256],
+            }
+        )
 
     safe: dict[str, Any] = copy.deepcopy(definition)
     safe["name"] = name.strip()

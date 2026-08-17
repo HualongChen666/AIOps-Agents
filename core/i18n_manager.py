@@ -4,11 +4,11 @@ Internationalization (i18n) Manager
 Enterprise-grade internationalization framework and localization support
 """
 
+import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import json
-import os
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -536,7 +536,8 @@ class I18nManager:
         return True
 
     def get_namespace_translations(
-            self, locale_id: str, namespace: str = "common") -> Dict[str, str]:
+        self, locale_id: str, namespace: str = "common"
+    ) -> Dict[str, str]:
         """Get all translations for a locale and namespace."""
         locale = self.locales.get(locale_id)
         if not locale:

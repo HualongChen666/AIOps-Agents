@@ -7,20 +7,21 @@ Covers branches and edge cases in:
   - core.analysis.l2.langgraph_engine
   - core.analysis.l2.enhanced_causal_analyzer
 """
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import core.root_cause_intelligence as rci
-import core.heal_graph as hg
 import core.ai_engine as ai_engine
+import core.analysis.l2.enhanced_causal_analyzer as eca
+import core.analysis.l2.langgraph_engine as l2e
+import core.heal_graph as hg
+import core.phase3_metrics as phase3_metrics
 import core.priority_engine as priority_engine
+import core.root_cause_intelligence as rci
 import core.runbook_generator as runbook_generator
 import core.verifier as verifier
-import core.analysis.l2.langgraph_engine as l2e
-import core.analysis.l2.enhanced_causal_analyzer as eca
-import core.phase3_metrics as phase3_metrics
 
 pytestmark = [pytest.mark.core]
 
@@ -36,6 +37,7 @@ def rci_engine(monkeypatch):
 @pytest.fixture
 def stub_heal(monkeypatch):
     """Stub all heavy external side effects for heal_graph tests."""
+
     # Risk / command guard
     class RL:
         BLOCKED = "BLOCKED"
@@ -44,9 +46,7 @@ def stub_heal(monkeypatch):
         SAFE = "SAFE"
 
     monkeypatch.setattr(hg, "RiskLevel", RL)
-    monkeypatch.setattr(
-        hg, "analyze_command", lambda cmd: {"risk_level": RL.LOW, "reason": "ok"}
-    )
+    monkeypatch.setattr(hg, "analyze_command", lambda cmd: {"risk_level": RL.LOW, "reason": "ok"})
 
     # Audit / trace
     monkeypatch.setattr(hg, "_set_trace_id", lambda _tid: None)
@@ -96,9 +96,7 @@ def stub_heal(monkeypatch):
     monkeypatch.setattr(phase3_metrics, "HEAL_PENDING_APPROVAL", MagicMock())
 
     # Core dependencies used by node functions
-    monkeypatch.setattr(
-        priority_engine, "compute_sla_score", lambda alert: 2
-    )
+    monkeypatch.setattr(priority_engine, "compute_sla_score", lambda alert: 2)
     monkeypatch.setattr(
         ai_engine, "analyze", AsyncMock(return_value="AI analysis: restart service")
     )
@@ -410,9 +408,7 @@ async def test_evaluate_string_runbook(stub_heal):
 
 
 async def test_rollback_blocked_without_approval(monkeypatch, stub_heal):
-    monkeypatch.setattr(
-        stub_heal, "SNAPSHOT_CONFIG", {"rollback_approval_required": True}
-    )
+    monkeypatch.setattr(stub_heal, "SNAPSHOT_CONFIG", {"rollback_approval_required": True})
     state = hg.HealState(
         alert={"id": "r1"},
         verification={"passed": False},
@@ -455,7 +451,12 @@ async def test_complete_status_variants(stub_heal):
 def test_heal_helpers():
     assert hg._is_alert_resolved({"status": "resolved"}) is True
     assert hg._is_alert_resolved({"resolved": True}) is True
-    assert hg._is_alert_resolved({"resolved_condition": {"metric": "x", "operator": ">", "threshold": 1}}) is False
+    assert (
+        hg._is_alert_resolved(
+            {"resolved_condition": {"metric": "x", "operator": ">", "threshold": 1}}
+        )
+        is False
+    )
     assert hg._is_hardware_alert({"category": "hardware"}) is True
     assert hg._is_hardware_alert({"metric": "ipmi fan failure"}) is True
     assert hg._extract_command_target("systemctl restart nginx") == "nginx"
@@ -509,9 +510,7 @@ def test_langgraph_query_builders(l2_engine):
 
 
 def test_langgraph_assess_completeness(l2_engine):
-    result = l2_engine._assess_completeness(
-        {"data": []}, {"_data_completeness": "failed"}
-    )
+    result = l2_engine._assess_completeness({"data": []}, {"_data_completeness": "failed"})
     assert isinstance(result, dict)
     assert result["metrics_available"] is True
     assert result["logs_available"] is False

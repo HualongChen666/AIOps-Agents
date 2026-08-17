@@ -1,6 +1,8 @@
 import asyncio
+
 import pytest
-from core.api_performance import monitor_api_performance, API_PERFORMANCE_STATS
+
+from core.api_performance import API_PERFORMANCE_STATS, monitor_api_performance
 
 
 def test_api_performance_decorator_smoke():

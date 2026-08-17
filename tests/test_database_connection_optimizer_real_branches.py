@@ -36,7 +36,6 @@ from core.database_connection_optimizer import (
     rollback_transaction,
 )
 
-
 SAFE_SQLITE_URL = "sqlite:///:memory:"
 
 
@@ -54,15 +53,11 @@ def test_get_database_connection_optimizer_real():
 def test_create_pool_non_fixed_strategy_and_duplicate():
     """Non-FIXED strategies skip pre-creation; duplicate pool names warn."""
     opt = DatabaseConnectionOptimizer()
-    create_connection_pool(
-        opt, "dynamic", url=SAFE_SQLITE_URL, strategy=PoolStrategy.DYNAMIC
-    )
+    create_connection_pool(opt, "dynamic", url=SAFE_SQLITE_URL, strategy=PoolStrategy.DYNAMIC)
     assert "dynamic" in opt.pools
     assert opt.pools["dynamic"]["connections"] == []
 
-    create_connection_pool(
-        opt, "simple", url=SAFE_SQLITE_URL, strategy=PoolStrategy.SIMPLE
-    )
+    create_connection_pool(opt, "simple", url=SAFE_SQLITE_URL, strategy=PoolStrategy.SIMPLE)
     assert opt.pools["simple"]["connections"] == []
 
     # Duplicate pool creation branch (warn and return)
@@ -156,9 +151,7 @@ def test_optimize_pool_size_branches():
     assert opt.optimize_pool_size("nohist") == {"error": "No historical data available"}
 
     # High waiting -> increase_pool_size
-    create_connection_pool(
-        opt, "busy", url=SAFE_SQLITE_URL, pool_size=1, max_overflow=0
-    )
+    create_connection_pool(opt, "busy", url=SAFE_SQLITE_URL, pool_size=1, max_overflow=0)
     # The source treats a max_overflow of 0 as the default, so force it to 0
     # directly on the pool to exercise the waiting queue.
     opt.pools["busy"]["max_overflow"] = 0
@@ -170,18 +163,14 @@ def test_optimize_pool_size_branches():
 
     # Underutilized -> decrease_pool_size
     opt2 = DatabaseConnectionOptimizer()
-    create_connection_pool(
-        opt2, "idle", url=SAFE_SQLITE_URL, pool_size=20
-    )
+    create_connection_pool(opt2, "idle", url=SAFE_SQLITE_URL, pool_size=20)
     opt2.get_pool_metrics("idle")
     rec2 = opt2.optimize_pool_size("idle")
     assert rec2["recommendations"][0]["type"] == "decrease_pool_size"
 
     # Optimal -> no_change
     opt3 = DatabaseConnectionOptimizer()
-    create_connection_pool(
-        opt3, "just", url=SAFE_SQLITE_URL, pool_size=2
-    )
+    create_connection_pool(opt3, "just", url=SAFE_SQLITE_URL, pool_size=2)
     _ = opt3.get_connection("just")
     opt3.get_pool_metrics("just")
     rec3 = opt3.optimize_pool_size("just")
@@ -318,9 +307,7 @@ def test_configure_read_write_splitting_branches():
     opt = DatabaseConnectionOptimizer()
 
     # Primary missing and no strategy
-    configure_read_write_splitting(
-        opt, primary="new_primary", replicas=None, strategy=None
-    )
+    configure_read_write_splitting(opt, primary="new_primary", replicas=None, strategy=None)
     assert "new_primary" in opt.pools
     assert opt.read_write_strategy == ReadWriteStrategy.PRIMARY_REPLICA  # unchanged default
 
@@ -335,10 +322,7 @@ def test_private_transaction_lifecycle():
     opt = DatabaseConnectionOptimizer()
     txn = _begin_transaction(opt, TransactionIsolationLevel.SERIALIZABLE)
     assert txn in opt.active_transactions
-    assert (
-        opt.active_transactions[txn].isolation_level
-        == TransactionIsolationLevel.SERIALIZABLE
-    )
+    assert opt.active_transactions[txn].isolation_level == TransactionIsolationLevel.SERIALIZABLE
 
     assert _commit_transaction(opt, txn) is True
     assert txn not in opt.active_transactions

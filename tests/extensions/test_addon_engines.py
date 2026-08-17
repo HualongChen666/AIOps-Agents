@@ -55,9 +55,7 @@ def _http_response(status_code: int = 200, json_data: Any = None, text: str = ""
     return resp
 
 
-def _fake_subprocess_factory(
-    stdout: str = "", stderr: str = "", returncode: int = 0
-) -> Any:
+def _fake_subprocess_factory(stdout: str = "", stderr: str = "", returncode: int = 0) -> Any:
     """Return a fake ``subprocess.run`` callable."""
     return lambda *a, **k: _cp(stdout, stderr, returncode)
 
@@ -74,7 +72,13 @@ def test_security_scanner_dry_run():
     assert scanner.scan_container("alpine:latest")
     assert scanner.check_license(["requests:MIT", "bad:proprietary"])
     assert scanner.check_sql_injection("SELECT * FROM t WHERE id=%s")
-    assert scanner.check_api_baseline({"servers": [{"url": "https://x"}], "components": {"securitySchemes": {}}, "paths": {"/health": {}}})
+    assert scanner.check_api_baseline(
+        {
+            "servers": [{"url": "https://x"}],
+            "components": {"securitySchemes": {}},
+            "paths": {"/health": {}},
+        }
+    )
 
     for name, params in [
         ("run_sast_sonarqube", {"target": "."}),
@@ -138,17 +142,13 @@ def test_security_scanner_real(monkeypatch):
 
 
 def test_base_security_service(monkeypatch):
-    monkeypatch.setattr(
-        BaseSecurityService, "OPERATIONS", ["run_sast_sonarqube"], raising=False
-    )
+    monkeypatch.setattr(BaseSecurityService, "OPERATIONS", ["run_sast_sonarqube"], raising=False)
     BaseSecurityService.execute_operation("get_state")
     BaseSecurityService.execute_operation("backup_state", {"name": "b1"})
     BaseSecurityService.execute_operation("restore_state", {"name": "b1"})
     BaseSecurityService.execute_operation("get_stats")
     BaseSecurityService.execute_operation("list_methods")
-    BaseSecurityService.execute_operation(
-        "run_sast_sonarqube", {"target": ".", "dry_run": True}
-    )
+    BaseSecurityService.execute_operation("run_sast_sonarqube", {"target": ".", "dry_run": True})
 
 
 # ------------------------------------------------------------------
@@ -202,7 +202,7 @@ def test_monitoring_provider_real(monkeypatch):
     provider.query(target="http://cloudwatch", metric="up")
     provider.push_alert(rule_name="high_latency", expr="up == 0")
     provider.get_topology(source="http://prometheus:9090")
-    provider.logs(target="http://loki:3100", query="{job=\"x\"}")
+    provider.logs(target="http://loki:3100", query='{job="x"}')
     provider.logs(target="http://elasticsearch:9200", query="*")
     provider.traces(target="http://jaeger:16686", service="svc")
     provider.traces(target="http://zipkin:9411", service="svc")

@@ -112,7 +112,6 @@ from typing import Any, Optional  # 🔧 MRV5 [P1]:补全 Optional 导入
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-
 from core.cache_helpers import ParametricTTLCache, TTLCache
 from core.collector import collect_all, get_top_processes
 from core.kpi_config import (
@@ -137,9 +136,7 @@ except ImportError:
     logger.warning("Phase 1 dual_write and metrics_converter not available")
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
-    prefix="/api/v1/metrics", tags=["指标采集"]
-)
+router = APIRouter(prefix="/api/v1/metrics", tags=["指标采集"])
 
 
 # ============================================================
@@ -497,9 +494,7 @@ def _build_predictions(history: dict[str, Any]) -> list[dict[str, Any]]:
                 message += f"。{label} 运行平稳，建议持续监控"
             priority = "high" if slope > 0.5 else "low"
         else:
-            message = (
-                f"{label} 当前 {current:.1f}{unit}，采样点不足，无法判断趋势，建议持续监控"
-            )
+            message = f"{label} 当前 {current:.1f}{unit}，采样点不足，无法判断趋势，建议持续监控"
             priority = "low"
         predictions.append(
             {
@@ -547,9 +542,7 @@ async def get_predictions() -> dict[str, Any]:
         return {"data": predictions}
     except Exception as e:
         logger.error(f"预测性维护建议生成失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"预测性维护建议生成失败: {str(e)[:200]}"
-        )
+        raise HTTPException(status_code=500, detail=f"预测性维护建议生成失败: {str(e)[:200]}")
 
 
 def _try_get_processes_from_cache(limit: int) -> Optional[dict[str, Any]]:
@@ -867,14 +860,16 @@ async def get_kpi_values() -> dict[str, Any]:
             value = float(raw) if raw is not None else 0.0
         except (TypeError, ValueError):
             value = 0.0
-        values.append({
-            "id": c.get("id"),
-            "name": c.get("name"),
-            "value": value,
-            "target": float(c.get("target", 0)),
-            "unit": c.get("unit", ""),
-            "endpoint": c.get("endpoint"),
-            "field_path": c.get("field_path"),
-        })
+        values.append(
+            {
+                "id": c.get("id"),
+                "name": c.get("name"),
+                "value": value,
+                "target": float(c.get("target", 0)),
+                "unit": c.get("unit", ""),
+                "endpoint": c.get("endpoint"),
+                "field_path": c.get("field_path"),
+            }
+        )
 
     return {"data": values}

@@ -91,7 +91,8 @@ class IntegrationAdapter:
     async def normalize_alert(self, payload: Any) -> List[Dict[str, Any]]:
         """Normalize an external webhook payload into internal alert dicts."""
         raise NotImplementedError(
-            f"normalize_alert must be implemented by {self.__class__.__name__}")
+            f"normalize_alert must be implemented by {self.__class__.__name__}"
+        )
 
     async def query(self, config: Dict[str, Any], query: str, **params: Any) -> Dict[str, Any]:
         """Query real data from the integration."""
@@ -822,6 +823,7 @@ class IntegrationManager:
         # Parse metric definition from query string: Namespace/MetricName[DimKey=DimValue,...]
         # If the raw string cannot be parsed, use it as MetricName with default Namespace
         import re
+
         match = re.match(r"([^/]+)/([^[]+)(?:\[(.+)\])?", query)
         if match:
             namespace = match.group(1).strip()
@@ -856,7 +858,11 @@ class IntegrationManager:
         metric_query = {
             "Id": "q1",
             "MetricStat": {
-                "Metric": {"Namespace": namespace, "MetricName": metric_name, "Dimensions": dimensions},
+                "Metric": {
+                    "Namespace": namespace,
+                    "MetricName": metric_name,
+                    "Dimensions": dimensions,
+                },
                 "Period": 60,
                 "Stat": "Average",
             },
@@ -865,11 +871,14 @@ class IntegrationManager:
         }
         try:
             response = client.get_metric_data(
-                MetricDataQueries=[metric_query], StartTime=start, EndTime=end)
+                MetricDataQueries=[metric_query], StartTime=start, EndTime=end
+            )
             return {
                 "namespace": namespace,
                 "metric_name": metric_name,
-                "timestamps": [t.isoformat() for t in response["MetricDataResults"][0].get("Timestamps", [])],
+                "timestamps": [
+                    t.isoformat() for t in response["MetricDataResults"][0].get("Timestamps", [])
+                ],
                 "values": response["MetricDataResults"][0].get("Values", []),
                 "status_code": 200,
             }
@@ -926,7 +935,10 @@ class IntegrationManager:
             )
             if response.status_code == 200:
                 return cast(Dict[str, Any], response.json())
-            return {"error": f"PagerDuty query failed: {response.status_code}", "body": response.text}
+            return {
+                "error": f"PagerDuty query failed: {response.status_code}",
+                "body": response.text,
+            }
         except Exception as e:
             safe_error = sanitize_error_for_llm(e)
             logger.error(f"PagerDuty query error for {integration_id}: {safe_error}")

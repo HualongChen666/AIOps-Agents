@@ -131,7 +131,9 @@ class WorkflowEngine:
             return self._execute_memory(step)
         return {"error": f"Unknown step type: {step_type}"}
 
-    def _run_sequential(self, steps: List[Dict[str, Any]], inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def _run_sequential(
+        self, steps: List[Dict[str, Any]], inputs: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Sequential fallback used for dry-run and missing modules."""
         context = inputs.copy()
         results: List[Dict[str, Any]] = []
@@ -281,7 +283,9 @@ class WorkflowEngine:
 class RunbookRunner:
     """Thin wrapper that routes incident runbooks to the appropriate executor."""
 
-    def __init__(self, engine: Optional[WorkflowEngine] = None, dry_run: Optional[bool] = None) -> None:
+    def __init__(
+        self, engine: Optional[WorkflowEngine] = None, dry_run: Optional[bool] = None
+    ) -> None:
         self.engine = engine or WorkflowEngine(dry_run=dry_run)
 
     def _to_ansible_tasks(self, runbook: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -309,7 +313,10 @@ class RunbookRunner:
             elif st == "decision":
                 cond = step.get("condition", "False")
                 tasks.append(
-                    {"name": step.get("name", "decision"), "set_fact": {"decision": "{{ " + cond + " }}"}}
+                    {
+                        "name": step.get("name", "decision"),
+                        "set_fact": {"decision": "{{ " + cond + " }}"},
+                    }
                 )
             elif st == "memory":
                 tasks.append(
@@ -317,7 +324,10 @@ class RunbookRunner:
                 )
             else:
                 tasks.append(
-                    {"name": step.get("name", f"{st} step"), "debug": {"msg": f"Unsupported step type: {st}"}}
+                    {
+                        "name": step.get("name", f"{st} step"),
+                        "debug": {"msg": f"Unsupported step type: {st}"},
+                    }
                 )
         return tasks
 

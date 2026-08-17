@@ -4,6 +4,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+
 from core.agent.behavior_monitor import BehaviorMonitor
 from core.agent.executor import (
     AutonomousExecutor,
@@ -66,9 +67,7 @@ def _make_executor(tasks, safety_boundary=None, monkeypatch=None):
 
 
 def test_autonomous_executor_execute_plan_and_get_statistics():
-    tasks = [
-        Task(id="t1", description="check health", parameters={"target": "localhost"})
-    ]
+    tasks = [Task(id="t1", description="check health", parameters={"target": "localhost"})]
     executor = _make_executor(tasks)
     result = executor.execute_plan(
         "check health",
@@ -89,9 +88,7 @@ def test_autonomous_executor_execute_plan_and_get_statistics():
 
 
 def test_autonomous_executor_validation_failure_and_rollback():
-    tasks = [
-        Task(id="t1", description="check health", parameters={"target": "localhost"})
-    ]
+    tasks = [Task(id="t1", description="check health", parameters={"target": "localhost"})]
     executor = _make_executor(tasks)
     executor.validation_mechanism.register_validation(
         "check health",
@@ -146,9 +143,7 @@ def test_autonomous_executor_set_execution_mode_invalid():
 
 
 def test_autonomous_executor_goal_loop_detection():
-    tasks = [
-        Task(id="t1", description="check health", parameters={"target": "localhost"})
-    ]
+    tasks = [Task(id="t1", description="check health", parameters={"target": "localhost"})]
     executor = _make_executor(tasks)
     result = executor.execute_plan(
         "check health",
@@ -166,34 +161,23 @@ def test_autonomous_executor_max_depth():
 
 
 def test_autonomous_executor_max_tasks():
-    tasks = [
-        Task(id=f"t{i}", description=f"task {i}", parameters={})
-        for i in range(25)
-    ]
+    tasks = [Task(id=f"t{i}", description=f"task {i}", parameters={}) for i in range(25)]
     executor = _make_executor(tasks)
     result = executor.execute_plan("many tasks", {}, ["noop"])
     assert "Planned tasks" in result["error"]
 
 
 def test_autonomous_executor_max_iterations():
-    tasks = [
-        Task(id=f"t{i}", description=f"check health {i}", parameters={})
-        for i in range(60)
-    ]
+    tasks = [Task(id=f"t{i}", description=f"check health {i}", parameters={}) for i in range(60)]
     executor = _make_executor(tasks)
     executor.max_tasks = 100
     executor.max_iterations = 5
     result = executor.execute_plan("many iterations", {}, ["noop"])
-    assert any(
-        "Maximum iteration count" in str(r.get("error", ""))
-        for r in result["results"]
-    )
+    assert any("Maximum iteration count" in str(r.get("error", "")) for r in result["results"])
 
 
 def test_autonomous_executor_memory_bridge():
-    tasks = [
-        Task(id="t1", description="check health", parameters={"target": "localhost"})
-    ]
+    tasks = [Task(id="t1", description="check health", parameters={"target": "localhost"})]
     executor = _make_executor(tasks)
     bridge = MagicMock()
     bridge.retrieve_relevant_experiences.return_value = [{"experience": 1}]
@@ -215,9 +199,7 @@ def test_autonomous_executor_behavior_anomaly(monkeypatch):
         "core.agent.executor.get_behavior_monitor",
         lambda: BehaviorMonitor(),
     )
-    tasks = [
-        Task(id="t1", description="check health", parameters={"target": "localhost"})
-    ]
+    tasks = [Task(id="t1", description="check health", parameters={"target": "localhost"})]
     executor = _make_executor(tasks, monkeypatch=monkeypatch)
     executor.behavior_monitor.set_thresholds(max_iterations=0)
     result = executor.execute_plan("check health", {}, ["noop"])

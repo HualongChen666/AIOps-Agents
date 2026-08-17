@@ -30,9 +30,7 @@ class SagaOrchestrator:
         compensations: Dict[str, SagaCompensation],
     ) -> None:
         normalized_steps = [
-            SagaStep.model_validate(
-                step.model_dump() if hasattr(step, "model_dump") else step
-            )
+            SagaStep.model_validate(step.model_dump() if hasattr(step, "model_dump") else step)
             for step in steps
         ]
         transaction = SagaTransaction(

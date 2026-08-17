@@ -312,9 +312,7 @@ def test_sso_auth_enabled_flow(monkeypatch):
 
     # OAuth error during token exchange
     sso._state_store["valid1"] = datetime.now(timezone.utc)
-    sso.oauth.oidc.authorize_access_token = AsyncMock(
-        side_effect=OAuthError(error="invalid_grant")
-    )
+    sso.oauth.oidc.authorize_access_token = AsyncMock(side_effect=OAuthError(error="invalid_grant"))
     with pytest.raises(HTTPException, match="OAuth error"):
         asyncio.run(sso.auth_callback(request, state="valid1"))
 
@@ -471,9 +469,7 @@ def test_documentation_generator(tmp_path):
         "support_url": "https://support.example.com",
         "community_url": "https://community.example.com",
     }
-    doc = gen.generate_document(
-        "d1", "My App", "quick_start", vars_qs, GeneratorType.MARKDOWN
-    )
+    doc = gen.generate_document("d1", "My App", "quick_start", vars_qs, GeneratorType.MARKDOWN)
     assert doc is not None
     assert doc.generator_type == GeneratorType.MARKDOWN
     assert "My App" in doc.content

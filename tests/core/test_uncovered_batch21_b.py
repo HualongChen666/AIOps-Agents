@@ -2,7 +2,6 @@
 """Tests for core modules batch 21b: oncall, audit, config, enhanced AI, platform strategies."""
 
 import asyncio
-import config
 import datetime
 import json
 from pathlib import Path
@@ -11,13 +10,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import yaml
 
-import core.oncall_adapter as oncall
-import core.external_api_audit as audit
+import config
 import core.config_manager as cm
 import core.enhanced_ai_capabilities as eac
+import core.external_api_audit as audit
 import core.notify_engine as ne
+import core.oncall_adapter as oncall
 import core.platform_strategies as ps
-
 
 pytestmark = [pytest.mark.core]
 
@@ -164,9 +163,7 @@ def test_oncall_schedule_env_and_file(monkeypatch, tmp_path):
     assert schedule._schedules == {}
 
     good_path = tmp_path / "sched.json"
-    good_path.write_text(
-        json.dumps({"ops": [{"name": "Bob", "phone": "123", "team": "ops"}]})
-    )
+    good_path.write_text(json.dumps({"ops": [{"name": "Bob", "phone": "123", "team": "ops"}]}))
     schedule.load_from_file(str(good_path))
     assert schedule.lookup(team="ops")[0].name == "Bob"
 
@@ -191,9 +188,7 @@ def test_oncall_schedule_lookup_filters():
 
 def test_oncall_adapter_sync_and_singleton():
     adapter = oncall.OncallAdapter(provider="json")
-    adapter.add_local_schedule(
-        "sre", [{"name": "Local", "email": "local@x", "team": "sre"}]
-    )
+    adapter.add_local_schedule("sre", [{"name": "Local", "email": "local@x", "team": "sre"}])
     contacts = adapter.lookup(team="sre")
     assert contacts[0].name == "Local"
     assert oncall.get_oncall_adapter() is oncall.get_oncall_adapter()
@@ -212,9 +207,7 @@ async def test_oncall_adapter_external_success(monkeypatch):
     adapter = oncall.OncallAdapter(provider="pagerduty")
     adapter.api_base = "https://pd.example.com"
     adapter.api_token = "tok"
-    adapter.add_local_schedule(
-        "sre", [{"name": "Local", "email": "local@x", "team": "sre"}]
-    )
+    adapter.add_local_schedule("sre", [{"name": "Local", "email": "local@x", "team": "sre"}])
 
     contacts = await adapter.lookup_async(category="c", service="s", team="t")
     assert len(contacts) == 2
@@ -234,9 +227,7 @@ async def test_oncall_adapter_external_failure_fallback(monkeypatch):
     adapter = oncall.OncallAdapter(provider="pagerduty")
     adapter.api_base = "https://pd.example.com"
     adapter.api_token = "tok"
-    adapter.add_local_schedule(
-        "sre", [{"name": "Fallback", "email": "fb@x", "team": "sre"}]
-    )
+    adapter.add_local_schedule("sre", [{"name": "Fallback", "email": "fb@x", "team": "sre"}])
 
     contacts = await adapter.lookup_async()
     assert contacts[0].name == "Fallback"
@@ -367,6 +358,7 @@ async def test_audit_httpx_and_aiohttp_decorators(monkeypatch):
     async def fake_httpx_ok(**kwargs):
         class Resp:
             status_code = 200
+
         return Resp()
 
     wrapped_ok = audit.audit_httpx_call(fake_httpx_ok)
@@ -678,9 +670,7 @@ async def test_ai_fit_model(monkeypatch):
     monkeypatch.setattr(eac, "ML_AVAILABLE", False)
     acc = eac.defaultdict(list)
     model = object()
-    await eac._fit_model(
-        model, [({"a": 1}, 1)], incremental=False, knowledge_accumulator=acc
-    )
+    await eac._fit_model(model, [({"a": 1}, 1)], incremental=False, knowledge_accumulator=acc)
     assert str(id(model)) in acc
     assert len(acc[str(id(model))]) == 1
 

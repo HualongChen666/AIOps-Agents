@@ -36,12 +36,16 @@ def _make_model(name: str):
     def __repr__(self):
         return f"<{name}>"
 
-    return type(name, (), {
-        "__init__": __init__,
-        "model_dump": model_dump,
-        "model_validate": model_validate,
-        "__repr__": __repr__,
-    })
+    return type(
+        name,
+        (),
+        {
+            "__init__": __init__,
+            "model_dump": model_dump,
+            "model_validate": model_validate,
+            "__repr__": __repr__,
+        },
+    )
 
 
 def _magic_mod(monkeypatch, name: str):
@@ -49,12 +53,14 @@ def _magic_mod(monkeypatch, name: str):
         return sys.modules[name]
     mod = types.ModuleType(name)
     mod.__path__ = []
+
     def __getattr__(n):
         if n.startswith("__") and n.endswith("__"):
             raise AttributeError(f"module {name!r} has no attribute {n!r}")
         val = MagicMock(name=f"{name}.{n}")
         mod.__dict__[n] = val
         return val
+
     mod.__getattr__ = __getattr__
     monkeypatch.setitem(sys.modules, name, mod)
     return mod
@@ -125,15 +131,20 @@ def _stub_services_imports(monkeypatch, unique: str, path: Path):
                 setattr(mod, name, lambda *a, _n=name, **k: AsyncMock(name=_n))
             else:
                 # Service functions (e.g., get_repository) are async callables.
-                setattr(mod, name, AsyncMock(name=name, return_value=AsyncMock(name=f"{name}_return")))
+                setattr(
+                    mod, name, AsyncMock(name=name, return_value=AsyncMock(name=f"{name}_return"))
+                )
 
 
 class _FakeApp:
     def __init__(self, *args, **kwargs):
         pass
+
     def _route(self, *args, **kwargs):
         return lambda fn: fn
+
     get = post = put = patch = delete = websocket = on_event = _route
+
     def __getattr__(self, name):
         return lambda *args, **kwargs: (lambda fn: fn)
 
@@ -141,8 +152,10 @@ class _FakeApp:
 class _FakeWebSocket:
     async def accept(self):
         pass
+
     async def receive_text(self):
         return ""
+
     async def send_text(self, text):
         pass
 
@@ -223,20 +236,26 @@ def _load(path: Path, unique: str, monkeypatch):
     spec.loader.exec_module(module)
     return module
 
+
 def test_infrastructure_config_service_config_manager(monkeypatch):
-    path = ADDONS / 'infrastructure/config_service/config_manager.py'
+    path = ADDONS / "infrastructure/config_service/config_manager.py"
     module = _load(path, "_low_misc_0", monkeypatch)
     repo = AsyncMock()
-    repo.get_config.return_value = module.ConfigValue(config_id="c1", value="old", namespace="ns", updated_by="system")
-    repo.list_configs.return_value = [module.ConfigValue(config_id="c2", namespace="ns", updated_at=datetime.utcnow())]
+    repo.get_config.return_value = module.ConfigValue(
+        config_id="c1", value="old", namespace="ns", updated_by="system"
+    )
+    repo.list_configs.return_value = [
+        module.ConfigValue(config_id="c2", namespace="ns", updated_at=datetime.utcnow())
+    ]
     manager = module.ConfigManager(repo)
     asyncio.run(manager.create(module.ConfigValue(config_id="c1", value="v", namespace="ns")))
     asyncio.run(manager.get("c1"))
     asyncio.run(manager.update("c1", "new"))
     asyncio.run(manager.delete("c1"))
 
+
 def test_observability_topology_service_repository(monkeypatch):
-    path = ADDONS / 'observability/topology_service/repository.py'
+    path = ADDONS / "observability/topology_service/repository.py"
     module = _load(path, "_low_misc_1", monkeypatch)
     repo = module.InMemoryTopologyRepository()
     topology = module.ServiceTopology(topology_id="t1", updated_at=datetime.utcnow())
@@ -245,16 +264,33 @@ def test_observability_topology_service_repository(monkeypatch):
     asyncio.run(repo.count())
     asyncio.run(repo.delete("t1"))
 
+
 def test_observability_topology_service_visualization(monkeypatch):
-    path = ADDONS / 'observability/topology_service/visualization.py'
+    path = ADDONS / "observability/topology_service/visualization.py"
     module = _load(path, "_low_misc_2", monkeypatch)
     viz = module.TopologyVisualizer()
-    topology = module.ServiceTopology(nodes=[module.TopologyNode(node_id="n1", name="node1", node_type="type", health="ok", x=None, y=None, metadata={})], edges=[module.TopologyEdge(source="n1", target="n1", edge_type="type", weight=1, metadata={})])
+    topology = module.ServiceTopology(
+        nodes=[
+            module.TopologyNode(
+                node_id="n1",
+                name="node1",
+                node_type="type",
+                health="ok",
+                x=None,
+                y=None,
+                metadata={},
+            )
+        ],
+        edges=[
+            module.TopologyEdge(source="n1", target="n1", edge_type="type", weight=1, metadata={})
+        ],
+    )
     config = module.VisualizationConfig(width=800, height=600, layout="force")
     asyncio.run(viz.generate(topology, config))
 
+
 def test_observability_topology_service_versioning(monkeypatch):
-    path = ADDONS / 'observability/topology_service/versioning.py'
+    path = ADDONS / "observability/topology_service/versioning.py"
     module = _load(path, "_low_misc_3", monkeypatch)
     vm = module.TopologyVersionManager()
     topology = module.ServiceTopology(topology_id="top1", updated_at=datetime.utcnow())
@@ -263,8 +299,9 @@ def test_observability_topology_service_versioning(monkeypatch):
     asyncio.run(vm.compare("top1", version.version, version.version))
     asyncio.run(vm.rollback("top1", version.version))
 
+
 def test_operations_workflow_service_versioning(monkeypatch):
-    path = ADDONS / 'operations/workflow_service/versioning.py'
+    path = ADDONS / "operations/workflow_service/versioning.py"
     module = _load(path, "_low_misc_4", monkeypatch)
     vm = module.WorkflowVersionManager()
     definition = module.WorkflowDefinition(workflow_id="wf1", updated_at=datetime.utcnow())
@@ -273,8 +310,9 @@ def test_operations_workflow_service_versioning(monkeypatch):
     asyncio.run(vm.compare("wf1", version.version, version.version))
     asyncio.run(vm.rollback("wf1", version.version))
 
+
 def test_infrastructure_config_service_repository(monkeypatch):
-    path = ADDONS / 'infrastructure/config_service/repository.py'
+    path = ADDONS / "infrastructure/config_service/repository.py"
     module = _load(path, "_low_misc_5", monkeypatch)
     repo = module.InMemoryConfigRepository()
     cfg = module.ConfigValue(config_id="c1", namespace="ns", updated_at=datetime.utcnow())
@@ -290,14 +328,16 @@ def test_infrastructure_config_service_repository(monkeypatch):
     saga = module.SagaTransaction(saga_id="sg1")
     asyncio.run(repo.save_saga(saga))
 
+
 def test_operations_workflow_service_scheduler_app(monkeypatch):
-    path = ADDONS / 'operations/workflow_service/scheduler_app.py'
+    path = ADDONS / "operations/workflow_service/scheduler_app.py"
     module = _load(path, "_low_misc_6", monkeypatch)
     app = module.WorkflowSchedulerApp()
     asyncio.run(app.init())
 
+
 def test_ai_plus_knowledge_graph_service_cache(monkeypatch):
-    path = ADDONS / 'ai-plus/knowledge_graph_service/cache.py'
+    path = ADDONS / "ai-plus/knowledge_graph_service/cache.py"
     module = _load(path, "_low_misc_7", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))
@@ -305,50 +345,57 @@ def test_ai_plus_knowledge_graph_service_cache(monkeypatch):
     asyncio.run(cm.delete("k"))
     asyncio.run(cm.clear())
 
+
 def test_observability_topology_service_analyzer(monkeypatch):
-    path = ADDONS / 'observability/topology_service/analyzer.py'
+    path = ADDONS / "observability/topology_service/analyzer.py"
     module = _load(path, "_low_misc_8", monkeypatch)
     app = module.TopologyAnalyzerApp()
     asyncio.run(app.init())
 
+
 def test_operations_workflow_service_executor_app(monkeypatch):
-    path = ADDONS / 'operations/workflow_service/executor_app.py'
+    path = ADDONS / "operations/workflow_service/executor_app.py"
     module = _load(path, "_low_misc_9", monkeypatch)
     app = module.WorkflowExecutorApp()
     asyncio.run(app.init())
 
+
 def test_observability_topology_service_visualizer_app(monkeypatch):
-    path = ADDONS / 'observability/topology_service/visualizer_app.py'
+    path = ADDONS / "observability/topology_service/visualizer_app.py"
     module = _load(path, "_low_misc_10", monkeypatch)
     app = module.TopologyVisualizerApp()
     asyncio.run(app.init())
 
+
 def test_operations_workflow_service_workflow_orchestrator_app(monkeypatch):
-    path = ADDONS / 'operations/workflow_service/workflow_orchestrator_app.py'
+    path = ADDONS / "operations/workflow_service/workflow_orchestrator_app.py"
     module = _load(path, "_low_misc_11", monkeypatch)
     app = module.WorkflowOrchestratorApp()
     asyncio.run(app.init())
     definition = module.WorkflowDefinition(workflow_id="wf1")
     asyncio.run(app.create_definition(definition))
 
+
 def test_observability_topology_service_saga(monkeypatch):
-    path = ADDONS / 'observability/topology_service/saga.py'
+    path = ADDONS / "observability/topology_service/saga.py"
     module = _load(path, "_low_misc_12", monkeypatch)
     orch = module.TopologySagaOrchestrator()
     step = module.SagaStep(step_id="s1", action="act", compensation="comp", service="svc")
     orch.register("s1", [step], {"act": lambda: "ok"}, {"comp": lambda: None})
     asyncio.run(orch.execute("s1"))
 
+
 def test_operations_workflow_service_saga(monkeypatch):
-    path = ADDONS / 'operations/workflow_service/saga.py'
+    path = ADDONS / "operations/workflow_service/saga.py"
     module = _load(path, "_low_misc_13", monkeypatch)
     orch = module.WorkflowSagaOrchestrator()
     step = module.SagaStep(step_id="s1", action="act", compensation="comp", service="svc")
     orch.register("s1", [step], {"act": lambda: "ok"}, {"comp": lambda: None})
     asyncio.run(orch.execute("s1"))
 
+
 def test_operations_scenario_memory_service_cache(monkeypatch):
-    path = ADDONS / 'operations/scenario_memory_service/cache.py'
+    path = ADDONS / "operations/scenario_memory_service/cache.py"
     module = _load(path, "_low_misc_14", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))
@@ -356,8 +403,9 @@ def test_operations_scenario_memory_service_cache(monkeypatch):
     asyncio.run(cm.delete("k"))
     asyncio.run(cm.clear())
 
+
 def test_infrastructure_config_service_version_control(monkeypatch):
-    path = ADDONS / 'infrastructure/config_service/version_control.py'
+    path = ADDONS / "infrastructure/config_service/version_control.py"
     module = _load(path, "_low_misc_15", monkeypatch)
     repo = AsyncMock()
     repo.list_configs.return_value = [module.ConfigVersion(key="k", value="v")]
@@ -365,8 +413,9 @@ def test_infrastructure_config_service_version_control(monkeypatch):
     asyncio.run(vcc.commit("ns", "msg"))
     asyncio.run(vcc.list("ns"))
 
+
 def test_infrastructure_user_service_orchestrator(monkeypatch):
-    path = ADDONS / 'infrastructure/user_service/orchestrator.py'
+    path = ADDONS / "infrastructure/user_service/orchestrator.py"
     module = _load(path, "_low_misc_16", monkeypatch)
     repo = AsyncMock()
     orch = module.UserOrchestrator(repo)
@@ -376,26 +425,34 @@ def test_infrastructure_user_service_orchestrator(monkeypatch):
     saga = module.SagaTransaction(steps=[module.SagaTransaction(action="create")])
     asyncio.run(orch.run_saga(saga))
 
+
 def test_infrastructure_config_service_namespace(monkeypatch):
-    path = ADDONS / 'infrastructure/config_service/namespace.py'
+    path = ADDONS / "infrastructure/config_service/namespace.py"
     module = _load(path, "_low_misc_17", monkeypatch)
     repo = AsyncMock()
     nm = module.NamespaceManager(repo)
     asyncio.run(nm.create("ns", "k", "v"))
 
+
 def test_infrastructure_user_service_saga(monkeypatch):
-    path = ADDONS / 'infrastructure/user_service/saga.py'
+    path = ADDONS / "infrastructure/user_service/saga.py"
     module = _load(path, "_low_misc_18", monkeypatch)
-    async def handler(step): return "ok"
-    async def comp(step): return None
+
+    async def handler(step):
+        return "ok"
+
+    async def comp(step):
+        return None
+
     repo = AsyncMock()
     orch = module.UserSagaOrchestrator(repo)
     saga = module.SagaTransaction(steps=[module.SagaTransaction(action="create")])
     orch.register("create", handler, comp)
     asyncio.run(orch.execute(saga))
 
+
 def test_infrastructure_user_service_session(monkeypatch):
-    path = ADDONS / 'infrastructure/user_service/session.py'
+    path = ADDONS / "infrastructure/user_service/session.py"
     module = _load(path, "_low_misc_19", monkeypatch)
     repo = AsyncMock()
     sm = module.SessionManager(repo)
@@ -403,51 +460,60 @@ def test_infrastructure_user_service_session(monkeypatch):
     asyncio.run(sm.get("s1"))
     asyncio.run(sm.delete("s1"))
 
+
 def test_observability_topology_service_audit(monkeypatch):
-    path = ADDONS / 'observability/topology_service/audit.py'
+    path = ADDONS / "observability/topology_service/audit.py"
     module = _load(path, "_low_misc_20", monkeypatch)
     store = module.TopologyAuditStore()
     asyncio.run(store.record("t1", "created", "actor", {}))
     asyncio.run(store.get_events("t1"))
 
+
 def test_infrastructure_config_service_audit_logger(monkeypatch):
-    path = ADDONS / 'infrastructure/config_service/audit_logger.py'
+    path = ADDONS / "infrastructure/config_service/audit_logger.py"
     module = _load(path, "_low_misc_21", monkeypatch)
     repo = AsyncMock()
     logger = module.ConfigAuditLogger(repo)
     asyncio.run(logger.log("c1", "created", {}))
     asyncio.run(logger.query("c1"))
 
+
 def test_infrastructure_user_service_audit_logger(monkeypatch):
-    path = ADDONS / 'infrastructure/user_service/audit_logger.py'
+    path = ADDONS / "infrastructure/user_service/audit_logger.py"
     module = _load(path, "_low_misc_22", monkeypatch)
     repo = AsyncMock()
     logger = module.UserAuditLogger(repo)
     asyncio.run(logger.log("u1", "created", {}))
     asyncio.run(logger.query("u1"))
 
+
 def test_observability_topology_service_orchestrator(monkeypatch):
-    path = ADDONS / 'observability/topology_service/orchestrator.py'
+    path = ADDONS / "observability/topology_service/orchestrator.py"
     module = _load(path, "_low_misc_23", monkeypatch)
     app = module.TopologyOrchestratorApp()
     asyncio.run(app.init())
 
+
 def test_engines_doc_policy_engine(monkeypatch):
-    path = ADDONS / 'engines/doc_policy_engine.py'
+    path = ADDONS / "engines/doc_policy_engine.py"
     module = _load(path, "_low_misc_24", monkeypatch)
     doc = module.DocEngine()
     doc.build_docs("src", "out")
     policy = module.PolicyEngine()
     policy.lint_openapi({"openapi": "3.0.0", "info": {"title": "t"}, "paths": {}})
-    policy.validate_schema({"name": "x"}, {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]})
+    policy.validate_schema(
+        {"name": "x"},
+        {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+    )
     policy.load_config("NOTSET")
     policy.user_lookup("u1")
     policy.plugin_index()
     policy.plugin_load("x")
     policy.plugin_unload("x")
 
+
 def test_infrastructure_cache_service_cache(monkeypatch):
-    path = ADDONS / 'infrastructure/cache_service/cache.py'
+    path = ADDONS / "infrastructure/cache_service/cache.py"
     module = _load(path, "_low_misc_25", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))
@@ -455,8 +521,9 @@ def test_infrastructure_cache_service_cache(monkeypatch):
     asyncio.run(cm.delete("k"))
     asyncio.run(cm.clear())
 
+
 def test_infrastructure_data_access_service_cache(monkeypatch):
-    path = ADDONS / 'infrastructure/data_access_service/cache.py'
+    path = ADDONS / "infrastructure/data_access_service/cache.py"
     module = _load(path, "_low_misc_26", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))
@@ -464,8 +531,9 @@ def test_infrastructure_data_access_service_cache(monkeypatch):
     asyncio.run(cm.delete("k"))
     asyncio.run(cm.clear())
 
+
 def test_infrastructure_vector_retrieval_service_cache(monkeypatch):
-    path = ADDONS / 'infrastructure/vector_retrieval_service/cache.py'
+    path = ADDONS / "infrastructure/vector_retrieval_service/cache.py"
     module = _load(path, "_low_misc_27", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))
@@ -473,8 +541,9 @@ def test_infrastructure_vector_retrieval_service_cache(monkeypatch):
     asyncio.run(cm.delete("k"))
     asyncio.run(cm.clear())
 
+
 def test_documentation_sphinx_documentation_service_cache(monkeypatch):
-    path = ADDONS / 'documentation/sphinx_documentation_service/cache.py'
+    path = ADDONS / "documentation/sphinx_documentation_service/cache.py"
     module = _load(path, "_low_misc_28", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))
@@ -482,13 +551,12 @@ def test_documentation_sphinx_documentation_service_cache(monkeypatch):
     asyncio.run(cm.delete("k"))
     asyncio.run(cm.clear())
 
+
 def test_infrastructure_ansible_automation_service_cache(monkeypatch):
-    path = ADDONS / 'infrastructure/ansible_automation_service/cache.py'
+    path = ADDONS / "infrastructure/ansible_automation_service/cache.py"
     module = _load(path, "_low_misc_29", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))
     asyncio.run(cm.get("k"))
     asyncio.run(cm.delete("k"))
     asyncio.run(cm.clear())
-
-

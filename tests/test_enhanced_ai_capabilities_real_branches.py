@@ -238,12 +238,8 @@ async def test_predict_anomalies_not_anomalous():
     await cap.initialize()
     try:
         cap.min_samples_for_training = 10
-        historical = [
-            (datetime.now(), 50.0 + (i % 5) * 0.1) for i in range(50)
-        ]
-        result = await cap.predict_anomalies(
-            "cpu_usage", 50.0, historical
-        )
+        historical = [(datetime.now(), 50.0 + (i % 5) * 0.1) for i in range(50)]
+        result = await cap.predict_anomalies("cpu_usage", 50.0, historical)
         assert result is not None
         assert not result.is_anomalous
         assert "within normal range" in result.explanation
@@ -278,9 +274,7 @@ async def test_adaptive_learn_all_modes():
         assert update.model_id == "rf_test"
 
     # transfer (line 486 -> 488)
-    update = await cap.adaptive_learn(
-        "rf_test", samples, ai.LearningMode.TRANSFER
-    )
+    update = await cap.adaptive_learn("rf_test", samples, ai.LearningMode.TRANSFER)
     assert update is not None
 
     # unknown/fall-through mode (line 486 -> 491)

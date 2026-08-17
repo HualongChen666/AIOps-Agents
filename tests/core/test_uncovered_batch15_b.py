@@ -77,7 +77,10 @@ class TestAccessibilitySupport:
     async def test_setup_accessibility_support(self):
         result = await accessibility_support.setup_accessibility_support()
         assert result["status"] == "success"
-        assert result["wcag_level"] == accessibility_support.accessibility_middleware.get_config()["wcag_level"]
+        assert (
+            result["wcag_level"]
+            == accessibility_support.accessibility_middleware.get_config()["wcag_level"]
+        )
 
     @pytest.mark.asyncio
     async def test_setup_accessibility_support_error(self, monkeypatch):
@@ -276,12 +279,16 @@ def fresh_discovery(monkeypatch):
 
 class TestServiceDiscoveryManager:
     def test_register_and_deregister(self, fresh_discovery):
-        inst = fresh_discovery.register_service("web", "w1", "10.0.0.1", 8080, {"dc": "A"}, weight=2)
+        inst = fresh_discovery.register_service(
+            "web", "w1", "10.0.0.1", 8080, {"dc": "A"}, weight=2
+        )
         assert inst.instance_id == "w1"
         assert inst.weight == 2
 
         # Update existing instance
-        updated = fresh_discovery.register_service("web", "w1", "10.0.0.2", 8080, {"dc": "B"}, weight=3)
+        updated = fresh_discovery.register_service(
+            "web", "w1", "10.0.0.2", 8080, {"dc": "B"}, weight=3
+        )
         assert updated.host == "10.0.0.2"
         assert updated.weight == 3
         assert len(fresh_discovery.services["web"]) == 1
@@ -303,24 +310,41 @@ class TestServiceDiscoveryManager:
         assert fresh_discovery.get_service_instance("web").instance_id == "b"
 
         # Random
-        assert fresh_discovery.get_service_instance("web", service_discovery_manager.LoadBalanceStrategy.RANDOM).instance_id == "a"
+        assert (
+            fresh_discovery.get_service_instance(
+                "web", service_discovery_manager.LoadBalanceStrategy.RANDOM
+            ).instance_id
+            == "a"
+        )
 
         # Least connections
         a.active_connections = 5
         b.active_connections = 1
-        assert fresh_discovery.get_service_instance("web", service_discovery_manager.LoadBalanceStrategy.LEAST_CONNECTIONS).instance_id == "b"
+        assert (
+            fresh_discovery.get_service_instance(
+                "web", service_discovery_manager.LoadBalanceStrategy.LEAST_CONNECTIONS
+            ).instance_id
+            == "b"
+        )
 
         # Weighted
         a.weight = 3
         b.weight = 1
-        assert fresh_discovery.get_service_instance("web", service_discovery_manager.LoadBalanceStrategy.WEIGHTED).instance_id == "a"
+        assert (
+            fresh_discovery.get_service_instance(
+                "web", service_discovery_manager.LoadBalanceStrategy.WEIGHTED
+            ).instance_id
+            == "a"
+        )
 
     def test_weighted_zero_weight(self, fresh_discovery, monkeypatch):
         fake_random = FakeRandom()
         monkeypatch.setattr(service_discovery_manager, "_random", fake_random)
         inst = fresh_discovery.register_service("web", "z", "10.0.0.1", 8080, weight=0)
         inst.status = service_discovery_manager.ServiceStatus.HEALTHY
-        result = fresh_discovery.get_service_instance("web", service_discovery_manager.LoadBalanceStrategy.WEIGHTED)
+        result = fresh_discovery.get_service_instance(
+            "web", service_discovery_manager.LoadBalanceStrategy.WEIGHTED
+        )
         assert result.instance_id == "z"
 
     def test_discover_empty(self, fresh_discovery):
@@ -416,10 +440,12 @@ class TestServiceDiscoveryManager:
         assert service_discovery_manager.get_service_discovery_manager() is manager
 
     def test_init_with_config(self):
-        manager = service_discovery_manager.ServiceDiscoveryManager({
-            "load_balance_strategy": "random",
-            "health_check": {"interval_seconds": 5},
-        })
+        manager = service_discovery_manager.ServiceDiscoveryManager(
+            {
+                "load_balance_strategy": "random",
+                "health_check": {"interval_seconds": 5},
+            }
+        )
         assert manager.load_balance_strategy == service_discovery_manager.LoadBalanceStrategy.RANDOM
         assert manager.health_check_config.interval_seconds == 5
 
@@ -477,9 +503,30 @@ class TestServiceMonitoringManager:
         manager.record_metric("mem", "svc", 10.0)
         manager.record_metric("disk", "svc", 50.0)
 
-        manager.create_alert_rule("r1", "svc", "cpu", 80.0, comparison="greater_than", severity=service_monitoring_manager.AlertSeverity.ERROR)
-        manager.create_alert_rule("r2", "svc", "mem", 20.0, comparison="less_than", severity=service_monitoring_manager.AlertSeverity.WARNING)
-        manager.create_alert_rule("r3", "svc", "disk", 50.0, comparison="equals", severity=service_monitoring_manager.AlertSeverity.INFO)
+        manager.create_alert_rule(
+            "r1",
+            "svc",
+            "cpu",
+            80.0,
+            comparison="greater_than",
+            severity=service_monitoring_manager.AlertSeverity.ERROR,
+        )
+        manager.create_alert_rule(
+            "r2",
+            "svc",
+            "mem",
+            20.0,
+            comparison="less_than",
+            severity=service_monitoring_manager.AlertSeverity.WARNING,
+        )
+        manager.create_alert_rule(
+            "r3",
+            "svc",
+            "disk",
+            50.0,
+            comparison="equals",
+            severity=service_monitoring_manager.AlertSeverity.INFO,
+        )
 
         alerts = manager.check_alert_rules()
         assert len(alerts) == 3

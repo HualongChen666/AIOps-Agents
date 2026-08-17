@@ -38,9 +38,7 @@ def _patch_core_auth(monkeypatch: Any) -> None:
         return False
 
     async def fake_get_user(username: str) -> Any:
-        return core.authentication.User(
-            username=username, role="admin", disabled=False
-        )
+        return core.authentication.User(username=username, role="admin", disabled=False)
 
     monkeypatch.setattr(core.authentication, "is_token_revoked", fake_is_token_revoked)
     monkeypatch.setattr(core.authentication, "get_user", fake_get_user)
@@ -89,9 +87,7 @@ def _patch_ai(monkeypatch: Any) -> None:
             "stats": {"current_anomalies": 1},
         }
 
-    monkeypatch.setattr(
-        api.ai_router.ai_context_service, "collect_rich_context", fake_collect_rich
-    )
+    monkeypatch.setattr(api.ai_router.ai_context_service, "collect_rich_context", fake_collect_rich)
 
     async def fake_summary() -> dict[str, Any]:
         return {
@@ -136,9 +132,7 @@ def test_ai_analyze_success(client, admin_headers, monkeypatch):
 
 
 def test_ai_analyze_validation(client, admin_headers):
-    resp = client.post(
-        "/api/ai/analyze", headers=admin_headers, json={"query": "   "}
-    )
+    resp = client.post("/api/ai/analyze", headers=admin_headers, json={"query": "   "})
     assert resp.status_code == 422
 
 
@@ -213,9 +207,7 @@ class _FakeServiceMonitoringManager:
             "error_rate": 0.01,
         }
 
-    def detect_anomaly(
-        self, metric_name: str, service_name: str, current_value: float
-    ) -> Any:
+    def detect_anomaly(self, metric_name: str, service_name: str, current_value: float) -> Any:
         return SimpleNamespace(
             service_name=service_name,
             metric_name=metric_name,
@@ -442,9 +434,7 @@ def _patch_workflow(monkeypatch: Any) -> None:
         "update_workflow_definition",
         lambda key, payload: {"updated": key, **payload},
     )
-    monkeypatch.setattr(
-        api.workflow_router, "delete_workflow_definition", lambda key: None
-    )
+    monkeypatch.setattr(api.workflow_router, "delete_workflow_definition", lambda key: None)
 
     async def fake_stream(key: str):
         yield {"type": "workflow_start", "wf_name": key}
@@ -490,9 +480,7 @@ def test_workflow_create_update_delete(client, admin_headers, monkeypatch):
         "name": "New Workflow",
         "steps": [{"key": "s1", "title": "Step 1", "desc": ""}],
     }
-    resp = client.post(
-        "/api/v1/workflows/definitions", headers=admin_headers, json=body
-    )
+    resp = client.post("/api/v1/workflows/definitions", headers=admin_headers, json=body)
     assert resp.status_code == 201
     data = resp.json()
     assert data["key"] == "new_wf"
@@ -505,9 +493,7 @@ def test_workflow_create_update_delete(client, admin_headers, monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["updated"] == "new_wf"
 
-    resp = client.delete(
-        "/api/v1/workflows/definitions/new_wf", headers=admin_headers
-    )
+    resp = client.delete("/api/v1/workflows/definitions/new_wf", headers=admin_headers)
     assert resp.status_code == 200
 
 
@@ -570,9 +556,7 @@ def _patch_team_collaboration(monkeypatch: Any) -> None:
     monkeypatch.setattr(api.team_collaboration_router, "get_team_oncall", get_oncall)
     monkeypatch.setattr(api.team_collaboration_router, "create_handoff", create_handoff)
     monkeypatch.setattr(api.team_collaboration_router, "list_handoffs", list_handoffs)
-    monkeypatch.setattr(
-        api.team_collaboration_router, "escalate_incident", escalate
-    )
+    monkeypatch.setattr(api.team_collaboration_router, "escalate_incident", escalate)
     monkeypatch.setattr(api.team_collaboration_router, "list_dashboards", list_dashboards)
 
 
@@ -583,9 +567,7 @@ def test_team_collaboration(client, admin_headers, monkeypatch):
     assert resp.status_code == 200
     assert resp.json()[0]["id"] == "team-1"
 
-    resp = client.get(
-        "/api/v1/team-collaboration/teams/team-1/oncall", headers=admin_headers
-    )
+    resp = client.get("/api/v1/team-collaboration/teams/team-1/oncall", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["primary"] == "alice"
 
@@ -597,9 +579,7 @@ def test_team_collaboration(client, admin_headers, monkeypatch):
     assert resp.status_code == 201
     assert resp.json()["notes"] == "handing over"
 
-    resp = client.get(
-        "/api/v1/team-collaboration/teams/team-1/handoffs", headers=admin_headers
-    )
+    resp = client.get("/api/v1/team-collaboration/teams/team-1/handoffs", headers=admin_headers)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 
@@ -669,9 +649,7 @@ def _patch_teams(monkeypatch: Any) -> None:
         return {"command": text.strip(), "user": user_id}
 
     monkeypatch.setattr(api.teams_router, "post_message", post_message)
-    monkeypatch.setattr(
-        api.teams_router, "post_interactive_message", post_interactive_message
-    )
+    monkeypatch.setattr(api.teams_router, "post_interactive_message", post_interactive_message)
     monkeypatch.setattr(api.teams_router, "handle_instruction", handle_instruction)
     monkeypatch.setattr(
         api.teams_router,
@@ -702,9 +680,7 @@ def test_teams_interactive(client, admin_headers, monkeypatch):
         json={
             "title": "Ack",
             "description": "High CPU",
-            "actions": [
-                {"title": "Ack", "type": "Action.Submit", "action": "ack"}
-            ],
+            "actions": [{"title": "Ack", "type": "Action.Submit", "action": "ack"}],
         },
     )
     assert resp.status_code == 200
@@ -736,9 +712,7 @@ def test_teams_events(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 class _FakeAssessor:
     def assess(self, **kwargs: Any) -> Any:
-        return SimpleNamespace(
-            to_dict=lambda: {"impact_level": "high"}, impact_level="high"
-        )
+        return SimpleNamespace(to_dict=lambda: {"impact_level": "high"}, impact_level="high")
 
 
 class _FakeRanker:
@@ -848,9 +822,7 @@ def _patch_topology(monkeypatch: Any) -> None:
     async def fake_full_link() -> dict[str, Any]:
         return {"nodes": [{"id": "n1"}], "edges": []}
 
-    monkeypatch.setattr(
-        api.topology_router, "get_full_link_topology", fake_full_link
-    )
+    monkeypatch.setattr(api.topology_router, "get_full_link_topology", fake_full_link)
     monkeypatch.setattr(
         api.topology_router,
         "get_node_timeline",
@@ -871,9 +843,7 @@ def test_topology_status(client, admin_headers, monkeypatch):
     assert resp.status_code == 200
     assert "node_count" in resp.json()
 
-    resp2 = client.get(
-        "/api/v1/topologies/status/invalid!key", headers=admin_headers
-    )
+    resp2 = client.get("/api/v1/topologies/status/invalid!key", headers=admin_headers)
     assert resp2.status_code == 422
 
 
@@ -958,9 +928,7 @@ def test_tracing_traces(client, admin_headers):
 
 
 def test_tracing_trace_details(client, admin_headers):
-    resp = client.get(
-        "/api/tracing/traces/abc123def4567890", headers=admin_headers
-    )
+    resp = client.get("/api/tracing/traces/abc123def4567890", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "success"
@@ -1186,16 +1154,13 @@ def test_users_extra_auth_and_errors(client, admin_headers, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_ai_analyze_error_paths(client, admin_headers, monkeypatch):
     _patch_ai(monkeypatch)
+
     # rich context fails gracefully
     async def fail_rich(snapshot: Any) -> dict[str, Any]:
         raise RuntimeError("rich ctx fail")
 
-    monkeypatch.setattr(
-        api.ai_router.ai_context_service, "collect_rich_context", fail_rich
-    )
-    monkeypatch.setattr(
-        api.ai_router, "get_cached_snapshot", lambda: {"not_dict": True}
-    )
+    monkeypatch.setattr(api.ai_router.ai_context_service, "collect_rich_context", fail_rich)
+    monkeypatch.setattr(api.ai_router, "get_cached_snapshot", lambda: {"not_dict": True})
     resp = client.post(
         "/api/ai/analyze",
         headers=admin_headers,
@@ -1321,9 +1286,7 @@ def test_service_monitoring_errors(client, admin_headers, monkeypatch):
     )
     resp = client.get("/api/service-monitoring/status", headers=admin_headers)
     assert resp.status_code == 500
-    resp = client.get(
-        "/api/service-monitoring/metrics/svc", headers=admin_headers
-    )
+    resp = client.get("/api/service-monitoring/metrics/svc", headers=admin_headers)
     assert resp.status_code == 500
 
     # invalid metric type raises inside endpoint and is caught
@@ -1361,9 +1324,7 @@ def test_i18n_errors(client, admin_headers, monkeypatch):
         def locales(self):
             return {}
 
-    monkeypatch.setattr(
-        core.i18n_manager, "get_i18n_manager", lambda: BadManager()
-    )
+    monkeypatch.setattr(core.i18n_manager, "get_i18n_manager", lambda: BadManager())
     resp = client.get("/api/i18n/status", headers=admin_headers)
     assert resp.status_code == 500
 
@@ -1388,17 +1349,11 @@ def test_team_collaboration_errors(client, admin_headers, monkeypatch):
     resp = client.get("/api/v1/team-collaboration/teams", headers=admin_headers)
     assert resp.status_code == 500
 
-    monkeypatch.setattr(
-        api.team_collaboration_router, "get_team_oncall", raise_value
-    )
-    resp = client.get(
-        "/api/v1/team-collaboration/teams/unknown/oncall", headers=admin_headers
-    )
+    monkeypatch.setattr(api.team_collaboration_router, "get_team_oncall", raise_value)
+    resp = client.get("/api/v1/team-collaboration/teams/unknown/oncall", headers=admin_headers)
     assert resp.status_code == 404
 
-    monkeypatch.setattr(
-        api.team_collaboration_router, "create_handoff", raise_value
-    )
+    monkeypatch.setattr(api.team_collaboration_router, "create_handoff", raise_value)
     resp = client.post(
         "/api/v1/team-collaboration/teams/unknown/handoffs",
         headers=admin_headers,
@@ -1406,9 +1361,7 @@ def test_team_collaboration_errors(client, admin_headers, monkeypatch):
     )
     assert resp.status_code == 404
 
-    monkeypatch.setattr(
-        api.team_collaboration_router, "escalate_incident", raise_value
-    )
+    monkeypatch.setattr(api.team_collaboration_router, "escalate_incident", raise_value)
     resp = client.post(
         "/api/v1/team-collaboration/incidents/inc-1/escalate",
         headers=admin_headers,
@@ -1464,7 +1417,9 @@ def test_priority_router_degraded(client, admin_headers, monkeypatch):
 def test_priority_router_exceptions(client, admin_headers, monkeypatch):
     _patch_priority(monkeypatch)
     monkeypatch.setattr(
-        api.priority_router._assessor, "assess", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("assess fail"))
+        api.priority_router._assessor,
+        "assess",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("assess fail")),
     )
     resp = client.post(
         "/priority/assess",
@@ -1503,6 +1458,7 @@ def test_grpc_degraded_and_failures(client, admin_headers, monkeypatch):
 def test_teams_router_errors(client, admin_headers, monkeypatch):
     _patch_core_auth(monkeypatch)
     _patch_teams(monkeypatch)
+
     async def raise_runtime(*args, **kwargs):
         raise RuntimeError("teams boom")
 
@@ -1574,15 +1530,11 @@ def test_topology_router_errors(client, admin_headers, monkeypatch):
         "get_node_timeline",
         lambda node: (_ for _ in ()).throw(RuntimeError("timeline fail")),
     )
-    resp = client.get(
-        "/api/v1/topologies/node/agent/timeline", headers=admin_headers
-    )
+    resp = client.get("/api/v1/topologies/node/agent/timeline", headers=admin_headers)
     assert resp.status_code == 500
 
     # long node id validation
-    resp = client.get(
-        f"/api/v1/topologies/node/{'x' * 70}/timeline", headers=admin_headers
-    )
+    resp = client.get(f"/api/v1/topologies/node/{'x' * 70}/timeline", headers=admin_headers)
     assert resp.status_code == 422
 
 
@@ -1591,11 +1543,13 @@ def test_tracing_real_backend_and_errors(client, admin_headers, monkeypatch):
 
     class FakeResponse:
         status_code = 200
+
         def json(self):
             return {
                 "data": ["svc-1"],
                 "total": 1,
             }
+
         def raise_for_status(self):
             pass
 
@@ -1614,9 +1568,7 @@ def test_tracing_real_backend_and_errors(client, admin_headers, monkeypatch):
     assert resp.json()["data"] == ["svc-1"]
     assert resp.json()["total"] == 1
 
-    resp = client.get(
-        "/api/tracing/traces/abc123def4567890", headers=admin_headers
-    )
+    resp = client.get("/api/tracing/traces/abc123def4567890", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["source"] == "jaeger"
 
@@ -1627,4 +1579,3 @@ def test_tracing_real_backend_and_errors(client, admin_headers, monkeypatch):
         params={"limit": 5, "min_duration": "bad"},
     )
     assert resp.status_code == 200
-

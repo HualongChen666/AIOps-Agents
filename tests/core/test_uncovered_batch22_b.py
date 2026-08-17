@@ -39,9 +39,7 @@ def test_optimizer_init_and_factory():
 
 
 def test_track_and_get_usage(optimizer):
-    optimizer.track_resource_usage(
-        aro.ResourceType.CPU, "/api/a", "GET", 10.0, "percent"
-    )
+    optimizer.track_resource_usage(aro.ResourceType.CPU, "/api/a", "GET", 10.0, "percent")
     metrics = optimizer.get_resource_usage(aro.ResourceType.CPU, "/api/a", "GET")
     assert metrics["current_usage"] == 10.0
     assert metrics["peak_usage"] == 10.0
@@ -51,17 +49,14 @@ def test_track_and_get_usage(optimizer):
 
 def test_resource_limits_and_checks(optimizer):
     # no metrics
-    assert optimizer.check_resource_limit(aro.ResourceType.CPU, "/api/a", "GET")[
-        "allowed"
-    ]
+    assert optimizer.check_resource_limit(aro.ResourceType.CPU, "/api/a", "GET")["allowed"]
 
-    optimizer.track_resource_usage(
-        aro.ResourceType.CPU, "/api/a", "GET", 60.0, "percent"
-    )
+    optimizer.track_resource_usage(aro.ResourceType.CPU, "/api/a", "GET", 60.0, "percent")
     # no limit
-    assert optimizer.check_resource_limit(aro.ResourceType.CPU, "/api/a", "GET")[
-        "reason"
-    ] == "No limit configured"
+    assert (
+        optimizer.check_resource_limit(aro.ResourceType.CPU, "/api/a", "GET")["reason"]
+        == "No limit configured"
+    )
 
     # reject
     optimizer.set_resource_limit(
@@ -100,9 +95,7 @@ def test_resource_limits_and_checks(optimizer):
     assert res["action"] == "alert"
 
     # within limits
-    optimizer.track_resource_usage(
-        aro.ResourceType.CPU, "/api/a", "GET", 20.0, "percent"
-    )
+    optimizer.track_resource_usage(aro.ResourceType.CPU, "/api/a", "GET", 20.0, "percent")
     res = optimizer.check_resource_limit(aro.ResourceType.CPU, "/api/a", "GET")
     assert res["reason"] == "Within limits"
 
@@ -152,9 +145,7 @@ def test_schedules(optimizer):
 def test_optimize_recommendations(optimizer):
     # reduce allocation
     for value in [100.0, 10.0, 10.0]:
-        optimizer.track_resource_usage(
-            aro.ResourceType.CPU, "/api/e", "POST", value, "percent"
-        )
+        optimizer.track_resource_usage(aro.ResourceType.CPU, "/api/e", "POST", value, "percent")
     recs = optimizer.optimize_resource_allocation(aro.ResourceType.CPU)
     assert recs["total_endpoints"] == 1
     assert recs["recommendations"][0]["type"] == "reduce_allocation"
@@ -162,9 +153,7 @@ def test_optimize_recommendations(optimizer):
     # increase allocation
     optimizer2 = aro.APIResourceOptimizer()
     for value in [100.0, 99.0, 95.0]:
-        optimizer2.track_resource_usage(
-            aro.ResourceType.MEMORY, "/api/f", "POST", value, "percent"
-        )
+        optimizer2.track_resource_usage(aro.ResourceType.MEMORY, "/api/f", "POST", value, "percent")
     recs = optimizer2.optimize_resource_allocation(aro.ResourceType.MEMORY)
     assert recs["recommendations"][0]["type"] == "increase_allocation"
 
@@ -174,9 +163,7 @@ def test_optimize_recommendations(optimizer):
 
 
 def test_monitor_resources(optimizer):
-    optimizer.track_resource_usage(
-        aro.ResourceType.NETWORK_IO, "/api/g", "GET", 42.0, "mbps"
-    )
+    optimizer.track_resource_usage(aro.ResourceType.NETWORK_IO, "/api/g", "GET", 42.0, "mbps")
     status = optimizer.monitor_resources()
     assert "network_io:GET:/api/g" in status["resources"]
     assert status["resources"]["network_io:GET:/api/g"]["unit"] == "mbps"
@@ -263,9 +250,7 @@ async def test_execute_macos_repair_found_script(monkeypatch, fake_os):
         return _FakeProc(0, b"fixed")
 
     monkeypatch.setattr(macos.asyncio, "create_subprocess_shell", create_shell)
-    result = await macos.execute_macos_repair(
-        "localhost", "/exists/repair.sh", {"key": "value"}
-    )
+    result = await macos.execute_macos_repair("localhost", "/exists/repair.sh", {"key": "value"})
     assert result["status"] == "success"
     assert result["output"] == "fixed"
     assert result["exit_code"] == 0
@@ -354,12 +339,8 @@ def test_flag_rule_matches():
             "score": {"gt": 5, "lt": 100},
         },
     )
-    assert rule2.matches(
-        {"user": "alice", "group": "b", "email": "a@x.com", "score": 50}
-    )
-    assert not rule2.matches(
-        {"user": "alice", "group": "b", "email": "a@x.com", "score": 101}
-    )
+    assert rule2.matches({"user": "alice", "group": "b", "email": "a@x.com", "score": 50})
+    assert not rule2.matches({"user": "alice", "group": "b", "email": "a@x.com", "score": 101})
 
 
 def test_feature_flag_to_dict():
@@ -443,9 +424,7 @@ def test_manager_evaluate_boolean():
 def test_manager_evaluate_percentage():
     manager = ff.FeatureFlagManager()
     manager.initialize()
-    manager.create_flag(
-        "pct", "Pct", "", ff.FlagType.PERCENTAGE, fallback_value=1.0
-    )
+    manager.create_flag("pct", "Pct", "", ff.FlagType.PERCENTAGE, fallback_value=1.0)
     assert manager.evaluate("pct", user_id="u1") is True
 
     # invalid percentage fallback
@@ -516,12 +495,8 @@ def mcp_client(monkeypatch):
     monkeypatch.setattr(
         mcp_server, "search_incident_history", AsyncMock(return_value=[{"id": "i1"}])
     )
-    monkeypatch.setattr(
-        mcp_server, "get_metrics", AsyncMock(return_value={"cpu": 0.5})
-    )
-    monkeypatch.setattr(
-        mcp_server, "approve_repair", AsyncMock(return_value={"approved": True})
-    )
+    monkeypatch.setattr(mcp_server, "get_metrics", AsyncMock(return_value={"cpu": 0.5}))
+    monkeypatch.setattr(mcp_server, "approve_repair", AsyncMock(return_value={"approved": True}))
     return TestClient(app)
 
 
@@ -532,9 +507,7 @@ def test_mcp_get_host_health_success(mcp_client):
 
 
 def test_mcp_get_host_health_error(monkeypatch, mcp_client):
-    monkeypatch.setattr(
-        mcp_server, "get_host_health", AsyncMock(side_effect=Exception("down"))
-    )
+    monkeypatch.setattr(mcp_server, "get_host_health", AsyncMock(side_effect=Exception("down")))
     resp = mcp_client.post("/mcp/get_host_health", json={"host_id": "h1"})
     assert resp.status_code == 500
 
@@ -587,9 +560,7 @@ def test_mcp_get_metrics_success(mcp_client):
 
 
 def test_mcp_get_metrics_error(monkeypatch, mcp_client):
-    monkeypatch.setattr(
-        mcp_server, "get_metrics", AsyncMock(side_effect=Exception("fail"))
-    )
+    monkeypatch.setattr(mcp_server, "get_metrics", AsyncMock(side_effect=Exception("fail")))
     resp = mcp_client.post(
         "/mcp/get_metrics",
         json={"host_id": "h1", "metrics": ["cpu"]},
@@ -606,9 +577,7 @@ def test_mcp_approve_repair_success(mcp_client):
 
 
 def test_mcp_approve_repair_error(monkeypatch, mcp_client):
-    monkeypatch.setattr(
-        mcp_server, "approve_repair", AsyncMock(side_effect=Exception("fail"))
-    )
+    monkeypatch.setattr(mcp_server, "approve_repair", AsyncMock(side_effect=Exception("fail")))
     resp = mcp_client.post(
         "/mcp/approve_repair",
         json={"repair_id": "r1", "approved": False},

@@ -25,9 +25,7 @@ OPERATIONS: List[str] = [
 _OP_MAP: Dict[str, Callable[[PolicyEngine, Dict[str, Any]], Any]] = {
     "lint_openapi": lambda engine, params: engine.lint_openapi(params.get("spec")),
     "follow_openapi3": lambda engine, params: engine.lint_openapi(params.get("spec")),
-    "test_api_with_openapi": lambda engine, params: engine.lint_openapi(
-        params.get("spec")
-    ),
+    "test_api_with_openapi": lambda engine, params: engine.lint_openapi(params.get("spec")),
     "generate_api_docs": lambda engine, params: engine.lint_openapi(params.get("spec")),
 }
 

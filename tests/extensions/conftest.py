@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 OPTIONAL_MODULES = {
     "neo4j": ["GraphDatabase", "Driver"],
     "qdrant_client": ["QdrantClient"],

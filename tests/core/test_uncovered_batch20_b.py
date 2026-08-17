@@ -152,7 +152,9 @@ def test_quota_exceeded_exception_handler(patch_log_exception):
 
 
 def test_version_mismatch_exception_handler(patch_log_exception):
-    exc = VersionMismatchException("mismatch", current_version="1", required_version="2", component="x")
+    exc = VersionMismatchException(
+        "mismatch", current_version="1", required_version="2", component="x"
+    )
     resp = _run_handler(fhandlers.version_mismatch_exception_handler, exc)
     assert resp.status_code == 409
     assert json.loads(resp.body)["error_type"] == "VersionMismatchException"
@@ -370,7 +372,14 @@ def test_create_performance_indexes(monkeypatch):
     check_fail = MagicMock(fetchone=MagicMock(return_value=None))
     check_bad = MagicMock(fetchone=MagicMock(return_value=None))
     create_ok = MagicMock()
-    results = [check_new, create_ok, check_exists, check_fail, RuntimeError("create fail"), check_bad]
+    results = [
+        check_new,
+        create_ok,
+        check_exists,
+        check_fail,
+        RuntimeError("create fail"),
+        check_bad,
+    ]
     monkeypatch.setattr("core.db_optimization.AsyncSessionLocal", _make_session_maker(results))
 
     result = asyncio.run(create_performance_indexes())
@@ -395,9 +404,7 @@ def test_analyze_query_performance(monkeypatch):
         ["SELECT id FROM t", 50, 1000.0, 2.0, 5.0, 0.5],
     ]
     result = MagicMock(fetchall=MagicMock(return_value=rows))
-    monkeypatch.setattr(
-        "core.db_optimization.AsyncSessionLocal", _make_session_maker([result])
-    )
+    monkeypatch.setattr("core.db_optimization.AsyncSessionLocal", _make_session_maker([result]))
     analysis = asyncio.run(analyze_query_performance())
     assert analysis["total_analyzed"] == 2
     assert len(analysis["very_slow_queries"]) == 1
@@ -419,9 +426,7 @@ def test_get_missing_indexes_suggestions(monkeypatch):
         ["public", "alerts", "detected_at", 0, 0, 0],
     ]
     result = MagicMock(fetchall=MagicMock(return_value=rows))
-    monkeypatch.setattr(
-        "core.db_optimization.AsyncSessionLocal", _make_session_maker([result])
-    )
+    monkeypatch.setattr("core.db_optimization.AsyncSessionLocal", _make_session_maker([result]))
     suggestions = asyncio.run(get_missing_indexes_suggestions())
     assert isinstance(suggestions, list)
     assert suggestions[0]["recommendation"]
@@ -773,9 +778,7 @@ def test_enable_read_write_splitting():
 
 
 def test_check_replicas_health(monkeypatch):
-    router = ReadWriteRouter(
-        {"primary_host": "p", "replicas": [{"host": "r1", "port": 5433}]}
-    )
+    router = ReadWriteRouter({"primary_host": "p", "replicas": [{"host": "r1", "port": 5433}]})
     asyncio.run(router._check_all_replicas_health())
     assert router.replicas["replica_0"].state == ReplicaState.HEALTHY
 
@@ -783,9 +786,7 @@ def test_check_replicas_health(monkeypatch):
     asyncio.run(router._check_all_replicas_health())
     assert router.replicas["replica_0"].state == ReplicaState.UNHEALTHY
 
-    monkeypatch.setattr(
-        router, "_check_replica_health", AsyncMock(side_effect=RuntimeError("x"))
-    )
+    monkeypatch.setattr(router, "_check_replica_health", AsyncMock(side_effect=RuntimeError("x")))
     asyncio.run(router._check_all_replicas_health())
     assert router.replicas["replica_0"].state == ReplicaState.UNHEALTHY
 

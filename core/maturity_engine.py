@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
         """Fallback when auto_heal is not available."""
         return []
 
+
 try:
     from core.repair_engine import get_repair_history, get_repair_scripts
 except ImportError:  # pragma: no cover
@@ -35,6 +36,7 @@ except ImportError:  # pragma: no cover
         """Fallback when repair_engine is not available."""
         return []
 
+
 try:
     from core.stats_engine import get_decision_accuracy
 except ImportError:  # pragma: no cover
@@ -42,6 +44,7 @@ except ImportError:  # pragma: no cover
     def get_decision_accuracy() -> Dict[str, Any]:  # type: ignore[misc]
         """Fallback when stats_engine is not available."""
         return {"success": False, "metrics": {}}
+
 
 try:
     from core.collector import get_cached_snapshot
@@ -216,9 +219,7 @@ async def _gather_signals() -> Dict[str, Any]:
     snapshot = await _get_collector_snapshot()
     signals["snapshot"] = snapshot
     if snapshot:
-        present = sum(
-            1 for key in _OBSERVABILITY_KEYS if _is_collector_key_present(snapshot, key)
-        )
+        present = sum(1 for key in _OBSERVABILITY_KEYS if _is_collector_key_present(snapshot, key))
         signals["coverage_ratio"] = present / len(_OBSERVABILITY_KEYS)
 
     return signals

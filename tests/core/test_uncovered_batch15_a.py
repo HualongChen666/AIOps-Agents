@@ -60,7 +60,10 @@ def test_sla_aware_scheduler_lifecycle():
     assert scheduler.check_sla_compliance("payment", {"response_time": 0.1}) is True
     assert scheduler.check_sla_compliance("payment", {"response_time": 1.0}) is False
     assert scheduler.check_sla_compliance("payment", {"availability": 99.0}) is False
-    assert scheduler.check_sla_compliance("payment", {"response_time": 0.2, "availability": 99.95}) is True
+    assert (
+        scheduler.check_sla_compliance("payment", {"response_time": 0.2, "availability": 99.95})
+        is True
+    )
 
     tasks = [
         {"service": "payment", "name": "pay_task"},
@@ -249,7 +252,9 @@ async def test_integration_monitoring_system_lifecycle():
     )
     system.metrics["cpu"] = [old]
     await system.record_metric("cpu", 1.0)
-    assert all(m.timestamp > datetime.now(timezone.utc) - timedelta(hours=1) for m in system.metrics["cpu"])
+    assert all(
+        m.timestamp > datetime.now(timezone.utc) - timedelta(hours=1) for m in system.metrics["cpu"]
+    )
 
     # Queries and filters
     cpu_metrics = system.get_metrics("system.cpu.usage")
@@ -331,7 +336,11 @@ def _mock_adapter(store_value=None, retrieve_value=None, delete_value=True, quer
     if store_value is not None:
         adapter.store = AsyncMock(return_value=store_value)
     else:
-        adapter.store = AsyncMock(return_value=StorageResult(success=True, backend=StorageBackend.POSTGRESQL, data_id="pg"))
+        adapter.store = AsyncMock(
+            return_value=StorageResult(
+                success=True, backend=StorageBackend.POSTGRESQL, data_id="pg"
+            )
+        )
     if retrieve_value is not None:
         adapter.retrieve = AsyncMock(return_value=retrieve_value)
     else:
@@ -361,7 +370,9 @@ async def test_l3l4_storage_integrator_factory_and_policies():
 
     # Exception path in _initialize_backend_adapters
     original = L3L4StorageIntegrator._create_backend_adapter
-    L3L4StorageIntegrator._create_backend_adapter = lambda self, backend: (_ for _ in ()).throw(ValueError("boom"))
+    L3L4StorageIntegrator._create_backend_adapter = lambda self, backend: (_ for _ in ()).throw(
+        ValueError("boom")
+    )
     try:
         broken = L3L4StorageIntegrator()
         assert broken.backend_adapters == {}
@@ -378,9 +389,15 @@ async def test_l3l4_storage_integrator_factory_and_policies():
 async def test_l3l4_storage_integrator_operations(monkeypatch):
     integrator = L3L4StorageIntegrator()
 
-    pg = _mock_adapter(store_value=StorageResult(success=True, backend=StorageBackend.POSTGRESQL, data_id="pg"))
-    redis = _mock_adapter(store_value=StorageResult(success=True, backend=StorageBackend.REDIS, data_id="redis"))
-    none_adapter = _mock_adapter(store_value=StorageResult(success=False, backend=StorageBackend.VICTORIAMETRICS))
+    pg = _mock_adapter(
+        store_value=StorageResult(success=True, backend=StorageBackend.POSTGRESQL, data_id="pg")
+    )
+    redis = _mock_adapter(
+        store_value=StorageResult(success=True, backend=StorageBackend.REDIS, data_id="redis")
+    )
+    none_adapter = _mock_adapter(
+        store_value=StorageResult(success=False, backend=StorageBackend.VICTORIAMETRICS)
+    )
 
     integrator.backend_adapters[StorageBackend.POSTGRESQL] = pg
     integrator.backend_adapters[StorageBackend.REDIS] = redis
@@ -407,7 +424,9 @@ async def test_l3l4_storage_integrator_operations(monkeypatch):
         monkeypatch.undo()
 
     # Primary failure falls back to secondary
-    pg.store = AsyncMock(return_value=StorageResult(success=False, backend=StorageBackend.POSTGRESQL))
+    pg.store = AsyncMock(
+        return_value=StorageResult(success=False, backend=StorageBackend.POSTGRESQL)
+    )
     result2 = await integrator.store_data(request)
     assert result2.success is True
     assert result2.backend == StorageBackend.REDIS
@@ -438,7 +457,9 @@ async def test_l3l4_storage_integrator_operations(monkeypatch):
     assert "not available" in str(result5.error)
 
     # Cache hit on retrieve
-    monkeypatch.setattr(integrator, "_retrieve_from_cache", AsyncMock(return_value={"cached": True}))
+    monkeypatch.setattr(
+        integrator, "_retrieve_from_cache", AsyncMock(return_value={"cached": True})
+    )
     cached = await integrator.retrieve_data("id1", DataType.ALERTS)
     assert cached == {"cached": True}
     assert integrator.storage_stats["alerts"]["cache_hits"] >= 1

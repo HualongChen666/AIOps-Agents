@@ -56,9 +56,11 @@ class AIOpsGrpcClient:
         """Get current system metrics"""
         if self._grpc_client is None:
             raise RuntimeError(
-                "gRPC client not initialized; connect() did not produce a service client")
+                "gRPC client not initialized; connect() did not produce a service client"
+            )
         raise NotImplementedError(
-            "gRPC metrics retrieval requires generated protobuf service clients")
+            "gRPC metrics retrieval requires generated protobuf service clients"
+        )
 
     async def get_alerts(
         self, level: Optional[str] = None, platform: Optional[str] = None, limit: int = 10
@@ -66,17 +68,21 @@ class AIOpsGrpcClient:
         """Get alerts with filtering"""
         if self._grpc_client is None:
             raise RuntimeError(
-                "gRPC client not initialized; connect() did not produce a service client")
+                "gRPC client not initialized; connect() did not produce a service client"
+            )
         raise NotImplementedError(
-            "gRPC alert retrieval requires generated protobuf service clients")
+            "gRPC alert retrieval requires generated protobuf service clients"
+        )
 
     async def execute_repair(self, script_key: str, parameters: Optional[dict] = None) -> dict:
         """Execute a repair action"""
         if self._grpc_client is None:
             raise RuntimeError(
-                "gRPC client not initialized; connect() did not produce a service client")
+                "gRPC client not initialized; connect() did not produce a service client"
+            )
         raise NotImplementedError(
-            "gRPC repair execution requires generated protobuf service clients")
+            "gRPC repair execution requires generated protobuf service clients"
+        )
 
     async def stream_metrics(self):
         """Stream metrics updates"""
@@ -84,4 +90,5 @@ class AIOpsGrpcClient:
         if False:
             yield
         raise NotImplementedError(
-            "gRPC metrics streaming requires generated protobuf service clients")
+            "gRPC metrics streaming requires generated protobuf service clients"
+        )

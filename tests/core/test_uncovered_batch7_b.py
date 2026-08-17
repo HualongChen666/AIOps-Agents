@@ -15,11 +15,11 @@ from unittest.mock import MagicMock
 import pyotp
 import pytest
 
+import core.heartbeat as heartbeat
 import core.mfa_service as mfa_service
 import core.otel_exporter as otel
-import core.heartbeat as heartbeat
-import core.slo_metrics_client as smc
 import core.slo_incident_store as sis
+import core.slo_metrics_client as smc
 
 pytestmark = [pytest.mark.core]
 
@@ -102,9 +102,7 @@ def test_generate_recovery_codes():
 
 
 def test_enable_and_disable_mfa(fake_user_svc):
-    secret, qr, codes = asyncio.run(
-        mfa_service.MFAService.enable_mfa_for_user("alice")
-    )
+    secret, qr, codes = asyncio.run(mfa_service.MFAService.enable_mfa_for_user("alice"))
     assert secret and qr and codes
     assert fake_user_svc.last_enable_args[0] == "alice"
 
@@ -128,44 +126,21 @@ def test_verify_user_mfa_totp_success_and_recovery(fake_user_svc):
     fake_user_svc.users["alice"] = user
 
     totp = pyotp.TOTP(secret)
-    assert (
-        asyncio.run(
-            mfa_service.MFAService.verify_user_mfa("alice", totp.now())
-        )
-        is True
-    )
-    assert (
-        asyncio.run(
-            mfa_service.MFAService.verify_user_mfa("alice", "000000")
-        )
-        is False
-    )
+    assert asyncio.run(mfa_service.MFAService.verify_user_mfa("alice", totp.now())) is True
+    assert asyncio.run(mfa_service.MFAService.verify_user_mfa("alice", "000000")) is False
 
-    assert (
-        asyncio.run(
-            mfa_service.MFAService.verify_user_mfa("alice", codes[0])
-        )
-        is True
-    )
+    assert asyncio.run(mfa_service.MFAService.verify_user_mfa("alice", codes[0])) is True
     assert codes[0] not in fake_user_svc.last_enable_args[2]
     assert (
-        asyncio.run(
-            mfa_service.MFAService.verify_user_mfa("alice", "ABCDEF-ABCDEF-ABCDEF")
-        )
+        asyncio.run(mfa_service.MFAService.verify_user_mfa("alice", "ABCDEF-ABCDEF-ABCDEF"))
         is False
     )
 
 
 def test_verify_user_mfa_not_enabled_or_missing(fake_user_svc):
-    assert (
-        asyncio.run(mfa_service.MFAService.verify_user_mfa("nobody", "123456"))
-        is False
-    )
+    assert asyncio.run(mfa_service.MFAService.verify_user_mfa("nobody", "123456")) is False
     fake_user_svc.users["bob"] = _make_user(mfa_enabled=False)
-    assert (
-        asyncio.run(mfa_service.MFAService.verify_user_mfa("bob", "123456"))
-        is False
-    )
+    assert asyncio.run(mfa_service.MFAService.verify_user_mfa("bob", "123456")) is False
 
 
 def test_is_mfa_enabled(fake_user_svc):
@@ -175,9 +150,7 @@ def test_is_mfa_enabled(fake_user_svc):
 
 
 def test_get_mfa_status(fake_user_svc):
-    assert asyncio.run(
-        mfa_service.MFAService.get_mfa_status("nobody")
-    ) == {"enabled": False}
+    assert asyncio.run(mfa_service.MFAService.get_mfa_status("nobody")) == {"enabled": False}
     fake_user_svc.users["dave"] = _make_user(
         mfa_enabled=True,
         mfa_secret="secret",
@@ -480,7 +453,7 @@ def test_to_naive():
 
 def test_escape_label():
     assert smc._escape_label('a\\b"c') == 'a\\\\b\\"c'
-    assert smc._escape_label('plain') == 'plain'
+    assert smc._escape_label("plain") == "plain"
 
 
 def test_parse_local_timestamp():
@@ -488,12 +461,8 @@ def test_parse_local_timestamp():
     assert smc._parse_local_timestamp(now_aware) == datetime(2024, 6, 15, 10, 30)
     t = smc._parse_local_timestamp("12:34:56")
     assert t == datetime.combine(date.today(), time(12, 34, 56))
-    assert smc._parse_local_timestamp("2024-06-15T08:00:00") == datetime(
-        2024, 6, 15, 8, 0
-    )
-    assert smc._parse_local_timestamp("2024-06-15 08:00:00") == datetime(
-        2024, 6, 15, 8, 0
-    )
+    assert smc._parse_local_timestamp("2024-06-15T08:00:00") == datetime(2024, 6, 15, 8, 0)
+    assert smc._parse_local_timestamp("2024-06-15 08:00:00") == datetime(2024, 6, 15, 8, 0)
     assert smc._parse_local_timestamp("") is None
     assert smc._parse_local_timestamp("not-a-time") is None
     assert smc._parse_local_timestamp(123) is None
@@ -576,9 +545,7 @@ def test_victoria_metrics_client(monkeypatch):
 
     monkeypatch.setattr("requests.get", fake_get)
 
-    client = smc.VictoriaMetricsClient(
-        base_url="http://vm-test/", timeout=15, step=120
-    )
+    client = smc.VictoriaMetricsClient(base_url="http://vm-test/", timeout=15, step=120)
     assert client.base_url == "http://vm-test"
     assert client.timeout == 15
     assert client.step == 120
@@ -648,9 +615,7 @@ def test_add_and_list_incidents():
     i1 = sis.add_incident(
         "svc1", datetime(2024, 1, 1, 0, 0), datetime(2024, 1, 1, 1, 0), "critical"
     )
-    i2 = sis.add_incident(
-        "svc2", datetime(2024, 1, 1, 2, 0), datetime(2024, 1, 1, 3, 0), "warning"
-    )
+    i2 = sis.add_incident("svc2", datetime(2024, 1, 1, 2, 0), datetime(2024, 1, 1, 3, 0), "warning")
     assert len(sis.list_incidents()) == 2
     assert sis.list_incidents("svc1") == [i1]
     assert sis.list_incidents("missing") == []
@@ -663,11 +628,15 @@ def test_to_naive_utc_and_overlapping_interval():
     assert naive == datetime(2024, 1, 1, 12, 0)
     assert sis._to_naive_utc(naive) is naive
 
-    inc = sis.Incident(
-        "svc1", datetime(2024, 1, 1, 9, 0), datetime(2024, 1, 1, 11, 0), "critical"
+    inc = sis.Incident("svc1", datetime(2024, 1, 1, 9, 0), datetime(2024, 1, 1, 11, 0), "critical")
+    assert (
+        sis._overlapping_interval(inc, datetime(2024, 1, 1, 11, 0), datetime(2024, 1, 1, 13, 0))
+        is None
     )
-    assert sis._overlapping_interval(inc, datetime(2024, 1, 1, 11, 0), datetime(2024, 1, 1, 13, 0)) is None
-    assert sis._overlapping_interval(inc, datetime(2024, 1, 1, 7, 0), datetime(2024, 1, 1, 9, 0)) is None
+    assert (
+        sis._overlapping_interval(inc, datetime(2024, 1, 1, 7, 0), datetime(2024, 1, 1, 9, 0))
+        is None
+    )
     overlap = sis._overlapping_interval(
         inc, datetime(2024, 1, 1, 10, 0), datetime(2024, 1, 1, 12, 0)
     )
@@ -683,8 +652,12 @@ def test_compute_downtime_empty_or_invalid_window():
 def test_compute_downtime_single_and_merged():
     start = datetime(2024, 1, 1, 0, 0)
     sis.add_incident("svc1", start + timedelta(hours=1), start + timedelta(hours=2), "critical")
-    sis.add_incident("svc1", start + timedelta(hours=1, minutes=30), start + timedelta(hours=3), "critical")
+    sis.add_incident(
+        "svc1", start + timedelta(hours=1, minutes=30), start + timedelta(hours=3), "critical"
+    )
     sis.add_incident("svc2", start + timedelta(hours=1), start + timedelta(hours=2), "critical")
     assert sis.compute_downtime("svc1", start, start + timedelta(hours=5)) == 7200.0
     assert sis.compute_downtime("svc2", start, start + timedelta(hours=5)) == 3600.0
-    assert sis.compute_downtime("svc1", start + timedelta(hours=4), start + timedelta(hours=5)) == 0.0
+    assert (
+        sis.compute_downtime("svc1", start + timedelta(hours=4), start + timedelta(hours=5)) == 0.0
+    )

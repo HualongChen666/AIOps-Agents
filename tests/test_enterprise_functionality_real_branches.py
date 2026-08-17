@@ -9,15 +9,16 @@ exercised with real invalid/edge inputs.
 import asyncio
 from datetime import datetime, timedelta
 
-import core.enterprise_functionality as _efm
 import pytest
+
+import core.enterprise_functionality as _efm
 from core.enterprise_functionality import (
     AuditLogEntry,
     ComplianceCheck,
     ComplianceStandard,
     DataClassification,
-    EnterpriseFunctionalityManager,
     EncryptionLevel,
+    EnterpriseFunctionalityManager,
     enterprise_functionality_manager,
 )
 
@@ -29,6 +30,7 @@ def _run(coro):
 # ---------------------------------------------------------------------------
 # Initialization and configuration fallback
 # ---------------------------------------------------------------------------
+
 
 def test_manager_initialization_defaults_and_global():
     """Default config fallbacks and global instance."""
@@ -71,6 +73,7 @@ def test_enterprise_summary():
 # Tenant isolation
 # ---------------------------------------------------------------------------
 
+
 def test_tenant_isolation_enabled_and_disabled():
     enabled_mgr = EnterpriseFunctionalityManager(config={"tenant_isolation": True})
     enabled_mgr.assign_resource_to_tenant("tenant-1", "resource-1")
@@ -85,6 +88,7 @@ def test_tenant_isolation_enabled_and_disabled():
 # ---------------------------------------------------------------------------
 # Compliance checks and reports
 # ---------------------------------------------------------------------------
+
 
 def test_gdpr_compliance_pass_and_fail():
     mgr = EnterpriseFunctionalityManager()
@@ -192,6 +196,7 @@ def test_compliance_recommendation_branches():
 # Encryption and decryption
 # ---------------------------------------------------------------------------
 
+
 def test_encryption_disabled_returns_plaintext():
     mgr = EnterpriseFunctionalityManager()
     assert mgr.encrypt_data("hello") == "hello"
@@ -255,6 +260,7 @@ def test_decryption_error_returns_original():
 # Audit logging
 # ---------------------------------------------------------------------------
 
+
 def test_audit_log_creation_and_query_filters():
     mgr = EnterpriseFunctionalityManager(config={"audit_retention_days": 365})
     e1 = mgr.create_audit_log(
@@ -268,9 +274,7 @@ def test_audit_log_creation_and_query_filters():
         "pytest",
         {"role": "admin"},
     )
-    e2 = mgr.create_audit_log(
-        "tenant-b", "user-2", "LOGOUT", "session", "s2", "success"
-    )
+    e2 = mgr.create_audit_log("tenant-b", "user-2", "LOGOUT", "session", "s2", "success")
 
     assert e1.tenant_id == "tenant-a"
     assert e2 in mgr.audit_logs
@@ -339,6 +343,7 @@ def test_audit_log_cleanup_old_and_no_old_logs():
 # Data classification and masking
 # ---------------------------------------------------------------------------
 
+
 def test_data_classification_exact_partial_and_default():
     mgr = EnterpriseFunctionalityManager()
     assert mgr.classify_data("email") == DataClassification.CONFIDENTIAL
@@ -369,6 +374,7 @@ def test_mask_sensitive_data():
 # Consent management
 # ---------------------------------------------------------------------------
 
+
 def test_consent_lifecycle():
     mgr = EnterpriseFunctionalityManager()
     assert mgr.check_consent("u1", "marketing") is False
@@ -386,6 +392,7 @@ def test_consent_lifecycle():
 # ---------------------------------------------------------------------------
 # Cross-tenant access, external-audit fallback, and error-handling branches
 # ---------------------------------------------------------------------------
+
 
 class _CrossTenantManager(EnterpriseFunctionalityManager):
     """Real subclass that allows cross-tenant access for one branch."""

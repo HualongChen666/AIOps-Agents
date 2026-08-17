@@ -54,6 +54,7 @@ def _make_self_signed(tmp_path, not_before=None, not_after=None):
 # core/security_config.py
 # ---------------------------------------------------------------------------
 
+
 def test_batch24_security_config_env_branches(monkeypatch, tmp_path):
     """Reload security_config with varied environment toggles."""
     monkeypatch.setenv("TLS_ENABLED", "true")
@@ -178,6 +179,7 @@ def test_batch24_setup_enterprise_security(monkeypatch, tmp_path):
 # core/data_privacy.py
 # ---------------------------------------------------------------------------
 
+
 def test_batch24_data_privacy_full_flow():
     """Exercise data privacy configuration, PII detection, and anonymization."""
     cfg = dp.DataPrivacyConfig(
@@ -233,7 +235,9 @@ def test_batch24_data_privacy_full_flow():
     assert dp.anonymize_text("email user@example.com") == "email user@example.com"
     dp.configure_privacy(dp.DataPrivacyConfig(pii_detection_enabled=False))
     assert dp.detect_pii("user@example.com") == {}
-    dp.configure_privacy(dp.DataPrivacyConfig(pii_detection_enabled=True, anonymization_enabled=True))
+    dp.configure_privacy(
+        dp.DataPrivacyConfig(pii_detection_enabled=True, anonymization_enabled=True)
+    )
 
 
 def test_batch24_data_privacy_retention_and_consent():
@@ -262,9 +266,7 @@ def test_batch24_data_privacy_retention_and_consent():
 
 def test_batch24_data_privacy_audit_and_stats():
     """Cover audit logging and stats aggregation."""
-    dp.log_privacy_event(
-        "access", "u9", "metrics", "read", details={"status": "ok"}
-    )
+    dp.log_privacy_event("access", "u9", "metrics", "read", details={"status": "ok"})
     logs = dp.get_privacy_audit_logs(user_id="u9", event_type="access", limit=1)
     assert len(logs) >= 1
     stats = dp.get_privacy_stats()
@@ -277,11 +279,10 @@ def test_batch24_data_privacy_audit_and_stats():
 # core/database_cache_optimizer.py
 # ---------------------------------------------------------------------------
 
+
 def test_batch24_database_cache_optimizer_strategies_and_metrics():
     """Exercise create/get/set/invalidate and all eviction strategies."""
-    opt = dco.DatabaseCacheOptimizer(
-        {"default_cache_size": 2, "default_ttl_seconds": 0.05}
-    )
+    opt = dco.DatabaseCacheOptimizer({"default_cache_size": 2, "default_ttl_seconds": 0.05})
 
     # Factory sanity
     assert isinstance(dco.get_database_cache_optimizer({}), dco.DatabaseCacheOptimizer)
@@ -368,6 +369,7 @@ def test_batch24_database_cache_optimizer_preload_and_recommendations():
 # core/metrics_history.py
 # ---------------------------------------------------------------------------
 
+
 def test_batch24_metrics_history_push_and_query():
     """Cover legacy push, metric push, query filtering and timestamp coercion."""
     history = mh.MetricsHistory(maxlen=5)
@@ -445,6 +447,7 @@ def test_batch24_metrics_history_dynamic_threshold():
 # ---------------------------------------------------------------------------
 # core/error_handler.py
 # ---------------------------------------------------------------------------
+
 
 def test_batch24_error_handler_exceptions_and_reporting():
     """Cover exception handling, logging, stats and reporting."""
@@ -543,9 +546,7 @@ async def test_batch24_error_handler_retry_async():
 def test_batch24_error_handler_alert_processing():
     """Manually process queued alerts and send one directly."""
     handler = eh.ErrorHandler()
-    ctx = handler.handle_exception(
-        eh.AIOpsException("alert", severity=eh.ErrorSeverity.FATAL)
-    )
+    ctx = handler.handle_exception(eh.AIOpsException("alert", severity=eh.ErrorSeverity.FATAL))
     handler.alert_queue.append(ctx)
     handler._process_alerts()
     # Direct send for coverage

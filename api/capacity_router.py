@@ -16,7 +16,6 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-
 from core.capacity_engine import forecast_capacity, generate_scaling_recommendations
 from core.collector import get_disk_metrics
 from core.metrics_history import metrics_history
@@ -39,9 +38,7 @@ async def _build_metric_history() -> dict[str, list[float]]:
     cpu = [float(v) for v in hist.get("cpu", [])]
     memory = [float(v) for v in hist.get("memory", [])]
     net_in = [float(v) for v in hist.get("net_in", [])]
-    network = [
-        max(0.0, min(100.0, v / _NETWORK_CAP_MB * 100.0)) for v in net_in
-    ]
+    network = [max(0.0, min(100.0, v / _NETWORK_CAP_MB * 100.0)) for v in net_in]
 
     try:
         disks = await asyncio.to_thread(get_disk_metrics)
@@ -139,6 +136,4 @@ async def get_recommendations() -> dict[str, Any]:
         return {"data": recommendations}
     except Exception as e:
         logger.error(f"扩容建议生成失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"扩容建议生成失败: {str(e)[:200]}"
-        )
+        raise HTTPException(status_code=500, detail=f"扩容建议生成失败: {str(e)[:200]}")

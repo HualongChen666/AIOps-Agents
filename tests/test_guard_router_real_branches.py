@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Real-payload branch-coverage tests for api/guard_router.py."""
 
-import config
 import pytest
 
+import config
 from core.command_guard import (
+    _audit_log,
     clear_audit_log,
     get_audit_log,
     record_audit,
     register_self_pid,
     unregister_self_pid,
-    _audit_log,
 )
 
 
@@ -126,6 +126,7 @@ def test_check_local_executor(client, restore_config):
 def test_check_unknown_client(client):
     # request.client is None -> source_ip == "unknown" -> local_caller
     import asyncio
+
     import httpx
 
     async def _call():

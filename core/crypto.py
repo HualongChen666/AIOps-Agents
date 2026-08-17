@@ -101,7 +101,7 @@ def decrypt_snapshot(data: str) -> str:
     Transparently handles the plaintext marker and decryption failures.
     """
     if data.startswith(_PLAINTEXT_PREFIX):
-        return data[len(_PLAINTEXT_PREFIX):]
+        return data[len(_PLAINTEXT_PREFIX) :]
     f = _get_fernet()
     if f is None:
         return data

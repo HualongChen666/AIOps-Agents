@@ -101,16 +101,20 @@ def test_pagerduty_message_wrapping_and_edge_cases():
     assert len(out) == 1
     assert out[0]["severity"] == "info"
 
-    out = provider.normalize({"messages": [1, {"title": "keep", "urgency": "warning", "service": {}}]})
+    out = provider.normalize(
+        {"messages": [1, {"title": "keep", "urgency": "warning", "service": {}}]}
+    )
     assert len(out) == 1
     assert out[0]["severity"] == "warning"
 
-    out = provider.normalize({
-        "title": "fallback",
-        "urgency": "page",
-        "status": "resolved",
-        "service": "not-a-dict",
-    })
+    out = provider.normalize(
+        {
+            "title": "fallback",
+            "urgency": "page",
+            "status": "resolved",
+            "service": "not-a-dict",
+        }
+    )
     assert out[0]["status"] == "resolved"
     assert out[0]["service"] == "pagerduty"
 
@@ -156,11 +160,13 @@ def test_cloudwatch_sns_and_variants():
     provider = CloudWatchAlertProvider()
     sns_ok = {
         "Type": "Notification",
-        "Message": json.dumps({
-            "AlarmName": "mem-alarm",
-            "NewStateValue": "OK",
-            "Trigger": {"MetricName": "Memory", "Namespace": "AWS/Lambda", "Threshold": 128},
-        }),
+        "Message": json.dumps(
+            {
+                "AlarmName": "mem-alarm",
+                "NewStateValue": "OK",
+                "Trigger": {"MetricName": "Memory", "Namespace": "AWS/Lambda", "Threshold": 128},
+            }
+        ),
     }
     alerts = provider.normalize(sns_ok)
     assert len(alerts) == 1
@@ -254,13 +260,15 @@ def test_call_chain_root_causes():
             status="ERROR",
             error_message=msg,
         )
-        for i, (dur, msg) in enumerate([
-            (1500.0, "connection refused"),
-            (600.0, "sql exception"),
-            (100.0, "network unreachable"),
-            (50.0, "permission denied"),
-            (50.0, "generic failure"),
-        ])
+        for i, (dur, msg) in enumerate(
+            [
+                (1500.0, "connection refused"),
+                (600.0, "sql exception"),
+                (100.0, "network unreachable"),
+                (50.0, "permission denied"),
+                (50.0, "generic failure"),
+            ]
+        )
     ]
     parent.children = children
     engine.add_call_chain("root-trace", [parent])
@@ -499,9 +507,7 @@ async def test_enterprise_tenant_limit(enterprise):
 async def test_enterprise_permissions(enterprise):
     ef = enterprise
     tenant = await ef.create_tenant("perm-tenant", {})
-    perm = await ef.grant_permission(
-        "u1", tenant.id, {"read", "write"}, ["admin"]
-    )
+    perm = await ef.grant_permission("u1", tenant.id, {"read", "write"}, ["admin"])
     assert perm.user_id == "u1"
     assert await ef.check_permission("u1", tenant.id, "read") is True
     assert await ef.check_permission("u1", tenant.id, "delete") is False
@@ -566,7 +572,14 @@ async def test_enterprise_audit_logs(enterprise):
     assert len(await ef.query_audit_logs(action="create_tenant")) >= 1
 
     now = datetime.now()
-    assert len(await ef.query_audit_logs(start_time=now - timedelta(days=1), end_time=now + timedelta(days=1))) >= 1
+    assert (
+        len(
+            await ef.query_audit_logs(
+                start_time=now - timedelta(days=1), end_time=now + timedelta(days=1)
+            )
+        )
+        >= 1
+    )
 
     ef.audit_retention_days = -1
     await ef.cleanup_old_audit_logs()
@@ -596,20 +609,25 @@ async def test_enterprise_sso(monkeypatch, enterprise):
 
     # Patch httpx only if available; otherwise the import exception path is exercised.
     if importlib.util.find_spec("httpx") is not None:
+
         class FakeResponse:
             def __init__(self, json_data=None, status=200):
                 self.status_code = status
                 self._json = json_data or {}
+
             def json(self):
                 return self._json
 
         class FakeAsyncClient:
             def __init__(self, *args, **kwargs):
                 pass
+
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *args):
                 return None
+
             async def get(self, *args, **kwargs):
                 return FakeResponse({"tenant_id": "t1"})
 
@@ -642,8 +660,10 @@ async def test_enterprise_initialize_encryption_and_crypto(monkeypatch):
     class FakeFernet:
         def __init__(self, key):
             self.key = key
+
         def encrypt(self, data: bytes) -> bytes:
             return b"enc:" + data
+
         def decrypt(self, data: bytes) -> bytes:
             return data[4:]
 
@@ -676,7 +696,9 @@ async def test_enterprise_initialize_encryption_and_crypto(monkeypatch):
 async def test_enterprise_id_token_parse_failure(monkeypatch, enterprise):
     ef = enterprise
     oauth = await ef.configure_sso_provider("oauth2", {"name": "oauth"})
-    result = await ef.authenticate_sso(oauth.id, {"access_token": "tok", "id_token": "not.valid.base64"})
+    result = await ef.authenticate_sso(
+        oauth.id, {"access_token": "tok", "id_token": "not.valid.base64"}
+    )
     assert result is not None
     assert result["authenticated"] is True
 
@@ -687,8 +709,10 @@ async def test_enterprise_missing_fernet_key(monkeypatch, enterprise):
     class FakeFernet:
         def __init__(self, key):
             self.key = key
+
         def encrypt(self, data: bytes) -> bytes:
             return b"enc:" + data
+
         def decrypt(self, data: bytes) -> bytes:
             return data[4:]
 

@@ -129,11 +129,13 @@ async def test_db_engine_async_init_db(monkeypatch):
 @pytest.mark.asyncio
 async def test_db_engine_async_insert_alert(monkeypatch):
     _patch_session(monkeypatch)
-    alert_id = await db_engine.async_insert_alert({
-        "id": "a1",
-        "level": "critical",
-        "title": "t",
-    })
+    alert_id = await db_engine.async_insert_alert(
+        {
+            "id": "a1",
+            "level": "critical",
+            "title": "t",
+        }
+    )
     assert alert_id.startswith("a1")
 
 
@@ -340,9 +342,7 @@ async def test_db_engine_component_database_engine(monkeypatch):
         def dispose(self):
             pass
 
-    monkeypatch.setattr(
-        sqlalchemy, "create_engine", lambda *args, **kwargs: _SyncEngine()
-    )
+    monkeypatch.setattr(sqlalchemy, "create_engine", lambda *args, **kwargs: _SyncEngine())
     monkeypatch.setattr(sqlalchemy, "text", lambda q: q)
 
     engine = db_engine.DatabaseEngine(connection_string="sqlite:///:memory:")
@@ -386,9 +386,7 @@ async def test_user_service_crud(monkeypatch):
     assert await user_service.UserService.get_user_by_id(1) is user
 
     _patch_session(monkeypatch, _FakeResult(scalar_one_or_none=None))
-    created = await user_service.UserService.create_user(
-        "bob", "h", "b@b.com", "Bob", "user"
-    )
+    created = await user_service.UserService.create_user("bob", "h", "b@b.com", "Bob", "user")
     assert created is not None
     assert created.username == "bob"
 
@@ -451,6 +449,7 @@ class _FakeDateTime:
 
         def time(self):
             from datetime import time as _time
+
             return _time(self.hour, 0)
 
         def isoformat(self):
@@ -597,9 +596,7 @@ async def test_auto_heal_approve_reject_and_pending(monkeypatch):
     assert rejected["success"] is True
     assert rejected["status"] == "rejected"
 
-    monkeypatch.setattr(
-        auto_heal, "async_update_approval_status_by_alert", None
-    )
+    monkeypatch.setattr(auto_heal, "async_update_approval_status_by_alert", None)
     fallback = await auto_heal.approve_repair("2")
     assert fallback["success"] is True
 
@@ -629,19 +626,18 @@ def test_auto_heal_helpers():
     assert auto_heal._is_pending_approval_error(
         MagicMock(error="pending approval", approval_status="approved")
     )
-    assert auto_heal._is_pending_approval_error(
-        MagicMock(error="", approval_status="pending")
-    )
-    assert not auto_heal._is_pending_approval_error(
-        MagicMock(error="", approval_status="approved")
-    )
+    assert auto_heal._is_pending_approval_error(MagicMock(error="", approval_status="pending"))
+    assert not auto_heal._is_pending_approval_error(MagicMock(error="", approval_status="approved"))
 
     lock = asyncio.run(auto_heal._acquire_heal_lock("k"))
     assert isinstance(lock, asyncio.Lock)
 
     assert auto_heal._resolve_script_key("cpu", {}) == "cpu_high_script"
     assert auto_heal._resolve_script_key("memory", {}) == "memory_high_script"
-    assert auto_heal._resolve_script_key("x", {"script_key": "memory_high_script"}) == "memory_high_script"
+    assert (
+        auto_heal._resolve_script_key("x", {"script_key": "memory_high_script"})
+        == "memory_high_script"
+    )
     assert auto_heal._resolve_script_key("x", {}) == "service_restart_script"
 
 
@@ -669,14 +665,16 @@ def runbook_mocks(monkeypatch):
         runbook_gen,
         "analyze",
         AsyncMock(
-            return_value=json.dumps({
-                "summary": "restart service",
-                "commands": ["echo ok"],
-                "risk_level": "low",
-                "rollback": "echo rollback",
-                "confidence": 0.85,
-                "reasoning": "safe",
-            })
+            return_value=json.dumps(
+                {
+                    "summary": "restart service",
+                    "commands": ["echo ok"],
+                    "risk_level": "low",
+                    "rollback": "echo rollback",
+                    "confidence": 0.85,
+                    "reasoning": "safe",
+                }
+            )
         ),
     )
     monkeypatch.setattr(
@@ -703,6 +701,7 @@ def runbook_mocks(monkeypatch):
     monkeypatch.setattr(runbook_gen, "anonymize_text", lambda x: x)
     monkeypatch.setenv("VERIFY_CONFIG", "{}")
     import config
+
     monkeypatch.setattr(config, "VERIFY_CONFIG", {"self_learning_enabled": True})
 
 
@@ -806,25 +805,27 @@ def test_validate_and_normalize_runbook():
     assert not ok
     ok, err, _ = runbook_gen._validate_and_normalize_runbook("bad")
     assert not ok
-    ok, err, _ = runbook_gen._validate_and_normalize_runbook({
-        "summary": "s", "commands": [], "risk_level": "low"
-    })
+    ok, err, _ = runbook_gen._validate_and_normalize_runbook(
+        {"summary": "s", "commands": [], "risk_level": "low"}
+    )
     assert not ok
-    ok, err, _ = runbook_gen._validate_and_normalize_runbook({
-        "summary": "s", "commands": ["c"], "risk_level": "nope"
-    })
+    ok, err, _ = runbook_gen._validate_and_normalize_runbook(
+        {"summary": "s", "commands": ["c"], "risk_level": "nope"}
+    )
     assert not ok
 
 
 def test_infer_candidate_script_key():
     assert runbook_gen._infer_candidate_script_key({"metric": "cpu_percent"}) == "kill_high_cpu"
     assert runbook_gen._infer_candidate_script_key({"metric": "disk_percent"}) == "clear_temp"
-    assert runbook_gen._infer_candidate_script_key(
-        {"metric": "memory_percent", "platform": "windows"}
-    ) == "free_memory"
-    assert runbook_gen._infer_candidate_script_key(
-        {"metric": "memory_percent", "platform": "linux"}
-    ) == "free_cache"
+    assert (
+        runbook_gen._infer_candidate_script_key({"metric": "memory_percent", "platform": "windows"})
+        == "free_memory"
+    )
+    assert (
+        runbook_gen._infer_candidate_script_key({"metric": "memory_percent", "platform": "linux"})
+        == "free_cache"
+    )
     assert runbook_gen._infer_candidate_script_key({"metric": "unknown"}) is None
     assert runbook_gen._infer_candidate_script_key("bad") is None
 
@@ -865,12 +866,8 @@ def test_db_engine_url_and_lazy_helpers(monkeypatch):
 
     monkeypatch.setattr(db_engine, "_ENGINE", None)
     monkeypatch.setattr(db_engine, "_AsyncSessionLocal", None)
-    monkeypatch.setattr(
-        db_engine, "create_async_engine", MagicMock(return_value=MagicMock())
-    )
-    monkeypatch.setattr(
-        db_engine, "async_sessionmaker", lambda **kwargs: MagicMock()
-    )
+    monkeypatch.setattr(db_engine, "create_async_engine", MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(db_engine, "async_sessionmaker", lambda **kwargs: MagicMock())
     db_engine._ensure_engine()
     assert db_engine._ENGINE is not None
 
@@ -980,58 +977,106 @@ def test_db_engine_sync_wrapper_errors(monkeypatch):
 async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
     # invalid/empty JSON from LLM
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value="{}"))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r4", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "macos",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r4",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "macos",
+        }
+    )
     assert result["success"] is False
 
     # LLM raises
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(side_effect=RuntimeError("llm")))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r5", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r5",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is False
     assert "AI 引擎调用失败" in result["error"]
 
     # empty LLM output
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=""))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r6", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r6",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is False
 
     # markdown JSON
-    good = json.dumps({
-        "summary": "s", "commands": ["c1"], "risk_level": "low",
-        "rollback": "r", "confidence": 0.5, "reasoning": "r",
-    })
+    good = json.dumps(
+        {
+            "summary": "s",
+            "commands": ["c1"],
+            "risk_level": "low",
+            "rollback": "r",
+            "confidence": 0.5,
+            "reasoning": "r",
+        }
+    )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=f"```json\n{good}\n```"))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r7", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r7",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is True
 
     # moderation disabled
     monkeypatch.setattr(runbook_gen, "MODERATION_AVAILABLE", False)
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r8", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r8",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is True
 
     # audit disabled
     monkeypatch.setattr(runbook_gen, "MODERATION_AVAILABLE", True)
     monkeypatch.setattr(runbook_gen, "AUDIT_AVAILABLE", False)
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r9", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r9",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is True
 
     # guard analysis raises
@@ -1042,10 +1087,17 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
         lambda cmd: (_ for _ in ()).throw(RuntimeError("bad")),
     )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r10", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r10",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is False
     assert "护栏审查异常" in result["error"]
 
@@ -1055,10 +1107,17 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
         runbook_gen, "upsert_pending_approval", MagicMock(side_effect=RuntimeError("queue"))
     )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r11", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r11",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is False
     assert "审批队列写入失败" in result["error"]
 
@@ -1066,10 +1125,17 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
     monkeypatch.setattr(runbook_gen, "upsert_pending_approval", MagicMock(return_value=None))
     monkeypatch.setattr(runbook_gen, "search_similar", lambda *a, **k: [])
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r12", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r12",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is True
 
     # RAG raises
@@ -1077,30 +1143,44 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
         runbook_gen, "search_similar", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("rag"))
     )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook({
-        "id": "r13", "level": "warning", "title": "T", "desc": "d",
-        "metric": "x", "value": 1, "platform": "windows",
-    })
+    result = await runbook_gen.generate_repair_runbook(
+        {
+            "id": "r13",
+            "level": "warning",
+            "title": "T",
+            "desc": "d",
+            "metric": "x",
+            "value": 1,
+            "platform": "windows",
+        }
+    )
     assert result["success"] is True
 
 
 def test_validate_and_normalize_runbook_more():
     too_many = {
-        "summary": "s", "commands": ["c"] * 6, "risk_level": "low",
+        "summary": "s",
+        "commands": ["c"] * 6,
+        "risk_level": "low",
     }
     ok, err, _ = runbook_gen._validate_and_normalize_runbook(too_many)
     assert not ok and "最多 5 条" in err
 
     bad_conf = {
-        "summary": "s", "commands": ["c"], "risk_level": "low",
+        "summary": "s",
+        "commands": ["c"],
+        "risk_level": "low",
         "confidence": 99.0,
     }
     ok, _, rb = runbook_gen._validate_and_normalize_runbook(bad_conf)
     assert ok and rb["confidence"] == 1.0
 
     bad_rollback = {
-        "summary": "s", "commands": ["c"], "risk_level": "low",
-        "rollback": 123, "reasoning": 456,
+        "summary": "s",
+        "commands": ["c"],
+        "risk_level": "low",
+        "rollback": 123,
+        "reasoning": 456,
     }
     ok, _, rb = runbook_gen._validate_and_normalize_runbook(bad_rollback)
     assert ok and rb["rollback"] == "无需回滚" and "AI 自动生成" in rb["reasoning"]
@@ -1111,4 +1191,3 @@ def test_extract_first_json_object_tricky():
     assert runbook_gen._extract_first_json_object(nested) == '{"a": {"b": 1}, "c": "}"}'
     escaped = '{"a": "b\\"c", "d": "}"}'
     assert runbook_gen._extract_first_json_object(escaped) == escaped
-

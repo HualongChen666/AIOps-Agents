@@ -672,7 +672,7 @@ async def _ssh_execute_batch(
             if current_metric is not None:
                 results[current_metric] = "\n".join(current_lines).strip()
             # 提取新指标名
-            current_metric = line[len(sep_prefix): -len(sep_suffix)]
+            current_metric = line[len(sep_prefix) : -len(sep_suffix)]
             current_lines = []
         else:
             current_lines.append(line)
@@ -793,7 +793,7 @@ async def collect_linux_host(
     metric_keys = list(target_cmds.keys())
     all_results: dict[str, str] = {}
 
-    batches = [metric_keys[i: i + batch_size] for i in range(0, len(metric_keys), batch_size)]
+    batches = [metric_keys[i : i + batch_size] for i in range(0, len(metric_keys), batch_size)]
 
     batch_tasks = []
     for batch_keys in batches:

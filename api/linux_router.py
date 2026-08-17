@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from config import LINUX_HOSTS, LINUX_SSH_TIMEOUT
 from core.api_helpers import find_host_config, get_operator_ip, hostname_field_validator
-
 from core.linux_collector import (
     collect_all_linux,
     collect_linux_host,

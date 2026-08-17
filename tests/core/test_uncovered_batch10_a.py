@@ -27,6 +27,7 @@ pytestmark = [pytest.mark.core]
 # core.cloud_collector
 # -----------------------------------------------------------------------------
 
+
 def _install_cloud_sdk_fakes(monkeypatch, exc_provider=None):
     """Install lightweight fake cloud SDKs into sys.modules for deterministic tests."""
 
@@ -162,7 +163,9 @@ def _install_cloud_sdk_fakes(monkeypatch, exc_provider=None):
     monkeypatch.setitem(sys.modules, "aliyunsdkcore.client", fake_aliyunsdkcore.client)
     monkeypatch.setitem(sys.modules, "aliyunsdkcms", fake_aliyunsdkcms)
     monkeypatch.setitem(sys.modules, "aliyunsdkcms.request", fake_aliyunsdkcms.request)
-    monkeypatch.setitem(sys.modules, "aliyunsdkcms.request.v20180308", fake_aliyunsdkcms.request.v20180308)
+    monkeypatch.setitem(
+        sys.modules, "aliyunsdkcms.request.v20180308", fake_aliyunsdkcms.request.v20180308
+    )
 
     # neutralize internal sinks / guard
     monkeypatch.setattr(cloud_collector, "push_to_loki", lambda snapshot: None)
@@ -258,9 +261,17 @@ def test_collect_cloud_full_pipeline(cloud_fakes):
 
 
 def test_collect_cloud_sink_failures(cloud_fakes, monkeypatch):
-    monkeypatch.setattr(cloud_collector, "push_to_loki", lambda s: (_ for _ in ()).throw(RuntimeError("loki down")))
-    monkeypatch.setattr(cloud_collector, "record_collect", lambda d: (_ for _ in ()).throw(RuntimeError("db down")))
-    monkeypatch.setattr(cloud_collector, "register_self_pid", lambda: (_ for _ in ()).throw(RuntimeError("guard down")))
+    monkeypatch.setattr(
+        cloud_collector, "push_to_loki", lambda s: (_ for _ in ()).throw(RuntimeError("loki down"))
+    )
+    monkeypatch.setattr(
+        cloud_collector, "record_collect", lambda d: (_ for _ in ()).throw(RuntimeError("db down"))
+    )
+    monkeypatch.setattr(
+        cloud_collector,
+        "register_self_pid",
+        lambda: (_ for _ in ()).throw(RuntimeError("guard down")),
+    )
     cfg = {
         "provider": "aws",
         "access_key": "AK",
@@ -290,8 +301,21 @@ def test_collect_all_cloud(cloud_fakes, monkeypatch):
         cloud_collector,
         "CLOUD_PROVIDERS",
         [
-            {"provider": "aws", "access_key": "AK", "secret_key": "SK", "region": "us-east-1", "metrics": ["CPUUtilization"]},
-            {"provider": "azure", "tenant_id": "t", "client_id": "c", "client_secret": "s", "resource_id": "r", "metrics": ["cpu_percent"]},
+            {
+                "provider": "aws",
+                "access_key": "AK",
+                "secret_key": "SK",
+                "region": "us-east-1",
+                "metrics": ["CPUUtilization"],
+            },
+            {
+                "provider": "azure",
+                "tenant_id": "t",
+                "client_id": "c",
+                "client_secret": "s",
+                "resource_id": "r",
+                "metrics": ["cpu_percent"],
+            },
             {"provider": "unsupported"},
         ],
     )
@@ -411,6 +435,7 @@ def test_dsl_validate_orphan_and_missing_dependency():
 # core.maturity_engine
 # -----------------------------------------------------------------------------
 
+
 @pytest.fixture
 def maturity_mocks(monkeypatch):
     fake_alert_service = MagicMock()
@@ -427,11 +452,13 @@ def maturity_mocks(monkeypatch):
     )
     monkeypatch.setattr(maturity_engine, "alert_service", fake_alert_service)
     monkeypatch.setattr(
-        maturity_engine, "get_repair_history", lambda limit=50: [
+        maturity_engine,
+        "get_repair_history",
+        lambda limit=50: [
             {"success": True},
             {"success": False},
             {"success": True},
-        ]
+        ],
     )
     monkeypatch.setattr(
         maturity_engine,
@@ -504,6 +531,7 @@ async def test_assess_maturity_empty_signals(monkeypatch):
 # -----------------------------------------------------------------------------
 # core.system_resource_optimizer
 # -----------------------------------------------------------------------------
+
 
 def _install_optimizer_fakes(monkeypatch):
     fake_mem = types.ModuleType("core.memory_usage_optimizer")
@@ -745,6 +773,7 @@ def test_optimizer_comprehensive_no_suboptimizers(optimizer_fakes):
 # -----------------------------------------------------------------------------
 # core.integration_testing_system
 # -----------------------------------------------------------------------------
+
 
 def _install_its_helpers(monkeypatch):
     real_sleep = asyncio.sleep

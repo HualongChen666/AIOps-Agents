@@ -86,7 +86,9 @@ async def test_ai_health_success(patch_ai):
 
 
 async def test_ai_health_failure(monkeypatch):
-    monkeypatch.setattr("core.ai_engine.get_llm_router", MagicMock(side_effect=Exception("ai down")))
+    monkeypatch.setattr(
+        "core.ai_engine.get_llm_router", MagicMock(side_effect=Exception("ai down"))
+    )
     checker = module_health_check.AIModuleHealth()
     result = await checker.health_check()
     assert result["module"] == "ai_engine"
@@ -188,7 +190,13 @@ def test_publish_plugin_unsafe_and_undocumented():
 def test_approve_reject_download():
     mgr = plugin_marketplace.PluginMarketplaceManager()
     mgr.publish_plugin(
-        "p4", "Plugin 4", "1.0.0", "desc", "alice", '"""doc"""\n', {},
+        "p4",
+        "Plugin 4",
+        "1.0.0",
+        "desc",
+        "alice",
+        '"""doc"""\n',
+        {},
     )
     assert mgr.approve_plugin("p4", "reviewer") is True
     assert mgr.listings["p4"].review_status == plugin_marketplace.PluginReviewStatus.APPROVED
@@ -206,7 +214,13 @@ def test_approve_reject_download():
 def test_download_not_approved_or_missing():
     mgr = plugin_marketplace.PluginMarketplaceManager()
     mgr.publish_plugin(
-        "p5", "Plugin 5", "1.0.0", "desc", "alice", '"""doc"""\n', {},
+        "p5",
+        "Plugin 5",
+        "1.0.0",
+        "desc",
+        "alice",
+        '"""doc"""\n',
+        {},
     )
     assert mgr.download_plugin("p5") is None
     assert mgr.download_plugin("missing") is None
@@ -215,7 +229,13 @@ def test_download_not_approved_or_missing():
 def test_add_review_and_rating_validation():
     mgr = plugin_marketplace.PluginMarketplaceManager()
     mgr.publish_plugin(
-        "p6", "Plugin 6", "1.0.0", "desc", "alice", '"""doc"""\n', {},
+        "p6",
+        "Plugin 6",
+        "1.0.0",
+        "desc",
+        "alice",
+        '"""doc"""\n',
+        {},
     )
     assert mgr.add_review("missing", "bob", 3, "ok") is False
     assert mgr.add_review("p6", "bob", 0, "bad") is False
@@ -232,11 +252,23 @@ def test_add_review_and_rating_validation():
 def test_get_plugin_listings_and_summary():
     mgr = plugin_marketplace.PluginMarketplaceManager()
     mgr.publish_plugin(
-        "p7", "A", "1.0.0", "desc", "alice", '"""doc"""\n', {},
+        "p7",
+        "A",
+        "1.0.0",
+        "desc",
+        "alice",
+        '"""doc"""\n',
+        {},
         quality=plugin_marketplace.PluginQuality.COMMUNITY,
     )
     mgr.publish_plugin(
-        "p8", "B", "1.0.0", "desc", "bob", '"""doc"""\n', {},
+        "p8",
+        "B",
+        "1.0.0",
+        "desc",
+        "bob",
+        '"""doc"""\n',
+        {},
         quality=plugin_marketplace.PluginQuality.CERTIFIED,
     )
     mgr.approve_plugin("p7", "r1")
@@ -562,9 +594,7 @@ def test_business_metrics_cleanup():
     old = business_metrics.AlertEvent(
         alert_id="old", created_at=now - timedelta(days=2), severity="low"
     )
-    new = business_metrics.AlertEvent(
-        alert_id="new", created_at=now, severity="low"
-    )
+    new = business_metrics.AlertEvent(alert_id="new", created_at=now, severity="low")
     old_metric = business_metrics.BusinessMetrics(timestamp=now - timedelta(days=2))
     new_metric = business_metrics.BusinessMetrics(timestamp=now)
     collector._alert_events = {"old": old, "new": new}

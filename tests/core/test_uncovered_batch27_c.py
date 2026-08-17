@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.exception_handler import (
-    AIOpsException,
     AIException,
+    AIOpsException,
     AuthenticationException,
     AuthorizationException,
     ConfigurationException,

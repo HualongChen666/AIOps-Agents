@@ -166,7 +166,10 @@ class IntegrationQueryRequest(BaseModel):
     model_config = {
         "extra": "ignore",
         "json_schema_extra": {
-            "example": {"query": "avg:system.cpu.user{*}", "params": {"from": "now-1h", "to": "now"}}
+            "example": {
+                "query": "avg:system.cpu.user{*}",
+                "params": {"from": "now-1h", "to": "now"},
+            }
         },
     }
 

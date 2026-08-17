@@ -78,12 +78,8 @@ def test_get_limiter_failure_returns_none(monkeypatch):
 
 
 def test_get_rate_limit_for_endpoint_categories(monkeypatch):
-    monkeypatch.setattr(
-        "config.RATE_LIMIT_AUTH_PER_MINUTE", 5, raising=False
-    )
-    monkeypatch.setattr(
-        "config.RATE_LIMIT_SENSITIVE_PER_MINUTE", 3, raising=False
-    )
+    monkeypatch.setattr("config.RATE_LIMIT_AUTH_PER_MINUTE", 5, raising=False)
+    monkeypatch.setattr("config.RATE_LIMIT_SENSITIVE_PER_MINUTE", 3, raising=False)
     monkeypatch.setattr("config.RATE_LIMIT_ADMIN_PER_MINUTE", 200, raising=False)
     monkeypatch.setattr("config.RATE_LIMIT_AI_PER_MINUTE", 25, raising=False)
     monkeypatch.setattr("config.RATE_LIMIT_API_PER_MINUTE", 60, raising=False)
@@ -104,9 +100,7 @@ def test_check_rate_limit(monkeypatch):
 
     monkeypatch.setattr("config.RATE_LIMIT_ENABLED", True, raising=False)
     monkeypatch.setattr(rate_limiter, "_limiter", None)
-    monkeypatch.setattr(
-        rate_limiter, "get_limiter", MagicMock(side_effect=Exception("boom"))
-    )
+    monkeypatch.setattr(rate_limiter, "get_limiter", MagicMock(side_effect=Exception("boom")))
     assert check_rate_limit(request) is True
 
 
@@ -127,9 +121,7 @@ async def test_advanced_rate_limiter_algorithms():
     )
     assert allowed is True
 
-    allowed, _ = await limiter.check_rate_limit_advanced(
-        "k2", 2, window=60, algorithm="unknown"
-    )
+    allowed, _ = await limiter.check_rate_limit_advanced("k2", 2, window=60, algorithm="unknown")
     assert allowed is True
 
     limiter.reset_key("k1")
@@ -167,9 +159,7 @@ async def test_session_limiter(fresh_limiters, monkeypatch):
     _, sess = fresh_limiters
     exporter = MagicMock()
     exporter.record_active_sessions = MagicMock()
-    monkeypatch.setattr(
-        rate_limiter, "get_metrics_exporter", lambda: exporter
-    )
+    monkeypatch.setattr(rate_limiter, "get_metrics_exporter", lambda: exporter)
     assert await sess.check_and_register("user1", 1) is True
     assert await sess.check_and_register("user1", 1) is False
     await sess.unregister("user1")
@@ -280,9 +270,7 @@ def test_email_alert_channel_success(monkeypatch):
         login = MagicMock()
         send_message = MagicMock()
 
-    monkeypatch.setattr(
-        "core.error_logging.alerting.smtplib.SMTP", FakeSMTP
-    )
+    monkeypatch.setattr("core.error_logging.alerting.smtplib.SMTP", FakeSMTP)
     ch = EmailAlertChannel(
         "smtp.example.com",
         587,
@@ -353,9 +341,7 @@ def test_get_error_alert_manager_and_check_error_alerts(monkeypatch):
     handler.get_top_errors.return_value = []
 
     monkeypatch.setattr("core.error_logging.get_error_log_handler", lambda: handler)
-    monkeypatch.setattr(
-        "core.error_logging.alerting._error_alert_manager", None
-    )
+    monkeypatch.setattr("core.error_logging.alerting._error_alert_manager", None)
     manager = get_error_alert_manager()
     assert manager is not None
     check_error_alerts()

@@ -169,7 +169,7 @@ def _scan_content(content: str) -> List[Dict[str, Any]]:
                 {
                     "type": label,
                     "position": match.start(),
-                    "matched": content[match.start(): min(match.end() + 6, len(content))],
+                    "matched": content[match.start() : min(match.end() + 6, len(content))],
                 }
             )
     return findings

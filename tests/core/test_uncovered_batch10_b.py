@@ -492,9 +492,7 @@ def test_teams_post_interactive_message_success(monkeypatch, fake_teams_client):
 
     actions = [{"type": "Action.OpenUrl", "title": "View", "url": "https://x"}]
     result = asyncio.run(
-        teams_adapter.post_interactive_message(
-            "Title", "Description", actions, color="green"
-        )
+        teams_adapter.post_interactive_message("Title", "Description", actions, color="green")
     )
     assert result["status"] == "ok"
     assert result["http_status"] == 202

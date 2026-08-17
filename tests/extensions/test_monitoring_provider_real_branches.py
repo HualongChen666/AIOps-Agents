@@ -437,7 +437,9 @@ class TestQueryCloudWatch:
         provider = MonitoringProvider(dry_run=False)
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = json.dumps({"Datapoints": [{"Timestamp": "2024-01-01", "Average": 50.0}]})
+        mock_result.stdout = json.dumps(
+            {"Datapoints": [{"Timestamp": "2024-01-01", "Average": 50.0}]}
+        )
 
         with patch.object(provider, "_run_cli", return_value=mock_result):
             result = provider._query_cloudwatch(
@@ -686,12 +688,14 @@ class TestGetTopology:
         provider = MonitoringProvider(dry_run=False)
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = json.dumps({
-            "items": [
-                {"metadata": {"name": "svc1"}},
-                {"metadata": {"name": "svc2"}},
-            ]
-        })
+        mock_result.stdout = json.dumps(
+            {
+                "items": [
+                    {"metadata": {"name": "svc1"}},
+                    {"metadata": {"name": "svc2"}},
+                ]
+            }
+        )
 
         with patch.object(provider, "_run_cli", return_value=mock_result):
             result = provider.get_topology(source="kubernetes")

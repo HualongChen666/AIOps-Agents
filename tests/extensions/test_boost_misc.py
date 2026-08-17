@@ -359,7 +359,15 @@ def _make_steps():
 
 
 def _make_documents():
-    return [Fake(content="hello world", document_id="doc1", metadata={}, source=Fake(value="web"), updated_at=None)]
+    return [
+        Fake(
+            content="hello world",
+            document_id="doc1",
+            metadata={},
+            source=Fake(value="web"),
+            updated_at=None,
+        )
+    ]
 
 
 def _make_execution():
@@ -511,11 +519,7 @@ def find_main(module, module_name, relpath):
 
         def score(c):
             return len(
-                [
-                    m
-                    for n, m in inspect.getmembers(c, inspect.isroutine)
-                    if not n.startswith("_")
-                ]
+                [m for n, m in inspect.getmembers(c, inspect.isroutine) if not n.startswith("_")]
             )
 
         best_score = max(score(c) for c in classes)
@@ -582,18 +586,14 @@ def test_ext_misc(relpath, monkeypatch):
                     disconnect=AsyncMock(),
                 )
             elif main_class.__name__ == "RAGOrchestrator":
-                obj.langchain = Fake(
-                    split=lambda text, *args, **kwargs: [text]
-                )
+                obj.langchain = Fake(split=lambda text, *args, **kwargs: [text])
             routines = [
                 (name, method)
                 for name, method in inspect.getmembers(main_class, inspect.isroutine)
                 if not name.startswith("_")
             ]
             routines.sort(
-                key=lambda item: getattr(
-                    getattr(item[1], "__code__", None), "co_firstlineno", 0
-                )
+                key=lambda item: getattr(getattr(item[1], "__code__", None), "co_firstlineno", 0)
             )
             for method_name, _ in routines:
                 bound = getattr(obj, method_name)

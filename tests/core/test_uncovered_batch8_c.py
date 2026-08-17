@@ -33,15 +33,11 @@ def _make_fake_boto3(response=None, client_error=None):
                 "Groups": [
                     {
                         "Keys": ["EC2"],
-                        "Metrics": {
-                            "BlendedCost": {"Amount": "12.50", "Unit": "USD"}
-                        },
+                        "Metrics": {"BlendedCost": {"Amount": "12.50", "Unit": "USD"}},
                     },
                     {
                         "Keys": [],
-                        "Metrics": {
-                            "BlendedCost": {"Amount": "3.00", "Unit": "USD"}
-                        },
+                        "Metrics": {"BlendedCost": {"Amount": "3.00", "Unit": "USD"}},
                     },
                 ],
             }
@@ -113,9 +109,7 @@ def test_forecast_costs_empty_history(monkeypatch):
 
 
 def test_forecast_costs_error_handling(monkeypatch):
-    monkeypatch.setattr(
-        cost_monitor, "collect_costs", MagicMock(side_effect=RuntimeError("boom"))
-    )
+    monkeypatch.setattr(cost_monitor, "collect_costs", MagicMock(side_effect=RuntimeError("boom")))
     assert cost_monitor.forecast_costs(days=5) == []
 
 
@@ -129,9 +123,7 @@ def _sample_costs_for_budget(total):
 
 
 def test_budget_status_healthy(monkeypatch):
-    monkeypatch.setattr(
-        cost_monitor, "collect_costs", lambda: _sample_costs_for_budget(1000.0)
-    )
+    monkeypatch.setattr(cost_monitor, "collect_costs", lambda: _sample_costs_for_budget(1000.0))
     status = cost_monitor.budget_status()
     assert status["status"] == "healthy"
     assert status["alert_level"] == "low"
@@ -140,9 +132,7 @@ def test_budget_status_healthy(monkeypatch):
 
 
 def test_budget_status_warning(monkeypatch):
-    monkeypatch.setattr(
-        cost_monitor, "collect_costs", lambda: _sample_costs_for_budget(4200.0)
-    )
+    monkeypatch.setattr(cost_monitor, "collect_costs", lambda: _sample_costs_for_budget(4200.0))
     status = cost_monitor.budget_status()
     assert status["status"] == "warning"
     assert status["alert_level"] == "medium"
@@ -150,9 +140,7 @@ def test_budget_status_warning(monkeypatch):
 
 
 def test_budget_status_critical(monkeypatch):
-    monkeypatch.setattr(
-        cost_monitor, "collect_costs", lambda: _sample_costs_for_budget(4600.0)
-    )
+    monkeypatch.setattr(cost_monitor, "collect_costs", lambda: _sample_costs_for_budget(4600.0))
     status = cost_monitor.budget_status()
     assert status["status"] == "critical"
     assert status["alert_level"] == "high"
@@ -244,11 +232,11 @@ def test_compress_prompt_text_protects_and_truncates():
     sections = []
     for i in range(6):
         if i % 2 == 0:
-            sections.append(f"用户问题\nWhat is wrong with service {i}?\nline2\nline3\nline4\nline5")
-        else:
             sections.append(
-                f"辅助分析 {i}\nline1\nline2\nline3\nline4\nline5\nline6\nline7"
+                f"用户问题\nWhat is wrong with service {i}?\nline2\nline3\nline4\nline5"
             )
+        else:
+            sections.append(f"辅助分析 {i}\nline1\nline2\nline3\nline4\nline5\nline6\nline7")
     text = "\n\n".join(sections)
     compressed = context_compression.compress_prompt_text(text, max_tokens=200)
     assert "用户问题" in compressed
@@ -283,7 +271,9 @@ def test_serialize_handles_strings_and_errors(monkeypatch):
     assert context_compression._serialize("plain") == "plain"
     assert "{" in context_compression._serialize({"a": 1})
 
-    monkeypatch.setattr(context_compression.json, "dumps", MagicMock(side_effect=RuntimeError("bad")))
+    monkeypatch.setattr(
+        context_compression.json, "dumps", MagicMock(side_effect=RuntimeError("bad"))
+    )
     assert context_compression._serialize("value") == "value"
 
 
@@ -474,9 +464,7 @@ def test_cleanup_temporary_files_error(monkeypatch, tmp_path):
 def _set_redis_mocks(monkeypatch, keys=None, raise_on_call=False):
     if keys is None:
         keys = [b"temp:a", b"temp:b"]
-    fake_config = types.SimpleNamespace(
-        REDIS_HOST="localhost", REDIS_PORT=6379, REDIS_DB=0
-    )
+    fake_config = types.SimpleNamespace(REDIS_HOST="localhost", REDIS_PORT=6379, REDIS_DB=0)
     monkeypatch.setitem(sys.modules, "config", fake_config)
 
     class _FakeRedis:

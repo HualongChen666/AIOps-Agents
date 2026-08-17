@@ -10,16 +10,14 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from core.collaboration_engine import (
-    add_task as engine_add_task,
-    assign_task as engine_assign_task,
-    create_workspace as engine_create_workspace,
-    get_active_context as engine_get_active_context,
-    get_workspace as engine_get_workspace,
-    list_workspaces as engine_list_workspaces,
-    post_message as engine_post_message,
-    resolve_workspace as engine_resolve_workspace,
-)
+from core.collaboration_engine import add_task as engine_add_task
+from core.collaboration_engine import assign_task as engine_assign_task
+from core.collaboration_engine import create_workspace as engine_create_workspace
+from core.collaboration_engine import get_active_context as engine_get_active_context
+from core.collaboration_engine import get_workspace as engine_get_workspace
+from core.collaboration_engine import list_workspaces as engine_list_workspaces
+from core.collaboration_engine import post_message as engine_post_message
+from core.collaboration_engine import resolve_workspace as engine_resolve_workspace
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/collaboration", tags=["协作工作区"])
@@ -159,9 +157,7 @@ async def create_workspace_endpoint(request: CreateWorkspaceRequest) -> dict[str
         500: {"description": "Server error"},
     },
 )
-async def post_message_endpoint(
-    workspace_id: str, request: PostMessageRequest
-) -> dict[str, Any]:
+async def post_message_endpoint(workspace_id: str, request: PostMessageRequest) -> dict[str, Any]:
     """Post a message to a workspace."""
     try:
         return engine_post_message(workspace_id, request.user, request.content)
@@ -232,7 +228,8 @@ async def resolve_workspace_endpoint(workspace_id: str) -> dict[str, Any]:
     except Exception as exc:
         logger.error(f"Failed to resolve workspace: {exc}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to resolve workspace: {str(exc)[:200]}")
+            status_code=500, detail=f"Failed to resolve workspace: {str(exc)[:200]}"
+        )
 
 
 @router.get(
@@ -250,4 +247,5 @@ async def get_active_context_endpoint() -> dict[str, Any]:
     except Exception as exc:
         logger.error(f"Failed to get active context: {exc}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to get active context: {str(exc)[:200]}")
+            status_code=500, detail=f"Failed to get active context: {str(exc)[:200]}"
+        )

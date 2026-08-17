@@ -108,7 +108,8 @@ class BusinessImpactEngine:
         return in_degree, out_degree
 
     def _get_metric_analysis(
-            self, service_name: str) -> Tuple[str, float, float, float, float, datetime]:
+        self, service_name: str
+    ) -> Tuple[str, float, float, float, float, datetime]:
         """Compute status, error rate, response time, cpu, memory, and last update.
 
         Returns:
@@ -180,8 +181,8 @@ class BusinessImpactEngine:
         """Compute per-service business impact from real data."""
         topology = await self._get_topology()
         pagerank = self._get_pagerank(topology, service_name)
-        status, error_rate, response_time, cpu_avg, memory_avg, last_updated = self._get_metric_analysis(
-            service_name
+        status, error_rate, response_time, cpu_avg, memory_avg, last_updated = (
+            self._get_metric_analysis(service_name)
         )
 
         baseline_conversion = min(3.5, max(0.8, _BASE_CONVERSION + pagerank * 5.0))
@@ -211,8 +212,9 @@ class BusinessImpactEngine:
 
         if self._assessor:
             try:
-                per_minute = affected_users * \
-                    (baseline_conversion / 100.0) * (revenue_per_user / 60.0)
+                per_minute = (
+                    affected_users * (baseline_conversion / 100.0) * (revenue_per_user / 60.0)
+                )
                 assessment = self._assessor.assess(
                     service=service_name,
                     affected_users=affected_users,
@@ -310,13 +312,22 @@ class BusinessImpactEngine:
         total_alerts = max(1, int(total_alerts))
 
         # Page load time estimate combines response time and system load.
-        page_load = round(1.0 + (avg_response / 1000.0) +
-                          (statistics.mean(cpu_values) if cpu_values else 0.0) / 100.0, 2)
+        page_load = round(
+            1.0
+            + (avg_response / 1000.0)
+            + (statistics.mean(cpu_values) if cpu_values else 0.0) / 100.0,
+            2,
+        )
 
         # Satisfaction score from 1 to 5; penalized by errors, latency, and alerts.
         satisfaction = round(
-            max(1.0, 5.0 - avg_error * 0.2 - (avg_response / 1000.0)
-                * 0.3 - min(total_alerts / 100.0, 1.0)),
+            max(
+                1.0,
+                5.0
+                - avg_error * 0.2
+                - (avg_response / 1000.0) * 0.3
+                - min(total_alerts / 100.0, 1.0),
+            ),
             2,
         )
 
@@ -360,28 +371,42 @@ class BusinessImpactEngine:
                 "name": "页面加载时间",
                 "value": page_load,
                 "change": round(((page_load - 2.5) / 2.5) * 100.0, 1),
-                "status": "critical" if page_load > 4.0 else "warning" if page_load > 2.5 else "good",
+                "status": (
+                    "critical" if page_load > 4.0 else "warning" if page_load > 2.5 else "good"
+                ),
             },
             {
                 "id": "UX-002",
                 "name": "API响应时间",
                 "value": round(avg_response, 0) if avg_response else 200.0,
-                "change": round(((avg_response - 250.0) / 250.0) * 100.0, 1) if avg_response else 0.0,
-                "status": "critical" if avg_response > 1000 else "warning" if avg_response > 500 else "good",
+                "change": (
+                    round(((avg_response - 250.0) / 250.0) * 100.0, 1) if avg_response else 0.0
+                ),
+                "status": (
+                    "critical"
+                    if avg_response > 1000
+                    else "warning" if avg_response > 500 else "good"
+                ),
             },
             {
                 "id": "UX-003",
                 "name": "错误率",
                 "value": round(avg_error, 2),
                 "change": round(avg_error, 2) - 0.5,
-                "status": "critical" if avg_error > 5.0 else "warning" if avg_error > 1.0 else "good",
+                "status": (
+                    "critical" if avg_error > 5.0 else "warning" if avg_error > 1.0 else "good"
+                ),
             },
             {
                 "id": "UX-004",
                 "name": "用户满意度",
                 "value": satisfaction,
                 "change": round((satisfaction - 4.5) / 4.5 * 100.0, 1),
-                "status": "critical" if satisfaction < 3.0 else "warning" if satisfaction < 4.0 else "good",
+                "status": (
+                    "critical"
+                    if satisfaction < 3.0
+                    else "warning" if satisfaction < 4.0 else "good"
+                ),
             },
             {
                 "id": "UX-005",

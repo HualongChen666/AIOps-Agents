@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Happy-path tests for integration addon Service.execute_operation methods."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from extensions.addons.integrations.datadog_integration_service.service import (
     Service as DatadogService,
@@ -10,18 +11,14 @@ from extensions.addons.integrations.datadog_integration_service.service import (
 from extensions.addons.integrations.elasticsearch_audit_service.service import (
     Service as ElasticsearchAuditService,
 )
-from extensions.addons.integrations.elk_stack_service.service import (
-    Service as ElkStackService,
-)
+from extensions.addons.integrations.elk_stack_service.service import Service as ElkStackService
 from extensions.addons.integrations.github_repository_service.service import (
     Service as GitHubRepositoryService,
 )
 from extensions.addons.integrations.grafana_integration_service.service import (
     Service as GrafanaIntegrationService,
 )
-from extensions.addons.integrations.kafka_event_service.service import (
-    Service as KafkaEventService,
-)
+from extensions.addons.integrations.kafka_event_service.service import Service as KafkaEventService
 from extensions.addons.integrations.message_queue_service.service import (
     Service as MessageQueueService,
 )

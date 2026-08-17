@@ -116,6 +116,7 @@ def test_cli_executor_non_json_stdout(monkeypatch):
 
 def test_cli_executor_called_process_error(monkeypatch):
     """Test CliExecutor with CalledProcessError."""
+
     def fake_run(cmd, **kwargs):
         exc = subprocess.CalledProcessError(1, cmd)
         exc.stdout = "error output"
@@ -210,8 +211,10 @@ def test_ansible_executor_absolute_playbook_path(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -236,8 +239,10 @@ def test_ansible_executor_relative_playbook_with_cwd(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -284,8 +289,10 @@ def test_ansible_executor_relative_playbook_parent_not_dot(monkeypatch, tmp_path
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -330,17 +337,17 @@ def test_ansible_executor_extra_vars_json(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
     monkeypatch.setattr("asyncio.create_subprocess_exec", fake_subprocess_exec)
 
     ansible = AnsibleExecutor(dry_run=False)
-    result = ansible.run(
-        args=["site.yml", "--extra-vars", '{"key": "value"}'], cwd=str(playbooks)
-    )
+    result = ansible.run(args=["site.yml", "--extra-vars", '{"key": "value"}'], cwd=str(playbooks))
     assert result["status"] == "ok"
 
 
@@ -358,8 +365,10 @@ def test_ansible_executor_extra_vars_key_value(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -386,8 +395,10 @@ def test_ansible_executor_extra_vars_pair_without_equals(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -395,9 +406,7 @@ def test_ansible_executor_extra_vars_pair_without_equals(monkeypatch, tmp_path):
 
     ansible = AnsibleExecutor(dry_run=False)
     # This will have a pair that splits but doesn't have = in the second part
-    result = ansible.run(
-        args=["site.yml", "--extra-vars", "key1=value1 key2"], cwd=str(playbooks)
-    )
+    result = ansible.run(args=["site.yml", "--extra-vars", "key1=value1 key2"], cwd=str(playbooks))
     assert result["status"] == "ok"
 
 
@@ -415,8 +424,10 @@ def test_ansible_executor_extra_vars_flag(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -505,8 +516,10 @@ def test_ansible_executor_check_flag(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -581,8 +594,10 @@ def test_ansible_executor_with_real_playbook_manager(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -789,6 +804,7 @@ def test_base_infra_service_unknown_operation():
 
 def test_base_infra_service_unmapped_operation():
     """Test BaseInfraService with unmapped operation (in OPERATIONS but not in COMMAND_MAP)."""
+
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
         COMMAND_MAP = {}
@@ -801,11 +817,10 @@ def test_base_infra_service_unmapped_operation():
 
 def test_base_infra_service_empty_command():
     """Test BaseInfraService with empty command."""
+
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
-        COMMAND_MAP = {
-            "test_op": lambda params: {"executor": "cli", "command": []}
-        }
+        COMMAND_MAP = {"test_op": lambda params: {"executor": "cli", "command": []}}
 
     service = TestService()
     result = service.execute_operation("test_op")
@@ -816,6 +831,7 @@ def test_base_infra_service_empty_command():
 
 def test_base_infra_service_error_state_transition(monkeypatch):
     """Test BaseInfraService when executor returns error status."""
+
     def fake_run(cmd, **kwargs):
         exc = subprocess.CalledProcessError(1, cmd)
         exc.stdout = "error output"
@@ -826,9 +842,7 @@ def test_base_infra_service_error_state_transition(monkeypatch):
 
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
-        COMMAND_MAP = {
-            "test_op": lambda params: {"executor": "cli", "command": ["echo", "error"]}
-        }
+        COMMAND_MAP = {"test_op": lambda params: {"executor": "cli", "command": ["echo", "error"]}}
 
     service = TestService(dry_run=False)
     result = service.execute_operation("test_op")
@@ -907,9 +921,7 @@ def test_base_infra_service_ansible_executor(monkeypatch, tmp_path):
 
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
-        COMMAND_MAP = {
-            "test_op": lambda params: {"executor": "ansible", "command": ["site.yml"]}
-        }
+        COMMAND_MAP = {"test_op": lambda params: {"executor": "ansible", "command": ["site.yml"]}}
 
     service = TestService(dry_run=False)
     result = service.execute_operation("test_op")
@@ -925,9 +937,7 @@ def test_base_infra_service_terraform_executor(monkeypatch):
 
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
-        COMMAND_MAP = {
-            "test_op": lambda params: {"executor": "terraform", "command": ["plan"]}
-        }
+        COMMAND_MAP = {"test_op": lambda params: {"executor": "terraform", "command": ["plan"]}}
 
     service = TestService(dry_run=False)
     result = service.execute_operation("test_op")
@@ -943,9 +953,7 @@ def test_base_infra_service_helm_executor(monkeypatch):
 
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
-        COMMAND_MAP = {
-            "test_op": lambda params: {"executor": "helm", "command": ["list"]}
-        }
+        COMMAND_MAP = {"test_op": lambda params: {"executor": "helm", "command": ["list"]}}
 
     service = TestService(dry_run=False)
     result = service.execute_operation("test_op")
@@ -961,9 +969,7 @@ def test_base_infra_service_cli_executor(monkeypatch):
 
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
-        COMMAND_MAP = {
-            "test_op": lambda params: {"executor": "cli", "command": ["echo", "hello"]}
-        }
+        COMMAND_MAP = {"test_op": lambda params: {"executor": "cli", "command": ["echo", "hello"]}}
 
     service = TestService(dry_run=False)
     result = service.execute_operation("test_op")
@@ -983,7 +989,7 @@ def test_base_infra_service_with_namespace(monkeypatch):
             "test_op": lambda params: {
                 "executor": "k8s",
                 "command": ["kubectl", "get", "pods"],
-                "namespace": "test-ns"
+                "namespace": "test-ns",
             }
         }
 
@@ -1002,10 +1008,7 @@ def test_base_infra_service_unknown_executor_type(monkeypatch):
     class TestService(BaseInfraService):
         OPERATIONS = ["test_op"]
         COMMAND_MAP = {
-            "test_op": lambda params: {
-                "executor": "unknown_type",
-                "command": ["echo", "hello"]
-            }
+            "test_op": lambda params: {"executor": "unknown_type", "command": ["echo", "hello"]}
         }
 
     service = TestService(dry_run=False)
@@ -1106,8 +1109,10 @@ def test_ansible_executor_extra_vars_multiple_pairs(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
@@ -1115,8 +1120,7 @@ def test_ansible_executor_extra_vars_multiple_pairs(monkeypatch, tmp_path):
 
     ansible = AnsibleExecutor(dry_run=False)
     result = ansible.run(
-        args=["site.yml", "--extra-vars", "key1=value1 key2=value2 key3=value3"],
-        cwd=str(playbooks)
+        args=["site.yml", "--extra-vars", "key1=value1 key2=value2 key3=value3"], cwd=str(playbooks)
     )
     assert result["status"] == "ok"
 
@@ -1135,17 +1139,17 @@ def test_ansible_executor_limit_with_value(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
     monkeypatch.setattr("asyncio.create_subprocess_exec", fake_subprocess_exec)
 
     ansible = AnsibleExecutor(dry_run=False)
-    result = ansible.run(
-        args=["site.yml", "--limit", "host1,host2"], cwd=str(playbooks)
-    )
+    result = ansible.run(args=["site.yml", "--limit", "host1,host2"], cwd=str(playbooks))
     assert result["status"] == "ok"
 
 
@@ -1163,18 +1167,17 @@ def test_ansible_executor_tags_with_spaces(monkeypatch, tmp_path):
     async def fake_subprocess_exec(*args, **kwargs):
         proc = MagicMock()
         proc.returncode = 0
+
         async def fake_communicate():
             return (b"stdout", b"stderr")
+
         proc.communicate = fake_communicate
         return proc
 
     monkeypatch.setattr("asyncio.create_subprocess_exec", fake_subprocess_exec)
 
     ansible = AnsibleExecutor(dry_run=False)
-    result = ansible.run(
-        args=["site.yml", "--tags", "tag1, tag2 , tag3"],
-        cwd=str(playbooks)
-    )
+    result = ansible.run(args=["site.yml", "--tags", "tag1, tag2 , tag3"], cwd=str(playbooks))
     assert result["status"] == "ok"
 
 

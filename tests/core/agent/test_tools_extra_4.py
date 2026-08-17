@@ -66,10 +66,20 @@ def _patch_observability(monkeypatch):
             "dns_resolution_error_rate": 0.0,
         },
     )
-    monkeypatch.setattr(oc, "query_kubernetes_events", lambda ns, fs=None, limit=100: [{
-        "type": "Warning", "reason": "OOMKilled", "message": "oom", "involvedObject": {"name": "pod", "kind": "Pod"},
-        "metadata": {"namespace": "default"}, "lastTimestamp": "t",
-    }])
+    monkeypatch.setattr(
+        oc,
+        "query_kubernetes_events",
+        lambda ns, fs=None, limit=100: [
+            {
+                "type": "Warning",
+                "reason": "OOMKilled",
+                "message": "oom",
+                "involvedObject": {"name": "pod", "kind": "Pod"},
+                "metadata": {"namespace": "default"},
+                "lastTimestamp": "t",
+            }
+        ],
+    )
     monkeypatch.setattr(
         oc,
         "query_kubernetes_pod",
@@ -80,7 +90,11 @@ def _patch_observability(monkeypatch):
         "query_kubernetes_node",
         lambda node: {"available": True, "conditions": {"Ready": "True"}},
     )
-    monkeypatch.setattr(oc, "query_change_events", lambda t, h: [{"type": "deploy", "target": t, "timestamp": 9999999999}])
+    monkeypatch.setattr(
+        oc,
+        "query_change_events",
+        lambda t, h: [{"type": "deploy", "target": t, "timestamp": 9999999999}],
+    )
 
 
 def _patch_external_modules(monkeypatch):
@@ -96,23 +110,47 @@ def _patch_external_modules(monkeypatch):
         topology_graph={"svc": ["db"], "api": ["svc"]},
         analyze_root_causes_enhanced=AsyncMock(return_value=[hyp]),
     )
-    monkeypatch.setitem(sys.modules, "core.root_cause_intelligence", types.SimpleNamespace(root_cause_intelligence_engine=rci))
-    monkeypatch.setitem(sys.modules, "core.alert_engine", types.SimpleNamespace(
-        alert_history=[{
-            "title": "svc down", "desc": "error", "host": "svc", "source": "svc", "level": "critical", "raw_time": "t",
-        }]
-    ))
+    monkeypatch.setitem(
+        sys.modules,
+        "core.root_cause_intelligence",
+        types.SimpleNamespace(root_cause_intelligence_engine=rci),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "core.alert_engine",
+        types.SimpleNamespace(
+            alert_history=[
+                {
+                    "title": "svc down",
+                    "desc": "error",
+                    "host": "svc",
+                    "source": "svc",
+                    "level": "critical",
+                    "raw_time": "t",
+                }
+            ]
+        ),
+    )
     monkeypatch.setitem(
         sys.modules,
         "core.config_manager",
-        types.SimpleNamespace(config_manager=types.SimpleNamespace(_audit_log=[{
-            "timestamp": 9999999999, "change": "svc", "details": {"x": 1}, "type": "deploy",
-        }])),
+        types.SimpleNamespace(
+            config_manager=types.SimpleNamespace(
+                _audit_log=[
+                    {
+                        "timestamp": 9999999999,
+                        "change": "svc",
+                        "details": {"x": 1},
+                        "type": "deploy",
+                    }
+                ]
+            )
+        ),
     )
     fake_mgr = MagicMock()
-    fake_mgr.get_service_metrics = lambda service, time_range: [types.SimpleNamespace(
-        metric_name="cpu", value=0.5, timestamp="t"
-    )]
+    fake_mgr.get_service_metrics = lambda service, time_range: [
+        types.SimpleNamespace(metric_name="cpu", value=0.5, timestamp="t")
+    ]
     monkeypatch.setitem(
         sys.modules,
         "core.service_monitoring_manager",
@@ -153,17 +191,37 @@ def test_execute_all_default_tools(patched_executor):
     executor = patched_executor
     results = {}
 
-    results["collect_metrics"] = executor.execute_tool("collect_metrics", target="localhost", duration=30)
-    results["collect_service_metrics"] = executor.execute_tool("collect_service_metrics", service_name="api", time_range_hours=2)
-    results["collect_network_metrics"] = executor.execute_tool("collect_network_metrics", target="gateway", duration=60)
-    results["collect_change_events"] = executor.execute_tool("collect_change_events", target="svc", hours=6)
-    results["collect_kubernetes_events"] = executor.execute_tool("collect_kubernetes_events", namespace="default", limit=10)
-    results["collect_container_metrics"] = executor.execute_tool("collect_container_metrics", pod_name="pod", namespace="default")
-    results["collect_host_metrics"] = executor.execute_tool("collect_host_metrics", node_name="node1")
-    results["collect_database_metrics"] = executor.execute_tool("collect_database_metrics", database="db", time_range_hours=2)
-    results["collect_correlated_alerts"] = executor.execute_tool("collect_correlated_alerts", service="svc", limit=5)
+    results["collect_metrics"] = executor.execute_tool(
+        "collect_metrics", target="localhost", duration=30
+    )
+    results["collect_service_metrics"] = executor.execute_tool(
+        "collect_service_metrics", service_name="api", time_range_hours=2
+    )
+    results["collect_network_metrics"] = executor.execute_tool(
+        "collect_network_metrics", target="gateway", duration=60
+    )
+    results["collect_change_events"] = executor.execute_tool(
+        "collect_change_events", target="svc", hours=6
+    )
+    results["collect_kubernetes_events"] = executor.execute_tool(
+        "collect_kubernetes_events", namespace="default", limit=10
+    )
+    results["collect_container_metrics"] = executor.execute_tool(
+        "collect_container_metrics", pod_name="pod", namespace="default"
+    )
+    results["collect_host_metrics"] = executor.execute_tool(
+        "collect_host_metrics", node_name="node1"
+    )
+    results["collect_database_metrics"] = executor.execute_tool(
+        "collect_database_metrics", database="db", time_range_hours=2
+    )
+    results["collect_correlated_alerts"] = executor.execute_tool(
+        "collect_correlated_alerts", service="svc", limit=5
+    )
     results["collect_topology"] = executor.execute_tool("collect_topology", service="svc")
-    results["analyze_anomaly"] = executor.execute_tool("analyze_anomaly", data=[1, 2, 3, 4, 100], threshold=0.5, method="transformer")
+    results["analyze_anomaly"] = executor.execute_tool(
+        "analyze_anomaly", data=[1, 2, 3, 4, 100], threshold=0.5, method="transformer"
+    )
     results["root_cause_analysis"] = executor.execute_tool(
         "root_cause_analysis",
         alert_id="a1",
@@ -173,10 +231,16 @@ def test_execute_all_default_tools(patched_executor):
         change_events=[{"type": "deploy"}],
         verification_data={"cpu": 0.5},
     )
-    results["restart_service"] = executor.execute_tool("restart_service", service_name="nginx", timeout=30)
-    results["scale_service"] = executor.execute_tool("scale_service", service_name="api", replicas=2)
+    results["restart_service"] = executor.execute_tool(
+        "restart_service", service_name="nginx", timeout=30
+    )
+    results["scale_service"] = executor.execute_tool(
+        "scale_service", service_name="api", replicas=2
+    )
     results["check_health"] = executor.execute_tool("check_health", target="http://localhost")
-    results["run_diagnostic"] = executor.execute_tool("run_diagnostic", target="http://localhost", type="basic")
+    results["run_diagnostic"] = executor.execute_tool(
+        "run_diagnostic", target="http://localhost", type="basic"
+    )
     results["dispatch_subagent"] = executor.execute_tool(
         "dispatch_subagent",
         goal="investigate",
@@ -201,7 +265,9 @@ def test_execute_all_default_tools(patched_executor):
 
 def test_check_health_socket_failure(monkeypatch):
     monkeypatch.setattr("httpx.get", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad")))
-    monkeypatch.setattr("socket.create_connection", lambda *a, **k: (_ for _ in ()).throw(OSError("refused")))
+    monkeypatch.setattr(
+        "socket.create_connection", lambda *a, **k: (_ for _ in ()).throw(OSError("refused"))
+    )
     executor = create_tool_executor()
     result = executor.execute_tool("check_health", target="localhost:12345")
     assert result["healthy"] is False
@@ -233,7 +299,9 @@ def test_execute_with_auto_selection_infers_params(monkeypatch):
     result2 = executor.execute_with_auto_selection("collect service metrics", {"target": "api"})
     assert isinstance(result2, dict)
 
-    result3 = executor.execute_with_auto_selection("scale api service", {"service_name": "api", "replicas": 3})
+    result3 = executor.execute_with_auto_selection(
+        "scale api service", {"service_name": "api", "replicas": 3}
+    )
     assert isinstance(result3, dict)
 
 
@@ -358,10 +426,12 @@ def test_execute_chain_and_failure(monkeypatch, patched_executor):
     patched_executor.registry.register(
         Tool(name="bad_tool", description="bad", category=ToolCategory.ANALYSIS, function=_bad)
     )
-    results = patched_executor.execute_chain([
-        ("collect_metrics", {"target": "localhost"}),
-        ("bad_tool", {}),
-    ])
+    results = patched_executor.execute_chain(
+        [
+            ("collect_metrics", {"target": "localhost"}),
+            ("bad_tool", {}),
+        ]
+    )
     assert len(results) == 1
     assert patched_executor.get_execution_statistics()["failed"] == 1
 
@@ -373,7 +443,10 @@ def test_execute_tool_not_found(patched_executor):
 
 def test_command_guard_rejects_dangerous_command(monkeypatch):
     from core.command_guard import RiskLevel
-    monkeypatch.setattr(tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.HIGH, "reason": "dangerous"})
+
+    monkeypatch.setattr(
+        tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.HIGH, "reason": "dangerous"}
+    )
     monkeypatch.setattr(tools, "COMMAND_GUARD_AVAILABLE", True)
     monkeypatch.setattr(tools, "RiskLevel", RiskLevel)
     executor = create_tool_executor()
@@ -383,7 +456,10 @@ def test_command_guard_rejects_dangerous_command(monkeypatch):
 
 def test_tool_validate_value_branches(monkeypatch):
     from core.command_guard import RiskLevel
-    monkeypatch.setattr(tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.LOW, "reason": "ok"})
+
+    monkeypatch.setattr(
+        tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.LOW, "reason": "ok"}
+    )
     monkeypatch.setattr(tools, "COMMAND_GUARD_AVAILABLE", True)
     monkeypatch.setattr(tools, "RiskLevel", RiskLevel)
 
@@ -393,14 +469,22 @@ def test_tool_validate_value_branches(monkeypatch):
         tb.execute(wait="yes")
 
     # int invalid / out of range
-    ti = Tool("int", "", ToolCategory.ANALYSIS, lambda duration: duration, required_params=["duration"])
+    ti = Tool(
+        "int", "", ToolCategory.ANALYSIS, lambda duration: duration, required_params=["duration"]
+    )
     with pytest.raises(ValueError, match="must be an integer"):
         ti.execute(duration="abc")
     with pytest.raises(ValueError, match="between"):
         ti.execute(duration=0)
 
     # float invalid / out of range
-    tf = Tool("float", "", ToolCategory.ANALYSIS, lambda threshold: threshold, required_params=["threshold"])
+    tf = Tool(
+        "float",
+        "",
+        ToolCategory.ANALYSIS,
+        lambda threshold: threshold,
+        required_params=["threshold"],
+    )
     with pytest.raises(ValueError, match="must be a number"):
         tf.execute(threshold="abc")
     with pytest.raises(ValueError, match="between"):
@@ -429,7 +513,9 @@ def test_tool_validate_value_branches(monkeypatch):
         tctx.execute(ctx={"a": {"b": {"c": {"d": {}}}}})
 
     # string empty / too long / path traversal / shell / pattern mismatch
-    tp = Tool("pattern", "", ToolCategory.ANALYSIS, lambda target: target, required_params=["target"])
+    tp = Tool(
+        "pattern", "", ToolCategory.ANALYSIS, lambda target: target, required_params=["target"]
+    )
     with pytest.raises(ValueError, match="cannot be empty"):
         tp.execute(target="")
     with pytest.raises(ValueError, match="exceeds maximum length"):
@@ -448,10 +534,14 @@ def test_tool_validate_value_branches(monkeypatch):
 
     # dict with command guard (HIGH and LOW)
     tcmd = Tool("cmd", "", ToolCategory.ANALYSIS, lambda ctx: ctx, required_params=["ctx"])
-    monkeypatch.setattr(tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.HIGH, "reason": "dangerous"})
+    monkeypatch.setattr(
+        tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.HIGH, "reason": "dangerous"}
+    )
     with pytest.raises(ValueError, match="blocked by command_guard"):
         tcmd.execute(ctx={"command": "rm -rf /"})
-    monkeypatch.setattr(tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.LOW, "reason": "ok"})
+    monkeypatch.setattr(
+        tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.LOW, "reason": "ok"}
+    )
     tcmd.execute(ctx={"command": "ls", "nested": {"a": "b"}, "flag": True})
 
     # invalid timeout and dry run
@@ -491,6 +581,7 @@ def test_tool_registry_and_executor_edge_cases(monkeypatch):
     # retry for monitoring timeout and no-retry for execution
     monkeypatch.setattr("core.agent.tools.time.sleep", lambda x: None)
     attempts = [0]
+
     def flaky():
         attempts[0] += 1
         if attempts[0] == 1:
@@ -513,12 +604,14 @@ def test_tool_registry_and_executor_edge_cases(monkeypatch):
         executor.execute_tool("boom")
 
     # sanitize
-    sanitized = executor._sanitize_params({
-        "password": "secret",
-        "user": "me",
-        "config": {"api_key": "k"},
-        "items": [{"token": "t", "x": 1}],
-    })
+    sanitized = executor._sanitize_params(
+        {
+            "password": "secret",
+            "user": "me",
+            "config": {"api_key": "k"},
+            "items": [{"token": "t", "x": 1}],
+        }
+    )
     assert sanitized["password"] == "***"
     assert sanitized["config"]["api_key"] == "***"
     assert sanitized["items"][0]["token"] == "***"
@@ -529,12 +622,22 @@ def test_default_tool_branches(patched_executor, monkeypatch):
     executor = patched_executor
 
     # analyze_anomaly empty and threshold method
-    assert executor.execute_tool("analyze_anomaly", data=[], method="transformer")["is_anomaly"] is False
-    assert executor.execute_tool("analyze_anomaly", data=[5.0, 1.0, 0.1], method="threshold", threshold=0.5)["is_anomaly"] is False
+    assert (
+        executor.execute_tool("analyze_anomaly", data=[], method="transformer")["is_anomaly"]
+        is False
+    )
+    assert (
+        executor.execute_tool(
+            "analyze_anomaly", data=[5.0, 1.0, 0.1], method="threshold", threshold=0.5
+        )["is_anomaly"]
+        is False
+    )
 
     # collect_metrics exception fallback
     monkeypatch.setattr(oc, "get_prometheus_url", lambda: "http://prom")
-    monkeypatch.setattr(oc, "query_prometheus_range", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("fail")))
+    monkeypatch.setattr(
+        oc, "query_prometheus_range", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("fail"))
+    )
     result = executor.execute_tool("collect_metrics", target="host")
     assert "No Prometheus integration" in result["note"]
 
@@ -545,20 +648,50 @@ def test_default_tool_branches(patched_executor, monkeypatch):
     assert result["metrics"]["request_rate"] == "unknown"
 
     # collect_change_events external exception + non-dict local entry
-    monkeypatch.setattr(oc, "query_change_events", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("fail")))
-    monkeypatch.setitem(sys.modules, "core.config_manager", types.SimpleNamespace(config_manager=types.SimpleNamespace(_audit_log=["bad"])))
+    monkeypatch.setattr(
+        oc, "query_change_events", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("fail"))
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "core.config_manager",
+        types.SimpleNamespace(config_manager=types.SimpleNamespace(_audit_log=["bad"])),
+    )
     result = executor.execute_tool("collect_change_events", target="svc", hours=1)
     assert isinstance(result, list)
 
     # collect_kubernetes_events namespace all path and exception path
-    monkeypatch.setattr(oc, "query_kubernetes_events", lambda ns, fs=None, limit=100: [] if ns is None else (_ for _ in ()).throw(RuntimeError("fail")))
+    monkeypatch.setattr(
+        oc,
+        "query_kubernetes_events",
+        lambda ns, fs=None, limit=100: (
+            [] if ns is None else (_ for _ in ()).throw(RuntimeError("fail"))
+        ),
+    )
     assert executor.execute_tool("collect_kubernetes_events", namespace="all", limit=5) == []
     assert executor.execute_tool("collect_kubernetes_events", namespace="default") == []
 
     # container/host/database metrics with provided data
-    assert executor.execute_tool("collect_container_metrics", pod_name="pod", namespace="default", container_metrics={"cpu": 0.5})["cpu"] == 0.5
-    assert executor.execute_tool("collect_host_metrics", node_name="node", host_metrics={"cpu": 0.5})["cpu"] == 0.5
-    assert executor.execute_tool("collect_database_metrics", database="db", database_metrics={"slow": 1})["slow"] == 1
+    assert (
+        executor.execute_tool(
+            "collect_container_metrics",
+            pod_name="pod",
+            namespace="default",
+            container_metrics={"cpu": 0.5},
+        )["cpu"]
+        == 0.5
+    )
+    assert (
+        executor.execute_tool("collect_host_metrics", node_name="node", host_metrics={"cpu": 0.5})[
+            "cpu"
+        ]
+        == 0.5
+    )
+    assert (
+        executor.execute_tool(
+            "collect_database_metrics", database="db", database_metrics={"slow": 1}
+        )["slow"]
+        == 1
+    )
 
     # collect_topology import failure
     monkeypatch.setitem(sys.modules, "core.root_cause_intelligence", None)
@@ -566,22 +699,31 @@ def test_default_tool_branches(patched_executor, monkeypatch):
     assert "Topology engine not populated" in result["note"]
 
     # collect_correlated_alerts exception
-    monkeypatch.setitem(sys.modules, "core.alert_engine", types.SimpleNamespace(alert_history=object()))
+    monkeypatch.setitem(
+        sys.modules, "core.alert_engine", types.SimpleNamespace(alert_history=object())
+    )
     assert executor.execute_tool("collect_correlated_alerts", service="svc") == []
 
     # run_diagnostic unhealthy path
     monkeypatch.setattr("httpx.get", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad")))
-    monkeypatch.setattr("socket.create_connection", lambda *a, **k: (_ for _ in ()).throw(OSError("bad")))
+    monkeypatch.setattr(
+        "socket.create_connection", lambda *a, **k: (_ for _ in ()).throw(OSError("bad"))
+    )
     result = executor.execute_tool("run_diagnostic", target="bad", type="basic")
     assert result["status"] == "unhealthy"
 
     # restart/scale simulated when binaries not available
     monkeypatch.setattr("shutil.which", lambda name: None)
     assert executor.execute_tool("restart_service", service_name="nginx")["status"] == "simulated"
-    assert executor.execute_tool("scale_service", service_name="api", replicas=2)["status"] == "simulated"
+    assert (
+        executor.execute_tool("scale_service", service_name="api", replicas=2)["status"]
+        == "simulated"
+    )
 
     # network metrics exception fallback
-    monkeypatch.setattr(oc, "query_network_metrics", lambda t, d=60: (_ for _ in ()).throw(RuntimeError("fail")))
+    monkeypatch.setattr(
+        oc, "query_network_metrics", lambda t, d=60: (_ for _ in ()).throw(RuntimeError("fail"))
+    )
     result = executor.execute_tool("collect_network_metrics", target="gw", duration=60)
     assert "Network metric collection requires" in result["note"]
 
@@ -605,7 +747,10 @@ def test_default_tool_branches(patched_executor, monkeypatch):
     result = executor.execute_with_auto_selection("detect anomaly", {"metrics": [1, 2, 10]})
     assert result["method"] == "transformer"
     from core.command_guard import RiskLevel
-    monkeypatch.setattr(tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.HIGH, "reason": "dangerous"})
+
+    monkeypatch.setattr(
+        tools, "_analyze_command", lambda cmd: {"risk_level": RiskLevel.HIGH, "reason": "dangerous"}
+    )
     monkeypatch.setattr(tools, "COMMAND_GUARD_AVAILABLE", True)
     monkeypatch.setattr(tools, "RiskLevel", RiskLevel)
     executor = create_tool_executor()

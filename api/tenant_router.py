@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tenant REST API router."""
+
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -73,29 +74,21 @@ async def create_new_tenant(payload: TenantCreate) -> TenantResponse:
 async def get_one_tenant(tenant_id: str) -> TenantResponse:
     tenant = get_tenant(tenant_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     return TenantResponse(**asdict(tenant))
 
 
 @router.put("/{tenant_id}", response_model=TenantResponse)
-async def update_existing_tenant(
-    tenant_id: str, payload: TenantUpdate
-) -> TenantResponse:
+async def update_existing_tenant(tenant_id: str, payload: TenantUpdate) -> TenantResponse:
     updates = payload.model_dump(exclude_unset=True)
     tenant = update_tenant(tenant_id, **updates)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     return TenantResponse(**asdict(tenant))
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_existing_tenant(tenant_id: str) -> None:
     if not delete_tenant(tenant_id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     return None

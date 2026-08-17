@@ -322,8 +322,12 @@ def test_k8s_collect_pods_success_and_truncation(monkeypatch):
     k8s_collector._host_status.clear()
     k8s_collector._collect_history.clear()
 
-    pod1 = _make_pod("pod-1", "default", "node-1", "Running", [types.SimpleNamespace(restart_count=2)])
-    pod2 = _make_pod("pod-2", "kube-system", "node-2", "Pending", [types.SimpleNamespace(restart_count=0)])
+    pod1 = _make_pod(
+        "pod-1", "default", "node-1", "Running", [types.SimpleNamespace(restart_count=2)]
+    )
+    pod2 = _make_pod(
+        "pod-2", "kube-system", "node-2", "Pending", [types.SimpleNamespace(restart_count=0)]
+    )
     pod3 = _make_pod("pod-3", "default", "node-1", "Running", None)
 
     fake_api = _fake_k8s_api([pod1, pod2, pod3])
@@ -394,9 +398,7 @@ def test_k8s_collect_all(monkeypatch):
             pass
 
         def list_pod_for_all_namespaces(self, **kwargs):
-            return types.SimpleNamespace(
-                items=[_make_pod("pod", "default", "node", "Running")]
-            )
+            return types.SimpleNamespace(items=[_make_pod("pod", "default", "node", "Running")])
 
     monkeypatch.setattr(k8s_collector.client, "CoreV1Api", FakeCoreV1Api)
     monkeypatch.setattr(k8s_collector.config, "load_kube_config", lambda *a, **k: None)
@@ -662,10 +664,14 @@ def test_loki_storage_full_flow(monkeypatch):
         )
 
         # invalid query_range
-        assert await storage.query_range("{",
-            datetime(2024, 1, 1, tzinfo=timezone.utc),
-            datetime(2024, 1, 1, 1, tzinfo=timezone.utc),
-        ) == []
+        assert (
+            await storage.query_range(
+                "{",
+                datetime(2024, 1, 1, tzinfo=timezone.utc),
+                datetime(2024, 1, 1, 1, tzinfo=timezone.utc),
+            )
+            == []
+        )
 
         assert await storage.get_labels() == ["app", "host"]
         assert await storage.get_labels(stream="app") == ["app", "host"]
@@ -707,9 +713,7 @@ async def _vm_handler(method, url, params, data, headers):
                 200,
                 {
                     "status": "success",
-                    "data": {
-                        "result": [{"value": [1700000000, "12.5"]}]
-                    },
+                    "data": {"result": [{"value": [1700000000, "12.5"]}]},
                 },
             )
         if url == "/api/v1/query_range":
@@ -742,9 +746,7 @@ def test_victoriametrics_storage_full_flow(monkeypatch):
         fake_httpx = _make_fake_httpx(_vm_handler)
         monkeypatch.setattr(vm_mod, "httpx", fake_httpx)
 
-        storage = vm_mod.VictoriaMetricsStorage(
-            {"base_url": "http://vm:8428", "read_only": False}
-        )
+        storage = vm_mod.VictoriaMetricsStorage({"base_url": "http://vm:8428", "read_only": False})
         assert storage.initialize() is True
 
         not_ready = vm_mod.VictoriaMetricsStorage()
@@ -756,9 +758,7 @@ def test_victoriametrics_storage_full_flow(monkeypatch):
         assert await storage.store("m", 1.0) is False
         storage.read_only = False
 
-        assert await storage.store(
-            "cpu_usage", 12.5, metadata={"labels": {"job": "web"}}
-        ) is True
+        assert await storage.store("cpu_usage", 12.5, metadata={"labels": {"job": "web"}}) is True
 
         async def fail_post(method, url, params, data, headers):
             if method == "post":

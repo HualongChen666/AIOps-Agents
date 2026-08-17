@@ -135,9 +135,7 @@ class TestInvokeGetUpdateDeleteNotFound:
 
     def test_invoke_get_not_found(self, client):
         """Test invoke action 'get' with non-existent ID raises 404."""
-        response = client.post(
-            "/invoke", json={"action": "get", "payload": {"id": "nonexistent"}}
-        )
+        response = client.post("/invoke", json={"action": "get", "payload": {"id": "nonexistent"}})
         # The _get function raises HTTPException which propagates
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -185,9 +183,7 @@ class TestUnknownHandler:
             "extensions.addons.security.security_scanning_service.main.HANDLERS",
             {"create": lambda x: x},
         ):
-            response = client.post(
-                "/invoke", json={"action": "list", "payload": {}}
-            )
+            response = client.post("/invoke", json={"action": "list", "payload": {}})
             # 'list' is valid pattern but not in mocked HANDLERS
             assert response.status_code == 400
             assert "unknown action" in response.json()["detail"].lower()
@@ -253,9 +249,7 @@ class TestQueryPackagePathsAndDisabledOSV:
     def test_query_with_empty_package(self, client):
         """Test query with empty package string."""
         with patch.dict(os.environ, {"OSV_API_URL": "https://api.osv.dev"}):
-            response = client.post(
-                "/invoke", json={"action": "query", "payload": {"package": ""}}
-            )
+            response = client.post("/invoke", json={"action": "query", "payload": {"package": ""}})
             assert response.status_code == 200
             assert response.json()["result"] == []
 
@@ -430,9 +424,7 @@ class TestRunContentScan:
     def test_run_scan_aws_access_key(self, client):
         """Test scan detects AWS access key pattern."""
         content = "AWS_ACCESS_KEY=AKIA1234567890ABCDEF"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -442,9 +434,7 @@ class TestRunContentScan:
     def test_run_scan_private_key(self, client):
         """Test scan detects private key pattern."""
         content = "-----BEGIN RSA PRIVATE KEY-----"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -454,9 +444,7 @@ class TestRunContentScan:
     def test_run_scan_ec_private_key(self, client):
         """Test scan detects EC private key pattern."""
         content = "-----BEGIN EC PRIVATE KEY-----"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -466,9 +454,7 @@ class TestRunContentScan:
     def test_run_scan_dsa_private_key(self, client):
         """Test scan detects DSA private key pattern."""
         content = "-----BEGIN DSA PRIVATE KEY-----"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -478,9 +464,7 @@ class TestRunContentScan:
     def test_run_scan_openssh_private_key(self, client):
         """Test scan detects OPENSSH private key pattern."""
         content = "-----BEGIN OPENSSH PRIVATE KEY-----"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -490,9 +474,7 @@ class TestRunContentScan:
     def test_run_scan_api_token(self, client):
         """Test scan detects API token pattern."""
         content = "api_token='abcdefghijklmnopqrstuvwxyz123456'"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -502,9 +484,7 @@ class TestRunContentScan:
     def test_run_scan_password(self, client):
         """Test scan detects password pattern."""
         content = "password='secret123'"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -519,9 +499,7 @@ class TestRunContentScan:
         token='abcdefghijklmnopqrstuvwxyz123456'
         password='secret123'
         """
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -530,9 +508,7 @@ class TestRunContentScan:
     def test_run_scan_no_findings(self, client):
         """Test scan with no secret patterns."""
         content = "This is just normal text with no secrets"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -569,18 +545,14 @@ class TestRunNonStringContent:
 
     def test_run_with_non_string_content_number(self, client):
         """Test run with non-string content (number)."""
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": 12345}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": 12345}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "noop"
 
     def test_run_with_id_not_found(self, client):
         """Test run with id that doesn't exist in store."""
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"id": "nonexistent"}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"id": "nonexistent"}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "noop"
@@ -607,9 +579,7 @@ class TestRunWithExistingId:
         item_id = create_resp.json()["result"]["id"]
 
         # Run with the id
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"id": item_id}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"id": item_id}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "executed"
@@ -621,9 +591,7 @@ class TestImportEmptyExportEvaluate:
 
     def test_import_empty_items(self, client):
         """Test import with empty items list."""
-        response = client.post(
-            "/invoke", json={"action": "import", "payload": {"items": []}}
-        )
+        response = client.post("/invoke", json={"action": "import", "payload": {"items": []}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["imported"] == 0
@@ -775,9 +743,7 @@ class TestReportEndpoints:
         )
         item_id = create_resp.json()["result"]["id"]
 
-        response = client.post(
-            "/invoke", json={"action": "delete", "payload": {"id": item_id}}
-        )
+        response = client.post("/invoke", json={"action": "delete", "payload": {"id": item_id}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["deleted"] == item_id
@@ -1001,9 +967,7 @@ class TestQueryLocalOnlyNoPackageKey:
         )
 
         # Query without package/name key
-        response = client.post(
-            "/invoke", json={"action": "query", "payload": {"severity": "high"}}
-        )
+        response = client.post("/invoke", json={"action": "query", "payload": {"severity": "high"}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert len(result) == 1
@@ -1114,9 +1078,7 @@ class TestScanContentPosition:
     def test_scan_content_position(self, client):
         """Test scan correctly calculates match position."""
         content = "prefix AKIA1234567890ABCDEF suffix"
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"
@@ -1131,9 +1093,7 @@ class TestScanContentMatchedTruncation:
     def test_scan_content_matched_truncation(self, client):
         """Test scan truncates matched text at end of content."""
         content = "AKIA1234567890ABCDEF"  # Exactly 20 chars
-        response = client.post(
-            "/invoke", json={"action": "run", "payload": {"content": content}}
-        )
+        response = client.post("/invoke", json={"action": "run", "payload": {"content": content}})
         assert response.status_code == 200
         result = response.json()["result"]
         assert result["status"] == "scanned"

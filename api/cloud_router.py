@@ -25,7 +25,6 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
-
 from core.cloud_collector import (
     CLOUD_PROVIDERS,
     collect_all_cloud,

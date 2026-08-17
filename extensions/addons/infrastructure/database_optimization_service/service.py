@@ -61,9 +61,7 @@ class Service:
             return params["config"]
         return params
 
-    def execute_operation(
-        self, name: str, params: Optional[Any] = None
-    ) -> Any:
+    def execute_operation(self, name: str, params: Optional[Any] = None) -> Any:
         data = self._payload(self._params(params))
 
         if name == "get_stats":
@@ -124,6 +122,7 @@ class Service:
 
     def __getattr__(self, name: str) -> Any:
         if name in OPERATIONS:
+
             async def _op_handler(request: Optional[Any] = None) -> Dict[str, Any]:
                 payload = self._params(request) if request else {}
                 result = self.execute_operation(name, payload)
@@ -136,6 +135,7 @@ class Service:
                     "config": getattr(request, "config", {}) if request else {},
                     "message": result.get("error", "") if isinstance(result, dict) else "",
                 }
+
             return _op_handler
         raise AttributeError(f"'{self.__class__.__name__}' has no attribute '{name}'")
 

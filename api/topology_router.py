@@ -8,7 +8,6 @@ from typing import Any, Literal, cast
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
-
 from core.topology_engine import (
     TOPOLOGY_TYPES,
     get_full_link_topology,
@@ -18,9 +17,7 @@ from core.topology_engine import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
-    prefix="/api/v1/topologies", tags=["拓扑管理"]
-)
+router = APIRouter(prefix="/api/v1/topologies", tags=["拓扑管理"])
 _VALID_NODE_ID_PATTERN = re.compile("^[a-zA-Z0-9._\\-]+$")
 _FULL_LINK_CACHE_TTL_SEC = 5
 _full_link_cache: dict[str, Any] = {"data": None, "ts": 0.0}

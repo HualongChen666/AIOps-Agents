@@ -46,10 +46,12 @@ class _FakeProphet:
 
     def make_future_dataframe(self, periods, freq=None):
         import pandas as pd
+
         return pd.DataFrame({"ds": [datetime.now() + timedelta(hours=i) for i in range(periods)]})
 
     def predict(self, future):
         import pandas as pd
+
         return pd.DataFrame({"yhat": [1.0] * len(future)})
 
 
@@ -85,9 +87,7 @@ def test_explanation_templates(ai):
 
 
 def test_predict_time_series_insufficient(ai):
-    result = asyncio.run(
-        ai.predict_time_series([(datetime.now(), float(i)) for i in range(5)], 24)
-    )
+    result = asyncio.run(ai.predict_time_series([(datetime.now(), float(i)) for i in range(5)], 24))
     assert isinstance(result, PredictionResult)
     assert result.prediction_type == PredictionType.TIME_SERIES
     assert result.predicted_values == []
@@ -133,7 +133,9 @@ def test_predict_time_series_prophet_path(monkeypatch, ai):
 def test_predict_time_series_exception_fallback(monkeypatch, ai):
     monkeypatch.setattr(adv, "PROPHET_AVAILABLE", False)
     monkeypatch.setattr(adv, "ML_AVAILABLE", True)
-    monkeypatch.setattr(ai, "_ml_time_series_prediction", AsyncMock(side_effect=RuntimeError("boom")))
+    monkeypatch.setattr(
+        ai, "_ml_time_series_prediction", AsyncMock(side_effect=RuntimeError("boom"))
+    )
     data = [(datetime.now() + timedelta(hours=i), float(i)) for i in range(20)]
     result = asyncio.run(ai.predict_time_series(data, 4))
     assert isinstance(result, PredictionResult)
@@ -177,9 +179,7 @@ def test_adaptive_learning_online(monkeypatch, ai):
 
 def test_adaptive_learning_batch_and_reinforcement(monkeypatch, ai):
     monkeypatch.setattr(adv, "ML_AVAILABLE", True)
-    batch = asyncio.run(
-        ai.adaptive_learning_update({"a": 1.0}, {"score": 0.5}, LearningMode.BATCH)
-    )
+    batch = asyncio.run(ai.adaptive_learning_update({"a": 1.0}, {"score": 0.5}, LearningMode.BATCH))
     assert batch.learning_mode == LearningMode.BATCH
     assert batch.performance_improvement == 0.15
 
@@ -193,7 +193,9 @@ def test_adaptive_learning_batch_and_reinforcement(monkeypatch, ai):
 
 def test_adaptive_learning_exception(monkeypatch, ai):
     monkeypatch.setattr(adv, "ML_AVAILABLE", False)
-    monkeypatch.setattr(ai, "_rule_based_learning_update", AsyncMock(side_effect=RuntimeError("fail")))
+    monkeypatch.setattr(
+        ai, "_rule_based_learning_update", AsyncMock(side_effect=RuntimeError("fail"))
+    )
     update = asyncio.run(
         ai.adaptive_learning_update({"x": 1.0}, {"score": 1.0}, LearningMode.REINFORCEMENT)
     )
@@ -203,13 +205,15 @@ def test_adaptive_learning_exception(monkeypatch, ai):
 
 
 def test_extract_features(ai):
-    features = ai._extract_features({
-        "int": 5,
-        "float": 1.2,
-        "str": "hello",
-        "bool": True,
-        "other": [1, 2],
-    })
+    features = ai._extract_features(
+        {
+            "int": 5,
+            "float": 1.2,
+            "str": "hello",
+            "bool": True,
+            "other": [1, 2],
+        }
+    )
     assert isinstance(features, list)
     assert len(features) == 5
 
@@ -225,10 +229,16 @@ def test_natural_language_new_conversation(ai, monkeypatch):
 
 def test_natural_language_with_ai_engine(ai, monkeypatch):
     monkeypatch.setattr(adv, "AI_ENGINE_AVAILABLE", True)
-    monkeypatch.setattr(adv, "analyze", AsyncMock(return_value={
-        "analysis": "analyzed",
-        "action_required": True,
-    }))
+    monkeypatch.setattr(
+        adv,
+        "analyze",
+        AsyncMock(
+            return_value={
+                "analysis": "analyzed",
+                "action_required": True,
+            }
+        ),
+    )
     result = asyncio.run(ai.natural_language_interaction("analyze alert cpu", "c2", "u1"))
     assert result["intent"] == "analyze_alert"
     assert result["metadata"]["ai_generated"] is True
@@ -245,9 +255,7 @@ def test_natural_language_existing_context(ai, monkeypatch):
 
 
 def test_explain_decision_default(ai):
-    decision = asyncio.run(
-        ai.explain_decision("reboot", {"cpu": 0.9, "memory": 0.2}, "default")
-    )
+    decision = asyncio.run(ai.explain_decision("reboot", {"cpu": 0.9, "memory": 0.2}, "default"))
     assert isinstance(decision, adv.ExplainableDecision)
     assert decision.decision == "reboot"
     assert decision.confidence >= 0.7
@@ -300,9 +308,7 @@ def test_continuous_knowledge_learning(ai):
 
 def test_continuous_knowledge_learning_trigger(ai, monkeypatch):
     for i in range(10):
-        asyncio.run(
-            ai.continuous_knowledge_learning({"metric_value": float(i)}, "success")
-        )
+        asyncio.run(ai.continuous_knowledge_learning({"metric_value": float(i)}, "success"))
     assert len(ai.knowledge_updates) == 10
     assert sum(len(v) for v in ai.knowledge_base.values()) > 0
 
@@ -318,7 +324,11 @@ def test_knowledge_extraction(ai):
 def test_ml_initialization_failure(monkeypatch):
     _make_gb(monkeypatch)
     monkeypatch.setattr(adv, "ML_AVAILABLE", True)
-    monkeypatch.setattr(adv, "GradientBoostingRegressor", lambda **k: (_ for _ in ()).throw(RuntimeError("init fail")))
+    monkeypatch.setattr(
+        adv,
+        "GradientBoostingRegressor",
+        lambda **k: (_ for _ in ()).throw(RuntimeError("init fail")),
+    )
     instance = AdvancedAICapabilities()
     assert instance.config == {}
 

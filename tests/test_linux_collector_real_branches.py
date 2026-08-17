@@ -167,7 +167,9 @@ def test_ssh_execute_input_defenses():
         assert (await lc._ssh_execute({"host": "h", "username": "u"}, "")) == ""
         # Missing/empty host
         assert (await lc._ssh_execute({"username": "u"}, "echo hi")).startswith("ERROR: host field")
-        assert (await lc._ssh_execute({"username": "u", "host": "   "}, "echo hi")).startswith("ERROR: host field")
+        assert (await lc._ssh_execute({"username": "u", "host": "   "}, "echo hi")).startswith(
+            "ERROR: host field"
+        )
         # Missing username
         assert (await lc._ssh_execute({"host": "h"}, "echo hi")).startswith("ERROR: username field")
 
@@ -325,27 +327,33 @@ def test_collect_linux_host_collection_statuses():
     orig = os.environ.get("PATH", "")
     try:
         os.environ["PATH"] = ""
-        out = _run(lc.collect_linux_host(
-            {"name": "err", "host": "h", "key_file": "k"},
-            metrics=["hostname"],
-        ))
+        out = _run(
+            lc.collect_linux_host(
+                {"name": "err", "host": "h", "key_file": "k"},
+                metrics=["hostname"],
+            )
+        )
         assert out["status"] == "error"
 
         # degraded: 2 invalid + 3 valid, 3/5 errors
-        out = _run(lc.collect_linux_host(
-            {"name": "deg", "host": "h", "key_file": "k"},
-            metrics=["bad1", "bad2", "hostname", "os_version", "uptime"],
-        ))
+        out = _run(
+            lc.collect_linux_host(
+                {"name": "deg", "host": "h", "key_file": "k"},
+                metrics=["bad1", "bad2", "hostname", "os_version", "uptime"],
+            )
+        )
         assert out["status"] == "degraded"
     finally:
         os.environ["PATH"] = orig
 
     # ok: sshpass not installed, so valid values become empty. Use many invalid metrics
     # so the single valid empty value is a small fraction of the requested metric count.
-    out = _run(lc.collect_linux_host(
-        {"name": "ok", "host": "h", "username": "u", "password": "p"},
-        metrics=["bad1", "bad2", "bad3", "bad4", "bad5", "hostname"],
-    ))
+    out = _run(
+        lc.collect_linux_host(
+            {"name": "ok", "host": "h", "username": "u", "password": "p"},
+            metrics=["bad1", "bad2", "bad3", "bad4", "bad5", "hostname"],
+        )
+    )
     assert out["status"] == "ok"
 
 
@@ -398,10 +406,12 @@ def test_get_available_metrics():
 
 def test_collect_linux_host_no_valid_metrics():
     """Cover the branch where none of the requested metrics are valid."""
-    out = _run(lc.collect_linux_host(
-        {"name": "nv", "host": "h", "username": "u", "password": "p"},
-        metrics=["totally_invalid"],
-    ))
+    out = _run(
+        lc.collect_linux_host(
+            {"name": "nv", "host": "h", "username": "u", "password": "p"},
+            metrics=["totally_invalid"],
+        )
+    )
     assert out["status"] == "error"
     assert out["error"] == "无有效的采集指标"
 

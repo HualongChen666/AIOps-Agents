@@ -68,9 +68,7 @@ def test_validator_register(validator):
     validator.register_test(test)
     assert "custom" in validator.validation_tests
 
-    suite = itv.ValidationSuite(
-        suite_id="custom_suite", suite_name="Custom Suite", description="d"
-    )
+    suite = itv.ValidationSuite(suite_id="custom_suite", suite_name="Custom Suite", description="d")
     validator.register_suite(suite)
     assert "custom_suite" in validator.validation_suites
 
@@ -98,9 +96,7 @@ async def _fake_execute(self, execution_id):
 
 @pytest.mark.asyncio
 async def test_run_validation_success_and_status(validator, monkeypatch):
-    monkeypatch.setattr(
-        itv.IntegrationTestValidator, "_execute_validation", _fake_execute
-    )
+    monkeypatch.setattr(itv.IntegrationTestValidator, "_execute_validation", _fake_execute)
 
     exec_id = await validator.run_validation("functional_api")
     assert exec_id in validator.validation_executions
@@ -148,9 +144,7 @@ async def test_execute_validation_exception(validator, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_suite_and_report(validator, monkeypatch):
-    monkeypatch.setattr(
-        itv.IntegrationTestValidator, "_execute_validation", _fake_execute
-    )
+    monkeypatch.setattr(itv.IntegrationTestValidator, "_execute_validation", _fake_execute)
 
     exec_ids = await validator.run_suite("functional_suite")
     assert len(exec_ids) == 2
@@ -161,9 +155,7 @@ async def test_run_suite_and_report(validator, monkeypatch):
     assert 0.0 < report["summary"]["pass_rate"] <= 1.0
     assert report["report_id"] in validator.validation_reports
 
-    suite_report = await validator.generate_validation_report(
-        suite_id="functional_suite"
-    )
+    suite_report = await validator.generate_validation_report(suite_id="functional_suite")
     assert suite_report["summary"]["total"] == 2
     assert suite_report["suite_id"] == "functional_suite"
 
@@ -177,9 +169,7 @@ async def test_run_suite_and_report(validator, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_suite_sequential(validator, monkeypatch):
-    monkeypatch.setattr(
-        itv.IntegrationTestValidator, "_execute_validation", _fake_execute
-    )
+    monkeypatch.setattr(itv.IntegrationTestValidator, "_execute_validation", _fake_execute)
 
     exec_ids = await validator.run_suite("performance_suite")
     assert len(exec_ids) == 2
@@ -634,9 +624,7 @@ def test_console_formatter():
 
 def test_setup_logging(tmp_path):
     slog.setup_logging(str(tmp_path), "INFO")
-    assert (tmp_path / "aiops.log").exists() or os.path.exists(
-        tmp_path
-    )  # loguru creates on emit
+    assert (tmp_path / "aiops.log").exists() or os.path.exists(tmp_path)  # loguru creates on emit
 
 
 def test_setup_loki_logging_success(monkeypatch):
@@ -667,9 +655,7 @@ def test_setup_loki_logging_general_error(monkeypatch):
 
 
 def test_setup_loki_logging_register_failure(monkeypatch):
-    monkeypatch.setattr(
-        slog.loguru_logger, "add", MagicMock(side_effect=RuntimeError("add fail"))
-    )
+    monkeypatch.setattr(slog.loguru_logger, "add", MagicMock(side_effect=RuntimeError("add fail")))
     assert slog.setup_loki_logging("http://loki:3100") is False
 
 
@@ -696,9 +682,7 @@ def test_logging_interceptor_error():
 def test_auth_interceptor_valid():
     interceptor = grpc_interceptor.AuthInterceptor("secret")
     cont = MagicMock(return_value="handler")
-    details = MagicMock(
-        method="/Test/Method", invocation_metadata=[("api-key", "secret")]
-    )
+    details = MagicMock(method="/Test/Method", invocation_metadata=[("api-key", "secret")])
     assert interceptor.intercept_service(cont, details) == "handler"
     cont.assert_called_once_with(details)
 
@@ -712,9 +696,7 @@ def test_auth_interceptor_invalid(monkeypatch):
 
     interceptor = grpc_interceptor.AuthInterceptor("secret")
     cont = MagicMock()
-    details = MagicMock(
-        method="/Test/Method", invocation_metadata=[("api-key", "wrong")]
-    )
+    details = MagicMock(method="/Test/Method", invocation_metadata=[("api-key", "wrong")])
     result = interceptor.intercept_service(cont, details)
     assert result is fake_context
     fake_context.set_code.assert_called_once_with("UNAUTHENTICATED")

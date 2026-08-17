@@ -15,7 +15,6 @@ from fastapi.testclient import TestClient
 
 from api.ai_router import (
     AnalyzeRequest,
-    router,
     _build_context_summary,
     _build_metrics_context,
     _collect_rich_context,
@@ -25,6 +24,7 @@ from api.ai_router import (
     _get_recent_repairs,
     _safe_alert_value,
     _safe_get_metric,
+    router,
 )
 
 # Real app with the real ai_router mounted

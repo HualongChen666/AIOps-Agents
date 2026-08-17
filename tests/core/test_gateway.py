@@ -6,12 +6,13 @@ No external services are assumed; remote branches are exercised with a fake
 HTTP client that simulates the services/ FastAPI endpoints.
 """
 
-import httpx
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from gateway import service_registry
+import httpx
+import pytest
+
 import gateway.services_client as services_client
+from gateway import service_registry
 from gateway.services_client import (
     _close_http_client,
     _get_http_client,
@@ -292,9 +293,11 @@ async def test_approve_and_execute_remote_missing_task_id(remote_client, monkeyp
     """approve_and_execute returns an error when the repair_service response lacks a task id."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("REPAIR_SERVICE_URL", "http://repair")
-    no_id_client = _make_remote_client({
-        "/repairs": {"json": {"status": "created"}},
-    })
+    no_id_client = _make_remote_client(
+        {
+            "/repairs": {"json": {"status": "created"}},
+        }
+    )
     monkeypatch.setattr(services_client, "_get_http_client", lambda: no_id_client)
     result = await approve_and_execute("alert-2", {"host": "h1"})
     assert result["success"] is False

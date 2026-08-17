@@ -39,14 +39,10 @@ def mem_mocks(monkeypatch):
     def fake_snapshot():
         tb = [SimpleNamespace(filename="test.py", lineno=1)]
         return SimpleNamespace(
-            statistics=lambda kind: [
-                SimpleNamespace(traceback=tb, size=1_048_576, count=5)
-            ]
+            statistics=lambda kind: [SimpleNamespace(traceback=tb, size=1_048_576, count=5)]
         )
 
-    monkeypatch.setattr(
-        "core.memory_usage_optimizer.tracemalloc.take_snapshot", fake_snapshot
-    )
+    monkeypatch.setattr("core.memory_usage_optimizer.tracemalloc.take_snapshot", fake_snapshot)
     monkeypatch.setattr("core.memory_usage_optimizer.asyncio.create_task", MagicMock())
 
 
@@ -605,9 +601,7 @@ async def test_data_lifecycle_apply_and_rules(monkeypatch):
     manager = DataLifecycleManager()
 
     # Force cache cleanup success path
-    monkeypatch.setattr(
-        qo, "query_cache", MagicMock(cleanup_expired=MagicMock())
-    )
+    monkeypatch.setattr(qo, "query_cache", MagicMock(cleanup_expired=MagicMock()))
     cache_ok = await manager._cleanup_temporary_cache(datetime.now(timezone.utc))
     assert cache_ok is True
 
@@ -678,27 +672,37 @@ def test_generate_test_file(tmp_path):
 
     manager = TestFrameworkManager()
     out = tmp_path / "test_unit.py"
-    assert manager.generate_test_file(
-        "module", "Class", "do_it", TestType.UNIT, str(out)
-    ) is True
+    assert manager.generate_test_file("module", "Class", "do_it", TestType.UNIT, str(out)) is True
     assert out.exists()
 
-    assert manager.generate_test_file(
-        "module", "Class", "do_it", TestType.INTEGRATION, str(tmp_path / "test_int.py")
-    ) is True
+    assert (
+        manager.generate_test_file(
+            "module", "Class", "do_it", TestType.INTEGRATION, str(tmp_path / "test_int.py")
+        )
+        is True
+    )
 
-    assert manager.generate_test_file(
-        "module", "Class", "do_it", TestType.END_TO_END, str(tmp_path / "test_e2e.py")
-    ) is True
+    assert (
+        manager.generate_test_file(
+            "module", "Class", "do_it", TestType.END_TO_END, str(tmp_path / "test_e2e.py")
+        )
+        is True
+    )
 
     # Missing template
     del manager.test_templates["unit"]
-    assert manager.generate_test_file(
-        "module", "Class", "do_it", TestType.UNIT, str(tmp_path / "missing.py")
-    ) is False
+    assert (
+        manager.generate_test_file(
+            "module", "Class", "do_it", TestType.UNIT, str(tmp_path / "missing.py")
+        )
+        is False
+    )
 
     # Template formatting error
     manager.test_templates["broken"] = "{missing_key}"
-    assert manager.generate_test_file(
-        "module", "Class", "do_it", MagicMock(value="broken"), str(tmp_path / "broken.py")
-    ) is False
+    assert (
+        manager.generate_test_file(
+            "module", "Class", "do_it", MagicMock(value="broken"), str(tmp_path / "broken.py")
+        )
+        is False
+    )

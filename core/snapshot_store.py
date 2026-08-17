@@ -85,7 +85,7 @@ def _parse_namespace(command: str) -> str:
         idx = command.find(flag)
         if idx < 0:
             continue
-        tail = command[idx + len(flag):]
+        tail = command[idx + len(flag) :]
         if tail.startswith("="):
             ns = tail[1:].split(None, 1)[0].strip().strip("\"'")
         elif tail.startswith(" "):

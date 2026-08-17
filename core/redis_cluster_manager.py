@@ -68,8 +68,11 @@ class RedisClusterManager:
         if self._client:
             try:
                 pong = self._client.ping()
-                return {"ok": pong, "latency_ms": round(
-                    (time.time() - start) * 1000, 2), "mode": "redis"}
+                return {
+                    "ok": pong,
+                    "latency_ms": round((time.time() - start) * 1000, 2),
+                    "mode": "redis",
+                }
             except Exception as exc:
                 return {"ok": False, "error": str(exc), "mode": "redis"}
         return {"ok": True, "latency_ms": 0, "mode": "memory"}

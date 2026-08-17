@@ -5,9 +5,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from extensions.addons.observability.distributed_tracing_service.service import Service as DistributedTracingService
-from extensions.addons.observability.log_aggregation_service.service import Service as LogAggregationService
-from extensions.addons.observability.metrics_monitoring_service.service import Service as MetricsMonitoringService
+from extensions.addons.observability.distributed_tracing_service.service import (
+    Service as DistributedTracingService,
+)
+from extensions.addons.observability.log_aggregation_service.service import (
+    Service as LogAggregationService,
+)
+from extensions.addons.observability.metrics_monitoring_service.service import (
+    Service as MetricsMonitoringService,
+)
 from extensions.addons.observability.topology_service.service import Service as TopologyService
 from extensions.addons.observability.tracing_service.service import Service as TracingService
 

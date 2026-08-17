@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 
 from config import BASE_DIR
 
-
 # ============================================================
 # 数据目录与持久化文件
 # ============================================================
@@ -95,13 +94,9 @@ async def _load_store() -> None:
             return
 
         if _DATA_FILE.is_file():
-            raw_text = await asyncio.to_thread(
-                partial(_DATA_FILE.read_text, encoding="utf-8")
-            )
+            raw_text = await asyncio.to_thread(partial(_DATA_FILE.read_text, encoding="utf-8"))
             raw_data: dict[str, Any] = json.loads(raw_text)
-            _REQUESTS = {
-                rid: ChangeRequest(**payload) for rid, payload in raw_data.items()
-            }
+            _REQUESTS = {rid: ChangeRequest(**payload) for rid, payload in raw_data.items()}
         else:
             _REQUESTS = {}
 

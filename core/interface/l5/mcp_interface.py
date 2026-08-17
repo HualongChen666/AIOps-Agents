@@ -5,13 +5,12 @@ Enhanced MCP interface for L5 Interface Layer
 Provides standardized protocol for AI agent integration
 """
 
+import importlib
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
-
-import importlib
 
 
 class MCPInterface:

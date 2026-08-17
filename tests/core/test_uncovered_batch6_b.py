@@ -121,9 +121,7 @@ def missing_azure(monkeypatch):
         ("stop_instance", "stop"),
     ],
 )
-async def test_aws_repair_actions(
-    fresh_repair_history, stub_boto3, action, expected_call
-):
+async def test_aws_repair_actions(fresh_repair_history, stub_boto3, action, expected_call):
     result = await cloud_repair.execute_cloud_repair(
         {
             "provider": "aws",
@@ -262,23 +260,17 @@ async def test_azure_repair_missing_sdk(fresh_repair_history, missing_azure):
 @pytest.mark.asyncio
 async def test_alibaba_repair_not_supported(fresh_repair_history):
     with pytest.raises(RuntimeError, match="Alibaba Cloud repair SDK not installed"):
-        await cloud_repair.execute_cloud_repair(
-            {"provider": "alibaba"}, "restart_instance"
-        )
+        await cloud_repair.execute_cloud_repair({"provider": "alibaba"}, "restart_instance")
 
 
 @pytest.mark.asyncio
 async def test_execute_cloud_repair_unsupported_provider(fresh_repair_history):
     with pytest.raises(ValueError, match="Unsupported cloud provider"):
-        await cloud_repair.execute_cloud_repair(
-            {"provider": "gcp"}, "restart_instance"
-        )
+        await cloud_repair.execute_cloud_repair({"provider": "gcp"}, "restart_instance")
 
 
 @pytest.mark.asyncio
-async def test_get_cloud_repair_history_limit(
-    fresh_repair_history, stub_boto3, stub_azure
-):
+async def test_get_cloud_repair_history_limit(fresh_repair_history, stub_boto3, stub_azure):
     await cloud_repair.execute_cloud_repair(
         {
             "provider": "aws",
@@ -331,9 +323,7 @@ def test_config_reload_failure_when_loader_is_none(monkeypatch):
     import importlib.util
 
     fake_spec = type("Spec", (), {"loader": None})()
-    monkeypatch.setattr(
-        importlib.util, "spec_from_file_location", lambda *a, **k: fake_spec
-    )
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", lambda *a, **k: fake_spec)
     with pytest.raises(ImportError, match="Failed to load top-level config.py"):
         importlib.reload(cfg)
 
@@ -462,9 +452,7 @@ async def test_http_interceptor_async_headers_none(fake_tracing_manager, tracing
 
 def test_db_interceptor_query(fake_tracing_manager):
     db = tracing.DatabaseTracingInterceptor(fake_tracing_manager)
-    with db.trace_database_query(
-        "postgresql", "orders", "SELECT", "SELECT * FROM orders"
-    ) as span:
+    with db.trace_database_query("postgresql", "orders", "SELECT", "SELECT * FROM orders") as span:
         assert span is fake_tracing_manager.create_span.return_value
     fake_tracing_manager.create_span.assert_called_once_with(
         name="SELECT orders",
@@ -483,9 +471,7 @@ def test_db_interceptor_query(fake_tracing_manager):
 def test_db_interceptor_query_exception(fake_tracing_manager):
     db = tracing.DatabaseTracingInterceptor(fake_tracing_manager)
     with pytest.raises(ValueError, match="syntax"):
-        with db.trace_database_query(
-            "mysql", "logs", "INSERT", "INSERT INTO logs VALUES (1)"
-        ):
+        with db.trace_database_query("mysql", "logs", "INSERT", "INSERT INTO logs VALUES (1)"):
             raise ValueError("syntax error")
     span = fake_tracing_manager.create_span.return_value
     span.record_exception.assert_called_once()
@@ -527,9 +513,7 @@ def test_mq_interceptor_publish(fake_tracing_manager, tracing_patches):
 def test_mq_interceptor_publish_exception(fake_tracing_manager, tracing_patches):
     mq = tracing.MessageQueueTracingInterceptor(fake_tracing_manager)
     with pytest.raises(ConnectionError, match="broker down"):
-        with mq.trace_message_publish(
-            "kafka", "orders", "order.created", "msg-2"
-        ):
+        with mq.trace_message_publish("kafka", "orders", "order.created", "msg-2"):
             raise ConnectionError("broker down")
     span = fake_tracing_manager.create_span.return_value
     span.record_exception.assert_called_once()
@@ -561,9 +545,7 @@ def test_mq_interceptor_consume(fake_tracing_manager, tracing_patches):
 
 def test_mq_interceptor_consume_no_headers(fake_tracing_manager, tracing_patches):
     mq = tracing.MessageQueueTracingInterceptor(fake_tracing_manager)
-    with mq.trace_message_consume(
-        "rabbitmq", "events", "event.received", "msg-4"
-    ) as span:
+    with mq.trace_message_consume("rabbitmq", "events", "event.received", "msg-4") as span:
         pass
     tracing_patches["extract"].assert_not_called()
     span = fake_tracing_manager.create_span.return_value
@@ -703,17 +685,13 @@ def test_docker_raw_collects_metrics(monkeypatch):
 
 def test_docker_raw_zero_cpu_and_skip_broken_container(monkeypatch):
     ok = FakeContainer("ok_app", "okid123456789", "running", STATS_ZERO_CPU)
-    broken = FakeContainer(
-        "broken_app", "broken123456", "running", raise_stats=True
-    )
+    broken = FakeContainer("broken_app", "broken123456", "running", raise_stats=True)
     monkeypatch.setattr(
         docker_collector.docker,
         "DockerClient",
         lambda *a, **k: FakeDockerClient([ok, broken]),
     )
-    result = docker_collector._collect_docker_raw(
-        {"host": "10.0.0.5", "port": 2375}
-    )
+    result = docker_collector._collect_docker_raw({"host": "10.0.0.5", "port": 2375})
     assert len(result["containers"]) == 1
     c = result["containers"][0]
     assert c["name"] == "ok_app"
@@ -728,9 +706,7 @@ def test_docker_raw_connection_failure(monkeypatch):
         raise DockerException("connection refused")
 
     monkeypatch.setattr(docker_collector.docker, "DockerClient", fail)
-    result = docker_collector._collect_docker_raw(
-        {"host": "192.0.2.1", "port": 2375}
-    )
+    result = docker_collector._collect_docker_raw({"host": "192.0.2.1", "port": 2375})
     assert result == {}
 
 

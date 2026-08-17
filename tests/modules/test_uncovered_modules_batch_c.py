@@ -97,9 +97,7 @@ async def test_custom_hpa_forecast_influences_decision(hpa):
 def test_custom_hpa_not_initialized_raises():
     controller = custom_hpa.CustomHPAController()
     with pytest.raises(RuntimeError):
-        asyncio.run(
-            controller.evaluate_scaling("svc", 1, [_metric("cpu", 80.0)])
-        )
+        asyncio.run(controller.evaluate_scaling("svc", 1, [_metric("cpu", 80.0)]))
 
 
 def test_custom_hpa_utilization_and_status(hpa):
@@ -181,15 +179,24 @@ def test_hpa_controller_scaling_directions(hpa_ctrl):
 
 def test_hpa_controller_target_replicas(hpa_ctrl):
     policy = custom_hpa_controller.ScalingPolicy(target_cpu_utilization=70.0)
-    assert hpa_ctrl._calculate_target_replicas(
-        3, {"cpu_utilization": 65.0}, policy, custom_hpa_controller.ScalingDirection.SCALE_UP
-    ) == 4
-    assert hpa_ctrl._calculate_target_replicas(
-        3, {}, policy, custom_hpa_controller.ScalingDirection.SCALE_DOWN
-    ) == 2
-    assert hpa_ctrl._calculate_target_replicas(
-        3, {}, policy, custom_hpa_controller.ScalingDirection.NO_ACTION
-    ) == 3
+    assert (
+        hpa_ctrl._calculate_target_replicas(
+            3, {"cpu_utilization": 65.0}, policy, custom_hpa_controller.ScalingDirection.SCALE_UP
+        )
+        == 4
+    )
+    assert (
+        hpa_ctrl._calculate_target_replicas(
+            3, {}, policy, custom_hpa_controller.ScalingDirection.SCALE_DOWN
+        )
+        == 2
+    )
+    assert (
+        hpa_ctrl._calculate_target_replicas(
+            3, {}, policy, custom_hpa_controller.ScalingDirection.NO_ACTION
+        )
+        == 3
+    )
 
 
 @pytest.mark.asyncio
@@ -215,9 +222,7 @@ async def test_hpa_controller_cooldown(hpa_ctrl):
 
 @pytest.mark.asyncio
 async def test_hpa_controller_monitor_and_scale_one_iteration(hpa_ctrl):
-    hpa_ctrl.register_policy(
-        "app", custom_hpa_controller.ScalingPolicy(scale_up_threshold=60.0)
-    )
+    hpa_ctrl.register_policy("app", custom_hpa_controller.ScalingPolicy(scale_up_threshold=60.0))
     try:
         await asyncio.wait_for(hpa_ctrl.monitor_and_scale(interval=60), timeout=0.1)
     except asyncio.TimeoutError:
@@ -241,9 +246,7 @@ def pb_manager(tmp_path):
 
 def test_playbook_manager_load_and_create(pb_manager):
     assert not pb_manager.load_playbook("missing")
-    assert pb_manager.create_playbook(
-        "test", [{"name": "test task", "debug": {"msg": "hello"}}]
-    )
+    assert pb_manager.create_playbook("test", [{"name": "test task", "debug": {"msg": "hello"}}])
     assert "test" in pb_manager.list_playbooks()
     info = pb_manager.get_playbook("test")
     assert info["parsed"]
@@ -393,7 +396,11 @@ def test_transformer_positional_encoding_and_embeddings():
     assert head(torch.randn(1, 4, 8)).shape == (1, 4, 1)
     fusion = transformer_model.MultiModalFusion(metric_dim=1, log_dim=4, trace_dim=4, d_model=8)
     assert fusion(torch.randn(1, 4, 1)).shape == (1, 4, 8)
-    assert fusion(torch.randn(1, 4, 1), torch.randn(1, 4, 4), torch.randn(1, 4, 4)).shape == (1, 4, 8)
+    assert fusion(torch.randn(1, 4, 1), torch.randn(1, 4, 4), torch.randn(1, 4, 4)).shape == (
+        1,
+        4,
+        8,
+    )
 
 
 def test_transformer_dataset_and_loss():
@@ -419,7 +426,9 @@ def test_transformer_trainer(small_detector):
     labels = np.random.randint(0, 2, size=20).astype(np.float32)
     dataset = transformer_model.TimeSeriesDataset(data, seq_len=5, labels=labels)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2)
-    trainer = transformer_model.TransformerAnomalyTrainer(small_detector, device="cpu", learning_rate=1e-3)
+    trainer = transformer_model.TransformerAnomalyTrainer(
+        small_detector, device="cpu", learning_rate=1e-3
+    )
     assert trainer.train_epoch(loader, 0) > 0
     assert trainer.validate(loader) > 0
 
@@ -428,7 +437,9 @@ def test_transformer_wrapper_and_factory():
     model = transformer_model.create_transformer_model(
         input_dim=1, d_model=16, n_heads=2, n_layers=1, d_ff=32
     )
-    wrapper = transformer_model.TransformerAnomalyDetectorWrapper(model, device="cpu", threshold=0.0)
+    wrapper = transformer_model.TransformerAnomalyDetectorWrapper(
+        model, device="cpu", threshold=0.0
+    )
     data = np.random.randn(10, 1).astype(np.float32)
     is_anomaly, scores = wrapper.detect(data)
     assert is_anomaly.shape == (10,)
@@ -513,9 +524,7 @@ def test_smart_analysis_engine():
 def test_graph_builder_non_multi():
     builder = graph_builder.RootCauseGraphBuilder(directed=True, multi_graph=False)
     svc = builder.add_service_node("svc1", "Service 1", "microservice")
-    metric = builder.add_metric_node(
-        "m1", "cpu", "cpu", "svc1", current_value=85.0
-    )
+    metric = builder.add_metric_node("m1", "cpu", "cpu", "svc1", current_value=85.0)
     alert = builder.add_alert_node("a1", "High CPU", "critical", "svc1", metric_id="m1")
     host = builder.add_host_node("h1", "host1", "vm")
     container = builder.add_container_node("c1", "container1", "h1")
@@ -575,8 +584,16 @@ def test_dependency_topology():
     topo.add_node(a)
     topo.add_node(b)
     topo.add_node(c)
-    topo.add_edge(dependency_analyzer.DependencyEdge("a", "b", dependency_analyzer.DependencyType.SYNC, weight=1.0))
-    topo.add_edge(dependency_analyzer.DependencyEdge("b", "c", dependency_analyzer.DependencyType.DATABASE, weight=2.0))
+    topo.add_edge(
+        dependency_analyzer.DependencyEdge(
+            "a", "b", dependency_analyzer.DependencyType.SYNC, weight=1.0
+        )
+    )
+    topo.add_edge(
+        dependency_analyzer.DependencyEdge(
+            "b", "c", dependency_analyzer.DependencyType.DATABASE, weight=2.0
+        )
+    )
     assert topo.get_dependencies("a") == {"b"}
     assert topo.get_all_dependencies("a") == {"b", "c"}
     assert topo.get_dependents("c") == {"b"}
@@ -606,7 +623,14 @@ def test_dependency_discoverer():
 
     config_data = {
         "services": [
-            {"id": "x", "name": "X", "dependencies": [{"id": "y", "name": "Y", "type": "database"}, {"id": "z", "name": "Z", "type": "invalid"}]},
+            {
+                "id": "x",
+                "name": "X",
+                "dependencies": [
+                    {"id": "y", "name": "Y", "type": "database"},
+                    {"id": "z", "name": "Z", "type": "invalid"},
+                ],
+            },
         ]
     }
     topo = discoverer.discover("config", config_data=config_data)
@@ -629,12 +653,29 @@ def test_dependency_health_and_visualizer(tmp_path):
     b = dependency_analyzer.ServiceNode("b", "B", health=dependency_analyzer.HealthStatus.UNHEALTHY)
     topo.add_node(a)
     topo.add_node(b)
-    topo.add_edge(dependency_analyzer.DependencyEdge("a", "b", dependency_analyzer.DependencyType.SYNC, latency=200.0))
+    topo.add_edge(
+        dependency_analyzer.DependencyEdge(
+            "a", "b", dependency_analyzer.DependencyType.SYNC, latency=200.0
+        )
+    )
     assessor = dependency_analyzer.DependencyHealthAssessor(topo)
-    assert assessor.assess_node_health("a", {"error_rate": 0.001, "latency": 100, "availability": 0.99}) == dependency_analyzer.HealthStatus.HEALTHY
-    assert assessor.assess_node_health("a", {"error_rate": 0.1, "availability": 0.9}) == dependency_analyzer.HealthStatus.UNHEALTHY
-    assert assessor.assess_node_health("a", {"error_rate": 0.02, "latency": 2000}) == dependency_analyzer.HealthStatus.DEGRADED
-    edge = dependency_analyzer.DependencyEdge("a", "b", dependency_analyzer.DependencyType.SYNC, error_rate=0.1, latency=6000)
+    assert (
+        assessor.assess_node_health(
+            "a", {"error_rate": 0.001, "latency": 100, "availability": 0.99}
+        )
+        == dependency_analyzer.HealthStatus.HEALTHY
+    )
+    assert (
+        assessor.assess_node_health("a", {"error_rate": 0.1, "availability": 0.9})
+        == dependency_analyzer.HealthStatus.UNHEALTHY
+    )
+    assert (
+        assessor.assess_node_health("a", {"error_rate": 0.02, "latency": 2000})
+        == dependency_analyzer.HealthStatus.DEGRADED
+    )
+    edge = dependency_analyzer.DependencyEdge(
+        "a", "b", dependency_analyzer.DependencyType.SYNC, error_rate=0.1, latency=6000
+    )
     assert assessor.assess_dependency_health(edge) == dependency_analyzer.HealthStatus.UNHEALTHY
     assert sorted(assessor.identify_critical_nodes()) == ["a", "b"]
 
@@ -653,7 +694,11 @@ def test_dependency_analyzer():
     analyzer = dependency_analyzer.create_dependency_analyzer()
     config = {
         "services": [
-            {"id": "svc1", "name": "S1", "dependencies": [{"id": "svc2", "name": "S2", "type": "sync"}]},
+            {
+                "id": "svc1",
+                "name": "S1",
+                "dependencies": [{"id": "svc2", "name": "S2", "type": "sync"}],
+            },
             {"id": "svc2", "name": "S2", "dependencies": []},
         ]
     }
@@ -691,19 +736,33 @@ def test_alert_rule_evaluation():
     assert not rule.evaluate({"cpu_usage": 70.0})
     assert rule.evaluate({"cpu_usage": 85.0, "memory_usage": 100.0})
     and_rule = smart_alerting.AlertRule(
-        id="r2", name="CPU and memory", condition="cpu_usage > 80 and memory_usage > 90", severity=smart_alerting.AlertSeverity.CRITICAL
+        id="r2",
+        name="CPU and memory",
+        condition="cpu_usage > 80 and memory_usage > 90",
+        severity=smart_alerting.AlertSeverity.CRITICAL,
     )
     assert and_rule.evaluate({"cpu_usage": 85.0, "memory_usage": 95.0})
     or_rule = smart_alerting.AlertRule(
-        id="r3", name="CPU or memory", condition="cpu_usage > 80 or memory_usage > 95", severity=smart_alerting.AlertSeverity.WARNING
+        id="r3",
+        name="CPU or memory",
+        condition="cpu_usage > 80 or memory_usage > 95",
+        severity=smart_alerting.AlertSeverity.WARNING,
     )
     assert or_rule.evaluate({"cpu_usage": 70.0, "memory_usage": 100.0})
     not_rule = smart_alerting.AlertRule(
-        id="r4", name="not cpu", condition="not cpu_usage > 80", severity=smart_alerting.AlertSeverity.INFO
+        id="r4",
+        name="not cpu",
+        condition="not cpu_usage > 80",
+        severity=smart_alerting.AlertSeverity.INFO,
     )
     assert not not_rule.evaluate({"cpu_usage": 85.0})
     assert not rule.evaluate({"disk_usage": 100})
-    unsafe_rule = smart_alerting.AlertRule(id="r5", name="unsafe", condition="cpu_usage;", severity=smart_alerting.AlertSeverity.WARNING)
+    unsafe_rule = smart_alerting.AlertRule(
+        id="r5",
+        name="unsafe",
+        condition="cpu_usage;",
+        severity=smart_alerting.AlertSeverity.WARNING,
+    )
     assert not unsafe_rule.evaluate({})
 
 
@@ -719,9 +778,15 @@ def test_dynamic_thresholds():
 
 def test_alert_aggregator():
     agg = smart_alerting.AlertAggregator()
-    a1 = smart_alerting.Alert("1", "CPU", "desc", smart_alerting.AlertSeverity.WARNING, labels={"host": "h1"})
-    a2 = smart_alerting.Alert("2", "CPU", "desc", smart_alerting.AlertSeverity.WARNING, labels={"host": "h1"})
-    a3 = smart_alerting.Alert("3", "MEM", "desc", smart_alerting.AlertSeverity.CRITICAL, labels={"host": "h2"})
+    a1 = smart_alerting.Alert(
+        "1", "CPU", "desc", smart_alerting.AlertSeverity.WARNING, labels={"host": "h1"}
+    )
+    a2 = smart_alerting.Alert(
+        "2", "CPU", "desc", smart_alerting.AlertSeverity.WARNING, labels={"host": "h1"}
+    )
+    a3 = smart_alerting.Alert(
+        "3", "MEM", "desc", smart_alerting.AlertSeverity.CRITICAL, labels={"host": "h2"}
+    )
     agg.add_alert(a1)
     agg.add_alert(a2)
     agg.add_alert(a3)
@@ -734,15 +799,21 @@ def test_alert_aggregator():
 def test_alert_suppressor():
     suppressor = smart_alerting.AlertSuppressor()
     suppressor.add_suppression_rule({"host": "h1"}, duration=3600)
-    alert_match = smart_alerting.Alert("1", "x", "x", smart_alerting.AlertSeverity.WARNING, labels={"host": "h1"})
-    alert_no_match = smart_alerting.Alert("2", "x", "x", smart_alerting.AlertSeverity.WARNING, labels={"host": "h2"})
+    alert_match = smart_alerting.Alert(
+        "1", "x", "x", smart_alerting.AlertSeverity.WARNING, labels={"host": "h1"}
+    )
+    alert_no_match = smart_alerting.Alert(
+        "2", "x", "x", smart_alerting.AlertSeverity.WARNING, labels={"host": "h2"}
+    )
     assert suppressor.should_suppress(alert_match)
     assert not suppressor.should_suppress(alert_no_match)
-    suppressor.suppression_rules.append({
-        "match_labels": {"old": "yes"},
-        "duration": 1,
-        "created_at": datetime.now() - timedelta(seconds=10),
-    })
+    suppressor.suppression_rules.append(
+        {
+            "match_labels": {"old": "yes"},
+            "duration": 1,
+            "created_at": datetime.now() - timedelta(seconds=10),
+        }
+    )
     suppressor.cleanup_expired_rules()
     assert all(r["match_labels"] != {"old": "yes"} for r in suppressor.suppression_rules)
 
@@ -840,7 +911,9 @@ async def test_saga_compensation_variants():
         raise RuntimeError("compensation failed")
 
     steps = [
-        saga_coordinator.SagaStep("skip", action, compensation=comp, compensate_if=lambda ctx: False),
+        saga_coordinator.SagaStep(
+            "skip", action, compensation=comp, compensate_if=lambda ctx: False
+        ),
         saga_coordinator.SagaStep("no_comp", action),
         saga_coordinator.SagaStep("fail_comp", action, compensation=failing_comp),
         saga_coordinator.SagaStep("fail", lambda ctx: (_ for _ in ()).throw(RuntimeError("boom"))),
@@ -967,7 +1040,9 @@ def test_hpa_controller_initialize_error(monkeypatch):
 
     monkeypatch.setattr(custom_hpa_controller, "KUBERNETES_AVAILABLE", True)
     monkeypatch.setattr(custom_hpa_controller, "config", BadConfig())
-    monkeypatch.setattr(custom_hpa_controller, "client", type("Client", (), {"AppsV1Api": type("Apps", (), {})})())
+    monkeypatch.setattr(
+        custom_hpa_controller, "client", type("Client", (), {"AppsV1Api": type("Apps", (), {})})()
+    )
     ctrl = custom_hpa_controller.CustomHPAController()
     ctrl.initialize()
     assert not ctrl._is_initialized

@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from core.api_governance import (
-    APIGovernance,
     APIEndpoint,
+    APIGovernance,
     APIStatus,
     api_governance,
     setup_api_governance,
@@ -249,9 +249,7 @@ def test_approval_record_to_dict():
 # core.kubernetes_deployment_manager
 # -----------------------------------------------------------------------------
 def _new_manager(tmp_path):
-    return KubernetesDeploymentManager(
-        config={"manifests_dir": str(tmp_path / "manifests")}
-    )
+    return KubernetesDeploymentManager(config={"manifests_dir": str(tmp_path / "manifests")})
 
 
 def test_kubernetes_manager_factory_and_resource_types():

@@ -1,4 +1,5 @@
 import pytest
+
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for repair / auto-heal / approval endpoints.
 
@@ -6,6 +7,7 @@ These tests focus on safe paths: listing, history, and invalid payloads that
 fail validation before any script is executed. No repair scripts are actually
 run.
 """
+
 
 @pytest.mark.smoke
 def test_list_repair_scripts(client, admin_headers):

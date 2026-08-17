@@ -18,6 +18,7 @@ pytestmark = [pytest.mark.core]
 @pytest.fixture
 def kb_module():
     import core.ai.rag.knowledge_base as kb
+
     return kb
 
 
@@ -37,9 +38,7 @@ def vectorized_doc_factory():
                     embedding=[0.1, 0.2],
                 )
             ]
-        return Document(
-            id=doc_id, content=content, metadata={"source": "test"}, chunks=chunks
-        )
+        return Document(id=doc_id, content=content, metadata={"source": "test"}, chunks=chunks)
 
     return _make
 
@@ -63,9 +62,7 @@ async def test_kb_add_document_uses_upsert_points(kb_module, vectorized_doc_fact
 
 
 @pytest.mark.asyncio
-async def test_kb_store_with_qdrant_point_struct(
-    kb_module, vectorized_doc_factory, monkeypatch
-):
+async def test_kb_store_with_qdrant_point_struct(kb_module, vectorized_doc_factory, monkeypatch):
     pipeline = AsyncMock()
     pipeline.vectorize = AsyncMock(return_value=vectorized_doc_factory("d2"))
 
@@ -95,9 +92,7 @@ async def test_kb_store_with_qdrant_point_struct(
 
 
 @pytest.mark.asyncio
-async def test_kb_store_upsert_raw_points_fallback(
-    kb_module, vectorized_doc_factory, monkeypatch
-):
+async def test_kb_store_upsert_raw_points_fallback(kb_module, vectorized_doc_factory, monkeypatch):
     pipeline = AsyncMock()
     pipeline.vectorize = AsyncMock(return_value=vectorized_doc_factory("d2b"))
 
@@ -122,9 +117,7 @@ async def test_kb_store_upsert_raw_points_fallback(
 
 
 @pytest.mark.asyncio
-async def test_kb_store_exception_and_skips_missing_embeddings(
-    kb_module, vectorized_doc_factory
-):
+async def test_kb_store_exception_and_skips_missing_embeddings(kb_module, vectorized_doc_factory):
     from core.ai.rag.vectorizer import DocumentChunk
 
     # Exception during upsert should not break add_document
@@ -188,15 +181,14 @@ async def test_kb_delete_get_list_and_batch(kb_module, vectorized_doc_factory):
 @pytest.fixture
 def ws_module():
     import core.websocket_manager as wm
+
     return wm
 
 
 class FakeWebSocket:
     def __init__(self, fail_send=False):
         self.accept = AsyncMock()
-        self.send_json = AsyncMock(
-            side_effect=RuntimeError("closed") if fail_send else None
-        )
+        self.send_json = AsyncMock(side_effect=RuntimeError("closed") if fail_send else None)
 
 
 @pytest.mark.asyncio
@@ -221,9 +213,7 @@ async def test_ws_connect_disconnect_and_metrics(ws_module, monkeypatch):
 @pytest.mark.asyncio
 async def test_ws_connect_metrics_exception(ws_module, monkeypatch):
     exporter = MagicMock()
-    exporter.record_websocket_connections = MagicMock(
-        side_effect=RuntimeError("metrics boom")
-    )
+    exporter.record_websocket_connections = MagicMock(side_effect=RuntimeError("metrics boom"))
     monkeypatch.setattr(ws_module, "get_metrics_exporter", lambda: exporter)
 
     manager = ws_module.ConnectionManager()
@@ -277,6 +267,7 @@ def test_ws_global_manager(ws_module):
 @pytest.fixture
 def ae_module():
     import core.ai_enhancement as ae
+
     return ae
 
 
@@ -311,9 +302,7 @@ def test_ae_cache_hit_miss_and_expiry(enhancer):
 
     enhancer._context_cache["old"] = {
         "analysis": {"x": 1},
-        "timestamp": (
-            datetime.now(timezone.utc) - timedelta(seconds=4000)
-        ).isoformat(),
+        "timestamp": (datetime.now(timezone.utc) - timedelta(seconds=4000)).isoformat(),
     }
     assert enhancer.get_cached_analysis("old") is None
     assert "old" not in enhancer._context_cache
@@ -344,12 +333,8 @@ def test_ae_record_analysis_and_history(enhancer):
 
 
 def test_ae_performance_metrics(enhancer):
-    enhancer.update_performance_metrics(
-        {"success": True, "response_time": 1.0, "model": "gpt-4"}
-    )
-    enhancer.update_performance_metrics(
-        {"success": False, "response_time": 2.0, "model": "gpt-4"}
-    )
+    enhancer.update_performance_metrics({"success": True, "response_time": 1.0, "model": "gpt-4"})
+    enhancer.update_performance_metrics({"success": False, "response_time": 2.0, "model": "gpt-4"})
     enhancer.update_performance_metrics({"success": True, "response_time": 3.0})
 
     metrics = enhancer.get_performance_metrics()
@@ -416,9 +401,7 @@ def test_ae_multi_turn_conversation(conv_mgr):
             "role": "user",
             "content": "x",
             "metadata": {},
-            "timestamp": (
-                datetime.now(timezone.utc) - timedelta(days=2)
-            ).isoformat(),
+            "timestamp": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat(),
         }
     ]
     conv_mgr._conversations["empty"] = []
@@ -430,9 +413,7 @@ def test_ae_multi_turn_conversation(conv_mgr):
 
 def test_ae_global_accessors(ae_module):
     assert isinstance(ae_module.get_ai_enhancer(), ae_module.AIAnalysisEnhancer)
-    assert isinstance(
-        ae_module.get_conversation_manager(), ae_module.MultiTurnConversationManager
-    )
+    assert isinstance(ae_module.get_conversation_manager(), ae_module.MultiTurnConversationManager)
 
 
 # ---------------------------------------------------------------------------
@@ -441,6 +422,7 @@ def test_ae_global_accessors(ae_module):
 @pytest.fixture
 def lrm_module():
     import core.localization_resource_manager as lrm
+
     return lrm
 
 
@@ -463,9 +445,7 @@ def test_lrm_defaults_and_summary(lrm, lrm_module):
 
 def test_lrm_register_and_load_resource_file(lrm, tmp_path):
     ns_file = tmp_path / "new.json"
-    ns_file.write_text(
-        json.dumps({"key1": "value1", "key2": "value2"}), encoding="utf-8"
-    )
+    ns_file.write_text(json.dumps({"key1": "value1", "key2": "value2"}), encoding="utf-8")
 
     assert lrm.register_resource_file("en", "newns", str(ns_file), "1.0") is True
     assert lrm.register_resource_file("en", "newns", str(ns_file), "1.1") is False
@@ -506,10 +486,7 @@ def test_lrm_export_and_import_translations(lrm, tmp_path):
     imp.write_text(json.dumps({"new": "NewValue"}), encoding="utf-8")
     assert lrm.import_translations("es", "common", str(imp)) is True
     assert lrm.get_translations("es", "common")["new"] == "NewValue"
-    assert (
-        lrm.import_translations("es", "common", str(tmp_path / "nonexistent.json"))
-        is False
-    )
+    assert lrm.import_translations("es", "common", str(tmp_path / "nonexistent.json")) is False
 
 
 def test_lrm_get_missing_translations(lrm):
@@ -573,9 +550,7 @@ def test_mm_get_memory_usage_resource_branch(mm_module, monkeypatch):
     monkeypatch.setattr(mm_module, "HAS_RESOURCE", True)
     resource_mock = MagicMock()
     resource_mock.RUSAGE_SELF = 0
-    resource_mock.getrusage = MagicMock(
-        return_value=types.SimpleNamespace(ru_maxrss=2048)
-    )
+    resource_mock.getrusage = MagicMock(return_value=types.SimpleNamespace(ru_maxrss=2048))
     monkeypatch.setattr(mm_module, "resource", resource_mock)
 
     monitor = mm_module.MemoryMonitor(max_memory_mb=1024)

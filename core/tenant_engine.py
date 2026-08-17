@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Simple in-memory + JSON-backed multi-tenant engine."""
+
 from __future__ import annotations
 
 import json

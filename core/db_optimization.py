@@ -10,11 +10,11 @@ This module provides database optimization strategies including:
 - Database statistics update automation
 """
 
-from collections import deque
-import statistics
 import copy
 import os
 import re
+import statistics
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -645,7 +645,9 @@ def get_connection_pool_statistics() -> dict:
         "active_connections": cfg.get("active", 0),
         "idle_connections": cfg.get("idle", 0),
         "max_connections": cfg.get("max_connections", 100),
-        "utilization_rate": round(cfg.get("active", 0) / max(cfg.get("max_connections", 100), 1), 4),
+        "utilization_rate": round(
+            cfg.get("active", 0) / max(cfg.get("max_connections", 100), 1), 4
+        ),
     }
 
 
@@ -745,8 +747,12 @@ def record_slow_query(query: str, execution_time: float) -> dict:
         "is_slow": execution_time > _SLOW_QUERY_THRESHOLD_MS,
     }
     _OPTIMIZATION_STATE["slow_queries"].appendleft(entry)
-    return {"status": "success", "query": query,
-            "execution_time": execution_time, "is_slow": entry["is_slow"]}
+    return {
+        "status": "success",
+        "query": query,
+        "execution_time": execution_time,
+        "is_slow": entry["is_slow"],
+    }
 
 
 def reset_query_cache_statistics() -> dict:
@@ -780,7 +786,8 @@ def suggest_optimizations() -> list:
     for column, count in query_keywords.most_common(5):
         if count >= 2:
             suggestions.append(
-                f"Consider adding an index on column '{column}' (appears in {count} slow queries).")
+                f"Consider adding an index on column '{column}' (appears in {count} slow queries)."
+            )
 
     if _cache_hit_rate() < 0.5:
         suggestions.append("Query cache hit rate is low; review cache size and TTL settings.")
@@ -789,6 +796,7 @@ def suggest_optimizations() -> list:
     utilization = cfg.get("active", 0) / max(cfg.get("max_connections", 100), 1)
     if utilization > 0.8:
         suggestions.append(
-            "Connection pool utilization is high; consider increasing max_connections.")
+            "Connection pool utilization is high; consider increasing max_connections."
+        )
 
     return suggestions

@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from cryptography.fernet import Fernet
 
-import core.environment_config as env_config
 import core.crypto as crypto
+import core.environment_config as env_config
 import core.model_fine_tuner as fine_tuner
 import core.performance_scheduler as perf_sched
 import core.priority.assessor as assessor
@@ -24,6 +24,7 @@ pytestmark = [pytest.mark.core]
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def env_fakes(monkeypatch):
@@ -47,9 +48,7 @@ def env_fakes(monkeypatch):
             return FakeAppConfig()
 
     monkeypatch.setattr(env_config, "ConfigManager", FakeConfigManager)
-    monkeypatch.setattr(
-        env_config, "setup_unified_configuration", lambda config_file: {"ok": True}
-    )
+    monkeypatch.setattr(env_config, "setup_unified_configuration", lambda config_file: {"ok": True})
     return FakeAppConfig
 
 
@@ -130,6 +129,7 @@ def fast_fine_tuner_asyncio(monkeypatch):
 # ---------------------------------------------------------------------------
 # core.environment_config
 # ---------------------------------------------------------------------------
+
 
 def test_detect_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("ENVIRONMENT", "staging")
@@ -263,6 +263,7 @@ def test_setup_environment_configuration_error(monkeypatch):
 # core.performance_scheduler
 # ---------------------------------------------------------------------------
 
+
 def test_performance_scheduler_lifecycle(perf_fakes):
     scheduler = perf_sched.PerformanceTaskScheduler()
     scheduler.setup_jobs()
@@ -333,6 +334,7 @@ def test_get_task_scheduler():
 # core.crypto
 # ---------------------------------------------------------------------------
 
+
 def test_encryption_disabled(crypto_reset, monkeypatch):
     monkeypatch.setenv("SNAPSHOT_ENCRYPTION_ENABLED", "false")
     assert crypto.encrypt_snapshot("hello") == "PLAINTEXT::hello"
@@ -384,6 +386,7 @@ def test_production_requires_key(crypto_reset, monkeypatch):
 # ---------------------------------------------------------------------------
 # core.priority.assessor
 # ---------------------------------------------------------------------------
+
 
 def test_assess_services():
     a = assessor.BusinessImpactAssessor()
@@ -443,6 +446,7 @@ def test_higher_criticality():
 # core.model_fine_tuner
 # ---------------------------------------------------------------------------
 
+
 def test_fine_tuner_init(tuner, tmp_path):
     assert (tmp_path / "models").exists()
     assert (tmp_path / "checkpoints").exists()
@@ -484,7 +488,9 @@ async def test_execute_training_failure(tuner, fast_fine_tuner_asyncio, monkeypa
     )
     ds = fine_tuner.TrainingDataset(dataset_id="ds-2", dataset_path="data.json")
     job_id = await tuner.start_fine_tuning(cfg, ds)
-    monkeypatch.setattr(tuner, "_prepare_training", AsyncMock(side_effect=RuntimeError("prep failed")))
+    monkeypatch.setattr(
+        tuner, "_prepare_training", AsyncMock(side_effect=RuntimeError("prep failed"))
+    )
     await tuner._execute_training(job_id)
     progress = tuner.get_training_progress(job_id)
     assert progress["status"] == "failed"

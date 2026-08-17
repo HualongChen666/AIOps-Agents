@@ -16,9 +16,7 @@ class Service:
     def __init__(self, dry_run: bool = True, **kwargs: Any) -> None:
         self.driver = StorageDriver(dry_run=dry_run, **kwargs)
 
-    def execute_operation(
-        self, name: str, params: Optional[Dict[str, Any]] = None
-    ) -> Any:
+    def execute_operation(self, name: str, params: Optional[Dict[str, Any]] = None) -> Any:
         if params is None:
             params = {}
         if hasattr(params, "model_dump"):

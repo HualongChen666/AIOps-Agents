@@ -22,9 +22,7 @@ from extensions.addons.operations.scenario_memory_service.service import (
 from extensions.addons.operations.workflow_engine_service.service import (
     Service as WorkflowEngineService,
 )
-from extensions.addons.operations.workflow_service.service import (
-    Service as WorkflowService,
-)
+from extensions.addons.operations.workflow_service.service import Service as WorkflowService
 
 
 class _FakeCache:
@@ -39,9 +37,7 @@ class _FakeCache:
 
 def test_capacity_planning_service(monkeypatch):
     """Capacity planning analysis returns recommendations."""
-    monkeypatch.setattr(
-        CapacityPlanningService, "_engine", WorkflowEngine(dry_run=True)
-    )
+    monkeypatch.setattr(CapacityPlanningService, "_engine", WorkflowEngine(dry_run=True))
     result = CapacityPlanningService.execute_operation(
         "capacity_analysis",
         {"metrics": {"cpu": 80}, "forecasts": {"cpu": 95}},
@@ -96,9 +92,7 @@ def test_incident_runbook_service(monkeypatch):
 
 def test_scenario_memory_service(monkeypatch):
     """Scenario Memory service returns synthetic memory matches."""
-    monkeypatch.setattr(
-        ScenarioMemoryService, "_engine", WorkflowEngine(dry_run=True)
-    )
+    monkeypatch.setattr(ScenarioMemoryService, "_engine", WorkflowEngine(dry_run=True))
     result = ScenarioMemoryService.execute_operation(
         "get_scenario_memory",
         {"query": "network outage"},
@@ -110,16 +104,10 @@ def test_scenario_memory_service(monkeypatch):
 
 def test_workflow_engine_service(monkeypatch):
     """Workflow Engine service executes a workflow definition."""
-    monkeypatch.setattr(
-        WorkflowEngineService, "_engine", WorkflowEngine(dry_run=True)
-    )
+    monkeypatch.setattr(WorkflowEngineService, "_engine", WorkflowEngine(dry_run=True))
     result = WorkflowEngineService.execute_operation(
         "execute_workflow",
-        {
-            "workflow_def": [
-                {"type": "http", "method": "GET", "url": "http://example.com"}
-            ]
-        },
+        {"workflow_def": [{"type": "http", "method": "GET", "url": "http://example.com"}]},
     )
     assert isinstance(result, dict)
     assert result.get("success") is True
@@ -131,11 +119,7 @@ def test_workflow_service(monkeypatch):
     monkeypatch.setattr(WorkflowService, "_engine", WorkflowEngine(dry_run=True))
     result = WorkflowService.execute_operation(
         "run_workflow",
-        {
-            "workflow_def": [
-                {"type": "cli", "command": ["echo", "hello"]}
-            ]
-        },
+        {"workflow_def": [{"type": "cli", "command": ["echo", "hello"]}]},
     )
     assert isinstance(result, dict)
     assert result.get("success") is True

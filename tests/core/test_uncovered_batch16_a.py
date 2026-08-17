@@ -16,15 +16,31 @@ from uuid import uuid4
 
 import pytest
 
+import core.disaster_recovery_drill as dr_module
+import core.execution.l6.optimized_executor as executor_module
+import core.performance_integration_tester as perf_module
+import core.plugin_system as plugin_module
 from core.ai.rag.vectorizer import (
     ChunkingStrategy,
     Document,
     DocumentChunk,
     EmbeddingModel,
     FixedSizeChunking,
-    SentenceTransformerEmbedding,
     SemanticChunking,
+    SentenceTransformerEmbedding,
     VectorizationPipeline,
+)
+from core.disaster_recovery_drill import (
+    DisasterRecoveryDrill,
+    DrillScenario,
+    DrillStatus,
+    setup_disaster_recovery,
+)
+from core.execution.l6.optimized_executor import (
+    ExecutionMetrics,
+    OptimizedExecutor,
+    get_optimized_executor,
+    init_optimized_executor,
 )
 from core.performance_integration_tester import (
     PerformanceIntegrationTester,
@@ -34,7 +50,6 @@ from core.performance_integration_tester import (
     PerformanceTestType,
     get_performance_integration_tester,
 )
-import core.performance_integration_tester as perf_module
 from core.plugin_system import (
     BasePlugin,
     PluginManager,
@@ -44,21 +59,6 @@ from core.plugin_system import (
     PluginType,
     create_plugin_manager,
 )
-import core.plugin_system as plugin_module
-from core.execution.l6.optimized_executor import (
-    ExecutionMetrics,
-    OptimizedExecutor,
-    get_optimized_executor,
-    init_optimized_executor,
-)
-import core.execution.l6.optimized_executor as executor_module
-from core.disaster_recovery_drill import (
-    DisasterRecoveryDrill,
-    DrillScenario,
-    DrillStatus,
-    setup_disaster_recovery,
-)
-import core.disaster_recovery_drill as dr_module
 
 pytestmark = [pytest.mark.core]
 
@@ -168,9 +168,7 @@ def _install_l2_fakes(monkeypatch, error=False):
         rag.get_rag_engine = lambda: SimpleNamespace(
             retrieve_knowledge=AsyncMock(return_value=["ctx1", "ctx2"])
         )
-        mr.get_model_router = lambda: SimpleNamespace(
-            select_model=MagicMock(return_value="gpt-4")
-        )
+        mr.get_model_router = lambda: SimpleNamespace(select_model=MagicMock(return_value="gpt-4"))
     monkeypatch.setitem(sys.modules, "core.analysis.l2.rag_engine", rag)
     monkeypatch.setitem(sys.modules, "core.analysis.l2.model_router", mr)
 
@@ -270,9 +268,7 @@ async def test_vectorization_pipeline():
             return [0.1, 0.2]
 
     doc = Document(id="d4", content="one two three four five", metadata={})
-    pipeline = VectorizationPipeline(
-        FixedSizeChunking(chunk_size=5, overlap=0), _FakeEmb()
-    )
+    pipeline = VectorizationPipeline(FixedSizeChunking(chunk_size=5, overlap=0), _FakeEmb())
     result = await pipeline.vectorize(doc)
     assert result.chunks
     assert all(c.embedding is not None for c in result.chunks)
@@ -622,9 +618,7 @@ async def test_optimized_executor_l3_success(monkeypatch):
 
 async def test_optimized_executor_l3_disabled_and_error(monkeypatch):
     ex = OptimizedExecutor({"l3_integration": False})
-    assert await ex.execute_with_l3_workflow("wf", {}) == {
-        "error": "L3 integration not enabled"
-    }
+    assert await ex.execute_with_l3_workflow("wf", {}) == {"error": "L3 integration not enabled"}
 
     _install_l3_fakes(monkeypatch, error=True)
     ex2 = OptimizedExecutor({"l3_integration": True})
@@ -635,9 +629,7 @@ async def test_optimized_executor_l3_disabled_and_error(monkeypatch):
 async def test_optimized_executor_l4_success_and_disabled(monkeypatch):
     _install_l4_fakes(monkeypatch, error=False)
     ex = OptimizedExecutor({"l4_integration": True})
-    await ex.execute_with_l4_storage(
-        "op", {"r": 1}, {"metrics": {"m": 1}, "logs": {"l": 1}}
-    )
+    await ex.execute_with_l4_storage("op", {"r": 1}, {"metrics": {"m": 1}, "logs": {"l": 1}})
 
     ex2 = OptimizedExecutor({"l4_integration": False})
     assert await ex2.execute_with_l4_storage("op2", {}, {}) is None

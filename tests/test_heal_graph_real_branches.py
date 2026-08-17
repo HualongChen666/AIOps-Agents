@@ -13,6 +13,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from core.db_engine import (
+    AsyncSessionLocal,
+    async_update_approval_status_by_alert,
+    async_upsert_pending_approval,
+)
 from core.heal_graph import (
     HealState,
     _is_alert_resolved,
@@ -27,11 +32,6 @@ from core.heal_graph import (
     invoke_agent,
     rollback,
     run_heal,
-)
-from core.db_engine import (
-    AsyncSessionLocal,
-    async_update_approval_status_by_alert,
-    async_upsert_pending_approval,
 )
 from core.models import PendingApproval
 

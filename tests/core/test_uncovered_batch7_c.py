@@ -13,9 +13,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 import core.ai_engine as ai_engine
+import core.real_integration as real_integration
 import core.redis_cluster as redis_cluster
 import core.resilience as resilience
-import core.real_integration as real_integration
 import core.vector_pipeline as vector_pipeline
 from core.priority.assessor import BusinessCriticality, BusinessImpact
 from core.priority.dynamic import DynamicPriorityAdjuster, PriorityAdjustment
@@ -95,12 +95,14 @@ def test_configure_and_get_redis_cluster_config():
     assert config["cluster_config"] == cluster_config
     assert redis_cluster.is_redis_cluster_enabled() is True
     assert redis_cluster.get_redis_mode() == "sentinel"
-    assert redis_cluster.get_node_health() == {"node_0": {
-        "status": "unknown",
-        "last_check": None,
-        "latency_ms": None,
-        "role": "master",
-    }}
+    assert redis_cluster.get_node_health() == {
+        "node_0": {
+            "status": "unknown",
+            "last_check": None,
+            "latency_ms": None,
+            "role": "master",
+        }
+    }
 
 
 def test_connection_strings():
@@ -136,10 +138,13 @@ def test_connection_strings():
     assert redis_cluster.get_connection_string() is None
 
 
-@pytest.mark.parametrize("response,expected_status", [
-    (b"+PONG\r\n", "healthy"),
-    (b"-ERR\r\n", "unhealthy"),
-])
+@pytest.mark.parametrize(
+    "response,expected_status",
+    [
+        (b"+PONG\r\n", "healthy"),
+        (b"-ERR\r\n", "unhealthy"),
+    ],
+)
 def test_check_node_health(monkeypatch, response, expected_status):
     async def _open(host, port):
         return _FakeRedisReader(response), _FakeRedisWriter()
@@ -543,8 +548,10 @@ def _setup_real_integration_mocks(monkeypatch, fail_mode=False):
 
     ai_enhancement_mod = types.ModuleType("core.ai_enhancement")
     if fail_mode:
+
         def _raise_ai_enhancer():
             raise RuntimeError("ai fail")
+
         ai_enhancement_mod.get_ai_enhancer = _raise_ai_enhancer
     else:
         ai_enhancement_mod.get_ai_enhancer = lambda: FakeAIEnhancer()
@@ -752,9 +759,12 @@ def test_map_score_to_level_and_reason():
 
     rank = _make_rank("r", 0.5, "P2", {})
     assert adjuster._determine_adjustment_reason(rank, 0.6, None) == "time_based_adjustment"
-    assert adjuster._determine_adjustment_reason(
-        rank, 0.6, {"system_load": 0.9, "related_alert_count": 10}
-    ) == "high_system_load, related_alert_surge"
+    assert (
+        adjuster._determine_adjustment_reason(
+            rank, 0.6, {"system_load": 0.9, "related_alert_count": 10}
+        )
+        == "high_system_load, related_alert_surge"
+    )
 
 
 def test_adjustment_history_filters():

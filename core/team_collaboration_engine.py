@@ -15,8 +15,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from config import BASE_DIR
 from loguru import logger
+
+from config import BASE_DIR
 
 DATA_DIR: Path = BASE_DIR / "data"
 TEAMS_FILE: Path = DATA_DIR / "teams.json"
@@ -316,8 +317,11 @@ async def escalate_incident(
         notify_id = oncall.get("secondary", {}).get("user_id") if oncall.get("secondary") else None
     else:
         manager = next(
-            (m for m in team.get("members", []) if m.get(
-                "role", "").lower() in ("team lead", "manager", "lead")),
+            (
+                m
+                for m in team.get("members", [])
+                if m.get("role", "").lower() in ("team lead", "manager", "lead")
+            ),
             None,
         )
         notify_id = manager["user_id"] if manager else oncall.get("primary", {}).get("user_id")

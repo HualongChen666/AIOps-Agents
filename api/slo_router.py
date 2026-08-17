@@ -34,12 +34,10 @@ from core.auth_service import (
     require_roles,
 )
 from core.metrics_history import metrics_history
-from core.sla_report_storage import (
-    delete_report as delete_sla_report,
-    get_report as get_sla_report,
-    list_reports as list_sla_reports,
-    save_reports as save_sla_reports,
-)
+from core.sla_report_storage import delete_report as delete_sla_report
+from core.sla_report_storage import get_report as get_sla_report
+from core.sla_report_storage import list_reports as list_sla_reports
+from core.sla_report_storage import save_reports as save_sla_reports
 from core.slo_engine import (
     SLORule,
     create_slo,
@@ -171,11 +169,7 @@ async def create_slo_endpoint(
             )
 
     target_frac = body.target / 100.0
-    alert_frac = (
-        body.alert_threshold / 100.0
-        if body.alert_threshold is not None
-        else None
-    )
+    alert_frac = body.alert_threshold / 100.0 if body.alert_threshold is not None else None
     try:
         rule = create_slo(
             name=body.name,
@@ -199,10 +193,7 @@ async def create_sla_reports_endpoint(
 ) -> dict[str, Any]:
     """Generate SLA reports for the given period and persist them."""
     if current_user.role == "business":
-        if not any(
-            can_edit_asset(current_user, _resolve_asset_id(r.service))
-            for r in list_slos()
-        ):
+        if not any(can_edit_asset(current_user, _resolve_asset_id(r.service)) for r in list_slos()):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No editable asset to generate report",
@@ -221,9 +212,7 @@ async def list_sla_reports_endpoint(
     reports = list_sla_reports(period=period)
     if current_user.role == "business":
         reports = [
-            r
-            for r in reports
-            if can_view_asset(current_user, _resolve_asset_id(r.get("service")))
+            r for r in reports if can_view_asset(current_user, _resolve_asset_id(r.get("service")))
         ]
     return {"reports": reports}
 
@@ -238,9 +227,7 @@ async def get_sla_report_endpoint(
     if not report:
         raise HTTPException(status_code=404, detail="SLA report not found")
     if current_user.role == "business":
-        if not can_view_asset(
-            current_user, _resolve_asset_id(report.get("service"))
-        ):
+        if not can_view_asset(current_user, _resolve_asset_id(report.get("service"))):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No permission to view this report",
@@ -258,9 +245,7 @@ async def delete_sla_report_endpoint(
     if not report:
         raise HTTPException(status_code=404, detail="SLA report not found")
     if current_user.role == "business":
-        if not can_edit_asset(
-            current_user, _resolve_asset_id(report.get("service"))
-        ):
+        if not can_edit_asset(current_user, _resolve_asset_id(report.get("service"))):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No permission to delete this report",
@@ -306,9 +291,7 @@ async def update_slo_endpoint(
                 detail="No permission to update this SLO",
             )
         if body.service and body.service != existing.service:
-            if not can_edit_asset(
-                current_user, _resolve_asset_id(body.service)
-            ):
+            if not can_edit_asset(current_user, _resolve_asset_id(body.service)):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Cannot change SLO to a service you cannot edit",

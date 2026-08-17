@@ -2,6 +2,7 @@
 """Additional coverage tests for core/agent/tools.py."""
 
 import pytest
+
 from core.agent.tools import (
     Tool,
     ToolApprovalManager,
@@ -149,7 +150,12 @@ def test_tool_validate_value_types():
         name="probe",
         description="probe",
         category=ToolCategory.DIAGNOSTIC,
-        function=lambda duration, threshold, wait=False, data=None: (duration, threshold, wait, data),
+        function=lambda duration, threshold, wait=False, data=None: (
+            duration,
+            threshold,
+            wait,
+            data,
+        ),
         required_params=["duration"],
         optional_params=["threshold", "wait", "data"],
     )

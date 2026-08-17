@@ -5,6 +5,7 @@ These tests use a real ``CollaborationIntegration`` instance, real in-memory
 configuration, and a real local HTTP server.  No mocks or internal
 monkeypatching of httpx are used.
 """
+
 import asyncio
 import json
 import socket
@@ -298,9 +299,7 @@ def test_teams_notification_success(collab_server):
         collab = CollaborationIntegration(
             {"teams": {"enabled": True, "webhook": url, "channel": "General"}}
         )
-        result = await collab.send_teams_notification(
-            "body", title="title", color="FF0000"
-        )
+        result = await collab.send_teams_notification("body", title="title", color="FF0000")
         assert result["success"] is True
 
     asyncio.run(_run())
@@ -391,22 +390,16 @@ def test_alert_and_approval_routing(collab_server):
         collab = CollaborationIntegration(both)
 
         # default platforms (covers the ``or`` default and both provider branches)
-        alert = await collab.notify_alert(
-            "A-1", {"severity": "high", "description": "oops"}
-        )
+        alert = await collab.notify_alert("A-1", {"severity": "high", "description": "oops"})
         assert "slack" in alert
         assert "teams" in alert
 
         # slack-only platform branch
-        alert = await collab.notify_alert(
-            "A-1", {"severity": "high"}, platforms=["slack"]
-        )
+        alert = await collab.notify_alert("A-1", {"severity": "high"}, platforms=["slack"])
         assert "slack" in alert and "teams" not in alert
 
         # teams-only platform branch
-        alert = await collab.notify_alert(
-            "A-1", {"severity": "high"}, platforms=["teams"]
-        )
+        alert = await collab.notify_alert("A-1", {"severity": "high"}, platforms=["teams"])
         assert "teams" in alert and "slack" not in alert
 
         # request approval default platforms
@@ -415,9 +408,7 @@ def test_alert_and_approval_routing(collab_server):
         assert "teams" in approval
 
         # request approval slack-only
-        approval = await collab.request_approval(
-            "R-1", {"description": "fix"}, platforms=["slack"]
-        )
+        approval = await collab.request_approval("R-1", {"description": "fix"}, platforms=["slack"])
         assert "slack" in approval and "teams" not in approval
 
         # unconfigured fallback: no providers enabled -> empty results
@@ -429,8 +420,6 @@ def test_alert_and_approval_routing(collab_server):
 
 
 def test_global_singleton_lifecycle():
-    inst = init_collaboration_integration(
-        {"slack": {"enabled": True, "channel": "#alerts"}}
-    )
+    inst = init_collaboration_integration({"slack": {"enabled": True, "channel": "#alerts"}})
     assert isinstance(inst, CollaborationIntegration)
     assert get_collaboration_integration() is inst

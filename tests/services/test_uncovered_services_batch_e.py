@@ -15,9 +15,9 @@ import yaml
 from fastapi.testclient import TestClient
 
 from services.alert_service import flapping_detector as flap_mod
-from services.alert_service.flapping_detector import FlappingDetector
 from services.alert_service import main as alert_main
 from services.alert_service import schemas as alert_schemas
+from services.alert_service.flapping_detector import FlappingDetector
 from services.audit_service import compliance as audit_compliance
 from services.audit_service import main_app as audit_main_app
 from services.audit_service.log_recorder import OperationLogRecorder
@@ -50,9 +50,7 @@ def test_alert_health():
 def test_alert_process_local(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(alert_main, "_AGENT_ORCH_URL", "")
     monkeypatch.setattr(alert_main, "async_insert_alert", AsyncMock(return_value=None))
-    monkeypatch.setattr(
-        alert_main, "try_auto_heal", AsyncMock(return_value={"healed": True})
-    )
+    monkeypatch.setattr(alert_main, "try_auto_heal", AsyncMock(return_value={"healed": True}))
 
     with TestClient(alert_main.app) as client:
         resp = client.post("/process", json={"id": "a1", "severity": "high"})
@@ -66,6 +64,7 @@ def test_alert_process_remote(monkeypatch: pytest.MonkeyPatch):
     class FakeClient:
         def __init__(self, *args: Any, **kwargs: Any):
             pass
+
         async def __aenter__(self):
             return self
 
@@ -87,9 +86,7 @@ def test_alert_process_remote(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(alert_main, "_AGENT_ORCH_URL", "http://agent-orch")
     monkeypatch.setattr(alert_main.httpx, "AsyncClient", FakeClient)
     monkeypatch.setattr(alert_main, "async_insert_alert", AsyncMock(return_value=None))
-    monkeypatch.setattr(
-        alert_main, "try_auto_heal", AsyncMock(return_value={"healed": True})
-    )
+    monkeypatch.setattr(alert_main, "try_auto_heal", AsyncMock(return_value={"healed": True}))
 
     with TestClient(alert_main.app) as client:
         resp = client.post("/process", json={"id": "a2", "severity": "high"})
@@ -102,6 +99,7 @@ def test_alert_call_agent_orchestration(monkeypatch: pytest.MonkeyPatch):
     class FakeClient:
         def __init__(self, *args: Any, **kwargs: Any):
             pass
+
         async def __aenter__(self):
             return self
 
@@ -164,9 +162,7 @@ def test_alert_schemas():
 
 
 def test_alert_schemas_rejection(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        alert_schemas, "_moderate_content", lambda text: (False, ["toxic"])
-    )
+    monkeypatch.setattr(alert_schemas, "_moderate_content", lambda text: (False, ["toxic"]))
     with pytest.raises(ValueError):
         alert_schemas.Alert(id="id-1", title="bad", description="bad")
 
@@ -319,9 +315,7 @@ def test_audit_orchestrator():
 
         start = datetime(2024, 1, 1)
         end = datetime(2024, 12, 31)
-        report = await orchestrator.generate_report(
-            "soc2", "t1", start, end
-        )
+        report = await orchestrator.generate_report("soc2", "t1", start, end)
         assert isinstance(report, AuditReport)
 
         policy = await orchestrator.apply_retention("t1", ttl_days=30)

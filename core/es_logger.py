@@ -4,6 +4,13 @@
 # 提供异步客户端单例、日志写入、搜索接口
 # 依赖 elasticsearch[async] >= 8.13.0
 
+import logging
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast  # noqa: F401
+
+from config import ELASTICSEARCH_URL
 from core.observability_query import (
     DEFAULT_MAX_LLM_ITEMS,
     QueryCache,
@@ -13,12 +20,6 @@ from core.observability_query import (
     validate_es_query_string,
     with_query_timeout,
 )
-from config import ELASTICSEARCH_URL
-import logging
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

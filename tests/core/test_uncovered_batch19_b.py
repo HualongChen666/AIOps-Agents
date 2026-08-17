@@ -425,7 +425,9 @@ async def test_batch_query_optimizer_insert_failure():
     model_class = MagicMock(return_value=MagicMock())
     items = [{"name": "a"}, {"name": "b"}]
 
-    result = await db_opt.BatchQueryOptimizer.batch_insert(session, model_class, items, batch_size=1)
+    result = await db_opt.BatchQueryOptimizer.batch_insert(
+        session, model_class, items, batch_size=1
+    )
     assert result["total"] == 2
     assert result["inserted"] == 0
     assert result["failed"] == 2
@@ -503,9 +505,7 @@ async def test_connection_pool_monitor(monkeypatch):
     result = MagicMock()
     result.fetchone = MagicMock(return_value=(10, 3, 7))
     session.execute = AsyncMock(return_value=result)
-    monkeypatch.setattr(
-        db_opt, "AsyncSessionLocal", lambda: _make_fake_session_context(session)
-    )
+    monkeypatch.setattr(db_opt, "AsyncSessionLocal", lambda: _make_fake_session_context(session))
 
     stats = await db_opt.ConnectionPoolMonitor.get_pool_stats()
     assert stats["total_connections"] == 10

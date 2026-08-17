@@ -314,9 +314,7 @@ def test_workflow_saga(monkeypatch):
     )
     schemas = sys.modules["services.workflow_service.schemas"]
     orchestrator = saga_mod.WorkflowSagaOrchestrator()
-    step = schemas.SagaStep(
-        step_id="s1", service="svc", action="act", compensation="comp"
-    )
+    step = schemas.SagaStep(step_id="s1", service="svc", action="act", compensation="comp")
     orchestrator.register(
         "s1",
         [step],
@@ -345,9 +343,7 @@ def test_workflow_scheduler(monkeypatch):
     sched = sched_mod.WorkflowScheduler()
 
     async def handler(request):
-        return schemas.WorkflowTask(
-            task_id="t1", workflow_id=request.workflow_id
-        )
+        return schemas.WorkflowTask(task_id="t1", workflow_id=request.workflow_id)
 
     sched.register_handler(handler)
     scheduled = schemas.ScheduledTask(
@@ -454,9 +450,7 @@ def test_workflow_repository(monkeypatch):
         tid = await repo.save_task(task)
         got = await repo.get_task("t1")
         tasks = await repo.list_tasks()
-        updated = await repo.update_task(
-            "t1", {"status": schemas.WorkflowStatus.RUNNING}
-        )
+        updated = await repo.update_task("t1", {"status": schemas.WorkflowStatus.RUNNING})
         deleted = await repo.delete_task("t1")
         defn = schemas.WorkflowDefinition(workflow_id="wf1", name="test")
         did = await repo.save_definition(defn)
@@ -470,9 +464,7 @@ def test_workflow_repository(monkeypatch):
         )
         await repo.save_version("wf1", ver)
         vlist = await repo.list_versions("wf1")
-        sched = schemas.ScheduledTask(
-            schedule_id="s1", workflow_id="wf1", cron="* * * * *"
-        )
+        sched = schemas.ScheduledTask(schedule_id="s1", workflow_id="wf1", cron="* * * * *")
         await repo.save_schedule(sched)
         slist = await repo.list_schedules()
         return (
@@ -542,9 +534,7 @@ def _scenario_pkg(monkeypatch):
         sys.modules, "extensions.addons.operations.scenario_memory_service.config", cfg
     )
 
-    hc = types.ModuleType(
-        "extensions.addons.operations.scenario_memory_service.health_check"
-    )
+    hc = types.ModuleType("extensions.addons.operations.scenario_memory_service.health_check")
 
     class HealthCheckEngine:
         async def check(self):
@@ -612,11 +602,7 @@ def test_scenario_memory_orchestrator(monkeypatch):
         )
         await orch.accumulate_knowledge(
             schemas.AccumulateKnowledgeRequest(
-                entries=[
-                    schemas.KnowledgeEntry(
-                        subject="s", predicate="p", object="o", weight=1.0
-                    )
-                ]
+                entries=[schemas.KnowledgeEntry(subject="s", predicate="p", object="o", weight=1.0)]
             )
         )
         await orch.recognize_pattern(
@@ -632,15 +618,11 @@ def test_scenario_memory_orchestrator(monkeypatch):
         )
         await orch.store_short_term(schemas.ShortTermRequest(key="k", value="v"))
         await orch.retrieve_short_term("k")
-        await orch.store_long_term(
-            schemas.LongTermRequest(key="k2", value="v2", importance=1.0)
-        )
+        await orch.store_long_term(schemas.LongTermRequest(key="k2", value="v2", importance=1.0))
         await orch.retrieve_long_term("k2")
         await orch.store_semantic(schemas.SemanticRequest(entity="e", relation="r", target="t"))
         await orch.retrieve_semantic("e")
-        await orch.store_procedural(
-            schemas.ProceduralRequest(name="proc", steps=["s1"])
-        )
+        await orch.store_procedural(schemas.ProceduralRequest(name="proc", steps=["s1"]))
         await orch.retrieve_procedural("proc")
         await orch.find_experiences(query="net")
         await orch.correct_experience(
@@ -832,9 +814,7 @@ def test_topology_dependency(monkeypatch):
         schemas.TopologyNode(node_id="collect", name="Collector"),
     ]
     edges = [schemas.TopologyEdge(source="agent", target="collect")]
-    topology = schemas.ServiceTopology(
-        topology_id="topo1", nodes=nodes, edges=edges
-    )
+    topology = schemas.ServiceTopology(topology_id="topo1", nodes=nodes, edges=edges)
     graph.load_topology(topology)
     deps = graph.get_dependencies("agent")
     dents = graph.get_dependents("collect")
@@ -844,9 +824,7 @@ def test_topology_dependency(monkeypatch):
     async def _run():
         engine = dep_mod.DependencyModelingEngine(graph)
         await engine.model_dependencies(topology)
-        return await engine.query_dependencies(
-            schemas.DependencyRequest(service_name="agent")
-        )
+        return await engine.query_dependencies(schemas.DependencyRequest(service_name="agent"))
 
     q = asyncio.run(_run())
     assert isinstance(deps, list)
@@ -866,9 +844,7 @@ def test_topology_saga(monkeypatch):
     )
     schemas = sys.modules["services.topology_service.schemas"]
     orchestrator = saga_mod.TopologySagaOrchestrator()
-    step = schemas.SagaStep(
-        step_id="1", service="s", action="a", compensation="c"
-    )
+    step = schemas.SagaStep(step_id="1", service="s", action="a", compensation="c")
     orchestrator.register(
         "x",
         [step],
@@ -906,9 +882,7 @@ def test_topology_impact(monkeypatch):
         schemas.TopologyNode(node_id="collect", name="Collector"),
     ]
     edges = [schemas.TopologyEdge(source="agent", target="collect")]
-    topology = schemas.ServiceTopology(
-        topology_id="topo1", nodes=nodes, edges=edges
-    )
+    topology = schemas.ServiceTopology(topology_id="topo1", nodes=nodes, edges=edges)
     graph.load_topology(topology)
     analyzer = impact_mod.ImpactAnalyzer(graph)
     request = schemas.ImpactRequest(
@@ -938,9 +912,7 @@ def test_topology_discovery(monkeypatch):
     )
     schemas = sys.modules["services.topology_service.schemas"]
     engine = disc_mod.TopologyDiscoveryEngine()
-    req = schemas.DiscoveryRequest(
-        source="config", scope="core", requested_by="test"
-    )
+    req = schemas.DiscoveryRequest(source="config", scope="core", requested_by="test")
 
     async def _run():
         result = await engine.discover(req)

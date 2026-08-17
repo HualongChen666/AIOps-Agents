@@ -12,8 +12,8 @@ import pytest
 import core.base.storage as storage
 import core.config_center as config_center
 import core.error_logging.logger as logger_module
-import core.prometheus_metrics as metrics
 import core.priority_engine as priority_engine
+import core.prometheus_metrics as metrics
 from core.exceptions import AIOpsBaseException
 from core.exceptions.base import ErrorCategory, ErrorSeverity
 
@@ -23,6 +23,7 @@ pytestmark = [pytest.mark.core]
 # -----------------------------------------------------------------------------
 # core.config_center
 # -----------------------------------------------------------------------------
+
 
 @pytest.fixture
 def fallback_center():
@@ -43,9 +44,7 @@ def consul_center(monkeypatch):
 
         def get(self, key, index=None, recurse=False):
             if recurse:
-                return None, [
-                    {"Key": k, "Value": v} for k, v in self.data.items()
-                ]
+                return None, [{"Key": k, "Value": v} for k, v in self.data.items()]
             raw = self.data.get(key)
             return (None, {"Value": raw}) if raw is not None else (None, None)
 
@@ -173,9 +172,9 @@ def test_consul_config_errors(consul_center, monkeypatch):
 
 
 def test_consul_watch_callback(consul_center, monkeypatch):
-    consul_center.consul_client.kv.data["svc/a"] = json.dumps(
-        {"value": {"ok": True}}
-    ).encode("utf-8")
+    consul_center.consul_client.kv.data["svc/a"] = json.dumps({"value": {"ok": True}}).encode(
+        "utf-8"
+    )
 
     called = []
     consul_center.watch_config("svc/a", lambda value: called.append(value))
@@ -221,6 +220,7 @@ def test_config_center_global_instances():
 # core.error_logging.logger
 # -----------------------------------------------------------------------------
 
+
 def test_structured_error_logger_lifecycle(tmp_path):
     log_file = str(tmp_path / "error.log")
     el = logger_module.StructuredErrorLogger(log_file=log_file)
@@ -261,12 +261,17 @@ def test_structured_error_logger_lifecycle(tmp_path):
 # core.priority_engine
 # -----------------------------------------------------------------------------
 
+
 def test_compute_sla_score(monkeypatch):
-    monkeypatch.setattr(priority_engine, "BUSINESS_SLA", {
-        "core": 0,
-        "high": 1,
-        "med": 2,
-    })
+    monkeypatch.setattr(
+        priority_engine,
+        "BUSINESS_SLA",
+        {
+            "core": 0,
+            "high": 1,
+            "med": 2,
+        },
+    )
     monkeypatch.setattr(priority_engine, "DEFAULT_SLA", 3)
 
     assert priority_engine.compute_sla_score({"business_name": "core"}) == 0
@@ -286,6 +291,7 @@ def test_compute_sla_score(monkeypatch):
 # -----------------------------------------------------------------------------
 # core.base.storage
 # -----------------------------------------------------------------------------
+
 
 def test_base_storage_lifecycle():
     class DummyStorage(storage.BaseStorage):
@@ -334,6 +340,7 @@ def test_base_storage_lifecycle():
 # -----------------------------------------------------------------------------
 # core.prometheus_metrics
 # -----------------------------------------------------------------------------
+
 
 def test_prometheus_metrics_exporter(monkeypatch):
     exporter = metrics.get_metrics_exporter()

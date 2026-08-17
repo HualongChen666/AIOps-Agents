@@ -222,7 +222,7 @@ class RAGOrchestrator:
             seed = int.from_bytes(digest[:8], "big")
             rng = hashlib.sha256(f"{seed}".encode()).digest()
             vector = [
-                (int.from_bytes(rng[i * 4: (i + 1) * 4], "big") % 1000) / 1000.0
+                (int.from_bytes(rng[i * 4 : (i + 1) * 4], "big") % 1000) / 1000.0
                 for i in range(dim)
             ]
             vectors.append(_normalize(vector))

@@ -65,11 +65,7 @@ class MaturityAssessment(BaseModel):
     responses={
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
             "description": "评估失败",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "maturity assessment failed"}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "maturity assessment failed"}}},
         }
     },
 )
@@ -105,7 +101,7 @@ async def get_maturity_assessment() -> Dict[str, Any]:
                         }
                     ]
                 }
-            }
+            },
         }
     },
 )

@@ -86,9 +86,7 @@ async def test_webhook_signature_and_trigger(ecosystem):
     raw = json.dumps(payload, sort_keys=True)
     expected = hmac.new("s3cret".encode(), raw.encode(), hashlib.sha256).hexdigest()
 
-    result = await ecosystem.trigger_webhook(
-        webhook.id, {**payload, "signature": expected}
-    )
+    result = await ecosystem.trigger_webhook(webhook.id, {**payload, "signature": expected})
     assert result is False
 
     missing = await ecosystem.trigger_webhook(webhook.id, payload)
@@ -122,9 +120,7 @@ async def test_query_and_trigger_methods(ecosystem):
         provider="prometheus",
         configuration={"url": "http://prom", "port": 9090},
     )
-    result = await ecosystem.query_prometheus_metrics(
-        "up", integration.id, time_range="1h"
-    )
+    result = await ecosystem.query_prometheus_metrics("up", integration.id, time_range="1h")
     assert result is None
 
     jenkins = await ecosystem.register_integration(
@@ -194,9 +190,7 @@ async def test_connector_marketplace():
     connectors = await market.discover_connectors()
     assert connectors
 
-    install = await market.install_connector(
-        "prometheus", {"url": "http://prom", "port": 9090}
-    )
+    install = await market.install_connector("prometheus", {"url": "http://prom", "port": 9090})
     assert install["success"] is True
 
     details = await market.get_connector_details("prometheus")

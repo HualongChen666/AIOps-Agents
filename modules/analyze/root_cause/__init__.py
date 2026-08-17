@@ -19,6 +19,7 @@ from .causal_inference import (
     DoCalculus,
     create_causal_analyzer,
 )
+
 try:
     from .gnn import HeterogeneousGNNModel
 except Exception:

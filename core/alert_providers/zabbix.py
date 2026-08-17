@@ -61,10 +61,12 @@ class ZabbixAlertProvider(AlertProvider):
         item_name = str(raw.get("itemname") or raw.get("item_name") or raw.get("key") or "")[:256]
         item_value = raw.get("itemvalue") or raw.get("item_value") or raw.get("value")
 
-        event_id = str(raw.get("eventid") or raw.get("event_id")
-                       or raw.get("id") or uuid.uuid4().hex[:16])[:64]
-        started_at = raw.get("event_time") or raw.get(
-            "timestamp") or datetime.now(timezone.utc).isoformat()
+        event_id = str(
+            raw.get("eventid") or raw.get("event_id") or raw.get("id") or uuid.uuid4().hex[:16]
+        )[:64]
+        started_at = (
+            raw.get("event_time") or raw.get("timestamp") or datetime.now(timezone.utc).isoformat()
+        )
 
         title = subject or (message.split("\n")[0] if message else "Zabbix alert")
         desc = message or subject

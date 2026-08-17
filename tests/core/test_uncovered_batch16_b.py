@@ -5,7 +5,7 @@ import asyncio
 import json
 import sys
 import types
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -13,12 +13,11 @@ import pytest
 
 pytestmark = [pytest.mark.core]
 
-from core.agent import memory_bridge
-from core.hitl import conditional
 from core import enhanced_websocket_manager as ews
 from core import plugin_development_sdk as pdk
+from core.agent import memory_bridge
 from core.execution.l6 import fault_tolerant_executor as fte
-
+from core.hitl import conditional
 
 # ---------------------------------------------------------------------------
 # memory_bridge.py
@@ -67,9 +66,7 @@ def scenario_memory_modules(monkeypatch):
             return SimpleNamespace(experience_id="exp-1", confidence=0.9, learned=True)
 
     orch_mod.ScenarioMemoryOrchestrator = ScenarioMemoryOrchestrator
-    monkeypatch.setitem(
-        sys.modules, "services.scenario_memory_service.orchestrator", orch_mod
-    )
+    monkeypatch.setitem(sys.modules, "services.scenario_memory_service.orchestrator", orch_mod)
 
     schemas_mod = types.ModuleType("services.scenario_memory_service.schemas")
 
@@ -135,9 +132,7 @@ def test_memory_bridge_retrieve_and_save_with_orchestrator(scenario_memory_modul
     bridge._orchestrator.search_similar = AsyncMock(
         return_value=SimpleNamespace(results=[ev1, ev2])
     )
-    result = bridge.retrieve_relevant_experiences(
-        "query", top_k=3, session_id="s1"
-    )
+    result = bridge.retrieve_relevant_experiences("query", top_k=3, session_id="s1")
     assert len(result) == 1
     assert result[0]["event_id"] == "e1"
 
@@ -167,12 +162,8 @@ def test_memory_bridge_retrieve_and_save_failure(scenario_memory_modules):
 
 
 def test_memory_bridge_helpers():
-    sig1 = memory_bridge._action_signature(
-        "Goal", "Task", "tool", {"a": 1, "b": [2]}
-    )
-    sig2 = memory_bridge._action_signature(
-        " goal ", " TASK ", "tool", {"b": [2], "a": 1}
-    )
+    sig1 = memory_bridge._action_signature("Goal", "Task", "tool", {"a": 1, "b": [2]})
+    sig2 = memory_bridge._action_signature(" goal ", " TASK ", "tool", {"b": [2], "a": 1})
     assert sig1 == sig2
     assert len(sig1) == 32
 
@@ -281,8 +272,14 @@ def test_conditional_approval_default_rules():
     # Default rules cover both risk_level and change_size, so supply complete contexts.
     assert ca.evaluate_rules({"risk_level": "low", "change_size": 2000})["action"] == "auto_approve"
     assert ca.evaluate_rules({"risk_level": "low", "change_size": 50})["action"] == "auto_approve"
-    assert ca.evaluate_rules({"risk_level": "high", "change_size": 500})["action"] == "require_approval"
-    assert ca.evaluate_rules({"risk_level": "high", "change_size": 2000})["action"] == "require_approval"
+    assert (
+        ca.evaluate_rules({"risk_level": "high", "change_size": 500})["action"]
+        == "require_approval"
+    )
+    assert (
+        ca.evaluate_rules({"risk_level": "high", "change_size": 2000})["action"]
+        == "require_approval"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -291,10 +288,12 @@ def test_conditional_approval_default_rules():
 
 
 async def test_websocket_connect_disconnect_and_stats():
-    mgr = ews.get_enhanced_websocket_manager({
-        "heartbeat_interval": 0.01,
-        "max_connections": 2,
-    })
+    mgr = ews.get_enhanced_websocket_manager(
+        {
+            "heartbeat_interval": 0.01,
+            "max_connections": 2,
+        }
+    )
     ws = AsyncMock()
     cid = await mgr.connect(ws, channels=["c1", "c2"], metadata={"ip": "127.0.0.1"})
     assert cid.startswith("client_")
@@ -494,11 +493,13 @@ def test_plugin_sdk_summary_and_singleton():
 
 
 def test_fault_tolerant_executor_init_and_factory():
-    e = fte.get_fault_tolerant_executor({
-        "max_retries": 5,
-        "default_timeout": 5.0,
-        "circuit_breaker_failure_threshold": 3,
-    })
+    e = fte.get_fault_tolerant_executor(
+        {
+            "max_retries": 5,
+            "default_timeout": 5.0,
+            "circuit_breaker_failure_threshold": 3,
+        }
+    )
     assert e.retry_policy.max_retries == 5
     assert e.default_timeout == 5.0
     assert e.circuit_breaker_config.failure_threshold == 3
@@ -587,7 +588,9 @@ def test_fault_tolerant_executor_helpers():
     assert e._is_retryable(asyncio.TimeoutError(), e.retry_policy) is True
     assert e._is_retryable(ValueError(), e.retry_policy) is False
 
-    custom = fte.RetryPolicy(retryable_exceptions=[ValueError], non_retryable_exceptions=[ConnectionError])
+    custom = fte.RetryPolicy(
+        retryable_exceptions=[ValueError], non_retryable_exceptions=[ConnectionError]
+    )
     assert e._is_retryable(ValueError(), custom) is True
     assert e._is_retryable(ConnectionError(), custom) is False
 
@@ -651,10 +654,12 @@ def test_circuit_breaker_internals():
 
 
 async def test_fault_tolerant_executor_circuit_opens():
-    e = fte.FaultTolerantExecutor({
-        "default_timeout": 1.0,
-        "circuit_breaker_failure_threshold": 1,
-    })
+    e = fte.FaultTolerantExecutor(
+        {
+            "default_timeout": 1.0,
+            "circuit_breaker_failure_threshold": 1,
+        }
+    )
     f_fail = AsyncMock(side_effect=Exception("err"))
 
     result1 = await e.execute(f_fail, "op7")

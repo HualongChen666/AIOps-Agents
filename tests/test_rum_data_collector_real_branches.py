@@ -83,34 +83,42 @@ def test_validator_missing_required_and_type_and_timestamp_and_session_id():
     assert any("timestamp" in e for e in errors)
 
     # timestamp is not a string
-    ok, errors = validator.validate_event({
-        "session_id": "session-12345",
-        "timestamp": 12345,
-    })
+    ok, errors = validator.validate_event(
+        {
+            "session_id": "session-12345",
+            "timestamp": 12345,
+        }
+    )
     assert ok is False
     assert any("Invalid type for timestamp" in e for e in errors)
 
     # invalid timestamp format
-    ok, errors = validator.validate_event({
-        "session_id": "session-12345",
-        "timestamp": "not-a-timestamp",
-    })
+    ok, errors = validator.validate_event(
+        {
+            "session_id": "session-12345",
+            "timestamp": "not-a-timestamp",
+        }
+    )
     assert ok is False
     assert any("Invalid timestamp format" in e for e in errors)
 
     # session_id too short
-    ok, errors = validator.validate_event({
-        "session_id": "short",
-        "timestamp": _now_iso(),
-    })
+    ok, errors = validator.validate_event(
+        {
+            "session_id": "short",
+            "timestamp": _now_iso(),
+        }
+    )
     assert ok is False
     assert any("Invalid session_id format" in e for e in errors)
 
     # session_id not a string
-    ok, errors = validator.validate_event({
-        "session_id": 1234567890,
-        "timestamp": _now_iso(),
-    })
+    ok, errors = validator.validate_event(
+        {
+            "session_id": 1234567890,
+            "timestamp": _now_iso(),
+        }
+    )
     assert ok is False
     assert any("Invalid session_id format" in e for e in errors)
 
@@ -453,7 +461,13 @@ def test_collector_end_to_end():
 
     # batch with mixed validity
     batch = [
-        {"type": "error", "session_id": "session-top2", "user_id": "u", "timestamp": now, "errorMessage": "x"},
+        {
+            "type": "error",
+            "session_id": "session-top2",
+            "user_id": "u",
+            "timestamp": now,
+            "errorMessage": "x",
+        },
         {"type": "page_view", "session_id": "short", "timestamp": now},  # invalid session id
     ]
     processed = collector.process_batch(batch)

@@ -5,38 +5,15 @@ from unittest.mock import patch
 
 import pytest
 
-from extensions.addons.observability.metrics_monitoring_service.service import (
-    Service as MetricsMonitoringService,
-)
-from extensions.addons.infrastructure.alert_rule_service.service import (
-    Service as AlertRuleService,
-)
-from extensions.addons.infrastructure.performance_monitoring_service.service import (
-    Service as PerformanceMonitoringService,
-)
+from extensions.addons.infrastructure.alert_rule_service.service import Service as AlertRuleService
 from extensions.addons.infrastructure.cloud_monitoring_service.service import (
     Service as CloudMonitoringService,
-)
-from extensions.addons.observability.log_aggregation_service.service import (
-    Service as LogAggregationService,
-)
-from extensions.addons.observability.tracing_service.service import (
-    Service as TracingService,
-)
-from extensions.addons.observability.distributed_tracing_service.service import (
-    Service as DistributedTracingService,
-)
-from extensions.addons.observability.topology_service.service import (
-    Service as TopologyService,
 )
 from extensions.addons.infrastructure.datacenter_visualization_service.service import (
     Service as DatacenterVisualizationService,
 )
-from extensions.addons.integrations.prometheus_integration_service.service import (
-    Service as PrometheusIntegrationService,
-)
-from extensions.addons.integrations.grafana_integration_service.service import (
-    Service as GrafanaIntegrationService,
+from extensions.addons.infrastructure.performance_monitoring_service.service import (
+    Service as PerformanceMonitoringService,
 )
 from extensions.addons.integrations.datadog_integration_service.service import (
     Service as DatadogIntegrationService,
@@ -44,6 +21,23 @@ from extensions.addons.integrations.datadog_integration_service.service import (
 from extensions.addons.integrations.elasticsearch_audit_service.service import (
     Service as ElasticsearchAuditService,
 )
+from extensions.addons.integrations.grafana_integration_service.service import (
+    Service as GrafanaIntegrationService,
+)
+from extensions.addons.integrations.prometheus_integration_service.service import (
+    Service as PrometheusIntegrationService,
+)
+from extensions.addons.observability.distributed_tracing_service.service import (
+    Service as DistributedTracingService,
+)
+from extensions.addons.observability.log_aggregation_service.service import (
+    Service as LogAggregationService,
+)
+from extensions.addons.observability.metrics_monitoring_service.service import (
+    Service as MetricsMonitoringService,
+)
+from extensions.addons.observability.topology_service.service import Service as TopologyService
+from extensions.addons.observability.tracing_service.service import Service as TracingService
 
 ADDONS = [
     (

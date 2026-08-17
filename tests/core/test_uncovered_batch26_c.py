@@ -12,6 +12,20 @@ from typing import Dict, List, Optional
 
 import pytest
 
+from core import cache_manager as cm
+from core import type_validation as tv
+from core.api_response_time_optimizer import (
+    APIResponseTimeOptimizer,
+    CacheStrategy,
+    OptimizationLevel,
+    get_api_response_time_optimizer,
+)
+from core.cpu_usage_optimizer import (
+    CPUEventType,
+    CPUOptimizationAction,
+    CPUUsageOptimizer,
+    get_cpu_usage_optimizer,
+)
 from core.tracing_visualization import (
     ServiceNode,
     SpanNode,
@@ -21,20 +35,6 @@ from core.tracing_visualization import (
     VisualizationType,
     get_tracing_visualization_manager,
 )
-from core.cpu_usage_optimizer import (
-    CPUEventType,
-    CPUOptimizationAction,
-    CPUUsageOptimizer,
-    get_cpu_usage_optimizer,
-)
-from core.api_response_time_optimizer import (
-    APIResponseTimeOptimizer,
-    CacheStrategy,
-    OptimizationLevel,
-    get_api_response_time_optimizer,
-)
-from core import type_validation as tv
-from core import cache_manager as cm
 
 pytestmark = [pytest.mark.core]
 
@@ -152,11 +152,17 @@ class TestCPUUsageOptimizer:
     @pytest.fixture
     def optimizer(self, monkeypatch):
         cmod = sys.modules["core.cpu_usage_optimizer"]
-        monkeypatch.setattr(cmod.psutil, "cpu_percent", lambda interval=None, percpu=False: [10.0, 20.0] if percpu else 15.0)
+        monkeypatch.setattr(
+            cmod.psutil,
+            "cpu_percent",
+            lambda interval=None, percpu=False: [10.0, 20.0] if percpu else 15.0,
+        )
         monkeypatch.setattr(cmod.psutil, "cpu_count", lambda: 4)
         monkeypatch.setattr(cmod.psutil, "getloadavg", lambda: [1.0, 2.0, 3.0], raising=False)
         monkeypatch.setattr(cmod.psutil, "pids", lambda: [1, 2, 3, 4])
-        return CPUUsageOptimizer({"spike_threshold_percent": 5.0, "high_usage_threshold_percent": 10.0})
+        return CPUUsageOptimizer(
+            {"spike_threshold_percent": 5.0, "high_usage_threshold_percent": 10.0}
+        )
 
     def test_snapshot_and_limits(self, optimizer):
         snap = optimizer.take_cpu_snapshot(component="web")
@@ -178,7 +184,10 @@ class TestCPUUsageOptimizer:
         assert optimizer.check_cpu_limit("db")["status"] == "no_limit"
 
         optimizer.set_cpu_limit(
-            "db", max_cpu_percent=100.0, warning_threshold_percent=50.0, critical_threshold_percent=90.0
+            "db",
+            max_cpu_percent=100.0,
+            warning_threshold_percent=50.0,
+            critical_threshold_percent=90.0,
         )
         # normal
         optimizer.component_cpu["db"] = 20.0
@@ -219,9 +228,7 @@ class TestCPUUsageOptimizer:
     def test_optimize_cpu_actions(self, optimizer):
         for action in CPUOptimizationAction:
             optimizer.cpu_limits.clear()
-            optimizer.set_cpu_limit(
-                action.value, max_cpu_percent=100.0, action_on_exceed=action
-            )
+            optimizer.set_cpu_limit(action.value, max_cpu_percent=100.0, action_on_exceed=action)
             optimizer.component_cpu[action.value] = 120.0
             result = optimizer.optimize_cpu(action.value)
             assert result["component"] == action.value
@@ -253,8 +260,14 @@ class TestCPUUsageOptimizer:
 
     def test_getloadavg_oserror(self, monkeypatch):
         cmod = sys.modules["core.cpu_usage_optimizer"]
-        monkeypatch.setattr(cmod.psutil, "getloadavg", lambda: (_ for _ in ()).throw(OSError("fail")), raising=False)
-        monkeypatch.setattr(cmod.psutil, "cpu_percent", lambda interval=None, percpu=False: [10.0] if percpu else 10.0)
+        monkeypatch.setattr(
+            cmod.psutil, "getloadavg", lambda: (_ for _ in ()).throw(OSError("fail")), raising=False
+        )
+        monkeypatch.setattr(
+            cmod.psutil,
+            "cpu_percent",
+            lambda interval=None, percpu=False: [10.0] if percpu else 10.0,
+        )
         monkeypatch.setattr(cmod.psutil, "cpu_count", lambda: 2)
         monkeypatch.setattr(cmod.psutil, "pids", lambda: [1])
         opt = CPUUsageOptimizer()
@@ -268,7 +281,9 @@ class TestCPUUsageOptimizer:
 class TestAPIResponseTimeOptimizer:
     @pytest.fixture
     def optimizer(self):
-        return APIResponseTimeOptimizer({"slow_response_threshold_ms": 1000, "cache_ttl_seconds": 300})
+        return APIResponseTimeOptimizer(
+            {"slow_response_threshold_ms": 1000, "cache_ttl_seconds": 300}
+        )
 
     def test_track_and_metrics(self, optimizer):
         for i in range(100):
@@ -479,12 +494,16 @@ class TestCacheManager:
         class FakeCache:
             def get(self, k):
                 return "val"
+
             def set(self, *a, **k):
                 pass
+
             def delete(self, k):
                 return True
+
             def clear(self):
                 pass
+
             def __len__(self):
                 return 3
 
@@ -535,7 +554,10 @@ class TestCacheManager:
         monkeypatch.setenv("REDIS_URL", "redis://localhost")
         try:
             import redis as redis_mod
-            monkeypatch.setattr(redis_mod, "from_url", lambda *a, **k: (_ for _ in ()).throw(Exception("no redis")))
+
+            monkeypatch.setattr(
+                redis_mod, "from_url", lambda *a, **k: (_ for _ in ()).throw(Exception("no redis"))
+            )
         except ImportError:
             pass
         monkeypatch.setattr(cm, "_BACKEND", "memory")
@@ -551,7 +573,10 @@ class TestCacheManager:
         monkeypatch.setenv("DISK_CACHE_DIR", "data/cache")
         try:
             import diskcache as dc
-            monkeypatch.setattr(dc, "Cache", lambda *a, **k: (_ for _ in ()).throw(Exception("no diskcache")))
+
+            monkeypatch.setattr(
+                dc, "Cache", lambda *a, **k: (_ for _ in ()).throw(Exception("no diskcache"))
+            )
         except ImportError:
             pass
         monkeypatch.setattr(cm, "_BACKEND", "memory")

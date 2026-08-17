@@ -387,13 +387,16 @@ class APIResponseMiddleware:
                     # 已经包装过的响应，直接透传
                     pass
                 elif payload is not None and 200 <= status_code < 300:
-                    raw_body = json.dumps(create_success_response(payload),
-                                          ensure_ascii=False).encode("utf-8")
-                elif payload is not None and status_code >= 400:
-                    message_text = payload.get("detail") if isinstance(
-                        payload, dict) else str(payload)
                     raw_body = json.dumps(
-                        create_error_response("ERROR", f"HTTP {status_code}", message_text), ensure_ascii=False
+                        create_success_response(payload), ensure_ascii=False
+                    ).encode("utf-8")
+                elif payload is not None and status_code >= 400:
+                    message_text = (
+                        payload.get("detail") if isinstance(payload, dict) else str(payload)
+                    )
+                    raw_body = json.dumps(
+                        create_error_response("ERROR", f"HTTP {status_code}", message_text),
+                        ensure_ascii=False,
                     ).encode("utf-8")
 
             headers_list = list(start_message.get("headers", []))
@@ -403,16 +406,20 @@ class APIResponseMiddleware:
                     headers_list[idx] = (k, str(len(raw_body)).encode())
                     break
 
-            await send({
-                "type": "http.response.start",
-                "status": start_message.get("status", 200),
-                "headers": headers_list,
-            })
-            await send({
-                "type": "http.response.body",
-                "body": raw_body,
-                "more_body": False,
-            })
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": start_message.get("status", 200),
+                    "headers": headers_list,
+                }
+            )
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": raw_body,
+                    "more_body": False,
+                }
+            )
 
         await self.app(scope, receive, wrapped_send)
 

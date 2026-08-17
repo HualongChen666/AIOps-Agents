@@ -44,8 +44,9 @@ def _try_real_publish(queue_name: str, message: Dict[str, Any]) -> bool:
             with pika.BlockingConnection(params) as conn:
                 ch = conn.channel()
                 ch.queue_declare(queue=queue_name, durable=True)
-                ch.basic_publish(exchange="", routing_key=queue_name,
-                                 body=json.dumps(message).encode())
+                ch.basic_publish(
+                    exchange="", routing_key=queue_name, body=json.dumps(message).encode()
+                )
             return True
         except Exception as exc:
             logger.warning(f"RabbitMQ publish failed: {exc}; fallback to memory")
@@ -230,7 +231,9 @@ class MessageQueue:
         return {
             "queue_length": len(q),
             "consumers": consumers,
-            "message_rate": round(len(q) / max(time.time() - q[-1]["timestamp"], 1.0), 4) if q else 0.0,
+            "message_rate": (
+                round(len(q) / max(time.time() - q[-1]["timestamp"], 1.0), 4) if q else 0.0
+            ),
         }
 
     def scale_consumers(self, queue_name: str, target_count: int) -> bool:
@@ -255,8 +258,11 @@ class MessageQueue:
         return True
 
     def get_replication_status(self) -> Dict[str, Any]:
-        return {"replicas": 0, "lag_ms": 0, "mode": "memory" if not os.getenv(
-            "MESSAGE_QUEUE_BACKEND") else "configured"}
+        return {
+            "replicas": 0,
+            "lag_ms": 0,
+            "mode": "memory" if not os.getenv("MESSAGE_QUEUE_BACKEND") else "configured",
+        }
 
     # ------------------------------------------------------------------
     # Backup / restore / cleanup
@@ -269,8 +275,9 @@ class MessageQueue:
         }
         backup_path = self._persistence_file.parent / f"backup_{queue_name}_{int(time.time())}.json"
         try:
-            backup_path.write_text(json.dumps(backup, ensure_ascii=False,
-                                   default=str), encoding="utf-8")
+            backup_path.write_text(
+                json.dumps(backup, ensure_ascii=False, default=str), encoding="utf-8"
+            )
             return {"backup_file": str(backup_path), "size_mb": len(str(backup)) / 1024 / 1024}
         except Exception as exc:
             return {"backup_file": None, "error": str(exc)}

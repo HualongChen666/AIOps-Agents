@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-ADDONS_ROOT = (Path(__file__).resolve().parents[2] / "extensions" / "addons")
+ADDONS_ROOT = Path(__file__).resolve().parents[2] / "extensions" / "addons"
 
 
 INIT_ARG_MAP = {
@@ -82,7 +82,9 @@ def _all_helper_paths() -> list[tuple[Path, str]]:
             pattern = f"*/grpc/{stem}"
         else:
             pattern = f"*/{stem}"
-        for path in sorted(ADDONS_ROOT.rglob(stem if stem != "client.py" and stem != "server.py" else pattern)):
+        for path in sorted(
+            ADDONS_ROOT.rglob(stem if stem != "client.py" and stem != "server.py" else pattern)
+        ):
             # rglob with a glob containing / may not work; filter explicitly
             if stem in ("client.py", "server.py"):
                 if path.parent.name != "grpc" or path.name != stem:
@@ -575,17 +577,24 @@ def _stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "fastapi", fastapi_mod)
     monkeypatch.setitem(sys.modules, "uvicorn", uvicorn_mod)
     monkeypatch.setitem(sys.modules, "grpc", grpc_mod)
-    monkeypatch.setitem(sys.modules, "starlette", sys.modules.get("starlette") or types.ModuleType("starlette"))
+    monkeypatch.setitem(
+        sys.modules, "starlette", sys.modules.get("starlette") or types.ModuleType("starlette")
+    )
     monkeypatch.setitem(sys.modules, "starlette.responses", starlette_mod)
     monkeypatch.setitem(sys.modules, "redis", redis_mod)
     monkeypatch.setitem(sys.modules, "redis.asyncio", redis_asyncio_mod)
 
     # Patch real modules where they exist so network I/O is avoided.
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: MagicMock(
-        returncode=0, stdout="", stderr="", check_returncode=lambda: None
-    ))
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: MagicMock(
+            returncode=0, stdout="", stderr="", check_returncode=lambda: None
+        ),
+    )
     try:
         import psutil as _psutil
+
         monkeypatch.setattr(_psutil, "virtual_memory", lambda: MagicMock(percent=0.0))
         monkeypatch.setattr(_psutil, "disk_usage", lambda path: MagicMock(percent=0.0))
     except ImportError:
@@ -594,6 +603,7 @@ def _stubs(monkeypatch):
     # Ensure Prometheus does not raise duplicate metric errors.
     try:
         import prometheus_client as _pc
+
         monkeypatch.setattr(_pc.REGISTRY, "register", lambda *args, **kwargs: None)
     except ImportError:
         pass

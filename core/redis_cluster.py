@@ -132,9 +132,7 @@ async def check_node_health(node_index: int) -> Dict[str, Any]:
 
         host = node.get("host", "localhost")
         port = int(node.get("port", 6379))
-        connect_timeout = float(
-            _redis_cluster_config.get("connection_timeout_seconds", 5)
-        )
+        connect_timeout = float(_redis_cluster_config.get("connection_timeout_seconds", 5))
         socket_timeout = float(_redis_cluster_config.get("socket_timeout_seconds", 5))
 
         reader, writer = await asyncio.wait_for(

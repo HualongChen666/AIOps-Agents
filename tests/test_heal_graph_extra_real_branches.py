@@ -59,6 +59,7 @@ def _enable_auto_approve(monkeypatch):
 # auto-approve helper branches
 # ---------------------------------------------------------------------------
 
+
 def test_auto_approve_off_hours_without_opt_in(monkeypatch):
     """Off-hours auto-approve is blocked when the opt-in is missing."""
     monkeypatch.setenv("HEAL_AUTO_APPROVE_SAFE_LOW", "true")
@@ -70,6 +71,7 @@ def test_auto_approve_off_hours_without_opt_in(monkeypatch):
 # Target extraction helpers
 # ---------------------------------------------------------------------------
 
+
 def test_allowed_targets_from_alert_includes_value():
     targets = _allowed_targets_from_alert({"title": "CPU high", "value": 42.5})
     assert "42.5" in targets
@@ -80,15 +82,13 @@ def test_extract_command_target_remaining_patterns():
     assert _extract_command_target("launchctl restart com.foo.bar") == "com.foo.bar"
     assert _extract_command_target("Restart-Service -Name spooler") == "spooler"
     assert _extract_command_target("service nginx restart") == "nginx"
-    assert (
-        _extract_command_target("kubectl rollout restart deployment web")
-        == "web"
-    )
+    assert _extract_command_target("kubectl rollout restart deployment web") == "web"
 
 
 # ---------------------------------------------------------------------------
 # apply_fix remaining branches
 # ---------------------------------------------------------------------------
+
 
 async def test_apply_fix_non_dict_inner_runbook(monkeypatch):
     """Inner runbook is not a dict -> no commands are extracted."""
@@ -205,6 +205,7 @@ async def test_apply_fix_target_match_guard_disabled(monkeypatch):
 # evaluate remaining branches
 # ---------------------------------------------------------------------------
 
+
 async def test_evaluate_non_dict_params_and_existing_snapshot_metrics(monkeypatch):
     """params not a dict and snapshot.metrics already a dict."""
     monkeypatch.setattr("core.heal_graph.record_outcome", None)
@@ -228,6 +229,7 @@ async def test_evaluate_non_dict_params_and_existing_snapshot_metrics(monkeypatc
 # ---------------------------------------------------------------------------
 # rollback remaining branches
 # ---------------------------------------------------------------------------
+
 
 async def test_rollback_without_approval_required(monkeypatch):
     """rollback_approval_required=False bypasses approval_status check."""
@@ -310,6 +312,7 @@ async def test_rollback_failure_escalation_disabled(monkeypatch):
 # complete remaining branches
 # ---------------------------------------------------------------------------
 
+
 async def test_complete_disabled_persistence(monkeypatch):
     """complete() with snapshot/repair persistence unavailable."""
     monkeypatch.setattr("core.heal_graph.cleanup_expired_snapshots", None)
@@ -331,6 +334,7 @@ async def test_complete_disabled_persistence(monkeypatch):
 # ---------------------------------------------------------------------------
 # run_heal remaining branches
 # ---------------------------------------------------------------------------
+
 
 async def test_run_heal_without_trace_setter(monkeypatch):
     """run_heal with _set_trace_id unavailable still generates a trace_id."""

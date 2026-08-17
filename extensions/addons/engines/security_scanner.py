@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
@@ -166,7 +167,7 @@ class SecurityScanner:
             '<?xml version="1.0"?>\n'
             "<nmaprun>\n"
             "  <host>\n"
-            "    <address addr=\"10.0.0.1\"/>\n"
+            '    <address addr="10.0.0.1"/>\n'
             "    <ports>\n"
             '      <port portid="80">\n'
             '        <state state="open"/>\n'
@@ -197,9 +198,7 @@ class SecurityScanner:
                     state = state_el.get("state") if state_el is not None else "unknown"
                     service_el = port.find(".//service")
                     service_name = service_el.get("name") if service_el is not None else ""
-                    ports.append(
-                        {"port": portid, "state": state, "service": service_name}
-                    )
+                    ports.append({"port": portid, "state": state, "service": service_name})
                 results.append({"host": host_ip, "ports": ports})
             return results
 
@@ -431,7 +430,11 @@ class SecurityScanner:
         if name in ("api_key_auth", "test_and_optimize_fastapi_security"):
             return self.check_api_baseline(params.get("spec", {}))
 
-        if name in ("review_license_compliance", "configure_dependency_license_check", "generate_license_inventory"):
+        if name in (
+            "review_license_compliance",
+            "configure_dependency_license_check",
+            "generate_license_inventory",
+        ):
             return self.check_license(params.get("dependencies", []))
 
         if name == "run_opa_compliance":
@@ -454,9 +457,7 @@ class SecurityScanner:
                 grouped.setdefault(sev, []).append(f)
             return {
                 "total": len(findings),
-                "by_severity": {
-                    sev: len(items) for sev, items in grouped.items()
-                },
+                "by_severity": {sev: len(items) for sev, items in grouped.items()},
                 "top_priorities": sorted(
                     findings,
                     key=lambda x: {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}.get(
@@ -466,9 +467,9 @@ class SecurityScanner:
             }
 
         if name == "generate_scan_reports":
-            findings = params.get("findings") or self.run(
-                "manage_vulnerabilities", params
-            ).get("top_priorities", [])
+            findings = params.get("findings") or self.run("manage_vulnerabilities", params).get(
+                "top_priorities", []
+            )
             return {
                 "report_type": "security_scan",
                 "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -491,9 +492,7 @@ class SecurityScanner:
         if name == "generate_fix_suggestions":
             findings = params.get("findings") or []
             if not findings:
-                findings = self.run("manage_vulnerabilities", params).get(
-                    "top_priorities", []
-                )
+                findings = self.run("manage_vulnerabilities", params).get("top_priorities", [])
             return self._suggest_fixes(findings)
 
         if name == "schedule_security_scans":
@@ -534,16 +533,12 @@ class SecurityScanner:
             }
 
         if name == "fix_vulnerabilities":
-            findings = params.get("findings") or self.run(
-                "analyze_penetration_results", params
-            )
+            findings = params.get("findings") or self.run("analyze_penetration_results", params)
             return self._suggest_fixes(findings if isinstance(findings, list) else [])
 
         if name == "verify_fixes":
             return {
-                "verification_scan": self.scan_network(
-                    params.get("target", "127.0.0.1")
-                ),
+                "verification_scan": self.scan_network(params.get("target", "127.0.0.1")),
                 "status": "re_scan_completed",
             }
 
@@ -552,9 +547,7 @@ class SecurityScanner:
                 "title": "Penetration Test Report",
                 "target": params.get("target", "127.0.0.1"),
                 "executive_summary": self.run("analyze_penetration_results", params),
-                "recommendations": self.run("fix_vulnerabilities", params).get(
-                    "suggestions", []
-                ),
+                "recommendations": self.run("fix_vulnerabilities", params).get("suggestions", []),
             }
 
         if name == "implement_security_hardening":
@@ -641,11 +634,7 @@ class SecurityScanner:
             return self._license_action(name, params)
 
         if name == "write_audit_report":
-            findings = (
-                params.get("findings")
-                or self.run("manage_vulnerabilities", params)
-                or []
-            )
+            findings = params.get("findings") or self.run("manage_vulnerabilities", params) or []
             if isinstance(findings, dict):
                 findings = findings.get("top_priorities", [])
             if not isinstance(findings, list):
@@ -800,7 +789,11 @@ class SecurityScanner:
         return {}
 
     def _license_action(self, name: str, params: Dict[str, Any]) -> Any:
-        if name in ("review_license_compliance", "configure_dependency_license_check", "generate_license_inventory"):
+        if name in (
+            "review_license_compliance",
+            "configure_dependency_license_check",
+            "generate_license_inventory",
+        ):
             return self.check_license(params.get("dependencies", []))
         if name == "select_osi_license":
             return {

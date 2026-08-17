@@ -5,21 +5,33 @@ import subprocess
 
 import pytest
 
-from extensions.addons.security.penetration_testing_service.service import Service as PenetrationTestingService
-from extensions.addons.security.security_audit_service.service import Service as SecurityAuditService
-from extensions.addons.security.security_scanning_service.service import Service as SecurityScanningService
-from extensions.addons.security.sqlalchemy_security_service.service import Service as SQLAlchemySecurityService
+from extensions.addons.security.penetration_testing_service.service import (
+    Service as PenetrationTestingService,
+)
+from extensions.addons.security.security_audit_service.service import (
+    Service as SecurityAuditService,
+)
+from extensions.addons.security.security_scanning_service.service import (
+    Service as SecurityScanningService,
+)
+from extensions.addons.security.sqlalchemy_security_service.service import (
+    Service as SQLAlchemySecurityService,
+)
 
 
 @pytest.fixture(autouse=True)
 def _no_real_external_calls(monkeypatch):
     """Block real subprocess/network calls even if dry_run were disabled."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "false")
-    fake_result = type("_CompletedProcess", (), {
-        "stdout": "",
-        "stderr": "",
-        "returncode": 0,
-    })()
+    fake_result = type(
+        "_CompletedProcess",
+        (),
+        {
+            "stdout": "",
+            "stderr": "",
+            "returncode": 0,
+        },
+    )()
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_result)
 
 

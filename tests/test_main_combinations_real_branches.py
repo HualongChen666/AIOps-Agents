@@ -80,9 +80,24 @@ _INDIVIDUAL_CASES = [
     ("tracing", "TRACING_ENABLED", "/api/tracing/traces", "/api/v1/logs/search"),
     ("log_aggregation", "LOG_AGGREGATION_ENABLED", "/api/v1/logs/search", "/api/tracing/traces"),
     ("workflow", "WORKFLOW_ENABLED", "/api/v1/workflows/definitions", "/api/notify/status"),
-    ("incident", "INCIDENT_RESPONSE_ENABLED", "/api/notify/status", "/api/v1/workflows/definitions"),
-    ("integrations", "INTEGRATIONS_ENABLED", "/api/v1/integration/list", "/api/v1/enterprise/summary"),
-    ("security", "SECURITY_SCANNING_ENABLED", "/api/v1/enterprise/summary", "/api/v1/integration/list"),
+    (
+        "incident",
+        "INCIDENT_RESPONSE_ENABLED",
+        "/api/notify/status",
+        "/api/v1/workflows/definitions",
+    ),
+    (
+        "integrations",
+        "INTEGRATIONS_ENABLED",
+        "/api/v1/integration/list",
+        "/api/v1/enterprise/summary",
+    ),
+    (
+        "security",
+        "SECURITY_SCANNING_ENABLED",
+        "/api/v1/enterprise/summary",
+        "/api/v1/integration/list",
+    ),
     ("plugins", "PLUGINS_ENABLED", "/api/plugins/", "/api/v1/backup/list"),
     ("mcp", "MCP_ENABLED", "/api/mcp/get_host_health", "/api/i18n/locales"),
     ("i18n", "I18N_ENABLED", "/api/i18n/locales", "/api/mcp/get_host_health"),
@@ -100,14 +115,14 @@ def test_individual_pack_enabled(name, flag, expected, unexpected):
         headers = _admin_headers(client)
 
         mounted = client.get(expected, headers=headers)
-        assert mounted.status_code in MOUNTED_OK, (
-            f"{name}: {expected} should be mounted (got {mounted.status_code})"
-        )
+        assert (
+            mounted.status_code in MOUNTED_OK
+        ), f"{name}: {expected} should be mounted (got {mounted.status_code})"
 
         not_mounted = client.get(unexpected, headers=headers)
-        assert not_mounted.status_code == 404, (
-            f"{name}: {unexpected} should not be mounted (got {not_mounted.status_code})"
-        )
+        assert (
+            not_mounted.status_code == 404
+        ), f"{name}: {unexpected} should not be mounted (got {not_mounted.status_code})"
 
 
 @pytest.mark.parametrize("flag_name", ["AIOSIGNAL_ENABLED", "OBSERVABILITY_ENABLED"])

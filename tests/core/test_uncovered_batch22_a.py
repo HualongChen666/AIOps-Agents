@@ -47,8 +47,10 @@ pytestmark = [pytest.mark.core]
 class _FakeResponse:
     def __init__(self, data=None, content=None, status_code=200, raise_on_call=False):
         self.json_data = data
-        self.content = content if content is not None else (
-            json.dumps(data).encode("utf-8") if data is not None else b""
+        self.content = (
+            content
+            if content is not None
+            else (json.dumps(data).encode("utf-8") if data is not None else b"")
         )
         self.status_code = status_code
         self.raise_on_call = raise_on_call
@@ -146,9 +148,7 @@ def test_http_get_json_success(fake_observability, monkeypatch):
 
 def test_http_get_json_errors(fake_observability, monkeypatch):
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", "http://prom")
-    fake_observability.Client.response = _FakeResponse(
-        content=b"x" * (oc._MAX_RESPONSE_BYTES + 1)
-    )
+    fake_observability.Client.response = _FakeResponse(content=b"x" * (oc._MAX_RESPONSE_BYTES + 1))
     data, error = oc._http_get_json("http://prom/api/v1/query")
     assert data is None
     assert "large" in error.lower()
@@ -191,27 +191,29 @@ def test_extract_scalar_and_metrics(fake_observability, monkeypatch):
 
 
 def test_query_loki(fake_observability, monkeypatch):
-    assert oc.query_loki("{app=\"x\"}") is None
+    assert oc.query_loki('{app="x"}') is None
     monkeypatch.setenv("AIOPS_LOKI_URL", "http://loki")
     fake_observability.Client.response = _FakeResponse({"data": {"result": []}})
-    result = oc.query_loki("{app=\"x\"}", limit=5)
+    result = oc.query_loki('{app="x"}', limit=5)
     assert isinstance(result, dict)
 
 
 def test_query_kubernetes(monkeypatch, fake_observability):
     monkeypatch.setenv("AIOPS_KUBERNETES_API_URL", "http://k8s")
-    fake_observability.Client.response = _FakeResponse({
-        "items": [
-            {
-                "type": "Warning",
-                "reason": "Failed",
-                "message": "m",
-                "involvedObject": {"name": "pod1", "kind": "Pod"},
-                "metadata": {"namespace": "ns"},
-                "lastTimestamp": "t",
-            }
-        ]
-    })
+    fake_observability.Client.response = _FakeResponse(
+        {
+            "items": [
+                {
+                    "type": "Warning",
+                    "reason": "Failed",
+                    "message": "m",
+                    "involvedObject": {"name": "pod1", "kind": "Pod"},
+                    "metadata": {"namespace": "ns"},
+                    "lastTimestamp": "t",
+                }
+            ]
+        }
+    )
     events = oc.query_kubernetes_events(namespace="ns", field_selector="type=Warning")
     assert len(events) == 1
     assert events[0]["object"] == "pod1"
@@ -302,7 +304,9 @@ def test_backup_config(fresh_backup_state):
 
 
 @pytest.mark.asyncio
-async def test_perform_database_backup_success(fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path):
+async def test_perform_database_backup_success(
+    fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path
+):
     bs._backup_config["backup_location"] = str(tmp_path)
     bs._backup_config["compression_enabled"] = True
     bs._backup_config["encryption_enabled"] = True
@@ -313,7 +317,9 @@ async def test_perform_database_backup_success(fresh_backup_state, fake_pg_confi
 
 
 @pytest.mark.asyncio
-async def test_perform_database_backup_failure(fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path):
+async def test_perform_database_backup_failure(
+    fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path
+):
     fake_subprocess_backup.returncode = 1
     fake_subprocess_backup.communicate = AsyncMock(return_value=(b"", b"pg_dump failed"))
     bs._backup_config["backup_location"] = str(tmp_path)
@@ -348,7 +354,9 @@ async def test_perform_logs_backup(fresh_backup_state, tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_perform_full_backup(fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path, monkeypatch):
+async def test_perform_full_backup(
+    fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path, monkeypatch
+):
     bs._backup_config["backup_location"] = str(tmp_path)
     bs._backup_config["integrity_check_enabled"] = False
     monkeypatch.chdir(tmp_path)
@@ -370,11 +378,23 @@ async def test_backup_history_and_cleanup(fresh_backup_state, tmp_path):
     old_file = tmp_path / "old.txt"
     old_file.write_text("old")
     bs._backup_config["retention_days"] = 1
-    bs._backup_history.extend([
-        {"backup_id": "old", "timestamp": old_time, "path": str(old_file), "status": "success"},
-        {"backup_id": "keep", "timestamp": datetime.now(timezone.utc).isoformat(), "path": str(keep_file), "status": "success"},
-        {"backup_id": "missing", "timestamp": old_time, "path": "/nonexistent", "status": "success"},
-    ])
+    bs._backup_history.extend(
+        [
+            {"backup_id": "old", "timestamp": old_time, "path": str(old_file), "status": "success"},
+            {
+                "backup_id": "keep",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "path": str(keep_file),
+                "status": "success",
+            },
+            {
+                "backup_id": "missing",
+                "timestamp": old_time,
+                "path": "/nonexistent",
+                "status": "success",
+            },
+        ]
+    )
     cleaned = await bs.cleanup_old_backups()
     assert cleaned >= 2
     assert len(bs.get_backup_history()) == 1
@@ -437,7 +457,9 @@ def test_validate_manifest(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_restore_database_backup_success(fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path):
+async def test_restore_database_backup_success(
+    fresh_backup_state, fake_pg_config, fake_subprocess_backup, tmp_path
+):
     backup_dir = tmp_path / "db_1"
     backup_dir.mkdir()
     gz_path = backup_dir / "db.sql.gz"
@@ -457,14 +479,16 @@ async def test_restore_database_backup_success(fresh_backup_state, fake_pg_confi
         "integrity_verified": True,
     }
     (backup_dir / "manifest.json").write_text(json.dumps(manifest))
-    bs._backup_history.append({
-        "backup_id": "db_1",
-        "type": "database",
-        "path": str(gz_path),
-        "compressed": True,
-        "encrypted": False,
-        "manifest": manifest,
-    })
+    bs._backup_history.append(
+        {
+            "backup_id": "db_1",
+            "type": "database",
+            "path": str(gz_path),
+            "compressed": True,
+            "encrypted": False,
+            "manifest": manifest,
+        }
+    )
     bs._backup_config["integrity_check_enabled"] = True
     result = await bs.restore_database_backup("db_1")
     assert result["status"] == "success"
@@ -474,11 +498,13 @@ async def test_restore_database_backup_success(fresh_backup_state, fake_pg_confi
 async def test_restore_backup_logs(fresh_backup_state, tmp_path):
     log_file = tmp_path / "log.tar.gz"
     log_file.write_text("log")
-    bs._backup_history.append({
-        "backup_id": "log_1",
-        "type": "logs",
-        "path": str(log_file),
-    })
+    bs._backup_history.append(
+        {
+            "backup_id": "log_1",
+            "type": "logs",
+            "path": str(log_file),
+        }
+    )
     result = await bs.restore_backup("log_1")
     assert result["status"] == "success"
 
@@ -489,11 +515,13 @@ async def test_restore_backup_config(fresh_backup_state, tmp_path):
     cfg_dir.mkdir()
     (cfg_dir / "a.txt").write_text("a")
     archive_path = shutil.make_archive(str(tmp_path / "config"), "gztar", str(cfg_dir))
-    bs._backup_history.append({
-        "backup_id": "cfg_1",
-        "type": "config",
-        "path": archive_path,
-    })
+    bs._backup_history.append(
+        {
+            "backup_id": "cfg_1",
+            "type": "config",
+            "path": archive_path,
+        }
+    )
     result = await bs.restore_backup("cfg_1")
     assert result["status"] == "success"
     assert "restored_path" in result
@@ -504,11 +532,13 @@ async def test_restore_backup_config(fresh_backup_state, tmp_path):
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def opt():
-    return DatabaseConnectionOptimizer({
-        "default_pool_size": 20,
-        "max_overflow": 10,
-        "pool_recycle_seconds": 3600,
-    })
+    return DatabaseConnectionOptimizer(
+        {
+            "default_pool_size": 20,
+            "max_overflow": 10,
+            "pool_recycle_seconds": 3600,
+        }
+    )
 
 
 def test_optimizer_factory():
@@ -569,11 +599,16 @@ def test_optimize_pool_size(opt):
     result = opt.optimize_pool_size("p")
     assert "error" in result
     from core.database_connection_optimizer import PoolMetrics
-    opt.pool_metrics_history["p"].append(PoolMetrics(pool_name="p", active_connections=0, waiting_requests=5))
+
+    opt.pool_metrics_history["p"].append(
+        PoolMetrics(pool_name="p", active_connections=0, waiting_requests=5)
+    )
     result = opt.optimize_pool_size("p")
     assert result["recommendations"][0]["type"] == "increase_pool_size"
     for _ in range(5):
-        opt.pool_metrics_history["p"].append(PoolMetrics(pool_name="p", active_connections=1, waiting_requests=0))
+        opt.pool_metrics_history["p"].append(
+            PoolMetrics(pool_name="p", active_connections=1, waiting_requests=0)
+        )
     result = opt.optimize_pool_size("p")
     assert any(r["type"] == "decrease_pool_size" for r in result["recommendations"])
 
@@ -632,7 +667,9 @@ def test_transactions(opt):
     assert txn not in opt.active_transactions
     assert opt.commit_transaction("missing") is False
 
-    txn2 = opt.begin_transaction(pool_name="p", isolation_level=TransactionIsolationLevel.SERIALIZABLE)
+    txn2 = opt.begin_transaction(
+        pool_name="p", isolation_level=TransactionIsolationLevel.SERIALIZABLE
+    )
     assert opt.rollback_transaction(txn2) is True
     stats = opt.get_transaction_stats()
     assert stats["total_transactions"] == 2
@@ -733,33 +770,39 @@ async def test_middleware_options_and_excluded(arm_mw):
     async def call_next(request):
         return JSONResponse(content={"ok": True})
 
-    req = Request({
-        "type": "http",
-        "method": "OPTIONS",
-        "path": "/api/test",
-        "headers": [],
-        "query_string": b"",
-    })
+    req = Request(
+        {
+            "type": "http",
+            "method": "OPTIONS",
+            "path": "/api/test",
+            "headers": [],
+            "query_string": b"",
+        }
+    )
     resp = await arm_mw.dispatch(req, call_next)
     assert isinstance(resp, JSONResponse)
 
-    req = Request({
-        "type": "http",
-        "method": "GET",
-        "path": "/health",
-        "headers": [],
-        "query_string": b"",
-    })
+    req = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/health",
+            "headers": [],
+            "query_string": b"",
+        }
+    )
     resp = await arm_mw.dispatch(req, call_next)
     assert isinstance(resp, JSONResponse)
 
-    req = Request({
-        "type": "http",
-        "method": "GET",
-        "path": "/static/x",
-        "headers": [],
-        "query_string": b"",
-    })
+    req = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/static/x",
+            "headers": [],
+            "query_string": b"",
+        }
+    )
     resp = await arm_mw.dispatch(req, call_next)
     assert isinstance(resp, JSONResponse)
 
@@ -769,13 +812,15 @@ async def test_middleware_wrap_and_already_formatted(arm_mw):
     async def call_next(request):
         return JSONResponse(content={"key": "value"})
 
-    req = Request({
-        "type": "http",
-        "method": "GET",
-        "path": "/api/test",
-        "headers": [],
-        "query_string": b"",
-    })
+    req = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/test",
+            "headers": [],
+            "query_string": b"",
+        }
+    )
     resp = await arm_mw.dispatch(req, call_next)
     body = resp.body
     payload = json.loads(body.decode("utf-8"))
@@ -796,13 +841,15 @@ async def test_middleware_non_json_and_exception(arm_mw):
     async def call_text(request):
         return PlainTextResponse("ok")
 
-    req = Request({
-        "type": "http",
-        "method": "GET",
-        "path": "/api/text",
-        "headers": [],
-        "query_string": b"",
-    })
+    req = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/text",
+            "headers": [],
+            "query_string": b"",
+        }
+    )
     resp = await arm_mw.dispatch(req, call_text)
     assert resp.body == b"ok"
 

@@ -17,7 +17,6 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from services.alert_service.collector import (
-    _SlidingWindowRateLimiter,
     _alert_priority,
     _extract_severity,
     _from_generic,
@@ -26,6 +25,7 @@ from services.alert_service.collector import (
     _normalize_alert,
     _parse_prometheus_alert,
     _severity_from_label,
+    _SlidingWindowRateLimiter,
     app,
 )
 from services.alert_service.mq import message_queue
@@ -53,6 +53,7 @@ def client():
 # ---------------------------------------------------------------------------
 # Helper-function branches
 # ---------------------------------------------------------------------------
+
 
 def test_severity_from_label_all_branches():
     """Cover every mapped severity and the default fallback."""
@@ -184,6 +185,7 @@ def test_parse_prometheus_alert_branches():
 # Normalizer branches
 # ---------------------------------------------------------------------------
 
+
 def test_normalize_grafana_branches():
     """Cover grafana title fallback, resolved state, tags as string, bad value."""
     resolved = _normalize_alert(
@@ -306,6 +308,7 @@ def test_normalize_generic_branches():
 # ---------------------------------------------------------------------------
 # Endpoint branches
 # ---------------------------------------------------------------------------
+
 
 def test_receive_alerts_empty_and_defaults(client):
     """Cover empty groups, default labels and the zero-count path."""
@@ -484,11 +487,7 @@ def test_health_metrics_and_list(client):
     # Seed one alert first.
     client.post(
         "/alerts",
-        json={
-            "alerts": [
-                {"labels": {"alertname": "Listable", "severity": "warning"}}
-            ]
-        },
+        json={"alerts": [{"labels": {"alertname": "Listable", "severity": "warning"}}]},
     )
 
     h = client.get("/health")

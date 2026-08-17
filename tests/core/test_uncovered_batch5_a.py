@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import core.api_performance_optimizer as apo
 import core.enhanced_auth_integration as eai
 import core.i18n_manager as i18n
-import core.api_performance_optimizer as apo
 
 pytestmark = [pytest.mark.core]
 
@@ -91,7 +91,9 @@ def test_i18n_translate_workflows(i18n_mgr):
         language=i18n.Language.JAPANESE, namespace="ns", translations={"x": "X"}
     )
     i18n_mgr.add_translation_resource(ja)
-    assert i18n_mgr.translate("hello", namespace="missing", language=i18n.Language.JAPANESE) == "hello"
+    assert (
+        i18n_mgr.translate("hello", namespace="missing", language=i18n.Language.JAPANESE) == "hello"
+    )
     # translation missing in namespace falls back to fallback language same namespace
     en_ns = i18n.TranslationResource(
         language=i18n.Language.ENGLISH, namespace="ns", translations={"foo": "bar"}
@@ -197,8 +199,10 @@ def auth(monkeypatch):
 def _make_decode(payload_or_exc):
     """Helper to mock jwt.decode for various branch tests."""
     if isinstance(payload_or_exc, Exception):
+
         def decode(*args, **kwargs):
             raise payload_or_exc
+
         return decode
     return lambda *args, **kwargs: payload_or_exc
 
@@ -514,7 +518,7 @@ def test_optimizer_throughput(optimizer):
 def test_optimizer_resource_usage(optimizer, monkeypatch):
     # success branch with fake psutil
     fake_psutil = MagicMock()
-    fake_psutil.virtual_memory.return_value = MagicMock(used=1024 ** 3)
+    fake_psutil.virtual_memory.return_value = MagicMock(used=1024**3)
     fake_psutil.cpu_percent.return_value = 12.5
     monkeypatch.setitem(sys.modules, "psutil", fake_psutil)
 

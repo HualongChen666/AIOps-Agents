@@ -54,9 +54,7 @@ def _is_public(path: str) -> bool:
 class RBACMiddleware(BaseHTTPMiddleware):
     """Enforce authentication and write-method role checks globally."""
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
         if _is_public(path):
             return await call_next(request)
@@ -96,9 +94,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
             if role not in {"operator", "admin", "business"}:
                 return JSONResponse(
                     status_code=403,
-                    content={
-                        "detail": f"Method {request.method} requires operator or admin role"
-                    },
+                    content={"detail": f"Method {request.method} requires operator or admin role"},
                 )
 
         return await call_next(request)

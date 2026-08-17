@@ -111,13 +111,15 @@ class TestFrontendPerformanceOptimizer:
     def test_recommendations_and_scoring(self):
         opt = FrontendPerformanceOptimizer({"performance_threshold": 90.0})
 
-        score = opt._calculate_performance_score({
-            PerformanceMetric.FIRST_CONTENTFUL_PAINT.value: 2.5,
-            PerformanceMetric.LARGEST_CONTENTFUL_PAINT.value: 3.0,
-            PerformanceMetric.FIRST_INPUT_DELAY.value: 0.2,
-            PerformanceMetric.CUMULATIVE_LAYOUT_SHIFT.value: 0.3,
-            PerformanceMetric.TIME_TO_INTERACTIVE.value: 5.0,
-        })
+        score = opt._calculate_performance_score(
+            {
+                PerformanceMetric.FIRST_CONTENTFUL_PAINT.value: 2.5,
+                PerformanceMetric.LARGEST_CONTENTFUL_PAINT.value: 3.0,
+                PerformanceMetric.FIRST_INPUT_DELAY.value: 0.2,
+                PerformanceMetric.CUMULATIVE_LAYOUT_SHIFT.value: 0.3,
+                PerformanceMetric.TIME_TO_INTERACTIVE.value: 5.0,
+            }
+        )
         assert 0 <= score <= 100
 
         metrics = {
@@ -330,9 +332,7 @@ class TestRequestTracking:
 
     def test_request_context_manager(self):
         manager = RequestContextManager()
-        manager.create_context(
-            request_id="ctx_1", user_id="user_a", client_ip="192.168.1.1"
-        )
+        manager.create_context(request_id="ctx_1", user_id="user_a", client_ip="192.168.1.1")
         manager.set_start_time("ctx_1")
         manager.add_metadata("ctx_1", "key", "value")
         manager.set_end_time("ctx_1")
@@ -371,9 +371,7 @@ class TestBusinessExceptions:
         assert exc.severity.value == "warning"
 
     def test_resource_not_found_exception(self):
-        exc = ResourceNotFoundException(
-            "not found", resource_type="user", resource_id=123
-        )
+        exc = ResourceNotFoundException("not found", resource_type="user", resource_id=123)
         assert exc.context["resource_type"] == "user"
         assert exc.context["resource_id"] == "123"
         assert exc.resource_id == 123
@@ -384,16 +382,12 @@ class TestBusinessExceptions:
         assert exc.operation == "transfer"
 
     def test_state_invalid_exception(self):
-        exc = StateInvalidException(
-            "bad state", current_state="draft", required_state="published"
-        )
+        exc = StateInvalidException("bad state", current_state="draft", required_state="published")
         assert exc.context["current_state"] == "draft"
         assert exc.context["required_state"] == "published"
 
     def test_workflow_exception(self):
-        exc = WorkflowException(
-            "workflow failed", workflow_id="wf_1", step="validation"
-        )
+        exc = WorkflowException("workflow failed", workflow_id="wf_1", step="validation")
         assert exc.context["workflow_id"] == "wf_1"
         assert exc.context["step"] == "validation"
 

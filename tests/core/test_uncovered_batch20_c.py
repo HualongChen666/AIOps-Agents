@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import core.integration_helpers as ih
 import core.log_router
 import core.processing.l3.workflow_engine as we_mod
-
 from core.log_router import (
     LogDestination,
     LogEntry,
@@ -21,7 +21,7 @@ from core.log_router import (
     LogRouterManager,
     create_log_router,
 )
-from core.plugin_manager import get_plugin, get_plugin_manager, load_all, list_plugins
+from core.plugin_manager import get_plugin, get_plugin_manager, list_plugins, load_all
 from core.processing.l3.workflow_engine import (
     FallbackWorkflowState,
     Workflow,
@@ -31,12 +31,6 @@ from core.processing.l3.workflow_engine import (
     init_workflow_engine,
 )
 from core.snapshot_store import (
-    build_pre_state,
-    classify_operation_type,
-    cleanup_expired_snapshots,
-    get_snapshot,
-    save_snapshot,
-    update_snapshot_status,
     _extract_k8s_resource,
     _extract_pid_or_name,
     _extract_service_name,
@@ -44,8 +38,13 @@ from core.snapshot_store import (
     _run_shell_capture,
     _safe_name,
     _safe_service_name,
+    build_pre_state,
+    classify_operation_type,
+    cleanup_expired_snapshots,
+    get_snapshot,
+    save_snapshot,
+    update_snapshot_status,
 )
-import core.integration_helpers as ih
 
 pytestmark = [pytest.mark.core]
 
@@ -107,10 +106,7 @@ def test_classify_operation_type():
     assert classify_operation_type(["kubectl rollout restart deploy/nginx"]) == "pod_restart"
     assert classify_operation_type(["kubectl apply -f cm.yaml"]) == "config_mod"
     assert classify_operation_type(["kubectl scale deploy nginx --replicas=3"]) == "scale"
-    assert (
-        classify_operation_type(["kubectl get networkpolicy allow"])
-        == "network_policy"
-    )
+    assert classify_operation_type(["kubectl get networkpolicy allow"]) == "network_policy"
     assert classify_operation_type(["systemctl restart nginx"]) == "service_restart"
     assert classify_operation_type(["kill -9 1234"]) == "process_kill"
     assert classify_operation_type(["ip addr flush"]) == "network_fix"
@@ -133,15 +129,21 @@ def test_parse_namespace():
 
 
 def test_extract_k8s_resource():
-    assert _extract_k8s_resource(
-        "kubectl rollout restart deployment/nginx -n foo"
-    ) == ("deployment", "nginx", "foo")
-    assert _extract_k8s_resource(
-        "kubectl scale deployment nginx --replicas=3 --namespace bar"
-    ) == ("deployment", "nginx", "bar")
-    assert _extract_k8s_resource(
-        "kubectl get configmap my-cm -n ns1"
-    ) == ("configmap", "my-cm", "ns1")
+    assert _extract_k8s_resource("kubectl rollout restart deployment/nginx -n foo") == (
+        "deployment",
+        "nginx",
+        "foo",
+    )
+    assert _extract_k8s_resource("kubectl scale deployment nginx --replicas=3 --namespace bar") == (
+        "deployment",
+        "nginx",
+        "bar",
+    )
+    assert _extract_k8s_resource("kubectl get configmap my-cm -n ns1") == (
+        "configmap",
+        "my-cm",
+        "ns1",
+    )
     assert _extract_k8s_resource("kubectl apply -f file.yaml") is None
     assert _extract_k8s_resource("echo hello") is None
 
@@ -229,9 +231,7 @@ def test_run_shell_capture_generic_exception(monkeypatch):
 
 
 def test_build_pre_state_pod_restart(monkeypatch):
-    monkeypatch.setattr(
-        "core.snapshot_store._run_shell_capture", AsyncMock(return_value="{}")
-    )
+    monkeypatch.setattr("core.snapshot_store._run_shell_capture", AsyncMock(return_value="{}"))
     pre = asyncio.run(
         build_pre_state(
             "pod_restart",
@@ -246,9 +246,7 @@ def test_build_pre_state_pod_restart(monkeypatch):
 
 
 def test_build_pre_state_config_mod_and_scale(monkeypatch):
-    monkeypatch.setattr(
-        "core.snapshot_store._run_shell_capture", AsyncMock(return_value="{}")
-    )
+    monkeypatch.setattr("core.snapshot_store._run_shell_capture", AsyncMock(return_value="{}"))
     pre = asyncio.run(
         build_pre_state(
             "config_mod",
@@ -271,9 +269,7 @@ def test_build_pre_state_config_mod_and_scale(monkeypatch):
 
 
 def test_build_pre_state_network_policy(monkeypatch):
-    monkeypatch.setattr(
-        "core.snapshot_store._run_shell_capture", AsyncMock(return_value="---")
-    )
+    monkeypatch.setattr("core.snapshot_store._run_shell_capture", AsyncMock(return_value="---"))
     pre = asyncio.run(
         build_pre_state(
             "network_policy",
@@ -286,9 +282,7 @@ def test_build_pre_state_network_policy(monkeypatch):
 
 
 def test_build_pre_state_service_restart(monkeypatch):
-    monkeypatch.setattr(
-        "core.snapshot_store._run_shell_capture", AsyncMock(return_value="active")
-    )
+    monkeypatch.setattr("core.snapshot_store._run_shell_capture", AsyncMock(return_value="active"))
     pre = asyncio.run(
         build_pre_state(
             "service_restart",
@@ -311,9 +305,7 @@ def test_build_pre_state_service_restart(monkeypatch):
 
 
 def test_build_pre_state_process_kill(monkeypatch):
-    monkeypatch.setattr(
-        "core.snapshot_store._run_shell_capture", AsyncMock(return_value="info")
-    )
+    monkeypatch.setattr("core.snapshot_store._run_shell_capture", AsyncMock(return_value="info"))
     pre = asyncio.run(
         build_pre_state(
             "process_kill",
@@ -336,9 +328,7 @@ def test_build_pre_state_process_kill(monkeypatch):
 
 
 def test_build_pre_state_generic(monkeypatch):
-    monkeypatch.setattr(
-        "core.snapshot_store._run_shell_capture", AsyncMock(return_value="")
-    )
+    monkeypatch.setattr("core.snapshot_store._run_shell_capture", AsyncMock(return_value=""))
     pre = asyncio.run(
         build_pre_state(
             "generic",
@@ -446,9 +436,9 @@ def test_get_snapshot(monkeypatch):
         alert_id="a1",
         repair_record_id="r1",
         operation_type="test",
-        pre_state="PLAINTEXT::{\"x\":1}",
+        pre_state='PLAINTEXT::{"x":1}',
         post_state=None,
-        rollback_plan="PLAINTEXT::{\"commands\":[]}",
+        rollback_plan='PLAINTEXT::{"commands":[]}',
         status="pending",
         retention_days=7,
         expires_at=datetime.now(timezone.utc),
@@ -585,24 +575,18 @@ def test_analyze_incident_handler():
 def test_determine_severity_handler():
     engine = WorkflowEngine()
     result = asyncio.run(
-        engine._determine_severity_handler(
-            {"analyze_incident": {"root_cause": "cpu high"}}, {}
-        )
+        engine._determine_severity_handler({"analyze_incident": {"root_cause": "cpu high"}}, {})
     )
     assert result["severity"] == "high"
     assert result["priority"] == 1
 
     result = asyncio.run(
-        engine._determine_severity_handler(
-            {"analyze_incident": {"root_cause": "warning"}}, {}
-        )
+        engine._determine_severity_handler({"analyze_incident": {"root_cause": "warning"}}, {})
     )
     assert result["severity"] == "medium"
 
     result = asyncio.run(
-        engine._determine_severity_handler(
-            {"analyze_incident": {"root_cause": "xyz"}}, {}
-        )
+        engine._determine_severity_handler({"analyze_incident": {"root_cause": "xyz"}}, {})
     )
     assert result["severity"] == "low"
 
@@ -634,15 +618,11 @@ def test_generate_repair_plan_handler():
 def test_request_approval_handler():
     engine = WorkflowEngine()
     low = asyncio.run(
-        engine._request_approval_handler(
-            {"determine_severity": {"severity": "low"}}, {}
-        )
+        engine._request_approval_handler({"determine_severity": {"severity": "low"}}, {})
     )
     assert low["approved"] is True
     high = asyncio.run(
-        engine._request_approval_handler(
-            {"determine_severity": {"severity": "high"}}, {}
-        )
+        engine._request_approval_handler({"determine_severity": {"severity": "high"}}, {})
     )
     assert high["approved"] is False
 
@@ -669,22 +649,16 @@ def test_execute_repair_handler():
 def test_verify_fix_handler():
     engine = WorkflowEngine()
     ok = asyncio.run(
-        engine._verify_fix_handler(
-            {"status": "resolved", "metrics": {"cpu": "normal"}}, {}
-        )
+        engine._verify_fix_handler({"status": "resolved", "metrics": {"cpu": "normal"}}, {})
     )
     assert ok["verified"] is True
 
     bad = asyncio.run(
-        engine._verify_fix_handler(
-            {"status": "resolved", "metrics": {"cpu": "critical"}}, {}
-        )
+        engine._verify_fix_handler({"status": "resolved", "metrics": {"cpu": "critical"}}, {})
     )
     assert bad["verified"] is False
 
-    no_metrics = asyncio.run(
-        engine._verify_fix_handler({"status": "resolved"}, {})
-    )
+    no_metrics = asyncio.run(engine._verify_fix_handler({"status": "resolved"}, {}))
     assert no_metrics["verified"] is True
 
 
@@ -720,9 +694,7 @@ def test_plugin_manager_cached(monkeypatch):
 def test_plugin_manager_create(monkeypatch):
     monkeypatch.setattr("core.plugin_manager._plugin_manager", None)
     fake = _FakePluginManager()
-    monkeypatch.setattr(
-        "core.plugin_manager.create_plugin_manager", lambda: fake
-    )
+    monkeypatch.setattr("core.plugin_manager.create_plugin_manager", lambda: fake)
     assert get_plugin_manager() is fake
     load_all()  # calls discover and load methods
     assert list_plugins() == ["p1", "p2"]
@@ -889,9 +861,7 @@ def test_send_to_kafka_exception(monkeypatch):
     kafka_mod.KafkaProducer = _BadProducer
     monkeypatch.setitem(sys.modules, "kafka", kafka_mod)
 
-    router = LogRouter(
-        {"destinations": ["kafka"], "kafka_brokers": ["localhost:9092"]}
-    )
+    router = LogRouter({"destinations": ["kafka"], "kafka_brokers": ["localhost:9092"]})
     entry = router.create_log_entry("hello")
     assert asyncio.run(router.send_to_kafka(entry)) is False
 
@@ -909,18 +879,14 @@ def test_route_log_and_batch(monkeypatch):
     router.enable()
 
     router.destinations = ["loki", "elasticsearch"]
-    monkeypatch.setattr(
-        router, "send_to_loki", AsyncMock(side_effect=RuntimeError("fail"))
-    )
+    monkeypatch.setattr(router, "send_to_loki", AsyncMock(side_effect=RuntimeError("fail")))
     monkeypatch.setattr(router, "send_to_elasticsearch", AsyncMock(return_value=True))
     assert asyncio.run(router.route_log(entry)) is False
 
     router.destinations = []
     assert asyncio.run(router.route_log(entry)) is True
 
-    monkeypatch.setattr(
-        router, "route_log", AsyncMock(side_effect=[True, False])
-    )
+    monkeypatch.setattr(router, "route_log", AsyncMock(side_effect=[True, False]))
     results = asyncio.run(router.batch_route_logs([entry, entry]))
     assert results["success"] == 1
     assert results["failed"] == 1

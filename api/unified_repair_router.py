@@ -14,7 +14,6 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from api.schemas import UnifiedRepairRequest
 
-
 # 🔧 重构:使用策略模式
 from core.platform_strategies import get_platform_strategy
 
@@ -22,9 +21,7 @@ from core.platform_strategies import get_platform_strategy
 PlatformType = Literal["windows", "linux", "docker", "k8s"]
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
-    prefix="/api/v1/repairs", tags=["统一修复"]
-)
+router = APIRouter(prefix="/api/v1/repairs", tags=["统一修复"])
 
 
 # ============================================================

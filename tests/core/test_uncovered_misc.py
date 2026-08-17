@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from core import snapshot_store
 from core.alert_intelligence import AlertIntelligenceEngine
 from core.integration_manager import IntegrationManager, IntegrationType
-from core import snapshot_store
 
 pytestmark = [pytest.mark.core]
 
@@ -18,6 +18,7 @@ pytestmark = [pytest.mark.core]
 # ---------------------------------------------------------------------------
 # core.alert_intelligence
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_alert_intelligence_empty_analysis():
@@ -30,8 +31,24 @@ async def test_alert_intelligence_empty_analysis():
 async def test_alert_intelligence_analyze_and_route():
     engine = AlertIntelligenceEngine()
     alerts = [
-        {"id": "1", "level": "warning", "category": "database", "title": "cpu high", "desc": "d1", "host": "db1", "metric": "cpu"},
-        {"id": "2", "level": "warning", "category": "database", "title": "cpu high 2", "desc": "d2", "host": "db1", "metric": "cpu"},
+        {
+            "id": "1",
+            "level": "warning",
+            "category": "database",
+            "title": "cpu high",
+            "desc": "d1",
+            "host": "db1",
+            "metric": "cpu",
+        },
+        {
+            "id": "2",
+            "level": "warning",
+            "category": "database",
+            "title": "cpu high 2",
+            "desc": "d2",
+            "host": "db1",
+            "metric": "cpu",
+        },
     ]
     aggregated = await engine.analyze_and_aggregate_alerts(alerts)
     assert isinstance(aggregated, list)
@@ -62,10 +79,12 @@ async def test_alert_intelligence_predict_and_stats():
 
 def test_alert_intelligence_topology():
     engine = AlertIntelligenceEngine()
-    ctx = engine.build_topology_context([
-        {"host": "db1", "category": "database"},
-        {"host": "app1", "category": "availability"},
-    ])
+    ctx = engine.build_topology_context(
+        [
+            {"host": "db1", "category": "database"},
+            {"host": "app1", "category": "availability"},
+        ]
+    )
     assert isinstance(ctx, dict)
     assert "nodes" in ctx
     assert "edges" in ctx
@@ -76,6 +95,7 @@ def test_alert_intelligence_topology():
 # ---------------------------------------------------------------------------
 # core.snapshot_store
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def fake_session(monkeypatch):
@@ -95,9 +115,12 @@ def fake_session(monkeypatch):
 
 
 def test_snapshot_store_classify_and_helpers():
-    assert snapshot_store.classify_operation_type(
-        ["kubectl rollout restart deployment/nginx -n default"], ""
-    ) == "pod_restart"
+    assert (
+        snapshot_store.classify_operation_type(
+            ["kubectl rollout restart deployment/nginx -n default"], ""
+        )
+        == "pod_restart"
+    )
     assert snapshot_store.classify_operation_type(["echo", "test"], "script") == "generic"
 
     resource = snapshot_store._extract_k8s_resource(
@@ -110,9 +133,7 @@ def test_snapshot_store_classify_and_helpers():
 
 @pytest.mark.asyncio
 async def test_snapshot_store_build_pre_state():
-    pre = await snapshot_store.build_pre_state(
-        "generic", {"id": "a1"}, ["echo"], "linux", "h1"
-    )
+    pre = await snapshot_store.build_pre_state("generic", {"id": "a1"}, ["echo"], "linux", "h1")
     assert isinstance(pre, dict)
     assert pre["operation_type"] == "generic"
     assert "resources" in pre
@@ -174,9 +195,7 @@ async def test_snapshot_store_update_status(monkeypatch, fake_session):
     )
     fake_session.get.return_value = snap
 
-    await snapshot_store.update_snapshot_status(
-        "snap-1", "completed", {"cpu": 1.0}, "error msg"
-    )
+    await snapshot_store.update_snapshot_status("snap-1", "completed", {"cpu": 1.0}, "error msg")
     assert snap.status == "completed"
     assert snap.error_message == "error msg"
     assert snap.post_state is not None
@@ -193,6 +212,7 @@ async def test_snapshot_store_cleanup_expired(fake_session):
 # ---------------------------------------------------------------------------
 # core.integration_manager
 # ---------------------------------------------------------------------------
+
 
 def _make_manager(monkeypatch):
     """Build an IntegrationManager with a mocked httpx client."""

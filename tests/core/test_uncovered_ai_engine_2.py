@@ -100,7 +100,9 @@ class _FakeSessionBudgetFail:
 
 
 def _stub_base(monkeypatch, router=None):
-    monkeypatch.setattr(ai_engine, "get_llm_router", lambda: router if router is not None else _FakeLLMRouter())
+    monkeypatch.setattr(
+        ai_engine, "get_llm_router", lambda: router if router is not None else _FakeLLMRouter()
+    )
     monkeypatch.setattr(ai_engine, "CONTENT_MODERATION_AVAILABLE", False)
     monkeypatch.setattr(ai_engine, "_rag_pipeline", None)
     monkeypatch.setattr(ai_engine, "_langfuse_available", False)
@@ -132,41 +134,53 @@ def test_compute_prompt_token_budget(monkeypatch):
 
 
 def test_validate_root_cause_output_markdown_and_invalid():
-    raw = "```json\n" + json.dumps({
-        "data_assessment": {"reliability_score": 0.8, "reliability_concerns": []},
-        "candidates": [{
-            "rank": 1,
-            "root_cause": "x",
-            "confidence": 0.8,
-            "expected_observations_if_true": [],
-            "missing_data": [],
-            "is_verifiable": True,
-            "evidence": [],
-        }],
-        "multi_root_cause_note": "",
-        "escalation_recommended": False,
-        "escalation_reason": "",
-        "recommended_action": "",
-    }) + "\n```"
+    raw = (
+        "```json\n"
+        + json.dumps(
+            {
+                "data_assessment": {"reliability_score": 0.8, "reliability_concerns": []},
+                "candidates": [
+                    {
+                        "rank": 1,
+                        "root_cause": "x",
+                        "confidence": 0.8,
+                        "expected_observations_if_true": [],
+                        "missing_data": [],
+                        "is_verifiable": True,
+                        "evidence": [],
+                    }
+                ],
+                "multi_root_cause_note": "",
+                "escalation_recommended": False,
+                "escalation_reason": "",
+                "recommended_action": "",
+            }
+        )
+        + "\n```"
+    )
     assert ai_engine._validate_root_cause_output(raw) is not None
 
     # Invalid rank type should be caught by validator and return None
-    invalid = json.dumps({
-        "data_assessment": {"reliability_score": 0.8, "reliability_concerns": []},
-        "candidates": [{
-            "rank": "abc",
-            "root_cause": "x",
-            "confidence": 0.8,
-            "expected_observations_if_true": [],
-            "missing_data": [],
-            "is_verifiable": True,
-            "evidence": [],
-        }],
-        "multi_root_cause_note": "",
-        "escalation_recommended": False,
-        "escalation_reason": "",
-        "recommended_action": "",
-    })
+    invalid = json.dumps(
+        {
+            "data_assessment": {"reliability_score": 0.8, "reliability_concerns": []},
+            "candidates": [
+                {
+                    "rank": "abc",
+                    "root_cause": "x",
+                    "confidence": 0.8,
+                    "expected_observations_if_true": [],
+                    "missing_data": [],
+                    "is_verifiable": True,
+                    "evidence": [],
+                }
+            ],
+            "multi_root_cause_note": "",
+            "escalation_recommended": False,
+            "escalation_reason": "",
+            "recommended_action": "",
+        }
+    )
     assert ai_engine._validate_root_cause_output(invalid) is None
 
 
@@ -184,9 +198,7 @@ async def test_analyze_invalid_platform(monkeypatch):
 
 async def test_analyze_disabled(monkeypatch):
     monkeypatch.setattr(ai_engine, "_rate_limit_wait", AsyncMock())
-    monkeypatch.setattr(
-        ai_engine, "AI_CONFIG", {"is_enabled": False}
-    )
+    monkeypatch.setattr(ai_engine, "AI_CONFIG", {"is_enabled": False})
     result = await ai_engine.analyze(query="q", platform="linux")
     assert "规则降级" in result
     assert "linux" in result
@@ -204,7 +216,9 @@ async def test_analyze_rich_context(monkeypatch):
         "upstream_callers": {"api": {"qps": 1}},
         "downstream_dependencies": {"api": {"db": 1}},
         "infrastructure_metrics": {"cpu": 0.5},
-        "change_events": [{"timestamp": "t", "type": "deploy", "target": "svc", "description": "d"}],
+        "change_events": [
+            {"timestamp": "t", "type": "deploy", "target": "svc", "description": "d"}
+        ],
         "correlated_alerts": [{"level": "critical", "title": "t", "source": "s", "desc": "d"}],
     }
     result = await ai_engine.analyze(query="cpu high", platform="linux", rich_context=rich)
@@ -215,7 +229,9 @@ async def test_analyze_rich_context(monkeypatch):
 async def test_analyze_rag_context(monkeypatch):
     _stub_base(monkeypatch, _FakeLLMRouter("rag response"))
     rag = AsyncMock(return_value="rag knowledge")
-    monkeypatch.setattr(ai_engine, "_rag_pipeline", type("RAG", (), {"retrieve_and_generate": rag})())
+    monkeypatch.setattr(
+        ai_engine, "_rag_pipeline", type("RAG", (), {"retrieve_and_generate": rag})()
+    )
     result = await ai_engine.analyze(query="cpu", platform="linux")
     assert isinstance(result, str)
     rag.assert_awaited_once()
@@ -224,7 +240,9 @@ async def test_analyze_rag_context(monkeypatch):
 async def test_analyze_rag_exception(monkeypatch):
     _stub_base(monkeypatch, _FakeLLMRouter("ok"))
     rag = AsyncMock(side_effect=RuntimeError("rag fail"))
-    monkeypatch.setattr(ai_engine, "_rag_pipeline", type("RAG", (), {"retrieve_and_generate": rag})())
+    monkeypatch.setattr(
+        ai_engine, "_rag_pipeline", type("RAG", (), {"retrieve_and_generate": rag})()
+    )
     result = await ai_engine.analyze(query="cpu", platform="linux")
     assert "ok" in result
 
@@ -234,13 +252,16 @@ async def test_analyze_content_moderation_blocks(monkeypatch):
     monkeypatch.setattr(ai_engine, "CONTENT_MODERATION_AVAILABLE", True)
     monkeypatch.setattr(ai_engine, "moderate_content", lambda texts: (False, ["injection"]))
     from fastapi import HTTPException
+
     with pytest.raises(HTTPException):
         await ai_engine.analyze(query="bad", platform="linux")
 
 
 async def test_analyze_cost_budget_exhausted(monkeypatch):
     _stub_base(monkeypatch)
-    monkeypatch.setattr(ai_engine, "get_llm_cost_monitor", lambda: _FakeCostMonitor(budget_ok=False))
+    monkeypatch.setattr(
+        ai_engine, "get_llm_cost_monitor", lambda: _FakeCostMonitor(budget_ok=False)
+    )
     result = await ai_engine.analyze(query="cpu", platform="linux")
     assert "规则降级" in result
 
@@ -273,15 +294,17 @@ async def test_analyze_llm_empty_content(monkeypatch):
 async def test_analyze_validate_json_valid(monkeypatch):
     payload = {
         "data_assessment": {"reliability_score": 0.8, "reliability_concerns": []},
-        "candidates": [{
-            "rank": 1,
-            "root_cause": "cpu",
-            "confidence": 0.85,
-            "expected_observations_if_true": [],
-            "missing_data": [],
-            "is_verifiable": True,
-            "evidence": [],
-        }],
+        "candidates": [
+            {
+                "rank": 1,
+                "root_cause": "cpu",
+                "confidence": 0.85,
+                "expected_observations_if_true": [],
+                "missing_data": [],
+                "is_verifiable": True,
+                "evidence": [],
+            }
+        ],
         "multi_root_cause_note": "",
         "escalation_recommended": False,
         "escalation_reason": "",
@@ -325,6 +348,7 @@ async def test_close_langfuse_client(monkeypatch):
 
 async def test_rate_limit_wait(monkeypatch):
     import time as _time
+
     base = _time.monotonic()
     monkeypatch.setattr(ai_engine.time, "monotonic", lambda: base + 10)
     monkeypatch.setattr(ai_engine, "_next_available_time", base + 13)
@@ -369,7 +393,9 @@ async def test_llm_analysis_service_search_similar_failure(monkeypatch):
         ),
     )
     monkeypatch.setattr(ai_engine, "AUDIT_LOGGER_AVAILABLE", True)
-    monkeypatch.setattr(ai_engine, "log_audit_event", MagicMock(side_effect=RuntimeError("audit fail")))
+    monkeypatch.setattr(
+        ai_engine, "log_audit_event", MagicMock(side_effect=RuntimeError("audit fail"))
+    )
     service = ai_engine.LLMAnalysisService()
     result = await service.search_similar("cpu", limit=5)
     assert result == []
@@ -384,14 +410,18 @@ def test_predictive_engine_empty():
 
 def test_intelligent_recommendation_scaling():
     engine = ai_engine.IntelligentRecommendationEngine()
-    result = asyncio.run(engine.get_personalized_recommendations("u1", [{"type": "scaling"}, {"type": "scaling"}]))
+    result = asyncio.run(
+        engine.get_personalized_recommendations("u1", [{"type": "scaling"}, {"type": "scaling"}])
+    )
     assert any(r["type"] == "scaling" for r in result)
 
 
 def test_intelligent_recommendation_disk(monkeypatch):
     _stub_base(monkeypatch)
     engine = ai_engine.IntelligentRecommendationEngine()
-    result = asyncio.run(engine.generate_recommendations({"id": "2", "type": "disk_high", "severity": "critical"}))
+    result = asyncio.run(
+        engine.generate_recommendations({"id": "2", "type": "disk_high", "severity": "critical"})
+    )
     assert any("disk" in r["action"].lower() or "Clean" in r["action"] for r in result)
 
 

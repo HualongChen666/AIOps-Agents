@@ -7,6 +7,7 @@ samples used by the SLA/SLO engine.  Two built-in implementations are included:
 * ``LocalMetricsHistoryAdapter`` - reads from the in-memory ``MetricsHistory``.
 * ``VictoriaMetricsClient`` - queries a VictoriaMetrics / Prometheus endpoint.
 """
+
 from __future__ import annotations
 
 import logging

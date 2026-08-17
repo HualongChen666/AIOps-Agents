@@ -5,9 +5,10 @@ import asyncio
 import datetime
 import importlib
 import uuid
-import pytest
-import jwt
 from unittest.mock import AsyncMock, MagicMock
+
+import jwt
+import pytest
 from fastapi import HTTPException
 
 import core.alert_engine as ae
@@ -37,6 +38,7 @@ def _reset_global_state(monkeypatch):
 # ---------------------------------------------------------------------------
 # core.alert_engine
 # ---------------------------------------------------------------------------
+
 
 def test_safe_float():
     assert ae._safe_float(None, 5.0) == 5.0
@@ -72,11 +74,17 @@ def test_check_and_generate_alerts_thresholds(monkeypatch):
 
 
 def test_check_and_generate_alerts_dynamic_threshold(monkeypatch):
-    monkeypatch.setattr(ae, "DYNAMIC_THRESHOLD_CONFIG", {"enabled": True, "min_samples": 1, "sigma": 2.0, "flat_boost": 5.0})
+    monkeypatch.setattr(
+        ae,
+        "DYNAMIC_THRESHOLD_CONFIG",
+        {"enabled": True, "min_samples": 1, "sigma": 2.0, "flat_boost": 5.0},
+    )
     monkeypatch.setattr(
         ae.metrics_history,
         "get_dynamic_threshold",
-        MagicMock(return_value=(70.0, {"source": "history", "samples": 100, "mean": 50.0, "std": 2.0})),
+        MagicMock(
+            return_value=(70.0, {"source": "history", "samples": 100, "mean": 50.0, "std": 2.0})
+        ),
     )
     alerts = ae.check_and_generate_alerts({"cpu": {"usage_percent": 80.0}})
     assert any(a["metric"] == "cpu_percent" for a in alerts)
@@ -215,7 +223,9 @@ async def test_check_linux_security_alerts(monkeypatch):
     repo = MagicMock(save=AsyncMock())
     monkeypatch.setattr(ae, "alert_repository", repo)
     monkeypatch.setattr("core.notify_engine.send_alert_notification", AsyncMock(return_value="ok"))
-    monkeypatch.setattr("core.auto_heal.try_auto_heal", AsyncMock(return_value={"status": "dispatched"}))
+    monkeypatch.setattr(
+        "core.auto_heal.try_auto_heal", AsyncMock(return_value={"status": "dispatched"})
+    )
 
     results = [
         None,
@@ -234,9 +244,9 @@ async def test_check_linux_security_alerts(monkeypatch):
     # persistence failure path
     repo = MagicMock(save=AsyncMock(side_effect=Exception("db")))
     monkeypatch.setattr(ae, "alert_repository", repo)
-    alerts = await ae.check_linux_security_alerts([
-        {"status": "ok", "name": "h5", "metrics": {"ssh_failed_logins": {"value": "25"}}}
-    ])
+    alerts = await ae.check_linux_security_alerts(
+        [{"status": "ok", "name": "h5", "metrics": {"ssh_failed_logins": {"value": "25"}}}]
+    )
     assert len(alerts) == 1
 
 
@@ -248,7 +258,9 @@ async def test_alert_monitor_loop(monkeypatch):
         "disk": [{"usage_percent": 55.0}],
         "top_processes": [1, 2, 3],
     }
-    monkeypatch.setattr(ae, "collect_all", MagicMock(side_effect=[metrics, asyncio.CancelledError()]))
+    monkeypatch.setattr(
+        ae, "collect_all", MagicMock(side_effect=[metrics, asyncio.CancelledError()])
+    )
     monkeypatch.setattr(ae, "alert_repository", AsyncMock())
     monkeypatch.setattr(ae, "record_ingestion", MagicMock())
     monkeypatch.setattr(ae, "record_alert_noise", MagicMock())
@@ -256,13 +268,17 @@ async def test_alert_monitor_loop(monkeypatch):
     monkeypatch.setattr(ae.metrics_history, "to_dict", MagicMock(return_value=[]))
     monkeypatch.setattr("core.stats_engine.get_real_summary", AsyncMock(return_value={}))
     monkeypatch.setattr("core.notify_engine.send_alert_notification", AsyncMock(return_value="ok"))
-    monkeypatch.setattr("core.auto_heal.try_auto_heal", AsyncMock(return_value={"healed": True, "rule": "x"}))
+    monkeypatch.setattr(
+        "core.auto_heal.try_auto_heal", AsyncMock(return_value={"healed": True, "rule": "x"})
+    )
     monkeypatch.setattr("asyncio.sleep", AsyncMock(return_value=None))
 
     monkeypatch.setattr(ae, "ALERT_INTELLIGENCE_AVAILABLE", True)
-    monkeypatch.setattr(ae, "alert_intelligence_engine", MagicMock(
-        analyze_and_aggregate_alerts=AsyncMock(side_effect=lambda alerts: alerts)
-    ))
+    monkeypatch.setattr(
+        ae,
+        "alert_intelligence_engine",
+        MagicMock(analyze_and_aggregate_alerts=AsyncMock(side_effect=lambda alerts: alerts)),
+    )
 
     await ae.alert_monitor_loop()
     ae.record_ingestion.assert_called()
@@ -270,14 +286,20 @@ async def test_alert_monitor_loop(monkeypatch):
 
 
 async def test_alert_monitor_loop_exception(monkeypatch):
-    monkeypatch.setattr(ae, "collect_all", MagicMock(side_effect=[Exception("boom"), asyncio.CancelledError()]))
+    monkeypatch.setattr(
+        ae, "collect_all", MagicMock(side_effect=[Exception("boom"), asyncio.CancelledError()])
+    )
     monkeypatch.setattr("asyncio.sleep", AsyncMock(return_value=None))
     await ae.alert_monitor_loop()
 
 
 def test_cleanup_dedup_cache():
     now = datetime.datetime.now()
-    ae._dedup_cache["stale"] = {"last_time": now - datetime.timedelta(seconds=9999), "repeat_count": 0, "last_alert": {}}
+    ae._dedup_cache["stale"] = {
+        "last_time": now - datetime.timedelta(seconds=9999),
+        "repeat_count": 0,
+        "last_alert": {},
+    }
     ae._cleanup_dedup_cache()
     assert "stale" not in ae._dedup_cache
 
@@ -318,6 +340,7 @@ async def test_alert_trend_predictor():
 # ---------------------------------------------------------------------------
 # core.authentication
 # ---------------------------------------------------------------------------
+
 
 def test_parse_int_and_get_environment(monkeypatch):
     monkeypatch.setenv("TEST_INT_X", "abc")
@@ -363,7 +386,14 @@ def test_create_and_verify_token():
 
     bad_type = auth.create_access_token({"sub": "u", "type": "other"})
     # type is overwritten to access by create_access_token, so build a token manually
-    no_jti = jwt.encode({"sub": "u", "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)}, auth.SECRET_KEY, algorithm=auth.ALGORITHM)
+    no_jti = jwt.encode(
+        {
+            "sub": "u",
+            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1),
+        },
+        auth.SECRET_KEY,
+        algorithm=auth.ALGORITHM,
+    )
     assert auth.verify_token(no_jti) is None
 
     expired = auth.create_access_token({"sub": "u"}, expires_delta=datetime.timedelta(seconds=-1))
@@ -416,13 +446,17 @@ async def test_is_token_revoked_memory_expiry(monkeypatch):
     token = auth.create_access_token({"sub": "u", "jti": str(uuid.uuid4())})
     auth.redis_client = None
     auth._redis_available = False
-    auth._token_blacklist[token] = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2)
+    auth._token_blacklist[token] = datetime.datetime.now(
+        datetime.timezone.utc
+    ) - datetime.timedelta(hours=2)
     assert await auth.is_token_revoked(token, redis_client=None) is False
     assert token not in auth._token_blacklist
 
     payload = auth._decode_for_revocation(token)
     jti = payload.get("jti")
-    auth._token_blacklist[f"jti:{jti}"] = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2)
+    auth._token_blacklist[f"jti:{jti}"] = datetime.datetime.now(
+        datetime.timezone.utc
+    ) - datetime.timedelta(hours=2)
     assert await auth.is_token_revoked(token, redis_client=None) is False
     assert f"jti:{jti}" not in auth._token_blacklist
 
@@ -430,11 +464,15 @@ async def test_is_token_revoked_memory_expiry(monkeypatch):
 def test_get_redis_client(monkeypatch):
     auth.redis_client = None
     auth._redis_available = False
-    monkeypatch.setattr("core.authentication.redis.Redis", MagicMock(return_value=MagicMock(ping=MagicMock())))
+    monkeypatch.setattr(
+        "core.authentication.redis.Redis", MagicMock(return_value=MagicMock(ping=MagicMock()))
+    )
     assert auth._get_redis_client() is not None
 
     auth.redis_client = None
-    monkeypatch.setattr("core.authentication.redis.Redis", MagicMock(side_effect=auth.redis.ConnectionError("down")))
+    monkeypatch.setattr(
+        "core.authentication.redis.Redis", MagicMock(side_effect=auth.redis.ConnectionError("down"))
+    )
     assert auth._get_redis_client() is None
 
 
@@ -460,12 +498,18 @@ async def test_get_user(monkeypatch):
         hashed_password="x",
         mfa_enabled=False,
     )
-    monkeypatch.setattr("core.user_service.user_service", MagicMock(get_user_by_username=AsyncMock(return_value=mock_user)))
+    monkeypatch.setattr(
+        "core.user_service.user_service",
+        MagicMock(get_user_by_username=AsyncMock(return_value=mock_user)),
+    )
     user = await auth.get_user("admin")
     assert user is not None
     assert user.username == "admin"
 
-    monkeypatch.setattr("core.user_service.user_service", MagicMock(get_user_by_username=AsyncMock(return_value=None)))
+    monkeypatch.setattr(
+        "core.user_service.user_service",
+        MagicMock(get_user_by_username=AsyncMock(return_value=None)),
+    )
     assert await auth.get_user("admin") is None
 
 
@@ -484,9 +528,17 @@ def test_authenticate_user(monkeypatch):
     assert auth.authenticate_user("u", "wrong") is None
 
     # dict user
-    monkeypatch.setattr(auth, "get_user_by_username", MagicMock(return_value={"is_active": True, "hashed_password": pwd}))
+    monkeypatch.setattr(
+        auth,
+        "get_user_by_username",
+        MagicMock(return_value={"is_active": True, "hashed_password": pwd}),
+    )
     assert auth.authenticate_user("u", "pass123") is not None
-    monkeypatch.setattr(auth, "get_user_by_username", MagicMock(return_value={"is_active": False, "hashed_password": pwd}))
+    monkeypatch.setattr(
+        auth,
+        "get_user_by_username",
+        MagicMock(return_value={"is_active": False, "hashed_password": pwd}),
+    )
     assert auth.authenticate_user("u", "pass123") is None
 
     # fallback to get_user
@@ -530,7 +582,11 @@ async def test_get_current_active_user(monkeypatch):
         await auth.get_current_active_user(current_user=disabled)
 
     monkeypatch.setattr(auth, "verify_token", MagicMock(return_value={"sub": "u"}))
-    monkeypatch.setattr(auth, "get_user_by_username", MagicMock(return_value={"is_active": True, "hashed_password": "x"}))
+    monkeypatch.setattr(
+        auth,
+        "get_user_by_username",
+        MagicMock(return_value={"is_active": True, "hashed_password": "x"}),
+    )
     result = await auth.get_current_active_user(current_user=None, token="tok")
     assert result is not None
 
@@ -623,7 +679,9 @@ async def test_compliance_manager():
     assert any(c["name"] == "unsupported" for c in hipaa["checks"])
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    report = await mgr.get_audit_report(start_date=now - datetime.timedelta(days=1), end_date=now + datetime.timedelta(days=1))
+    report = await mgr.get_audit_report(
+        start_date=now - datetime.timedelta(days=1), end_date=now + datetime.timedelta(days=1)
+    )
     assert report["total_events"] == 1
     assert report["summary"]["by_user"]["u1"] == 1
 
@@ -656,7 +714,9 @@ async def test_get_current_user_not_found(monkeypatch):
 
 async def test_get_current_active_user_branches(monkeypatch):
     monkeypatch.setattr(auth, "verify_token", MagicMock(return_value={"sub": "u"}))
-    monkeypatch.setattr(auth, "get_user_by_username", MagicMock(return_value={"hashed_password": "x"}))
+    monkeypatch.setattr(
+        auth, "get_user_by_username", MagicMock(return_value={"hashed_password": "x"})
+    )
     result = await auth.get_current_active_user(current_user=None, token="tok")
     assert result == {"hashed_password": "x"}
 

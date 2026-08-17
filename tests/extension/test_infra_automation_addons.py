@@ -11,15 +11,11 @@ from extensions.addons.infrastructure.ansible_automation_service.service import 
 from extensions.addons.infrastructure.automated_deployment_service.service import (
     Service as DeploymentService,
 )
-from extensions.addons.infrastructure.automated_ops_service.service import (
-    Service as OpsService,
-)
+from extensions.addons.infrastructure.automated_ops_service.service import Service as OpsService
 from extensions.addons.infrastructure.backup_recovery_drill_service.service import (
     Service as DrillService,
 )
-from extensions.addons.infrastructure.chaos_mesh_service.service import (
-    Service as ChaosMeshService,
-)
+from extensions.addons.infrastructure.chaos_mesh_service.service import Service as ChaosMeshService
 from extensions.addons.infrastructure.kubernetes_orchestration_service.service import (
     Service as KubernetesService,
 )
@@ -32,9 +28,7 @@ from extensions.addons.infrastructure.service_mesh_service.service import (
 from extensions.addons.infrastructure.terraform_iac_service.service import (
     Service as TerraformService,
 )
-from extensions.addons.infrastructure.velero_backup_service.service import (
-    Service as VeleroService,
-)
+from extensions.addons.infrastructure.velero_backup_service.service import Service as VeleroService
 
 
 @pytest.fixture(autouse=True)

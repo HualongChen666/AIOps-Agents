@@ -153,7 +153,9 @@ class _FakeHttpxClient:
 def _patch_httpx_for_itsm(monkeypatch, status=200, json_data=None):
     import httpx
 
-    monkeypatch.setattr(httpx, "AsyncClient", lambda *args, **kwargs: _FakeHttpxClient(status, json_data))
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda *args, **kwargs: _FakeHttpxClient(status, json_data)
+    )
 
 
 def test_itsm_create_incident_servicenow(client, admin_headers, monkeypatch):
@@ -200,7 +202,10 @@ def test_itsm_create_incident_unsupported_provider(client, admin_headers):
         json={"summary": "x"},
     )
     assert resp.status_code == 400
-    assert "Unsupported ITSM provider" in resp.text or "Unsupported ITSM provider" in resp.json().get("detail", "")
+    assert (
+        "Unsupported ITSM provider" in resp.text
+        or "Unsupported ITSM provider" in resp.json().get("detail", "")
+    )
 
 
 def test_itsm_create_incident_missing_config(client, admin_headers):
@@ -305,8 +310,12 @@ def _patch_unified_repair(monkeypatch, scripts=None, history=None, execute_resul
 
     def _get_all():
         return {
-            "windows": _FakeStrategy(execute_result, scripts or {"clear_temp": {"name": "Clean temp", "risk": "low"}}),
-            "linux": _FakeStrategy(execute_result, scripts or {"clear_tmp": {"name": "Clean tmp", "risk": "low"}}),
+            "windows": _FakeStrategy(
+                execute_result, scripts or {"clear_temp": {"name": "Clean temp", "risk": "low"}}
+            ),
+            "linux": _FakeStrategy(
+                execute_result, scripts or {"clear_tmp": {"name": "Clean tmp", "risk": "low"}}
+            ),
         }
 
     monkeypatch.setattr(core.platform_strategies, "get_all_platform_strategies", _get_all)
@@ -371,8 +380,7 @@ def test_repair_list_and_execute(client, admin_headers, monkeypatch):
         execute_result={"success": False, "error": "未知修复脚本: foo"},
     )
     nf_resp = client.post(
-        "/api/v1/repairs/execute",
-        json={"platform": "windows", "script_key": "foo", "params": {}}
+        "/api/v1/repairs/execute", json={"platform": "windows", "script_key": "foo", "params": {}}
     )
     assert nf_resp.status_code == 404
 
@@ -477,21 +485,34 @@ def test_hitl_workflow(client, admin_headers, monkeypatch):
 # linux_router.py
 # ---------------------------------------------------------------------------
 def _patch_linux_functions(monkeypatch, host, collect, scripts, execute):
-    from core.linux_collector import get_configured_hosts, get_available_metrics, collect_linux_host, collect_all_linux
-    from core.linux_repair import get_linux_repair_scripts, execute_linux_repair
+    from core.linux_collector import (
+        collect_all_linux,
+        collect_linux_host,
+        get_available_metrics,
+        get_configured_hosts,
+    )
+    from core.linux_repair import execute_linux_repair, get_linux_repair_scripts
 
     monkeypatch.setattr(api.linux_router, "LINUX_HOSTS", [host])
     monkeypatch.setattr(api.linux_router, "get_configured_hosts", lambda: [host])
-    monkeypatch.setattr(api.linux_router, "get_available_metrics", lambda: [{"key": "cpu", "name": "CPU"}])
+    monkeypatch.setattr(
+        api.linux_router, "get_available_metrics", lambda: [{"key": "cpu", "name": "CPU"}]
+    )
+
     async def _collect_all_linux():
         return [collect]
+
     monkeypatch.setattr(api.linux_router, "collect_all_linux", _collect_all_linux)
+
     async def _collect_host(cfg, metrics=None):
         return collect
+
     monkeypatch.setattr(api.linux_router, "collect_linux_host", _collect_host)
     monkeypatch.setattr(api.linux_router, "get_linux_repair_scripts", lambda: scripts)
+
     async def _exec_repair(*args, **kwargs):
         return execute
+
     monkeypatch.setattr(api.linux_router, "execute_linux_repair", _exec_repair)
 
 
@@ -631,22 +652,25 @@ class _FakeNotifyHttpx:
         return self._resp()
 
     async def get(self, *args, **kwargs):
-        return self._resp(
-            json_data=[{"name": "alice", "email": "a@example.com"}]
-        )
+        return self._resp(json_data=[{"name": "alice", "email": "a@example.com"}])
 
 
 def _patch_notify(monkeypatch):
     import httpx
+
     monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: _FakeNotifyHttpx())
-    monkeypatch.setattr(core.notify_engine, "NOTIFY_CONFIG", {
-        "enabled": True,
-        "min_level": "info",
-        "wecom_webhook": "https://wecom.example/hook",
-        "dingtalk_webhook": "https://dt.example/hook",
-        "feishu_webhook": "https://fs.example/hook",
-        "email_to": "ops@example.com",
-    })
+    monkeypatch.setattr(
+        core.notify_engine,
+        "NOTIFY_CONFIG",
+        {
+            "enabled": True,
+            "min_level": "info",
+            "wecom_webhook": "https://wecom.example/hook",
+            "dingtalk_webhook": "https://dt.example/hook",
+            "feishu_webhook": "https://fs.example/hook",
+            "email_to": "ops@example.com",
+        },
+    )
 
 
 def test_notify_endpoints(client, admin_headers, monkeypatch):
@@ -730,7 +754,12 @@ def test_frontend_enhancement_endpoints(client, admin_headers):
 
     custom_theme = client.post(
         "/api/v1/frontend/themes/custom",
-        json={"theme_id": "ct1", "name": "Custom", "colors": {"primary": "#000"}, "base_theme": "light"},
+        json={
+            "theme_id": "ct1",
+            "name": "Custom",
+            "colors": {"primary": "#000"},
+            "base_theme": "light",
+        },
     )
     assert custom_theme.status_code == 200
 
@@ -860,9 +889,15 @@ def test_apm_endpoints(client, admin_headers, monkeypatch):
     async def _fake_health():
         return {"status": "healthy", "checks": {}}
 
-    monkeypatch.setattr(api.apm_router.telemetry, "get_apm_metrics", lambda: {
-        "request_count": 100, "error_rate": 0.0, "slow_request_rate": 0.0,
-    })
+    monkeypatch.setattr(
+        api.apm_router.telemetry,
+        "get_apm_metrics",
+        lambda: {
+            "request_count": 100,
+            "error_rate": 0.0,
+            "slow_request_rate": 0.0,
+        },
+    )
     monkeypatch.setattr(core.health_check, "check_system_resources", _fake_resources)
     monkeypatch.setattr(core.health_check, "perform_health_checks", _fake_health)
 
@@ -1032,19 +1067,27 @@ def test_change_management_lifecycle(client, admin_headers):
     assert get_one.status_code == 200
     assert get_one.json()["id"] == cr_id
 
-    submit = client.post(f"/api/v1/change-management/requests/{cr_id}/submit", headers=admin_headers)
+    submit = client.post(
+        f"/api/v1/change-management/requests/{cr_id}/submit", headers=admin_headers
+    )
     assert submit.status_code == 200
     assert submit.json()["status"] == "pending"
 
-    approve = client.post(f"/api/v1/change-management/requests/{cr_id}/approve", headers=admin_headers)
+    approve = client.post(
+        f"/api/v1/change-management/requests/{cr_id}/approve", headers=admin_headers
+    )
     assert approve.status_code == 200
     assert approve.json()["status"] == "approved"
 
-    implement = client.post(f"/api/v1/change-management/requests/{cr_id}/implement", headers=admin_headers)
+    implement = client.post(
+        f"/api/v1/change-management/requests/{cr_id}/implement", headers=admin_headers
+    )
     assert implement.status_code == 200
     assert implement.json()["status"] == "implemented"
 
-    rollback = client.post(f"/api/v1/change-management/requests/{cr_id}/rollback", headers=admin_headers)
+    rollback = client.post(
+        f"/api/v1/change-management/requests/{cr_id}/rollback", headers=admin_headers
+    )
     assert rollback.status_code == 200
     assert rollback.json()["status"] == "rolled_back"
 
@@ -1052,7 +1095,9 @@ def test_change_management_lifecycle(client, admin_headers):
     assert list_resp.status_code == 200
 
     # invalid state transition
-    bad = client.post(f"/api/v1/change-management/requests/{cr_id}/implement", headers=admin_headers)
+    bad = client.post(
+        f"/api/v1/change-management/requests/{cr_id}/implement", headers=admin_headers
+    )
     assert bad.status_code == 400
 
 
@@ -1061,15 +1106,21 @@ def test_change_management_lifecycle(client, admin_headers):
 # ---------------------------------------------------------------------------
 def _patch_business_impact(monkeypatch):
     async def _services():
-        return [
-            {"id": "SVC-001", "name": "payment-service", "impactScore": 9.0, "status": "down"}
-        ]
+        return [{"id": "SVC-001", "name": "payment-service", "impactScore": 9.0, "status": "down"}]
 
     async def _ux():
-        return [{"id": "UX-001", "name": "page_load", "value": 2.5, "change": -5.0, "status": "good"}]
+        return [
+            {"id": "UX-001", "name": "page_load", "value": 2.5, "change": -5.0, "status": "good"}
+        ]
 
     async def _assess(name):
-        return {"name": name, "impactScore": 8.5, "status": "down", "affectedUsers": 1000, "revenueImpact": 50000}
+        return {
+            "name": name,
+            "impactScore": 8.5,
+            "status": "down",
+            "affectedUsers": 1000,
+            "revenueImpact": 50000,
+        }
 
     monkeypatch.setattr(api.business_impact_router, "list_business_impact_services", _services)
     monkeypatch.setattr(api.business_impact_router, "list_business_impact_ux_metrics", _ux)
@@ -1105,29 +1156,36 @@ def test_repair_router_direct(monkeypatch):
     """Call the legacy repair router functions directly to exercise statement coverage."""
     import asyncio
     from types import SimpleNamespace as SN
+
     from core.repair_engine import execute_repair, get_repair_history, get_repair_scripts
 
     async def _run():
         # list scripts success
-        monkeypatch.setattr(api.repair_router, "get_repair_scripts", lambda: {"clear_temp": {"name": "Clean temp"}})
+        monkeypatch.setattr(
+            api.repair_router, "get_repair_scripts", lambda: {"clear_temp": {"name": "Clean temp"}}
+        )
         result = await api.repair_router.list_scripts()
         assert "clear_temp" in result["scripts"]
 
         # list scripts error
         def _bad_scripts():
             raise RuntimeError("boom")
+
         monkeypatch.setattr(api.repair_router, "get_repair_scripts", _bad_scripts)
         with pytest.raises(HTTPException):
             await api.repair_router.list_scripts()
 
         # history success
-        monkeypatch.setattr(api.repair_router, "get_repair_history", lambda limit: [{"script_key": "x"}])
+        monkeypatch.setattr(
+            api.repair_router, "get_repair_history", lambda limit: [{"script_key": "x"}]
+        )
         result = await api.repair_router.get_history(20)
         assert result["total"] == 1
 
         # history error
         def _bad_history(limit):
             raise RuntimeError("boom")
+
         monkeypatch.setattr(api.repair_router, "get_repair_history", _bad_history)
         with pytest.raises(HTTPException):
             await api.repair_router.get_history(20)
@@ -1135,6 +1193,7 @@ def test_repair_router_direct(monkeypatch):
         # execute success
         async def _good_execute(key, params):
             return {"success": True, "script_key": key, "output": "ok"}
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _good_execute)
         req = api.repair_router.RepairRequest(script_key="clear_temp", params={})
         request = SN(client=SN(host="testclient"))
@@ -1143,7 +1202,13 @@ def test_repair_router_direct(monkeypatch):
 
         # blocked
         async def _blocked(key, params):
-            return {"success": False, "error": "blocked", "blocked": True, "safe_alternative": "safe-cmd"}
+            return {
+                "success": False,
+                "error": "blocked",
+                "blocked": True,
+                "safe_alternative": "safe-cmd",
+            }
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _blocked)
         with pytest.raises(HTTPException) as exc:
             await api.repair_router.run_repair(req, request)
@@ -1152,6 +1217,7 @@ def test_repair_router_direct(monkeypatch):
         # not found
         async def _nf(key, params):
             return {"success": False, "error": "未知修复脚本: missing"}
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _nf)
         with pytest.raises(HTTPException) as exc:
             await api.repair_router.run_repair(req, request)
@@ -1160,6 +1226,7 @@ def test_repair_router_direct(monkeypatch):
         # param error
         async def _param(key, params):
             return {"success": False, "error": "缺少必要参数: pid"}
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _param)
         with pytest.raises(HTTPException) as exc:
             await api.repair_router.run_repair(req, request)
@@ -1168,6 +1235,7 @@ def test_repair_router_direct(monkeypatch):
         # unknown error
         async def _err(key, params):
             return {"success": False, "error": "some failure"}
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _err)
         with pytest.raises(HTTPException) as exc:
             await api.repair_router.run_repair(req, request)
@@ -1176,6 +1244,7 @@ def test_repair_router_direct(monkeypatch):
         # execute raises
         async def _raise(key, params):
             raise RuntimeError("boom")
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _raise)
         with pytest.raises(HTTPException) as exc:
             await api.repair_router.run_repair(req, request)
@@ -1184,6 +1253,7 @@ def test_repair_router_direct(monkeypatch):
         # execute returns None
         async def _none(key, params):
             return None
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _none)
         with pytest.raises(HTTPException) as exc:
             await api.repair_router.run_repair(req, request)
@@ -1192,6 +1262,7 @@ def test_repair_router_direct(monkeypatch):
         # execute returns non-dict
         async def _bad(key, params):
             return "bad"
+
         monkeypatch.setattr(api.repair_router, "execute_repair", _bad)
         with pytest.raises(HTTPException) as exc:
             await api.repair_router.run_repair(req, request)

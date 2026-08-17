@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Real-function, no-mock branch coverage tests for core.verifier."""
+
 import asyncio
 import os
 import sys
@@ -9,8 +10,11 @@ os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import pytest
 
+# noqa: E402  # Module level import not at top (intentional for env var setup)
 import config
+# noqa: E402  # Module level import not at top (intentional for env var setup)
 import core.metrics_history
+# noqa: E402  # Module level import not at top (intentional for env var setup)
 from core.verifier import (
     _build_error_result,
     _build_skipped_result,
@@ -173,9 +177,15 @@ def test_select_strategy():
     assert _select_strategy("unknown_script") == "none"
 
     # AI_DYNAMIC heuristics
-    assert _select_strategy("AI_DYNAMIC", {"commands": ["systemctl restart nginx"]}) == "service_status"
+    assert (
+        _select_strategy("AI_DYNAMIC", {"commands": ["systemctl restart nginx"]})
+        == "service_status"
+    )
     assert _select_strategy("AI_DYNAMIC", {"commands": ["kill 12345"]}) == "process_check"
-    assert _select_strategy("AI_DYNAMIC", {"commands": ["echo 1 > /proc/sys/vm/drop_caches"]}) == "metric_threshold"
+    assert (
+        _select_strategy("AI_DYNAMIC", {"commands": ["echo 1 > /proc/sys/vm/drop_caches"]})
+        == "metric_threshold"
+    )
     assert _select_strategy("AI_DYNAMIC", {"commands": ["rm -rf /tmp/old"]}) == "disk_usage"
     assert _select_strategy("AI_DYNAMIC", {"commands": ["ping 1.1.1.1"]}) == "network_check"
     assert _select_strategy("AI_DYNAMIC", {"commands": ["kubectl get pods app-0"]}) == "k8s_status"
@@ -221,17 +231,23 @@ def test_verify_service_status_windows_no_name():
 
 
 def test_verify_service_status_windows_invalid_name():
-    result = _run(_verify_service_status({"platform": "windows"}, {"service_name": "bad;name"}, "windows"))
+    result = _run(
+        _verify_service_status({"platform": "windows"}, {"service_name": "bad;name"}, "windows")
+    )
     assert "非法字符" in result["error_msg"]
 
 
 def test_verify_service_status_windows_too_long():
-    result = _run(_verify_service_status({"platform": "windows"}, {"service_name": "x" * 257}, "windows"))
+    result = _run(
+        _verify_service_status({"platform": "windows"}, {"service_name": "x" * 257}, "windows")
+    )
     assert "超长" in result["error_msg"]
 
 
 def test_verify_service_status_windows_service():
-    result = _run(_verify_service_status({"platform": "windows"}, {"service_name": "w32time"}, "windows"))
+    result = _run(
+        _verify_service_status({"platform": "windows"}, {"service_name": "w32time"}, "windows")
+    )
     assert result["strategy"] == "service_status"
     assert result["evidence"]["service_name"] == "w32time"
 
@@ -309,6 +325,7 @@ def test_verify_process_check_from_ai_runbook():
 
 def test_verify_process_check_linux():
     import config as _config
+
     _config.LINUX_HOSTS["hosts"] = [{"name": "test", "host": "127.0.0.1", "user": "test"}]
     try:
         result = _run(
@@ -336,7 +353,9 @@ def test_verify_disk_usage_windows_c_drive():
 
 
 def test_verify_disk_usage_invalid_mount():
-    result = _run(_verify_disk_usage({"platform": "windows"}, {"mount_point": "bad;mount"}, "windows"))
+    result = _run(
+        _verify_disk_usage({"platform": "windows"}, {"mount_point": "bad;mount"}, "windows")
+    )
     assert "非法挂载点" in result["error_msg"]
 
 
@@ -354,6 +373,7 @@ def test_verify_disk_usage_from_ai_runbook():
 
 def test_verify_disk_usage_linux():
     import config as _config
+
     _config.LINUX_HOSTS["hosts"] = [{"name": "test", "host": "127.0.0.1", "user": "test"}]
     try:
         result = _run(
@@ -381,7 +401,9 @@ def test_verify_disk_usage_threshold_parsing():
 # network_check
 # ---------------------------------------------------------------------------
 def test_verify_network_check_up():
-    result = _run(_verify_network_check({"platform": "windows"}, {"target": "127.0.0.1"}, "windows"))
+    result = _run(
+        _verify_network_check({"platform": "windows"}, {"target": "127.0.0.1"}, "windows")
+    )
     assert result["strategy"] == "network_check"
     # 127.0.0.1 should be reachable.
     assert result["verified"] is True
@@ -400,16 +422,21 @@ def test_verify_network_check_from_ai_runbook():
 
 
 def test_verify_network_check_invalid_target():
-    result = _run(_verify_network_check({"platform": "windows"}, {"target": "bad target;"}, "windows"))
+    result = _run(
+        _verify_network_check({"platform": "windows"}, {"target": "bad target;"}, "windows")
+    )
     assert "非法网络目标" in result["error_msg"]
 
 
 def test_verify_network_check_linux():
     import config as _config
+
     _config.LINUX_HOSTS["hosts"] = [{"name": "test", "host": "127.0.0.1", "user": "test"}]
     try:
         result = _run(
-            _verify_network_check({"platform": "linux", "host": "test"}, {"target": "127.0.0.1"}, "linux")
+            _verify_network_check(
+                {"platform": "linux", "host": "test"}, {"target": "127.0.0.1"}, "linux"
+            )
         )
         assert result["strategy"] == "network_check"
     finally:
@@ -535,7 +562,9 @@ def test_verify_metric_threshold_cpu():
 
 def test_verify_metric_threshold_cancelled():
     async def _main():
-        task = asyncio.create_task(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))
+        task = asyncio.create_task(
+            _verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
+        )
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -629,6 +658,7 @@ def test_verify_repair_service_status():
 
 def test_verify_repair_process_check():
     import os as _os
+
     result = _run(
         verify_repair(
             {"platform": "windows"},

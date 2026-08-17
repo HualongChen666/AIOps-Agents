@@ -36,7 +36,13 @@ from services.alert_service.mq import InMemoryMessageQueue
 from services.alert_service.processor_core import AlertPipeline
 from services.alert_service.repository import InMemoryAlertRepository
 from services.alert_service.router import Router
-from services.alert_service.saga import SagaContext, SagaOrchestrator as AlertSagaOrchestrator, SagaStep
+from services.alert_service.saga import (
+    SagaContext,
+)
+from services.alert_service.saga import SagaOrchestrator as AlertSagaOrchestrator
+from services.alert_service.saga import (
+    SagaStep,
+)
 from services.alert_service.schemas import (
     Alert,
     AlertSeverity,
@@ -52,15 +58,13 @@ from services.audit_service.schemas import (
     AlertRule,
     AuditEvent,
     AuditEventSeverity,
-    SagaStep as AuditSagaStep,
-    SagaTransaction as AuditSagaTransaction,
 )
+from services.audit_service.schemas import SagaStep as AuditSagaStep
+from services.audit_service.schemas import SagaTransaction as AuditSagaTransaction
 from services.repair_service.health_check import HealthCheckEngine
 from services.repair_service.saga import SagaOrchestrator as RepairSagaOrchestrator
-from services.repair_service.schemas import (
-    SagaStep as RepairSagaStep,
-    SagaTransaction as RepairSagaTransaction,
-)
+from services.repair_service.schemas import SagaStep as RepairSagaStep
+from services.repair_service.schemas import SagaTransaction as RepairSagaTransaction
 
 
 def _run(coro):
@@ -70,6 +74,7 @@ def _run(coro):
 # ------------------------------------------------------------------
 # audit_service/alerting.py
 # ------------------------------------------------------------------
+
 
 def test_alerting_engine_evaluates_default_rules():
     repo = InMemoryAuditRepository()
@@ -130,6 +135,7 @@ def test_alerting_engine_handles_disabled_rule_and_bad_condition():
 # audit_service/saga.py
 # ------------------------------------------------------------------
 
+
 def test_audit_saga_success_and_compensation():
     repo = InMemoryAuditRepository()
     saga = AuditSagaOrchestrator(repo)
@@ -177,6 +183,7 @@ def test_audit_saga_success_and_compensation():
 # audit_service/event_router.py
 # ------------------------------------------------------------------
 
+
 def test_audit_event_router():
     router = AuditEventRouter()
     high = AuditEvent(
@@ -212,6 +219,7 @@ def test_audit_event_router():
 # ------------------------------------------------------------------
 # alert_service/router.py
 # ------------------------------------------------------------------
+
 
 def test_alert_router_rules_and_default_routing(monkeypatch):
     router = Router()
@@ -275,6 +283,7 @@ def test_alert_router_rules_and_default_routing(monkeypatch):
 # alert_service/classifier.py
 # ------------------------------------------------------------------
 
+
 def test_classifier_rules_and_fallback():
     c = Classifier()
     c.add_rule(
@@ -335,6 +344,7 @@ def test_classifier_rules_and_fallback():
 # alert_service/saga.py
 # ------------------------------------------------------------------
 
+
 def test_alert_saga_success_and_compensation():
     async def action(ctx):
         ctx.data["step1"] = True
@@ -349,9 +359,7 @@ def test_alert_saga_success_and_compensation():
 
     saga = AlertSagaOrchestrator()
     completed = _run(
-        saga.execute(
-            [SagaStep(name="a", action=action), SagaStep(name="b", action=action)]
-        )
+        saga.execute([SagaStep(name="a", action=action), SagaStep(name="b", action=action)])
     )
     assert completed["status"] == "completed"
     assert completed["executed"] == ["a", "b"]
@@ -368,6 +376,7 @@ def test_alert_saga_success_and_compensation():
 # ------------------------------------------------------------------
 # alert_service/processor_core.py
 # ------------------------------------------------------------------
+
 
 def _make_pipeline(monkeypatch, max_retries=1):
     # prevent real dead-letter file I/O and heavy auto-heal work
@@ -442,6 +451,7 @@ def test_alert_pipeline_preprocess_and_stop(monkeypatch):
 # ------------------------------------------------------------------
 # repair_service/saga.py
 # ------------------------------------------------------------------
+
 
 def test_repair_saga_success():
     orch = RepairSagaOrchestrator()
@@ -523,6 +533,7 @@ def test_repair_saga_not_found_and_missing_action():
 # repair_service/health_check.py
 # ------------------------------------------------------------------
 
+
 def test_health_check_success(monkeypatch):
     fake_proc = MagicMock()
     fake_proc.returncode = 0
@@ -540,12 +551,16 @@ def test_health_check_success(monkeypatch):
 
 def test_health_check_timeout_and_exception(monkeypatch):
     engine = HealthCheckEngine(timeout=1)
-    monkeypatch.setattr(asyncio, "create_subprocess_shell", AsyncMock(side_effect=asyncio.TimeoutError))
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_shell", AsyncMock(side_effect=asyncio.TimeoutError)
+    )
     result = _run(engine.check_service_status("nginx"))
     assert result["success"] is False
     assert result["stderr"] == "timeout"
 
-    monkeypatch.setattr(asyncio, "create_subprocess_shell", AsyncMock(side_effect=Exception("boom")))
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_shell", AsyncMock(side_effect=Exception("boom"))
+    )
     result = _run(engine.check_service_status("nginx"))
     assert result["success"] is True  # fallback simulation
     assert result["stderr"] == "boom"
@@ -554,6 +569,7 @@ def test_health_check_timeout_and_exception(monkeypatch):
 # ------------------------------------------------------------------
 # agent_orchestration_service/orchestrator.py
 # ------------------------------------------------------------------
+
 
 def _make_orchestrator():
     cache = CacheManager(redis_url="")
@@ -588,7 +604,12 @@ def test_orchestrator_run_and_coordinate():
 
     subtasks = [
         SubTask(task_id="t1", description="Collect metrics", agent_type=AgentType.MONITOR),
-        SubTask(task_id="t2", description="Diagnose", agent_type=AgentType.DIAGNOSTIC, dependencies=["t1"]),
+        SubTask(
+            task_id="t2",
+            description="Diagnose",
+            agent_type=AgentType.DIAGNOSTIC,
+            dependencies=["t1"],
+        ),
     ]
     coord = _run(orch.coordinate(CoordinateRequest(subtasks=subtasks, run_parallel=False)))
     assert coord.completed == ["t1", "t2"]
@@ -607,7 +628,9 @@ def test_orchestrator_collaborate_and_aggregate():
     orch = _make_orchestrator()
     collab = _run(
         orch.collaborate(
-            CollaborateRequest(task="repair the database", agent_types=[AgentType.REPAIR], run_parallel=False)
+            CollaborateRequest(
+                task="repair the database", agent_types=[AgentType.REPAIR], run_parallel=False
+            )
         )
     )
     assert collab.task == "repair the database"
@@ -649,6 +672,7 @@ def test_langgraph_adapter_fallback():
 # ------------------------------------------------------------------
 # agent_orchestration_service/cache.py
 # ------------------------------------------------------------------
+
 
 def test_cache_manager_memory_and_redis(monkeypatch):
     cache = CacheManager(redis_url="")
@@ -769,6 +793,7 @@ def test_alert_router_branches(monkeypatch):
 # ------------------------------------------------------------------
 # alert_service/processor_core.py - additional coverage
 # ------------------------------------------------------------------
+
 
 def test_alert_pipeline_run_and_drain(monkeypatch):
     pipeline = _make_pipeline(monkeypatch)

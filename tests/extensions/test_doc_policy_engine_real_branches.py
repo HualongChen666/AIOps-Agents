@@ -90,11 +90,7 @@ def test_doc_engine_build_docs_warnings(monkeypatch, tmp_path):
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
 
     def fake_subprocess(cmd, **kwargs):
-        return MagicMock(
-            stdout="WARNING: something is wrong",
-            stderr="",
-            returncode=0
-        )
+        return MagicMock(stdout="WARNING: something is wrong", stderr="", returncode=0)
 
     monkeypatch.setattr("subprocess.run", fake_subprocess)
 
@@ -117,9 +113,7 @@ def test_doc_engine_build_docs_errors(monkeypatch, tmp_path):
 
     def fake_subprocess(cmd, **kwargs):
         return MagicMock(
-            stdout="",
-            stderr="ERROR: build failed\nSEVERE: critical error",
-            returncode=1
+            stdout="", stderr="ERROR: build failed\nSEVERE: critical error", returncode=1
         )
 
     monkeypatch.setattr("subprocess.run", fake_subprocess)
@@ -352,6 +346,7 @@ def test_validate_schema_with_jsonschema_success(monkeypatch):
 
 def test_validate_schema_with_jsonschema_validation_error(monkeypatch):
     """Test validate_schema with jsonschema ValidationError."""
+
     # Create a real ValidationError class
     class FakeValidationError(Exception):
         pass
@@ -370,6 +365,7 @@ def test_validate_schema_with_jsonschema_validation_error(monkeypatch):
 
 def test_validate_schema_with_jsonschema_generic_error(monkeypatch):
     """Test validate_schema with jsonschema generic exception."""
+
     # Create a real ValidationError class so the except block works
     class FakeValidationError(Exception):
         pass
@@ -439,14 +435,7 @@ def test_validate_schema_fallback_properties(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for properties checking
-    result = policy.validate_schema(
-        {"key": "value"},
-        {
-            "properties": {
-                "key": {"type": "string"}
-            }
-        }
-    )
+    result = policy.validate_schema({"key": "value"}, {"properties": {"key": {"type": "string"}}})
     assert result["valid"] is True
 
 
@@ -462,11 +451,8 @@ def test_validate_schema_fallback_combined(monkeypatch):
         {
             "type": "object",
             "required": ["name", "age"],
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer"}
-            }
-        }
+            "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+        },
     )
     assert result["valid"] is True
 

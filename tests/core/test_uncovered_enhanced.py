@@ -16,7 +16,6 @@ import core.enhanced_ai_capabilities as ai
 import core.enhanced_root_cause_analyzer as rca
 import core.integration_manager as im
 
-
 pytestmark = [pytest.mark.core]
 
 
@@ -280,9 +279,7 @@ async def test_enhanced_rca_predict(rca_analyzer, monkeypatch):
 
 
 async def test_enhanced_rca_verify(rca_analyzer):
-    rca_analyzer.nodes["db1"] = rca.TopologyNode(
-        "db1", "database", "db1", health_status="critical"
-    )
+    rca_analyzer.nodes["db1"] = rca.TopologyNode("db1", "database", "db1", health_status="critical")
     hypothesis = rca.RootCauseHypothesis(
         node_id="db1",
         confidence=0.8,
@@ -354,9 +351,7 @@ async def test_integration_manager_health_and_invoke(integration_manager):
     assert isinstance(health, dict)
     assert health["success"] is True
 
-    result = await integration_manager.trigger_jenkins_job(
-        integration.integration_id, "build", {}
-    )
+    result = await integration_manager.trigger_jenkins_job(integration.integration_id, "build", {})
     assert isinstance(result, dict)
     assert result.get("success") is True
     assert "build" in result.get("message", "")

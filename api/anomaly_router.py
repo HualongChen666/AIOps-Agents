@@ -17,7 +17,6 @@ from typing import Any, Optional
 from fastapi import APIRouter, Body, HTTPException
 
 from core.anomaly_engine import detect_all_anomalies, detect_anomalies
-
 from core.metrics_history import metrics_history
 
 logger = logging.getLogger(__name__)
@@ -46,9 +45,7 @@ async def get_statistics() -> dict[str, Any]:
 
 
 @router.post("/detect", summary="执行异常检测")
-async def detect_endpoint(
-    payload: Optional[dict[str, Any]] = Body(default=None)
-) -> dict[str, Any]:
+async def detect_endpoint(payload: Optional[dict[str, Any]] = Body(default=None)) -> dict[str, Any]:
     """
     对请求体中的 { metric, values[, timestamps] } 进行异常检测；
     若请求体为空，则使用当前系统指标历史。

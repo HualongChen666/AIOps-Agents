@@ -1,4 +1,5 @@
 import pytest
+
 # -*- coding: utf-8 -*-
 """Tests for api/audit_center_router.py."""
 

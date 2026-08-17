@@ -11,7 +11,6 @@ import core.collector as collector
 import core.linux_collector as linux_collector
 from core.agent import observability_client as oc
 
-
 pytestmark = [pytest.mark.core]
 
 
@@ -36,17 +35,17 @@ class _FakePsutil:
     @staticmethod
     def virtual_memory():
         return SimpleNamespace(
-            total=8 * 1024 ** 3,
-            used=4 * 1024 ** 3,
-            available=4 * 1024 ** 3,
+            total=8 * 1024**3,
+            used=4 * 1024**3,
+            available=4 * 1024**3,
             percent=50.0,
         )
 
     @staticmethod
     def swap_memory():
         return SimpleNamespace(
-            total=2 * 1024 ** 3,
-            used=1 * 1024 ** 3,
+            total=2 * 1024**3,
+            used=1 * 1024**3,
             percent=25.0,
         )
 
@@ -64,9 +63,9 @@ class _FakePsutil:
     @staticmethod
     def disk_usage(path):
         return SimpleNamespace(
-            total=100 * 1024 ** 3,
-            used=50 * 1024 ** 3,
-            free=50 * 1024 ** 3,
+            total=100 * 1024**3,
+            used=50 * 1024**3,
+            free=50 * 1024**3,
             percent=50.0,
         )
 
@@ -118,7 +117,9 @@ def _reset_collector(monkeypatch):
 def test_get_cpu_metrics():
     data = collector.get_cpu_metrics()
     assert isinstance(data, dict)
-    assert {"usage_percent", "core_count", "logical_count", "frequency_mhz", "per_core"} <= set(data)
+    assert {"usage_percent", "core_count", "logical_count", "frequency_mhz", "per_core"} <= set(
+        data
+    )
     assert data["usage_percent"] == 15.0
     assert data["per_core"] == [10.0, 20.0]
 
@@ -141,7 +142,15 @@ def test_get_disk_metrics():
     data = collector.get_disk_metrics()
     assert isinstance(data, list)
     assert len(data) >= 1
-    assert {"device", "mountpoint", "fstype", "total_gb", "used_gb", "free_gb", "usage_percent"} <= set(data[0])
+    assert {
+        "device",
+        "mountpoint",
+        "fstype",
+        "total_gb",
+        "used_gb",
+        "free_gb",
+        "usage_percent",
+    } <= set(data[0])
 
 
 def test_get_network_metrics():
@@ -164,7 +173,9 @@ def test_get_top_processes():
     assert isinstance(procs, list)
     assert len(procs) <= 5
     if procs:
-        assert {"pid", "name", "cpu_percent", "memory_percent", "status", "username"} <= set(procs[0])
+        assert {"pid", "name", "cpu_percent", "memory_percent", "status", "username"} <= set(
+            procs[0]
+        )
 
 
 def test_get_system_info():
@@ -176,7 +187,9 @@ def test_get_system_info():
 def test_collect_all_and_cache():
     snapshot = collector.collect_all()
     assert isinstance(snapshot, dict)
-    assert {"timestamp", "cpu", "memory", "disk", "network", "system", "top_processes"} <= set(snapshot)
+    assert {"timestamp", "cpu", "memory", "disk", "network", "system", "top_processes"} <= set(
+        snapshot
+    )
     cached = collector.get_cached_snapshot()
     assert isinstance(cached, dict)
     assert "timestamp" in cached
@@ -256,7 +269,9 @@ async def test_ssh_execute_validation():
 
 @pytest.mark.asyncio
 async def test_collect_linux_host(monkeypatch):
-    monkeypatch.setattr(linux_collector, "_ssh_execute", AsyncMock(return_value=_linux_batch_output()))
+    monkeypatch.setattr(
+        linux_collector, "_ssh_execute", AsyncMock(return_value=_linux_batch_output())
+    )
     host_config = {
         "name": "h1",
         "host": "1.2.3.4",
@@ -273,15 +288,13 @@ async def test_collect_linux_host(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_collect_all_linux(monkeypatch):
-    monkeypatch.setattr(linux_collector, "_ssh_execute", AsyncMock(return_value=_linux_batch_output()))
+    monkeypatch.setattr(
+        linux_collector, "_ssh_execute", AsyncMock(return_value=_linux_batch_output())
+    )
     monkeypatch.setattr(
         linux_collector,
         "LINUX_HOSTS",
-        {
-            "hosts": [
-                {"name": "h1", "host": "1.2.3.4", "username": "u", "password": "p"}
-            ]
-        },
+        {"hosts": [{"name": "h1", "host": "1.2.3.4", "username": "u", "password": "p"}]},
     )
     results = await linux_collector.collect_all_linux(metrics=["cpu_usage", "memory"])
     assert isinstance(results, list)
@@ -350,7 +363,12 @@ def test_query_network_metrics(monkeypatch):
     assert isinstance(result, dict)
     assert result.get("source") == "prometheus"
     assert result.get("target") == "8.8.8.8"
-    for key in ("dns_resolution_error_rate", "dns_lookup_time_ms", "packet_loss_percent", "latency_ms"):
+    for key in (
+        "dns_resolution_error_rate",
+        "dns_lookup_time_ms",
+        "packet_loss_percent",
+        "latency_ms",
+    ):
         assert key in result
 
 
@@ -396,7 +414,9 @@ def test_query_kubernetes_pod(monkeypatch):
 
 
 def test_query_change_events(monkeypatch):
-    monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: ([{"id": 1, "target": "api"}], None))
+    monkeypatch.setattr(
+        oc, "_http_get_json", lambda url, **kwargs: ([{"id": 1, "target": "api"}], None)
+    )
     events = oc.query_change_events("api", hours=1)
     assert isinstance(events, list)
     assert len(events) == 1

@@ -26,8 +26,8 @@ def _reload_ai_engine(env_updates=None) -> ModuleType:
                 os.environ[key] = str(value)
 
     import config
-    import core.llm_cost_monitor
     import core.ai_engine as ai_engine
+    import core.llm_cost_monitor
 
     importlib.reload(config)
     importlib.reload(core.llm_cost_monitor)
@@ -244,15 +244,11 @@ def test_retrieve_and_generate_break_and_continue():
     ai = _reload_ai_engine()
     pipeline = ai._AIOpsRAGPipeline(_SimpleRealRAG())
 
-    short = asyncio.run(
-        pipeline.retrieve_and_generate("query", top_k=2, max_context_length=20)
-    )
+    short = asyncio.run(pipeline.retrieve_and_generate("query", top_k=2, max_context_length=20))
     assert "[Score: 0.90]" in short
     assert "[Score: 0.80]" not in short
 
-    long = asyncio.run(
-        pipeline.retrieve_and_generate("query", top_k=2, max_context_length=10000)
-    )
+    long = asyncio.run(pipeline.retrieve_and_generate("query", top_k=2, max_context_length=10000))
     assert "[Score: 0.90]" in long
     assert "[Score: 0.80]" in long
 
@@ -268,24 +264,24 @@ def test_validate_root_cause_output_edge_cases():
     assert ai._validate_root_cause_output(None) is None
 
     raw = (
-        '```\n'
+        "```\n"
         '{"data_assessment":{"reliability_score":0.5,"reliability_concerns":[]},'
         '"candidates":[],"multi_root_cause_note":"",'
         '"escalation_recommended":false,"escalation_reason":"","recommended_action":""}\n'
-        '```'
+        "```"
     )
     assert ai._validate_root_cause_output(raw) is not None
 
     raw_json = (
-        '```json\n'
+        "```json\n"
         '{"data_assessment":{"reliability_score":0.5,"reliability_concerns":[]},'
         '"candidates":[],"multi_root_cause_note":"",'
         '"escalation_recommended":false,"escalation_reason":"","recommended_action":""}\n'
-        '```'
+        "```"
     )
     assert ai._validate_root_cause_output(raw_json) is not None
 
-    bad = '```\nnot valid json\n```'
+    bad = "```\nnot valid json\n```"
     assert ai._validate_root_cause_output(bad) is None
 
     invalid_schema = '```\n{"foo":"bar"}\n```'

@@ -5,18 +5,18 @@ These tests exercise the public factory/entry-point methods and the main classes
 requiring real DB, network, or slow ML model training.  External/optional dependencies
 are stubbed with monkeypatch or unittest.mock so the suite runs quickly offline.
 """
+
 from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
-import core.root_cause_intelligence as rci
-import core.heal_graph as hg
 import core.ai_engine as ai_engine
+import core.heal_graph as hg
 import core.priority_engine as priority_engine
+import core.root_cause_intelligence as rci
 import core.runbook_generator as runbook_generator
 import core.verifier as verifier
-
 
 pytestmark = [pytest.mark.core]
 
@@ -31,6 +31,7 @@ def rci_engine(monkeypatch):
 @pytest.fixture
 def stub_heal(monkeypatch):
     """Stub out all external side effects for core.heal_graph."""
+
     # Risk / command guard stubs
     class RL:
         BLOCKED = "BLOCKED"
@@ -39,9 +40,7 @@ def stub_heal(monkeypatch):
         SAFE = "SAFE"
 
     monkeypatch.setattr(hg, "RiskLevel", RL)
-    monkeypatch.setattr(
-        hg, "analyze_command", lambda cmd: {"risk_level": RL.LOW, "reason": "ok"}
-    )
+    monkeypatch.setattr(hg, "analyze_command", lambda cmd: {"risk_level": RL.LOW, "reason": "ok"})
 
     # Audit / trace stubs
     monkeypatch.setattr(hg, "_set_trace_id", lambda _tid: None)
@@ -160,18 +159,10 @@ def test_root_cause_statistics(rci_engine):
 
 async def test_root_cause_topology_discovery(rci_engine):
     metrics_data = {
-        "hosts": [
-            {"hostname": "host1", "health": "healthy", "metrics": {"cpu": 0.1}}
-        ],
-        "services": [
-            {"name": "svc1", "health": "unhealthy", "port": 8080}
-        ],
-        "applications": [
-            {"name": "app1", "health": "healthy"}
-        ],
-        "network_connections": [
-            {"source": "svc1", "target": "host1"}
-        ],
+        "hosts": [{"hostname": "host1", "health": "healthy", "metrics": {"cpu": 0.1}}],
+        "services": [{"name": "svc1", "health": "unhealthy", "port": 8080}],
+        "applications": [{"name": "app1", "health": "healthy"}],
+        "network_connections": [{"source": "svc1", "target": "host1"}],
     }
     alert = {
         "id": "a1",
@@ -187,16 +178,12 @@ async def test_root_cause_topology_discovery(rci_engine):
     assert result["total_nodes"] >= result["discovered_nodes"]
     summary = result["topology_summary"]
     assert "layers" in summary and isinstance(summary["layers"], dict)
-    assert "health_distribution" in summary and isinstance(
-        summary["health_distribution"], dict
-    )
+    assert "health_distribution" in summary and isinstance(summary["health_distribution"], dict)
 
 
 async def test_root_cause_cross_layer_tracking(rci_engine):
     metrics_data = {
-        "services": [
-            {"name": "svc1", "health": "unhealthy", "port": 8080}
-        ],
+        "services": [{"name": "svc1", "health": "unhealthy", "port": 8080}],
         "network_connections": [
             {"source": "svc1", "target": "svc2"},
             {"source": "svc2", "target": "svc3"},
@@ -219,9 +206,7 @@ async def test_root_cause_historical_patterns(rci_engine):
         "alerts": [{"alert_type": "cpu_high", "host": "host1"}],
         "metrics": {"cpu": 95.0},
     }
-    rci_engine.learn_historical_pattern(
-        symptoms, "cpu_overload", 120.0, 0.9
-    )
+    rci_engine.learn_historical_pattern(symptoms, "cpu_overload", 120.0, 0.9)
     patterns = await rci_engine.match_historical_patterns(symptoms)
     assert isinstance(patterns, list)
     assert len(patterns) >= 1
@@ -254,9 +239,7 @@ async def test_root_cause_analyze_enhanced(rci_engine):
             }
         ],
     }
-    results = await rci_engine.analyze_root_causes_enhanced(
-        alert, metrics_data, context
-    )
+    results = await rci_engine.analyze_root_causes_enhanced(alert, metrics_data, context)
     assert isinstance(results, list)
     assert len(results) >= 1
     assert all(isinstance(h, rci.RootCauseHypothesis) for h in results)
@@ -274,9 +257,7 @@ async def test_root_cause_verify(rci_engine):
     }
     metrics_data = {"service": "svc", "target": "api"}
     await rci_engine.discover_topology_realtime(metrics_data, alert)
-    hypothesis = rci.RootCauseHypothesis(
-        hypothesis_id="h1", root_cause="api", confidence=0.8
-    )
+    hypothesis = rci.RootCauseHypothesis(hypothesis_id="h1", root_cause="api", confidence=0.8)
     verification_data = {
         "active_components": ["api", "svc"],
     }
@@ -297,12 +278,8 @@ async def test_root_cause_predict(rci_engine):
         "alerts": [{"alert_type": "oom", "host": "node1"}],
         "metrics": {"memory_usage_percent": 96.0},
     }
-    rci_engine.learn_historical_pattern(
-        symptoms, "pod_oom", 60.0, 0.85
-    )
-    prediction = await rci_engine.predict_root_causes(
-        symptoms, prediction_horizon=30
-    )
+    rci_engine.learn_historical_pattern(symptoms, "pod_oom", 60.0, 0.85)
+    prediction = await rci_engine.predict_root_causes(symptoms, prediction_horizon=30)
     assert isinstance(prediction, dict)
     assert prediction["prediction_horizon"] == 30
     assert "predicted_root_causes" in prediction

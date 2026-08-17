@@ -107,7 +107,15 @@ def test_module_dependencies_validates():
 def test_module_dependencies_invalid_order(monkeypatch):
     import core.module_dependencies as md
 
-    bad_order = ["database", "ai_engine", "redis", "cache", "alert_engine", "metrics", "business_metrics"]
+    bad_order = [
+        "database",
+        "ai_engine",
+        "redis",
+        "cache",
+        "alert_engine",
+        "metrics",
+        "business_metrics",
+    ]
     monkeypatch.setattr(md, "INITIALIZATION_ORDER", bad_order)
     with pytest.raises(ValueError, match="redis"):
         md.validate_initialization_order()
@@ -348,7 +356,9 @@ def _sample_request_data():
 @pytest.mark.asyncio
 async def test_approval_notifier_parallel_success(hitl_module):
     notifier = hitl_module.ApprovalNotifier()
-    notifier.configure(hitl_module.NotificationConfig(platform="wecom", webhook_url="https://wecom"))
+    notifier.configure(
+        hitl_module.NotificationConfig(platform="wecom", webhook_url="https://wecom")
+    )
     notifier.configure(hitl_module.NotificationConfig(platform="email", address="ops@example.com"))
     notifier.configure(hitl_module.NotificationConfig(platform="slack", channel="#sre"))
 
@@ -366,10 +376,14 @@ async def test_approval_notifier_sequential_fallback(hitl_module, monkeypatch):
     notifier.configure(hitl_module.NotificationConfig(platform="wecom"))
     notifier.configure(hitl_module.NotificationConfig(platform="dingtalk"))
 
-    monkeypatch.setattr(hitl_module, "_send_wecom", AsyncMock(return_value={"success": False, "error": "blocked"}))
+    monkeypatch.setattr(
+        hitl_module, "_send_wecom", AsyncMock(return_value={"success": False, "error": "blocked"})
+    )
     monkeypatch.setattr(hitl_module, "_send_dingtalk", AsyncMock(return_value={"success": True}))
 
-    result = await notifier.send_approval_request("bob", _sample_request_data(), strategy="sequential")
+    result = await notifier.send_approval_request(
+        "bob", _sample_request_data(), strategy="sequential"
+    )
     assert result["success"] is True
     assert result["channels"] == ["dingtalk"]
     assert any("wecom: blocked" in e for e in result["errors"])
@@ -402,7 +416,11 @@ async def test_approval_notifier_partial_failure_and_exception(hitl_module, monk
     notifier.configure(hitl_module.NotificationConfig(platform="email", address="ops@example.com"))
 
     monkeypatch.setattr(hitl_module, "_send_wecom", AsyncMock(side_effect=RuntimeError("net down")))
-    monkeypatch.setattr(hitl_module, "send_slack_notification", AsyncMock(return_value={"success": False, "error": "rate limited"}))
+    monkeypatch.setattr(
+        hitl_module,
+        "send_slack_notification",
+        AsyncMock(return_value={"success": False, "error": "rate limited"}),
+    )
 
     result = await notifier.send_approval_request("eve", _sample_request_data())
     assert result["success"] is True

@@ -5,9 +5,7 @@ import subprocess
 
 import pytest
 
-from extensions.addons.infrastructure.alert_rule_service.service import (
-    Service as AlertRuleService,
-)
+from extensions.addons.infrastructure.alert_rule_service.service import Service as AlertRuleService
 from extensions.addons.infrastructure.ansible_automation_service.service import (
     Service as AnsibleAutomationService,
 )
@@ -27,9 +25,7 @@ from extensions.addons.infrastructure.cache_optimization_service.service import 
     Service as CacheOptimizationService,
 )
 from extensions.addons.infrastructure.cache_service.service import Service as CacheService
-from extensions.addons.infrastructure.chaos_mesh_service.service import (
-    Service as ChaosMeshService,
-)
+from extensions.addons.infrastructure.chaos_mesh_service.service import Service as ChaosMeshService
 from extensions.addons.infrastructure.cloud_monitoring_service.service import (
     Service as CloudMonitoringService,
 )
@@ -37,14 +33,14 @@ from extensions.addons.infrastructure.config_service.service import Service as C
 from extensions.addons.infrastructure.data_access_service.service import (
     Service as DataAccessService,
 )
+from extensions.addons.infrastructure.data_standards_service.service import (
+    Service as DataStandardsService,
+)
 from extensions.addons.infrastructure.database_optimization_service.service import (
     Service as DatabaseOptimizationService,
 )
 from extensions.addons.infrastructure.datacenter_visualization_service.service import (
     Service as DatacenterVisualizationService,
-)
-from extensions.addons.infrastructure.data_standards_service.service import (
-    Service as DataStandardsService,
 )
 
 

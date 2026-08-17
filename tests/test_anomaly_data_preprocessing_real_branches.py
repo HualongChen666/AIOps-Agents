@@ -40,6 +40,7 @@ def _make_csv(path: Path, columns: list, rows: list) -> str:
 # Data loader
 # ----------------------------------------------------------------------
 
+
 def test_load_from_csv_basic_and_additional_cols(tmp_path: Path) -> None:
     rows = [
         ["2024-01-01 00:00:00", 1.0, 10.0],
@@ -83,6 +84,7 @@ def test_load_from_database_valid_params_eventually_raises() -> None:
 # ----------------------------------------------------------------------
 # Data cleaner
 # ----------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "method,expected",
@@ -169,6 +171,7 @@ def test_resample_unknown_aggregation_raises() -> None:
 # Feature engineering
 # ----------------------------------------------------------------------
 
+
 def test_add_lag_features() -> None:
     df = _sample_df(10)
     result = TimeSeriesFeatureEngineer.add_lag_features(df, lags=[1, 3])
@@ -188,7 +191,15 @@ def test_add_rolling_features() -> None:
 def test_add_time_features() -> None:
     df = _sample_df(10)
     result = TimeSeriesFeatureEngineer.add_time_features(df)
-    for col in ["hour", "day_of_week", "day_of_month", "month", "is_weekend", "hour_sin", "hour_cos"]:
+    for col in [
+        "hour",
+        "day_of_week",
+        "day_of_month",
+        "month",
+        "is_weekend",
+        "hour_sin",
+        "hour_cos",
+    ]:
         assert col in result.columns
 
 
@@ -203,6 +214,7 @@ def test_add_statistical_features() -> None:
 # ----------------------------------------------------------------------
 # Augmenter
 # ----------------------------------------------------------------------
+
 
 def test_add_noise() -> None:
     data = np.random.randn(20, 3)
@@ -238,6 +250,7 @@ def test_augment_dataset_all_methods_and_labels() -> None:
 # Scaler
 # ----------------------------------------------------------------------
 
+
 def test_scaler_2d_standard() -> None:
     data = np.random.randn(100, 4)
     scaler = TimeSeriesScaler(method="standard")
@@ -272,6 +285,7 @@ def test_scaler_unknown_method_raises() -> None:
 # Splitter
 # ----------------------------------------------------------------------
 
+
 def test_train_val_test_split_no_labels() -> None:
     data = np.arange(100)
     train, val, test, train_l, val_l, test_l = TimeSeriesSplitter.train_val_test_split(
@@ -297,6 +311,7 @@ def test_train_val_test_split_with_labels_and_shuffle() -> None:
 # ----------------------------------------------------------------------
 # Pipeline
 # ----------------------------------------------------------------------
+
 
 def test_preprocessing_pipeline_all_defaults() -> None:
     df = _sample_df(50)
@@ -344,6 +359,7 @@ def test_create_preprocessing_pipeline() -> None:
 # Multi-modal data preparer
 # ----------------------------------------------------------------------
 
+
 def test_prepare_log_features_default_vectorizer() -> None:
     logs = ["error connection refused", "timeout", "success", "timeout connection"]
     features = MultiModalDataPreparer.prepare_log_features(logs)
@@ -363,6 +379,7 @@ def test_prepare_trace_features() -> None:
 # ----------------------------------------------------------------------
 # Extra branch-side coverage
 # ----------------------------------------------------------------------
+
 
 def test_load_from_csv_without_additional_cols(tmp_path: Path) -> None:
     rows = [

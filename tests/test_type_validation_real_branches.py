@@ -22,7 +22,6 @@ from core.type_validation import (
     validate_types,
 )
 
-
 # ---------------------------------------------------------------------------
 # Real-world fixtures / data classes
 # ---------------------------------------------------------------------------
@@ -348,9 +347,7 @@ def test_sanitize_response_data_date_and_enum():
 
 
 def test_sanitize_response_data_max_depth():
-    assert isinstance(
-        TypeSafeAPI.sanitize_response_data({"a": {"b": {"c": 1}}}, max_depth=0), str
-    )
+    assert isinstance(TypeSafeAPI.sanitize_response_data({"a": {"b": {"c": 1}}}, max_depth=0), str)
     depth_one = TypeSafeAPI.sanitize_response_data({"a": {"b": {"c": 1}}}, max_depth=1)
     assert depth_one == {"a": "{'b': {'c': 1}}"}
 

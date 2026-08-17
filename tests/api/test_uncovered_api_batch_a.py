@@ -8,9 +8,10 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
-import config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+import config
 
 pytestmark = [pytest.mark.api]
 
@@ -107,7 +108,9 @@ class _FakeUserService:
                 return u
         return None
 
-    async def create_user(self, username, hashed_password, email=None, full_name=None, role="viewer"):
+    async def create_user(
+        self, username, hashed_password, email=None, full_name=None, role="viewer"
+    ):
         if username in self._users:
             return None
         user = SimpleNamespace(
@@ -161,6 +164,7 @@ def _patch_external_dependencies(monkeypatch):
     # user_router
     import api.user_router as _ur
     import core.user_service as _cus
+
     _fake_user_svc = _FakeUserService()
     monkeypatch.setattr(_ur, "user_service", _fake_user_svc)
     monkeypatch.setattr(_cus, "user_service", _fake_user_svc)
@@ -179,10 +183,12 @@ def _patch_external_dependencies(monkeypatch):
     monkeypatch.setattr(_ur, "verify_token", _fake_verify_token)
 
     import core.authentication as _auth
+
     monkeypatch.setattr(_auth, "is_token_revoked", _async_return(False))
 
     # alert_service uses PostgreSQL persistence; keep in-memory behavior for tests
     import core.alert_service as _alert_s
+
     monkeypatch.setattr(_alert_s.alert_service, "update_alert_status", _async_return(True))
     monkeypatch.setattr(
         _alert_s.alert_service,
@@ -192,9 +198,10 @@ def _patch_external_dependencies(monkeypatch):
 
     # slack_router
     import api.slack_router as _slackr
-    import core.slack_adapter as _sa
-    import core.chat_command_handler as _cch
     import config as _config
+    import core.chat_command_handler as _cch
+    import core.slack_adapter as _sa
+
     monkeypatch.setattr(_slackr, "post_message", _async_return({"ok": True, "ts": "123"}))
     monkeypatch.setattr(
         _slackr, "post_interactive_message", _async_return({"ok": True, "ts": "124"})
@@ -207,9 +214,7 @@ def _patch_external_dependencies(monkeypatch):
         _async_return({"username": "admin", "role": "admin", "disabled": False}),
     )
     monkeypatch.setattr(_sa, "post_message", _async_return({"ok": True, "ts": "123"}))
-    monkeypatch.setattr(
-        _sa, "post_interactive_message", _async_return({"ok": True, "ts": "124"})
-    )
+    monkeypatch.setattr(_sa, "post_interactive_message", _async_return({"ok": True, "ts": "124"}))
     monkeypatch.setattr(_sa, "verify_slack_signature", lambda *a, **k: True)
     monkeypatch.setattr(_cch, "handle_instruction", lambda *a, **k: {"action": "noop"})
     monkeypatch.setattr(_config, "SLACK_BOT_TOKEN", "xoxb-test-token")
@@ -217,6 +222,7 @@ def _patch_external_dependencies(monkeypatch):
 
     # docker_router
     import api.docker_router as _dr
+
     monkeypatch.setattr(_dr, "DOCKER_HOSTS", [{"host": "demo"}])
     monkeypatch.setattr(
         _dr,
@@ -232,9 +238,8 @@ def _patch_external_dependencies(monkeypatch):
     # cloud_router
     import api.cloud_router as _cr
     import core.cloud_repair as _ccr
-    monkeypatch.setattr(
-        _cr, "CLOUD_PROVIDERS", [{"provider": "aws", "region": "us-east-1"}]
-    )
+
+    monkeypatch.setattr(_cr, "CLOUD_PROVIDERS", [{"provider": "aws", "region": "us-east-1"}])
     monkeypatch.setattr(_cr, "collect_all_cloud", lambda: [{"provider": "aws"}])
     monkeypatch.setattr(
         _cr,
@@ -248,16 +253,15 @@ def _patch_external_dependencies(monkeypatch):
     monkeypatch.setattr(_ccr, "get_cloud_repair_history", lambda limit: [])
 
     # log_router
+    import api.linux_router as _linuxr
     import api.log_router as _lr
     import core.es_logger as _el
-    import api.linux_router as _linuxr
+
     monkeypatch.setattr(_lr, "LINUX_HOSTS", [{"host": "test-host"}])
     sample_log = {"time": "2026-07-02T10:30:00Z", "level": "Error", "message": "boom"}
     monkeypatch.setattr(_lr, "get_system_errors", _async_return([sample_log]))
     monkeypatch.setattr(_lr, "get_application_errors", _async_return([sample_log]))
-    monkeypatch.setattr(
-        _lr, "get_event_logs", _async_return([{**sample_log, "source": "System"}])
-    )
+    monkeypatch.setattr(_lr, "get_event_logs", _async_return([{**sample_log, "source": "System"}]))
     monkeypatch.setattr(_lr, "search_logs", _async_return([sample_log]))
     monkeypatch.setattr(_lr, "get_linux_errors", _async_return([sample_log]))
     monkeypatch.setattr(_lr, "get_linux_logs", _async_return([sample_log]))
@@ -268,12 +272,11 @@ def _patch_external_dependencies(monkeypatch):
 
     # health_router
     import api.health_router as _hr
+
     monkeypatch.setattr(_hr, "get_liveness_status", lambda: {"status": "healthy"})
     monkeypatch.setattr(_hr, "get_readiness_status", lambda: {"ready": True})
     monkeypatch.setattr(_hr, "get_detailed_health", lambda: {"status": "healthy"})
-    monkeypatch.setattr(
-        _hr, "perform_health_checks", _async_return({"status": "healthy"})
-    )
+    monkeypatch.setattr(_hr, "perform_health_checks", _async_return({"status": "healthy"}))
 
 
 def test_user_router_endpoints(admin_headers):
@@ -414,8 +417,9 @@ def test_assets_router_endpoints(client, admin_headers):
 
 
 def test_alert_router_endpoints(client, admin_headers, monkeypatch):
-    from core.alert_service import alert_service
     import asyncio
+
+    from core.alert_service import alert_service
 
     # seed an alert directly so acknowledge/resolve can be exercised
     loop = asyncio.new_event_loop()
@@ -429,9 +433,7 @@ def test_alert_router_endpoints(client, admin_headers, monkeypatch):
     assert resp.status_code == 200
     assert "alerts" in resp.json()
 
-    resp = client.post(
-        f"/api/v1/alerts/{alert_id}/acknowledge", headers=admin_headers
-    )
+    resp = client.post(f"/api/v1/alerts/{alert_id}/acknowledge", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["status"] == "acknowledged"
 
@@ -485,14 +487,13 @@ def test_alert_router_endpoints(client, admin_headers, monkeypatch):
     resp = client.get("/api/v1/alerts/intelligence/topology", headers=admin_headers)
     assert resp.status_code == 200
 
-    resp = client.post(
-        "/api/v1/alerts/intelligence/route-alerts", headers=admin_headers
-    )
+    resp = client.post("/api/v1/alerts/intelligence/route-alerts", headers=admin_headers)
     assert resp.status_code == 200
     assert "routes" in resp.json()
 
     # predict needs mock metric history with >=10 aligned points
     import core.metrics_history as _mh
+
     monkeypatch.setattr(
         _mh.metrics_history,
         "to_dict",
@@ -502,6 +503,7 @@ def test_alert_router_endpoints(client, admin_headers, monkeypatch):
         },
     )
     import api.alert_router as _ar
+
     pred = SimpleNamespace(
         metric_name="cpu_usage",
         predicted_values=[1.0, 2.0],
@@ -510,9 +512,7 @@ def test_alert_router_endpoints(client, admin_headers, monkeypatch):
         prediction_horizon=24,
         model_used="prophet",
     )
-    monkeypatch.setattr(
-        _ar.alert_intelligence_engine, "predict_alert_trends", _async_return(pred)
-    )
+    monkeypatch.setattr(_ar.alert_intelligence_engine, "predict_alert_trends", _async_return(pred))
 
     resp = client.post(
         "/api/v1/alerts/intelligence/predict",
@@ -912,9 +912,7 @@ def test_enterprise_router_endpoints(client, admin_headers):
     assert resp.status_code == 200
     assert "logs" in resp.json()
 
-    resp = client.post(
-        "/api/v1/enterprise/audit/cleanup", headers=admin_headers
-    )
+    resp = client.post("/api/v1/enterprise/audit/cleanup", headers=admin_headers)
     assert resp.status_code == 200
     assert "removed_logs_count" in resp.json()
 
@@ -945,21 +943,15 @@ def test_enterprise_router_endpoints(client, admin_headers):
     assert resp.status_code == 200
     assert "enterprise_summary" in resp.json()
 
-    resp = client.get(
-        "/api/v1/enterprise/compliance/standards", headers=admin_headers
-    )
+    resp = client.get("/api/v1/enterprise/compliance/standards", headers=admin_headers)
     assert resp.status_code == 200
     assert "supported_standards" in resp.json()
 
-    resp = client.get(
-        "/api/v1/enterprise/encryption/status", headers=admin_headers
-    )
+    resp = client.get("/api/v1/enterprise/encryption/status", headers=admin_headers)
     assert resp.status_code == 200
     assert "encryption_status" in resp.json()
 
-    resp = client.get(
-        "/api/v1/enterprise/data/classification/rules", headers=admin_headers
-    )
+    resp = client.get("/api/v1/enterprise/data/classification/rules", headers=admin_headers)
     assert resp.status_code == 200
     assert "classification_rules" in resp.json()
 
@@ -1075,9 +1067,7 @@ def test_cloud_router_endpoints(client, admin_headers):
     assert resp.status_code == 200
     assert resp.json()["success"] is True
 
-    resp = client.get(
-        "/api/v1/platforms/cloud/aws/repair/history", headers=admin_headers
-    )
+    resp = client.get("/api/v1/platforms/cloud/aws/repair/history", headers=admin_headers)
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
 
@@ -1098,13 +1088,9 @@ def test_integration_router_endpoints(client, admin_headers):
 
     resp = client.get("/api/v1/integration/list", headers=admin_headers)
     assert resp.status_code == 200
-    assert any(
-        i["integration_id"] == integration_id for i in resp.json()["integrations"]
-    )
+    assert any(i["integration_id"] == integration_id for i in resp.json()["integrations"])
 
-    resp = client.post(
-        f"/api/v1/integration/test/{integration_id}", headers=admin_headers
-    )
+    resp = client.post(f"/api/v1/integration/test/{integration_id}", headers=admin_headers)
     assert resp.status_code == 200
     assert "test_result" in resp.json()
 
@@ -1217,6 +1203,7 @@ def test_integration_router_endpoints(client, admin_headers):
     aws_id = aws.json()["integration"]["integration_id"]
     import api.integration_router as _ir
     import core.integration_manager as _im
+
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
         _im.integration_manager,
@@ -1235,8 +1222,7 @@ def test_integration_router_endpoints(client, admin_headers):
 
 def test_advanced_ai_router_endpoints(client, admin_headers):
     history = [
-        {"timestamp": f"2026-07-01T{i:02d}:00:00Z", "value": float(i % 10)}
-        for i in range(12)
+        {"timestamp": f"2026-07-01T{i:02d}:00:00Z", "value": float(i % 10)} for i in range(12)
     ]
     resp = client.post(
         "/api/v1/ai-advanced/predict/time-series",
@@ -1280,9 +1266,7 @@ def test_advanced_ai_router_endpoints(client, admin_headers):
     assert conv_resp.status_code == 200
     assert "response" in conv_resp.json()
 
-    resp = client.get(
-        "/api/v1/ai-advanced/conversation/conv-batch", headers=admin_headers
-    )
+    resp = client.get("/api/v1/ai-advanced/conversation/conv-batch", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["conversation"]["conversation_id"] == "conv-batch"
 
@@ -1330,8 +1314,6 @@ def test_advanced_ai_router_endpoints(client, admin_headers):
     assert resp.status_code == 200
     assert "recent_predictions" in resp.json()
 
-    resp = client.delete(
-        "/api/v1/ai-advanced/conversation/conv-batch", headers=admin_headers
-    )
+    resp = client.delete("/api/v1/ai-advanced/conversation/conv-batch", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"

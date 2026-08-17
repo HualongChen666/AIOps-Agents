@@ -181,6 +181,7 @@ async def test_embed_fallback_and_exception(orchestrator):
 @pytest.mark.asyncio
 async def test_embedding_lazy_load_and_fallback(monkeypatch):
     import sentence_transformers as _st
+
     # Force the lazy attribute to resolve, then replace with a failing stub.
     _ = _st.SentenceTransformer
     monkeypatch.setattr(_st, "SentenceTransformer", _FakeSentenceTransformer)
@@ -215,7 +216,9 @@ async def test_vectorize_empty_and_dimension_mismatch():
 # ------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_index_validation_rejections(orchestrator):
-    short = SCHEMAS.IndexRequest(document_id="doc1", content="ab", source=SCHEMAS.DocumentSource.TEXT)
+    short = SCHEMAS.IndexRequest(
+        document_id="doc1", content="ab", source=SCHEMAS.DocumentSource.TEXT
+    )
     r = await orchestrator.index_document(short)
     assert r.status == "rejected"
 
@@ -226,7 +229,9 @@ async def test_index_validation_rejections(orchestrator):
     assert r.status == "rejected"
 
     big = "x" * 1_000_001
-    too_big = SCHEMAS.IndexRequest(document_id="bigdoc", content=big, source=SCHEMAS.DocumentSource.TEXT)
+    too_big = SCHEMAS.IndexRequest(
+        document_id="bigdoc", content=big, source=SCHEMAS.DocumentSource.TEXT
+    )
     r = await orchestrator.index_document(too_big)
     assert r.status == "rejected"
 
@@ -274,9 +279,7 @@ async def test_semantic_search_cache_threshold_and_stale(orchestrator):
     r3 = await orchestrator.semantic_search(q_high)
     assert r3.total == 0
 
-    await orchestrator.mark_document_stale(
-        SCHEMAS.MarkStaleRequest(document_id="s1", reason="old")
-    )
+    await orchestrator.mark_document_stale(SCHEMAS.MarkStaleRequest(document_id="s1", reason="old"))
     r4 = await orchestrator.semantic_search(
         SCHEMAS.SearchRequest(query="python logging", top_k=2, use_cache=False)
     )
@@ -369,9 +372,7 @@ async def test_generate_answer_context_branches(orchestrator):
         )
     )
     # context None -> performs search and builds context
-    r = await orchestrator.generate_answer(
-        SCHEMAS.GenerateRequest(query="answer", top_k=2)
-    )
+    r = await orchestrator.generate_answer(SCHEMAS.GenerateRequest(query="answer", top_k=2))
     assert r.answer
     # context provided
     r2 = await orchestrator.generate_answer(
@@ -437,6 +438,7 @@ async def test_rerank_empty_candidates_and_keyword_fallback(orchestrator):
 @pytest.mark.asyncio
 async def test_rerank_cross_encoder_fallback(monkeypatch, orchestrator):
     import sentence_transformers as _st
+
     # Force the lazy attribute to resolve, then replace with a failing stub.
     _ = _st.CrossEncoder
     monkeypatch.setattr(_st, "CrossEncoder", _FakeCrossEncoder)
@@ -476,6 +478,7 @@ async def test_multi_recall_unknown_threshold_and_failure_absorption(monkeypatch
         )
     )
     assert r2.total == 0
+
     # force a strategy failure by breaking the cache
     async def boom(_key):
         raise RuntimeError("cache down")
@@ -533,9 +536,7 @@ async def test_delete_and_mark_stale_and_rebuild(orchestrator):
             source=SCHEMAS.DocumentSource.TEXT,
         )
     )
-    rb = await orchestrator.rebuild_index(
-        SCHEMAS.RebuildIndexRequest(document_ids=["rebuild_doc"])
-    )
+    rb = await orchestrator.rebuild_index(SCHEMAS.RebuildIndexRequest(document_ids=["rebuild_doc"]))
     assert rb.status == "rebuilt"
     rb_all = await orchestrator.rebuild_index(SCHEMAS.RebuildIndexRequest())
     assert rb_all.status == "rebuilt"

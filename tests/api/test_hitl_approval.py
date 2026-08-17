@@ -1,4 +1,5 @@
 import pytest
+
 # -*- coding: utf-8 -*-
 """Tests for api/hitl_approval_router.py."""
 

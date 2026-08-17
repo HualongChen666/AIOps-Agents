@@ -38,9 +38,10 @@ _db_main_file = os.path.join(os.path.dirname(__file__), "..", "data", f"aiops_ma
 os.environ["USE_SQLITE"] = "true"
 os.environ["SQLITE_PATH"] = os.path.abspath(_db_main_file).replace(os.sep, "/")
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
 
 import config
 import core.ai.rag  # preload real package so stub tests cannot replace it with a non-package fake
@@ -55,12 +56,14 @@ from main import app
 
 _ORIG_GET_REDIS_CLIENT = _auth_module._get_redis_client
 
-# Main async DB (core.db_engine / core.models) shares per-worker SQLite for tests.
-from core.database import Base as MainBase
-from core.db_engine import AsyncSessionLocal, engine as main_engine
-from core.models import User as MainUser
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+
+# Main async DB (core.db_engine / core.models) shares per-worker SQLite for tests.
+from core.database import Base as MainBase
+from core.db_engine import AsyncSessionLocal
+from core.db_engine import engine as main_engine
+from core.models import User as MainUser
 
 _security_middleware.rate_limiter.check_rate_limit = lambda client_id: (True, None)
 
@@ -103,6 +106,7 @@ def disable_background_threads(monkeypatch):
     """Disable background monitoring threads during tests to prevent blocking."""
     # Mock time.sleep to prevent background loops from sleeping
     import time
+
     original_sleep = time.sleep
 
     def mock_sleep(seconds):
@@ -115,13 +119,13 @@ def disable_background_threads(monkeypatch):
     monkeypatch.setattr("time.sleep", mock_sleep)
 
     # Prevent background thread initialization by mocking the start methods
-    original_thread_start = __import__('threading').Thread.start
+    original_thread_start = __import__("threading").Thread.start
 
     def mock_thread_start(self):
         # Only start threads that are not background monitoring threads
-        if hasattr(self, '_target') and self._target:
-            target_name = getattr(self._target, '__name__', '')
-            if 'processing_loop' in target_name or 'monitoring_loop' in target_name:
+        if hasattr(self, "_target") and self._target:
+            target_name = getattr(self._target, "__name__", "")
+            if "processing_loop" in target_name or "monitoring_loop" in target_name:
                 return  # Don't start background monitoring threads
         original_thread_start(self)
 
@@ -164,11 +168,14 @@ def ensure_database():
         # Ensure all ORM model tables (alerts, repair_records, etc.) are
         # registered in MainBase.metadata before recreating the test schema.
         import core.models  # noqa: F401
+
         async with main_engine.begin() as conn:
             await conn.run_sync(MainBase.metadata.drop_all)
             await conn.run_sync(MainBase.metadata.create_all)
         async with AsyncSessionLocal() as session:
-            result = await session.execute(select(MainUser.username).where(MainUser.username == "admin"))
+            result = await session.execute(
+                select(MainUser.username).where(MainUser.username == "admin")
+            )
             if result.scalar_one_or_none() is None:
                 session.add(
                     MainUser(
@@ -199,8 +206,7 @@ def client():
             return await call_next(request)
 
     original_classes = [
-        (m, m.cls) for m in getattr(app, "user_middleware", [])
-        if m.cls is _rbac.RBACMiddleware
+        (m, m.cls) for m in getattr(app, "user_middleware", []) if m.cls is _rbac.RBACMiddleware
     ]
     for m, _ in original_classes:
         m.cls = _RBACBypass

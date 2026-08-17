@@ -548,7 +548,9 @@ def test_realtime_router_websocket(client):
 @pytest.mark.skip(reason="SSE infinite stream not reliably testable with TestClient")
 def test_realtime_router_sse(client, admin_headers):
     """Read a single SSE heartbeat event."""
-    with client.stream("GET", "/api/v1/realtime/events", timeout=2.0, headers=admin_headers) as resp:
+    with client.stream(
+        "GET", "/api/v1/realtime/events", timeout=2.0, headers=admin_headers
+    ) as resp:
         assert resp.status_code == 200
         chunk = next(resp.iter_text())
         assert "heartbeat" in chunk
@@ -561,7 +563,9 @@ def test_windows_repair_router_endpoints(client, admin_headers, monkeypatch):
     """List scripts, execute repair and fetch history for Windows."""
     import api.windows_repair_router as wrr
 
-    monkeypatch.setattr(wrr, "find_windows_host_config", lambda host: {"name": host, "ip": "1.1.1.1"})
+    monkeypatch.setattr(
+        wrr, "find_windows_host_config", lambda host: {"name": host, "ip": "1.1.1.1"}
+    )
 
     async def fake_execute(key, params):
         return {"success": True, "output": "ok", "exit_code": 0}
@@ -580,7 +584,11 @@ def test_windows_repair_router_endpoints(client, admin_headers, monkeypatch):
     resp = client.post(
         "/api/v1/platforms/windows/repair/execute",
         headers=admin_headers,
-        json={"host_name": "win", "script_key": "restart_service", "params": {"service_name": "Spooler"}},
+        json={
+            "host_name": "win",
+            "script_key": "restart_service",
+            "params": {"service_name": "Spooler"},
+        },
     )
     assert resp.status_code == 200
     assert resp.json()["success"] is True
@@ -611,9 +619,15 @@ def test_metrics_router_endpoints(client, admin_headers, monkeypatch):
         return {"total_alerts": 1, "heal_rate": 90, "mttd_min": 10, "rca_accuracy": 95}
 
     monkeypatch.setattr(mr, "collect_all", lambda: snapshot)
-    monkeypatch.setattr(mr, "get_top_processes", lambda limit: [{"pid": 1, "name": "python", "cpu_percent": 5.0}])
+    monkeypatch.setattr(
+        mr, "get_top_processes", lambda limit: [{"pid": 1, "name": "python", "cpu_percent": 5.0}]
+    )
     monkeypatch.setattr(mr, "get_real_summary", fake_summary)
-    monkeypatch.setattr(mr.metrics_history, "to_dict", lambda: {"cpu": [10.0, 11.0], "memory": [20.0, 21.0], "net_in": [1.0, 2.0]})
+    monkeypatch.setattr(
+        mr.metrics_history,
+        "to_dict",
+        lambda: {"cpu": [10.0, 11.0], "memory": [20.0, 21.0], "net_in": [1.0, 2.0]},
+    )
 
     resp = client.get("/api/v1/metrics/", headers=admin_headers)
     assert resp.status_code == 200
@@ -700,7 +714,12 @@ def test_slo_router_endpoints(client, admin_headers, monkeypatch):
         return _slos.pop(slo_id, None) is not None
 
     def evaluate_slo(rule, points):
-        return {"current": 0.99, "error_budget_remaining_percent": 0.95, "burn_rate": 0.1, "status": "ok"}
+        return {
+            "current": 0.99,
+            "error_budget_remaining_percent": 0.95,
+            "burn_rate": 0.1,
+            "status": "ok",
+        }
 
     def format_window(window):
         return str(window)
@@ -923,13 +942,15 @@ def test_alert_webhook_router_endpoints(client, monkeypatch):
 
     class FakeProvider:
         def normalize(self, payload):
-            return [{
-                "id": "a-1",
-                "host": "host-1",
-                "severity": "critical",
-                "status": "firing",
-                "trace_id": "t-1",
-            }]
+            return [
+                {
+                    "id": "a-1",
+                    "host": "host-1",
+                    "severity": "critical",
+                    "status": "firing",
+                    "trace_id": "t-1",
+                }
+            ]
 
     monkeypatch.setattr(ap, "get_alert_provider", lambda name: FakeProvider())
     monkeypatch.setattr(ap, "list_alert_providers", lambda: ["prometheus"])
@@ -1025,7 +1046,12 @@ def test_unified_repair_router_error_paths(client, admin_headers, monkeypatch):
             if script_key == "badtype":
                 return "not a dict"
             if script_key == "blocked":
-                return {"success": False, "blocked": True, "error": "blocked", "safe_alternative": "safe"}
+                return {
+                    "success": False,
+                    "blocked": True,
+                    "error": "blocked",
+                    "safe_alternative": "safe",
+                }
             if script_key == "unknown":
                 return {"success": False, "error": "未知修复脚本 missing"}
             if script_key == "paramerr":
@@ -1092,7 +1118,12 @@ def test_service_discovery_router_error_paths(client, admin_headers, monkeypatch
     monkeypatch.setattr(sdm, "get_service_discovery_manager", lambda: RaisingManager())
 
     params_for = {
-        "/api/service-discovery/register": {"service_name": "s", "instance_id": "i", "host": "h", "port": 1},
+        "/api/service-discovery/register": {
+            "service_name": "s",
+            "instance_id": "i",
+            "host": "h",
+            "port": 1,
+        },
         "/api/service-discovery/deregister": {"service_name": "s", "instance_id": "i"},
     }
 
@@ -1218,7 +1249,15 @@ def test_plugin_marketplace_router_error_paths(client, admin_headers, monkeypatc
         ("/api/plugin-marketplace/listings", "GET"),
         ("/api/plugin-marketplace/plugin/p-1/review", "POST"),
     ]:
-        params = {"reviewer": "a"} if "approve" in path else {"reason": "x"} if "reject" in path else {"reviewer": "a", "rating": 5, "comment": "x"}
+        params = (
+            {"reviewer": "a"}
+            if "approve" in path
+            else (
+                {"reason": "x"}
+                if "reject" in path
+                else {"reviewer": "a", "rating": 5, "comment": "x"}
+            )
+        )
         resp = client.request(
             method,
             path,
@@ -1270,6 +1309,7 @@ def test_windows_repair_router_error_paths(client, admin_headers, monkeypatch):
     def make_execute(result):
         async def fake_execute(script_key, params):
             return result
+
         return fake_execute
 
     for key, result, expected in [
@@ -1278,12 +1318,12 @@ def test_windows_repair_router_error_paths(client, admin_headers, monkeypatch):
         ("unknown_script", {"success": False, "error": "未知的 windows 修复脚本 missing"}, 404),
         ("paramerr", {"success": False, "error": "pid 必须为整数"}, 422),
     ]:
-        monkeypatch.setattr(wrr, "find_windows_host_config", lambda host, _ok=True: {"name": host, "ip": "1.1.1.1"})
+        monkeypatch.setattr(
+            wrr, "find_windows_host_config", lambda host, _ok=True: {"name": host, "ip": "1.1.1.1"}
+        )
 
         if result == "string":
-            monkeypatch.setattr(
-                wrr, "execute_windows_repair", make_execute("not a dict")
-            )
+            monkeypatch.setattr(wrr, "execute_windows_repair", make_execute("not a dict"))
         else:
             monkeypatch.setattr(wrr, "execute_windows_repair", make_execute(result))
 
@@ -1369,8 +1409,18 @@ def test_slo_router_error_paths(client, admin_headers, monkeypatch):
     monkeypatch.setattr(sr, "get_slo", lambda sid: _slos.get(sid))
     monkeypatch.setattr(sr, "delete_slo", lambda sid: _slos.pop(sid, None) is not None)
     monkeypatch.setattr(sr, "update_slo", lambda sid, **kw: None)
-    monkeypatch.setattr(sr, "evaluate_slo", lambda rule, points: {"current": 0.9, "error_budget_remaining_percent": 0.9, "burn_rate": 0.1, "status": "ok"})
+    monkeypatch.setattr(
+        sr,
+        "evaluate_slo",
+        lambda rule, points: {
+            "current": 0.9,
+            "error_budget_remaining_percent": 0.9,
+            "burn_rate": 0.1,
+            "status": "ok",
+        },
+    )
     monkeypatch.setattr(sr, "format_window", lambda w: str(w))
+
     def fake_parse_window(w):
         if w == "bad":
             raise ValueError("bad")
@@ -1426,7 +1476,11 @@ def test_grpc_service_router_error_paths(client, admin_headers, monkeypatch):
             method,
             path,
             headers=admin_headers,
-            params={"service_name": "X", "package_name": "x"} if "create" in path and method == "POST" and path.endswith("/create") else {},
+            params=(
+                {"service_name": "X", "package_name": "x"}
+                if "create" in path and method == "POST" and path.endswith("/create")
+                else {}
+            ),
             json={"methods": [], "messages": {}} if path.endswith("/create") else None,
         )
         assert resp.status_code == 500, f"{path}"

@@ -51,12 +51,8 @@ def test_verification_wait_params(monkeypatch):
 
 
 async def test_execute_linux_verify_command(monkeypatch):
-    monkeypatch.setattr(
-        verifier, "LINUX_HOSTS", {"hosts": [{"name": "host1", "host": "10.0.0.1"}]}
-    )
-    monkeypatch.setattr(
-        "core.linux_collector._ssh_execute", AsyncMock(return_value="linux output")
-    )
+    monkeypatch.setattr(verifier, "LINUX_HOSTS", {"hosts": [{"name": "host1", "host": "10.0.0.1"}]})
+    monkeypatch.setattr("core.linux_collector._ssh_execute", AsyncMock(return_value="linux output"))
     out = await verifier._execute_linux_verify_command({"host": "host1"}, "ls")
     assert out == "linux output"
 
@@ -68,9 +64,7 @@ async def test_execute_linux_verify_command(monkeypatch):
 
 
 async def test_execute_windows_verify_command(monkeypatch):
-    monkeypatch.setattr(
-        "core.repair_engine._run_powershell", lambda cmd: {"output": "Running"}
-    )
+    monkeypatch.setattr("core.repair_engine._run_powershell", lambda cmd: {"output": "Running"})
     out = await verifier._execute_windows_verify_command("Get-Service x")
     assert out == "Running"
 
@@ -142,18 +136,14 @@ async def test_verify_service_status_execute_exception(guard_ok, short_wait, mon
 
 async def test_verify_process_check_linux_killed(guard_ok, monkeypatch):
     monkeypatch.setattr(verifier, "_execute_linux_verify_command", AsyncMock(return_value="0"))
-    result = await verifier._verify_process_check(
-        {"platform": "linux"}, {"pid": "12345"}, "linux"
-    )
+    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")
     assert result["verified"] is True
     assert result["evidence"]["pid"] == 12345
 
 
 async def test_verify_process_check_linux_alive(guard_ok, monkeypatch):
     monkeypatch.setattr(verifier, "_execute_linux_verify_command", AsyncMock(return_value="1"))
-    result = await verifier._verify_process_check(
-        {"platform": "linux"}, {"pid": "12345"}, "linux"
-    )
+    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")
     assert result["verified"] is False
 
 
@@ -170,9 +160,7 @@ async def test_verify_process_check_windows_alive(guard_ok, monkeypatch):
     monkeypatch.setattr(
         verifier, "_execute_windows_verify_command", AsyncMock(return_value="ALIVE")
     )
-    result = await verifier._verify_process_check(
-        {"platform": "windows"}, {"pid": "42"}, "windows"
-    )
+    result = await verifier._verify_process_check({"platform": "windows"}, {"pid": "42"}, "windows")
     assert result["verified"] is False
 
 
@@ -197,9 +185,7 @@ async def test_verify_metric_threshold_success(monkeypatch):
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": [4.0, 4.0, 4.0]}})(),
     )
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": [10.0, 10.0, 10.0]}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
     assert result["verified"] is True
     assert result["strategy"] == "metric_threshold"
     assert result["evidence"]["delta_percent"] == 60.0
@@ -234,9 +220,7 @@ async def test_verify_disk_usage_linux(guard_ok, monkeypatch):
             )
         ),
     )
-    result = await verifier._verify_disk_usage(
-        {"platform": "linux"}, {"mount_point": "/"}, "linux"
-    )
+    result = await verifier._verify_disk_usage({"platform": "linux"}, {"mount_point": "/"}, "linux")
     assert result["verified"] is True
     assert result["evidence"]["usage_percent"] == 50.0
 
@@ -361,9 +345,7 @@ async def test_verify_k8s_status_plain_text(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(
         verifier, "_execute_linux_verify_command", AsyncMock(return_value="running")
     )
-    result = await verifier._verify_k8s_status(
-        {"platform": "linux"}, {"name": "web-0"}, "linux"
-    )
+    result = await verifier._verify_k8s_status({"platform": "linux"}, {"name": "web-0"}, "linux")
     assert result["verified"] is True
 
 

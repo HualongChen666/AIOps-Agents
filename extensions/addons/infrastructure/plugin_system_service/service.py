@@ -23,12 +23,8 @@ OPERATIONS: List[str] = [
 ]
 
 _OP_MAP: Dict[str, Callable[[PolicyEngine, Dict[str, Any]], Any]] = {
-    "plugin_load": lambda engine, params: engine.plugin_load(
-        params.get("plugin_id", "")
-    ),
-    "plugin_unload": lambda engine, params: engine.plugin_unload(
-        params.get("plugin_id", "")
-    ),
+    "plugin_load": lambda engine, params: engine.plugin_load(params.get("plugin_id", "")),
+    "plugin_unload": lambda engine, params: engine.plugin_unload(params.get("plugin_id", "")),
     "implement_plugin_loader": lambda engine, params: engine.plugin_load(
         params.get("plugin_id", "")
     ),

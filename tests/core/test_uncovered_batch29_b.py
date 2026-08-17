@@ -113,9 +113,7 @@ def test_cache_ttl_and_invalidate_clear():
 
 
 def test_database_cache_optimizer_full_flow():
-    opt = DatabaseCacheOptimizer(
-        {"default_cache_size": 2, "default_ttl_seconds": 0.01}
-    )
+    opt = DatabaseCacheOptimizer({"default_cache_size": 2, "default_ttl_seconds": 0.01})
     assert opt.get_statistics()["total_caches"] == 0
 
     opt.create_cache("c1", cache_size=2, strategy=CacheStrategy.LRU)
@@ -292,6 +290,7 @@ def test_di_container_sync_shutdown_coroutine():
         def shutdown(self, instance):
             async def _inner():
                 return "done"
+
             return _inner()
 
     c.register_factory(
@@ -369,9 +368,7 @@ def test_setup_core_services_failure(monkeypatch):
     def boom(*a, **kw):
         raise RuntimeError("bad")
 
-    monkeypatch.setattr(
-        "core.dependency_injection.di_container.register_factory", boom
-    )
+    monkeypatch.setattr("core.dependency_injection.di_container.register_factory", boom)
     result = setup_core_services()
     assert result["status"] == "error"
 
@@ -442,18 +439,11 @@ def test_rca_detect_and_apply_changes():
     # set known state then detect a removal
     a.nodes = {"n1": n1, "n2": n2}
     _run(a._update_topology([n2], []))
-    assert any(
-        c.change_type == TopologyChangeType.REMOVE_NODE
-        for c in a.topology_changes
-    )
+    assert any(c.change_type == TopologyChangeType.REMOVE_NODE for c in a.topology_changes)
     for c in a.topology_changes:
         _run(a._apply_topology_change(c))
     for ct in TopologyChangeType:
-        _run(
-            a._apply_topology_change(
-                TopologyChange(ct, datetime.datetime.now(), {})
-            )
-        )
+        _run(a._apply_topology_change(TopologyChange(ct, datetime.datetime.now(), {})))
 
 
 def test_rca_build_causal_and_cross_layer():
@@ -660,6 +650,7 @@ def test_ai_timeseries_prediction(ai, monkeypatch):
 
         def predict(self, future):
             import pandas as pd
+
             n = len(future)
             return pd.DataFrame(
                 {

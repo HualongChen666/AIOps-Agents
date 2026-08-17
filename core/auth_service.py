@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
 """Authentication and authorization helpers."""
 
-from core.token_blacklist import is_blacklisted
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
+
+import bcrypt as _bcrypt_mod
+import jwt
+import passlib.handlers.bcrypt as _passlib_bcrypt
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+
+import config
 from core.auth_db import (
     SessionLocal,
     User,
     UserAssetPermission,
 )
-import config
-from sqlalchemy.orm import Session
-import jwt
-import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
-
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
-import passlib.handlers.bcrypt as _passlib_bcrypt
-import bcrypt as _bcrypt_mod
+from core.token_blacklist import is_blacklisted
 
 # bcrypt 4.1+/5.x exposes no __about__ and rejects passlib's >72-byte probes.
 _bcrypt_mod.__about__ = type("about", (), {"__version__": "5.0.0"})()

@@ -81,6 +81,7 @@ def _client(env_overrides):
 # 1. Startup fallbacks / exception handlers
 # ---------------------------------------------------------------------------
 
+
 def test_invalid_key_management_backend():
     """Cover the key-management fallback exception branch and the
     ENABLE_ADDONS=false / add-on skip branches in main.py."""
@@ -92,6 +93,7 @@ def test_invalid_key_management_backend():
 # ---------------------------------------------------------------------------
 # 2. Lifespan storage / Loki / security scan branches
 # ---------------------------------------------------------------------------
+
 
 def test_lifespan_storage_loki_security_branches():
     """Cover the L4 storage implementation, Loki shipping, and security scan
@@ -111,6 +113,7 @@ def test_lifespan_storage_loki_security_branches():
 # 3. Causal graph auto_build false branch
 # ---------------------------------------------------------------------------
 
+
 def test_causal_graph_auto_build_false():
     """Cover the false branch of the causal_graph auto_build conditional."""
     with _client({"CAUSAL_GRAPH_AUTO_BUILD": "false"}) as client:
@@ -121,6 +124,7 @@ def test_causal_graph_auto_build_false():
 # ---------------------------------------------------------------------------
 # 4. TLS enforcement and k8s router mounting
 # ---------------------------------------------------------------------------
+
 
 def test_tls_enforcement_and_k8s_router():
     """Cover the TLS enforcement middleware and the k8s_router mount branch."""

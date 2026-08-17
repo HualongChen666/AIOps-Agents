@@ -779,7 +779,7 @@ def _extract_first_json_object(text: str) -> str | None:
                 depth -= 1
                 if depth == 0:
                     # 找到一个完整对象
-                    return text[start: i + 1]
+                    return text[start : i + 1]
 
     return None
 

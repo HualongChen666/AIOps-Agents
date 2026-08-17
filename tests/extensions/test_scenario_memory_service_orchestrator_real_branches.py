@@ -150,7 +150,9 @@ async def test_search_similar_with_session_filtering(orchestrator: ScenarioMemor
         orchestrator._event_index["alert"].append(eid)
 
     resp = await orchestrator.search_similar(
-        SimilarityQueryRequest(query="cpu high load", vector=v, top_k=5, threshold=1.0, session_id="s2")
+        SimilarityQueryRequest(
+            query="cpu high load", vector=v, top_k=5, threshold=1.0, session_id="s2"
+        )
     )
     assert resp.total == 1
     assert resp.results[0].event_id == "e4"
@@ -211,19 +213,25 @@ async def test_learn_experience_new_and_update(orchestrator: ScenarioMemoryOrche
 
 async def test_learn_experience_takes_default_ttl(orchestrator: ScenarioMemoryOrchestrator):
     r = await orchestrator.learn_experience(
-        LearnExperienceRequest(situation="s", action="a", outcome="ok", confidence=0.5, ttl_seconds=None)
+        LearnExperienceRequest(
+            situation="s", action="a", outcome="ok", confidence=0.5, ttl_seconds=None
+        )
     )
     assert r.learned
     assert orchestrator._experiences["s::a"].expires_at is not None
 
     r2 = await orchestrator.learn_experience(
-        LearnExperienceRequest(situation="s2", action="a2", outcome="ok", confidence=0.5, ttl_seconds=0)
+        LearnExperienceRequest(
+            situation="s2", action="a2", outcome="ok", confidence=0.5, ttl_seconds=0
+        )
     )
     assert r2.learned
     assert orchestrator._experiences["s2::a2"].expires_at is not None
 
 
-async def test_learn_experience_invalid_existing_treated_as_new(orchestrator: ScenarioMemoryOrchestrator):
+async def test_learn_experience_invalid_existing_treated_as_new(
+    orchestrator: ScenarioMemoryOrchestrator,
+):
     key = "s::a"
     orch2 = ScenarioMemoryOrchestrator()
     orch2._experiences[key] = Experience(
@@ -244,7 +252,9 @@ async def test_learn_experience_invalid_existing_treated_as_new(orchestrator: Sc
     assert orch2._experiences[key].corrected_by is None
 
 
-async def test_learn_experience_expired_existing_treated_as_new(orchestrator: ScenarioMemoryOrchestrator):
+async def test_learn_experience_expired_existing_treated_as_new(
+    orchestrator: ScenarioMemoryOrchestrator,
+):
     key = "s::a"
     orch2 = ScenarioMemoryOrchestrator()
     orch2._experiences[key] = Experience(
@@ -284,7 +294,9 @@ async def test_correct_experience_missing_returns_none(orchestrator: ScenarioMem
     assert await orchestrator.correct_experience("s", "a", "user") is None
 
 
-async def test_correct_experience_without_correction_outcome(orchestrator: ScenarioMemoryOrchestrator):
+async def test_correct_experience_without_correction_outcome(
+    orchestrator: ScenarioMemoryOrchestrator,
+):
     await orchestrator.learn_experience(
         LearnExperienceRequest(situation="s", action="a", outcome="old", confidence=0.5)
     )
@@ -307,7 +319,9 @@ async def test_correct_experience_with_correction_outcome(orchestrator: Scenario
     )
 
 
-async def test_find_experiences_filters_invalid_expired_and_session(orchestrator: ScenarioMemoryOrchestrator):
+async def test_find_experiences_filters_invalid_expired_and_session(
+    orchestrator: ScenarioMemoryOrchestrator,
+):
     orch = ScenarioMemoryOrchestrator()
     # valid, session s1
     await orch.learn_experience(
@@ -374,7 +388,9 @@ async def test_accumulate_knowledge_new_and_update(orchestrator: ScenarioMemoryO
     assert orchestrator._knowledge["host::has::disk"].weight == pytest.approx(1.98, rel=1e-9)
 
 
-async def test_accumulate_knowledge_keeps_provided_expires_at(orchestrator: ScenarioMemoryOrchestrator):
+async def test_accumulate_knowledge_keeps_provided_expires_at(
+    orchestrator: ScenarioMemoryOrchestrator,
+):
     future = datetime.utcnow() + timedelta(days=10)
     req = AccumulateKnowledgeRequest(
         entries=[
@@ -405,7 +421,9 @@ async def test_accumulate_knowledge_raises_on_existing_with_none_knowledge_id():
     )
     with pytest.raises(ValueError, match="knowledge_id must not be None"):
         await orch.accumulate_knowledge(
-            AccumulateKnowledgeRequest(entries=[KnowledgeEntry(subject="a", predicate="b", object="c", weight=1.0)])
+            AccumulateKnowledgeRequest(
+                entries=[KnowledgeEntry(subject="a", predicate="b", object="c", weight=1.0)]
+            )
         )
 
 
@@ -515,31 +533,25 @@ async def test_short_term_session_namespacing(orchestrator: ScenarioMemoryOrches
 
 
 async def test_short_term_cache_miss_then_memory_hit(orchestrator: ScenarioMemoryOrchestrator):
-    await orchestrator.store_short_term(
-        ShortTermRequest(key="k", value="v", ttl_seconds=300)
-    )
+    await orchestrator.store_short_term(ShortTermRequest(key="k", value="v", ttl_seconds=300))
     # Simulate cache miss without touching the cache implementation.
     orchestrator.cache._memory.pop("stm:k", None)
     assert await orchestrator.retrieve_short_term("k") == "v"
 
 
 async def test_short_term_memory_expired(orchestrator: ScenarioMemoryOrchestrator):
-    await orchestrator.store_short_term(
-        ShortTermRequest(key="k", value="v", ttl_seconds=300)
-    )
+    await orchestrator.store_short_term(ShortTermRequest(key="k", value="v", ttl_seconds=300))
     orchestrator.cache._memory.pop("stm:k", None)
     orchestrator._short_term["k"].timestamp = datetime.utcnow() - timedelta(seconds=400)
     assert await orchestrator.retrieve_short_term("k") is None
 
 
-async def test_short_term_capacity_eviction(orchestrator: ScenarioMemoryOrchestrator, small_settings):
+async def test_short_term_capacity_eviction(
+    orchestrator: ScenarioMemoryOrchestrator, small_settings
+):
     orchestrator.settings = small_settings
-    await orchestrator.store_short_term(
-        ShortTermRequest(key="first", value=1, ttl_seconds=300)
-    )
-    await orchestrator.store_short_term(
-        ShortTermRequest(key="second", value=2, ttl_seconds=300)
-    )
+    await orchestrator.store_short_term(ShortTermRequest(key="first", value=1, ttl_seconds=300))
+    await orchestrator.store_short_term(ShortTermRequest(key="second", value=2, ttl_seconds=300))
     assert "first" not in orchestrator._short_term
     assert "second" in orchestrator._short_term
 
@@ -556,21 +568,17 @@ async def test_long_term_session_namespacing(orchestrator: ScenarioMemoryOrchest
 
 
 async def test_long_term_cache_miss_then_memory_hit(orchestrator: ScenarioMemoryOrchestrator):
-    await orchestrator.store_long_term(
-        LongTermRequest(key="k", value="v", importance=1.0)
-    )
+    await orchestrator.store_long_term(LongTermRequest(key="k", value="v", importance=1.0))
     orchestrator.cache._memory.pop("ltm:k", None)
     assert await orchestrator.retrieve_long_term("k") == "v"
 
 
-async def test_long_term_capacity_eviction(orchestrator: ScenarioMemoryOrchestrator, small_settings):
+async def test_long_term_capacity_eviction(
+    orchestrator: ScenarioMemoryOrchestrator, small_settings
+):
     orchestrator.settings = small_settings
-    await orchestrator.store_long_term(
-        LongTermRequest(key="low", value=1, importance=0.1)
-    )
-    await orchestrator.store_long_term(
-        LongTermRequest(key="high", value=2, importance=0.9)
-    )
+    await orchestrator.store_long_term(LongTermRequest(key="low", value=1, importance=0.1))
+    await orchestrator.store_long_term(LongTermRequest(key="high", value=2, importance=0.9))
     assert "low" not in orchestrator._long_term
     assert "high" in orchestrator._long_term
 

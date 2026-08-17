@@ -182,9 +182,7 @@ async def _remote_call(
     """Generic remote microservice call."""
     url_value = _DEFAULT_SERVICE_URLS.get(service_url_env)
     if not url_value:
-        raise RuntimeError(
-            f"{service_url_env} is not configured and no default URL is available"
-        )
+        raise RuntimeError(f"{service_url_env} is not configured and no default URL is available")
     base = url_value.rstrip("/")
     client = _get_http_client()
     url = f"{base}{path}"
@@ -203,7 +201,9 @@ async def remote_rag_query(query: str, top_k: int = 5) -> Any:
     """Query the RAG add-on service, falling back to the in-process RAG engine."""
     if _is_remote() and os.getenv("RAG_SERVICE_URL"):
         try:
-            return await _remote_call("RAG_SERVICE_URL", "POST", "/search", {"query": query, "top_k": top_k})
+            return await _remote_call(
+                "RAG_SERVICE_URL", "POST", "/search", {"query": query, "top_k": top_k}
+            )
         except Exception as exc:
             logger.warning(f"remote RAG service call failed, falling back: {exc}")
 
@@ -251,7 +251,9 @@ async def remote_topology() -> Any:
 
 async def remote_incident_list() -> Any:
     """List methods available on the incident response add-on service."""
-    return await _remote_call("INCIDENT_RESPONSE_SERVICE_URL", "POST", "/incident-response/list_methods", {})
+    return await _remote_call(
+        "INCIDENT_RESPONSE_SERVICE_URL", "POST", "/incident-response/list_methods", {}
+    )
 
 
 async def remote_datadog_query(config: Dict[str, Any]) -> Any:

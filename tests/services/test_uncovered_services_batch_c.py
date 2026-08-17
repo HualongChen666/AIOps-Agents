@@ -521,7 +521,9 @@ def test_pattern_engine_ml_path(monkeypatch):
     assert engine.predict(a) == "ml-cluster-7"
 
     # ML predict failure falls back to signature.
-    engine._model = type("Bad", (), {"predict": lambda self, X: (_ for _ in ()).throw(RuntimeError("boom"))})()
+    engine._model = type(
+        "Bad", (), {"predict": lambda self, X: (_ for _ in ()).throw(RuntimeError("boom"))}
+    )()
     assert engine.predict(a) == engine._signature(a)
 
 
@@ -697,6 +699,7 @@ async def test_repair_repository():
     assert await repo.count() == 1
 
     from services.repair_service.repository import get_repository
+
     assert isinstance(await get_repository(), InMemoryRepairRepository)
 
 

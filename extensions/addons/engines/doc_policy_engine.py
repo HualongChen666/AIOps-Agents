@@ -66,14 +66,8 @@ class DocEngine(_DryRunMixin):
             check=False,
         )
         output_text = (proc.stdout or "") + (proc.stderr or "")
-        warnings = (
-            output_text.count("WARNING:")
-            + output_text.lower().count("warning:")
-        )
-        errors = (
-            output_text.count("ERROR:")
-            + output_text.count("SEVERE:")
-        )
+        warnings = output_text.count("WARNING:") + output_text.lower().count("warning:")
+        errors = output_text.count("ERROR:") + output_text.count("SEVERE:")
         return {
             "dry_run": False,
             "returncode": proc.returncode,
@@ -273,7 +267,9 @@ class PolicyEngine(_DryRunMixin):
         except Exception:
             auth_module = None
 
-        getter = getattr(auth_module, "get_user_by_username", None) if auth_module is not None else None
+        getter = (
+            getattr(auth_module, "get_user_by_username", None) if auth_module is not None else None
+        )
         if getter is not None:
             try:
                 user = getter(user_id)

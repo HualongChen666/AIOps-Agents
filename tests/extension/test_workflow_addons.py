@@ -5,10 +5,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from extensions.addons.operations.capacity_planning_service.service import Service as CapacityPlanningService
-from extensions.addons.operations.incident_runbook_service.service import Service as IncidentRunbookService
-from extensions.addons.operations.scenario_memory_service.service import Service as ScenarioMemoryService
-from extensions.addons.operations.workflow_engine_service.service import Service as WorkflowEngineService
+from extensions.addons.operations.capacity_planning_service.service import (
+    Service as CapacityPlanningService,
+)
+from extensions.addons.operations.incident_runbook_service.service import (
+    Service as IncidentRunbookService,
+)
+from extensions.addons.operations.scenario_memory_service.service import (
+    Service as ScenarioMemoryService,
+)
+from extensions.addons.operations.workflow_engine_service.service import (
+    Service as WorkflowEngineService,
+)
 from extensions.addons.operations.workflow_service.service import Service as WorkflowService
 
 
@@ -59,9 +67,7 @@ def test_workflow_service(mock_run):
 
 def test_incident_runbook_service():
     params = {
-        "runbook": [
-            {"type": "decision", "condition": "severity == 'high'", "true": "escalate"}
-        ],
+        "runbook": [{"type": "decision", "condition": "severity == 'high'", "true": "escalate"}],
         "inputs": {"severity": "high"},
     }
     result = IncidentRunbookService.execute_operation("run_runbook", params)
@@ -77,5 +83,7 @@ def test_capacity_planning_service():
 
 
 def test_scenario_memory_service():
-    result = ScenarioMemoryService.execute_operation("get_scenario_memory", {"query": "network outage"})
+    result = ScenarioMemoryService.execute_operation(
+        "get_scenario_memory", {"query": "network outage"}
+    )
     assert "query" in result

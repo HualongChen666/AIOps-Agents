@@ -2,6 +2,7 @@
 """Targeted functional coverage tests for core.constants, core.eager_loading,
 core.service_mesh, core.service_worker_config and core.telemetry.fastapi.
 """
+
 import sys
 import types
 from unittest.mock import MagicMock
@@ -115,9 +116,9 @@ def test_service_mesh_alias_and_basic_manager(tmp_path, monkeypatch):
     injected = manager.inject_sidecar_to_deployment(deployment)
     container_names = [c["name"] for c in injected["spec"]["template"]["spec"]["containers"]]
     assert "istio-proxy" in container_names
-    assert injected["spec"]["template"]["metadata"]["annotations"][
-        "sidecar.istio.io/inject"
-    ] == "true"
+    assert (
+        injected["spec"]["template"]["metadata"]["annotations"]["sidecar.istio.io/inject"] == "true"
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -193,7 +194,9 @@ def _init_telemetry_import_error(**kwargs):
 # -----------------------------------------------------------------------------
 def test_instrument_fastapi_success(monkeypatch):
     app = MagicMock()
-    telemetry_fastapi.instrument_fastapi(app, service_name="aiops-test", excluded_urls="/health,/metrics")
+    telemetry_fastapi.instrument_fastapi(
+        app, service_name="aiops-test", excluded_urls="/health,/metrics"
+    )
     telemetry_fastapi.FastAPIInstrumentor.instrument_app.assert_called_once_with(
         app, tracer_provider=None, excluded_urls="/health,/metrics"
     )

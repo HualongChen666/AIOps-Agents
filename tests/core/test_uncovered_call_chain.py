@@ -6,14 +6,18 @@ from datetime import datetime, timedelta, timezone
 from core.call_chain_analysis import (
     CallChainAnalysisEngine,
     CallChainNode,
+)
+from core.call_chain_analysis import (
     get_call_chain_analysis_engine as get_legacy_call_chain_analysis_engine,
 )
+from core.call_chain_analysis_engine import CallChainAnalysisEngine as ModernCallChainAnalysisEngine
 from core.call_chain_analysis_engine import (
-    CallChainAnalysisEngine as ModernCallChainAnalysisEngine,
     Span,
     SpanKind,
     SpanStatus,
     Trace,
+)
+from core.call_chain_analysis_engine import (
     get_call_chain_analysis_engine as get_modern_call_chain_analysis_engine,
 )
 from core.call_chain_search import (
@@ -229,9 +233,7 @@ def test_modern_call_chain_analysis_engine():
     by_service = engine.filter_by_service_name("web")
     assert len(by_service) == 1
 
-    by_time = engine.filter_by_time_range(
-        start - timedelta(seconds=1), end + timedelta(seconds=1)
-    )
+    by_time = engine.filter_by_time_range(start - timedelta(seconds=1), end + timedelta(seconds=1))
     assert len(by_time) == 1
 
     by_duration = engine.filter_by_duration(min_duration_ms=1000.0)

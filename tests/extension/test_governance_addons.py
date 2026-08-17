@@ -104,9 +104,7 @@ def test_plugin_market_service_plugin_index():
 
 
 def test_plugin_system_service_plugin_load():
-    result = PluginSystemService.execute_operation(
-        "plugin_load", {"plugin_id": "json"}
-    )
+    result = PluginSystemService.execute_operation("plugin_load", {"plugin_id": "json"})
     assert result["success"] is True
     assert result["result"]["dry_run"] is True
     assert result["result"]["plugin_id"] == "json"

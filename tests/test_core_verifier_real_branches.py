@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Real-function, no-mock branch coverage tests for core.verifier."""
+
 import asyncio
 import os
 import sys
@@ -67,7 +68,9 @@ def test_verify_repair_metric_wait_timeout_conflict():
         )
     )
     assert result["strategy"] == "skipped"
-    assert result["recommendation"] and ("不兼容" in result["recommendation"] or "数据点" in result["recommendation"])
+    assert result["recommendation"] and (
+        "不兼容" in result["recommendation"] or "数据点" in result["recommendation"]
+    )
 
 
 def test_verify_repair_cancelled_is_reraised():
@@ -119,15 +122,23 @@ def test_select_strategy():
     assert _select_strategy("totally_unknown") == "none"
 
     # AI_DYNAMIC heuristics
-    assert _select_strategy("AI_DYNAMIC", {"commands": ["systemctl restart nginx"]}) == "service_status"
+    assert (
+        _select_strategy("AI_DYNAMIC", {"commands": ["systemctl restart nginx"]})
+        == "service_status"
+    )
     assert _select_strategy("AI_DYNAMIC", {"commands": ["kill 12345"]}) == "process_check"
-    assert _select_strategy("AI_DYNAMIC", {"commands": ["echo 1 > /proc/sys/vm/drop_caches"]}) == "metric_threshold"
+    assert (
+        _select_strategy("AI_DYNAMIC", {"commands": ["echo 1 > /proc/sys/vm/drop_caches"]})
+        == "metric_threshold"
+    )
     assert _select_strategy("AI_DYNAMIC", {"commands": ["rm -rf /tmp/old"]}) == "disk_usage"
     assert _select_strategy("AI_DYNAMIC", {"commands": ["ping 1.1.1.1"]}) == "network_check"
     assert _select_strategy("AI_DYNAMIC", {"commands": ["kubectl get pods app-0"]}) == "k8s_status"
     # AI_DYNAMIC with no/malformed runbook falls back to custom_command.
     assert _select_strategy("AI_DYNAMIC", None) == "custom_command"
-    assert _select_strategy("AI_DYNAMIC", {"commands": "systemctl restart nginx"}) == "custom_command"
+    assert (
+        _select_strategy("AI_DYNAMIC", {"commands": "systemctl restart nginx"}) == "custom_command"
+    )
     assert _select_strategy("AI_DYNAMIC", {"commands": ["echo hello"]}) == "custom_command"
 
 

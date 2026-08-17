@@ -8,10 +8,10 @@ No mocks or stubs are used.
 
 import asyncio
 import importlib
+import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
-import os
 import pytest
 from fastapi import HTTPException
 
@@ -150,9 +150,7 @@ def test_verify_token_edge_cases():
 
 def test_create_refresh_token_with_expires_delta():
     """Refresh token accepts a custom timedelta."""
-    token = auth.create_refresh_token(
-        {"sub": "admin"}, expires_delta=timedelta(days=1)
-    )
+    token = auth.create_refresh_token({"sub": "admin"}, expires_delta=timedelta(days=1))
     assert token
     payload = auth.verify_token(token)
     assert payload and payload["type"] == "refresh"
@@ -210,9 +208,7 @@ async def test_get_current_user_valid_expired_and_unknown():
     user = await auth.get_current_user(token=token)
     assert user.username == "admin"
 
-    expired = auth.create_access_token(
-        {"sub": "admin"}, expires_delta=timedelta(seconds=-1)
-    )
+    expired = auth.create_access_token({"sub": "admin"}, expires_delta=timedelta(seconds=-1))
     with pytest.raises(HTTPException):
         await auth.get_current_user(token=expired)
 
@@ -296,9 +292,7 @@ async def test_is_token_revoked_stale_entries():
     assert token not in auth._token_blacklist
 
     # Stale jti entry
-    auth._token_blacklist[f"jti:{jti}"] = datetime.now(timezone.utc) - timedelta(
-        hours=2
-    )
+    auth._token_blacklist[f"jti:{jti}"] = datetime.now(timezone.utc) - timedelta(hours=2)
     assert await auth.is_token_revoked(token) is False
     assert f"jti:{jti}" not in auth._token_blacklist
 
@@ -546,6 +540,7 @@ async def test_get_current_active_user_object_disabled(monkeypatch):
 
 def test_verify_token_pyjwt_error(monkeypatch):
     """A raw PyJWTError falls through to the final except block."""
+
     def _raise(*args, **kwargs):
         raise jwt.PyJWTError("forced")
 
@@ -555,6 +550,7 @@ def test_verify_token_pyjwt_error(monkeypatch):
 
 def test_authenticate_user_get_user_exception(monkeypatch):
     """Unexpected exceptions in the get_user fallback are caught and return None."""
+
     def _raise(username: str):
         raise RuntimeError("user lookup failed")
 

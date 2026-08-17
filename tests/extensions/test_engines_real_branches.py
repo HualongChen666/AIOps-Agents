@@ -118,9 +118,9 @@ def test_security_scanner_real_branches(monkeypatch):
     nmap_default = (
         '<?xml version="1.0"?>\n'
         "<nmaprun>\n"
-        '  <host>\n'
+        "  <host>\n"
         '    <address addr="10.0.0.1"/>\n'
-        '    <ports>\n'
+        "    <ports>\n"
         '      <port portid="80">\n'
         '        <state state="open"/>\n'
         '        <service name="http"/>\n'
@@ -230,7 +230,9 @@ def test_monitoring_provider_real_branches(monkeypatch):
 
     def fake_subprocess(cmd, **kwargs):
         return _cp(
-            stdout=json.dumps({"Datapoints": [{"Timestamp": _dt.datetime.utcnow().isoformat(), "Average": 0.5}]}),
+            stdout=json.dumps(
+                {"Datapoints": [{"Timestamp": _dt.datetime.utcnow().isoformat(), "Average": 0.5}]}
+            ),
             returncode=0,
         )
 

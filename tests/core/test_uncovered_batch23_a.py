@@ -33,9 +33,7 @@ async def test_execute_repair_unknown_script():
 
 
 async def test_execute_repair_missing_required_param():
-    result = await docker_repair.execute_repair_sync(
-        "h1", "restart_container", {}
-    )
+    result = await docker_repair.execute_repair_sync("h1", "restart_container", {})
     assert result["success"] is False
     assert "Missing required params" in result["error"]
 
@@ -52,9 +50,7 @@ async def test_execute_repair_force_subprocess_success(monkeypatch):
     monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: "/bin/docker")
     fake_proc = MagicMock(returncode=0, stdout="ok output", stderr="")
     monkeypatch.setattr("core.docker_repair.subprocess.run", lambda *a, **k: fake_proc)
-    result = await docker_repair.execute_repair_sync(
-        "h1", "prune_images", {"force": "true"}
-    )
+    result = await docker_repair.execute_repair_sync("h1", "prune_images", {"force": "true"})
     assert result["success"] is True
     assert result["returncode"] == 0
     assert "stdout" in result
@@ -64,9 +60,7 @@ async def test_execute_repair_force_subprocess_failure(monkeypatch):
     monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: "/bin/docker")
     fake_proc = MagicMock(returncode=1, stdout="", stderr="error")
     monkeypatch.setattr("core.docker_repair.subprocess.run", lambda *a, **k: fake_proc)
-    result = await docker_repair.execute_repair_sync(
-        "h1", "prune_images", {"force": "true"}
-    )
+    result = await docker_repair.execute_repair_sync("h1", "prune_images", {"force": "true"})
     assert result["success"] is False
     assert result["returncode"] == 1
 
@@ -79,9 +73,7 @@ async def test_execute_repair_subprocess_exception(monkeypatch, tmp_path):
     )
     hist = tmp_path / "hist.json"
     monkeypatch.setattr("core.docker_repair._HISTORY_FILE", hist)
-    result = await docker_repair.execute_repair_sync(
-        "h1", "prune_images", {"force": "true"}
-    )
+    result = await docker_repair.execute_repair_sync("h1", "prune_images", {"force": "true"})
     assert result["success"] is False
     assert "boom" in result["error"]
 
@@ -278,13 +270,9 @@ def test_classify_query_patterns():
     assert opt.classify_query_pattern("SELECT * FROM t") == "select_star"
     assert opt.identify_n_plus_one_pattern("select x, (select y from z) from a join b") is True
     assert opt.identify_missing_index_pattern("SELECT id FROM t WHERE name LIKE '%x%'") is True
+    assert opt.identify_inefficient_join_pattern("SELECT id FROM a JOIN b ORDER BY x") is True
     assert (
-        opt.identify_inefficient_join_pattern("SELECT id FROM a JOIN b ORDER BY x")
-        is True
-    )
-    assert (
-        opt.identify_n_plus_one_pattern("SELECT id FROM t WHERE id IN (SELECT id FROM u)")
-        is False
+        opt.identify_n_plus_one_pattern("SELECT id FROM t WHERE id IN (SELECT id FROM u)") is False
     )
     assert opt.classify_query_pattern("SELECT id FROM t") == "unknown"
 
@@ -292,11 +280,19 @@ def test_classify_query_patterns():
 def test_generate_optimizations_for_patterns():
     opt = _fresh_optimizer(slow_query_threshold_ms=500)
     cases = [
-        ("n1", "SELECT a, (SELECT b FROM c) FROM d JOIN e", dqo.QueryOptimizationType.NPLUS_ONE_FIX),
+        (
+            "n1",
+            "SELECT a, (SELECT b FROM c) FROM d JOIN e",
+            dqo.QueryOptimizationType.NPLUS_ONE_FIX,
+        ),
         ("n2", "SELECT id FROM t WHERE name LIKE '%x%'", dqo.QueryOptimizationType.INDEX_ADDITION),
         ("n3", "SELECT id FROM a JOIN b ORDER BY x", dqo.QueryOptimizationType.JOIN_OPTIMIZATION),
         ("n4", "SELECT * FROM t", dqo.QueryOptimizationType.QUERY_REWRITE),
-        ("n5", "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u)", dqo.QueryOptimizationType.SUBQUERY_OPTIMIZATION),
+        (
+            "n5",
+            "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u)",
+            dqo.QueryOptimizationType.SUBQUERY_OPTIMIZATION,
+        ),
     ]
     for qid, qtext, expected_type in cases:
         opt.record_query_execution(qid, qtext, "db", "t", 2000.0)
@@ -478,14 +474,14 @@ def _make_fake_psutil():
         current = 2400.0
 
     class _FakeVM:
-        total = 8 * (1024 ** 3)
-        used = 4 * (1024 ** 3)
-        available = 4 * (1024 ** 3)
+        total = 8 * (1024**3)
+        used = 4 * (1024**3)
+        available = 4 * (1024**3)
         percent = 50.0
 
     class _FakeSwap:
-        total = 2 * (1024 ** 3)
-        used = 1 * (1024 ** 3)
+        total = 2 * (1024**3)
+        used = 1 * (1024**3)
         percent = 50.0
 
     class _FakeNetIO:
@@ -497,9 +493,9 @@ def _make_fake_psutil():
         errout = 0
 
     class _FakeUsage:
-        total = 100 * (1024 ** 3)
-        used = 50 * (1024 ** 3)
-        free = 50 * (1024 ** 3)
+        total = 100 * (1024**3)
+        used = 50 * (1024**3)
+        free = 50 * (1024**3)
         percent = 50.0
 
     class _FakePartition:
@@ -572,9 +568,18 @@ def _make_fake_psutil():
         def process_iter(self, attrs=None):
             return [
                 _FakeProcess(1, "a.exe", "running", "user"),
-                _FakeProcess(2, "b.exe", "running", "user", cpu_seq=[1.0, _NoSuchProcess], mem_seq=[2.0, _AccessDenied]),
+                _FakeProcess(
+                    2,
+                    "b.exe",
+                    "running",
+                    "user",
+                    cpu_seq=[1.0, _NoSuchProcess],
+                    mem_seq=[2.0, _AccessDenied],
+                ),
                 _FakeProcess(3, "c.exe", "running", "domain\\user"),
-                _FakeProcess(4, "d.exe", "running", "user", cpu_seq=[_NoSuchProcess], mem_seq=[_AccessDenied]),
+                _FakeProcess(
+                    4, "d.exe", "running", "user", cpu_seq=[_NoSuchProcess], mem_seq=[_AccessDenied]
+                ),
             ]
 
     return _FakePsutil()
@@ -662,6 +667,7 @@ def test_get_network_metrics_first_call(collector_fakes, monkeypatch):
 def test_get_network_metrics_negative_diff(collector_fakes, monkeypatch):
     monkeypatch.setattr("core.collector._is_first_net_call", True)
     collector.get_network_metrics()
+
     class _LowerNet:
         bytes_recv = 512
         bytes_sent = 1024
@@ -669,6 +675,7 @@ def test_get_network_metrics_negative_diff(collector_fakes, monkeypatch):
         packets_sent = 6
         errin = 0
         errout = 0
+
     monkeypatch.setattr("core.collector.psutil.net_io_counters", lambda: _LowerNet())
     net = collector.get_network_metrics()
     assert net["recv_speed_mb"] == 0.0

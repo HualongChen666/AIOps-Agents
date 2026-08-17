@@ -192,7 +192,9 @@ def test_diagnostic_state_serialization():
 def test_summarize_result():
     assert agent_state.DiagnosticState._summarize_result(None) == "no result"
     assert agent_state.DiagnosticState._summarize_result({"summary": "ok"}) == "ok"
-    assert "status=" in agent_state.DiagnosticState._summarize_result({"status": "ok", "result": "r"})
+    assert "status=" in agent_state.DiagnosticState._summarize_result(
+        {"status": "ok", "result": "r"}
+    )
     assert "list[2]" in agent_state.DiagnosticState._summarize_result([1, 2])
     assert agent_state.DiagnosticState._summarize_result("x" * 300) == "x" * 200
 
@@ -255,7 +257,10 @@ async def test_batch_get_relations(monkeypatch, fake_session):
     assert set(result.keys()) == {10, 20}
     assert len(result[10]) == 2
     assert result[20] == [rel3]
-    assert await qo.BatchQueryOptimizer.batch_get_relations(fake_session, [], "children", _FakeModel) == {}
+    assert (
+        await qo.BatchQueryOptimizer.batch_get_relations(fake_session, [], "children", _FakeModel)
+        == {}
+    )
 
 
 def test_with_eager_loading():
@@ -346,11 +351,12 @@ async def test_optimize_metrics_query(monkeypatch, fake_session):
     assert load_mock.called
 
 
+import config as _config
+
 # ---------------------------------------------------------------------------
 # auth_service
 # ---------------------------------------------------------------------------
 import core.auth_service as auth
-import config as _config
 
 
 @pytest.fixture
@@ -365,7 +371,13 @@ def auth_config(monkeypatch):
 
 
 def fake_user(**kwargs):
-    defaults = {"id": 1, "username": "alice", "role": "viewer", "is_active": True, "tenant_id": "default"}
+    defaults = {
+        "id": 1,
+        "username": "alice",
+        "role": "viewer",
+        "is_active": True,
+        "tenant_id": "default",
+    }
     defaults.update(kwargs)
     return MagicMock(**defaults)
 
@@ -376,7 +388,9 @@ def fake_db_session(query_result=None, count_result=0):
     sess.__exit__ = MagicMock(return_value=False)
     sess.query.return_value.filter.return_value.first.return_value = query_result
     sess.query.return_value.filter.return_value.count.return_value = count_result
-    sess.query.return_value.filter.return_value.all.return_value = [MagicMock()] if query_result else []
+    sess.query.return_value.filter.return_value.all.return_value = (
+        [MagicMock()] if query_result else []
+    )
     return sess
 
 

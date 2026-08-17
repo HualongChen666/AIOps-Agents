@@ -9,12 +9,18 @@ from typing import Any, Dict, List
 
 import pytest
 
-from extensions.addons.infrastructure.fastapi_security_service.service import Service as FastApiService
-from extensions.addons.infrastructure.open_source_license_service.service import Service as LicenseService
+from extensions.addons.infrastructure.fastapi_security_service.service import (
+    Service as FastApiService,
+)
+from extensions.addons.infrastructure.open_source_license_service.service import (
+    Service as LicenseService,
+)
 from extensions.addons.security.penetration_testing_service.service import Service as PentestService
 from extensions.addons.security.security_audit_service.service import Service as AuditService
 from extensions.addons.security.security_scanning_service.service import Service as ScanningService
-from extensions.addons.security.sqlalchemy_security_service.service import Service as SqlalchemyService
+from extensions.addons.security.sqlalchemy_security_service.service import (
+    Service as SqlalchemyService,
+)
 
 
 def _make_output(tool: str) -> str:
@@ -73,7 +79,7 @@ def _make_output(tool: str) -> str:
             '<?xml version="1.0"?>\n'
             "<nmaprun>\n"
             "  <host>\n"
-            "    <address addr=\"127.0.0.1\"/>\n"
+            '    <address addr="127.0.0.1"/>\n'
             "    <ports>\n"
             '      <port portid="443">\n'
             '        <state state="open"/>\n'
@@ -149,9 +155,7 @@ def test_penetration_testing_service_execute_penetration_tests(mock_run):
 
 
 def test_sqlalchemy_security_service_sql_injection_protection(mock_run):
-    params: Dict[str, Any] = {
-        "code": "cursor.execute('SELECT * FROM users WHERE id = ' + user_id)"
-    }
+    params: Dict[str, Any] = {"code": "cursor.execute('SELECT * FROM users WHERE id = ' + user_id)"}
     result = SqlalchemyService.execute_operation("sql_injection_protection", params)
     assert result["success"] is True
     assert result["status"] == "ok"

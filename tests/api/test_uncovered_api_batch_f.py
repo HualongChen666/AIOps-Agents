@@ -13,6 +13,7 @@ pytestmark = [pytest.mark.api]
 def _async_return(value):
     async def _inner(*args, **kwargs):
         return value
+
     return _inner
 
 
@@ -83,6 +84,7 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- cost_router ----------
     import api.cost_router as _cr
+
     monkeypatch.setattr(
         _cr,
         "collect_costs",
@@ -101,7 +103,10 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- health_router ----------
     import api.health_router as _hr
-    monkeypatch.setattr(_hr, "ALLOWED_LOCAL_IPS", ["127.0.0.1", "::1", "localhost", "testserver", "testclient"])
+
+    monkeypatch.setattr(
+        _hr, "ALLOWED_LOCAL_IPS", ["127.0.0.1", "::1", "localhost", "testserver", "testclient"]
+    )
     monkeypatch.setattr(_hr, "get_liveness_status", lambda: {"status": "healthy"})
     monkeypatch.setattr(_hr, "get_readiness_status", lambda: {"ready": True})
     monkeypatch.setattr(_hr, "get_detailed_health", lambda: {"status": "healthy"})
@@ -109,12 +114,14 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- plugin_router ----------
     import api.plugin_router as _pr
+
     monkeypatch.setattr(_pr, "list_plugins", lambda: ["cpu_monitor"])
     _plugin = SimpleNamespace(collect=lambda: {"cpu_usage": 45.2, "cores": 8})
     monkeypatch.setattr(_pr, "get_plugin", lambda name: _plugin if name == "cpu_monitor" else None)
 
     # ---------- capacity_router ----------
     import api.capacity_router as _capr
+
     monkeypatch.setattr(
         _capr,
         "forecast_capacity",
@@ -125,13 +132,18 @@ def _patch_batch_f(monkeypatch):
         "generate_scaling_recommendations",
         lambda forecasts: [{"id": "SR-CPU", "service": "compute"}],
     )
-    monkeypatch.setattr(_capr.metrics_history, "to_dict", lambda: {"cpu": [], "memory": [], "net_in": []})
+    monkeypatch.setattr(
+        _capr.metrics_history, "to_dict", lambda: {"cpu": [], "memory": [], "net_in": []}
+    )
     monkeypatch.setattr(_capr, "get_disk_metrics", lambda: [{"usage_percent": 45.0}])
 
     # ---------- guard_router ----------
     import api.guard_router as _gr
+
     _risk = SimpleNamespace(value="high")
-    monkeypatch.setattr(_gr, "RiskLevel", SimpleNamespace(HIGH=_risk, BLOCKED=SimpleNamespace(value="blocked")))
+    monkeypatch.setattr(
+        _gr, "RiskLevel", SimpleNamespace(HIGH=_risk, BLOCKED=SimpleNamespace(value="blocked"))
+    )
     _analysis = {
         "command": "rm -rf /tmp/cache",
         "risk_level": _gr.RiskLevel.HIGH,
@@ -146,11 +158,14 @@ def _patch_batch_f(monkeypatch):
     monkeypatch.setattr(_gr, "is_command_allowed", lambda cmd: True)
     monkeypatch.setattr(_gr, "rewrite_to_safe", lambda cmd: f"safe-{cmd}")
     monkeypatch.setattr(_gr, "dry_run_preview", lambda cmd: f"preview-{cmd}")
-    monkeypatch.setattr(_gr, "get_audit_log", lambda limit: [{"command": "ls", "risk_level": "low", "result": "ok"}])
+    monkeypatch.setattr(
+        _gr, "get_audit_log", lambda limit: [{"command": "ls", "risk_level": "low", "result": "ok"}]
+    )
     monkeypatch.setattr(_gr, "record_audit", lambda **kwargs: None)
 
     # ---------- plugin_ecosystem ----------
     import core.plugin_ecosystem_manager as _pem
+
     _ecosystem_manager = SimpleNamespace(
         get_ecosystem_summary=lambda: {"total_plugins": 10, "active_plugins": 8},
         record_activity=lambda p, a, u, m: SimpleNamespace(
@@ -167,6 +182,7 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- documentation ----------
     import core.documentation_manager as _dm
+
     _doc = SimpleNamespace(
         doc_id="doc-1",
         title="Guide",
@@ -191,6 +207,7 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- doc_generator ----------
     import core.documentation_generator as _dg
+
     _gen_doc = SimpleNamespace(
         doc_id="doc-2",
         title="Generated",
@@ -211,6 +228,7 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- i18n ----------
     import core.i18n_manager as _im
+
     _i18n_manager = SimpleNamespace(
         get_i18n_summary=lambda: {"enabled": True, "default_locale": "zh-CN", "total_locales": 5},
         get_supported_locales=lambda: ["zh-CN", "en-US"],
@@ -228,10 +246,13 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- api_performance ----------
     import core.api_performance_optimizer as _apo
+
     _optimizer = SimpleNamespace(
         get_performance_summary=lambda: {"avg_response_time": 150},
         analyze_response_times=lambda: {"p50": 120},
-        identify_slow_apis=lambda: [{"endpoint": "/api/x", "avg_response_time": 500, "call_count": 100}],
+        identify_slow_apis=lambda: [
+            {"endpoint": "/api/x", "avg_response_time": 500, "call_count": 100}
+        ],
         generate_optimizations=lambda: [
             SimpleNamespace(
                 optimization_id="o1",
@@ -255,6 +276,7 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- enterprise ----------
     import api.enterprise_router as _er
+
     _audit_entry = SimpleNamespace(
         entry_id="ae-1",
         tenant_id="t1",
@@ -308,6 +330,7 @@ def _patch_batch_f(monkeypatch):
 
     # ---------- integration ----------
     import api.integration_router as _ir
+
     _integration = SimpleNamespace(
         integration_id="int-1",
         integration_type=_FakeIntegrationType("prometheus"),
@@ -334,6 +357,7 @@ def _patch_batch_f(monkeypatch):
         retry_count=0,
         timestamp=_dt,
     )
+
     class _NoDeleteDict(dict):
         def __delitem__(self, key):
             pass
@@ -384,6 +408,7 @@ def _patch_batch_f(monkeypatch):
 def _raise(exc):
     def _inner(*args, **kwargs):
         raise exc
+
     return _inner
 
 
@@ -502,7 +527,9 @@ def test_plugin_ecosystem_router(client, monkeypatch):
     fake = SimpleNamespace(
         get_ecosystem_summary=lambda: pem.get_ecosystem_manager().get_ecosystem_summary(),
         record_activity=lambda *a, **k: pem.get_ecosystem_manager().record_activity(*a, **k),
-        get_plugin_activities=lambda *a, **k: pem.get_ecosystem_manager().get_plugin_activities(*a, **k),
+        get_plugin_activities=lambda *a, **k: pem.get_ecosystem_manager().get_plugin_activities(
+            *a, **k
+        ),
         register_developer=lambda *a, **k: True,
         get_developer_stats=lambda d: None,
     )
@@ -524,7 +551,9 @@ def test_documentation_router(client, monkeypatch):
     resp = client.get("/api/documentation/documents")
     assert resp.status_code == 200
 
-    resp = client.get("/api/documentation/documents", params={"doc_type": "api", "status": "published"})
+    resp = client.get(
+        "/api/documentation/documents", params={"doc_type": "api", "status": "published"}
+    )
     assert resp.status_code == 200
 
     resp = client.post(
@@ -620,7 +649,9 @@ def test_i18n_router(client, monkeypatch):
     resp = client.post("/api/i18n/locale/set", params={"locale_id": "zh-CN"})
     assert resp.status_code == 200
 
-    resp = client.get("/api/i18n/translate", params={"key": "hello", "namespace": "common", "language": "en-US"})
+    resp = client.get(
+        "/api/i18n/translate", params={"key": "hello", "namespace": "common", "language": "en-US"}
+    )
     assert resp.status_code == 200
 
     resp = client.put(
@@ -629,13 +660,17 @@ def test_i18n_router(client, monkeypatch):
     )
     assert resp.status_code == 200
 
-    resp = client.get("/api/i18n/format/number", params={"number": 1234.5678, "locale": "zh-CN", "decimals": 2})
+    resp = client.get(
+        "/api/i18n/format/number", params={"number": 1234.5678, "locale": "zh-CN", "decimals": 2}
+    )
     assert resp.status_code == 200
 
     resp = client.get("/api/i18n/format/currency", params={"amount": 99.99, "locale": "en-US"})
     assert resp.status_code == 200
 
-    resp = client.get("/api/i18n/format/date", params={"date_str": "2026-07-03T09:00:00", "locale": "zh-CN"})
+    resp = client.get(
+        "/api/i18n/format/date", params={"date_str": "2026-07-03T09:00:00", "locale": "zh-CN"}
+    )
     assert resp.status_code == 200
 
     _bad_manager = SimpleNamespace(
@@ -653,7 +688,12 @@ def test_i18n_router(client, monkeypatch):
     monkeypatch.setattr(im, "get_i18n_manager", lambda: _bad_manager)
     resp = client.put(
         "/api/i18n/translate",
-        params={"key": "hello", "translation": "你好", "namespace": "common", "language": "missing"},
+        params={
+            "key": "hello",
+            "translation": "你好",
+            "namespace": "common",
+            "language": "missing",
+        },
     )
     assert resp.status_code == 400
 
@@ -740,7 +780,9 @@ def test_enterprise_router(client, monkeypatch):
     )
     assert resp.status_code == 200
 
-    resp = client.get("/api/v1/enterprise/privacy/consent/u1", params={"consent_purpose": "analytics"})
+    resp = client.get(
+        "/api/v1/enterprise/privacy/consent/u1", params={"consent_purpose": "analytics"}
+    )
     assert resp.status_code == 200
 
     resp = client.post("/api/v1/enterprise/privacy/mask", json={"email": "a@b.com"})
@@ -782,7 +824,9 @@ def test_api_performance_router(client, monkeypatch):
     resp = client.post("/api/api-performance/optimize")
     assert resp.status_code == 200
 
-    resp = client.post("/api/api-performance/cache/setup", params={"endpoint": "/api/x", "ttl_seconds": 120})
+    resp = client.post(
+        "/api/api-performance/cache/setup", params={"endpoint": "/api/x", "ttl_seconds": 120}
+    )
     assert resp.status_code == 200
 
     resp = client.delete("/api/api-performance/cache", params={"endpoint": "/api/x"})

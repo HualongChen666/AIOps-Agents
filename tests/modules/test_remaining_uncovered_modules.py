@@ -7,12 +7,14 @@ import asyncio
 import sys
 import types
 from datetime import datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 import pytest
+
 
 class _FakeEndpoints:
     def __init__(self, has: bool = True):
@@ -114,11 +116,7 @@ if "prophet" not in sys.modules:
             pass
 
         def make_future_dataframe(self, periods: int, freq: str):
-            start = (
-                self._df["ds"].max()
-                if self._df is not None
-                else pd.Timestamp("2024-01-01")
-            )
+            start = self._df["ds"].max() if self._df is not None else pd.Timestamp("2024-01-01")
             return pd.DataFrame({"ds": pd.date_range(start, periods=periods, freq=freq)})
 
         def predict(self, future: pd.DataFrame):
@@ -154,24 +152,9 @@ if "prophet" not in sys.modules:
     sys.modules["prophet.diagnostics"] = _prophet_diag
 
 
-# ----------------------------------------------------------------------
-# Imports of the modules under test
-# ----------------------------------------------------------------------
-from modules.execute.auto_heal.operator import (  # noqa: E402
-    AutoHealOperator,
-    HealConditionType,
-    HealPhase,
-)
+import modules.analyze.anomaly.data_preprocessing as _data_mod  # noqa: E402
 import modules.execute.auto_heal.operator as _operator_mod  # noqa: E402
-
-from modules.storage.clickhouse.storage import (  # noqa: E402
-    ClickHouseStorage,
-    create_clickhouse_storage,
-)
 import modules.storage.clickhouse.storage as _storage_mod  # noqa: E402
-
-from modules.analyze.cost.forecast import CostForecaster  # noqa: E402
-
 from modules.analyze.anomaly.data_preprocessing import (  # noqa: E402
     MultiModalDataPreparer,
     TimeSeriesAugmenter,
@@ -183,7 +166,20 @@ from modules.analyze.anomaly.data_preprocessing import (  # noqa: E402
     TimeSeriesSplitter,
     create_preprocessing_pipeline,
 )
-import modules.analyze.anomaly.data_preprocessing as _data_mod  # noqa: E402
+from modules.analyze.cost.forecast import CostForecaster  # noqa: E402
+
+# ----------------------------------------------------------------------
+# Imports of the modules under test
+# ----------------------------------------------------------------------
+from modules.execute.auto_heal.operator import (  # noqa: E402
+    AutoHealOperator,
+    HealConditionType,
+    HealPhase,
+)
+from modules.storage.clickhouse.storage import (  # noqa: E402
+    ClickHouseStorage,
+    create_clickhouse_storage,
+)
 
 
 # ----------------------------------------------------------------------
@@ -308,7 +304,9 @@ class TestAutoHealOperatorRemaining:
         # use the ApiException class imported by the operator module
 
         monkeypatch.setattr(
-            op._k8s_client, "list_namespaced_pod", lambda ns: (_ for _ in ()).throw(_operator_mod.ApiException(500))
+            op._k8s_client,
+            "list_namespaced_pod",
+            lambda ns: (_ for _ in ()).throw(_operator_mod.ApiException(500)),
         )
         await op._check_pods()
 
@@ -332,7 +330,9 @@ class TestAutoHealOperatorRemaining:
         # use the ApiException class imported by the operator module
 
         monkeypatch.setattr(
-            op._k8s_client, "list_namespaced_service", lambda ns: (_ for _ in ()).throw(_operator_mod.ApiException(500))
+            op._k8s_client,
+            "list_namespaced_service",
+            lambda ns: (_ for _ in ()).throw(_operator_mod.ApiException(500)),
         )
         await op._check_services()
 
@@ -693,17 +693,13 @@ class TestClickHouseStorageRemaining:
     def test_store_anomaly_not_initialized(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setitem(sys.modules, "httpx", _httpx_success())
         s = ClickHouseStorage({"read_only": False})
-        assert not asyncio.run(
-            s.store_anomaly("a1", "svc", "critical", "desc", {}, datetime.now())
-        )
+        assert not asyncio.run(s.store_anomaly("a1", "svc", "critical", "desc", {}, datetime.now()))
 
     def test_store_anomaly_httpx_error(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setitem(sys.modules, "httpx", _httpx_request_error())
         s = ClickHouseStorage({"read_only": False})
         s._is_initialized = True
-        assert not asyncio.run(
-            s.store_anomaly("a1", "svc", "critical", "desc", {}, datetime.now())
-        )
+        assert not asyncio.run(s.store_anomaly("a1", "svc", "critical", "desc", {}, datetime.now()))
 
     def test_store_event_not_initialized(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setitem(sys.modules, "httpx", _httpx_success())
@@ -907,7 +903,11 @@ class TestDataPreprocessingRemaining:
     def test_load_csv_additional_cols(self, tmp_path: Path):
         p = tmp_path / "ts.csv"
         pd.DataFrame(
-            {"timestamp": pd.date_range("2024-01-01", periods=5, freq="h"), "value": [1, 2, 3, 4, 5], "x": [1, 2, 3, 4, 5]}
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=5, freq="h"),
+                "value": [1, 2, 3, 4, 5],
+                "x": [1, 2, 3, 4, 5],
+            }
         ).to_csv(p, index=False)
         df = TimeSeriesDataLoader.load_from_csv(str(p), additional_cols=["x"])
         assert "x" in df.columns
@@ -931,8 +931,13 @@ class TestDataPreprocessingRemaining:
 
     def test_handle_missing_methods(self):
         df = pd.DataFrame({"value": [1.0, np.nan, 3.0, 5.0]})
-        assert TimeSeriesCleaner.handle_missing_values(df, method="bfill")["value"].isna().sum() == 0
-        assert TimeSeriesCleaner.handle_missing_values(df, method="interpolate")["value"].isna().sum() == 0
+        assert (
+            TimeSeriesCleaner.handle_missing_values(df, method="bfill")["value"].isna().sum() == 0
+        )
+        assert (
+            TimeSeriesCleaner.handle_missing_values(df, method="interpolate")["value"].isna().sum()
+            == 0
+        )
         assert TimeSeriesCleaner.handle_missing_values(df, method="drop").shape[0] == 3
         assert TimeSeriesCleaner.handle_missing_values(df, method="zero")["value"].isna().sum() == 0
 

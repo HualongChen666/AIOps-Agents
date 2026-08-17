@@ -14,7 +14,6 @@ import api.autoheal_router as ar
 from core import alert_engine
 from core.db_engine import upsert_pending_approval
 
-
 _BASE = "/api/v1/approvals"
 
 
@@ -135,7 +134,7 @@ def test_propose_alert_present(client, admin_headers):
         headers=_approval_headers(admin_headers),
     )
     # AI runbook generation is environment-dependent; the router must return a
-   # well-defined status (success, client error, or server unavailability).
+    # well-defined status (success, client error, or server unavailability).
     assert resp.status_code in (200, 400, 500, 503)
 
 
@@ -145,9 +144,7 @@ def test_propose_alert_present(client, admin_headers):
 
 
 def test_approve_nonexistent_alert(client, admin_headers):
-    resp = client.patch(
-        f"{_BASE}/nonexistent-alert", headers=_approval_headers(admin_headers)
-    )
+    resp = client.patch(f"{_BASE}/nonexistent-alert", headers=_approval_headers(admin_headers))
     # The fallback alert payload lets the workflow attempt to run.
     assert resp.status_code == 200
 
@@ -155,9 +152,7 @@ def test_approve_nonexistent_alert(client, admin_headers):
 def test_approve_existing_alert(client, admin_headers):
     alert_id = "REAL-ALERT-003"
     _seed_alert_and_approval(alert_id)
-    resp = client.patch(
-        f"{_BASE}/{alert_id}", headers=_approval_headers(admin_headers)
-    )
+    resp = client.patch(f"{_BASE}/{alert_id}", headers=_approval_headers(admin_headers))
     assert resp.status_code == 200
 
 
@@ -188,18 +183,14 @@ def test_reject_existing_alert(client, admin_headers):
 
 
 def test_takeover_empty_alert_id(client, admin_headers):
-    resp = client.post(
-        f"{_BASE}/takeover/%20%20", headers=_approval_headers(admin_headers)
-    )
+    resp = client.post(f"{_BASE}/takeover/%20%20", headers=_approval_headers(admin_headers))
     assert resp.status_code == 422
 
 
 def test_takeover_existing_alert(client, admin_headers):
     alert_id = "REAL-ALERT-005"
     _seed_alert_and_approval(alert_id)
-    resp = client.post(
-        f"{_BASE}/takeover/{alert_id}", headers=_approval_headers(admin_headers)
-    )
+    resp = client.post(f"{_BASE}/takeover/{alert_id}", headers=_approval_headers(admin_headers))
     assert resp.status_code == 200
     assert resp.json().get("status") == "cancelled"
 
@@ -219,8 +210,9 @@ def test__enrich_error_msg_branches():
 
 
 def test__find_alert_by_id_and_validate_runbook():
-    import api.autoheal_router as ar
     from fastapi import HTTPException
+
+    import api.autoheal_router as ar
 
     assert ar._find_alert_by_id("REAL-ALERT-001") is not None
     assert ar._find_alert_by_id("not-in-history") is None
@@ -264,9 +256,7 @@ def test_approve_without_async_update(client, admin_headers):
     try:
         alert_id = "REAL-ALERT-010"
         _seed_alert_and_approval(alert_id)
-        resp = client.patch(
-            f"{_BASE}/{alert_id}", headers=_approval_headers(admin_headers)
-        )
+        resp = client.patch(f"{_BASE}/{alert_id}", headers=_approval_headers(admin_headers))
         assert resp.status_code == 200
     finally:
         ar.async_update_approval_status_by_alert = original

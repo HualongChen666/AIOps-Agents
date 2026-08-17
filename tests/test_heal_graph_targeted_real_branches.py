@@ -63,6 +63,7 @@ def _low_risk_runbook(commands, rollback=""):
 # Helper-function branches
 # ---------------------------------------------------------------------------
 
+
 def test_is_hardware_alert_non_dict():
     assert _is_hardware_alert("not a dict") is False
     assert _is_hardware_alert({"category": "hardware"}) is True
@@ -163,6 +164,7 @@ def test_auto_approve_env_branches(monkeypatch):
 # generate_runbook fallback branches
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "alert,expected_key",
     [
@@ -193,6 +195,7 @@ async def test_generate_runbook_default_hardware():
 # ---------------------------------------------------------------------------
 # apply_fix branches
 # ---------------------------------------------------------------------------
+
 
 async def test_apply_fix_low_confidence(monkeypatch):
     monkeypatch.setenv("HEAL_AUTO_APPROVE_SAFE_LOW", "true")
@@ -297,6 +300,7 @@ async def test_apply_fix_real_execution_failure_and_complete(monkeypatch):
 # evaluate branches
 # ---------------------------------------------------------------------------
 
+
 async def test_evaluate_fix_not_applied():
     state = HealState(fix_applied=False)
     result = await evaluate(state)
@@ -332,6 +336,7 @@ async def test_evaluate_params_and_snapshot_normalization(monkeypatch):
 # ---------------------------------------------------------------------------
 # rollback branches
 # ---------------------------------------------------------------------------
+
 
 async def test_rollback_not_approved():
     state = HealState(
@@ -413,6 +418,7 @@ async def test_rollback_real_failure_escalation(monkeypatch):
 # complete branches
 # ---------------------------------------------------------------------------
 
+
 async def test_complete_approval_pending():
     state = HealState(alert={"id": "comp-pending-1"})
     result = await complete(state)
@@ -422,6 +428,7 @@ async def test_complete_approval_pending():
 # ---------------------------------------------------------------------------
 # run_heal entry point
 # ---------------------------------------------------------------------------
+
 
 async def test_run_heal_no_alert():
     state = HealState(alert=None)

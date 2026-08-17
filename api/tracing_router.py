@@ -65,7 +65,9 @@ def _generate_synthetic_trace(trace_id: str, seed: Optional[int] = None) -> Dict
                 "parent_id": parent_id if parent_id else None,
                 "service": service,
                 "operation": f"/api/v1/{service.replace('host-', '')}/{'health' if i % 2 == 0 else 'process'}",
-                "start_time": datetime.fromtimestamp(base_time + i * 0.01, tz=timezone.utc).isoformat(),
+                "start_time": datetime.fromtimestamp(
+                    base_time + i * 0.01, tz=timezone.utc
+                ).isoformat(),
                 "duration_ms": duration_ms,
                 "status": "error" if (rand + i) % 13 == 0 else "ok",
                 "tags": {"synthetic": True, "index": i},
@@ -143,8 +145,9 @@ async def get_tracing_dashboard():
 
         services = _services()
         total = max(len(alert_history), 24)
-        errors = sum(1 for a in alert_history if a.get(
-            "level", "").lower() in ("error", "critical"))
+        errors = sum(
+            1 for a in alert_history if a.get("level", "").lower() in ("error", "critical")
+        )
         error_rate = round(errors / max(total, 1), 4)
         return {
             "status": "success",
@@ -183,8 +186,11 @@ async def list_traces(
                 {"service": service_name, "limit": limit} if service_name else {"limit": limit},
             )
             if real:
-                return {"status": "success", "data": real.get(
-                    "data", []), "total": real.get("total", 0)}
+                return {
+                    "status": "success",
+                    "data": real.get("data", []),
+                    "total": real.get("total", 0),
+                }
 
         min_ms = _parse_duration_ms(min_duration) if min_duration else None
         max_ms = _parse_duration_ms(max_duration) if max_duration else None
@@ -295,7 +301,9 @@ async def get_performance_hotspots(
         return {
             "status": "success",
             "data": {
-                "slow_operations": sorted(slow, key=lambda x: x["avg_duration_ms"], reverse=True)[:5],
+                "slow_operations": sorted(slow, key=lambda x: x["avg_duration_ms"], reverse=True)[
+                    :5
+                ],
                 "high_latency_endpoints": slow[:3],
                 "resource_bottlenecks": bottlenecks,
                 "time_range": time_range,
@@ -323,20 +331,33 @@ async def get_error_analysis(
         services = _services()
         if service_name:
             services = [service_name]
-        error_alerts = [a for a in alert_history if a.get(
-            "level", "").lower() in ("error", "critical")]
+        error_alerts = [
+            a for a in alert_history if a.get("level", "").lower() in ("error", "critical")
+        ]
         error_count = len(error_alerts) or sum(hash(s) % 5 for s in services)
-        error_types = list({a.get("title", "unknown")
-                           for a in error_alerts}) or ["Timeout", "ConnectionError"]
-        affected = list({a.get("source_service") or a.get("source", s)
-                        for a in error_alerts for s in services}) or services
+        error_types = list({a.get("title", "unknown") for a in error_alerts}) or [
+            "Timeout",
+            "ConnectionError",
+        ]
+        affected = (
+            list(
+                {
+                    a.get("source_service") or a.get("source", s)
+                    for a in error_alerts
+                    for s in services
+                }
+            )
+            or services
+        )
         return {
             "status": "success",
             "data": {
                 "error_count": error_count,
                 "error_rate": round(error_count / max(100, error_count + 50), 4),
                 "error_types": error_types,
-                "affected_operations": [{"service": s, "operation": "/api/v1/process"} for s in affected[:5]],
+                "affected_operations": [
+                    {"service": s, "operation": "/api/v1/process"} for s in affected[:5]
+                ],
                 "time_range": time_range,
             },
             "source": "synthetic",

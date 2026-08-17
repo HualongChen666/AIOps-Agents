@@ -27,7 +27,18 @@ except Exception:  # pragma: no cover - fallback handled below
 ROOT = Path(__file__).resolve().parents[2]
 ADDON_ROOT = ROOT / "extensions" / "addons"
 _STD_LIB = set(getattr(sys, "stdlib_module_names", ()))
-_PROJECT_MODULES = {"api", "core", "main", "services", "scripts", "infrastructure", "config", "tests", "modules", "extensions"}
+_PROJECT_MODULES = {
+    "api",
+    "core",
+    "main",
+    "services",
+    "scripts",
+    "infrastructure",
+    "config",
+    "tests",
+    "modules",
+    "extensions",
+}
 _CORE_DEPS = {
     "fastapi",
     "pydantic",
@@ -118,16 +129,18 @@ _IO_MODULES = {
     "asyncpg.pool",
     "psycopg2.extras",
 }
-_ASYNC_CLASS_NAMES = frozenset({
-    "AsyncClient",
-    "ClientSession",
-    "AsyncOpenAI",
-    "AsyncAnthropic",
-    "AsyncKafkaProducer",
-    "AsyncKafkaConsumer",
-    "AsyncEngine",
-    "AsyncGraphDatabase",
-})
+_ASYNC_CLASS_NAMES = frozenset(
+    {
+        "AsyncClient",
+        "ClientSession",
+        "AsyncOpenAI",
+        "AsyncAnthropic",
+        "AsyncKafkaProducer",
+        "AsyncKafkaConsumer",
+        "AsyncEngine",
+        "AsyncGraphDatabase",
+    }
+)
 
 
 def _magic_mod(monkeypatch, name, force=False):
@@ -212,7 +225,9 @@ def _load_engine_modules(monkeypatch):
     """Pre-load shared engines modules so addon service.py files can import them."""
     _make_pkg(monkeypatch, "extensions", str(ROOT / "extensions"), "extensions")
     _make_pkg(monkeypatch, "extensions.addons", str(ADDON_ROOT), "extensions")
-    engines_pkg = _make_pkg(monkeypatch, "extensions.addons.engines", str(ADDON_ROOT / "engines"), "extensions.addons")
+    engines_pkg = _make_pkg(
+        monkeypatch, "extensions.addons.engines", str(ADDON_ROOT / "engines"), "extensions.addons"
+    )
     for path in (ADDON_ROOT / "engines").glob("*.py"):
         if path.name.startswith("__"):
             continue
@@ -268,7 +283,10 @@ def _patch_service_module(app_path, pkg, pkg_name, monkeypatch):
     service_class = getattr(service_mod, "Service", None)
     if service_class is None or not inspect.isclass(service_class):
         for obj in service_mod.__dict__.values():
-            if inspect.isclass(obj) and obj.__name__ not in ("BaseInfraService", "BaseSecurityService"):
+            if inspect.isclass(obj) and obj.__name__ not in (
+                "BaseInfraService",
+                "BaseSecurityService",
+            ):
                 service_class = obj
                 break
     if service_class is None:
@@ -304,7 +322,11 @@ def _load_addon_app(app_path, monkeypatch):
             unique_root if i == 0 else ".".join([unique_root] + list(rel_parts[:i])),
         )
         try:
-            setattr(root_pkg if i == 0 else sys.modules[".".join([unique_root] + list(rel_parts[:i]))], part, pkg)
+            setattr(
+                root_pkg if i == 0 else sys.modules[".".join([unique_root] + list(rel_parts[:i]))],
+                part,
+                pkg,
+            )
         except Exception:
             pass
 
@@ -337,8 +359,17 @@ def _load_addon_app(app_path, monkeypatch):
     # Some addon main files reference ``FastAPI.response_class.PlainTextResponse``;
     # provide a shim so those route decorators compile.
     _fastapi = sys.modules.get("fastapi")
-    if _fastapi is not None and _PlainTextResponse is not None and not hasattr(_fastapi.FastAPI, "response_class"):
-        monkeypatch.setattr(_fastapi.FastAPI, "response_class", types.SimpleNamespace(PlainTextResponse=_PlainTextResponse), raising=False)
+    if (
+        _fastapi is not None
+        and _PlainTextResponse is not None
+        and not hasattr(_fastapi.FastAPI, "response_class")
+    ):
+        monkeypatch.setattr(
+            _fastapi.FastAPI,
+            "response_class",
+            types.SimpleNamespace(PlainTextResponse=_PlainTextResponse),
+            raising=False,
+        )
 
     full_name = f"{pkg_name}.{app_path.stem}"
     spec = importlib.util.spec_from_file_location(full_name, str(app_path))

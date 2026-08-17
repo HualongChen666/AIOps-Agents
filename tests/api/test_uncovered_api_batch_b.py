@@ -24,16 +24,12 @@ def _headers(admin_headers):
 # -----------------------------------------------------------------------------
 def test_k8s_router(client, admin_headers, monkeypatch):
     monkeypatch.setattr("api.k8s_router.collect_all_k8s", lambda: [{"pod": "pod-1"}])
-    monkeypatch.setattr(
-        "api.k8s_router.get_k8s_collect_history", lambda limit: [{"ts": "now"}]
-    )
+    monkeypatch.setattr("api.k8s_router.get_k8s_collect_history", lambda limit: [{"ts": "now"}])
     monkeypatch.setattr(
         "api.k8s_router.execute_repair_sync",
         lambda host, script, args: {"success": True, "output": "ok", "exit_code": 0},
     )
-    monkeypatch.setattr(
-        "api.k8s_router.get_k8s_repair_history", lambda limit: [{"id": 1}]
-    )
+    monkeypatch.setattr("api.k8s_router.get_k8s_repair_history", lambda limit: [{"id": 1}])
 
     async def fake_repair_all(script, args):
         return [{"cluster": "c1", "success": True}]
@@ -100,9 +96,7 @@ def test_service_mesh_router(client, admin_headers, monkeypatch):
         def generate_mtls_config(self, **kwargs):
             return FakeConfig()
 
-    monkeypatch.setattr(
-        "core.service_mesh_manager.get_service_mesh_manager", FakeManager
-    )
+    monkeypatch.setattr("core.service_mesh_manager.get_service_mesh_manager", FakeManager)
 
     base = "/api/service-mesh"
 
@@ -576,9 +570,7 @@ def test_autoheal_router(client, admin_headers, monkeypatch):
     async def fake_approve_execute(alert_id, alert):
         return {"success": True, "alert_id": alert_id, "status": "approved"}
 
-    monkeypatch.setattr(
-        "gateway.services_client.approve_and_execute", fake_approve_execute
-    )
+    monkeypatch.setattr("gateway.services_client.approve_and_execute", fake_approve_execute)
 
     async def fake_reject(alert_id, **kwargs):
         return {"success": True, "alert_id": alert_id, "status": "rejected"}
@@ -674,9 +666,7 @@ def test_infrastructure_router(client, admin_headers, monkeypatch):
 
     fake_monitoring = SimpleNamespace(
         get_monitoring_status=lambda: {"alerts": 0},
-        metrics_collector=SimpleNamespace(
-            increment_counter=lambda x: None, _initialized=True
-        ),
+        metrics_collector=SimpleNamespace(increment_counter=lambda x: None, _initialized=True),
         _initialized=True,
     )
 
@@ -716,9 +706,7 @@ def test_infrastructure_router(client, admin_headers, monkeypatch):
         "api.infrastructure_router.get_distributed_storage_manager",
         lambda: fake_storage,
     )
-    monkeypatch.setattr(
-        "api.infrastructure_router.get_config_center", lambda: FakeConfigCenter()
-    )
+    monkeypatch.setattr("api.infrastructure_router.get_config_center", lambda: FakeConfigCenter())
     monkeypatch.setattr(
         "api.infrastructure_router.get_monitoring_infrastructure",
         lambda: fake_monitoring,
@@ -845,18 +833,21 @@ def test_guard_router(client, admin_headers, monkeypatch):
     monkeypatch.setattr("api.guard_router.is_command_allowed", lambda cmd: False)
     monkeypatch.setattr("api.guard_router.rewrite_to_safe", lambda cmd: "mv /tmp/x")
     monkeypatch.setattr("api.guard_router.dry_run_preview", lambda cmd: "would delete")
-    monkeypatch.setattr("api.guard_router.get_audit_log", lambda limit: [
-        {
-            "command": "rm -rf /tmp",
-            "risk_level": "high",
-            "result": "blocked",
-            "who": "admin",
-            "where": "127.0.0.1",
-            "what": "rm",
-            "when": "2026-01-01T00:00:00Z",
-            "trace_id": "t1",
-        }
-    ])
+    monkeypatch.setattr(
+        "api.guard_router.get_audit_log",
+        lambda limit: [
+            {
+                "command": "rm -rf /tmp",
+                "risk_level": "high",
+                "result": "blocked",
+                "who": "admin",
+                "where": "127.0.0.1",
+                "what": "rm",
+                "when": "2026-01-01T00:00:00Z",
+                "trace_id": "t1",
+            }
+        ],
+    )
     monkeypatch.setattr("api.guard_router.record_audit", lambda **kw: None)
 
     headers = _headers(admin_headers)
@@ -1042,9 +1033,7 @@ def test_root_cause_router(client, admin_headers, monkeypatch):
             return {"total": 1}
 
     monkeypatch.setattr("api.root_cause_router.ROOT_CAUSE_INTELLIGENCE_AVAILABLE", True)
-    monkeypatch.setattr(
-        "api.root_cause_router.root_cause_intelligence_engine", FakeEngine()
-    )
+    monkeypatch.setattr("api.root_cause_router.root_cause_intelligence_engine", FakeEngine())
 
     base = "/api/v1/root-cause"
 

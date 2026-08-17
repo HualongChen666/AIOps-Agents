@@ -28,6 +28,7 @@ def _package_name(path: Path) -> str:
 
 def _stub_sibling_modules(pkg: str, monkeypatch) -> None:
     """Pre-populate <pkg>.config and <pkg>.schemas with usable stubs."""
+
     class ServiceHealth:
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)

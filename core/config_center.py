@@ -88,7 +88,9 @@ class ConsulConfigCenter:
         try:
             if self.fallback_enabled:
                 event_type = (
-                    ConfigEventType.UPDATE if key in self.fallback_config else ConfigEventType.CREATE
+                    ConfigEventType.UPDATE
+                    if key in self.fallback_config
+                    else ConfigEventType.CREATE
                 )
                 if key in self.fallback_config:
                     self.fallback_config[key].value = value

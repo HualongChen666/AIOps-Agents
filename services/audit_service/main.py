@@ -3,14 +3,16 @@
 Exposes audit logs and allows recording new audit events.
 """
 
-from core.command_guard import get_audit_log
-from fastapi import FastAPI, Query
-import uvicorn
 import asyncio
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import uvicorn
+from fastapi import FastAPI, Query
+
+from core.command_guard import get_audit_log
 
 ROOT = Path(__file__).parents[2]
 if str(ROOT) not in sys.path:

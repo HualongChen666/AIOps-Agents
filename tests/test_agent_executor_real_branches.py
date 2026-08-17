@@ -9,11 +9,12 @@ achieved via small real subclasses and custom tool registrations.
 from __future__ import annotations
 
 import pytest
+
 from core.agent.executor import (
     AUDIT_AVAILABLE,
     AutonomousExecutor,
-    RollbackMechanism,
     RiskAssessor,
+    RollbackMechanism,
     SafetyBoundary,
     TrustMechanism,
     ValidationMechanism,
@@ -239,6 +240,7 @@ def simple_tool(name, category, func, required=None, optional=None):
 # Core helper classes
 # ----------------------------------------------------------------------
 
+
 def test_safety_boundary_branches():
     sb = SafetyBoundary(
         allowed_operations=["read"],
@@ -259,7 +261,10 @@ def test_risk_assessor_branches():
     sb = SafetyBoundary(forbidden_operations=["drop table"])
     ra = RiskAssessor(sb)
 
-    assert ra.assess_risk("drop table", {}) == (RiskLevel.CRITICAL, "Operation drop table is forbidden")
+    assert ra.assess_risk("drop table", {}) == (
+        RiskLevel.CRITICAL,
+        "Operation drop table is forbidden",
+    )
     assert ra.assess_risk("delete files", {}) == (RiskLevel.CRITICAL, "Destructive operation")
     assert ra.assess_risk("stop service", {}) == (RiskLevel.HIGH, "Service stop operation")
     assert ra.assess_risk("modify config", {}) == (RiskLevel.MEDIUM, "Service modification")
@@ -592,7 +597,10 @@ def test_get_execution_confidence_branches():
     assert executor._get_execution_confidence({"execution_confidence": "bad"}) is None
     assert executor._get_execution_confidence({"diagnosis": {"confidence": "0.8"}}) == 0.8
     assert executor._get_execution_confidence({"diagnosis": {"confidence": "bad"}}) is None
-    assert executor._get_execution_confidence({"analysis": {"candidates": [{"confidence": "0.7"}]}}) == 0.7
+    assert (
+        executor._get_execution_confidence({"analysis": {"candidates": [{"confidence": "0.7"}]}})
+        == 0.7
+    )
     assert executor._get_execution_confidence({"analysis": {"candidates": []}}) is None
     assert executor._get_execution_confidence({"result": {"confidence": 0.6}}) == 0.6
     assert executor._get_execution_confidence({}) is None
@@ -700,7 +708,9 @@ def test_executor_dry_run_propagation():
 def test_execute_plan_invalid_diagnostic_state():
     ok_tool = simple_tool("ok", ToolCategory.DIAGNOSTIC, lambda **kwargs: {"v": 1})
     executor = make_executor([Task(id="t1", description="ok")], [ok_tool])
-    result = executor.execute_plan("ok", {"_select_tool": "ok", "diagnostic_state": "weird"}, ["ok"])
+    result = executor.execute_plan(
+        "ok", {"_select_tool": "ok", "diagnostic_state": "weird"}, ["ok"]
+    )
     assert result["diagnostic_state"]
 
 
@@ -728,7 +738,9 @@ def test_execute_plan_max_iterations():
 
 
 def test_execute_plan_failed_task_records_error():
-    boom_tool = simple_tool("boom", ToolCategory.DIAGNOSTIC, lambda **kwargs: (_ for _ in ()).throw(ValueError("err")))
+    boom_tool = simple_tool(
+        "boom", ToolCategory.DIAGNOSTIC, lambda **kwargs: (_ for _ in ()).throw(ValueError("err"))
+    )
     executor = make_executor([Task(id="t1", description="boom")], [boom_tool])
     result = executor.execute_plan("boom", {"_select_tool": "boom"}, ["boom"])
     assert result["results"][0]["status"] == "failed"
@@ -805,7 +817,9 @@ def test_execute_plan_with_subagents_failed_result():
     ok_tool = simple_tool("ok", ToolCategory.DIAGNOSTIC, lambda **kwargs: {"v": 1})
     task = Task(id="t1", description="sub")
     executor = make_executor([task], [ok_tool])
-    dispatcher = SubAgentDispatcher(max_workers=2, subagent_factory=FailingQuickSubAgent, dry_run=True)
+    dispatcher = SubAgentDispatcher(
+        max_workers=2, subagent_factory=FailingQuickSubAgent, dry_run=True
+    )
     executor.set_subagent_dispatcher(dispatcher)
     result = executor.execute_plan_with_subagents("goal", {}, ["ok"], max_subagents=2)
     assert result["subagent_results"][0]["status"] == "failed"

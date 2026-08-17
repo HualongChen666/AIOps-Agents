@@ -4,52 +4,56 @@ Test file for authentication.py covering missing branches.
 Uses real Authentication class and real env var manipulation.
 Only monkeypatches external I/O boundaries: redis.Redis, requests.request, httpx.post, subprocess.run.
 """
+
 import asyncio
 import os
-import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
+
+import jwt
+import pytest
 import redis
-from fastapi import Request, HTTPException
+from fastapi import HTTPException, Request
+
 from core.authentication import (
+    ALGORITHM,
+    JWT_AUDIENCE,
+    JWT_ISSUER,
+    SECRET_KEY,
+    ABACPolicy,
+    ComplianceFramework,
+    ComplianceManager,
+    JWTAuthService,
+    SSOProvider,
+    TenantContext,
+    User,
+    UserInDB,
     _CompatPwdContext,
-    _get_redis_client,
-    is_ip_allowed,
     _decode_for_revocation,
-    revoke_token,
-    is_token_revoked,
-    get_user,
-    get_user_by_username,
+    _get_redis_client,
     authenticate_user,
-    verify_token,
     create_access_token,
     create_refresh_token,
-    refresh_access_token,
-    get_current_user,
     get_current_active_user,
-    verify_ip_whitelist,
-    role_required,
-    JWTAuthService,
-    TenantContext,
-    ABACPolicy,
-    SSOProvider,
-    ComplianceManager,
-    ComplianceFramework,
-    UserInDB,
-    User,
+    get_current_user,
+    get_user,
+    get_user_by_username,
+    is_ip_allowed,
+    is_token_revoked,
     pwd_context,
-    SECRET_KEY,
-    ALGORITHM,
-    JWT_ISSUER,
-    JWT_AUDIENCE,
+    refresh_access_token,
+    revoke_token,
+    role_required,
+    verify_ip_whitelist,
+    verify_token,
 )
-import jwt
 
 
 @pytest.fixture(autouse=True)
 def reset_globals():
     """Reset global state before each test."""
     from core import authentication
+
     authentication.redis_client = None
     authentication._token_blacklist = {}
     yield
@@ -114,6 +118,7 @@ class TestRedisClient:
     def test_redis_client_cached_return(self):
         """Test that Redis client is cached and returned on subsequent calls."""
         from core import authentication
+
         authentication.redis_client = None
         with patch("core.authentication.redis.Redis") as mock_redis:
             mock_instance = MagicMock()
@@ -129,6 +134,7 @@ class TestRedisClient:
     def test_redis_client_successful_connection(self):
         """Test successful Redis connection."""
         from core import authentication
+
         authentication.redis_client = None
         with patch("core.authentication.redis.Redis") as mock_redis:
             mock_instance = MagicMock()
@@ -142,6 +148,7 @@ class TestRedisClient:
     def test_redis_client_connection_failure(self):
         """Test Redis connection failure."""
         from core import authentication
+
         authentication.redis_client = None
         with patch("core.authentication.redis.Redis") as mock_redis:
             mock_redis.side_effect = redis.ConnectionError("Connection failed")
@@ -156,6 +163,7 @@ class TestIPWhitelist:
     def test_ip_whitelist_with_allowed_local_ips(self):
         """Test IP whitelist using ALLOWED_LOCAL_IPS."""
         from config import ALLOWED_LOCAL_IPS
+
         original_whitelist = os.getenv("IP_WHITELIST")
         if original_whitelist:
             del os.environ["IP_WHITELIST"]
@@ -263,6 +271,7 @@ class TestTokenRevocation:
     async def test_revoke_token_memory(self):
         """Test token revocation with memory fallback."""
         from core import authentication
+
         # Reset globals
         authentication.redis_client = None
         authentication._token_blacklist.clear()
@@ -297,6 +306,7 @@ class TestTokenRevocation:
     async def test_is_token_revoked_memory(self):
         """Test is_token_revoked with memory."""
         from core import authentication
+
         # Reset globals
         authentication.redis_client = None
         authentication._token_blacklist["test_token"] = datetime.now(timezone.utc)
@@ -310,6 +320,7 @@ class TestTokenRevocation:
     async def test_is_token_revoked_jti_falsy(self):
         """Test is_token_revoked with falsy JTI."""
         from core import authentication
+
         authentication.redis_client = None
         authentication._token_blacklist.clear()
 
@@ -330,6 +341,7 @@ class TestTokenRevocation:
     async def test_is_token_revoked_missing(self):
         """Test is_token_revoked with missing token."""
         from core import authentication
+
         authentication.redis_client = None
         authentication._token_blacklist.clear()
 
@@ -345,6 +357,7 @@ class TestUserRetrieval:
     async def test_get_user_with_none_fields(self):
         """Test get_user with None fields."""
         from unittest.mock import AsyncMock
+
         mock_service = MagicMock()
         mock_user = MagicMock()
         mock_user.id = None
@@ -724,6 +737,7 @@ class TestJWTAuthService:
         service = JWTAuthService()
         user = {"role": "admin"}
         from core.auth_interface import Permission
+
         result = await service.verify_permission(user, Permission.READ)
         assert result is True
 
@@ -773,9 +787,10 @@ class TestLoginEndpoint:
             )
             mock_auth.return_value = mock_user
 
-            from fastapi.testclient import TestClient
-            from core.authentication import router
             from fastapi import FastAPI
+            from fastapi.testclient import TestClient
+
+            from core.authentication import router
 
             app = FastAPI()
             app.include_router(router)

@@ -4,6 +4,7 @@
 Uses real ``IntegrationEcosystem`` / ``ConnectorMarketplace`` / ``PluginSDK``
 instances and in-memory data.  No ``unittest.mock`` / ``pytest.mock`` objects.
 """
+
 import asyncio
 import os
 from datetime import timedelta
@@ -252,9 +253,7 @@ async def test_p2_connector_marketplace_remaining_branches():
     assert search
 
     # install a connector and then exercise details and rating
-    install = await market.install_connector(
-        "prometheus", {"url": "http://x", "port": 1}
-    )
+    install = await market.install_connector("prometheus", {"url": "http://x", "port": 1})
     assert install["success"]
 
     details = await market.get_connector_details("prometheus")
@@ -583,9 +582,7 @@ class _InMemAioSession:
 async def test_trigger_webhook_aiohttp_branches():
     """Cover the aiohttp webhook branches."""
     ecosystem = ie.IntegrationEcosystem()
-    webhook = await ecosystem.register_webhook(
-        url="http://x", events=["alert"]
-    )
+    webhook = await ecosystem.register_webhook(url="http://x", events=["alert"])
 
     original_aio = ie.AIOHTTP_AVAILABLE
     try:
@@ -602,9 +599,7 @@ async def test_trigger_webhook_aiohttp_branches():
 async def test_trigger_webhook_no_http_client():
     """Cover the no-HTTP-client branch in trigger_webhook."""
     ecosystem = ie.IntegrationEcosystem()
-    webhook = await ecosystem.register_webhook(
-        url="http://x", events=["alert"]
-    )
+    webhook = await ecosystem.register_webhook(url="http://x", events=["alert"])
 
     original_requests = ie.REQUESTS_AVAILABLE
     original_aio = ie.AIOHTTP_AVAILABLE

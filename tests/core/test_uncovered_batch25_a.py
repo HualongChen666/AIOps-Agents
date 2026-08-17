@@ -420,9 +420,7 @@ async def test_execute_linux_verify_command(monkeypatch, linux_hosts):
         "core.linux_collector._ssh_execute",
         AsyncMock(return_value="linux output"),
     )
-    monkeypatch.setattr(
-        "core.linux_collector._get_host_semaphore", lambda host: MagicMock()
-    )
+    monkeypatch.setattr("core.linux_collector._get_host_semaphore", lambda host: MagicMock())
     out = await verifier._execute_linux_verify_command({"host": "host1"}, "ls")
     assert out == "linux output"
 
@@ -456,9 +454,7 @@ async def test_verify_service_status_linux_active(guard_ok, short_wait, monkeypa
     assert "nginx" in result["recommendation"]
 
 
-async def test_verify_service_status_windows_running(
-    guard_ok, short_wait, monkeypatch
-):
+async def test_verify_service_status_windows_running(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(
         verifier,
         "_execute_windows_verify_command",
@@ -474,9 +470,7 @@ async def test_verify_service_status_windows_running(
     assert result["evidence"]["service_name"] == "w3svc"
 
 
-async def test_verify_service_status_transient_then_active(
-    guard_ok, short_wait, monkeypatch
-):
+async def test_verify_service_status_transient_then_active(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", async_noop)
     monkeypatch.setattr(
         verifier,
@@ -490,9 +484,7 @@ async def test_verify_service_status_transient_then_active(
     assert "nginx" in result["recommendation"]
 
 
-async def test_verify_service_status_windows_startpending(
-    guard_ok, short_wait, monkeypatch
-):
+async def test_verify_service_status_windows_startpending(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", async_noop)
     monkeypatch.setattr(
         verifier,
@@ -524,17 +516,13 @@ async def test_verify_service_status_too_long(guard_ok, short_wait):
 
 
 async def test_verify_service_status_missing_name():
-    result = await verifier._verify_service_status(
-        {"platform": "linux"}, {}, "linux"
-    )
+    result = await verifier._verify_service_status({"platform": "linux"}, {}, "linux")
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
 
 async def test_verify_service_status_guard_blocked(short_wait, monkeypatch):
-    monkeypatch.setattr(
-        verifier, "_check_command_with_guard", lambda cmd: (False, "blocked")
-    )
+    monkeypatch.setattr(verifier, "_check_command_with_guard", lambda cmd: (False, "blocked"))
     result = await verifier._verify_service_status(
         {"platform": "linux"}, {"service_name": "nginx"}, "linux"
     )
@@ -542,9 +530,7 @@ async def test_verify_service_status_guard_blocked(short_wait, monkeypatch):
     assert "护栏" in result["error_msg"]
 
 
-async def test_verify_service_status_execute_exception(
-    guard_ok, short_wait, monkeypatch
-):
+async def test_verify_service_status_execute_exception(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(
         verifier,
         "_execute_linux_verify_command",
@@ -569,9 +555,7 @@ async def test_verify_service_status_not_active(guard_ok, short_wait, monkeypatc
     assert result["verified"] is False
 
 
-async def test_verify_service_status_windows_not_running(
-    guard_ok, short_wait, monkeypatch
-):
+async def test_verify_service_status_windows_not_running(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(
         verifier,
         "_execute_windows_verify_command",
@@ -584,23 +568,15 @@ async def test_verify_service_status_windows_not_running(
 
 
 async def test_verify_process_check_linux_killed(guard_ok, monkeypatch):
-    monkeypatch.setattr(
-        verifier, "_execute_linux_verify_command", AsyncMock(return_value="0")
-    )
-    result = await verifier._verify_process_check(
-        {"platform": "linux"}, {"pid": "12345"}, "linux"
-    )
+    monkeypatch.setattr(verifier, "_execute_linux_verify_command", AsyncMock(return_value="0"))
+    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")
     assert result["verified"] is True
     assert result["evidence"]["pid"] == 12345
 
 
 async def test_verify_process_check_linux_alive(guard_ok, monkeypatch):
-    monkeypatch.setattr(
-        verifier, "_execute_linux_verify_command", AsyncMock(return_value="1")
-    )
-    result = await verifier._verify_process_check(
-        {"platform": "linux"}, {"pid": "12345"}, "linux"
-    )
+    monkeypatch.setattr(verifier, "_execute_linux_verify_command", AsyncMock(return_value="1"))
+    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")
     assert result["verified"] is False
 
 
@@ -610,9 +586,7 @@ async def test_verify_process_check_windows_dead(guard_ok, monkeypatch):
         "_execute_windows_verify_command",
         AsyncMock(return_value="DEAD"),
     )
-    result = await verifier._verify_process_check(
-        {"platform": "windows"}, {"pid": "42"}, "windows"
-    )
+    result = await verifier._verify_process_check({"platform": "windows"}, {"pid": "42"}, "windows")
     assert result["verified"] is True
 
 
@@ -622,9 +596,7 @@ async def test_verify_process_check_windows_alive(guard_ok, monkeypatch):
         "_execute_windows_verify_command",
         AsyncMock(return_value="ALIVE"),
     )
-    result = await verifier._verify_process_check(
-        {"platform": "windows"}, {"pid": "42"}, "windows"
-    )
+    result = await verifier._verify_process_check({"platform": "windows"}, {"pid": "42"}, "windows")
     assert result["verified"] is False
 
 
@@ -645,9 +617,7 @@ async def test_verify_process_check_pid_from_runbook(guard_ok, monkeypatch):
 
 
 async def test_verify_process_check_invalid_pid():
-    result = await verifier._verify_process_check(
-        {"platform": "linux"}, {"pid": "abc"}, "linux"
-    )
+    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "abc"}, "linux")
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -661,12 +631,8 @@ async def test_verify_process_check_pid_out_of_range(guard_ok):
 
 
 async def test_verify_process_check_guard_blocked(monkeypatch):
-    monkeypatch.setattr(
-        verifier, "_check_command_with_guard", lambda cmd: (False, "blocked")
-    )
-    result = await verifier._verify_process_check(
-        {"platform": "linux"}, {"pid": "12345"}, "linux"
-    )
+    monkeypatch.setattr(verifier, "_check_command_with_guard", lambda cmd: (False, "blocked"))
+    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")
     assert result["strategy"] == "process_check"
     assert "护栏" in result["error_msg"]
 
@@ -677,9 +643,7 @@ async def test_verify_process_check_execute_exception(guard_ok, monkeypatch):
         "_execute_linux_verify_command",
         AsyncMock(side_effect=RuntimeError("ssh failed")),
     )
-    result = await verifier._verify_process_check(
-        {"platform": "linux"}, {"pid": "12345"}, "linux"
-    )
+    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")
     assert result["strategy"] == "process_check"
     assert "RuntimeError" in result["error_msg"]
 
@@ -690,9 +654,7 @@ async def test_verify_metric_threshold_success(monkeypatch, verify_config):
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": [4.0, 4.0, 4.0]}})(),
     )
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": [10.0, 10.0, 10.0]}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
     assert result["verified"] is True
     assert result["strategy"] == "metric_threshold"
     assert result["evidence"]["delta_percent"] == 60.0
@@ -704,9 +666,7 @@ async def test_verify_metric_threshold_no_improvement(monkeypatch, verify_config
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": [9.6, 9.6, 9.6]}})(),
     )
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": [10.0, 10.0, 10.0]}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
     assert result["verified"] is False
     assert "不显著" in result["recommendation"]
 
@@ -729,9 +689,7 @@ async def test_verify_metric_threshold_insufficient_samples(monkeypatch, verify_
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": [4.0]}})(),
     )
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": [10.0]}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": [10.0]})
     assert result["verified"] is None
     assert "数据点不足" in result["recommendation"]
 
@@ -744,17 +702,13 @@ async def test_verify_metric_threshold_post_snapshot_exception(monkeypatch, veri
             raise RuntimeError("metrics unavailable")
 
     monkeypatch.setattr("core.metrics_history.metrics_history", BadHistory())
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": [10.0, 10.0, 10.0]}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
     assert result["strategy"] == "metric_threshold"
     assert "RuntimeError" in result["error_msg"]
 
 
 async def test_verify_metric_threshold_non_list_series():
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": "not-a-list"}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": "not-a-list"})
     assert result["strategy"] == "metric_threshold"
     assert "序列格式异常" in result["error_msg"]
 
@@ -765,9 +719,7 @@ async def test_verify_metric_threshold_parse_error(monkeypatch, verify_config):
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": ["x", "y", "z"]}})(),
     )
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": ["x", 10.0, 10.0]}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": ["x", 10.0, 10.0]})
     assert result["strategy"] == "metric_threshold"
     assert "数值计算异常" in result["error_msg"]
 
@@ -778,9 +730,7 @@ async def test_verify_metric_threshold_zero_pre_avg(monkeypatch, verify_config):
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": [4.0, 4.0, 4.0]}})(),
     )
-    result = await verifier._verify_metric_threshold(
-        "free_cache", {"memory": [0.0, 0.0, 0.0]}
-    )
+    result = await verifier._verify_metric_threshold("free_cache", {"memory": [0.0, 0.0, 0.0]})
     assert result["evidence"]["delta_percent"] == 0.0
 
 
@@ -795,9 +745,7 @@ async def test_verify_disk_usage_linux(guard_ok, monkeypatch):
             )
         ),
     )
-    result = await verifier._verify_disk_usage(
-        {"platform": "linux"}, {"mount_point": "/"}, "linux"
-    )
+    result = await verifier._verify_disk_usage({"platform": "linux"}, {"mount_point": "/"}, "linux")
     assert result["verified"] is True
     assert result["evidence"]["usage_percent"] == 50.0
 
@@ -862,12 +810,8 @@ async def test_verify_disk_usage_mount_from_runbook(guard_ok, monkeypatch):
 
 
 async def test_verify_disk_usage_guard_blocked(monkeypatch):
-    monkeypatch.setattr(
-        verifier, "_check_command_with_guard", lambda cmd: (False, "blocked")
-    )
-    result = await verifier._verify_disk_usage(
-        {"platform": "linux"}, {"mount_point": "/"}, "linux"
-    )
+    monkeypatch.setattr(verifier, "_check_command_with_guard", lambda cmd: (False, "blocked"))
+    result = await verifier._verify_disk_usage({"platform": "linux"}, {"mount_point": "/"}, "linux")
     assert result["strategy"] == "disk_usage"
     assert "护栏" in result["error_msg"]
 
@@ -878,9 +822,7 @@ async def test_verify_disk_usage_execute_exception(guard_ok, monkeypatch):
         "_execute_linux_verify_command",
         AsyncMock(side_effect=RuntimeError("ssh failed")),
     )
-    result = await verifier._verify_disk_usage(
-        {"platform": "linux"}, {"mount_point": "/"}, "linux"
-    )
+    result = await verifier._verify_disk_usage({"platform": "linux"}, {"mount_point": "/"}, "linux")
     assert result["strategy"] == "disk_usage"
     assert "RuntimeError" in result["error_msg"]
 
@@ -891,9 +833,7 @@ async def test_verify_disk_usage_parse_failure(guard_ok, monkeypatch):
         "_execute_linux_verify_command",
         AsyncMock(return_value="garbage"),
     )
-    result = await verifier._verify_disk_usage(
-        {"platform": "linux"}, {"mount_point": "/"}, "linux"
-    )
+    result = await verifier._verify_disk_usage({"platform": "linux"}, {"mount_point": "/"}, "linux")
     assert result["strategy"] == "disk_usage"
     assert "无法解析" in result["error_msg"]
 
@@ -953,9 +893,7 @@ async def test_verify_network_check_windows_up(guard_ok, monkeypatch):
 
 
 async def test_verify_network_check_missing_target():
-    result = await verifier._verify_network_check(
-        {"platform": "linux"}, {}, "linux"
-    )
+    result = await verifier._verify_network_check({"platform": "linux"}, {}, "linux")
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -995,9 +933,7 @@ async def test_verify_network_check_target_from_runbook(guard_ok, monkeypatch):
 
 
 async def test_verify_network_check_guard_blocked(monkeypatch):
-    monkeypatch.setattr(
-        verifier, "_check_command_with_guard", lambda cmd: (False, "blocked")
-    )
+    monkeypatch.setattr(verifier, "_check_command_with_guard", lambda cmd: (False, "blocked"))
     result = await verifier._verify_network_check(
         {"platform": "linux"}, {"target": "8.8.8.8"}, "linux"
     )
@@ -1044,9 +980,7 @@ async def test_verify_k8s_status_plain_text(guard_ok, short_wait, monkeypatch):
         "_execute_linux_verify_command",
         AsyncMock(return_value="running"),
     )
-    result = await verifier._verify_k8s_status(
-        {"platform": "linux"}, {"name": "web-0"}, "linux"
-    )
+    result = await verifier._verify_k8s_status({"platform": "linux"}, {"name": "web-0"}, "linux")
     assert result["verified"] is True
 
 
@@ -1079,9 +1013,7 @@ async def test_verify_k8s_status_failed(guard_ok, short_wait, monkeypatch):
 
 
 async def test_verify_k8s_status_missing_name():
-    result = await verifier._verify_k8s_status(
-        {"platform": "linux"}, {}, "linux"
-    )
+    result = await verifier._verify_k8s_status({"platform": "linux"}, {}, "linux")
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -1095,27 +1027,19 @@ async def test_verify_k8s_status_windows_skipped():
 
 
 async def test_verify_k8s_status_guard_blocked(short_wait, monkeypatch):
-    monkeypatch.setattr(
-        verifier, "_check_command_with_guard", lambda cmd: (False, "blocked")
-    )
-    result = await verifier._verify_k8s_status(
-        {"platform": "linux"}, {"name": "web-0"}, "linux"
-    )
+    monkeypatch.setattr(verifier, "_check_command_with_guard", lambda cmd: (False, "blocked"))
+    result = await verifier._verify_k8s_status({"platform": "linux"}, {"name": "web-0"}, "linux")
     assert result["strategy"] == "k8s_status"
     assert "护栏" in result["error_msg"]
 
 
-async def test_verify_k8s_status_execute_exception(
-    guard_ok, short_wait, monkeypatch
-):
+async def test_verify_k8s_status_execute_exception(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(
         verifier,
         "_execute_linux_verify_command",
         AsyncMock(side_effect=RuntimeError("ssh failed")),
     )
-    result = await verifier._verify_k8s_status(
-        {"platform": "linux"}, {"name": "web-0"}, "linux"
-    )
+    result = await verifier._verify_k8s_status({"platform": "linux"}, {"name": "web-0"}, "linux")
     assert result["strategy"] == "k8s_status"
     assert "RuntimeError" in result["error_msg"]
 
@@ -1127,9 +1051,7 @@ async def test_verify_custom_command_disabled(verify_config):
 
 
 async def test_verify_custom_command_enabled(monkeypatch, verify_config):
-    monkeypatch.setattr(
-        verifier, "VERIFY_CONFIG", {"llm_for_custom": True}
-    )
+    monkeypatch.setattr(verifier, "VERIFY_CONFIG", {"llm_for_custom": True})
     result = await verifier._verify_custom_command({}, {}, "linux")
     assert result["verified"] is None
     assert "LLM 验证逻辑预留" in result["recommendation"]
@@ -1143,25 +1065,19 @@ async def test_verify_repair_disabled(upsert_nop, monkeypatch):
 
 
 async def test_verify_repair_invalid_alert(verify_config, upsert_nop):
-    result = await verifier.verify_repair(
-        "bad", "restart_service", {}, None, ""
-    )
+    result = await verifier.verify_repair("bad", "restart_service", {}, None, "")
     assert result["strategy"] == "error"
     assert "dict" in result["error_msg"]
 
 
 async def test_verify_repair_empty_script_key(verify_config, upsert_nop):
-    result = await verifier.verify_repair(
-        {"platform": "linux"}, "", {}, None, ""
-    )
+    result = await verifier.verify_repair({"platform": "linux"}, "", {}, None, "")
     assert result["strategy"] == "error"
     assert "不能为空" in result["error_msg"]
 
 
 async def test_verify_repair_unknown_script(verify_config, upsert_nop):
-    result = await verifier.verify_repair(
-        {"platform": "linux"}, "unknown", {}, None, ""
-    )
+    result = await verifier.verify_repair({"platform": "linux"}, "unknown", {}, None, "")
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -1180,17 +1096,13 @@ async def test_verify_repair_invalid_platform_defaults_windows(
     assert result["verified"] is True
 
 
-async def test_verify_repair_metric_wait_conflict(
-    verify_config, upsert_nop, monkeypatch
-):
+async def test_verify_repair_metric_wait_conflict(verify_config, upsert_nop, monkeypatch):
     monkeypatch.setattr(
         verifier,
         "VERIFY_CONFIG",
         {"enabled": True, "timeout_sec": 3.0, "metric_wait_sec": 5.0},
     )
-    result = await verifier.verify_repair(
-        {"platform": "linux"}, "free_cache", {}, None, ""
-    )
+    result = await verifier.verify_repair({"platform": "linux"}, "free_cache", {}, None, "")
     assert result["strategy"] == "skipped"
     assert "metric_wait_sec" in result["recommendation"]
 
@@ -1241,9 +1153,7 @@ async def test_verify_repair_metric_threshold_end_to_end(
 async def test_verify_repair_process_check_end_to_end(
     verify_config, upsert_nop, guard_ok, monkeypatch
 ):
-    monkeypatch.setattr(
-        verifier, "_execute_linux_verify_command", AsyncMock(return_value="0")
-    )
+    monkeypatch.setattr(verifier, "_execute_linux_verify_command", AsyncMock(return_value="0"))
     result = await verifier.verify_repair(
         {"platform": "linux"},
         "kill_high_cpu",
@@ -1277,9 +1187,7 @@ async def test_verify_repair_ai_dynamic_service_status(
     assert result["strategy"] == "service_status"
 
 
-async def test_verify_repair_k8s_status_skipped_on_windows(
-    verify_config, upsert_nop
-):
+async def test_verify_repair_k8s_status_skipped_on_windows(verify_config, upsert_nop):
     result = await verifier.verify_repair(
         {"platform": "windows"},
         "k8s_pod_crash",
@@ -1292,12 +1200,8 @@ async def test_verify_repair_k8s_status_skipped_on_windows(
     assert "仅支持 Linux" in result["recommendation"]
 
 
-async def test_verify_repair_timeout(
-    verify_config, upsert_nop, guard_ok, monkeypatch
-):
-    monkeypatch.setattr(
-        asyncio, "wait_for", AsyncMock(side_effect=asyncio.TimeoutError)
-    )
+async def test_verify_repair_timeout(verify_config, upsert_nop, guard_ok, monkeypatch):
+    monkeypatch.setattr(asyncio, "wait_for", AsyncMock(side_effect=asyncio.TimeoutError))
     result = await verifier.verify_repair(
         {"platform": "linux"},
         "restart_service",
@@ -1310,12 +1214,8 @@ async def test_verify_repair_timeout(
     assert "超时" in result["error_msg"]
 
 
-async def test_verify_repair_cancelled(
-    verify_config, upsert_nop, guard_ok, monkeypatch
-):
-    monkeypatch.setattr(
-        asyncio, "wait_for", AsyncMock(side_effect=asyncio.CancelledError)
-    )
+async def test_verify_repair_cancelled(verify_config, upsert_nop, guard_ok, monkeypatch):
+    monkeypatch.setattr(asyncio, "wait_for", AsyncMock(side_effect=asyncio.CancelledError))
     with pytest.raises(asyncio.CancelledError):
         await verifier.verify_repair(
             {"platform": "linux"},
@@ -1327,9 +1227,7 @@ async def test_verify_repair_cancelled(
         )
 
 
-async def test_verify_repair_dispatch_exception(
-    verify_config, upsert_nop, guard_ok, monkeypatch
-):
+async def test_verify_repair_dispatch_exception(verify_config, upsert_nop, guard_ok, monkeypatch):
     monkeypatch.setattr(
         verifier,
         "_dispatch_verification",
@@ -1347,19 +1245,21 @@ async def test_verify_repair_dispatch_exception(
     assert "RuntimeError" in result["error_msg"]
 
 
-async def test_verify_repair_upsert_exception(
-    verify_config, guard_ok, monkeypatch
-):
+async def test_verify_repair_upsert_exception(verify_config, guard_ok, monkeypatch):
     monkeypatch.setattr(
-        verifier, "_dispatch_verification", AsyncMock(return_value={
-            "verified": True,
-            "strategy": "service_status",
-            "confidence": 0.95,
-            "evidence": {"command": "cmd"},
-            "duration_sec": 1.5,
-            "error_msg": "",
-            "recommendation": "ok",
-        })
+        verifier,
+        "_dispatch_verification",
+        AsyncMock(
+            return_value={
+                "verified": True,
+                "strategy": "service_status",
+                "confidence": 0.95,
+                "evidence": {"command": "cmd"},
+                "duration_sec": 1.5,
+                "error_msg": "",
+                "recommendation": "ok",
+            }
+        ),
     )
     monkeypatch.setattr(
         verifier,
@@ -1378,9 +1278,7 @@ async def test_verify_repair_upsert_exception(
     assert result["strategy"] == "service_status"
 
 
-async def test_verify_repair_coerces_input_types(
-    verify_config, upsert_nop, guard_ok, monkeypatch
-):
+async def test_verify_repair_coerces_input_types(verify_config, upsert_nop, guard_ok, monkeypatch):
     monkeypatch.setattr(
         verifier, "_execute_linux_verify_command", AsyncMock(return_value="active\n")
     )
@@ -1397,24 +1295,24 @@ async def test_verify_repair_coerces_input_types(
     assert result["evidence"]["repair_output_preview"] == "12345"
 
 
-async def test_verify_repair_preview_not_overwritten(
-    verify_config, guard_ok, monkeypatch
-):
+async def test_verify_repair_preview_not_overwritten(verify_config, guard_ok, monkeypatch):
     monkeypatch.setattr(
         verifier,
         "_dispatch_verification",
-        AsyncMock(return_value={
-            "verified": True,
-            "strategy": "service_status",
-            "confidence": 0.95,
-            "evidence": {
-                "command": "cmd",
-                "repair_output_preview": "already-here",
-            },
-            "duration_sec": 1.5,
-            "error_msg": "",
-            "recommendation": "ok",
-        }),
+        AsyncMock(
+            return_value={
+                "verified": True,
+                "strategy": "service_status",
+                "confidence": 0.95,
+                "evidence": {
+                    "command": "cmd",
+                    "repair_output_preview": "already-here",
+                },
+                "duration_sec": 1.5,
+                "error_msg": "",
+                "recommendation": "ok",
+            }
+        ),
     )
     monkeypatch.setattr(verifier, "upsert_verify_record", lambda *a, **k: None)
     result = await verifier.verify_repair(

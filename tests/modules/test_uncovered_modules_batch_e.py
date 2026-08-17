@@ -7,6 +7,67 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from modules.compliance.gdpr_compliance import (
+    ConsentRecord,
+    DataBreachEvent,
+    DataSubjectRight,
+    GDPRComplianceManager,
+    ProcessingPurpose,
+    ProcessingRecord,
+    create_gdpr_compliance_manager,
+)
+from modules.compliance.soc2_compliance import (
+    AccessControlManager,
+    AccessLevel,
+    AccessRecord,
+    ChangeManager,
+    ChangeRecord,
+    SecurityEvent,
+    SecurityMonitor,
+    SOC2ComplianceManager,
+    SOC2TrustService,
+    create_soc2_compliance_manager,
+)
+from modules.high_availability.self_healing import (
+    FailureEvent,
+    FailureType,
+    RemediationAction,
+    RemediationResult,
+    SelfHealingEngine,
+    SelfHealingPolicy,
+    create_self_healing_engine,
+)
+from modules.multi_tenant.tenant_isolation import (
+    DataIsolator,
+    IsolationLevel,
+    PermissionIsolator,
+    ResourceIsolator,
+    Tenant,
+    TenantContext,
+    TenantIsolationManager,
+    create_tenant_isolation_manager,
+)
+from modules.multi_tenant.tenant_manager import (
+    TenantInfo,
+    TenantManager,
+    TenantPlan,
+    TenantStatus,
+    create_tenant_manager,
+)
+from modules.optimization.concurrency_optimizer import (
+    AsyncTaskScheduler,
+    ConcurrencyLimiter,
+    ConcurrencyStatistics,
+    ResourceContentionDetector,
+    Task,
+    TaskStatus,
+    ThreadPoolManager,
+    create_async_task_scheduler,
+    create_concurrency_limiter,
+    create_resource_contention_detector,
+    create_thread_pool_manager,
+)
+
 # ---------------------------------------------------------------------------
 # Batch E module imports
 # ---------------------------------------------------------------------------
@@ -32,67 +93,6 @@ from modules.rum.sdk import (
     UserSession,
     create_sdk_manager,
 )
-from modules.multi_tenant.tenant_isolation import (
-    DataIsolator,
-    IsolationLevel,
-    PermissionIsolator,
-    ResourceIsolator,
-    Tenant,
-    TenantContext,
-    TenantIsolationManager,
-    create_tenant_isolation_manager,
-)
-from modules.multi_tenant.tenant_manager import (
-    TenantInfo,
-    TenantManager,
-    TenantPlan,
-    TenantStatus,
-    create_tenant_manager,
-)
-from modules.high_availability.self_healing import (
-    FailureEvent,
-    FailureType,
-    RemediationAction,
-    RemediationResult,
-    SelfHealingEngine,
-    SelfHealingPolicy,
-    create_self_healing_engine,
-)
-from modules.optimization.concurrency_optimizer import (
-    AsyncTaskScheduler,
-    ConcurrencyLimiter,
-    ConcurrencyStatistics,
-    ResourceContentionDetector,
-    Task,
-    TaskStatus,
-    ThreadPoolManager,
-    create_async_task_scheduler,
-    create_concurrency_limiter,
-    create_resource_contention_detector,
-    create_thread_pool_manager,
-)
-from modules.compliance.soc2_compliance import (
-    AccessControlManager,
-    AccessLevel,
-    AccessRecord,
-    ChangeManager,
-    ChangeRecord,
-    SecurityEvent,
-    SecurityMonitor,
-    SOC2ComplianceManager,
-    SOC2TrustService,
-    create_soc2_compliance_manager,
-)
-from modules.compliance.gdpr_compliance import (
-    ConsentRecord,
-    DataBreachEvent,
-    DataSubjectRight,
-    GDPRComplianceManager,
-    ProcessingPurpose,
-    ProcessingRecord,
-    create_gdpr_compliance_manager,
-)
-
 
 # =============================================================================
 # modules/rum/data_collector.py
@@ -773,9 +773,7 @@ def test_access_control_manager():
 
 def test_change_manager():
     cm = ChangeManager()
-    rec = cm.record_change(
-        "u1", "config", "cfg1", "update", requires_approval=True
-    )
+    rec = cm.record_change("u1", "config", "cfg1", "update", requires_approval=True)
     assert rec.id in cm.pending_approvals
 
     assert not cm.approve_change("missing", "u2")
@@ -783,9 +781,7 @@ def test_change_manager():
     assert rec.id not in cm.pending_approvals
     assert rec in cm.change_records
 
-    rec2 = cm.record_change(
-        "u1", "config", "cfg2", "update", requires_approval=True
-    )
+    rec2 = cm.record_change("u1", "config", "cfg2", "update", requires_approval=True)
     assert cm.reject_change(rec2.id, "no")
     assert not cm.reject_change("missing")
 
@@ -795,9 +791,7 @@ def test_change_manager():
 
 def test_security_monitor():
     sm = SecurityMonitor()
-    ev = sm.detect_event(
-        "unauthorized_access", "high", "attempt", affected_users=["u1"]
-    )
+    ev = sm.detect_event("unauthorized_access", "high", "attempt", affected_users=["u1"])
     assert ev in sm.get_unresolved_events()
     assert len(sm.check_compliance_thresholds()) == 1
 
@@ -819,9 +813,7 @@ def test_soc2_compliance_manager():
 
     # force violations
     for _ in range(12):
-        mgr.access_control.log_access(
-            "u1", "r1", "read", AccessLevel.READ_WRITE, success=False
-        )
+        mgr.access_control.log_access("u1", "r1", "read", AccessLevel.READ_WRITE, success=False)
     pending = mgr.change_manager.record_change(
         "u1", "config", "cfg1", "update", requires_approval=True
     )
@@ -904,9 +896,7 @@ def test_gdpr_manager():
     assert breach.is_resolved
 
     # retention
-    mgr.record_processing(
-        "ds3", "analytics", "read", ["usage"], processor="svc"
-    )
+    mgr.record_processing("ds3", "analytics", "read", ["usage"], processor="svc")
     old_record = mgr.processing_records[-1]
     old_record.timestamp = datetime.now() - timedelta(days=400)
     expired = mgr.check_retention_compliance()

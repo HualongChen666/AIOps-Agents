@@ -58,6 +58,7 @@ def test_in_memory_get_loop_creates_on_runtime_error():
 
 def test_in_memory_schedule_one_off_cancel_and_metadata():
     """Exercise one-off scheduling, duplicate guard, cancel and list_tasks."""
+
     async def body():
         s = _InMemoryScheduler()
         results = []
@@ -104,6 +105,7 @@ def test_in_memory_schedule_one_off_cancel_and_metadata():
 
 def test_in_memory_interval_runs():
     """_run_interval successfully executes a periodic coroutine."""
+
     async def body():
         s = _InMemoryScheduler()
         counts = []
@@ -125,6 +127,7 @@ def test_in_memory_interval_runs():
 
 def test_in_memory_interval_handles_exception():
     """_run_interval catches exceptions from the coroutine and keeps running."""
+
     async def body():
         s = _InMemoryScheduler()
         calls = []
@@ -155,6 +158,7 @@ async def _wait_for_second(target: int):
 
 def test_in_memory_cron_star_executes_and_catches_coro_errors():
     """_run_cron with '*/N' executes the coroutine and catches coroutine exceptions."""
+
     async def body():
         s = _InMemoryScheduler()
         counts = []
@@ -183,10 +187,9 @@ def test_in_memory_cron_star_executes_and_catches_coro_errors():
     asyncio.run(body())
 
 
-
-
 def test_in_memory_cron_parsing_branches():
     """_run_cron falls back to 60s for unsupported and malformed cron strings."""
+
     async def body():
         s = _InMemoryScheduler()
 
@@ -244,6 +247,7 @@ def test_in_memory_shutdown_states():
 
 def test_task_scheduler_auto_uses_in_memory_backend():
     """TaskScheduler with TASK_SCHEDULER=auto falls back to _InMemoryScheduler."""
+
     async def body():
         with env_var("TASK_SCHEDULER", "auto"):
             ts = TaskScheduler()

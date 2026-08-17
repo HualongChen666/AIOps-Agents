@@ -36,10 +36,10 @@ from core.audit_logger import (
     set_trace_id,
 )
 
-
 # ----------------------------------------------------------------------
 # core/observability_query.py
 # ----------------------------------------------------------------------
+
 
 def test_query_cache_eviction_and_expiry(monkeypatch):
     cache = oq.QueryCache(ttl=60.0, max_size=2)
@@ -220,6 +220,7 @@ def test_make_cache_key_and_semaphore():
 # core/ai/llm_router/load_balancer.py
 # ----------------------------------------------------------------------
 
+
 def test_circuit_breaker_half_open_and_recovery():
     cb = load_balancer.CircuitBreaker(
         failure_threshold=3, recovery_timeout=0.1, half_open_max_calls=2
@@ -281,6 +282,7 @@ def test_load_balancer_missing_branches():
 # ----------------------------------------------------------------------
 # core/ai/token_budget.py
 # ----------------------------------------------------------------------
+
 
 def test_load_balancer_remaining_branches():
     cb = load_balancer.CircuitBreaker(failure_threshold=2, half_open_max_calls=2)
@@ -358,6 +360,7 @@ def test_prompt_fits_and_budget():
 # core/audit_logger.py
 # ----------------------------------------------------------------------
 
+
 def test_audit_logger_with_trace_and_helpers():
     set_trace_id("trace-123")
     assert get_trace_id() == "trace-123"
@@ -381,6 +384,7 @@ def test_audit_logger_with_trace_and_helpers():
 # ----------------------------------------------------------------------
 # core/agent/tools.py
 # ----------------------------------------------------------------------
+
 
 def test_tool_validation_missing_branches(monkeypatch):
     def dummy_fn(target: str, duration: int = 60, command: str = "", notes: str = ""):

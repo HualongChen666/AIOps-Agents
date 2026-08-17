@@ -2,26 +2,32 @@
 """Coverage tests for batch 12-a core modules."""
 
 import asyncio
-
-import pytest
-import numpy as np
 from unittest.mock import AsyncMock, MagicMock
+
+import numpy as np
+import pytest
 
 pytestmark = [pytest.mark.core]
 
+
+import config
 
 # ---------------------------------------------------------------------------
 # core.analysis.l2.model_router
 # ---------------------------------------------------------------------------
 import core.analysis.l2.model_router as mr
-import config
 
 
 @pytest.fixture
 def router_cfg():
     return {
         "models": [
-            {"provider": "openai", "model": "gpt-3.5-turbo", "cost_per_1k": 0.002, "max_tokens": 4096},
+            {
+                "provider": "openai",
+                "model": "gpt-3.5-turbo",
+                "cost_per_1k": 0.002,
+                "max_tokens": 4096,
+            },
             {"provider": "openai", "model": "gpt-4", "cost_per_1k": 0.03, "max_tokens": 8192},
         ],
         "token_cost_threshold": 10,
@@ -115,7 +121,9 @@ async def test_route_analysis_success(router_cfg, monkeypatch):
     router = mr.MultiModelRouter(router_cfg)
     monkeypatch.setattr(config, "AI_CONFIG", {"api_key": "ak", "model": "gpt-4"})
     monkeypatch.setattr("core.ai_engine.analyze", MagicMock(return_value={"result": "ok"}))
-    result = await router.route_analysis("prompt", {"rag_enabled": True, "rag_knowledge": [{"text": "k"}]})
+    result = await router.route_analysis(
+        "prompt", {"rag_enabled": True, "rag_knowledge": [{"text": "k"}]}
+    )
     assert result["routing_metadata"]["model"] == "gpt-3.5-turbo"
     assert result["result"] == "ok"
 
@@ -131,7 +139,9 @@ async def test_route_analysis_error_no_fallback(router_cfg, monkeypatch):
 @pytest.mark.asyncio
 async def test_route_analysis_fallback(router_cfg, monkeypatch):
     router = mr.MultiModelRouter(router_cfg)
-    monkeypatch.setattr("core.ai_engine.analyze", MagicMock(side_effect=[Exception("boom"), {"result": "ok"}]))
+    monkeypatch.setattr(
+        "core.ai_engine.analyze", MagicMock(side_effect=[Exception("boom"), {"result": "ok"}])
+    )
     result = await router.route_analysis("prompt")
     assert result["result"] == "ok"
 
@@ -146,7 +156,7 @@ def test_init_and_get_model_router(monkeypatch):
 # ---------------------------------------------------------------------------
 # core.alert_providers.datadog
 # ---------------------------------------------------------------------------
-from core.alert_providers.datadog import _safe_float, DatadogAlertProvider
+from core.alert_providers.datadog import DatadogAlertProvider, _safe_float
 
 
 def test_safe_float():
@@ -159,7 +169,13 @@ def test_safe_float():
 def test_datadog_normalize_list():
     prov = DatadogAlertProvider()
     raw = [
-        {"title": "t", "text": "m", "hostname": "h1", "alert_metric": "cpu", "metric_snapshot": {"cpu": 90}},
+        {
+            "title": "t",
+            "text": "m",
+            "hostname": "h1",
+            "alert_metric": "cpu",
+            "metric_snapshot": {"cpu": 90},
+        },
         {"title": "t2", "message": "m2", "host": "h2", "event_type": "recovery"},
     ]
     out = prov.normalize(raw)
@@ -186,8 +202,15 @@ def test_datadog_normalize_invalid():
 
 def test_datadog_severity_and_priority():
     prov = DatadogAlertProvider()
-    for key, sev in [("1", "info"), ("2", "low"), ("3", "warning"), ("4", "high"), ("5", "critical"),
-                     ("p1", "info"), ("p5", "critical")]:
+    for key, sev in [
+        ("1", "info"),
+        ("2", "low"),
+        ("3", "warning"),
+        ("4", "high"),
+        ("5", "critical"),
+        ("p1", "info"),
+        ("p5", "critical"),
+    ]:
         out = prov.normalize({"priority": key})[0]
         assert out["severity"] == sev
     out = prov.normalize({"priority": "unknown"})[0]
@@ -207,13 +230,14 @@ def test_datadog_metric_snapshot():
     assert out["value"] == 85.5
 
 
+import core.db_engine as db_engine
+import core.heal_graph as heal_graph
+
 # ---------------------------------------------------------------------------
 # core.mcp_tools
 # ---------------------------------------------------------------------------
 import core.mcp_tools as mcp
-import core.heal_graph as heal_graph
 import core.rag_engine as rag_engine_mod
-import core.db_engine as db_engine
 
 
 def test_validate_str():
@@ -291,7 +315,9 @@ async def test_get_host_health_with_data(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_metrics(monkeypatch):
-    monkeypatch.setattr(mcp, "get_cached_snapshot", MagicMock(return_value={"cpu": 0.5, "mem": 0.8}))
+    monkeypatch.setattr(
+        mcp, "get_cached_snapshot", MagicMock(return_value={"cpu": 0.5, "mem": 0.8})
+    )
     result = await mcp.get_metrics("host-1", ["cpu", "disk"])
     assert result["cpu"] == 0.5
     assert result["disk"] is None
@@ -364,7 +390,9 @@ def test_rag_engine_init_success(qdrant_enabled):
 
 def test_rag_engine_init_qdrant_failure(monkeypatch):
     monkeypatch.setattr(rag_engine, "QDRANT_AVAILABLE", True)
-    monkeypatch.setattr(rag_engine, "QdrantClient", MagicMock(side_effect=Exception("conn refused")))
+    monkeypatch.setattr(
+        rag_engine, "QdrantClient", MagicMock(side_effect=Exception("conn refused"))
+    )
     engine = RAGEngine({})
     assert not engine._is_initialized
 
@@ -376,7 +404,9 @@ def test_rag_engine_embed_zero():
 
 
 def test_rag_engine_load_and_embed_text(monkeypatch):
-    emb = MagicMock(encode=MagicMock(return_value=MagicMock(tolist=MagicMock(return_value=[0.5] * 384))))
+    emb = MagicMock(
+        encode=MagicMock(return_value=MagicMock(tolist=MagicMock(return_value=[0.5] * 384)))
+    )
     monkeypatch.setattr(rag_engine, "SENTENCE_TRANSFORMERS_AVAILABLE", True)
     monkeypatch.setattr(rag_engine, "SentenceTransformer", MagicMock(return_value=emb))
     engine = RAGEngine({})
@@ -482,8 +512,8 @@ def test_init_and_get_rag_engine(monkeypatch):
 # ---------------------------------------------------------------------------
 # core.causal.algorithms
 # ---------------------------------------------------------------------------
-from core.causal.algorithms import PCAlgorithm, GESAlgorithm, ConditionalIndependenceTest
-from core.causal.graph import CausalGraph, CausalEdge, CausalStrength
+from core.causal.algorithms import ConditionalIndependenceTest, GESAlgorithm, PCAlgorithm
+from core.causal.graph import CausalEdge, CausalGraph, CausalStrength
 
 
 def test_conditional_independence_test():
