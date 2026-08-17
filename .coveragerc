@@ -35,6 +35,13 @@ omit =
     */venv/*
     */virtualenv/*
     scripts/*
+    scripts/*/*
+    scripts/*/*/*
+    */scripts/*
+    */scripts/*/*
+    */scripts/*/*/*
+    scripts\*
+    *\scripts\*
     setup.py
     *.bak
     *.backup
