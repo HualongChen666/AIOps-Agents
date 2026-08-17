@@ -14,6 +14,7 @@ Comprehensive performance optimization for AIOps Agent including:
 
 import asyncio
 import functools
+import os
 import threading
 import time
 from collections import defaultdict
@@ -211,6 +212,11 @@ class PerformanceOptimizer:
 
     def _start_background_monitoring(self):
         """Start background performance monitoring"""
+        # Skip background monitoring during tests
+        if os.environ.get("PERFORMANCE_OPTIMIZER_DISABLED") == "true":
+            logger.info("Background performance monitoring disabled for tests")
+            return
+
         # Start background thread for monitoring
         monitor_thread = threading.Thread(target=self._background_monitoring_loop, daemon=True)
         monitor_thread.start()

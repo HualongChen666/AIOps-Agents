@@ -15,6 +15,7 @@ Comprehensive error handling and logging system including:
 import asyncio
 import functools
 import json
+import os
 import sys
 import threading
 import time
@@ -267,6 +268,11 @@ class ErrorHandler:
 
     def _start_alert_processor(self):
         """Start background alert processor"""
+        # Skip background alert processing during tests
+        if os.environ.get("DISABLE_ERROR_HANDLER") == "true":
+            logger.info("Background alert processing disabled for tests")
+            return
+
         alert_thread = threading.Thread(target=self._alert_processing_loop, daemon=True)
         alert_thread.start()
         logger.info("Alert processor started")
