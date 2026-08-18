@@ -55,7 +55,7 @@ async def backup_database(background_tasks: BackgroundTasks) -> Dict[str, Any]:
         备份结果
     """
     try:
-        from disaster_recovery import DisasterRecovery
+        from core.disaster_recovery import DisasterRecovery
 
         dr = DisasterRecovery()
         backup_file = dr.backup_database()
@@ -103,7 +103,7 @@ async def backup_redis(background_tasks: BackgroundTasks) -> Dict[str, Any]:
         备份结果
     """
     try:
-        from disaster_recovery import DisasterRecovery
+        from core.disaster_recovery import DisasterRecovery
 
         dr = DisasterRecovery()
         backup_file = dr.backup_redis()
@@ -150,7 +150,7 @@ async def backup_configuration() -> Dict[str, Any]:
         备份结果
     """
     try:
-        from disaster_recovery import DisasterRecovery
+        from core.disaster_recovery import DisasterRecovery
 
         dr = DisasterRecovery()
         backup_dir = dr.backup_configuration()
@@ -201,7 +201,7 @@ async def full_backup(background_tasks: BackgroundTasks) -> Dict[str, Any]:
         完整备份结果
     """
     try:
-        from disaster_recovery import DisasterRecovery
+        from core.disaster_recovery import DisasterRecovery
 
         dr = DisasterRecovery()
 
@@ -260,7 +260,7 @@ async def restore_database(backup_file: str) -> Dict[str, Any]:
         恢复结果
     """
     try:
-        from disaster_recovery import DisasterRecovery
+        from core.disaster_recovery import DisasterRecovery
 
         dr = DisasterRecovery()
         success = dr.restore_database(backup_file)
@@ -376,7 +376,7 @@ async def cleanup_old_backups(retention_days: int = 30) -> Dict[str, Any]:
         清理结果
     """
     try:
-        from disaster_recovery import DisasterRecovery
+        from core.disaster_recovery import DisasterRecovery
 
         dr = DisasterRecovery()
         success = dr.cleanup_old_backups(retention_days)
