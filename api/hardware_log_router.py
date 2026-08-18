@@ -572,6 +572,7 @@ async def trigger_hardware_repair(
         }
         
         # Check if approval is required
+        from core.auto_heal import repair_script_library
         script = repair_script_library.get_script(script_key)
         requires_approval = script.requires_approval if script else True
         

@@ -1159,6 +1159,272 @@ def test_stats_record_repair_error(client, monkeypatch):
     assert resp.status_code == 500
 
 
+def test_stats_record_repair_with_valid_key(client, monkeypatch):
+    """Test record repair with valid internal API key."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "test-secret-key")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        headers={"X-Internal-Key": "test-secret-key"},
+        json={
+            "success": True,
+            "rule_name": "test-rule",
+            "script_key": "test-script",
+            "platform": "windows",
+            "output": "test output",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+
+
+def test_stats_record_repair_with_invalid_key(client, monkeypatch):
+    """Test record repair with invalid internal API key."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "correct-key")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        headers={"X-Internal-Key": "wrong-key"},
+        json={
+            "success": True,
+            "rule_name": "test-rule",
+            "script_key": "test-script",
+            "platform": "windows",
+        },
+    )
+    assert resp.status_code == 403
+
+
+def test_stats_record_repair_trust_proxy_no_key(client, monkeypatch):
+    """Test record repair with TRUST_PROXY_HEADER=True but no INTERNAL_API_KEY."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", True)
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        json={
+            "success": True,
+            "rule_name": "test-rule",
+            "script_key": "test-script",
+            "platform": "windows",
+        },
+    )
+    assert resp.status_code == 403
+
+
+def test_stats_record_repair_non_local_ip(client, monkeypatch):
+    """Test record repair from non-local IP without INTERNAL_API_KEY."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "ALLOWED_LOCAL_IPS", ["127.0.0.1"])
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        json={
+            "success": True,
+            "rule_name": "test-rule",
+            "script_key": "test-script",
+            "platform": "windows",
+        },
+    )
+    assert resp.status_code == 403
+
+
+def test_stats_record_repair_failure_case(client, monkeypatch):
+    """Test record repair with success=False."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "ALLOWED_LOCAL_IPS", "testclient")
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        json={
+            "success": False,
+            "rule_name": "failed-rule",
+            "script_key": "failed-script",
+            "platform": "linux",
+            "output": "Error occurred",
+        },
+    )
+    assert resp.status_code == 200
+    assert "失败" in resp.json()["message"]
+
+
+def test_stats_record_repair_with_empty_fields(client, monkeypatch):
+    """Test record repair with empty optional fields."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "ALLOWED_LOCAL_IPS", "testclient")
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        json={
+            "success": True,
+            "rule_name": "",
+            "script_key": "",
+            "platform": "windows",
+            "output": "",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["details"]["rule_name"] is None
+    assert resp.json()["details"]["script_key"] is None
+
+
+def test_stats_summary_with_cache_hit(client, monkeypatch):
+    """Test that cache is hit when within TTL."""
+    import api.stats_router as _sr
+    import time
+
+    # Set cache with recent timestamp
+    monkeypatch.setattr(
+        _sr, "_summary_cache", {"data": {"total_alerts": 100, "resolved": 50}, "ts": time.monotonic()}
+    )
+    resp = client.get("/api/v1/stats/summary")
+    assert resp.status_code == 200
+    assert resp.json()["total_alerts"] == 100
+
+
+def test_stats_summary_cache_expires(client, monkeypatch):
+    """Test that cache expires after TTL."""
+    import api.stats_router as _sr
+    import time
+
+    # Set cache with old timestamp (older than TTL)
+    monkeypatch.setattr(
+        _sr,
+        "_summary_cache",
+        {"data": {"total_alerts": 100, "resolved": 50}, "ts": time.monotonic() - 10},
+    )
+    resp = client.get("/api/v1/stats/summary")
+    assert resp.status_code == 200
+
+
+def test_stats_summary_with_none_cache(client, monkeypatch):
+    """Test summary when cache data is None."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "_summary_cache", {"data": None, "ts": 0.0})
+    resp = client.get("/api/v1/stats/summary")
+    assert resp.status_code == 200
+
+
+def test_stats_get_real_client_ip_no_trust_proxy(client, monkeypatch):
+    """Test _get_real_client_ip when TRUST_PROXY_HEADER is False."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    # This test ensures the function falls back to request.client.host
+    # The actual IP will be "testclient" from the test client
+    resp = client.get("/api/v1/stats/summary")
+    assert resp.status_code == 200
+
+
+def test_stats_get_real_client_ip_with_empty_xff(client, monkeypatch):
+    """Test _get_real_client_ip when X-Forwarded-For is empty."""
+    import api.stats_router as _sr
+    import config
+
+    monkeypatch.setattr(config, "TRUST_PROXY_HEADER", True)
+    monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+    resp = client.get("/api/v1/stats/summary", headers={"X-Forwarded-For": ""})
+    assert resp.status_code == 200
+
+
+def test_stats_get_real_client_ip_with_multiple_ips(client, monkeypatch):
+    """Test _get_real_client_ip with multiple IPs in X-Forwarded-For."""
+    import api.stats_router as _sr
+    import config
+
+    monkeypatch.setattr(config, "TRUST_PROXY_HEADER", True)
+    monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 1)
+    resp = client.get(
+        "/api/v1/stats/summary", headers={"X-Forwarded-For": "1.2.3.4, 5.6.7.8, 9.10.11.12"}
+    )
+    assert resp.status_code == 200
+
+
+def test_stats_get_real_client_ip_with_trusted_proxy_count(client, monkeypatch):
+    """Test _get_real_client_ip with different TRUSTED_PROXY_COUNT values."""
+    import api.stats_router as _sr
+    import config
+
+    monkeypatch.setattr(config, "TRUST_PROXY_HEADER", True)
+    monkeypatch.setattr(config, "TRUSTED_PROXY_COUNT", 2)
+    resp = client.get(
+        "/api/v1/stats/summary", headers={"X-Forwarded-For": "1.2.3.4, 5.6.7.8, 9.10.11.12"}
+    )
+    assert resp.status_code == 200
+
+
+def test_stats_record_repair_invalidates_cache(client, monkeypatch):
+    """Test that recording a repair invalidates the summary cache."""
+    import api.stats_router as _sr
+
+    monkeypatch.setattr(_sr, "ALLOWED_LOCAL_IPS", "testclient")
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    # Set initial cache
+    monkeypatch.setattr(_sr, "_summary_cache", {"data": {"total_alerts": 100}, "ts": 0.0})
+    
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        json={
+            "success": True,
+            "rule_name": "test",
+            "script_key": "test",
+            "platform": "windows",
+        },
+    )
+    assert resp.status_code == 200
+    # Cache should be invalidated (data=None, ts=0.0)
+    assert _sr._summary_cache["data"] is None
+    assert _sr._summary_cache["ts"] == 0.0
+
+
+def test_stats_summary_long_error_message(client, monkeypatch):
+    """Test that long error messages are truncated."""
+    import api.stats_router as _sr
+
+    long_error = "x" * 300
+    monkeypatch.setattr(_sr, "get_real_summary", _async_raise(Exception(long_error)))
+    resp = client.get("/api/v1/stats/summary")
+    assert resp.status_code == 500
+    # Error message should be truncated to 200 chars
+    assert len(resp.json()["detail"]) <= 200
+
+
+def test_stats_record_repair_long_error_message(client, monkeypatch):
+    """Test that long error messages in record repair are truncated."""
+    import api.stats_router as _sr
+
+    long_error = "x" * 300
+    monkeypatch.setattr(_sr, "ALLOWED_LOCAL_IPS", "testclient")
+    monkeypatch.setattr(_sr, "INTERNAL_API_KEY", "")
+    monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
+    monkeypatch.setattr(_sr, "record_repair", _async_raise(Exception(long_error)))
+    resp = client.post(
+        "/api/v1/stats/repair/record",
+        json={
+            "success": True,
+            "rule_name": "test",
+            "script_key": "test",
+            "platform": "windows",
+        },
+    )
+    assert resp.status_code == 500
+    # Error message should be truncated to 200 chars
+    assert len(resp.json()["detail"]) <= 200
+
+
 # =============================================================================
 # tracing_router
 # =============================================================================

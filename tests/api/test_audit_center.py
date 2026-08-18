@@ -16,6 +16,33 @@ def test_audit_center_page(client, admin_headers, tmp_path, monkeypatch):
     assert resp.headers["content-type"].startswith("text/html")
 
 
+def test_audit_center_page_not_found(client, admin_headers, tmp_path, monkeypatch):
+    """Test audit_center_page when the HTML file does not exist (lines 38-39)."""
+    # Create a static directory but without the audit_center.html file
+    static_dir = tmp_path / "static"
+    static_dir.mkdir()
+    # Do NOT create audit_center.html file
+    monkeypatch.setattr(acr, "BASE_DIR", tmp_path)
+    resp = client.get("/audit_center/", headers=admin_headers)
+    assert resp.status_code == 404
+    data = resp.json()
+    # The error is wrapped by global error handler
+    assert "error" in data
+    assert data["error"]["message"] == "Audit center page not found"
+
+
+def test_audit_center_page_static_dir_not_found(client, admin_headers, tmp_path, monkeypatch):
+    """Test audit_center_page when the static directory does not exist (lines 38-39)."""
+    # Do NOT create the static directory at all
+    monkeypatch.setattr(acr, "BASE_DIR", tmp_path)
+    resp = client.get("/audit_center/", headers=admin_headers)
+    assert resp.status_code == 404
+    data = resp.json()
+    # The error is wrapped by global error handler
+    assert "error" in data
+    assert data["error"]["message"] == "Audit center page not found"
+
+
 @pytest.mark.smoke
 def test_audit_center_page_status(client, admin_headers):
     resp = client.get("/audit_center/", headers=admin_headers)

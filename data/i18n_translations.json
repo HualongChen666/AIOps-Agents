@@ -1,7 +1,9 @@
 {
   "zh-CN": {
     "common": {
-      "hello": "你好"
+      "hello": "你好",
+      "test_key": "Test Translation",
+      "test": "Test"
     }
   }
 }

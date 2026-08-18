@@ -544,6 +544,100 @@ def test_advanced_ai_unavailable(client, admin_headers, monkeypatch):
     assert r.status_code == 503
 
 
+def test_advanced_ai_invalid_data_points(client, admin_headers, monkeypatch):
+    """
+    Test coverage for lines 179-180: Invalid historical data point handling
+    when ValueError or KeyError occurs during data parsing
+    """
+    _patch_advanced_ai(monkeypatch)
+
+    # Create data with some invalid entries mixed with valid ones
+    # Start with 13 valid points, then make 3 invalid to leave 10 valid
+    base = datetime.datetime(2026, 1, 1, 0, 0, 0)
+    historical_data = [
+        {
+            "timestamp": (base + datetime.timedelta(hours=i)).isoformat() + "Z",
+            "value": float(i),
+        }
+        for i in range(13)
+    ]
+    # Add invalid data points that will trigger ValueError or KeyError
+    historical_data[3] = {"timestamp": "invalid-timestamp", "value": 3.0}  # Invalid timestamp
+    historical_data[7] = {"value": 7.0}  # Missing timestamp key
+    historical_data[10] = {"timestamp": "2026-01-01T10:00:00Z", "value": "not-a-number"}  # Invalid value
+
+    r = client.post(
+        "/api/v1/ai-advanced/predict/time-series",
+        headers=admin_headers,
+        json={"historical_data": historical_data, "prediction_horizon": 5},
+    )
+    # Should succeed because after skipping invalid points, we still have >= 10 valid points
+    assert r.status_code == 200
+    assert r.json()["status"] == "success"
+
+
+def test_advanced_ai_all_invalid_data(client, admin_headers, monkeypatch):
+    """
+    Test when all historical data points are invalid, resulting in insufficient data
+    """
+    _patch_advanced_ai(monkeypatch)
+
+    # All data points are invalid
+    historical_data = [
+        {"timestamp": "invalid", "value": 1.0},
+        {"value": 2.0},  # Missing timestamp
+        {"timestamp": "2026-01-01T00:00:00Z", "value": "invalid"},
+    ]
+
+    r = client.post(
+        "/api/v1/ai-advanced/predict/time-series",
+        headers=admin_headers,
+        json={"historical_data": historical_data, "prediction_horizon": 5},
+    )
+    # Should fail because after skipping all invalid points, we have < 10 valid points
+    assert r.status_code == 400
+    # The error message is in the response body, check for the Chinese error message
+    response_data = r.json()
+    assert "历史数据不足" in str(response_data) or "Insufficient" in str(response_data)
+
+
+def test_advanced_ai_all_endpoints_unavailable(client, admin_headers, monkeypatch):
+    """
+    Comprehensive test for all ADVANCED_AI_AVAILABLE=False scenarios
+    This ensures all 503 error paths are covered (lines 242, 315, 378, 429, 490, 550, 599, 640, 671, 732, 787)
+    """
+    import api.advanced_ai_router as mod
+
+    monkeypatch.setattr(mod, "ADVANCED_AI_AVAILABLE", False)
+
+    endpoints = [
+        ("POST", "/api/v1/ai-advanced/predict/anomalies", {"current_data": {"cpu": 95.0}, "historical_baseline": {"cpu": [1, 2, 3]}}),
+        ("POST", "/api/v1/ai-advanced/learning/update", {"new_data": {"x": 1}, "feedback": {"x": 0.5}, "learning_mode": "online"}),
+        ("POST", "/api/v1/ai-advanced/conversation", {"user_input": "hi", "conversation_id": "c1", "user_id": "u1"}),
+        ("GET", "/api/v1/ai-advanced/conversation/c1", None),
+        ("POST", "/api/v1/ai-advanced/explain", {"decision": "restart", "decision_context": {"cpu": 90}}),
+        ("POST", "/api/v1/ai-advanced/knowledge/learn", {"experience_data": {"x": 1}, "outcome": "success"}),
+        ("GET", "/api/v1/ai-advanced/knowledge", None),
+        ("GET", "/api/v1/ai-advanced/statistics", None),
+        ("GET", "/api/v1/ai-advanced/learning/history", None),
+        ("GET", "/api/v1/ai-advanced/predictions/history", None),
+        ("DELETE", "/api/v1/ai-advanced/conversation/c1", None),
+    ]
+
+    for method, endpoint, data in endpoints:
+        if method == "POST":
+            r = client.post(endpoint, headers=admin_headers, json=data)
+        elif method == "GET":
+            r = client.get(endpoint, headers=admin_headers)
+        elif method == "DELETE":
+            r = client.delete(endpoint, headers=admin_headers)
+
+        assert r.status_code == 503
+        # Check for the error message in the response (may be in different format)
+        response_data = r.json()
+        assert "高级AI能力不可用" in str(response_data) or "not available" in str(response_data).lower()
+
+
 # ---------------------------------------------------------------------------
 # Plugin SDK router
 # ---------------------------------------------------------------------------
@@ -876,6 +970,96 @@ def test_collaboration_errors(client, admin_headers, monkeypatch):
         mod, "engine_list_workspaces", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
     )
     r = client.get("/api/v1/collaboration/workspaces", headers=admin_headers)
+    assert r.status_code == 500
+
+    # Test get_workspace with RuntimeError (lines 117-119)
+    monkeypatch.setattr(
+        mod, "engine_get_workspace", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("get error"))
+    )
+    r = client.get("/api/v1/collaboration/workspaces/ws1", headers=admin_headers)
+    assert r.status_code == 500
+
+    # Test create_workspace with RuntimeError (lines 146-148)
+    monkeypatch.setattr(
+        mod, "engine_create_workspace", lambda **k: (_ for _ in ()).throw(RuntimeError("create error"))
+    )
+    r = client.post("/api/v1/collaboration/workspaces", headers=admin_headers, json={"name": "x"})
+    assert r.status_code == 500
+
+    # Test post_message with RuntimeError (lines 166-168)
+    monkeypatch.setattr(
+        mod, "engine_post_message", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("post error"))
+    )
+    r = client.post(
+        "/api/v1/collaboration/workspaces/ws1/messages",
+        headers=admin_headers,
+        json={"user": "u", "content": "c"},
+    )
+    assert r.status_code == 500
+
+    # Test add_task with ValueError (lines 184-185)
+    monkeypatch.setattr(
+        mod, "engine_add_task", lambda *a, **k: (_ for _ in ()).throw(ValueError("task not found"))
+    )
+    r = client.post(
+        "/api/v1/collaboration/workspaces/ws1/tasks",
+        headers=admin_headers,
+        json={"title": "t"},
+    )
+    assert r.status_code == 404
+
+    # Test add_task with RuntimeError (lines 186-188)
+    monkeypatch.setattr(
+        mod, "engine_add_task", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("add task error"))
+    )
+    r = client.post(
+        "/api/v1/collaboration/workspaces/ws1/tasks",
+        headers=admin_headers,
+        json={"title": "t"},
+    )
+    assert r.status_code == 500
+
+    # Test update_task with ValueError (lines 206-207)
+    monkeypatch.setattr(
+        mod, "engine_assign_task", lambda *a, **k: (_ for _ in ()).throw(ValueError("task not found"))
+    )
+    r = client.patch(
+        "/api/v1/collaboration/workspaces/ws1/tasks/t1",
+        headers=admin_headers,
+        json={"status": "done"},
+    )
+    assert r.status_code == 404
+
+    # Test update_task with RuntimeError (lines 208-210)
+    monkeypatch.setattr(
+        mod, "engine_assign_task", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("update error"))
+    )
+    r = client.patch(
+        "/api/v1/collaboration/workspaces/ws1/tasks/t1",
+        headers=admin_headers,
+        json={"status": "done"},
+    )
+    assert r.status_code == 500
+
+    # Test resolve_workspace with ValueError (lines 226-227)
+    monkeypatch.setattr(
+        mod, "engine_resolve_workspace", lambda *a, **k: (_ for _ in ()).throw(ValueError("workspace not found"))
+    )
+    r = client.post("/api/v1/collaboration/workspaces/ws1/resolve", headers=admin_headers)
+    assert r.status_code == 404
+
+    # Test resolve_workspace with RuntimeError (lines 228-230)
+    monkeypatch.setattr(
+        mod, "engine_resolve_workspace", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("resolve error"))
+    )
+    r = client.post("/api/v1/collaboration/workspaces/ws1/resolve", headers=admin_headers)
+    assert r.status_code == 500
+
+    # Test get_active_context with RuntimeError (lines 247-249)
+    monkeypatch.setattr(
+        mod, "engine_get_active_context", lambda: (_ for _ in ()).throw(RuntimeError("context error"))
+    )
+    r = client.get("/api/v1/collaboration/active-context", headers=admin_headers)
     assert r.status_code == 500
 
 

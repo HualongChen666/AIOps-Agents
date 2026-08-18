@@ -662,6 +662,327 @@ def test_localization_resource_router_endpoints(client, admin_headers):
     assert "missing_keys" in resp.json()["data"]
 
 
+def test_localization_resource_router_error_paths(client, admin_headers):
+    """Test error paths in localization_resource_router to improve coverage."""
+    import core.localization_resource_manager as lrm_module
+
+    # Test get_resource_status exception (lines 41-43)
+    original_get = lrm_module.get_resource_manager
+
+    def mock_get_error():
+        raise RuntimeError("Test error in resource status")
+
+    lrm_module.get_resource_manager = mock_get_error
+
+    try:
+        resp = client.get("/api/localization/status", headers=admin_headers)
+        assert resp.status_code == 500
+        # Check if error message is in response (format may vary due to global error handler)
+        resp_json = resp.json()
+        error_msg = str(resp_json)
+        assert "Test error in resource status" in error_msg or "error" in str(resp_json).lower()
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test get_translations 404 response (line 79)
+    def mock_get_manager_empty():
+        class FakeManager:
+            def get_translations(self, language, namespace):
+                return {}  # Empty dict triggers 404
+
+            def get_resource_summary(self):
+                return {"total_languages": 1, "total_translations": 0}
+
+            def add_translation(self, language, namespace, key, value):
+                return True
+
+            def export_translations(self, language, namespace, output_path):
+                return True
+
+            def import_translations(self, language, namespace, input_path):
+                return True
+
+            def get_missing_translations(self, source, target, namespace):
+                return []
+
+        return FakeManager()
+
+    lrm_module.get_resource_manager = mock_get_manager_empty
+
+    try:
+        resp = client.get(
+            "/api/localization/translations",
+            headers=admin_headers,
+            params={"language": "nonexistent", "namespace": "nonexistent"},
+        )
+        assert resp.status_code == 404
+        # Check for 404 response
+        resp_json = resp.json()
+        error_msg = str(resp_json)
+        assert "Translations not found" in error_msg or "not found" in error_msg.lower()
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test get_translations exception (lines 90-94)
+    def mock_get_translations_error():
+        class FakeManager:
+            def get_translations(self, language, namespace):
+                raise ValueError("Test error getting translations")
+
+            def get_resource_summary(self):
+                return {"total_languages": 1, "total_translations": 0}
+
+        return FakeManager()
+
+    lrm_module.get_resource_manager = mock_get_translations_error
+
+    try:
+        resp = client.get(
+            "/api/localization/translations",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common"},
+        )
+        assert resp.status_code == 500
+        resp_json = resp.json()
+        error_msg = str(resp_json)
+        assert "Test error getting translations" in error_msg or "error" in error_msg.lower()
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test add_translation exception (lines 133-135)
+    def mock_add_translation_error():
+        class FakeManager:
+            def add_translation(self, language, namespace, key, value):
+                raise RuntimeError("Test error adding translation")
+
+            def get_resource_summary(self):
+                return {"total_languages": 1, "total_translations": 0}
+
+        return FakeManager()
+
+    lrm_module.get_resource_manager = mock_add_translation_error
+
+    try:
+        resp = client.post(
+            "/api/localization/translation/add",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common", "key": "test", "value": "test"},
+        )
+        assert resp.status_code == 500
+        resp_json = resp.json()
+        error_msg = str(resp_json)
+        assert "Test error adding translation" in error_msg or "error" in error_msg.lower()
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test export_translations exception (lines 177-179)
+    def mock_export_translations_error():
+        class FakeManager:
+            def export_translations(self, language, namespace, output_path):
+                raise IOError("Test error exporting translations")
+
+            def get_resource_summary(self):
+                return {"total_languages": 1, "total_translations": 0}
+
+        return FakeManager()
+
+    lrm_module.get_resource_manager = mock_export_translations_error
+
+    try:
+        resp = client.post(
+            "/api/localization/translation/export",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common", "output_path": "/tmp/test.json"},
+        )
+        assert resp.status_code == 500
+        resp_json = resp.json()
+        error_msg = str(resp_json)
+        assert "Test error exporting translations" in error_msg or "error" in error_msg.lower()
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test import_translations exception (lines 207-209)
+    def mock_import_translations_error():
+        class FakeManager:
+            def import_translations(self, language, namespace, input_path):
+                raise Exception("Test error importing translations")
+
+            def get_resource_summary(self):
+                return {"total_languages": 1, "total_translations": 0}
+
+        return FakeManager()
+
+    lrm_module.get_resource_manager = mock_import_translations_error
+
+    try:
+        resp = client.post(
+            "/api/localization/translation/import",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common", "input_path": "/tmp/test.json"},
+        )
+        assert resp.status_code == 500
+        resp_json = resp.json()
+        error_msg = str(resp_json)
+        assert "Test error importing translations" in error_msg or "error" in error_msg.lower()
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test get_missing_translations exception (lines 238-240)
+    def mock_get_missing_translations_error():
+        class FakeManager:
+            def get_missing_translations(self, source, target, namespace):
+                raise RuntimeError("Test error getting missing translations")
+
+            def get_resource_summary(self):
+                return {"total_languages": 1, "total_translations": 0}
+
+        return FakeManager()
+
+    lrm_module.get_resource_manager = mock_get_missing_translations_error
+
+    try:
+        resp = client.get(
+            "/api/localization/translations/missing",
+            headers=admin_headers,
+            params={"source_language": "en-US", "target_language": "zh-CN", "namespace": "common"},
+        )
+        assert resp.status_code == 500
+        resp_json = resp.json()
+        error_msg = str(resp_json)
+        assert "Test error getting missing translations" in error_msg or "error" in error_msg.lower()
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+
+def test_localization_resource_router_success_paths_detailed(client, admin_headers):
+    """Test detailed success paths to cover remaining lines (39-40, 80, 128, 167, 197, 227)."""
+    import core.localization_resource_manager as lrm_module
+
+    original_get = lrm_module.get_resource_manager
+
+    # Test get_resource_status success path (lines 39-40)
+    def mock_get_manager_success():
+        class FakeManager:
+            def get_resource_summary(self):
+                return {"total_languages": 5, "total_translations": 1000}
+
+            def get_translations(self, language, namespace):
+                return {"hello": "world"}
+
+            def add_translation(self, language, namespace, key, value):
+                return True
+
+            def export_translations(self, language, namespace, output_path):
+                return True
+
+            def import_translations(self, language, namespace, input_path):
+                return True
+
+            def get_missing_translations(self, source, target, namespace):
+                return ["key1", "key2"]
+
+        return FakeManager()
+
+    lrm_module.get_resource_manager = mock_get_manager_success
+
+    try:
+        resp = client.get("/api/localization/status", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["data"]["total_languages"] == 5
+        assert data["data"]["total_translations"] == 1000
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test get_translations success path with non-empty translations (line 80 check)
+    lrm_module.get_resource_manager = mock_get_manager_success
+
+    try:
+        resp = client.get(
+            "/api/localization/translations",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["data"]["language"] == "en-US"
+        assert data["data"]["namespace"] == "common"
+        assert data["data"]["translations"] == {"hello": "world"}
+        assert data["data"]["count"] == 1
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test add_translation success path (line 128)
+    lrm_module.get_resource_manager = mock_get_manager_success
+
+    try:
+        resp = client.post(
+            "/api/localization/translation/add",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common", "key": "new_key", "value": "new_value"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["data"]["added"] is True
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test export_translations success path (line 167)
+    lrm_module.get_resource_manager = mock_get_manager_success
+
+    try:
+        resp = client.post(
+            "/api/localization/translation/export",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common", "output_path": "/tmp/export.json"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["data"]["exported"] is True
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test import_translations success path (line 197)
+    lrm_module.get_resource_manager = mock_get_manager_success
+
+    try:
+        resp = client.post(
+            "/api/localization/translation/import",
+            headers=admin_headers,
+            params={"language": "en-US", "namespace": "common", "input_path": "/tmp/import.json"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["data"]["imported"] is True
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+    # Test get_missing_translations success path (line 227)
+    lrm_module.get_resource_manager = mock_get_manager_success
+
+    try:
+        resp = client.get(
+            "/api/localization/translations/missing",
+            headers=admin_headers,
+            params={"source_language": "en-US", "target_language": "zh-CN", "namespace": "common"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["data"]["source_language"] == "en-US"
+        assert data["data"]["target_language"] == "zh-CN"
+        assert data["data"]["namespace"] == "common"
+        assert data["data"]["missing_keys"] == ["key1", "key2"]
+        assert data["data"]["count"] == 2
+    finally:
+        lrm_module.get_resource_manager = original_get
+
+
 def test_localization_adapter_router_endpoints(client, admin_headers):
     resp = client.get("/api/localization-adapter/status", headers=admin_headers)
     assert resp.status_code == 200

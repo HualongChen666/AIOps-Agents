@@ -6,8 +6,11 @@ and real JWT tokens. Fixtures are provided by tests/conftest.py.
 """
 
 import uuid
+from unittest.mock import Mock, patch
 
 import pytest  # noqa: F401  # Imported for test setup
+from sqlalchemy.orm import Session
+from core.auth_db import Base, SessionLocal, engine, User
 
 
 def test_login_success(client):
@@ -194,3 +197,71 @@ def test_delete_user(client, admin_headers):
 
     resp = client.get(f"/api/v1/users/{user_id}", headers=admin_headers)
     assert resp.status_code == 404
+
+
+def test_register_admin_fails_when_users_exist(client):
+    """Bootstrap admin registration fails when users already exist (lines 74-78)."""
+    # The database already has an admin user from conftest
+    resp = client.post(
+        "/api/v1/auth/register-admin",
+        json={"username": "newadmin", "password": "admin123"},
+    )
+    assert resp.status_code == 400
+    resp_data = resp.json()
+    # Check for error message in nested structure
+    error_msg = resp_data.get("detail") or resp_data.get("message") or resp_data.get("error", {}).get("message", "")
+    assert "Bootstrap registration only allowed when no users exist" in error_msg
+
+
+def test_change_password_wrong_old_password(client, admin_token):
+    """Changing password with wrong old password returns 401 (line 104)."""
+    resp = client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": "wrongpassword", "new_password": "newpass123"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 401
+    resp_data = resp.json()
+    error_msg = resp_data.get("detail") or resp_data.get("message") or resp_data.get("error", {}).get("message", "")
+    assert "Old password is incorrect" in error_msg
+
+
+def test_logout_without_jti_in_token(client, test_user):
+    """Logout handles tokens without jti gracefully (lines 123-128)."""
+    # First, login to get a normal token
+    resp = client.post(
+        "/api/v1/auth/login",
+        json={"username": test_user["username"], "password": "testpass"},
+    )
+    assert resp.status_code == 200
+    token = resp.json()["access_token"]
+
+    # Create a malformed token without jti by manually crafting a JWT
+    import jwt
+    import config
+    from datetime import datetime, timedelta, timezone
+
+    # Create a token payload without jti but with required fields
+    payload = {
+        "sub": test_user["username"],
+        "role": "operator",
+        "exp": (datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp(),
+        "iat": datetime.now(timezone.utc).timestamp(),
+        "iss": "aiops-agent",
+        "aud": "aiops-api",
+        "tenant_id": "default",
+        # Note: no "jti" field
+    }
+    malformed_token = jwt.encode(
+        payload,
+        config.JWT_SECRET_KEY,
+        algorithm=config.JWT_ALGORITHM,
+    )
+
+    # Logout should still succeed even without jti
+    resp = client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {malformed_token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "Logged out"

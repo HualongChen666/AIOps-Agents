@@ -7,6 +7,7 @@ import tempfile
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any  # noqa: F401  # Imported for test setup
+from unittest.mock import patch
 
 import pytest  # noqa: F401  # Imported for test setup
 
@@ -29,8 +30,19 @@ import core.authentication
 import core.db_engine
 import core.service_monitoring_manager
 import core.stats_engine
+from fastapi import HTTPException
 
 pytestmark = [pytest.mark.api]
+
+
+# Helper function to run async tests
+def run_async(coro):
+    """Run async function in event loop."""
+    return asyncio.run(coro)
+
+
+# Force module import for coverage
+import api.workflow_visualization_router as router  # noqa: F401
 
 
 def _patch_core_auth(monkeypatch: Any) -> None:
@@ -178,6 +190,218 @@ def test_workflow_structure(client, admin_headers, monkeypatch):
 
     resp2 = client.get("/workflow/structure?key=missing", headers=admin_headers)
     assert resp2.status_code == 404
+
+
+# Additional coverage tests for workflow_visualization_router
+def test_workflow_structure_load_exception(monkeypatch):
+    """Test exception handling when get_workflow_definitions fails (covers lines 69-71)."""
+    def fake_get_definitions_with_error():
+        raise RuntimeError("Database connection failed")
+
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        fake_get_definitions_with_error,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        run_async(api.workflow_visualization_router.get_workflow_structure())
+    assert exc_info.value.status_code == 500
+    assert "工作流定义加载失败" in exc_info.value.detail
+
+
+def test_workflow_structure_empty_definitions(monkeypatch):
+    """Test when get_workflow_definitions returns empty dict (covers line 74)."""
+    monkeypatch.setattr(api.workflow_visualization_router, "get_workflow_definitions", lambda: {})
+
+    with pytest.raises(HTTPException) as exc_info:
+        run_async(api.workflow_visualization_router.get_workflow_structure())
+    assert exc_info.value.status_code == 404
+    assert "未找到工作流定义" in exc_info.value.detail
+
+
+def test_workflow_structure_invalid_steps_not_list(monkeypatch):
+    """Test when steps is not a list (covers lines 84-85)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                "description": "First workflow",
+                "steps": "invalid",  # Not a list
+            }
+        },
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        run_async(api.workflow_visualization_router.get_workflow_structure(key="wf1"))
+    assert exc_info.value.status_code == 500
+    assert "工作流 wf1 缺少 steps 定义" in exc_info.value.detail
+
+
+def test_workflow_structure_invalid_steps_empty(monkeypatch):
+    """Test when steps is an empty list (covers lines 84-85)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                "description": "First workflow",
+                "steps": [],  # Empty list
+            }
+        },
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        run_async(api.workflow_visualization_router.get_workflow_structure(key="wf1"))
+    assert exc_info.value.status_code == 500
+    assert "工作流 wf1 缺少 steps 定义" in exc_info.value.detail
+
+
+def test_workflow_structure_no_key(monkeypatch):
+    """Test when no key is provided, uses first workflow (covers line 77)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                "description": "First workflow",
+                "steps": [
+                    {"key": "start", "title": "Start", "desc": "begin"},
+                    {"key": "end", "title": "End", "desc": "finish"},
+                ],
+            },
+            "wf2": {
+                "name": "Workflow Two",
+                "description": "Second workflow",
+                "steps": [{"key": "step1", "title": "Step 1", "desc": ""}],
+            },
+        },
+    )
+
+    result = run_async(api.workflow_visualization_router.get_workflow_structure())
+    assert result["metadata"]["workflow_key"] == "wf1"  # First workflow
+    assert len(result["nodes"]) == 2
+    assert len(result["edges"]) == 1
+
+
+def test_workflow_structure_string_steps(monkeypatch):
+    """Test when steps contain string elements instead of dicts (covers lines 93-96)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                "description": "First workflow",
+                "steps": ["step1", "step2", "step3"],  # String steps
+            }
+        },
+    )
+
+    result = run_async(api.workflow_visualization_router.get_workflow_structure(key="wf1"))
+    assert len(result["nodes"]) == 3
+    # String steps should use the string as both id and label
+    assert result["nodes"][0]["id"] == "step1"
+    assert result["nodes"][0]["label"] == "step1"
+
+
+def test_workflow_structure_steps_without_key_title(monkeypatch):
+    """Test when step dicts don't have key or title (covers lines 90-91)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                "description": "First workflow",
+                "steps": [
+                    {"desc": "First step"},  # No key or title
+                    {"key": "step2"},  # No title
+                ],
+            }
+        },
+    )
+
+    result = run_async(api.workflow_visualization_router.get_workflow_structure(key="wf1"))
+    assert len(result["nodes"]) == 2
+    # First step should use default id
+    assert result["nodes"][0]["id"] == "step-0"
+    assert result["nodes"][0]["label"] == "step-0"
+    # Second step should use key as label
+    assert result["nodes"][1]["id"] == "step2"
+    assert result["nodes"][1]["label"] == "step2"
+
+
+def test_workflow_structure_node_types(monkeypatch):
+    """Test node type assignment based on position (covers lines 98-103)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                "description": "First workflow",
+                "steps": [
+                    {"key": "start", "title": "Start", "desc": ""},
+                    {"key": "middle", "title": "Middle", "desc": ""},
+                    {"key": "end", "title": "End", "desc": ""},
+                ],
+            }
+        },
+    )
+
+    result = run_async(api.workflow_visualization_router.get_workflow_structure(key="wf1"))
+    assert result["nodes"][0]["type"] == "start"
+    assert result["nodes"][1]["type"] == "process"
+    assert result["nodes"][2]["type"] == "end"
+
+
+def test_workflow_structure_metadata_missing_description(monkeypatch):
+    """Test when description is missing, falls back to name (covers line 124)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                # No description field
+                "steps": [{"key": "start", "title": "Start", "desc": ""}],
+            }
+        },
+    )
+
+    result = run_async(api.workflow_visualization_router.get_workflow_structure(key="wf1"))
+    assert result["metadata"]["description"] == "Workflow One"
+
+
+def test_workflow_structure_edges(monkeypatch):
+    """Test edge creation between nodes (covers lines 114-116)."""
+    monkeypatch.setattr(
+        api.workflow_visualization_router,
+        "get_workflow_definitions",
+        lambda: {
+            "wf1": {
+                "name": "Workflow One",
+                "description": "Test",
+                "steps": [
+                    {"key": "a", "title": "A", "desc": ""},
+                    {"key": "b", "title": "B", "desc": ""},
+                    {"key": "c", "title": "C", "desc": ""},
+                ],
+            }
+        },
+    )
+
+    result = run_async(api.workflow_visualization_router.get_workflow_structure(key="wf1"))
+    assert len(result["edges"]) == 2
+    assert result["edges"][0]["source"] == "a"
+    assert result["edges"][0]["target"] == "b"
+    assert result["edges"][1]["source"] == "b"
+    assert result["edges"][1]["target"] == "c"
 
 
 # ---------------------------------------------------------------------------
@@ -1289,6 +1513,45 @@ def test_service_monitoring_errors(client, admin_headers, monkeypatch):
     resp = client.get("/api/service-monitoring/metrics/svc", headers=admin_headers)
     assert resp.status_code == 500
 
+    # Test analyze_service_performance error (lines 222-224)
+    resp = client.get(
+        "/api/service-monitoring/analysis/svc",
+        headers=admin_headers,
+        params={"time_range_hours": 1},
+    )
+    assert resp.status_code == 500
+
+    # Test detect_anomaly error (lines 279-281)
+    resp = client.post(
+        "/api/service-monitoring/anomaly/detect",
+        headers=admin_headers,
+        params={
+            "metric_name": "cpu",
+            "service_name": "svc",
+            "current_value": 99.0,
+        },
+    )
+    assert resp.status_code == 500
+
+    # Test create_alert_rule error (lines 345-347)
+    resp = client.post(
+        "/api/service-monitoring/alert-rule",
+        headers=admin_headers,
+        params={
+            "rule_id": "rule-1",
+            "service_name": "svc",
+            "metric_name": "cpu",
+            "threshold": 80.0,
+            "comparison": "greater_than",
+            "severity": "warning",
+        },
+    )
+    assert resp.status_code == 500
+
+    # Test check_alert_rules error (lines 403-405)
+    resp = client.post("/api/service-monitoring/alert/check", headers=admin_headers)
+    assert resp.status_code == 500
+
     # invalid metric type raises inside endpoint and is caught
     class GoodManager:
         def __getattr__(self, name: str):
@@ -1353,6 +1616,21 @@ def test_team_collaboration_errors(client, admin_headers, monkeypatch):
     resp = client.get("/api/v1/team-collaboration/teams/unknown/oncall", headers=admin_headers)
     assert resp.status_code == 404
 
+    # Test get_oncall with no primary (lines 62-66)
+    async def get_oncall_no_primary(*args, **kwargs):
+        return {"primary": None, "secondary": "bob"}
+
+    monkeypatch.setattr(api.team_collaboration_router, "get_team_oncall", get_oncall_no_primary)
+    resp = client.get("/api/v1/team-collaboration/teams/team-1/oncall", headers=admin_headers)
+    assert resp.status_code == 404
+    # The error message is in the response, check it contains the expected text
+    assert "Team has no active rotation" in resp.text or "Team has no active rotation" in str(resp.json())
+
+    # Test get_oncall with RuntimeError (lines 75-77)
+    monkeypatch.setattr(api.team_collaboration_router, "get_team_oncall", raise_runtime)
+    resp = client.get("/api/v1/team-collaboration/teams/team-1/oncall", headers=admin_headers)
+    assert resp.status_code == 500
+
     monkeypatch.setattr(api.team_collaboration_router, "create_handoff", raise_value)
     resp = client.post(
         "/api/v1/team-collaboration/teams/unknown/handoffs",
@@ -1361,6 +1639,25 @@ def test_team_collaboration_errors(client, admin_headers, monkeypatch):
     )
     assert resp.status_code == 404
 
+    # Test create_handoff with RuntimeError (lines 102-104)
+    monkeypatch.setattr(api.team_collaboration_router, "create_handoff", raise_runtime)
+    resp = client.post(
+        "/api/v1/team-collaboration/teams/team-1/handoffs",
+        headers=admin_headers,
+        json={"notes": "handing over"},
+    )
+    assert resp.status_code == 500
+
+    # Test list_handoffs with ValueError (lines 115-119)
+    monkeypatch.setattr(api.team_collaboration_router, "list_handoffs", raise_value)
+    resp = client.get("/api/v1/team-collaboration/teams/team-1/handoffs", headers=admin_headers)
+    assert resp.status_code == 404
+
+    # Test list_handoffs with RuntimeError (lines 120-122)
+    monkeypatch.setattr(api.team_collaboration_router, "list_handoffs", raise_runtime)
+    resp = client.get("/api/v1/team-collaboration/teams/team-1/handoffs", headers=admin_headers)
+    assert resp.status_code == 500
+
     monkeypatch.setattr(api.team_collaboration_router, "escalate_incident", raise_value)
     resp = client.post(
         "/api/v1/team-collaboration/incidents/inc-1/escalate",
@@ -1368,6 +1665,20 @@ def test_team_collaboration_errors(client, admin_headers, monkeypatch):
         json={"team_id": "unknown"},
     )
     assert resp.status_code == 400
+
+    # Test escalate_incident with RuntimeError (lines 142-144)
+    monkeypatch.setattr(api.team_collaboration_router, "escalate_incident", raise_runtime)
+    resp = client.post(
+        "/api/v1/team-collaboration/incidents/inc-1/escalate",
+        headers=admin_headers,
+        json={"team_id": "team-1", "reason": "page needed"},
+    )
+    assert resp.status_code == 500
+
+    # Test list_dashboards with RuntimeError
+    monkeypatch.setattr(api.team_collaboration_router, "list_dashboards", raise_runtime)
+    resp = client.get("/api/v1/team-collaboration/dashboards", headers=admin_headers)
+    assert resp.status_code == 500
 
 
 def test_repair_scripts_errors(client, admin_headers, monkeypatch):
@@ -1427,6 +1738,108 @@ def test_priority_router_exceptions(client, admin_headers, monkeypatch):
         json={"service": "x", "affected_users": 1, "revenue_per_minute": 1, "sla_violation": False},
     )
     assert resp.status_code == 500
+
+    # Test rank_alerts exception (lines 139-140)
+    monkeypatch.setattr(
+        api.priority_router._ranker,
+        "rank_alerts",
+        lambda alerts: (_ for _ in ()).throw(RuntimeError("ranking fail")),
+    )
+    resp = client.post(
+        "/priority/rank",
+        headers=admin_headers,
+        json=[{"alert_id": "a1"}],
+    )
+    assert resp.status_code == 500
+
+    # Test get_sla_status exception (lines 171-172)
+    monkeypatch.setattr(
+        api.priority_router._sla_scheduler,
+        "get_sla_status",
+        lambda service: (_ for _ in ()).throw(RuntimeError("sla status fail")),
+    )
+    resp = client.get(
+        "/priority/sla/status",
+        headers=admin_headers,
+        params={"service": "api-service"},
+    )
+    assert resp.status_code == 500
+
+
+def test_priority_assess_without_to_dict(client, admin_headers, monkeypatch):
+    """Test assess_impact when impact object has no to_dict method (line 107)"""
+    class ImpactWithoutToDict:
+        def __init__(self):
+            self.impact_level = "medium"
+            self.affected_users = 500
+            self.revenue_impact = 250.0
+
+    class AssessorWithoutToDict:
+        def assess(self, **kwargs):
+            return ImpactWithoutToDict()
+
+    _patch_priority(monkeypatch)
+    monkeypatch.setattr(api.priority_router, "_assessor", AssessorWithoutToDict())
+
+    resp = client.post(
+        "/priority/assess",
+        headers=admin_headers,
+        json={
+            "service": "api-service",
+            "affected_users": 500,
+            "revenue_per_minute": 250.0,
+            "sla_violation": False,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["impact_level"] == "medium"
+    assert data["affected_users"] == 500
+
+
+def test_priority_initialization_failure(client, admin_headers, monkeypatch):
+    """Test initialization failure path (lines 36-48, 43-45)"""
+    # The initialization block (lines 36-48) is only executed once at module import
+    # To test the exception handling (lines 43-45), we need to simulate the scenario
+    # where initialization fails and sets PRIORITY_AVAILABLE to False
+
+    # Since the initialization is at module level, we can't directly re-execute it
+    # But we can test the degraded state which is the result of that path
+    monkeypatch.setattr(api.priority_router, "PRIORITY_AVAILABLE", False)
+    monkeypatch.setattr(api.priority_router, "_assessor", None)
+    monkeypatch.setattr(api.priority_router, "_ranker", None)
+    monkeypatch.setattr(api.priority_router, "_sla_scheduler", None)
+
+    # This tests the state that results from lines 43-45 (initialization failure)
+    resp = client.get("/priority/health", headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "degraded"
+    assert resp.json()["priority_available"] is False
+
+    # Also test that all endpoints return 503 when components are None
+    resp = client.post("/priority/assess", headers=admin_headers, json={})
+    assert resp.status_code == 503
+
+    resp = client.post("/priority/rank", headers=admin_headers, json=[])
+    assert resp.status_code == 503
+
+    resp = client.get("/priority/sla/status", headers=admin_headers, params={"service": "x"})
+    assert resp.status_code == 503
+
+
+def test_priority_assess_with_minimal_params(client, admin_headers, monkeypatch):
+    """Test assess_impact with minimal parameters to cover default value branches"""
+    _patch_priority(monkeypatch)
+
+    # Test with minimal parameters (using defaults from get() calls)
+    resp = client.post(
+        "/priority/assess",
+        headers=admin_headers,
+        json={},  # Empty payload, will use all defaults
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "impact_level" in data
 
 
 def test_grpc_degraded_and_failures(client, admin_headers, monkeypatch):

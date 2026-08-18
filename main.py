@@ -278,7 +278,7 @@ if ENABLE_ADDONS:
         from api.grpc_service_router import router as grpc_service_router
         from api.infrastructure_router import router as infrastructure_router
         from api.plugin_development_router import router as plugin_development_router
-        from api.plugin_ecosystem_router import router as plugin_ecosystem_router
+        # from api.plugin_ecosystem_router import router as plugin_ecosystem_router  # File doesn't exist
         from api.plugin_marketplace_router import router as plugin_marketplace_router
         from api.plugin_router import router as plugin_router
         from api.plugin_sdk_router import router as plugin_sdk_router
@@ -2082,7 +2082,7 @@ ADDON_ROUTERS = [
     (plugin_sdk_router, PLUGINS_ENABLED),
     (plugin_development_router, PLUGINS_ENABLED),
     (plugin_marketplace_router, PLUGINS_ENABLED),
-    (plugin_ecosystem_router, PLUGINS_ENABLED),
+    # (plugin_ecosystem_router, PLUGINS_ENABLED),  # File doesn't exist
     (infrastructure_router, PLUGINS_ENABLED),
     (grpc_router, PLUGINS_ENABLED),
     (grpc_service_router, PLUGINS_ENABLED),
