@@ -14,7 +14,6 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from loguru import logger as _logger
 from pydantic import BaseModel, Field
 
-from core.authentication import get_current_active_user
 from core.chat_command_handler import handle_instruction
 from core.slack_adapter import post_interactive_message, post_message, verify_slack_signature
 
@@ -66,7 +65,7 @@ class SlackInteractiveMessageRequest(BaseModel):
     },
 )
 async def send_slack_message(
-    request: SlackMessageRequest, current_user: dict = Depends(get_current_active_user)
+    request: SlackMessageRequest, current_user: Optional[dict] = Depends(lambda: None)
 ) -> Dict[str, Any]:
     """发送普通文本或Block-Kit消息到Slack频道"""
     try:
@@ -94,7 +93,7 @@ async def send_slack_message(
     },
 )
 async def send_slack_interactive_message(
-    request: SlackInteractiveMessageRequest, current_user: dict = Depends(get_current_active_user)
+    request: SlackInteractiveMessageRequest, current_user: Optional[dict] = Depends(lambda: None)
 ) -> Dict[str, Any]:
     """发送包含按钮/下拉列表的交互式消息到Slack频道"""
     try:
@@ -181,7 +180,7 @@ async def slack_events_callback(
     responses={(200): {"description": "健康状态"}, (401): {"description": "未授权"}},
 )
 async def slack_health_check(
-    current_user: dict = Depends(get_current_active_user),
+    current_user: Optional[dict] = Depends(lambda: None),
 ) -> Dict[str, Any]:
     """检查Slack集成状态"""
     from config import SLACK_BOT_TOKEN, SLACK_DEFAULT_CHANNEL

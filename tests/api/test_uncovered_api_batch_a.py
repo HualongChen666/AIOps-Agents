@@ -208,11 +208,6 @@ def _patch_external_dependencies(monkeypatch):
     )
     monkeypatch.setattr(_slackr, "verify_slack_signature", lambda *a, **k: True)
     monkeypatch.setattr(_slackr, "handle_instruction", lambda *a, **k: {"action": "noop"})
-    monkeypatch.setattr(
-        _slackr,
-        "get_current_active_user",
-        _async_return({"username": "admin", "role": "admin", "disabled": False}),
-    )
     monkeypatch.setattr(_sa, "post_message", _async_return({"ok": True, "ts": "123"}))
     monkeypatch.setattr(_sa, "post_interactive_message", _async_return({"ok": True, "ts": "124"}))
     monkeypatch.setattr(_sa, "verify_slack_signature", lambda *a, **k: True)
