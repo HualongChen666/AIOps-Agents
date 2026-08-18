@@ -20,13 +20,9 @@ from typing import Any, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
-from core.command_guard import RiskLevel
-
 from extensions.hardware_remediation.hardware_log_analyzer import (
     AnalysisResult,
     ComponentIssue,
-    ComponentType,
-    HardwareLogAnalyzer,
     HardwareVendor,
     SeverityLevel,
     get_hardware_log_analyzer,
@@ -162,10 +158,10 @@ def _verify_internal_key(request: Request) -> None:
         from config import INTERNAL_API_KEY
     except ImportError:
         INTERNAL_API_KEY = ""
-    
+
     if not INTERNAL_API_KEY:
         return
-    
+
     provided_key = request.headers.get("X-Internal-Key")
     if not provided_key:
         raise HTTPException(status_code=403, detail="Missing X-Internal-Key header")
@@ -210,18 +206,18 @@ def _trigger_auto_heal_alert(
 ) -> dict[str, Any]:
     """
     Trigger auto_heal_alert workflow for hardware issues
-    
+
     Args:
         alert: Alert dictionary with hardware issue details
         tenant_id: Tenant identifier
         operator_ip: Operator IP address for audit
-        
+
     Returns:
         Result from auto_heal_alert workflow
     """
     try:
         from gateway.services_client import trigger_auto_heal
-        
+
         result = trigger_auto_heal(
             alert_id=alert.get("id", ""),
             alert=alert,
@@ -248,27 +244,27 @@ def _execute_repair_direct(
 ) -> dict[str, Any]:
     """
     Direct repair execution fallback
-    
+
     Args:
         alert: Alert dictionary
         tenant_id: Tenant identifier
         operator_ip: Operator IP address
-        
+
     Returns:
         Execution result
     """
     try:
         from core.repair_engine import execute_repair
-        
+
         script_key = alert.get("script_key", "")
         params = alert.get("params", {})
-        
+
         if not script_key:
             return {
                 "success": False,
                 "error": "No script_key provided for direct repair",
             }
-        
+
         result = execute_repair(script_key, params)
         return result
     except Exception as e:
@@ -340,7 +336,7 @@ async def analyze_hardware_log(
 ) -> dict[str, Any]:
     """
     Analyze hardware log content and detect component issues
-    
+
     Supports multiple vendors:
     - Dell (iDRAC logs)
     - HP (iLO logs)
@@ -348,7 +344,7 @@ async def analyze_hardware_log(
     - Cisco (IMC logs)
     - Huawei (iBMC logs)
     - Generic (syslog format)
-    
+
     The analyzer will:
     1. Parse log entries and detect hardware components
     2. Identify issues by severity (critical, error, warning)
@@ -358,32 +354,32 @@ async def analyze_hardware_log(
     """
     tenant_id = _get_tenant_id(req)
     operator_ip = req.client.host if req.client else "unknown"
-    
+
     logger.info(
         f"Hardware log analysis requested | tenant={tenant_id} | "
         f"operator={operator_ip} | vendor={request.vendor}"
     )
-    
+
     try:
         analyzer = get_hardware_log_analyzer()
-        
+
         # Map vendor string to enum
         vendor_enum = _map_vendor_string(request.vendor)
-        
+
         # Perform analysis
         analysis_result: AnalysisResult = analyzer.analyze_log(
             log_content=request.log_content,
             vendor=vendor_enum,
         )
-        
+
         # Generate repair plan
         repair_plan = analyzer.generate_repair_plan(analysis_result)
-        
+
         # Convert issues to response format
         issues_response = [
             _convert_issue_to_response(issue) for issue in analysis_result.issues
         ]
-        
+
         # Build response
         response = {
             "vendor": analysis_result.vendor.value,
@@ -394,7 +390,7 @@ async def analyze_hardware_log(
             "repair_plan": repair_plan,
             "tenant_id": tenant_id,
         }
-        
+
         # Auto-trigger repair if requested and critical issues found
         if request.auto_trigger_repair:
             critical_issues = [
@@ -437,14 +433,14 @@ async def analyze_hardware_log(
                             "success": False,
                             "error": str(e),
                         })
-        
+
         logger.info(
             f"Hardware log analysis completed | tenant={tenant_id} | "
             f"entries={analysis_result.total_entries} | issues={len(analysis_result.issues)}"
         )
-        
+
         return response
-        
+
     except ValueError as e:
         logger.warning(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -473,7 +469,7 @@ async def upload_and_analyze_log(
 ) -> dict[str, Any]:
     """
     Upload a hardware log file and analyze it
-    
+
     Supported file formats:
     - Plain text logs (.log, .txt)
     - Compressed logs (.gz, .bz2)
@@ -481,12 +477,12 @@ async def upload_and_analyze_log(
     """
     tenant_id = _get_tenant_id(request)
     operator_ip = request.client.host if request.client else "unknown"
-    
+
     logger.info(
         f"Hardware log file upload | tenant={tenant_id} | "
         f"filename={file.filename} | operator={operator_ip}"
     )
-    
+
     # Validate file size (10MB limit)
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
     content = await file.read()
@@ -495,21 +491,21 @@ async def upload_and_analyze_log(
             status_code=400,
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
         )
-    
+
     # Decode content
     try:
         log_content = content.decode('utf-8', errors='replace')
     except Exception as e:
         logger.error(f"Failed to decode file content: {e}")
         raise HTTPException(status_code=400, detail="Failed to decode file content")
-    
+
     # Create analysis request
     analysis_request = LogAnalysisRequest(
         log_content=log_content,
         vendor=vendor,
         auto_trigger_repair=auto_trigger_repair,
     )
-    
+
     # Delegate to analyze endpoint
     return await analyze_hardware_log(analysis_request, request)
 
@@ -530,33 +526,31 @@ async def trigger_hardware_repair(
 ) -> dict[str, Any]:
     """
     Trigger repair for a specific hardware issue
-    
+
     This endpoint:
     1. Validates the repair script through command_guard
     2. Integrates with auto_heal_alert workflow
     3. Executes repair with proper approval flow
     4. Returns execution result
-    
+
     For high-risk operations, approval may be required.
     """
     tenant_id = _get_tenant_id(req)
     operator_ip = req.client.host if req.client else "unknown"
-    
+
     logger.warning(
         f"Hardware repair trigger requested | tenant={tenant_id} | "
         f"operator={operator_ip} | analysis_id={request.analysis_id} | "
         f"issue_index={request.issue_index}"
     )
-    
+
     try:
-        analyzer = get_hardware_log_analyzer()
-        
         # Note: In a real implementation, you would store analysis results
         # and retrieve them by analysis_id. For now, we'll create a mock alert.
-        
+
         # Validate script through command_guard
         script_key = request.script_key or "ipmi_power_cycle"
-        
+
         # Build alert for auto_heal workflow
         alert = {
             "id": f"hw-repair-{request.analysis_id}-{request.issue_index}",
@@ -570,17 +564,17 @@ async def trigger_hardware_repair(
             "tenant_id": tenant_id,
             "force": request.force,
         }
-        
+
         # Check if approval is required
         from core.auto_heal import repair_script_library
         script = repair_script_library.get_script(script_key)
         requires_approval = script.requires_approval if script else True
-        
+
         if requires_approval and not request.force:
             # Submit for approval
             try:
                 from core.auto_heal import upsert_pending_approval
-                
+
                 approval_data = {
                     "alert_id": alert["id"],
                     "proposal": f"Execute repair script: {script_key}",
@@ -591,7 +585,7 @@ async def trigger_hardware_repair(
                     "operator": operator_ip,
                 }
                 upsert_pending_approval(alert["id"], approval_data)
-                
+
                 return {
                     "success": True,
                     "status": "pending_approval",
@@ -604,21 +598,21 @@ async def trigger_hardware_repair(
                     status_code=500,
                     detail=f"Failed to submit for approval: {str(e)}"
                 )
-        
+
         # Execute repair directly (or with force)
         result = _trigger_auto_heal_alert(
             alert=alert,
             tenant_id=tenant_id,
             operator_ip=operator_ip,
         )
-        
+
         logger.info(
             f"Hardware repair trigger completed | tenant={tenant_id} | "
             f"success={result.get('success', False)}"
         )
-        
+
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -734,16 +728,16 @@ async def list_supported_components() -> dict[str, Any]:
 async def list_hardware_repair_scripts() -> dict[str, Any]:
     """Get list of available hardware repair scripts"""
     from core.auto_heal import repair_script_library
-    
+
     hardware_scripts = []
-    
+
     # Filter scripts related to hardware
     hardware_categories = ["hardware", "ipmi", "redfish", "raid", "smart"]
-    
+
     for script_key, script in repair_script_library.scripts.items():
         metadata = script.metadata or {}
         category = metadata.get("category", "")
-        
+
         if any(cat in category.lower() for cat in hardware_categories):
             hardware_scripts.append({
                 "script_key": script.script_key,
@@ -754,5 +748,5 @@ async def list_hardware_repair_scripts() -> dict[str, Any]:
                 "platforms": [p.value for p in script.platforms],
                 "category": category,
             })
-    
+
     return {"scripts": hardware_scripts}

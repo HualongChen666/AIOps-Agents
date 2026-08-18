@@ -11,7 +11,6 @@ from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from core.authentication import role_required
 from core.plugin_manager import get_plugin, list_plugins, load_all
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])

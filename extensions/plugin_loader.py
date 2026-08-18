@@ -13,9 +13,9 @@ from __future__ import annotations
 import importlib.util
 import logging
 import sys
+import types
 from pathlib import Path
-from types import ModuleType
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +42,13 @@ def _parent_package(name: str) -> str | None:
     return name.rsplit(".", 1)[0]
 
 
-def _load_one(py_path: Path, name: str) -> Tuple[ModuleType, bool, str]:
+def _load_one(py_path: Path, name: str) -> Tuple[types.ModuleType, bool, str]:
     """Load a single file as a module."""
     spec = importlib.util.spec_from_file_location(name, str(py_path))
     if spec is None or spec.loader is None:
-        return None, False, "could not create spec"
+        # Create a dummy module to satisfy type checker
+        module = types.ModuleType(name)
+        return module, False, "could not create spec"
     module = importlib.util.module_from_spec(spec)
     module.__addon_file__ = str(py_path)  # type: ignore[attr-defined]
     sys.modules[name] = module
@@ -58,7 +60,7 @@ def _load_one(py_path: Path, name: str) -> Tuple[ModuleType, bool, str]:
         return module, False, f"{type(exc).__name__}: {exc}"
 
 
-def load_all_addons(max_passes: int = 5) -> Dict[str, List[Dict[str, str]]]:
+def load_all_addons(max_passes: int = 5) -> Dict[str, Any]:
     """Attempt to load every ``.py`` under ``extensions/addons/``.
 
     Returns a summary dict with ``loaded``, ``failed`` and ``total`` counts.
@@ -93,9 +95,9 @@ def load_all_addons(max_passes: int = 5) -> Dict[str, List[Dict[str, str]]]:
             failed[name] = "unknown"
 
     return {
-        "loaded": sorted(loaded),
+        "loaded": sorted(loaded),  # type: ignore[dict-item]
         "failed": [{"name": n, "error": e} for n, e in sorted(failed.items())],
-        "total": len(names),
+        "total": len(names),  # type: ignore[dict-item]
     }
 
 

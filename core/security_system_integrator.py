@@ -14,10 +14,10 @@ from loguru import logger
 
 from core.vulnerability_intelligence import (
     VulnerabilityIntelligenceEngine,
+    VulnerabilityIntelligenceConfig,
     VulnerabilityRecord,
     VulnerabilitySeverity,
     VulnerabilityDataSource,
-    RiskAssessment,
 )
 
 
@@ -519,7 +519,9 @@ class SecuritySystemIntegrator:
         """
         intel_config = VulnerabilityIntelligenceConfig(
             nvd_api_key=nvd_api_key or self.config.get("nvd_api_key", ""),
-            nvd_api_url=nvd_api_url or self.config.get("nvd_api_url", "https://services.nvd.nist.gov/rest/json/cves/2.0"),
+            nvd_api_url=nvd_api_url or self.config.get(
+                "nvd_api_url", "https://services.nvd.nist.gov/rest/json/cves/2.0"
+            ),
             osv_api_url=osv_api_url or self.config.get("osv_api_url", "https://api.osv.dev"),
             github_token=github_token or self.config.get("github_token", ""),
             enable_caching=True,
@@ -536,7 +538,11 @@ class SecuritySystemIntegrator:
                 "nvd_api_key": intel_config.nvd_api_key,
                 "nvd_api_url": intel_config.nvd_api_url,
                 "osv_api_url": intel_config.osv_api_url,
-                "monitoring_enabled": monitoring_enabled if monitoring_enabled is not None else self.vulnerability_monitoring_enabled,
+                "monitoring_enabled": (
+                    monitoring_enabled
+                    if monitoring_enabled is not None
+                    else self.vulnerability_monitoring_enabled
+                ),
                 "monitoring_interval": monitoring_interval or self.vulnerability_monitoring_interval,
             },
             enabled=True,

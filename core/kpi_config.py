@@ -130,7 +130,7 @@ def _ensure_defaults() -> None:
 def _read_configs() -> list[dict[str, Any]]:
     _ensure_defaults()
     with open(_KPI_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+        return json.load(f)  # type: ignore[return-value]
 
 
 def _write_configs(configs: list[dict[str, Any]]) -> None:

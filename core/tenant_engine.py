@@ -115,10 +115,10 @@ def _compute_quota(plan: str) -> Quota:
         cpu=limits["cpu"],
         memory=limits["memory"],
         disk=limits["disk"],
-        maxUsers=limits["maxUsers"],
-        maxServices=limits["maxServices"],
-        maxAlerts=limits["maxAlerts"],
-        maxStorage=limits["maxStorage"],
+        maxUsers=int(limits["maxUsers"]),
+        maxServices=int(limits["maxServices"]),
+        maxAlerts=int(limits["maxAlerts"]),
+        maxStorage=int(limits["maxStorage"]),
     )
 
 
