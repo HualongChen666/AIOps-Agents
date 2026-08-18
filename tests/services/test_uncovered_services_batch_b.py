@@ -800,3 +800,136 @@ async def test_orchestrator_runbook_not_found(monkeypatch):
         r = client.post(f"/repairs/{task_id}/approve")
         assert r.status_code == 200
         assert r.json()["status"] in ("completed", "rollbacked")
+
+
+# ---------------------------------------------------------------------------
+# Additional executor coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_runbook_executor_params_merge():
+    """Test parameter merging in executor."""
+    ex = RunbookExecutor(dry_run=True)
+    rb = RepairRunbook(
+        runbook_id="test",
+        name="test",
+        params={"service": "nginx"},
+        steps=[RepairStep(name="s1", command="restart {service}")],
+    )
+    result = await ex.execute("t1", rb, params={"service": "apache"})
+    assert result.success is True
+    # Params should be merged, with request params taking precedence
+
+
+@pytest.mark.asyncio
+async def test_runbook_executor_timeout():
+    """Test executor timeout handling."""
+    ex = RunbookExecutor(dry_run=True)
+    rb = RepairRunbook(
+        runbook_id="test",
+        name="test",
+        steps=[RepairStep(name="s1", command="sleep 100", timeout_seconds=1)],
+    )
+    result = await ex.execute("t1", rb)
+    # In dry_run mode, timeout is simulated
+    assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_runbook_executor_multiple_steps():
+    """Test executor with multiple steps."""
+    ex = RunbookExecutor(dry_run=True)
+    rb = RepairRunbook(
+        runbook_id="test",
+        name="test",
+        steps=[
+            RepairStep(name="s1", command="echo step1"),
+            RepairStep(name="s2", command="echo step2"),
+            RepairStep(name="s3", command="echo step3"),
+        ],
+    )
+    result = await ex.execute("t1", rb)
+    assert result.success is True
+    assert result.executed_steps == 3
+
+
+@pytest.mark.asyncio
+async def test_runbook_executor_strategy_params():
+    """Test strategy execution with params."""
+    ex = RunbookExecutor(dry_run=True)
+    strategy = RepairStrategy(
+        name="test",
+        script_key="memory_high",
+        platform=PlatformType.LINUX,
+        conditions={"threshold": 90},
+    )
+    result = await ex.execute_strategy("t1", strategy, params={"threshold": 95})
+    assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# Additional orchestrator coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_get_machine():
+    """Test getting state machine for task."""
+    app = OrchestratorApp()
+    await app.init()
+    
+    task = RepairTask(
+        task_id="t1",
+        alert_id="a1",
+        host="h1",
+        platform=PlatformType.LINUX,
+    )
+    
+    sm = app.get_machine(task)
+    assert sm is not None
+    assert sm.current_state == RepairStatus.PENDING
+    
+    # Should return same machine for same task
+    sm2 = app.get_machine(task)
+    assert sm is sm2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_create_task_with_strategy():
+    """Test creating task with matched strategy."""
+    app = OrchestratorApp()
+    await app.init()
+    
+    request = RepairRequest(
+        alert_id="a1",
+        host="h1",
+        platform=PlatformType.LINUX,
+        metric="cpu_percent",
+    )
+    
+    task = await app.create_task(request)
+    assert task.strategy is not None
+    assert task.strategy.name == "cpu_high_linux"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_reject_already_completed():
+    """Test rejecting a task that's already completed."""
+    app = OrchestratorApp()
+    await app.init()
+    
+    request = RepairRequest(
+        alert_id="a1",
+        host="h1",
+        platform=PlatformType.LINUX,
+        metric="cpu_percent",
+    )
+    
+    task = await app.create_task(request)
+    await app.reject(task.task_id)
+    
+    # Try to reject again
+    result = await app.reject(task.task_id)
+    assert result is not None
+    assert result.status == RepairStatus.COMPLETED

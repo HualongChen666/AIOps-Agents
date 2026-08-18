@@ -1018,7 +1018,7 @@ class TestDataPreprocessingRemaining:
         p = TimeSeriesPreprocessingPipeline(scale=False, augment=True, augment_factor=2)
         out, processed_labels = p.process_for_training(sample_df, labels, "timestamp", "value")
         assert isinstance(out, np.ndarray)
-        assert l is not None and len(l) == len(out)
+        assert processed_labels is not None and len(processed_labels) == len(out)
 
     def test_prepare_log_features_with_embedding_model(self):
         class FakeEmbed:

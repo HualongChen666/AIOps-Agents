@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock
 import pytest  # noqa: F401  # Imported for test setup
 import yaml
 from fastapi.testclient import TestClient
+from services.repair_service.schemas import PlatformType, RiskLevel
 
 from services.alert_service import flapping_detector as flap_mod
 from services.alert_service import main as alert_main
@@ -426,3 +427,87 @@ def test_runbook_parser_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
     catalog = get_runbook_catalog()
     assert catalog["demo"] == "Demo runbook"
+
+
+def test_runbook_parser_yaml_not_available():
+    """Test error when PyYAML is not available."""
+    import services.repair_service.runbook_parser as parser_module
+    original = parser_module._YAML_AVAILABLE
+    
+    try:
+        parser_module._YAML_AVAILABLE = False
+        with pytest.raises(RuntimeError, match="PyYAML is not installed"):
+            RunbookParser.from_yaml("runbook_id: test")
+    finally:
+        parser_module._YAML_AVAILABLE = original
+
+
+def test_runbook_parser_build_runbook_defaults():
+    """Test building runbook with default values."""
+    data = {
+        "runbook_id": "test",
+        "name": "Test",
+        "steps": [{"name": "s1", "command": "echo"}],
+    }
+    
+    runbook = RunbookParser._build_runbook(data)
+    assert runbook.platform == PlatformType.LINUX  # default
+    assert runbook.risk_level == RiskLevel.LOW  # default
+    assert runbook.description == ""  # default
+    assert runbook.params == {}  # default
+    assert runbook.steps[0].timeout_seconds == 60  # default
+
+
+# ---------------------------------------------------------------------------
+# Additional RPC server coverage
+# ---------------------------------------------------------------------------
+
+
+def test_rpc_server_register_multiple():
+    """Test registering multiple handlers."""
+    server = RPCServer()
+    
+    async def handler1():
+        return "1"
+    
+    async def handler2():
+        return "2"
+    
+    def sync_handler():
+        return "3"
+    
+    server.register("h1", handler1)
+    server.register("h2", handler2)
+    server.register("h3", sync_handler)
+    
+    methods = server.list_methods()
+    assert len(methods) == 3
+    assert "h1" in methods
+    assert "h2" in methods
+    assert "h3" in methods
+
+
+def test_rpc_server_call_with_kwargs():
+    """Test calling handler with keyword arguments."""
+    server = RPCServer()
+    
+    async def add(a, b):
+        return a + b
+    
+    server.register("add", add)
+    
+    result = asyncio.run(server.call("add", a=5, b=3))
+    assert result == 8
+
+
+def test_rpc_server_handler_exception():
+    """Test handler exception is propagated."""
+    server = RPCServer()
+    
+    async def failing_handler():
+        raise ValueError("handler failed")
+    
+    server.register("fail", failing_handler)
+    
+    with pytest.raises(ValueError, match="handler failed"):
+        asyncio.run(server.call("fail"))
