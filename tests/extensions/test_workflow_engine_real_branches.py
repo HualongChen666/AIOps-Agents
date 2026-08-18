@@ -1457,3 +1457,93 @@ def test_run_runbook_init_dry_run_none(monkeypatch):
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     runner = RunbookRunner(dry_run=None)
     assert runner.engine.dry_run is False
+
+
+# ------------------------------------------------------------------
+# Additional branch coverage for missing branches
+# ------------------------------------------------------------------
+def test_run_workflow_langgraph_no_output_key_in_step(monkeypatch):
+    """Test run_workflow with langgraph when step has no output_key (line 187 else branch)."""
+    monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
+
+    # Mock langgraph workflow
+    fake_workflow = MagicMock()
+    fake_workflow.execute = AsyncMock(
+        return_value={
+            "status": "completed",
+            "history": [{"node": "step1", "result": 42}],
+            "context": {},
+        }
+    )
+
+    # Create a real WorkflowNode class that can be inherited
+    class FakeWorkflowNode:
+        pass
+
+    fake_module = MagicMock()
+    fake_module.Workflow = MagicMock(return_value=fake_workflow)
+    fake_module.WorkflowNode = FakeWorkflowNode
+
+    monkeypatch.setitem(sys.modules, "core", MagicMock())
+    monkeypatch.setitem(sys.modules, "core.ai", MagicMock())
+    monkeypatch.setitem(sys.modules, "core.ai.langgraph", MagicMock())
+    monkeypatch.setitem(sys.modules, "core.ai.langgraph.workflow", fake_module)
+
+    try:
+        engine = WorkflowEngine(dry_run=False)
+        # Step without output_key
+        workflow_def = [{"type": "decision", "condition": "True"}]
+        result = engine.run_workflow(workflow_def, {})
+        assert result["success"] is True
+        assert len(result["results"]) == 1
+    finally:
+        # Cleanup
+        for mod in ["core.ai.langgraph.workflow", "core.ai.langgraph", "core.ai", "core"]:
+            if mod in sys.modules:
+                del sys.modules[mod]
+
+
+def test_run_workflow_langgraph_no_steps_added(monkeypatch):
+    """Test run_workflow with langgraph when no steps are added (line 200 else branch)."""
+    monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
+
+    # Mock langgraph workflow
+    fake_workflow = MagicMock()
+    fake_workflow.execute = AsyncMock(
+        return_value={
+            "status": "completed",
+            "history": [],
+            "context": {},
+        }
+    )
+
+    # Create a real WorkflowNode class that can be inherited
+    class FakeWorkflowNode:
+        pass
+
+    fake_module = MagicMock()
+    fake_module.Workflow = MagicMock(return_value=fake_workflow)
+    fake_module.WorkflowNode = FakeWorkflowNode
+
+    monkeypatch.setitem(sys.modules, "core", MagicMock())
+    monkeypatch.setitem(sys.modules, "core.ai", MagicMock())
+    monkeypatch.setitem(sys.modules, "core.ai.langgraph", MagicMock())
+    monkeypatch.setitem(sys.modules, "core.ai.langgraph.workflow", fake_module)
+
+    try:
+        engine = WorkflowEngine(dry_run=False)
+        # Empty workflow_def - no steps to add
+        # This hits the early return at line 169-170, not the langgraph path
+        # The branch at line 200 is unreachable in normal execution
+        # since if steps is empty we return early, and if steps is non-empty
+        # the for loop always executes at least once
+        workflow_def = []
+        result = engine.run_workflow(workflow_def, {"key": "value"})
+        assert result["success"] is True
+        assert result["results"] == []
+        assert result["context"] == {"key": "value"}
+    finally:
+        # Cleanup
+        for mod in ["core.ai.langgraph.workflow", "core.ai.langgraph", "core.ai", "core"]:
+            if mod in sys.modules:
+                del sys.modules[mod]

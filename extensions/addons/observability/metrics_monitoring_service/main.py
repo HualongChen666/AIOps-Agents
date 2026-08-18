@@ -12,6 +12,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from prometheus_client import CollectorRegistry, Counter, generate_latest
 from pydantic import BaseModel, Field
 
@@ -45,13 +46,13 @@ class CollectResponse(BaseModel):
 
 class QueryResponse(BaseModel):
     metric: str
-    start: Optional[float]
-    end: Optional[float]
+    start: Optional[float] = None
+    end: Optional[float] = None
     count: int
-    avg: Optional[float]
-    min: Optional[float]
-    max: Optional[float]
-    sum: Optional[float]
+    avg: Optional[float] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
+    sum: Optional[float] = None
 
 
 class HealthResponse(BaseModel):
@@ -133,19 +134,19 @@ async def query(
             "sum": sum(filtered),
         }
     elif agg == "min":
-        result = {"min": min(filtered)}
+        result = {"min": min(filtered), "avg": None, "max": None, "sum": None}
     elif agg == "max":
-        result = {"max": max(filtered)}
+        result = {"max": max(filtered), "avg": None, "min": None, "sum": None}
     elif agg == "sum":
-        result = {"sum": sum(filtered)}
-    else:
-        result = {"count": len(filtered)}
+        result = {"sum": sum(filtered), "avg": None, "min": None, "max": None}
+    else:  # count
+        result = {"avg": None, "min": None, "max": None, "sum": None}
 
     api_counter.labels(endpoint="query").inc()
     return QueryResponse(metric=metric, start=start, end=end, count=len(filtered), **result)
 
 
-@app.get("/metrics", response_class=FastAPI.response_class.PlainTextResponse)
+@app.get("/metrics", response_class=PlainTextResponse)
 async def metrics():
     """Prometheus-compatible metrics exposition."""
     api_counter.labels(endpoint="metrics").inc()

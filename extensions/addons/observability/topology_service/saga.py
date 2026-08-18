@@ -8,8 +8,8 @@ from typing import Any, Callable, Dict, List
 
 from loguru import logger
 
-from services.topology_service.metrics import TOPOLOGY_SAGA_STATUS
-from services.topology_service.schemas import SagaStep, SagaTransaction
+from extensions.addons.observability.topology_service.metrics import TOPOLOGY_SAGA_STATUS
+from extensions.addons.observability.topology_service.schemas import SagaStep, SagaTransaction
 
 SagaAction = Callable[..., Any]
 SagaCompensation = Callable[..., Any]
@@ -30,10 +30,12 @@ class TopologySagaOrchestrator:
         actions: Dict[str, SagaAction],
         compensations: Dict[str, SagaCompensation],
     ) -> None:
+        # Convert SagaStep objects to dictionaries for Pydantic v2
+        steps_dict = [step.model_dump() if hasattr(step, 'model_dump') else step for step in steps]
         transaction = SagaTransaction(
             saga_id=saga_id,
             task_id=steps[0].step_id if steps else "",
-            steps=steps,
+            steps=steps_dict,
         )
         self._transactions[saga_id] = transaction
         self._actions[saga_id] = actions

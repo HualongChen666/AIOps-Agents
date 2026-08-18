@@ -24,11 +24,9 @@ class HealthCheckEngine:
         except Exception:
             pass
         return {
-            {
-                "status": status,
-                "service": settings.service_name,
-                "environment": getattr(settings, "environment", "dev"),
-                "uptime_seconds": uptime_seconds,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            }
+            "status": status,
+            "service": settings.service_name,
+            "environment": getattr(settings, "environment", "dev"),
+            "uptime_seconds": uptime_seconds,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
