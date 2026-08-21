@@ -2,12 +2,16 @@
 """Pytest fixtures for workflow_service tests."""
 
 import asyncio
+import os
 import sys
 from datetime import datetime, timedelta
 from typing import AsyncGenerator, Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# Set environment variable to prevent main.py initialization
+os.environ['PYTEST_CURRENT_TEST'] = '1'
 
 # Add the workflow_service directory to Python path
 sys.path.insert(0, "C:/aiops-sre-agent/extensions/addons/operations/workflow_service")
@@ -16,10 +20,39 @@ sys.path.insert(0, "C:/aiops-sre-agent/extensions/addons/operations/workflow_ser
 # This must be done before importing any workflow_service modules
 from prometheus_client import REGISTRY
 try:
+    # Clear all collectors from the registry
+    collectors = list(REGISTRY._collector_to_names.keys())
+    for collector in collectors:
+        try:
+            REGISTRY.unregister(collector)
+        except KeyError:
+            pass  # Already unregistered
     REGISTRY._collector_to_names.clear()
     REGISTRY._names_to_collectors.clear()
-except:
-    pass  # Registry may not have these attributes in all versions
+except Exception:
+    # If clearing fails, create a new registry
+    from prometheus_client import CollectorRegistry
+    new_registry = CollectorRegistry()
+    import prometheus_client.metrics as metrics_module
+    metrics_module.REGISTRY = new_registry
+    import sys
+    sys.modules['prometheus_client'].REGISTRY = new_registry
+
+@pytest.fixture(autouse=True)
+def clear_prometheus_registry():
+    """Automatically clear prometheus registry before each test."""
+    from prometheus_client import REGISTRY
+    try:
+        collectors = list(REGISTRY._collector_to_names.keys())
+        for collector in collectors:
+            try:
+                REGISTRY.unregister(collector)
+            except KeyError:
+                pass
+        REGISTRY._collector_to_names.clear()
+        REGISTRY._names_to_collectors.clear()
+    except Exception:
+        pass
 
 from extensions.addons.operations.workflow_service.config import WorkflowServiceSettings
 from extensions.addons.operations.workflow_service.grpc.client import WorkflowRPCClient

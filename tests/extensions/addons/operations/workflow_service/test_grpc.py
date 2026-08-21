@@ -348,9 +348,9 @@ class TestWorkflowRPCClient:
         client = WorkflowRPCClient(base_url="")
 
         assert client.base_url == ""
-        assert client._http is not None
+        assert client._http is None  # Empty URL should not create HTTP client
 
-        await client.close()
+        await client.close()  # Should not raise error even without HTTP client
 
     @pytest.mark.asyncio
     async def test_call_with_special_characters_in_method_name(self, grpc_server):

@@ -21,7 +21,7 @@ class WorkflowRPCClient:
         self.server = server
         self.base_url = base_url
         self._http: Optional[httpx.AsyncClient] = None
-        if base_url:
+        if base_url and base_url.strip():
             self._http = httpx.AsyncClient(base_url=base_url, timeout=30.0)
 
     async def call(self, method: str, **kwargs: Any) -> Any:
@@ -36,3 +36,4 @@ class WorkflowRPCClient:
     async def close(self) -> None:
         if self._http:
             await self._http.aclose()
+            self._http = None
