@@ -21,18 +21,18 @@ try:
 except:
     pass  # Registry may not have these attributes in all versions
 
-from config import WorkflowServiceSettings
-from grpc.client import WorkflowRPCClient
-from grpc.server import WorkflowRPCServer
-from health_check import HealthCheckEngine
-from orchestrator import WorkflowOrchestrator
-from repository import (
+from extensions.addons.operations.workflow_service.config import WorkflowServiceSettings
+from extensions.addons.operations.workflow_service.grpc.client import WorkflowRPCClient
+from extensions.addons.operations.workflow_service.grpc.server import WorkflowRPCServer
+from extensions.addons.operations.workflow_service.health_check import HealthCheckEngine
+from extensions.addons.operations.workflow_service.orchestrator import WorkflowOrchestrator
+from extensions.addons.operations.workflow_service.repository import (
     InMemoryWorkflowRepository,
     WorkflowRepository,
 )
-from retry import RetryEngine
-from saga import WorkflowSagaOrchestrator
-from schemas import (
+from extensions.addons.operations.workflow_service.retry import RetryEngine
+from extensions.addons.operations.workflow_service.saga import WorkflowSagaOrchestrator
+from extensions.addons.operations.workflow_service.schemas import (
     RetryPolicy,
     SagaStep,
     ScheduledTask,
@@ -44,10 +44,10 @@ from schemas import (
     WorkflowTask,
     WorkflowTemplate,
 )
-from scheduler import WorkflowScheduler
-from state_machine import WorkflowStateMachine
-from templates import TemplateManager
-from versioning import WorkflowVersionManager
+from extensions.addons.operations.workflow_service.scheduler import WorkflowScheduler
+from extensions.addons.operations.workflow_service.state_machine import WorkflowStateMachine
+from extensions.addons.operations.workflow_service.templates import TemplateManager
+from extensions.addons.operations.workflow_service.versioning import WorkflowVersionManager
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from config import WorkflowServiceSettings, settings
+from extensions.addons.operations.workflow_service.config import WorkflowServiceSettings, settings
 
 
 class TestWorkflowServiceSettings:

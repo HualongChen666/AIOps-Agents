@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import httpx
 
-from services.workflow_service.grpc.server import WorkflowRPCServer
+from extensions.addons.operations.workflow_service.grpc.server import WorkflowRPCServer
 
 
 class WorkflowRPCClient:

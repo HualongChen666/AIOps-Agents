@@ -78,7 +78,7 @@ for _mod_candidate in list(sys.modules.values()):
         continue
     _mod_candidate._INITIAL_SYS_MODULES.pop("sentence_transformers", None)
 
-ORCHESTRATOR = _load_module("ai-plus/rag_service/orchestrator.py")
+ORCHESTRATOR = _load_module("ai_plus/rag_service/orchestrator.py")
 SCHEMAS = sys.modules[f"{ORCHESTRATOR.__package__}.schemas"]
 CONFIG = sys.modules[f"{ORCHESTRATOR.__package__}.config"]
 
