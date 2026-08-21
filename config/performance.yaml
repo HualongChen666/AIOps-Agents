@@ -1,0 +1,193 @@
+# Performance Benchmark Configuration
+# ==================================
+
+performance:
+  name: default
+  description: Default performance benchmark configuration
+  
+  # Benchmark-specific configurations
+  benchmarks:
+    simple_computation:
+      name: simple_computation
+      enabled: true
+      iterations: 10
+      warmup_iterations: 3
+      timeout: 60.0
+      sample_interval: 0.1
+      metadata:
+        description: Simple computational operations benchmark
+        
+    data_processing:
+      name: data_processing
+      enabled: true
+      iterations: 10
+      warmup_iterations: 3
+      timeout: 60.0
+      sample_interval: 0.1
+      metadata:
+        description: Data processing operations benchmark
+        
+    async_io:
+      name: async_io
+      enabled: true
+      iterations: 20
+      warmup_iterations: 5
+      timeout: 120.0
+      sample_interval: 0.05
+      metadata:
+        description: Async I/O operations benchmark
+        
+    memory_allocation:
+      name: memory_allocation
+      enabled: true
+      iterations: 10
+      warmup_iterations: 3
+      timeout: 60.0
+      sample_interval: 0.1
+      metadata:
+        description: Memory allocation operations benchmark
+        
+    database_query:
+      name: database_query
+      enabled: true
+      iterations: 20
+      warmup_iterations: 5
+      timeout: 120.0
+      sample_interval: 0.05
+      metadata:
+        description: Database query operations benchmark
+        
+    network_request:
+      name: network_request
+      enabled: true
+      iterations: 10
+      warmup_iterations: 3
+      timeout: 60.0
+      sample_interval: 0.1
+      metadata:
+        description: Network request operations benchmark
+        
+    cache_operations:
+      name: cache_operations
+      enabled: true
+      iterations: 50
+      warmup_iterations: 10
+      timeout: 60.0
+      sample_interval: 0.01
+      metadata:
+        description: Cache operations benchmark
+        
+    json_processing:
+      name: json_processing
+      enabled: true
+      iterations: 20
+      warmup_iterations: 5
+      timeout: 60.0
+      sample_interval: 0.05
+      metadata:
+        description: JSON processing operations benchmark
+        
+    string_processing:
+      name: string_processing
+      enabled: true
+      iterations: 20
+      warmup_iterations: 5
+      timeout: 60.0
+      sample_interval: 0.05
+      metadata:
+        description: String processing operations benchmark
+        
+    list_operations:
+      name: list_operations
+      enabled: true
+      iterations: 20
+      warmup_iterations: 5
+      timeout: 60.0
+      sample_interval: 0.05
+      metadata:
+        description: List operations benchmark
+  
+  # Performance thresholds
+  thresholds:
+    response_time:
+      metric_type: response_time
+      excellent: 0.01
+      good: 0.1
+      acceptable: 0.5
+      warning: 1.0
+      critical: 2.0
+      unit: seconds
+      
+    throughput:
+      metric_type: throughput
+      excellent: 1000.0
+      good: 500.0
+      acceptable: 100.0
+      warning: 50.0
+      critical: 10.0
+      unit: ops_per_second
+      
+    cpu_usage:
+      metric_type: cpu_usage
+      excellent: 20.0
+      good: 50.0
+      acceptable: 70.0
+      warning: 85.0
+      critical: 95.0
+      unit: percent
+      
+    memory_usage:
+      metric_type: memory_usage
+      excellent: 30.0
+      good: 50.0
+      acceptable: 70.0
+      warning: 85.0
+      critical: 95.0
+      unit: percent
+      
+    disk_io:
+      metric_type: disk_io
+      excellent: 1000000.0
+      good: 10000000.0
+      acceptable: 100000000.0
+      warning: 500000000.0
+      critical: 1000000000.0
+      unit: bytes
+      
+    network_io:
+      metric_type: network_io
+      excellent: 1000000.0
+      good: 10000000.0
+      acceptable: 100000000.0
+      warning: 500000000.0
+      critical: 1000000000.0
+      unit: bytes
+      
+    error_rate:
+      metric_type: error_rate
+      excellent: 0.0
+      good: 0.1
+      acceptable: 1.0
+      warning: 5.0
+      critical: 10.0
+      unit: percent
+      
+    concurrency:
+      metric_type: concurrency
+      excellent: 100.0
+      good: 50.0
+      acceptable: 20.0
+      warning: 10.0
+      critical: 5.0
+      unit: count
+  
+  # Global settings
+  global_settings:
+    enable_warmup: true
+    default_warmup_iterations: 3
+    default_iterations: 10
+    default_timeout: 60.0
+    default_sample_interval: 0.1
+    report_format: json
+    save_reports: true
+    report_directory: ./performance_reports

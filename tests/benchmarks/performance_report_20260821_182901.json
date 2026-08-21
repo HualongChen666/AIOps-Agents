@@ -1,0 +1,636 @@
+{
+  "summary": {
+    "timestamp": "2026-08-21T18:29:01.148439",
+    "total_endpoints_tested": 17,
+    "endpoints_meeting_benchmarks": 15,
+    "endpoints_failing_benchmarks": 2,
+    "endpoints_with_regression": 0,
+    "benchmark_compliance_rate": 0.8823529411764706
+  },
+  "benchmarks": {
+    "p50_ms": 100,
+    "p95_ms": 500,
+    "p99_ms": 1000,
+    "max_error_rate": 0.01
+  },
+  "endpoint_metrics": [
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "total_requests": 100,
+      "successful_requests": 100,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 13.496690999991188,
+        "min": 7.2855000003073656,
+        "max": 110.99909999984447,
+        "p50": 10.28085000007195,
+        "p95": 28.61860000029992,
+        "p99": 110.99909999984447
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "total_requests": 50,
+      "successful_requests": 50,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 39.08433000002333,
+        "min": 25.030799999967712,
+        "max": 58.43589999994947,
+        "p50": 39.18385000019953,
+        "p95": 48.882900000080554,
+        "p99": 58.43589999994947
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/ready",
+      "method": "GET",
+      "total_requests": 50,
+      "successful_requests": 50,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 8.20208599995567,
+        "min": 6.982899999911751,
+        "max": 10.911299999861512,
+        "p50": 8.059000000002925,
+        "p95": 9.709799999654933,
+        "p99": 10.911299999861512
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/v1/health/detailed",
+      "method": "GET",
+      "total_requests": 50,
+      "successful_requests": 50,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 9.1185079999741,
+        "min": 6.979799999953684,
+        "max": 15.252999999574968,
+        "p50": 8.662000000185799,
+        "p95": 14.42510000015318,
+        "p99": 15.252999999574968
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/ai/analyze",
+      "method": "POST",
+      "total_requests": 20,
+      "successful_requests": 20,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 31.660484999997607,
+        "min": 10.715299999901617,
+        "max": 400.7035999998152,
+        "p50": 12.383149999777743,
+        "p95": 400.7035999998152,
+        "p99": 400.7035999998152
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/ai/analyze",
+      "method": "POST",
+      "total_requests": 10,
+      "successful_requests": 10,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 39.06339999998636,
+        "min": 21.001699999942502,
+        "max": 52.98839999977645,
+        "p50": 40.16810000007354,
+        "p95": 52.98839999977645,
+        "p99": 52.98839999977645
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/v1/backup/list",
+      "method": "GET",
+      "total_requests": 50,
+      "successful_requests": 50,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 20.847508000033486,
+        "min": 9.769799999958195,
+        "max": 444.0221999998357,
+        "p50": 11.887899999919682,
+        "p95": 15.293200000087381,
+        "p99": 444.0221999998357
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/v1/backup/list",
+      "method": "GET",
+      "total_requests": 30,
+      "successful_requests": 30,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 56.5180433333353,
+        "min": 40.52589999992051,
+        "max": 66.97470000017347,
+        "p50": 58.00294999971811,
+        "p95": 66.44710000000487,
+        "p99": 66.97470000017347
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/v1/backup/configuration",
+      "method": "POST",
+      "total_requests": 10,
+      "successful_requests": 10,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 14.204269999981989,
+        "min": 11.945700000069337,
+        "max": 18.145000000004075,
+        "p50": 13.470950000055382,
+        "p95": 18.145000000004075,
+        "p99": 18.145000000004075
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "total_requests": 50,
+      "successful_requests": 50,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 16.385569999993095,
+        "min": 11.679100000037579,
+        "max": 55.45680000022912,
+        "p50": 15.040350000163016,
+        "p95": 23.335400000178197,
+        "p99": 55.45680000022912
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "total_requests": 30,
+      "successful_requests": 30,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 61.6170566666824,
+        "min": 41.83439999997063,
+        "max": 83.12160000014046,
+        "p50": 61.54550000019299,
+        "p95": 79.68029999983628,
+        "p99": 83.12160000014046
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "total_requests": 10,
+      "successful_requests": 10,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 10.016519999999218,
+        "min": 8.085399999799847,
+        "max": 12.452400000256603,
+        "p50": 10.266000000228814,
+        "p95": 12.452400000256603,
+        "p99": 12.452400000256603
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "total_requests": 50,
+      "successful_requests": 50,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 9.615532000025269,
+        "min": 7.395500000257016,
+        "max": 16.0092999999506,
+        "p50": 9.364100000084363,
+        "p95": 12.913399999888497,
+        "p99": 16.0092999999506
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "total_requests": 10,
+      "successful_requests": 10,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 13.88676999999916,
+        "min": 11.84079999984533,
+        "max": 18.880800000260933,
+        "p50": 13.234150000016598,
+        "p95": 18.880800000260933,
+        "p99": 18.880800000260933
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "total_requests": 50,
+      "successful_requests": 50,
+      "failed_requests": 0,
+      "error_rate": 0.0,
+      "response_times_ms": {
+        "avg": 12.935658000023977,
+        "min": 10.956499999792868,
+        "max": 17.592600000170933,
+        "p50": 12.523650000048292,
+        "p95": 16.57889999978579,
+        "p99": 17.592600000170933
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": true
+      }
+    },
+    {
+      "endpoint": "/api/invalid/endpoint",
+      "method": "GET",
+      "total_requests": 20,
+      "successful_requests": 0,
+      "failed_requests": 20,
+      "error_rate": 1.0,
+      "response_times_ms": {
+        "avg": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": false
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "POST",
+      "total_requests": 20,
+      "successful_requests": 0,
+      "failed_requests": 20,
+      "error_rate": 1.0,
+      "response_times_ms": {
+        "avg": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      },
+      "cache_performance": {
+        "hits": 0,
+        "misses": 0,
+        "hit_rate": 0.0
+      },
+      "benchmarks_met": {
+        "p50": true,
+        "p95": true,
+        "p99": true,
+        "error_rate": false
+      }
+    }
+  ],
+  "regression_analysis": [
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/ready",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/v1/health/detailed",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/ai/analyze",
+      "method": "POST",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/ai/analyze",
+      "method": "POST",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/v1/backup/list",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/v1/backup/list",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/v1/backup/configuration",
+      "method": "POST",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/plugins/",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/api/invalid/endpoint",
+      "method": "GET",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    },
+    {
+      "endpoint": "/health",
+      "method": "POST",
+      "regression": {
+        "detected": false,
+        "regressions": [],
+        "threshold": 0.1
+      }
+    }
+  ],
+  "recommendations": [
+    "GET /api/invalid/endpoint: Error rate (100.00%) exceeds benchmark (1%). Improve error handling and resilience.",
+    "POST /health: Error rate (100.00%) exceeds benchmark (1%). Improve error handling and resilience."
+  ]
+}

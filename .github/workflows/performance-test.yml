@@ -1,0 +1,316 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run performance tests daily at 2 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      run_full_benchmark:
+        description: "Run full benchmark suite"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+env:
+  PERFORMANCE_REGRESSION_THRESHOLD: 10 # 10% regression threshold
+  COVERAGE_THRESHOLD: 70
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  performance-benchmarks:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: aiops_perf_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch full history for comparison
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-benchmark pytest-xdist pytest-timeout
+          pip install psutil matplotlib pandas
+          pip install locust
+
+      - name: Create performance reports directory
+        run: |
+          mkdir -p performance_reports
+          mkdir -p .benchmarks
+          mkdir -p performance_history
+
+      - name: Download baseline performance data
+        uses: actions/cache@v3
+        with:
+          path: performance_history
+          key: performance-baseline-${{ github.base_ref || github.ref_name }}
+          restore-keys: |
+            performance-baseline-main
+            performance-baseline-develop
+
+      - name: Run performance benchmarks
+        env:
+          POSTGRES_URL: postgresql+asyncpg://postgres:test_password@localhost:5432/aiops_perf_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          RUN_FULL_BENCHMARK: ${{ github.event.inputs.run_full_benchmark || 'false' }}
+        run: |
+          chmod +x scripts/run_performance_benchmarks.sh
+          ./scripts/run_performance_benchmarks.sh
+
+      - name: Analyze performance regression
+        env:
+          REGRESSION_THRESHOLD: ${{ env.PERFORMANCE_REGRESSION_THRESHOLD }}
+        run: |
+          python scripts/analyze_performance_regression.py \
+            --current performance_reports/performance_report.json \
+            --baseline performance_history/baseline.json \
+            --threshold $REGRESSION_THRESHOLD \
+            --output performance_reports/regression_analysis.json
+
+      - name: Check performance gates
+        run: |
+          python scripts/check_performance_gates.py \
+            --report performance_reports/performance_report.json \
+            --regression-report performance_reports/regression_analysis.json \
+            --coverage-threshold $COVERAGE_THRESHOLD \
+            --output performance_reports/gate_check.json
+
+      - name: Generate performance trend report
+        if: always()
+        run: |
+          python scripts/generate_performance_trend.py \
+            --history-dir performance_history \
+            --current performance_reports/performance_report.json \
+            --output performance_reports/trend_report.html
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-reports
+          path: |
+            performance_reports/
+            .benchmarks/
+          retention-days: 30
+
+      - name: Upload performance history
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-history
+          path: performance_history/
+          retention-days: 90
+
+      - name: Comment performance results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 🚀 Performance Test Results\n\n';
+
+            try {
+              const report = JSON.parse(fs.readFileSync('performance_reports/performance_report.json', 'utf8'));
+              comment += `### Summary\n`;
+              comment += `- **Throughput**: ${report.throughput_ops_per_sec || 'N/A'} ops/s\n`;
+              comment += `- **Avg Latency**: ${report.avg_latency_ns || 'N/A'} ns\n`;
+              comment += `- **P99 Latency**: ${report.p99_latency_ns || 'N/A'} ns\n`;
+              comment += `- **Duration**: ${report.duration_seconds || 'N/A'}s\n\n`;
+              
+              if (fs.existsSync('performance_reports/regression_analysis.json')) {
+                const regression = JSON.parse(fs.readFileSync('performance_reports/regression_analysis.json', 'utf8'));
+                comment += `### Regression Analysis\n`;
+                comment += `- **Regressions Detected**: ${regression.regressions_detected || 0}\n`;
+                if (regression.regressions_detected > 0) {
+                  comment += `- **Status**: ⚠️ Performance regression detected\n`;
+                } else {
+                  comment += `- **Status**: ✅ No significant regression\n`;
+                }
+              }
+              
+              if (fs.existsSync('performance_reports/gate_check.json')) {
+                const gate = JSON.parse(fs.readFileSync('performance_reports/gate_check.json', 'utf8'));
+                comment += `\n### Quality Gates\n`;
+                comment += `- **Performance Gate**: ${gate.performance_passed ? '✅ PASSED' : '❌ FAILED'}\n`;
+                comment += `- **Coverage Gate**: ${gate.coverage_passed ? '✅ PASSED' : '❌ FAILED'}\n`;
+                comment += `- **Resource Gate**: ${gate.resource_passed ? '✅ PASSED' : '❌ FAILED'}\n`;
+                comment += `- **Overall Status**: ${gate.all_passed ? '✅ PASSED' : '❌ FAILED'}\n`;
+              }
+            } catch (error) {
+              comment += `Error reading performance reports: ${error.message}\n`;
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Check performance gate failure
+        if: always()
+        run: |
+          if [ -f performance_reports/gate_check.json ]; then
+            if python -c "import json; data=json.load(open('performance_reports/gate_check.json')); exit(0 if data.get('all_passed', False) else 1)"; then
+              echo "✅ All performance gates passed"
+            else
+              echo "❌ Performance gates failed - blocking merge"
+              exit 1
+            fi
+          else
+            echo "⚠️ Gate check report not found"
+            exit 1
+          fi
+
+      - name: Update baseline on main branch
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          cp performance_reports/performance_report.json performance_history/baseline.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add performance_history/baseline.json
+          git commit -m "Update performance baseline [skip ci]" || echo "No changes to commit"
+          git push || echo "Failed to push baseline update"
+
+  load-testing:
+    runs-on: ubuntu-latest
+    if: false # Disabled until load test suite is implemented
+    # Uncomment when load tests are available:
+    # if: github.event.inputs.run_full_benchmark == 'true' || github.ref == 'refs/heads/main'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: aiops_load_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install locust
+
+      - name: Run load tests
+        env:
+          POSTGRES_URL: postgresql+asyncpg://postgres:test_password@localhost:5432/aiops_load_test
+        run: |
+          mkdir -p load_test_reports
+          # TODO: Implement load test suite in tests/load_test/locustfile.py
+          echo "Load test suite not yet implemented"
+          # locust -f tests/load_test/locustfile.py \
+          #   --headless \
+          #   --users 100 \
+          #   --spawn-rate 10 \
+          #   --run-time 5m \
+          #   --html load_test_reports/report.html \
+          #   --csv load_test_reports/stats
+
+      - name: Upload load test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-reports
+          path: load_test_reports/
+          retention-days: 30
+
+  performance-summary:
+    runs-on: ubuntu-latest
+    needs: [performance-benchmarks]
+    if: always()
+
+    steps:
+      - name: Download performance reports
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-reports
+          path: performance_reports/
+
+      - name: Generate summary
+        run: |
+          echo "## Performance Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f performance_reports/performance_report.json ]; then
+            echo "### Benchmark Results" >> $GITHUB_STEP_SUMMARY
+            cat performance_reports/performance_report.json >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f performance_reports/regression_analysis.json ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Regression Analysis" >> $GITHUB_STEP_SUMMARY
+            cat performance_reports/regression_analysis.json >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f performance_reports/gate_check.json ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Gate Check Results" >> $GITHUB_STEP_SUMMARY
+            cat performance_reports/gate_check.json >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Send notification on failure
+        if: needs.performance-benchmarks.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Performance Test Failed - ${context.sha}`,
+              body: `Performance tests failed in commit ${context.sha}. Please check the workflow run for details.`,
+              labels: ['performance', 'ci-failure']
+            })

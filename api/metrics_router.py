@@ -124,6 +124,15 @@ from core.kpi_config import (
 from core.metrics_history import metrics_history
 from core.stats_engine import get_decision_accuracy, get_real_summary
 
+# Prometheus metrics exporter integration
+try:
+    from core.metrics_exporter import get_metrics_exporter
+    METRICS_EXPORTER_AVAILABLE = True
+except ImportError:
+    METRICS_EXPORTER_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Prometheus metrics exporter not available")
+
 # Phase 1 集成: 双写策略和指标转换器
 try:
     from core.dual_write import DualWriteStrategy
@@ -783,6 +792,37 @@ async def clear_snapshot_cache() -> dict[str, Any]:
         "processes_cleared": processes_cleared,
         "engine_cleared": engine_cleared,
     }
+
+
+# ============================================================
+# Prometheus Metrics Export Endpoint
+# ============================================================
+@router.get(
+    "/prometheus",
+    summary="Prometheus metrics export",
+    responses={
+        200: {
+            "description": "Prometheus metrics in text format",
+            "content": {
+                "text/plain": {
+                    "example": "# HELP aiops_api_requests_total Total number of API requests\n"
+                }
+            },
+        },
+    },
+)
+async def prometheus_metrics():
+    """
+    Export metrics in Prometheus format for scraping by Prometheus server.
+    
+    This endpoint integrates with the metrics_exporter module to provide
+    comprehensive Prometheus metrics for the AIOps Agent platform.
+    """
+    if not METRICS_EXPORTER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Prometheus metrics exporter not available")
+    
+    exporter = get_metrics_exporter()
+    return exporter.get_metrics_response()
 
 
 # ============================================================

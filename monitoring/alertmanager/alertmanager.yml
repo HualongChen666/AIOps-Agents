@@ -1,0 +1,132 @@
+# Alertmanager Configuration for AIOps Agent
+# ===========================================
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: '${SMTP_SERVER:-localhost:587}'
+  smtp_from: '${SMTP_FROM:-alertmanager@aiops.local}'
+  smtp_auth_username: '${SMTP_USERNAME:-}'
+  smtp_auth_password: '${SMTP_PASSWORD:-}'
+
+# Route configuration
+route:
+  group_by: ['alertname', 'severity', 'category']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+    
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      continue: true
+    
+    # SLO alerts
+    - match:
+        category: slo
+      receiver: 'slo-alerts'
+      continue: true
+    
+    # Performance alerts
+    - match:
+        category: performance
+      receiver: 'performance-alerts'
+      continue: true
+    
+    # Resource alerts
+    - match:
+        category: resource
+      receiver: 'resource-alerts'
+      continue: true
+    
+    # Database alerts
+    - match:
+        category: database
+      receiver: 'database-alerts'
+
+# Receivers configuration
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: '${DEFAULT_EMAIL:-admin@aiops.local}'
+        headers:
+          Subject: '[AIOps Alert] {{ .GroupLabels.alertname }}'
+  
+  - name: 'critical-alerts'
+    email_configs:
+      - to: '${CRITICAL_EMAIL:-oncall@aiops.local}'
+        headers:
+          Subject: '[CRITICAL] AIOps Alert: {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL:-}'
+        channel: '${SLACK_CRITICAL_CHANNEL:-#aiops-critical}'
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+  
+  - name: 'warning-alerts'
+    email_configs:
+      - to: '${WARNING_EMAIL:-ops@aiops.local}'
+        headers:
+          Subject: '[WARNING] AIOps Alert: {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL:-}'
+        channel: '${SLACK_WARNING_CHANNEL:-#aiops-ops}'
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+  
+  - name: 'slo-alerts'
+    email_configs:
+      - to: '${SLO_EMAIL:-sre@aiops.local}'
+        headers:
+          Subject: '[SLO] AIOps Alert: {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL:-}'
+        channel: '${SLACK_SLO_CHANNEL:-#aiops-sre}'
+        title: '[SLO] {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+  
+  - name: 'performance-alerts'
+    email_configs:
+      - to: '${PERFORMANCE_EMAIL:-perf@aiops.local}'
+        headers:
+          Subject: '[PERFORMANCE] AIOps Alert: {{ .GroupLabels.alertname }}'
+  
+  - name: 'resource-alerts'
+    email_configs:
+      - to: '${RESOURCE_EMAIL:-infra@aiops.local}'
+        headers:
+          Subject: '[RESOURCE] AIOps Alert: {{ .GroupLabels.alertname }}'
+  
+  - name: 'database-alerts'
+    email_configs:
+      - to: '${DATABASE_EMAIL:-dba@aiops.local}'
+        headers:
+          Subject: '[DATABASE] AIOps Alert: {{ .GroupLabels.alertname }}'
+
+# Inhibition rules
+inhibit_rules:
+  # Inhibit warning alerts if critical alert is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']
+  
+  # Inhibit resource alerts if performance alert is firing
+  - source_match:
+      category: 'performance'
+    target_match:
+      category: 'resource'
+    equal: ['instance']
+
+# Templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

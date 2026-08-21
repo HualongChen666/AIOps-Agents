@@ -1,0 +1,21 @@
+{
+  "summary": {
+    "timestamp": "2026-08-21T18:16:54.838159",
+    "total_endpoints_tested": 0,
+    "endpoints_meeting_benchmarks": 0,
+    "endpoints_failing_benchmarks": 0,
+    "endpoints_with_regression": 0,
+    "benchmark_compliance_rate": 0
+  },
+  "benchmarks": {
+    "p50_ms": 100,
+    "p95_ms": 500,
+    "p99_ms": 1000,
+    "max_error_rate": 0.01
+  },
+  "endpoint_metrics": [],
+  "regression_analysis": [],
+  "recommendations": [
+    "All endpoints meet performance benchmarks. Continue monitoring."
+  ]
+}

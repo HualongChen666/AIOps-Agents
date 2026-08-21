@@ -1,0 +1,171 @@
+# Prometheus Configuration for AIOps Agent
+# =========================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'aiops-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
+  - '/etc/prometheus/alerts/*.rules'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          component: 'monitoring'
+
+  # AIOps Agent API metrics
+  - job_name: 'aiops-api'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-api'
+          component: 'api'
+          environment: 'production'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'aiops-api'
+
+  # AIOps Agent Performance Metrics
+  - job_name: 'aiops-performance'
+    scrape_interval: 10s
+    metrics_path: '/metrics/performance'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-performance'
+          component: 'performance'
+          environment: 'production'
+
+  # AIOps Agent AI/LLM Metrics
+  - job_name: 'aiops-ai'
+    scrape_interval: 10s
+    metrics_path: '/metrics/ai'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-ai'
+          component: 'ai'
+          environment: 'production'
+
+  # AIOps Agent Knowledge Graph Metrics
+  - job_name: 'aiops-knowledge-graph'
+    scrape_interval: 10s
+    metrics_path: '/metrics/knowledge-graph'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-knowledge-graph'
+          component: 'knowledge-graph'
+          environment: 'production'
+
+  # AIOps Agent Workflow Metrics
+  - job_name: 'aiops-workflow'
+    scrape_interval: 10s
+    metrics_path: '/metrics/workflow'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels:
+          service: 'aiops-workflow'
+          component: 'workflow'
+          environment: 'production'
+
+  # Node Exporter - System metrics
+  - job_name: 'node-exporter'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          component: 'system'
+          environment: 'production'
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres-exporter'
+          component: 'database'
+          environment: 'production'
+
+  # Redis Exporter
+  - job_name: 'redis-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis-exporter'
+          component: 'cache'
+          environment: 'production'
+
+  # Qdrant Vector Database Exporter
+  - job_name: 'qdrant-exporter'
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:6333']
+        labels:
+          service: 'qdrant-exporter'
+          component: 'vector-db'
+          environment: 'production'
+
+  # Performance Monitoring Service
+  - job_name: 'performance-monitoring-service'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:8001']
+        labels:
+          service: 'performance-monitoring'
+          component: 'monitoring'
+          environment: 'production'
+
+  # Alert Service
+  - job_name: 'alert-service'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:8002']
+        labels:
+          service: 'alert-service'
+          component: 'alerting'
+          environment: 'production'
+
+  # Repair Service
+  - job_name: 'repair-service'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:8003']
+        labels:
+          service: 'repair-service'
+          component: 'repair'
+          environment: 'production'
+
+# Storage configuration
+storage:
+  tsdb:
+    path: /prometheus
+    retention.time: 30d
+    retention.size: 50GB

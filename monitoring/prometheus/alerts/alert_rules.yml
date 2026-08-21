@@ -1,0 +1,330 @@
+# Prometheus Alert Rules for AIOps Agent
+# =========================================
+
+groups:
+  - name: api_performance_alerts
+    interval: 30s
+    rules:
+      # High API response time
+      - alert: HighAPIResponseTime
+        expr: histogram_quantile(0.95, rate(aiops_api_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High API response time detected"
+          description: "API response time at 95th percentile is {{ $value }}s for {{ $labels.instance }}"
+
+      - alert: CriticalAPIResponseTime
+        expr: histogram_quantile(0.95, rate(aiops_api_request_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Critical API response time detected"
+          description: "API response time at 95th percentile is {{ $value }}s for {{ $labels.instance }}"
+
+      # High API error rate
+      - alert: HighAPIErrorRate
+        expr: rate(aiops_api_requests_total{status=~"5.."}[5m]) / rate(aiops_api_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      - alert: CriticalAPIErrorRate
+        expr: rate(aiops_api_requests_total{status=~"5.."}[5m]) / rate(aiops_api_requests_total[5m]) > 0.15
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Critical API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+  - name: ai_performance_alerts
+    interval: 30s
+    rules:
+      # High AI/LLM latency
+      - alert: HighAILatency
+        expr: histogram_quantile(0.95, rate(aiops_ai_request_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High AI/LLM latency detected"
+          description: "AI request latency at 95th percentile is {{ $value }}s"
+
+      - alert: CriticalAILatency
+        expr: histogram_quantile(0.95, rate(aiops_ai_request_duration_seconds_bucket[5m])) > 30
+        for: 2m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Critical AI/LLM latency detected"
+          description: "AI request latency at 95th percentile is {{ $value }}s"
+
+      # High AI token usage
+      - alert: HighAITokenUsage
+        expr: rate(aiops_ai_tokens_total[5m]) > 1000
+        for: 10m
+        labels:
+          severity: warning
+          category: cost
+        annotations:
+          summary: "High AI token usage detected"
+          description: "AI token usage rate is {{ $value }} tokens/second"
+
+      # AI model failure rate
+      - alert: HighAIModelFailureRate
+        expr: rate(aiops_ai_requests_failed_total[5m]) / rate(aiops_ai_requests_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "High AI model failure rate detected"
+          description: "AI model failure rate is {{ $value | humanizePercentage }}"
+
+  - name: knowledge_graph_alerts
+    interval: 30s
+    rules:
+      # Knowledge graph query latency
+      - alert: HighKnowledgeGraphQueryLatency
+        expr: histogram_quantile(0.95, rate(aiops_knowledge_graph_query_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High knowledge graph query latency"
+          description: "Knowledge graph query latency at 95th percentile is {{ $value }}s"
+
+      # Knowledge graph size
+      - alert: KnowledgeGraphSizeAlert
+        expr: aiops_knowledge_graph_nodes_total > 1000000
+        labels:
+          severity: info
+          category: capacity
+        annotations:
+          summary: "Knowledge graph size alert"
+          description: "Knowledge graph has {{ $value }} nodes"
+
+  - name: workflow_alerts
+    interval: 30s
+    rules:
+      # Workflow execution time
+      - alert: HighWorkflowExecutionTime
+        expr: histogram_quantile(0.95, rate(aiops_workflow_execution_duration_seconds_bucket[5m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High workflow execution time"
+          description: "Workflow execution time at 95th percentile is {{ $value }}s"
+
+      # Workflow failure rate
+      - alert: HighWorkflowFailureRate
+        expr: rate(aiops_workflow_executions_failed_total[5m]) / rate(aiops_workflow_executions_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "High workflow failure rate"
+          description: "Workflow failure rate is {{ $value | humanizePercentage }}"
+
+      # Workflow queue backlog
+      - alert: WorkflowQueueBacklog
+        expr: aiops_workflow_queue_size > 100
+        for: 10m
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Workflow queue backlog detected"
+          description: "Workflow queue size is {{ $value }}"
+
+  - name: resource_alerts
+    interval: 30s
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 70
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # High disk usage
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical disk usage detected"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # High database connection pool usage
+      - alert: HighDatabaseConnectionPool
+        expr: aiops_postgres_connections_active / aiops_postgres_connections_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "High database connection pool usage"
+          description: "Database connection pool usage is {{ $value | humanizePercentage }}"
+
+      # Slow database queries
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(aiops_postgres_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Database query latency at 95th percentile is {{ $value }}s"
+
+      # Database replication lag
+      - alert: DatabaseReplicationLag
+        expr: aiops_postgres_replication_lag_seconds > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Database replication lag detected"
+          description: "Database replication lag is {{ $value }}s"
+
+  - name: cache_alerts
+    interval: 30s
+    rules:
+      # Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: rate(aiops_cache_hits_total[5m]) / (rate(aiops_cache_hits_total[5m]) + rate(aiops_cache_misses_total[5m])) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Low cache hit rate detected"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+      # Redis memory usage
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}"
+
+  - name: slo_alerts
+    interval: 1m
+    rules:
+      # SLO: API Availability (99.9%)
+      - alert: SLOAPIAvailability
+        expr: |
+          (
+            sum(rate(aiops_api_requests_total[30d])) -
+            sum(rate(aiops_api_requests_total{status=~"5.."}[30d]))
+          ) /
+          sum(rate(aiops_api_requests_total[30d])) < 0.999
+        for: 5m
+        labels:
+          severity: critical
+          category: slo
+        annotations:
+          summary: "SLO breach: API availability below 99.9%"
+          description: "API availability is {{ $value | humanizePercentage }} over 30 days"
+
+      # SLO: API Latency (p95 < 1s)
+      - alert: SLOAPILatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(aiops_api_request_duration_seconds_bucket[30d])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: critical
+          category: slo
+        annotations:
+          summary: "SLO breach: API latency p95 above 1s"
+          description: "API latency p95 is {{ $value }}s over 30 days"
+
+      # SLO: Error Budget Remaining
+      - alert: SLOErrorBudgetLow
+        expr: |
+          (
+            sum(rate(aiops_api_requests_total[30d])) -
+            sum(rate(aiops_api_requests_total{status=~"5.."}[30d]))
+          ) /
+          sum(rate(aiops_api_requests_total[30d])) < 0.995
+        for: 5m
+        labels:
+          severity: warning
+          category: slo
+        annotations:
+          summary: "SLO error budget running low"
+          description: "Error budget remaining is {{ $value | humanizePercentage }}"
