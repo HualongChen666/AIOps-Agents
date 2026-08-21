@@ -3,8 +3,12 @@
 
 import pytest
 
-from grpc.client import WorkflowRPCClient
-from grpc.server import WorkflowRPCServer
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+
+from extensions.addons.operations.workflow_service.grpc.client import WorkflowRPCClient
+from extensions.addons.operations.workflow_service.grpc.server import WorkflowRPCServer
 
 
 class TestWorkflowRPCServer:

@@ -4,19 +4,23 @@
 import pytest
 from httpx import AsyncClient
 
-from executor_app import (
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+
+from extensions.addons.operations.workflow_service.executor_app import (
     WorkflowExecutorApp,
     app as executor_app,
 )
-from scheduler_app import (
+from extensions.addons.operations.workflow_service.scheduler_app import (
     WorkflowSchedulerApp,
     app as scheduler_app,
 )
-from workflow_orchestrator_app import (
+from extensions.addons.operations.workflow_service.workflow_orchestrator_app import (
     WorkflowOrchestratorApp,
     app as orchestrator_app,
 )
-from schemas import (
+from extensions.addons.operations.workflow_service.schemas import (
     ScheduledTask,
     ServiceHealth,
     WorkflowDefinition,

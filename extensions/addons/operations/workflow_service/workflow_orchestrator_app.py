@@ -11,17 +11,17 @@ from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from extensions.addons.operations.workflow_service.config import settings
-from extensions.addons.operations.workflow_service.health_check import HealthCheckEngine
-from extensions.addons.operations.workflow_service.orchestrator import WorkflowOrchestrator
-from extensions.addons.operations.workflow_service.repository import get_repository
-from extensions.addons.operations.workflow_service.schemas import (
+from .config import settings
+from .health_check import HealthCheckEngine
+from .orchestrator import WorkflowOrchestrator
+from .repository import get_repository
+from .schemas import (
     ServiceHealth,
     WorkflowDefinition,
     WorkflowRequest,
     WorkflowTemplate,
 )
-from extensions.addons.operations.workflow_service.templates import TemplateManager
+from .templates import TemplateManager
 
 
 class WorkflowOrchestratorApp:
