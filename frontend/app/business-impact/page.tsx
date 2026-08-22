@@ -1,417 +1,347 @@
-'use client'
+'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import api from '@/lib/api';
+import { DataTable } from '@/components/ui/DataTable';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { KpiCard } from '@/components/ui/KpiCard';
+import { GaugeChart } from '@/components/charts/GaugeChart';
+import { TrendChart } from '@/components/charts/TrendChart';
+import { TrendingUp, RefreshCw, Search, AlertTriangle, Users, DollarSign, Activity } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useLoadingState, useToast } from '@/hooks/useEnhancements';
+import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
 
-interface BusinessService {
+interface BusinessImpactService {
   id: string;
   name: string;
   category: string;
   impactScore: number;
-  status: 'healthy' | 'degraded' | 'down';
-  affectedUsers: number;
-  conversionRate: number;
-  conversionRateChange: number;
-  revenueImpact: number;
-  lastUpdated: string;
+  status: string;
 }
 
-interface UserExperienceMetric {
+interface UXMetric {
   id: string;
   name: string;
   value: number;
   change: number;
-  status: 'good' | 'warning' | 'critical';
+  status: string;
+}
+
+interface BusinessImpactAssessment {
+  name: string;
+  impactScore: number;
+  status: string;
+  affectedUsers: number;
+  revenueImpact: number;
+  currentConversion: number;
+  baselineConversion: number;
+  conversionRateChange: number;
 }
 
 export default function BusinessImpactPage() {
-  const [services, setServices] = useState<BusinessService[]>([]);
-  const [uxMetrics, setUxMetrics] = useState<UserExperienceMetric[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedService, setSelectedService] = useState<BusinessService | null>(null);
-  const [assessLoading, setAssessLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedService, setSelectedService] = useState<string | null>(null);
 
+  // 🔧 获取业务影响服务列表
+  const { data: servicesData, isLoading: servicesLoading, error: servicesError, refetch: refetchServices } = useQuery<{ status: string; data: BusinessImpactService[] }>({
+    queryKey: ['business-impact-services'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/business-impact/services');
+      return resp.data;
+    },
+    refetchInterval: 60000, // 60秒刷新
+  });
+
+  // 🔧 获取用户体验指标
+  const { data: uxMetricsData, isLoading: uxLoading, error: uxError, refetch: refetchUX } = useQuery<{ status: string; data: UXMetric[] }>({
+    queryKey: ['business-impact-ux'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/business-impact/ux-metrics');
+      return resp.data;
+    },
+    refetchInterval: 60000,
+  });
+
+  // 🔧 获取业务影响评估
+  const { data: assessmentData, isLoading: assessmentLoading, error: assessmentError, refetch: refetchAssessment } = useQuery<{ status: string; data: BusinessImpactAssessment }>({
+    queryKey: ['business-impact-assessment', selectedService],
+    queryFn: async () => {
+      const resp = await api.get(`/api/v1/business-impact/assess/${selectedService}`);
+      return resp.data;
+    },
+    enabled: !!selectedService,
+    refetchInterval: 60000,
+  });
+
+  // 🔧 P1 Integration: Use enhanced loading state
+  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(servicesLoading || uxLoading || assessmentLoading);
+
+  // 🔧 P1 Integration: Use toast notifications
+  const toast = useToast();
+  const showSuccess = toast.success;
+  const showError = toast.error;
+
+  // 🔧 P1 Integration: Handle errors with toast
   useEffect(() => {
-    let cancelled = false;
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [servicesRes, uxRes] = await Promise.all([
-          api.get('/api/v1/business-impact/services'),
-          api.get('/api/v1/business-impact/ux-metrics'),
-        ]);
-        if (!cancelled) {
-          setServices(servicesRes.data.data || []);
-          setUxMetrics(uxRes.data.data || []);
-        }
-      } catch (error) {
-        // Errors are handled by the api interceptor toast.
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-    fetchData();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const overview = useMemo(() => {
-    const impacted = services.filter((s) => s.status !== 'healthy');
-    const affectedUsers = impacted.reduce((sum, s) => sum + s.affectedUsers, 0);
-    const revenueImpact = impacted.reduce((sum, s) => sum + s.revenueImpact, 0);
-    const conversionChange =
-      affectedUsers > 0
-        ? impacted.reduce((sum, s) => sum + s.affectedUsers * s.conversionRateChange, 0) / affectedUsers
-        : 0;
-    const healthyCount = services.filter((s) => s.status === 'healthy').length;
-    const healthScore = services.length > 0 ? Math.round((healthyCount / services.length) * 100) : 100;
-    return { affectedUsers, revenueImpact, conversionChange, healthScore };
-  }, [services]);
-
-  const criticalServices = useMemo(() => {
-    return [...services].sort((a, b) => b.impactScore - a.impactScore).slice(0, 3);
-  }, [services]);
-
-  const getImpactColor = (score: number) => {
-    if (score >= 8) return 'bg-red-100 text-red-800';
-    if (score >= 5) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-green-100 text-green-800';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'healthy':
-        return 'bg-green-100 text-green-800';
-      case 'degraded':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'down':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+    if (servicesError) {
+      showError('Failed to load business impact services');
+      setPageError(servicesError as Error);
     }
-  };
-
-  const getMetricStatusColor = (status: string) => {
-    switch (status) {
-      case 'good':
-        return 'bg-green-100 text-green-800';
-      case 'warning':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'critical':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+    if (uxError) {
+      showError('Failed to load UX metrics');
+      setPageError(uxError as Error);
     }
-  };
-
-  const getStatusText = (status: string) => {
-    if (status === 'healthy') return '健康';
-    if (status === 'degraded') return '降级';
-    return '宕机';
-  };
-
-  const handleViewDetails = async (name: string) => {
-    setAssessLoading(true);
-    try {
-      const res = await api.get(`/api/v1/business-impact/assess/${encodeURIComponent(name)}`);
-      const data = res.data?.data ?? res.data;
-      if (data) {
-        setSelectedService(data as BusinessService);
-      }
-    } catch {
-      // errors handled by api.ts interceptor
-    } finally {
-      setAssessLoading(false);
+    if (assessmentError) {
+      showError('Failed to load business impact assessment');
+      setPageError(assessmentError as Error);
     }
+  }, [servicesError, uxError, assessmentError, showError, setPageError]);
+
+  const services = servicesData?.data || [];
+  const uxMetrics = uxMetricsData?.data || [];
+  const assessment = assessmentData?.data || null;
+
+  const filteredServices = services.filter((service) => {
+    if (searchQuery && !service.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !service.category.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
+
+  const serviceColumns = [
+    { key: 'name' as const, label: '服务名称' },
+    { key: 'category' as const, label: '类别' },
+    { key: 'impactScore' as const, label: '影响分数', render: (value: number) => value.toFixed(1) },
+    {
+      key: 'status' as const, label: '状态', render: (value: string) => (
+        <StatusBadge status={value === 'healthy' ? 'success' : value === 'degraded' ? 'warning' : 'error'} text={value} />
+      )
+    },
+  ];
+
+  const uxColumns = [
+    { key: 'name' as const, label: '指标名称' },
+    { key: 'value' as const, label: '当前值', render: (value: number) => value.toFixed(2) },
+    {
+      key: 'change' as const, label: '变化', render: (value: number) => (
+        <span className={value < 0 ? 'text-green-600' : 'text-red-600'}>
+          {value > 0 ? '+' : ''}{value.toFixed(1)}%
+        </span>
+      )
+    },
+    {
+      key: 'status' as const, label: '状态', render: (value: string) => (
+        <StatusBadge status={value === 'good' ? 'success' : 'warning'} text={value} />
+      )
+    },
+  ];
+
+  const handleServiceClick = (serviceName: string) => {
+    setSelectedService(serviceName);
   };
 
-  const renderKeyFindings = () => {
-    return criticalServices.map((service) => {
-      if (service.status === 'down') {
-        return `${service.name}宕机导致转化率下降${Math.abs(service.conversionRateChange)}%，预计收入损失¥${service.revenueImpact.toLocaleString()}`;
-      }
-      if (service.status === 'degraded') {
-        return `${service.name}降级影响${service.affectedUsers.toLocaleString()}用户，转化率下降${Math.abs(service.conversionRateChange)}%`;
-      }
-      return `${service.name}状态${getStatusText(service.status)}，影响评分${service.impactScore}`;
-    });
+  const handleRefresh = () => {
+    refetchServices();
+    refetchUX();
+    if (selectedService) refetchAssessment();
   };
 
-  const renderRecommendations = () => {
-    return criticalServices.slice(0, 3).map((service) => {
-      if (service.status === 'down') {
-        return `立即恢复${service.name}服务，优先级最高`;
-      }
-      if (service.status === 'degraded') {
-        return `优化${service.name}性能，减少降级影响`;
-      }
-      return `持续监控${service.name}指标，确保稳定运行`;
-    });
-  };
+  // 🔧 P1 Integration: Use enhanced loading and empty states
+  if (pageLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (pageError) {
+    return (
+      <ErrorBoundary fallback={
+        <EmptyState
+          title="加载失败"
+          description="无法加载业务影响数据，请稍后重试"
+          action={<Button onClick={handleRefresh}>重试</Button>}
+        />
+      }>
+        <EmptyState
+          title="加载失败"
+          description={pageError.message}
+          action={<Button onClick={handleRefresh}>重试</Button>}
+        />
+      </ErrorBoundary>
+    );
+  }
+
+  const totalServices = services.length;
+  const downServices = services.filter((s) => s.status === 'down').length;
+  const totalRevenueImpact = services.reduce((sum, s) => {
+    if (s.status === 'down') {
+      return sum + (s.impactScore * 10000);
+    }
+    return sum;
+  }, 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">业务影响分析</h1>
+        <div className="flex items-center gap-3">
+          <TrendingUp className="h-8 w-8 text-[var(--accent-cyan)]" />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">业务影响分析</h1>
+            <p className="text-sm text-gray-500">服务故障对业务的影响评估</p>
+          </div>
+        </div>
         <div className="flex gap-2">
-          <Button variant="outline">服务地图</Button>
-          <Button>用户体验报告</Button>
+          <Button onClick={handleRefresh} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            刷新
+          </Button>
         </div>
       </div>
 
-      {/* 业务影响概览 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">受影响用户</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-red-600">
-              {overview.affectedUsers.toLocaleString()}
-            </p>
-            <p className="text-sm text-gray-500">当前受影响</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">转化率下降</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-orange-600">
-              {overview.conversionChange > 0 ? '+' : ''}
-              {overview.conversionChange.toFixed(1)}%
-            </p>
-            <p className="text-sm text-gray-500">较昨日</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">收入影响</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-red-600">
-              ¥{overview.revenueImpact.toLocaleString()}
-            </p>
-            <p className="text-sm text-gray-500">预计损失</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">服务健康度</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-yellow-600">{overview.healthScore}%</p>
-            <p className="text-sm text-gray-500">整体评分</p>
-          </CardContent>
-        </Card>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <KpiCard
+          title="总服务数"
+          value={totalServices}
+          icon={Activity}
+          level="normal"
+          description="业务影响服务总数"
+        />
+        <KpiCard
+          title="故障服务"
+          value={downServices}
+          icon={AlertTriangle}
+          level={downServices > 0 ? 'critical' : 'normal'}
+          description="当前故障的服务"
+        />
+        <KpiCard
+          title="预估收入影响"
+          value={totalRevenueImpact}
+          unit="$"
+          icon={DollarSign}
+          level={totalRevenueImpact > 100000 ? 'critical' : totalRevenueImpact > 50000 ? 'warning' : 'normal'}
+          description="故障导致的收入损失"
+        />
       </div>
 
-      {/* 业务服务映射 */}
+      {/* Search */}
       <Card>
-        <CardHeader>
-          <CardTitle>业务服务映射</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {loading && <p className="text-sm text-gray-500">加载中...</p>}
-            {services.map((service) => (
-              <div key={service.id} className="p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <h3 className="font-medium">{service.name}</h3>
-                    <Badge variant="outline">{service.category}</Badge>
-                    <Badge className={getStatusColor(service.status)}>
-                      {getStatusText(service.status)}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">影响评分:</span>
-                    <Badge className={getImpactColor(service.impactScore)}>
-                      {service.impactScore}/10
-                    </Badge>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">受影响用户:</span>
-                    <span className="ml-2 font-medium">{service.affectedUsers.toLocaleString()}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">转化率:</span>
-                    <span className="ml-2 font-medium">{service.conversionRate}%</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">转化率变化:</span>
-                    <span className={`ml-2 font-medium ${service.conversionRateChange < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {service.conversionRateChange > 0 ? '+' : ''}{service.conversionRateChange}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">收入影响:</span>
-                    <span className="ml-2 font-medium text-red-600">¥{service.revenueImpact.toLocaleString()}</span>
-                  </div>
-                </div>
-                <div className="mt-3 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${service.impactScore >= 8 ? 'bg-red-500' : service.impactScore >= 5 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                    style={{ width: `${service.impactScore * 10}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+        <CardContent className="pt-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索服务名称或类别"
+              className="pl-10"
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* 用户体验指标 */}
+      {/* Services List */}
       <Card>
         <CardHeader>
-          <CardTitle>用户体验指标</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            业务影响服务 ({filteredServices.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {loading && <p className="text-sm text-gray-500">加载中...</p>}
-            {uxMetrics.map((metric) => (
-              <div key={metric.id} className="p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium">{metric.name}</h3>
-                  <Badge className={getMetricStatusColor(metric.status)}>
-                    {metric.status === 'good' ? '良好' : metric.status === 'warning' ? '警告' : '严重'}
-                  </Badge>
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">{metric.value}</span>
-                  <span className={`text-sm ${metric.change < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {metric.change > 0 ? '+' : ''}{metric.change}%
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {filteredServices.length === 0 ? (
+            <EmptyState
+              title="暂无服务数据"
+              description="当前没有可用的业务影响服务"
+            />
+          ) : (
+            <DataTable
+              data={filteredServices}
+              columns={serviceColumns}
+              pageSize={15}
+              emptyMessage="暂无服务数据"
+              onRowClick={(service) => handleServiceClick(service.name)}
+            />
+          )}
         </CardContent>
       </Card>
 
-      {/* 转化率追踪 */}
+      {/* UX Metrics */}
       <Card>
         <CardHeader>
-          <CardTitle>转化率追踪</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            用户体验指标
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4 mb-4">
-            <div className="flex gap-4">
-              <Input placeholder="搜索服务..." className="max-w-xs" />
-              <Select>
-                <option value="">所有类别</option>
-                <option value="core">核心业务</option>
-                <option value="support">支撑服务</option>
-                <option value="value">增值服务</option>
-              </Select>
-              <Select>
-                <option value="">所有状态</option>
-                <option value="healthy">健康</option>
-                <option value="degraded">降级</option>
-                <option value="down">宕机</option>
-              </Select>
-              <Button>搜索</Button>
-            </div>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>服务名称</TableHead>
-                <TableHead>类别</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>当前转化率</TableHead>
-                <TableHead>变化</TableHead>
-                <TableHead>受影响用户</TableHead>
-                <TableHead>收入影响</TableHead>
-                <TableHead>最后更新</TableHead>
-                <TableHead>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {services.map((service) => (
-                <TableRow key={service.id}>
-                  <TableCell className="font-medium">{service.name}</TableCell>
-                  <TableCell>{service.category}</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(service.status)}>
-                      {getStatusText(service.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{service.conversionRate}%</TableCell>
-                  <TableCell className={service.conversionRateChange < 0 ? 'text-red-600' : 'text-green-600'}>
-                    {service.conversionRateChange > 0 ? '+' : ''}{service.conversionRateChange}%
-                  </TableCell>
-                  <TableCell>{service.affectedUsers.toLocaleString()}</TableCell>
-                  <TableCell className="text-red-600">¥{service.revenueImpact.toLocaleString()}</TableCell>
-                  <TableCell className="text-sm">{new Date(service.lastUpdated).toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => handleViewDetails(service.name)} disabled={assessLoading}>
-                      查看详情
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {uxMetrics.length === 0 ? (
+            <EmptyState
+              title="暂无UX指标"
+              description="当前没有可用的用户体验指标"
+            />
+          ) : (
+            <DataTable
+              data={uxMetrics}
+              columns={uxColumns}
+              pageSize={10}
+              emptyMessage="暂无UX指标"
+            />
+          )}
         </CardContent>
       </Card>
 
-      {/* 影响分析报告 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>影响分析报告</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <h3 className="font-medium text-red-800 mb-2">关键影响</h3>
-              <ul className="text-sm text-red-700 space-y-1">
-                {renderKeyFindings().map((item, idx) => (
-                  <li key={idx}>• {item}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h3 className="font-medium text-yellow-800 mb-2">建议行动</h3>
-              <ul className="text-sm text-yellow-700 space-y-1">
-                {renderRecommendations().map((item, idx) => (
-                  <li key={idx}>• {item}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="flex justify-end">
-              <Button>生成完整报告</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {selectedService && (
+      {/* Business Impact Assessment */}
+      {assessment && (
         <Card>
           <CardHeader>
-            <CardTitle>{selectedService.name} 业务影响详情</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              业务影响评估 - {assessment.name}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div><span className="text-gray-500">类别</span><div>{selectedService.category}</div></div>
-              <div><span className="text-gray-500">状态</span><div>{getStatusText(selectedService.status)}</div></div>
-              <div><span className="text-gray-500">影响评分</span><div>{selectedService.impactScore}</div></div>
-              <div><span className="text-gray-500">受影响用户</span><div>{selectedService.affectedUsers.toLocaleString()}</div></div>
-              <div><span className="text-gray-500">转化率</span><div>{selectedService.conversionRate}%</div></div>
-              <div><span className="text-gray-500">转化率变化</span><div>{selectedService.conversionRateChange}%</div></div>
-              <div><span className="text-gray-500">收入影响</span><div>¥{selectedService.revenueImpact.toLocaleString()}</div></div>
-              <div><span className="text-gray-500">最后更新</span><div>{new Date(selectedService.lastUpdated).toLocaleString()}</div></div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">影响分数</label>
+                  <p className="text-2xl font-bold text-gray-900">{assessment.impactScore.toFixed(1)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">状态</label>
+                  <p className="text-2xl font-bold text-gray-900">{assessment.status}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">受影响用户</label>
+                  <p className="text-2xl font-bold text-red-600">{assessment.affectedUsers.toLocaleString()}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">收入影响</label>
+                  <p className="text-2xl font-bold text-red-600">${assessment.revenueImpact.toLocaleString()}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">当前转化率</label>
+                  <p className="text-2xl font-bold text-gray-900">{assessment.currentConversion.toFixed(2)}%</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">基准转化率</label>
+                  <p className="text-2xl font-bold text-gray-900">{assessment.baselineConversion.toFixed(2)}%</p>
+                </div>
+              </div>
+
+              <GaugeChart
+                value={assessment.impactScore * 10}
+                min={0}
+                max={100}
+                title="业务影响分数"
+                color={assessment.impactScore > 7 ? '#ef4444' : assessment.impactScore > 4 ? '#f59e0b' : '#10b981'}
+              />
             </div>
           </CardContent>
         </Card>

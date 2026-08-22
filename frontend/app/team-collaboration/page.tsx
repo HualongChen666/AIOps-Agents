@@ -1,421 +1,374 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-
-const API_BASE = '/api/v1/team-collaboration';
-
-interface TeamMember {
-  user_id: string;
-  username: string;
-  full_name: string;
-  role: string;
-  status: 'online' | 'offline' | 'busy';
-  avatar?: string;
-}
+import { EnhancedModal } from '@/components/ui/EnhancedModal';
+import { DataTable } from '@/components/ui/DataTable';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Users, RefreshCw, Plus, UserCheck, Clock, AlertTriangle } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLoadingState, useToast } from '@/hooks/useEnhancements';
+import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
 
 interface Team {
   id: string;
   name: string;
   description: string;
-  members: TeamMember[];
+  members: Array<{
+    user_id: string;
+    username: string;
+    full_name: string;
+    role: string;
+    status: string;
+  }>;
+  rotation: {
+    type: string;
+    start_date: string;
+  };
 }
 
-interface Oncall {
-  primary: TeamMember | null;
-  secondary: TeamMember | null;
-  since: string;
-  until: string;
-  next_rotation_in_hours: number;
+interface OnCall {
+  primary: {
+    user_id: string;
+    username: string;
+    full_name: string;
+  };
+  secondary?: {
+    user_id: string;
+    username: string;
+    full_name: string;
+  };
 }
 
 interface Handoff {
   id: string;
-  from_name: string;
-  to_name: string | null;
+  from_user_id: string;
+  to_user_id: string;
   notes: string;
   created_at: string;
 }
 
-interface SharedDashboard {
-  id: string;
-  name: string;
-  owner: string;
-  lastModified: Date;
-  viewers: number;
-  description: string;
-}
-
 export default function TeamCollaborationPage() {
-  const [activeTab, setActiveTab] = useState<'workspace' | 'comments' | 'dashboards'>('workspace');
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [oncall, setOncall] = useState<Oncall | null>(null);
-  const [handoffs, setHandoffs] = useState<Handoff[]>([]);
-  const [sharedDashboards, setSharedDashboards] = useState<SharedDashboard[]>([]);
-  const [selectedDashboard, setSelectedDashboard] = useState<SharedDashboard | null>(null);
-  const [newComment, setNewComment] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [showHandoffModal, setShowHandoffModal] = useState(false);
+  const [handoffNotes, setHandoffNotes] = useState('');
 
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId) || teams[0] || null;
+  const queryClient = useQueryClient();
 
+  // 🔧 获取团队列表
+  const { data: teamsData, isLoading: teamsLoading, error: teamsError, refetch: refetchTeams } = useQuery<Team[]>({
+    queryKey: ['team-collaboration-teams'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/team-collaboration/teams');
+      return resp.data;
+    },
+    refetchInterval: 120000, // 2分钟刷新
+  });
+
+  // 🔧 获取值班信息
+  const { data: onCallData, isLoading: onCallLoading, refetch: refetchOnCall } = useQuery<OnCall>({
+    queryKey: ['team-collaboration-oncall', selectedTeam?.id],
+    queryFn: async () => {
+      const resp = await api.get(`/api/v1/team-collaboration/teams/${selectedTeam?.id}/oncall`);
+      return resp.data;
+    },
+    enabled: !!selectedTeam,
+    refetchInterval: 120000,
+  });
+
+  // 🔧 获取交接记录
+  const { data: handoffsData, isLoading: handoffsLoading, refetch: refetchHandoffs } = useQuery<Handoff[]>({
+    queryKey: ['team-collaboration-handoffs', selectedTeam?.id],
+    queryFn: async () => {
+      const resp = await api.get(`/api/v1/team-collaboration/teams/${selectedTeam?.id}/handoffs`);
+      return resp.data;
+    },
+    enabled: !!selectedTeam,
+    refetchInterval: 120000,
+  });
+
+  // 🔧 创建交接记录
+  const createHandoffMutation = useMutation({
+    mutationFn: async (notes: string) => {
+      const resp = await api.post(`/api/v1/team-collaboration/teams/${selectedTeam?.id}/handoffs`, {
+        from_user_id: 'system',
+        to_user_id: null,
+        notes,
+      });
+      return resp.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-collaboration-handoffs'] });
+      setShowHandoffModal(false);
+      setHandoffNotes('');
+      showSuccess('交接记录创建成功');
+    },
+    onError: () => {
+      showError('交接记录创建失败');
+    },
+  });
+
+  // 🔧 P1 Integration: Use enhanced loading state
+  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(teamsLoading || onCallLoading || handoffsLoading);
+
+  // 🔧 P1 Integration: Use toast notifications
+  const toast = useToast();
+  const showSuccess = toast.success;
+  const showError = toast.error;
+
+  // 🔧 P1 Integration: Handle errors with toast
   useEffect(() => {
-    setLoading(true);
-    fetch(`${API_BASE}/teams`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: Team[]) => {
-        setTeams(data);
-        if (data.length > 0) {
-          setSelectedTeamId(data[0].id);
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+    if (teamsError) {
+      showError('Failed to load teams');
+      setPageError(teamsError as Error);
+    }
+  }, [teamsError, showError, setPageError]);
 
-  useEffect(() => {
-    if (!selectedTeamId) return;
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      fetch(`${API_BASE}/teams/${selectedTeamId}/oncall`).then((res) =>
-        res.ok ? res.json() : null
-      ),
-      fetch(`${API_BASE}/teams/${selectedTeamId}/handoffs`).then((res) =>
-        res.ok ? res.json() : []
-      ),
-    ])
-      .then(([oncallData, handoffData]) => {
-        setOncall(oncallData);
-        setHandoffs(handoffData);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [selectedTeamId]);
+  const teams = teamsData || [];
+  const onCall = onCallData || null;
+  const handoffs = handoffsData || [];
 
-  useEffect(() => {
-    if (activeTab !== 'dashboards') return;
-    setLoading(true);
-    setError(null);
-    fetch(`${API_BASE}/dashboards`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: any) => {
-        const items = Array.isArray(data) ? data : [];
-        const mapped: SharedDashboard[] = items.map((d: any, index: number) => ({
-          id: d.id || `dashboard-${index}`,
-          name: d.name || '',
-          owner: d.owner || '',
-          lastModified: new Date(d.last_modified || d.lastModified || d.updated_at || Date.now()),
-          viewers: d.viewers || 0,
-          description: d.description || '',
-        }));
-        setSharedDashboards(mapped);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [activeTab]);
+  const teamColumns = [
+    { key: 'name' as const, label: '团队名称' },
+    {
+      key: 'description' as const, label: '描述', render: (value: string) => (
+        <div className="max-w-md truncate" title={value}>{value}</div>
+      )
+    },
+    { key: 'members' as const, label: '成员数', render: (value: any[]) => value.length },
+    { key: 'rotation' as const, label: '轮值类型', render: (value: any) => value.type },
+  ];
 
-  const handleAddComment = async () => {
-    if (!newComment.trim() || !selectedTeamId) return;
-    const mentions = newComment.match(/@(\S+)/g)?.map((m) => m.substring(1)) || [];
-    const body = {
-      from_user_id: 'system',
-      to_user_id: mentions[0] || undefined,
-      notes: newComment,
-    };
-    const res = await fetch(`${API_BASE}/teams/${selectedTeamId}/handoffs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      const created = await res.json();
-      setHandoffs((prev) => [created, ...prev]);
-      setNewComment('');
-    } else {
-      setError('提交交接记录失败');
+  const handoffColumns = [
+    { key: 'from_user_id' as const, label: '发送者' },
+    { key: 'to_user_id' as const, label: '接收者', render: (value: string) => value || '-' },
+    {
+      key: 'notes' as const, label: '交接内容', render: (value: string) => (
+        <div className="max-w-md truncate" title={value}>{value}</div>
+      )
+    },
+    { key: 'created_at' as const, label: '创建时间', render: (value: string) => new Date(value).toLocaleString() },
+  ];
+
+  const handleTeamClick = (team: Team) => {
+    setSelectedTeam(team);
+  };
+
+  const handleCreateHandoff = () => {
+    createHandoffMutation.mutate(handoffNotes);
+  };
+
+  const handleRefresh = () => {
+    refetchTeams();
+    if (selectedTeam) {
+      refetchOnCall();
+      refetchHandoffs();
     }
   };
 
-  const handleEscalate = async (incidentId: string) => {
-    if (!selectedTeamId) return;
-    const res = await fetch(`${API_BASE}/incidents/${incidentId}/escalate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team_id: selectedTeamId, reason: '手动升级' }),
-    });
-    if (!res.ok) {
-      setError('事件升级失败');
-    }
-  };
+  // 🔧 P1 Integration: Use enhanced loading and empty states
+  if (pageLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online':
-        return 'bg-green-500';
-      case 'busy':
-        return 'bg-yellow-500';
-      case 'offline':
-        return 'bg-gray-400';
-      default:
-        return 'bg-gray-400';
-    }
-  };
+  if (pageError) {
+    return (
+      <ErrorBoundary fallback={
+        <EmptyState
+          title="加载失败"
+          description="无法加载团队协作数据，请稍后重试"
+          action={<Button onClick={handleRefresh}>重试</Button>}
+        />
+      }>
+        <EmptyState
+          title="加载失败"
+          description={pageError.message}
+          action={<Button onClick={handleRefresh}>重试</Button>}
+        />
+      </ErrorBoundary>
+    );
+  }
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'online':
-        return '在线';
-      case 'busy':
-        return '忙碌';
-      case 'offline':
-        return '离线';
-      default:
-        return '未知';
-    }
-  };
-
-  const memberAvatar = (member: TeamMember) => {
-    if (member.avatar) return member.avatar;
-    return member.full_name ? member.full_name.charAt(0).toUpperCase() : '?';
-  };
+  const totalTeams = teams.length;
+  const totalMembers = teams.reduce((sum, team) => sum + team.members.length, 0);
+  const onlineMembers = teams.reduce((sum, team) => sum + team.members.filter((m) => m.status === 'online').length, 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">团队协作</h1>
-      </div>
-
-      {loading && <p className="text-sm text-gray-500">加载中...</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
-
-      <div className="flex gap-2 border-b">
-        <Button
-          variant={activeTab === 'workspace' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('workspace')}
-        >
-          团队工作区
-        </Button>
-        <Button
-          variant={activeTab === 'comments' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('comments')}
-        >
-          交接记录
-        </Button>
-        <Button
-          variant={activeTab === 'dashboards' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('dashboards')}
-        >
-          共享仪表盘
-        </Button>
-      </div>
-
-      {activeTab === 'workspace' && (
-        <div className="space-y-6">
-          {teams.map((team) => (
-            <Card key={team.id}>
-              <CardHeader>
-                <CardTitle>{team.name}</CardTitle>
-                <p className="text-sm text-gray-500">{team.description}</p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {selectedTeamId === team.id && oncall && oncall.primary && (
-                    <div className="p-4 bg-blue-50 rounded-lg">
-                      <p className="text-sm font-medium text-blue-900">
-                        当前值班: {oncall.primary.full_name} ({oncall.primary.role})
-                      </p>
-                      {oncall.secondary && (
-                        <p className="text-xs text-blue-700 mt-1">
-                          备班: {oncall.secondary.full_name} | 下次轮班还有{' '}
-                          {oncall.next_rotation_in_hours} 小时
-                        </p>
-                      )}
-                      <div className="flex gap-2 mt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEscalate(`INC-${Date.now()}`)}
-                        >
-                          手动升级事件
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="font-medium mb-3">
-                      团队成员 ({team.members.length})
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {team.members.map((member) => (
-                        <div
-                          key={member.user_id}
-                          className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="relative">
-                              <span className="text-2xl">{memberAvatar(member)}</span>
-                              <div
-                                className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${getStatusColor(
-                                  member.status
-                                )}`}
-                              />
-                            </div>
-                            <div>
-                              <p className="font-medium">{member.full_name}</p>
-                              <p className="text-xs text-gray-500">{member.role}</p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {getStatusText(member.status)}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedTeamId(team.id)}
-                    >
-                      查看值班表
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="flex items-center gap-3">
+          <Users className="h-8 w-8 text-[var(--accent-cyan)]" />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">团队协作</h1>
+            <p className="text-sm text-gray-500">SRE团队管理和值班轮值</p>
+          </div>
         </div>
-      )}
+        <div className="flex gap-2">
+          <Button onClick={handleRefresh} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            刷新
+          </Button>
+        </div>
+      </div>
 
-      {activeTab === 'comments' && selectedTeam && (
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>交接记录 - {selectedTeam.name}</CardTitle>
+            <CardTitle className="text-sm">总团队数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4 mb-6">
-              {handoffs.map((handoff) => (
-                <div key={handoff.id} className="p-4 border border-gray-200 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{handoff.from_name}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(handoff.created_at).toLocaleString()}
-                      </span>
+            <p className="text-3xl font-bold text-gray-900">{totalTeams}</p>
+            <p className="text-sm text-gray-500 mt-1">SRE团队总数</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">总成员数</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-blue-600">{totalMembers}</p>
+            <p className="text-sm text-gray-500 mt-1">团队成员总数</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">在线成员</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-green-600">{onlineMembers}</p>
+            <p className="text-sm text-gray-500 mt-1">当前在线成员</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Teams List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            团队列表 ({teams.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {teams.length === 0 ? (
+            <EmptyState
+              title="暂无团队"
+              description="当前没有配置的SRE团队"
+            />
+          ) : (
+            <DataTable
+              data={teams}
+              columns={teamColumns}
+              pageSize={10}
+              emptyMessage="暂无团队"
+              onRowClick={handleTeamClick}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Team Detail */}
+      {selectedTeam && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5" />
+                {selectedTeam.name} - 值班信息
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {onCallLoading ? (
+                <LoadingSpinner />
+              ) : onCall ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">主值班</label>
+                      <p className="text-lg font-semibold text-gray-900">{onCall.primary.full_name} (@{onCall.primary.username})</p>
                     </div>
+                    <UserCheck className="h-6 w-6 text-blue-600" />
                   </div>
-                  <p className="text-sm mb-2">{handoff.notes}</p>
-                  {handoff.to_name && (
-                    <div className="flex gap-1">
-                      <Badge variant="outline" className="text-xs">
-                        @{handoff.to_name}
-                      </Badge>
+                  {onCall.secondary && (
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">副值班</label>
+                        <p className="text-lg font-semibold text-gray-900">{onCall.secondary.full_name} (@{onCall.secondary.username})</p>
+                      </div>
+                      <Clock className="h-6 w-6 text-gray-600" />
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-            <div className="border-t pt-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="输入交接内容..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
-                />
-                <Button onClick={handleAddComment}>发送</Button>
+              ) : (
+                <EmptyState title="暂无值班信息" description="当前团队没有配置值班轮值" />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  交接记录
+                </CardTitle>
+                <Button size="sm" onClick={() => setShowHandoffModal(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  创建交接
+                </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">提示：输入内容后按回车发送交接记录</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeTab === 'dashboards' && (
-        <div className="space-y-6">
-          {sharedDashboards.length === 0 ? (
-            <p className="text-sm text-gray-500">暂无共享仪表盘</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sharedDashboards.map((dashboard) => (
-                <Card
-                  key={dashboard.id}
-                  className="cursor-pointer hover:shadow-lg transition"
-                  onClick={() => setSelectedDashboard(dashboard)}
-                >
-                  <CardHeader>
-                    <CardTitle className="text-lg">{dashboard.name}</CardTitle>
-                    <p className="text-sm text-gray-500">{dashboard.description}</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">所有者</span>
-                        <span>{dashboard.owner}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">查看人数</span>
-                        <span>{dashboard.viewers}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">最后修改</span>
-                        <span>{dashboard.lastModified.toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm" className="w-full mt-4">
-                      查看仪表盘
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {selectedDashboard && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>仪表盘详情: {selectedDashboard.name}</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedDashboard(null)}>
-                    ×
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
-                    <p className="text-sm">{selectedDashboard.description}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">所有者</label>
-                      <p className="text-sm">{selectedDashboard.owner}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">查看人数</label>
-                      <p className="text-sm">{selectedDashboard.viewers}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">最后修改</label>
-                      <p className="text-sm">{selectedDashboard.lastModified.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+            </CardHeader>
+            <CardContent>
+              {handoffs.length === 0 ? (
+                <EmptyState title="暂无交接记录" description="当前团队没有交接记录" />
+              ) : (
+                <DataTable
+                  data={handoffs}
+                  columns={handoffColumns}
+                  pageSize={10}
+                  emptyMessage="暂无交接记录"
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
+
+      {/* Create Handoff Modal */}
+      <EnhancedModal
+        open={showHandoffModal}
+        onOpenChange={setShowHandoffModal}
+        title="创建交接记录"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">交接内容</label>
+            <textarea
+              value={handoffNotes}
+              onChange={(e) => setHandoffNotes(e.target.value)}
+              placeholder="输入交接内容..."
+              className="w-full px-3 py-2 border rounded-md bg-white min-h-[150px]"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowHandoffModal(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreateHandoff} disabled={createHandoffMutation.isPending}>
+              {createHandoffMutation.isPending ? '创建中...' : '创建'}
+            </Button>
+          </div>
+        </div>
+      </EnhancedModal>
     </div>
   );
 }
