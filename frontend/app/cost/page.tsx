@@ -35,7 +35,6 @@ export default function CostPage() {
   }, [])
 
   const total = costs.reduce((s, c) => s + (c.amount || 0), 0)
-  const used = budget.used || 0
   const remaining = budget.remaining || 0
   const cap = budget.budget || 0
 

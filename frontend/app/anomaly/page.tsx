@@ -29,7 +29,7 @@ interface AnomalyRecord {
 export default function AnomalyPage() {
   const [selectedModel, setSelectedModel] = useState('prophet');
   const [confidence, setConfidence] = useState(95);
-  const [anomalyData, setAnomalyData] = useState<AnomalyData[]>([]);
+  const [_anomalyData, setAnomalyData] = useState<AnomalyData[]>([]);
   const [anomalyRecords, setAnomalyRecords] = useState<AnomalyRecord[]>([]);
 
   const loadAnomalyData = async () => {
@@ -49,7 +49,7 @@ export default function AnomalyPage() {
         const stats = await statsRes.json();
         const chartData: AnomalyData[] = Object.entries(stats)
           .filter(([key]) => key !== 'total')
-          .map(([metric, count]) => ({
+          .map(([_metric, count]) => ({
             timestamp: new Date().toISOString(),
             value: Number(count),
             predicted: 0,

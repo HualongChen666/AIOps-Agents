@@ -8,24 +8,30 @@
     "start": "next start"
   },
   "dependencies": {
+    "@antv/g6": "4.8.24",
+    "@carbon/react": "^1.114.0",
+    "@headlessui/react": "1.7.17",
+    "@heroicons/react": "2.1.5",
+    "@tanstack/react-query": "5.28.0",
+    "axios": "1.7.2",
+    "lucide-react": "^1.33.0",
     "next": "14.2.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "tailwindcss": "3.4.4",
-    "zustand": "4.5.1",
-    "@tanstack/react-query": "5.28.0",
-    "axios": "1.7.2",
-    "socket.io-client": "4.7.5",
-    "@antv/g6": "4.8.24",
-    "reactflow": "11.11.0",
-    "@headlessui/react": "1.7.17",
-    "@heroicons/react": "2.1.5",
+    "react-hot-toast": "2.4.1",
     "react-use-websocket": "4.13.0",
-    "react-hot-toast": "2.4.1"
+    "reactflow": "11.11.0",
+    "socket.io-client": "4.7.5",
+    "tailwindcss": "3.4.4",
+    "zustand": "4.5.1"
   },
   "devDependencies": {
-    "typescript": "5.5.4",
+    "@types/node": "20.14.2",
     "@types/react": "18.3.3",
-    "@types/node": "20.14.2"
+    "@typescript-eslint/eslint-plugin": "^8.67.0",
+    "@typescript-eslint/parser": "^8.67.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.2",
+    "typescript": "5.5.4"
   }
 }

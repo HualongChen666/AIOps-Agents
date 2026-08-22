@@ -265,7 +265,7 @@ export default function AdvancedTablePage() {
 
               {/* 表体 */}
               <div style={{ height: `${visibleData.length * 50}px` }}>
-                {visibleData.map((row, index) => (
+                {visibleData.map((row, _index) => (
                   <div
                     key={row.id}
                     className={`flex border-b hover:bg-gray-50 ${selectedRows.has(row.id) ? 'bg-blue-50' : ''

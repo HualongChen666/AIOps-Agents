@@ -118,7 +118,7 @@ export default function SecurityPage() {
       });
       setLoading(false);
     } catch (err) {
-      setError(err);
+      setError(err as Error);
       setLoading(false);
     }
   };

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Providers } from './providers';
 import { SideNav } from '@/components/SideNav';
 import { TopBar } from '@/components/TopBar';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { isAuthenticated } from '@/lib/api';
 import type { ReactNode } from 'react';
 
@@ -37,8 +38,9 @@ function LoadingShell() {
         <title>AIOps Agent 控制台</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className="h-screen overflow-hidden bg-[var(--dds-slate-10)] text-[var(--dds-gray-90)] flex items-center justify-center">
-        <div className="text-sm text-[var(--dds-gray-70)]">加载中...</div>
+      <body className="h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] flex items-center justify-center">
+        <div className="loading-spinner"></div>
+        <div className="ml-3 text-sm text-[var(--text-secondary)]">加载中...</div>
       </body>
     </html>
   );
@@ -67,29 +69,31 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <title>AIOps Agent 控制台</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className="h-screen overflow-hidden bg-[var(--dds-slate-10)] text-[var(--dds-gray-90)]">
+      <body className="h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
         <Providers>
-          {isPublic ? (
-            <div className="flex h-full">
-              <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--dds-gray-10)] w-full">
-                <div className="min-h-full p-8">
-                  {children}
-                </div>
-              </main>
-            </div>
-          ) : (
-            <div className="flex flex-col h-full">
-              <TopBar />
-              <div className="flex flex-1 overflow-hidden">
-                <SideNav />
-                <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--dds-gray-10)]">
+          <ErrorBoundary>
+            {isPublic ? (
+              <div className="flex h-full">
+                <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--bg-primary)] w-full">
                   <div className="min-h-full p-8">
                     {children}
                   </div>
                 </main>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col h-full">
+                <TopBar />
+                <div className="flex flex-1 overflow-hidden">
+                  <SideNav />
+                  <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--bg-primary)]">
+                    <div className="min-h-full p-8">
+                      {children}
+                    </div>
+                  </main>
+                </div>
+              </div>
+            )}
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>

@@ -88,7 +88,7 @@ export default function ChaosPage() {
   const [activeTab, setActiveTab] = useState<'experiments' | 'templates' | 'history' | 'results'>('experiments');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [enabled, setEnabled] = useState(false);
-  const [stats, setStats] = useState<Record<string, any>>({});
+  const [_stats, setStats] = useState<Record<string, any>>({});
   const [experiments, setExperiments] = useState<ChaosExperiment[]>([]);
 
   const [templates, setTemplates] = useState<FaultTemplate[]>([]);
