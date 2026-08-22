@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-graph-service
+  labels:
+    app: knowledge-graph-service
+spec:
+  type: ClusterIP
+  selector:
+    app: knowledge-graph-service
+  ports:
+    - port: 80
+      targetPort: 9409
+      name: http

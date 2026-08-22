@@ -1,0 +1,31 @@
+# -*- coding: utf-8 -*-
+"""Health check for the LLM router microservice."""
+
+from __future__ import annotations
+
+import time
+
+from .schemas import ServiceHealth
+
+_START_TIME = time.time()
+
+
+class HealthCheckEngine:
+    """Simple health check engine for the LLM router service."""
+
+    async def check(self, service_name: str, index_size: int = 1) -> ServiceHealth:
+        uptime_seconds = int(time.time() - _START_TIME)
+        status = "ok"
+        try:
+            import psutil
+
+            if psutil.virtual_memory().percent > 95 or psutil.disk_usage("/").percent > 98:
+                status = "degraded"
+        except Exception:
+            pass
+        return ServiceHealth(
+            status=status,
+            service=service_name,
+            index_size=index_size,
+            uptime_seconds=uptime_seconds,
+        )
