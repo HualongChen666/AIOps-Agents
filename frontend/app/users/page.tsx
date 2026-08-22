@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Users, Shield, Settings, Trash2, Edit, Key } from 'lucide-react';
 
 interface User {
   id: number;
@@ -240,12 +241,26 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">用户管理</h1>
+        <div className="flex items-center gap-3">
+          <Users className="h-8 w-8 text-[var(--accent-cyan)]" />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">用户管理</h1>
+            <p className="text-sm text-gray-500">管理系统用户、角色和权限</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-sm">
+            管理员: {adminCount}/3
+          </Badge>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">创建用户</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            创建用户
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -286,7 +301,10 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">用户列表</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            用户列表
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -313,8 +331,8 @@ export default function UsersPage() {
                 )}
                 {users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell>{user.id}</TableCell>
-                    <TableCell>{user.username}</TableCell>
+                    <TableCell className="font-mono text-sm">{user.id}</TableCell>
+                    <TableCell className="font-medium">{user.username}</TableCell>
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>
                       {isActive(user) ? (
@@ -323,18 +341,21 @@ export default function UsersPage() {
                         <Badge variant="secondary">禁用</Badge>
                       )}
                     </TableCell>
-                    <TableCell>{formatDate(user.created_at)}</TableCell>
+                    <TableCell className="text-sm text-gray-500">{formatDate(user.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" onClick={() => startEdit(user)}>
+                        <Button size="sm" variant="outline" onClick={() => startEdit(user)}>
+                          <Edit className="h-4 w-4 mr-1" />
                           编辑
                         </Button>
                         {user.role === 'business' && (
                           <Button size="sm" variant="outline" onClick={() => startPermissions(user)}>
+                            <Shield className="h-4 w-4 mr-1" />
                             权限
                           </Button>
                         )}
                         <Button size="sm" variant="destructive" onClick={() => handleDelete(user)}>
+                          <Trash2 className="h-4 w-4 mr-1" />
                           删除
                         </Button>
                       </div>
@@ -350,7 +371,10 @@ export default function UsersPage() {
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑用户</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              编辑用户: {editingUser?.username}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -402,7 +426,10 @@ export default function UsersPage() {
       <Dialog open={!!permUser} onOpenChange={(open) => !open && setPermUser(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>资产权限: {permUser?.username}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              资产权限: {permUser?.username}
+            </DialogTitle>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-auto py-2">
             {!assetsLoaded ? (
@@ -414,7 +441,7 @@ export default function UsersPage() {
                 {assets.map((asset) => {
                   const selected = asset.id in assetPerms;
                   return (
-                    <div key={asset.id} className="flex items-center gap-4 rounded border p-3">
+                    <div key={asset.id} className="flex items-center gap-4 rounded border p-3 hover:bg-gray-50 transition">
                       <input
                         type="checkbox"
                         checked={selected}

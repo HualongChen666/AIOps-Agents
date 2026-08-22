@@ -8,27 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
-interface User {
-  id: string;
-  username: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'operator' | 'viewer';
-  disabled: boolean;
-  status: 'active' | 'inactive';
-  lastLogin: string;
-}
-
-interface AuditLog {
-  id: string;
-  timestamp: string;
-  user: string;
-  action: string;
-  resource: string;
-  details: string;
-  ip: string;
-}
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Settings, Server, Database, Shield, Trash2, Edit, Plus } from 'lucide-react';
 
 interface Settings {
   system_name?: string;
@@ -37,33 +18,32 @@ interface Settings {
   data_retention?: string;
 }
 
+interface Asset {
+  id: number;
+  name: string;
+  service?: string;
+  business_unit?: string;
+  env?: string;
+  owner?: string;
+  created_at?: string;
+}
+
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'audit'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'assets'>('general');
 
   const [settings, setSettings] = useState<Settings>({});
-  const [users, setUsers] = useState<User[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
 
-  const mapUser = (u: any): User => ({
-    id: String(u.id),
-    username: String(u.username),
-    name: u.full_name || u.username,
-    email: u.email || '',
-    role: u.role === 'admin' ? 'admin' : u.role === 'operator' ? 'operator' : 'viewer',
-    disabled: !!u.disabled,
-    status: u.disabled ? 'inactive' : 'active',
-    lastLogin: u.last_login_at || u.created_at || new Date().toISOString(),
-  });
-
-  const mapAuditLog = (l: any): AuditLog => ({
-    id: String(l.id),
-    timestamp: l.created_at || new Date().toISOString(),
-    user: l.username || 'system',
-    action: l.action || '',
-    resource: `${l.resource_type || ''}${l.resource_id ? `/${l.resource_id}` : ''}`,
-    details: l.details || '',
-    ip: l.ip_address || '',
+  const [showAssetDialog, setShowAssetDialog] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [assetForm, setAssetForm] = useState({
+    name: '',
+    service: '',
+    business_unit: '',
+    env: '',
+    owner: '',
   });
 
   useEffect(() => {
@@ -71,17 +51,15 @@ export default function SettingsPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [settingsRes, usersRes, auditRes] = await Promise.all([
+        const [settingsRes, assetsRes] = await Promise.all([
           api.get('/api/settings/'),
-          api.get('/api/v1/users/'),
-          api.get('/api/v1/users/audit-logs'),
+          api.get('/api/v1/assets/'),
         ]);
         if (!mounted) return;
         setSettings(settingsRes.data?.settings || {});
-        setUsers((usersRes.data || []).map(mapUser));
-        setAuditLogs((auditRes.data || []).map(mapAuditLog));
-      } catch {
-        // api interceptor shows errors via toast
+        setAssets(assetsRes.data || []);
+      } catch (error) {
+        console.error('Failed to load data:', error);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -91,46 +69,82 @@ export default function SettingsPage() {
   }, []);
 
   const handleSaveSettings = async () => {
+    setSavingSettings(true);
     try {
-      await api.put('/api/settings/', settings);
-    } catch {
-      // api interceptor handles errors
+      const response = await api.put('/api/settings/', settings);
+      setSettings(response.data?.settings || {});
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    } finally {
+      setSavingSettings(false);
     }
   };
 
-  const handleToggleStatus = async (user: User) => {
-    const newDisabled = !user.disabled;
+  const handleCreateAsset = async () => {
     try {
-      await api.put(`/api/v1/users/${user.username}`, { disabled: newDisabled });
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === user.id ? { ...u, disabled: newDisabled, status: newDisabled ? 'inactive' : 'active' } : u
-        )
-      );
-    } catch {
-      // api interceptor handles errors
+      const response = await api.post('/api/v1/assets/', assetForm);
+      setAssets([...assets, response.data]);
+      setShowAssetDialog(false);
+      setAssetForm({ name: '', service: '', business_unit: '', env: '', owner: '' });
+    } catch (error) {
+      console.error('Failed to create asset:', error);
     }
   };
 
-  const handleDeleteUser = async (user: User) => {
-    if (!window.confirm('确定要删除该用户吗？')) return;
+  const handleUpdateAsset = async () => {
+    if (!editingAsset) return;
     try {
-      await api.delete(`/api/v1/users/${user.username}`);
-      setUsers((prev) => prev.filter((u) => u.id !== user.id));
-    } catch {
-      // api interceptor handles errors
+      const response = await api.put(`/api/v1/assets/${editingAsset.id}`, assetForm);
+      setAssets(assets.map(a => a.id === editingAsset.id ? response.data : a));
+      setShowAssetDialog(false);
+      setEditingAsset(null);
+      setAssetForm({ name: '', service: '', business_unit: '', env: '', owner: '' });
+    } catch (error) {
+      console.error('Failed to update asset:', error);
     }
+  };
+
+  const handleDeleteAsset = async (asset: Asset) => {
+    if (!window.confirm(`确定要删除资产 ${asset.name} 吗？`)) return;
+    try {
+      await api.delete(`/api/v1/assets/${asset.id}`);
+      setAssets(assets.filter(a => a.id !== asset.id));
+    } catch (error) {
+      console.error('Failed to delete asset:', error);
+    }
+  };
+
+  const openAssetDialog = (asset?: Asset) => {
+    if (asset) {
+      setEditingAsset(asset);
+      setAssetForm({
+        name: asset.name,
+        service: asset.service || '',
+        business_unit: asset.business_unit || '',
+        env: asset.env || '',
+        owner: asset.owner || '',
+      });
+    } else {
+      setEditingAsset(null);
+      setAssetForm({ name: '', service: '', business_unit: '', env: '', owner: '' });
+    }
+    setShowAssetDialog(true);
   };
 
   const tabs = [
-    { key: 'general' as const, label: '通用设置' },
-    { key: 'users' as const, label: '用户管理' },
-    { key: 'audit' as const, label: '审计日志' },
+    { key: 'general' as const, label: '通用设置', icon: Settings },
+    { key: 'assets' as const, label: '资产管理', icon: Server },
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">设置</h1>
+      <div className="flex items-center gap-3">
+        <Settings className="h-8 w-8 text-[var(--accent-cyan)]" />
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">系统设置</h1>
+          <p className="text-sm text-gray-500">管理系统配置和资产信息</p>
+        </div>
+      </div>
 
       <Card>
         <CardContent className="pt-6">
@@ -139,11 +153,12 @@ export default function SettingsPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === tab.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${activeTab === tab.key
+                  ? 'bg-[var(--accent-blue)] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
+                <tab.icon className="h-4 w-4" />
                 {tab.label}
               </button>
             ))}
@@ -154,7 +169,10 @@ export default function SettingsPage() {
       {activeTab === 'general' && (
         <Card>
           <CardHeader>
-            <CardTitle>通用设置</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              通用设置
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
@@ -203,8 +221,8 @@ export default function SettingsPage() {
                 </Select>
               </div>
               <div className="flex justify-end">
-                <Button onClick={handleSaveSettings} disabled={loading}>
-                  保存设置
+                <Button onClick={handleSaveSettings} disabled={loading || savingSettings}>
+                  {savingSettings ? '保存中...' : '保存设置'}
                 </Button>
               </div>
             </div>
@@ -212,53 +230,63 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {activeTab === 'users' && (
+      {activeTab === 'assets' && (
         <Card>
           <CardHeader>
-            <CardTitle>用户权限管理</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Server className="h-5 w-5" />
+                资产管理
+              </CardTitle>
+              <Button onClick={() => openAssetDialog()}>
+                <Plus className="h-4 w-4 mr-2" />
+                添加资产
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            {users.length === 0 ? (
-              <p className="text-sm text-gray-500">暂无用户数据</p>
+            {loading ? (
+              <p className="text-sm text-gray-500">加载中...</p>
+            ) : assets.length === 0 ? (
+              <p className="text-sm text-gray-500">暂无资产数据</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>ID</TableHead>
-                    <TableHead>姓名</TableHead>
-                    <TableHead>邮箱</TableHead>
-                    <TableHead>角色</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>最后登录</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>服务</TableHead>
+                    <TableHead>业务单元</TableHead>
+                    <TableHead>环境</TableHead>
+                    <TableHead>负责人</TableHead>
+                    <TableHead>创建时间</TableHead>
                     <TableHead>操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-mono text-sm">{user.id}</TableCell>
-                      <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
+                  {assets.map((asset) => (
+                    <TableRow key={asset.id}>
+                      <TableCell className="font-mono text-sm">{asset.id}</TableCell>
+                      <TableCell className="font-medium">{asset.name}</TableCell>
+                      <TableCell>{asset.service || '-'}</TableCell>
+                      <TableCell>{asset.business_unit || '-'}</TableCell>
                       <TableCell>
-                        <Badge className={user.role === 'admin' ? 'bg-purple-100 text-purple-800' : user.role === 'operator' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}>
-                          {user.role === 'admin' ? '管理员' : user.role === 'operator' ? '运维' : '查看者'}
+                        <Badge variant={asset.env === 'prod' ? 'destructive' : 'outline'}>
+                          {asset.env || '-'}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`cursor-pointer ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
-                          onClick={() => handleToggleStatus(user)}
-                        >
-                          {user.status === 'active' ? '活跃' : '未激活'}
-                        </Badge>
+                      <TableCell>{asset.owner || '-'}</TableCell>
+                      <TableCell className="text-sm text-gray-500">
+                        {asset.created_at ? new Date(asset.created_at).toLocaleDateString() : '-'}
                       </TableCell>
-                      <TableCell className="text-sm">{new Date(user.lastLogin).toLocaleString()}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
+                          <Button size="sm" variant="outline" onClick={() => openAssetDialog(asset)}>
+                            <Edit className="h-4 w-4 mr-1" />
                             编辑
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user)}>
+                          <Button size="sm" variant="destructive" onClick={() => handleDeleteAsset(asset)}>
+                            <Trash2 className="h-4 w-4 mr-1" />
                             删除
                           </Button>
                         </div>
@@ -272,45 +300,71 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {activeTab === 'audit' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>审计日志</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {auditLogs.length === 0 ? (
-              <p className="text-sm text-gray-500">暂无审计日志</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>时间</TableHead>
-                    <TableHead>用户</TableHead>
-                    <TableHead>操作</TableHead>
-                    <TableHead>资源</TableHead>
-                    <TableHead>详情</TableHead>
-                    <TableHead>IP</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {auditLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-mono text-sm">{log.id}</TableCell>
-                      <TableCell className="text-sm">{new Date(log.timestamp).toLocaleString()}</TableCell>
-                      <TableCell>{log.user}</TableCell>
-                      <TableCell>{log.action}</TableCell>
-                      <TableCell>{log.resource}</TableCell>
-                      <TableCell>{log.details}</TableCell>
-                      <TableCell>{log.ip}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <Dialog open={showAssetDialog} onOpenChange={setShowAssetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Server className="h-5 w-5" />
+              {editingAsset ? '编辑资产' : '添加资产'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">资产名称</label>
+              <Input
+                value={assetForm.name}
+                onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                placeholder="输入资产名称"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">服务</label>
+              <Input
+                value={assetForm.service}
+                onChange={(e) => setAssetForm({ ...assetForm, service: e.target.value })}
+                placeholder="输入服务名称"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">业务单元</label>
+              <Input
+                value={assetForm.business_unit}
+                onChange={(e) => setAssetForm({ ...assetForm, business_unit: e.target.value })}
+                placeholder="输入业务单元"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">环境</label>
+              <Select
+                value={assetForm.env}
+                onChange={(e) => setAssetForm({ ...assetForm, env: e.target.value })}
+              >
+                <option value="">请选择</option>
+                <option value="dev">开发环境</option>
+                <option value="test">测试环境</option>
+                <option value="staging">预发布环境</option>
+                <option value="prod">生产环境</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">负责人</label>
+              <Input
+                value={assetForm.owner}
+                onChange={(e) => setAssetForm({ ...assetForm, owner: e.target.value })}
+                placeholder="输入负责人"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssetDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={editingAsset ? handleUpdateAsset : handleCreateAsset}>
+              {editingAsset ? '更新' : '创建'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
