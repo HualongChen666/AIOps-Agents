@@ -925,6 +925,147 @@ class TestThreeLevelCache:
         assert len(callback2_called) == 1
 
 
+class TestMultiLevelCacheRedisErrors:
+    """Test MultiLevelCache Redis error handling"""
+
+    def test_redis_initialization_failure(self):
+        """Test MultiLevelCache handles Redis initialization failure"""
+        with patch('builtins.__import__', side_effect=ImportError("Redis not available")):
+            cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
+            assert cache._redis_available is False
+            assert cache._redis_client is None
+
+    def test_redis_get_deserialization_error(self):
+        """Test MultiLevelCache handles Redis deserialization errors"""
+        cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
+        cache._redis_available = True
+        cache._redis_client = MagicMock()
+        
+        # Mock Redis to return invalid JSON
+        cache._redis_client.get.return_value = "invalid json"
+        
+        result = cache.get("test_key")
+        # Should return the string as-is when JSON decode fails
+        assert result == "invalid json"
+
+    def test_redis_get_attribute_error(self):
+        """Test MultiLevelCache handles Redis get attribute errors"""
+        cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
+        cache._redis_available = True
+        cache._redis_client = MagicMock()
+        
+        # Mock Redis to return non-string value
+        cache._redis_client.get.return_value = 12345
+        
+        result = cache.get("test_key")
+        assert result == 12345
+
+    def test_redis_clear_error(self):
+        """Test MultiLevelCache handles Redis clear errors"""
+        cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
+        cache._redis_available = True
+        cache._redis_client = MagicMock()
+        cache._redis_client.keys.side_effect = Exception("Redis error")
+        
+        # Should not raise exception
+        cache.clear()
+
+    def test_redis_invalidate_error(self):
+        """Test MultiLevelCache handles Redis invalidate errors"""
+        cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
+        cache._redis_available = True
+        cache._redis_client = MagicMock()
+        cache._redis_client.delete.side_effect = Exception("Redis error")
+        
+        # Should not raise exception
+        cache.invalidate("test_key")
+
+
+class TestThreeLevelCacheErrors:
+    """Test ThreeLevelCache error handling"""
+
+    def test_redis_initialization_config_error(self):
+        """Test ThreeLevelCache handles Redis config import error"""
+        with patch('builtins.__import__', side_effect=ImportError("Config not available")):
+            cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+            # Should still initialize, just without Redis
+            assert cache._memory_cache is not None
+
+    def test_db_initialization_error(self):
+        """Test ThreeLevelCache handles database initialization error"""
+        with patch('builtins.__import__', side_effect=ImportError("Config not available")):
+            cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+            # Should still initialize, just without DB
+            assert cache._memory_cache is not None
+
+    def test_set_db_cache_error(self):
+        """Test ThreeLevelCache handles database cache set errors"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        cache._db_available = True
+        
+        # Mock _set_db_cache to raise error
+        with patch.object(cache, '_set_db_cache', side_effect=Exception("DB error")):
+            # Should not raise exception
+            cache.set("test_key", {"data": "value"})
+
+    def test_get_db_cache_error(self):
+        """Test ThreeLevelCache handles database cache get errors"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        cache._db_available = True
+        
+        # Mock _get_db_cache to raise error
+        with patch.object(cache, '_get_db_cache', side_effect=Exception("DB error")):
+            # Should not raise exception
+            result = cache.get("test_key")
+            assert result is None
+
+    def test_invalidate_db_cache_error(self):
+        """Test ThreeLevelCache handles database cache invalidate errors"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        cache._db_available = True
+        
+        # Mock _invalidate_db_cache to raise error
+        with patch.object(cache, '_invalidate_db_cache', side_effect=Exception("DB error")):
+            # Should not raise exception
+            cache.invalidate("test_key")
+
+    def test_clear_db_cache_error(self):
+        """Test ThreeLevelCache handles database cache clear errors"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        cache._db_available = True
+        
+        # Mock _clear_db_cache to raise error
+        with patch.object(cache, '_clear_db_cache', side_effect=Exception("DB error")):
+            # Should not raise exception
+            cache.clear()
+
+    def test_get_stats_redis_error(self):
+        """Test ThreeLevelCache handles Redis stats errors"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        cache._redis_available = True
+        cache._redis_client = MagicMock()
+        cache._redis_client.keys.side_effect = Exception("Redis error")
+        
+        # Should not raise exception
+        stats = cache.get_stats()
+        assert "memory_cache" in stats
+
+    def test_redis_get_promotion_to_memory(self):
+        """Test that Redis cache promotes to memory cache on hit"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        cache._redis_available = True
+        cache._redis_client = MagicMock()
+        cache._redis_client.get.return_value = '{"data": "from_redis"}'
+        
+        result = cache.get("test_key")
+        assert result == {"data": "from_redis"}
+        # Should be promoted to memory cache
+        memory_result = cache._memory_cache.get("test_key")
+        assert memory_result == {"data": "from_redis"}
+
+
+
+
 class TestIntelligentCacheWarmer:
     """Test suite for IntelligentCacheWarmer class"""
 
@@ -1132,3 +1273,43 @@ class TestIntelligentCacheWarmer:
         warmer.register("test_func", warm_func)
         result = await warmer.warm("test_func", limit=10, offset=20)
         assert result == {"limit": 10, "offset": 20}
+
+    @pytest.mark.asyncio
+    async def test_warm_with_prediction_calculates_ttl(self):
+        """Test that warm_with_prediction calculates and sets TTL based on prediction"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        warmer = IntelligentCacheWarmer(cache)
+
+        async def warm_func():
+            return {"data": "warmed"}
+
+        warmer.register("test_func", warm_func)
+        
+        # Record some access pattern to enable prediction
+        for _ in range(5):
+            warmer.record_access("test_func")
+            import asyncio
+            await asyncio.sleep(0.01)
+        
+        result = await warmer.warm_with_prediction("test_func")
+        assert result == {"data": "warmed"}
+
+    @pytest.mark.asyncio
+    async def test_warm_with_prediction_clamps_ttl(self):
+        """Test that predicted TTL is clamped between 60 and 3600 seconds"""
+        cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
+        warmer = IntelligentCacheWarmer(cache)
+
+        async def warm_func():
+            return {"data": "warmed"}
+
+        warmer.register("test_func", warm_func)
+        
+        # Record access pattern with very short intervals
+        for _ in range(5):
+            warmer.record_access("test_func")
+            import asyncio
+            await asyncio.sleep(0.001)
+        
+        result = await warmer.warm_with_prediction("test_func")
+        assert result == {"data": "warmed"}
