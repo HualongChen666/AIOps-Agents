@@ -1,97 +1,29 @@
 [run]
-source =
-    aiops_agent
-    api
-    apply_mypy_ignores
-    config
-    config_env
-    core
-    docs
-    examples
-    extensions
-    gateway
-    gen_badge
-    infrastructure
-    main
-    modules
-    scripts
-    sdk
-    services
-    sitecustomize
-    start
-
+source = core
 omit =
-    */.venv/*
-    */__init__.py
-    */__pycache__/*
-    */alembic/*
-    */conftest.py
-    */env/*
-    */migrations/*
-    */mock_manager.py
-    */site-packages/*
-    */test_*.py
     */tests/*
+    */__init__.py
+    */conftest.py
+    */migrations/*
     */venv/*
     */virtualenv/*
-    scripts/*
-    scripts/*/*
-    scripts/*/*/*
-    */scripts/*
-    */scripts/*/*
-    */scripts/*/*/*
-    scripts\*
-    *\scripts\*
-    setup.py
-    *.bak
-    *.backup
-
-branch = True
-parallel = True
-data_file = .coverage
-
+    */node_modules/*
+    */.pytest_cache/*
+    */.tox/*
+    */dist/*
+    */build/*
+    */.eggs/*
+    
 [report]
-precision = 2
-show_missing = True
-skip_empty = True
-sort = Cover
 exclude_lines =
     pragma: no cover
-
     def __repr__
-    def __str__
     raise AssertionError
     raise NotImplementedError
     if __name__ == .__main__.:
     if TYPE_CHECKING:
-    if MYPY:
-
     @abstractmethod
     @abc.abstractmethod
-
-    : typing.
-    from typing import
-
-    assert False
-    assert debug
-
-    except ImportError:
-    except Exception:
-
-    class Test
-    def test_
-
+    
 [html]
 directory = htmlcov
-title = AIOps Agent Coverage Report
-
-[xml]
-output = coverage.xml
-
-[json]
-output = coverage.json
-
-[paths]
-source =
-    core/
-    */core/
