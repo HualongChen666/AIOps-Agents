@@ -90,15 +90,39 @@ export default function AICopilotPage() {
       };
 
       setMessages((prev) => [...prev, aiResponse]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI analysis failed:', error);
-      const errorMessage: Message = {
+
+      // 🔧 提供详细的错误信息用于调试
+      let errorMessage = '抱歉，AI 分析服务暂时不可用。';
+      let errorDetails = '';
+
+      if (error?.response) {
+        errorDetails = `状态码: ${error.response.status}\n`;
+        if (error.response.data) {
+          errorDetails += `响应数据: ${JSON.stringify(error.response.data, null, 2)}\n`;
+        }
+      } else if (error?.request) {
+        errorDetails = '请求已发送但没有收到响应\n';
+      } else {
+        errorDetails = `错误信息: ${error?.message || '未知错误'}\n`;
+      }
+
+      if (error?.response?.status === 500) {
+        errorMessage = 'AI 服务配置错误：请检查后端是否配置了 AI_API_KEY (MiniMax) 或 OPENAI_API_KEY 环境变量。';
+      } else if (error?.response?.status === 401) {
+        errorMessage = 'AI 服务认证失败：请检查 API Key 配置是否正确。';
+      } else if (error?.code === 'ECONNREFUSED') {
+        errorMessage = '无法连接到 AI 服务：请确认后端服务正在运行。';
+      }
+
+      const errorResponse: Message = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: '抱歉，AI 分析失败，请稍后重试。',
+        content: errorMessage + '\n\n调试信息:\n' + errorDetails + '\n\n如需启用 AI 功能，请在后端 .env 文件中配置：\n• AI_API_KEY=your_minimax_key_here (MiniMax)\n• OPENAI_API_KEY=your_openai_key_here (OpenAI)\n• ANTHROPIC_API_KEY=your_anthropic_key_here (Anthropic)',
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorResponse]);
     } finally {
       setIsTyping(false);
     }

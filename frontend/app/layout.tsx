@@ -33,14 +33,14 @@ function useAuthGuard() {
 
 function LoadingShell() {
   return (
-    <html lang="zh-CN" className="dark">
+    <html lang="zh-CN">
       <head>
         <title>AIOps Agent 控制台</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className="h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] flex items-center justify-center">
+      <body className="h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-gray-900 flex items-center justify-center">
         <div className="loading-spinner"></div>
-        <div className="ml-3 text-sm text-[var(--text-secondary)]">加载中...</div>
+        <div className="ml-3 text-base text-gray-600 font-medium">加载中...</div>
       </body>
     </html>
   );
@@ -64,17 +64,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <html lang="zh-CN" className="dark">
+    <html lang="zh-CN">
       <head>
         <title>AIOps Agent 控制台</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className="h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <body className="h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-gray-900">
         <Providers>
           <ErrorBoundary>
             {isPublic ? (
               <div className="flex h-full">
-                <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--bg-primary)] w-full">
+                <main className="flex-1 h-full overflow-y-auto main-scroll bg-gray-50 w-full">
                   <div className="min-h-full p-8">
                     {children}
                   </div>
@@ -85,7 +85,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <TopBar />
                 <div className="flex flex-1 overflow-hidden">
                   <SideNav />
-                  <main className="flex-1 h-full overflow-y-auto main-scroll bg-[var(--bg-primary)]">
+                  <main className="flex-1 h-full overflow-y-auto main-scroll bg-gray-50">
                     <div className="min-h-full p-8">
                       {children}
                     </div>

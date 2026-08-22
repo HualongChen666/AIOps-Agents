@@ -259,6 +259,12 @@ def _build_context_summary(rich_context: Optional[dict[str, Any]]) -> dict[str, 
     }
 
 
+@router.get("/test", summary="AI服务测试")
+async def ai_test() -> dict[str, str]:
+    """测试AI服务是否正常工作"""
+    return {"status": "ok", "message": "AI服务运行正常"}
+
+
 @router.post(
     "/analyze",
     summary="AI 根因分析(🔧 M-1 富上下文增强)",
