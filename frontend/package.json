@@ -5,7 +5,18 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "node --max-old-space-size=4096 node_modules/.bin/jest --coverage",
+    "test:coverage:modules": "node test-coverage-modules.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:visual": "playwright test --config=playwright.config.ts",
+    "test:visual:ui": "playwright test --config=playwright.config.ts --ui",
+    "test:visual:headed": "playwright test --config=playwright.config.ts --headed",
+    "test:visual:update": "playwright test --config=playwright.config.ts --update-snapshots",
+    "test:visual:report": "playwright show-report test-results/visual"
   },
   "dependencies": {
     "@antv/g6": "4.8.24",
@@ -28,12 +39,26 @@
     "zustand": "^4.5.1"
   },
   "devDependencies": {
+    "@axe-core/react": "^4.13.0",
+    "@jest/reporters": "^30.4.1",
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "20.14.2",
     "@types/react": "18.3.3",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
+    "@vitest/ui": "^4.1.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.2",
-    "typescript": "5.5.4"
+    "jest": "^30.4.2",
+    "jest-axe": "^11.0.0",
+    "jest-environment-jsdom": "^30.4.1",
+    "msw": "^2.15.0",
+    "typescript": "5.5.4",
+    "vitest": "^4.1.11",
+    "whatwg-fetch": "^3.6.20"
   }
 }

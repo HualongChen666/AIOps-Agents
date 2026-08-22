@@ -80,7 +80,7 @@ export function Form({ initialValues, onSubmit, validation, children }: FormProp
         reset,
       }}
     >
-      <form onSubmit={handleSubmit}>{children}</form>
+      <form onSubmit={handleSubmit} role="form">{children}</form>
     </FormContext.Provider>
   );
 }
