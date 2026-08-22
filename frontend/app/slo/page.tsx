@@ -1,21 +1,18 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Select } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { EnhancedModal } from '@/components/ui/EnhancedModal';
+import { KpiCard } from '@/components/ui/KpiCard';
+import { DataTable } from '@/components/ui/DataTable';
+import { GaugeChart } from '@/components/charts/GaugeChart';
+import { Target, TrendingUp, AlertTriangle, Plus, RefreshCw, FileText, Trash2, Edit } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLoadingState, useToast } from '@/hooks/useEnhancements';
+import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
 
 interface SLO {
   id: string;
@@ -27,409 +24,446 @@ interface SLO {
   window: string;
   errorBudget: number;
   burnRate: number;
-  status: 'healthy' | 'warning' | 'critical';
+  status: string;
   aggregation?: string;
 }
 
 interface SLAReport {
   id: string;
-  slo_id: string;
-  slo_name: string;
   service: string;
-  metric: string;
   period: string;
-  availability: number;
-  slaTarget: number;
-  compliance: 'compliant' | 'non-compliant';
-  incidents: number;
-  aggregation: string;
-  created_at: string;
+  compliance: number;
+  violations: number;
+  generated_at: string;
 }
-
-interface AuthUser {
-  role: string;
-  permissions?: string[];
-}
-
-const emptyForm = { name: '', service: '', metric: '', target: 99.9, window: '30d', alert_threshold: 99.0, aggregation: 'good_ratio' };
 
 export default function SLOPage() {
-  const [slos, setSlos] = useState<SLO[]>([]);
-  const [reports, setReports] = useState<SLAReport[]>([]);
-  const [period, setPeriod] = useState('30d');
-  const [loading, setLoading] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [selectedSLO, setSelectedSLO] = useState<SLO | null>(null);
-  const [selectedReport, setSelectedReport] = useState<SLAReport | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    service: '',
+    metric: '',
+    target: 99.9,
+    window: '30d',
+    alert_threshold: 95,
+    aggregation: 'good_ratio',
+  });
 
-  const loadSlos = async () => {
-    try {
-      const resp = await api.get<{ slos: SLO[] }>('/api/v1/slo/');
-      setSlos(resp.data?.slos || []);
-    } catch (err) {
-      console.error('加载 SLO 失败', err);
-    }
-  };
+  const queryClient = useQueryClient();
 
-  const loadReports = async () => {
-    try {
-      const resp = await api.get<{ reports: SLAReport[] }>('/api/v1/slo/reports');
-      setReports(resp.data?.reports || []);
-    } catch (err) {
-      console.error('加载 SLA 报告失败', err);
-    }
-  };
+  // 🔧 获取SLO列表
+  const { data: sloData, isLoading: sloLoading, error: sloError, refetch: refetchSLO } = useQuery<{ slos: SLO[] }>({
+    queryKey: ['slo-list'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/slo/');
+      return resp.data;
+    },
+    refetchInterval: 60000, // 60秒刷新
+  });
 
-  const loadUser = async () => {
-    try {
-      const resp = await api.get<AuthUser>('/api/v1/auth/me');
-      setUser(resp.data);
-    } catch (err) {
-      console.error('加载用户信息失败', err);
-    }
-  };
+  // 🔧 获取SLA报告
+  const { data: reportData, isLoading: reportLoading, refetch: refetchReports } = useQuery<{ reports: SLAReport[] }>({
+    queryKey: ['slo-reports'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/slo/reports');
+      return resp.data;
+    },
+    refetchInterval: 300000, // 5分钟刷新
+  });
 
-  const refreshReports = async () => {
-    setLoading(true);
-    try {
-      await api.post(`/api/v1/slo/reports?period=${period}`);
-      await loadReports();
-    } catch (err) {
-      console.error('生成 SLA 报告失败', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 🔧 创建SLO
+  const createSLOMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const resp = await api.post('/api/v1/slo/', data);
+      return resp.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['slo-list'] });
+      setShowCreateModal(false);
+      showSuccess('SLO创建成功');
+    },
+    onError: () => {
+      showError('SLO创建失败');
+    },
+  });
 
-  const deleteReport = async (id: string) => {
-    if (!window.confirm('确定删除这条 SLA 报告吗？')) return;
-    try {
-      await api.delete(`/api/v1/slo/reports/${id}`);
-      await loadReports();
-    } catch (err) {
-      console.error('删除 SLA 报告失败', err);
-    }
-  };
+  // 🔧 删除SLO
+  const deleteSLOMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const resp = await api.delete(`/api/v1/slo/${id}`);
+      return resp.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['slo-list'] });
+      showSuccess('SLO删除成功');
+    },
+    onError: () => {
+      showError('SLO删除失败');
+    },
+  });
 
+  // 🔧 生成SLA报告
+  const generateReportMutation = useMutation({
+    mutationFn: async (period: string) => {
+      const resp = await api.post('/api/v1/slo/reports', null, { params: { period } });
+      return resp.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['slo-reports'] });
+      setShowReportModal(false);
+      showSuccess('SLA报告生成成功');
+    },
+    onError: () => {
+      showError('SLA报告生成失败');
+    },
+  });
+
+  // 🔧 P1 Integration: Use enhanced loading state
+  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(sloLoading || reportLoading);
+
+  // 🔧 P1 Integration: Use toast notifications
+  const toast = useToast();
+  const showSuccess = toast.success;
+  const showError = toast.error;
+
+  // 🔧 P1 Integration: Handle errors with toast
   useEffect(() => {
-    loadSlos();
-    loadReports();
-    loadUser();
-  }, []);
+    if (sloError) {
+      showError('Failed to load SLO data');
+      setPageError(sloError as Error);
+    }
+  }, [sloError, showError, setPageError]);
 
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(emptyForm);
-    setDialogOpen(true);
+  const slos = sloData?.slos || [];
+  const reports = reportData?.reports || [];
+
+  const sloColumns = [
+    { key: 'name' as const, label: '名称' },
+    { key: 'service' as const, label: '服务' },
+    { key: 'metric' as const, label: '指标' },
+    { key: 'target' as const, label: '目标', render: (value: number) => `${value.toFixed(2)}%` },
+    { key: 'current' as const, label: '当前', render: (value: number) => `${value.toFixed(2)}%` },
+    { key: 'errorBudget' as const, label: '错误预算', render: (value: number) => `${value.toFixed(2)}%` },
+    { key: 'status' as const, label: '状态' },
+  ];
+
+  const reportColumns = [
+    { key: 'service' as const, label: '服务' },
+    { key: 'period' as const, label: '周期' },
+    { key: 'compliance' as const, label: '合规率', render: (value: number) => `${value.toFixed(2)}%` },
+    { key: 'violations' as const, label: '违规次数' },
+    { key: 'generated_at' as const, label: '生成时间', render: (value: string) => new Date(value).toLocaleString() },
+  ];
+
+  const handleCreateSLO = () => {
+    createSLOMutation.mutate(formData);
   };
 
-  const openEdit = (slo: SLO) => {
-    setEditingId(slo.id);
-    setForm({
-      name: slo.name,
-      service: slo.service,
-      metric: slo.metric,
-      target: slo.target,
-      window: slo.window,
-      alert_threshold: Math.round((slo.target - (slo.target - 99.0)) * 100) / 100,
-      aggregation: slo.aggregation || 'good_ratio',
-    });
-    setDialogOpen(true);
-  };
-
-  const saveSLO = async () => {
-    const payload = {
-      name: form.name,
-      service: form.service,
-      metric: form.metric,
-      target: form.target,
-      window: form.window,
-      alert_threshold: form.alert_threshold,
-      aggregation: form.aggregation,
-    };
-    try {
-      if (editingId) {
-        await api.put(`/api/v1/slo/${editingId}`, payload);
-      } else {
-        await api.post('/api/v1/slo/', payload);
-      }
-      setDialogOpen(false);
-      await loadSlos();
-      await loadReports();
-    } catch (err) {
-      console.error('保存 SLO 失败', err);
+  const handleDeleteSLO = (id: string) => {
+    if (confirm('确定要删除这个SLO吗？')) {
+      deleteSLOMutation.mutate(id);
     }
   };
 
-  const deleteSLO = async (id: string) => {
-    if (!window.confirm(`确定删除 SLO ${id} 吗？`)) return;
-    try {
-      await api.delete(`/api/v1/slo/${id}`);
-      if (selectedSLO?.id === id) setSelectedSLO(null);
-      await loadSlos();
-      await loadReports();
-    } catch (err) {
-      console.error('删除 SLO 失败', err);
-    }
+  const handleGenerateReport = (period: string) => {
+    generateReportMutation.mutate(period);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'healthy': return 'bg-green-100 text-green-800';
-      case 'warning': return 'bg-yellow-100 text-yellow-800';
-      case 'critical': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  // 🔧 P1 Integration: Use enhanced loading and empty states
+  if (pageLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
-  const getBurnRateColor = (rate: number) => {
-    if (rate < 1) return 'text-green-600';
-    if (rate < 2) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+  if (pageError) {
+    return (
+      <ErrorBoundary fallback={
+        <EmptyState
+          title="加载失败"
+          description="无法加载SLO数据，请稍后重试"
+          action={<Button onClick={() => refetchSLO()}>重试</Button>}
+        />
+      }>
+        <EmptyState
+          title="加载失败"
+          description={pageError.message}
+          action={<Button onClick={() => refetchSLO()}>重试</Button>}
+        />
+      </ErrorBoundary>
+    );
+  }
 
-  const isPrivileged = user?.role === 'admin' || user?.role === 'operator';
-  const canEdit = (service: string) =>
-    isPrivileged ||
-    (user?.role === 'business' && user?.permissions?.includes(service));
-  const canEditAny = () =>
-    isPrivileged ||
-    (user?.role === 'business' && (user?.permissions?.length ?? 0) > 0);
+  const avgCompliance = slos.length > 0 ? slos.reduce((sum, slo) => sum + slo.current, 0) / slos.length : 0;
+  const criticalSLOs = slos.filter((slo) => slo.status === 'critical').length;
+  const totalBudget = slos.reduce((sum, slo) => sum + slo.errorBudget, 0);
 
   return (
-    <main className="p-6 space-y-6 bg-gray-100 min-h-screen">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">SLO/SLA 管理</h1>
-        {canEditAny() && <Button onClick={openCreate}>创建 SLO</Button>}
+        <div className="flex items-center gap-3">
+          <Target className="h-8 w-8 text-[var(--accent-cyan)]" />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">SLO管理</h1>
+            <p className="text-sm text-gray-500">服务级别目标管理和SLA合规监控</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => refetchSLO()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            刷新
+          </Button>
+          <Button onClick={() => setShowReportModal(true)} variant="outline">
+            <FileText className="h-4 w-4 mr-2" />
+            生成报告
+          </Button>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            创建SLO
+          </Button>
+        </div>
       </div>
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3">SLO 概览</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {slos.map((slo) => (
-            <Card key={slo.id} className={selectedSLO?.id === slo.id ? 'ring-2 ring-blue-500' : ''}>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span>{slo.name}</span>
-                  <Badge className={getStatusColor(slo.status)}>
-                    {slo.status === 'healthy' ? '健康' : slo.status === 'warning' ? '警告' : '严重'}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold">{slo.current.toFixed(2)}%</span>
-                  <span className="text-sm text-gray-500">/ 目标 {slo.target}%</span>
-                </div>
-                <Progress value={(slo.current / slo.target) * 100} />
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">错误预算</span>
-                  <span className="font-medium">{slo.errorBudget}% 剩余</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">烧毁率</span>
-                  <span className={`font-medium ${getBurnRateColor(slo.burnRate)}`}>
-                    {slo.burnRate.toFixed(1)}x
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setSelectedSLO(slo)}>详情</Button>
-                  {canEdit(slo.service) && (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => openEdit(slo)}>编辑</Button>
-                      <Button variant="outline" size="sm" onClick={() => deleteSLO(slo.id)}>删除</Button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {slos.length === 0 && <p className="text-gray-500">暂无 SLO</p>}
-        </div>
-      </section>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <KpiCard
+          title="平均合规率"
+          value={avgCompliance.toFixed(2)}
+          unit="%"
+          icon={Target}
+          level={avgCompliance < 95 ? 'critical' : avgCompliance < 99 ? 'warning' : 'normal'}
+          description="所有SLO的平均合规率"
+        />
+        <KpiCard
+          title="关键SLO"
+          value={criticalSLOs}
+          icon={AlertTriangle}
+          level={criticalSLOs > 0 ? 'critical' : 'normal'}
+          description="状态为critical的SLO数量"
+        />
+        <KpiCard
+          title="总错误预算"
+          value={totalBudget.toFixed(2)}
+          unit="%"
+          icon={TrendingUp}
+          level={totalBudget < 50 ? 'critical' : totalBudget < 80 ? 'warning' : 'normal'}
+          description="所有SLO的错误预算总和"
+        />
+      </div>
 
-      {selectedSLO && (
-        <Card>
-          <CardHeader><CardTitle>{selectedSLO.name} 详情</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div><span className="text-gray-500">服务</span><div>{selectedSLO.service}</div></div>
-            <div><span className="text-gray-500">指标</span><div>{selectedSLO.metric}</div></div>
-            <div><span className="text-gray-500">窗口</span><div>{selectedSLO.window}</div></div>
-            <div><span className="text-gray-500">状态</span><div>{selectedSLO.status}</div></div>
-          </CardContent>
-        </Card>
-      )}
-
+      {/* SLO List */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>SLO 列表</CardTitle>
-            <div className="flex gap-2">
-              <Select value={period} onChange={(e) => setPeriod(e.target.value)}>
-                <option value="7d">最近 7 天</option>
-                <option value="30d">最近 30 天</option>
-                <option value="90d">最近 90 天</option>
-              </Select>
-              {canEditAny() && (
-                <Button variant="outline" size="sm" onClick={refreshReports} disabled={loading}>
-                  {loading ? '生成中...' : '生成 SLA 报告'}
-                </Button>
-              )}
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            SLO列表
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>名称</TableHead>
-                <TableHead>服务</TableHead>
-                <TableHead>指标</TableHead>
-                <TableHead>目标</TableHead>
-                <TableHead>当前值</TableHead>
-                <TableHead>窗口</TableHead>
-                <TableHead>聚合</TableHead>
-                <TableHead>状态</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {slos.map((slo) => (
-                <TableRow key={slo.id}>
-                  <TableCell className="font-mono text-sm">{slo.id}</TableCell>
-                  <TableCell className="font-medium">{slo.name}</TableCell>
-                  <TableCell>{slo.service}</TableCell>
-                  <TableCell>{slo.metric}</TableCell>
-                  <TableCell>{slo.target}%</TableCell>
-                  <TableCell className={slo.current >= slo.target ? 'text-green-600' : 'text-red-600'}>
-                    {slo.current.toFixed(2)}%
-                  </TableCell>
-                  <TableCell>{slo.window}</TableCell>
-                  <TableCell>{slo.aggregation || 'good_ratio'}</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(slo.status)}>
-                      {slo.status === 'healthy' ? '健康' : slo.status === 'warning' ? '警告' : '严重'}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>SLA 合规报告</CardTitle></CardHeader>
-        <CardContent>
-          {reports.length === 0 ? (
-            <p className="text-gray-500">暂无报告，请点“生成 SLA 报告”</p>
+          {slos.length === 0 ? (
+            <EmptyState
+              title="暂无SLO"
+              description="当前没有配置的SLO规则"
+              action={<Button onClick={() => setShowCreateModal(true)}>创建第一个SLO</Button>}
+            />
           ) : (
-            <div className="space-y-3">
-              {reports.map((r) => (
-                <div key={r.id} className="p-4 border rounded-lg flex justify-between items-center">
-                  <div>
-                    <div className="font-medium">{r.slo_name || r.service} <span className="text-gray-400">({r.period})</span></div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(r.created_at).toLocaleString()} · 周期: {r.period} · 事件数: {r.incidents} · 聚合: {r.aggregation}
-                    </div>
-                  </div>
-                  <div className="text-right flex items-center gap-2">
-                    <div>
-                      <div className="text-lg font-bold">{r.availability}% / {r.slaTarget}%</div>
-                      <Badge className={r.compliance === 'compliant' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                        {r.compliance === 'compliant' ? '合规' : '不合规'}
-                      </Badge>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedReport(r)}>详情</Button>
-                    {canEdit(r.service) && (
-                      <Button variant="outline" size="sm" onClick={() => deleteReport(r.id)}>删除</Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DataTable
+              data={slos}
+              columns={sloColumns}
+              pageSize={10}
+              emptyMessage="暂无SLO"
+              onRowClick={(slo) => setSelectedSLO(slo)}
+            />
           )}
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingId ? '编辑 SLO' : '创建 SLO'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">名称</label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">服务</label>
-              <Input value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">指标</label>
-              <Input value={form.metric} onChange={(e) => setForm({ ...form, metric: e.target.value })} placeholder="cpu / memory / availability" />
-            </div>
+      {/* SLO Detail Modal */}
+      {selectedSLO && (
+        <EnhancedModal
+          open={!!selectedSLO}
+          onOpenChange={(open) => !open && setSelectedSLO(null)}
+          title={selectedSLO.name}
+          size="lg"
+        >
+          <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">目标 (%)</label>
-                <Input type="number" step="0.01" value={form.target} onChange={(e) => setForm({ ...form, target: parseFloat(e.target.value) })} />
+                <label className="text-sm font-medium text-gray-700">服务</label>
+                <p className="text-gray-900">{selectedSLO.service}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">窗口</label>
-                <Select value={form.window} onChange={(e) => setForm({ ...form, window: e.target.value })}>
-                  <option value="1h">1 小时</option>
-                  <option value="24h">24 小时</option>
-                  <option value="7d">7 天</option>
-                  <option value="30d">30 天</option>
-                  <option value="90d">90 天</option>
-                </Select>
+                <label className="text-sm font-medium text-gray-700">指标</label>
+                <p className="text-gray-900">{selectedSLO.metric}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">目标</label>
+                <p className="text-gray-900">{selectedSLO.target.toFixed(2)}%</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">当前</label>
+                <p className="text-gray-900">{selectedSLO.current.toFixed(2)}%</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">错误预算</label>
+                <p className="text-gray-900">{selectedSLO.errorBudget.toFixed(2)}%</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">燃烧率</label>
+                <p className="text-gray-900">{selectedSLO.burnRate.toFixed(2)}x</p>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">聚合方式</label>
-              <Select value={form.aggregation} onChange={(e) => setForm({ ...form, aggregation: e.target.value })}>
-                <option value="good_ratio">达标比例</option>
-                <option value="uptime">运行时长</option>
-                <option value="p99_lt">P99 小于目标</option>
-                <option value="mean_lt">均值小于目标</option>
-              </Select>
+            <GaugeChart
+              value={selectedSLO.current}
+              min={0}
+              max={100}
+              title="当前合规率"
+              color={selectedSLO.status === 'critical' ? '#ef4444' : selectedSLO.status === 'warning' ? '#f59e0b' : '#10b981'}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => handleDeleteSLO(selectedSLO.id)}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                删除
+              </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
-            <Button onClick={saveSLO} disabled={!form.name || !form.service || !form.metric}>保存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </EnhancedModal>
+      )}
 
-      <Dialog open={!!selectedReport} onOpenChange={(open) => { if (!open) setSelectedReport(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>SLA 报告详情</DialogTitle>
-          </DialogHeader>
-          {selectedReport && (
-            <div className="space-y-2 text-sm">
-              <div><span className="text-gray-500">SLO:</span> {selectedReport.slo_name} ({selectedReport.slo_id})</div>
-              <div><span className="text-gray-500">服务:</span> {selectedReport.service}</div>
-              <div><span className="text-gray-500">指标:</span> {selectedReport.metric}</div>
-              <div><span className="text-gray-500">周期:</span> {selectedReport.period}</div>
-              <div><span className="text-gray-500">聚合:</span> {selectedReport.aggregation}</div>
-              <div><span className="text-gray-500">可用性:</span> {selectedReport.availability}%</div>
-              <div><span className="text-gray-500">目标:</span> {selectedReport.slaTarget}%</div>
-              <div><span className="text-gray-500">合规:</span> {selectedReport.compliance === 'compliant' ? '合规' : '不合规'}</div>
-              <div><span className="text-gray-500">事件数:</span> {selectedReport.incidents}</div>
-              <div><span className="text-gray-500">生成时间:</span> {new Date(selectedReport.created_at).toLocaleString()}</div>
-            </div>
+      {/* Create SLO Modal */}
+      <EnhancedModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+        title="创建SLO"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">名称</label>
+            <Input
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="SLO名称"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">服务</label>
+            <Input
+              value={formData.service}
+              onChange={(e) => setFormData({ ...formData, service: e.target.value })}
+              placeholder="服务名称"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">指标</label>
+            <Input
+              value={formData.metric}
+              onChange={(e) => setFormData({ ...formData, metric: e.target.value })}
+              placeholder="指标名称"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">目标 (%)</label>
+            <Input
+              type="number"
+              value={formData.target}
+              onChange={(e) => setFormData({ ...formData, target: Number(e.target.value) })}
+              placeholder="99.9"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">时间窗口</label>
+            <select
+              value={formData.window}
+              onChange={(e) => setFormData({ ...formData, window: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md bg-white"
+            >
+              <option value="1h">1小时</option>
+              <option value="24h">24小时</option>
+              <option value="7d">7天</option>
+              <option value="30d">30天</option>
+              <option value="90d">90天</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">告警阈值 (%)</label>
+            <Input
+              type="number"
+              value={formData.alert_threshold}
+              onChange={(e) => setFormData({ ...formData, alert_threshold: Number(e.target.value) })}
+              placeholder="95"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreateSLO} disabled={createSLOMutation.isPending}>
+              {createSLOMutation.isPending ? '创建中...' : '创建'}
+            </Button>
+          </div>
+        </div>
+      </EnhancedModal>
+
+      {/* Generate Report Modal */}
+      <EnhancedModal
+        open={showReportModal}
+        onOpenChange={setShowReportModal}
+        title="生成SLA报告"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">报告周期</label>
+            <select
+              value="30d"
+              onChange={(e) => handleGenerateReport((e.target as HTMLSelectElement).value)}
+              className="w-full px-3 py-2 border rounded-md bg-white"
+            >
+              <option value="7d">7天</option>
+              <option value="30d">30天</option>
+              <option value="90d">90天</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowReportModal(false)}>
+              取消
+            </Button>
+            <Button onClick={() => handleGenerateReport('30d')} disabled={generateReportMutation.isPending}>
+              {generateReportMutation.isPending ? '生成中...' : '生成'}
+            </Button>
+          </div>
+        </div>
+      </EnhancedModal>
+
+      {/* SLA Reports */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            SLA报告
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {reports.length === 0 ? (
+            <EmptyState
+              title="暂无SLA报告"
+              description="当前没有生成的SLA合规报告"
+            />
+          ) : (
+            <DataTable
+              data={reports}
+              columns={reportColumns}
+              pageSize={10}
+              emptyMessage="暂无SLA报告"
+            />
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedReport(null)}>关闭</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </main>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
