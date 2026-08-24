@@ -11,6 +11,10 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+// 导入完整的导航配置
+export { getCompleteNavGroups } from './nav-complete';
+
+// 保留原有的简化导航作为默认（向后兼容）
 export function getNavGroups(locale: Locale): NavGroup[] {
   const t = (key: string) => translate(locale, key);
 

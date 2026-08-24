@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { getNavGroups } from '@/lib/nav';
+import { getNavGroups, getCompleteNavGroups } from '@/lib/nav';
 import { logout } from '@/lib/api';
 import { useI18n, useLocale } from '@/lib/i18n';
 
@@ -16,7 +16,8 @@ export function SideNav() {
   const pathname = usePathname();
   const { locale } = useLocale();
   const t = useI18n();
-  const navGroups = useMemo(() => getNavGroups(locale), [locale]);
+  // 使用完整导航配置（覆盖500+功能）
+  const navGroups = useMemo(() => getCompleteNavGroups(locale), [locale]);
   const [user, setUser] = useState<UserInfo | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
@@ -84,8 +85,8 @@ export function SideNav() {
                       key={item.href}
                       href={item.href}
                       className={`flex items-center px-3 py-2 rounded-md text-sm transition-colors border-l-4 -ml-[10px] pl-[18px] ${isActive(item.href)
-                          ? 'bg-[var(--dds-slate-70)] text-white border-[var(--dds-blue-60)]'
-                          : 'border-transparent text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white'
+                        ? 'bg-[var(--dds-slate-70)] text-white border-[var(--dds-blue-60)]'
+                        : 'border-transparent text-[var(--dds-slate-20)] hover:bg-[var(--dds-slate-70)] hover:text-white'
                         }`}
                     >
                       {item.label}
