@@ -1,0 +1,31 @@
+{
+  "id": "09a716b9-0b4b-47ce-b2f3-32dd8d9c7170",
+  "name": "Integration Source 9d97d2e5",
+  "type": "dev",
+  "config": {
+    "app_version": "1.0.0",
+    "feature_flags": "new_ui",
+    "test_key": "test_value"
+  },
+  "description": "Source environment for integration test",
+  "status": "active",
+  "created_at": 1787651281,
+  "updated_at": 1787651342,
+  "variables": {
+    "DEPLOY_KEY": {
+      "value": "deploy-secret",
+      "is_secret": true,
+      "updated_at": 1787651281
+    },
+    "API_ENDPOINT": {
+      "value": "https://api.example.com",
+      "is_secret": false,
+      "updated_at": 1787651281
+    },
+    "SYNC_VAR": {
+      "value": "sync_value",
+      "is_secret": false,
+      "updated_at": 1787651342
+    }
+  }
+}

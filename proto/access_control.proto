@@ -1,0 +1,296 @@
+syntax = "proto3";
+
+package access_control;
+
+// Access Control Service gRPC Service Definition
+
+// Permission
+message Permission {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string resource_type = 4;
+  repeated string actions = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+}
+
+// Role
+message Role {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string permission_ids = 4;
+  repeated string inherited_role_ids = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+}
+
+// Policy
+message Policy {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool enabled = 4;
+  string effect = 5;  // allow, deny
+  map<string, string> subject_conditions = 6;
+  map<string, string> resource_conditions = 7;
+  map<string, string> environment_conditions = 8;
+  repeated string actions = 9;
+  int32 priority = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+// Access request
+message AccessRequest {
+  string subject_id = 1;
+  string subject_type = 2;  // user, service, system
+  map<string, string> subject_attributes = 3;
+  repeated string subject_roles = 4;
+  repeated string subject_groups = 5;
+  
+  string resource_id = 6;
+  string resource_type = 7;
+  map<string, string> resource_attributes = 8;
+  string resource_owner = 9;
+  
+  string action = 10;  // read, write, delete, execute, admin
+  
+  map<string, string> environment_attributes = 11;
+}
+
+// Access decision
+message AccessDecision {
+  bool allowed = 1;
+  string decision_type = 2;  // rbac, abac, combined
+  string reason = 3;
+  repeated string matched_policies = 4;
+  repeated string matched_roles = 5;
+  int64 evaluated_at = 6;
+}
+
+// Audit log entry
+message AuditLog {
+  string id = 1;
+  string subject_id = 2;
+  string resource_id = 3;
+  string action = 4;
+  bool allowed = 5;
+  string decision_type = 6;
+  string reason = 7;
+  map<string, string> metadata = 8;
+  int64 timestamp = 9;
+}
+
+// Request messages
+message CheckPermissionRequest {
+  AccessRequest access_request = 1;
+}
+
+message CheckPermissionResponse {
+  AccessDecision decision = 1;
+}
+
+message CreatePermissionRequest {
+  string name = 1;
+  string description = 2;
+  string resource_type = 3;
+  repeated string actions = 4;
+}
+
+message UpdatePermissionRequest {
+  string permission_id = 1;
+  string name = 2;
+  string description = 3;
+  string resource_type = 4;
+  repeated string actions = 5;
+}
+
+message DeletePermissionRequest {
+  string permission_id = 1;
+}
+
+message GetPermissionRequest {
+  string permission_id = 1;
+}
+
+message ListPermissionsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string resource_type = 3;
+}
+
+message CreateRoleRequest {
+  string name = 1;
+  string description = 2;
+  repeated string permission_ids = 3;
+  repeated string inherited_role_ids = 4;
+}
+
+message UpdateRoleRequest {
+  string role_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string permission_ids = 4;
+  repeated string inherited_role_ids = 5;
+}
+
+message DeleteRoleRequest {
+  string role_id = 1;
+}
+
+message GetRoleRequest {
+  string role_id = 1;
+}
+
+message ListRolesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message AssignRoleRequest {
+  string subject_id = 1;
+  string role_id = 2;
+}
+
+message RevokeRoleRequest {
+  string subject_id = 1;
+  string role_id = 2;
+}
+
+message GetSubjectRolesRequest {
+  string subject_id = 1;
+}
+
+message CreatePolicyRequest {
+  string name = 1;
+  string description = 2;
+  string effect = 3;  // allow, deny
+  map<string, string> subject_conditions = 4;
+  map<string, string> resource_conditions = 5;
+  map<string, string> environment_conditions = 6;
+  repeated string actions = 7;
+  int32 priority = 8;
+}
+
+message UpdatePolicyRequest {
+  string policy_id = 1;
+  string name = 2;
+  string description = 3;
+  bool enabled = 4;
+  string effect = 5;
+  map<string, string> subject_conditions = 6;
+  map<string, string> resource_conditions = 7;
+  map<string, string> environment_conditions = 8;
+  repeated string actions = 9;
+  int32 priority = 10;
+}
+
+message DeletePolicyRequest {
+  string policy_id = 1;
+}
+
+message GetPolicyRequest {
+  string policy_id = 1;
+}
+
+message ListPoliciesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  bool enabled_only = 3;
+}
+
+message GetAuditLogsRequest {
+  string subject_id = 1;
+  string resource_id = 2;
+  int64 start_time = 3;
+  int64 end_time = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+// Response messages
+message PermissionResponse {
+  Permission permission = 1;
+  string message = 2;
+}
+
+message PermissionsResponse {
+  repeated Permission permissions = 1;
+  int32 total = 2;
+}
+
+message RoleResponse {
+  Role role = 1;
+  string message = 2;
+}
+
+message RolesResponse {
+  repeated Role roles = 1;
+  int32 total = 2;
+}
+
+message SubjectRolesResponse {
+  repeated Role roles = 1;
+  repeated string role_ids = 2;
+}
+
+message PolicyResponse {
+  Policy policy = 1;
+  string message = 2;
+}
+
+message PoliciesResponse {
+  repeated Policy policies = 1;
+  int32 total = 2;
+}
+
+message AuditLogsResponse {
+  repeated AuditLog logs = 1;
+  int32 total = 2;
+}
+
+message StatusResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message Empty {
+}
+
+// Access Control Service
+service AccessControlService {
+  // Permission management
+  rpc CreatePermission(CreatePermissionRequest) returns (PermissionResponse);
+  rpc UpdatePermission(UpdatePermissionRequest) returns (PermissionResponse);
+  rpc DeletePermission(DeletePermissionRequest) returns (StatusResponse);
+  rpc GetPermission(GetPermissionRequest) returns (PermissionResponse);
+  rpc ListPermissions(ListPermissionsRequest) returns (PermissionsResponse);
+  
+  // Role management
+  rpc CreateRole(CreateRoleRequest) returns (RoleResponse);
+  rpc UpdateRole(UpdateRoleRequest) returns (RoleResponse);
+  rpc DeleteRole(DeleteRoleRequest) returns (StatusResponse);
+  rpc GetRole(GetRoleRequest) returns (RoleResponse);
+  rpc ListRoles(ListRolesRequest) returns (RolesResponse);
+  rpc AssignRole(AssignRoleRequest) returns (StatusResponse);
+  rpc RevokeRole(RevokeRoleRequest) returns (StatusResponse);
+  rpc GetSubjectRoles(GetSubjectRolesRequest) returns (SubjectRolesResponse);
+  
+  // Policy management (ABAC)
+  rpc CreatePolicy(CreatePolicyRequest) returns (PolicyResponse);
+  rpc UpdatePolicy(UpdatePolicyRequest) returns (PolicyResponse);
+  rpc DeletePolicy(DeletePolicyRequest) returns (StatusResponse);
+  rpc GetPolicy(GetPolicyRequest) returns (PolicyResponse);
+  rpc ListPolicies(ListPoliciesRequest) returns (PoliciesResponse);
+  
+  // Access control
+  rpc CheckPermission(CheckPermissionRequest) returns (CheckPermissionResponse);
+  
+  // Audit logging
+  rpc GetAuditLogs(GetAuditLogsRequest) returns (AuditLogsResponse);
+  
+  // Health check
+  rpc HealthCheck(Empty) returns (StatusResponse);
+}

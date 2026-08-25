@@ -1,0 +1,35 @@
+{
+  "id": "0a214df2-4084-49d5-964e-9fb9c8ad06c1",
+  "name": "Integration Target a442809a",
+  "type": "staging",
+  "config": {
+    "app_version": "1.0.0",
+    "log_level": "DEBUG",
+    "timeout": "90",
+    "max_connections": "200",
+    "new_setting": "value",
+    "test_key": "test_value",
+    "feature_flags": "new_ui"
+  },
+  "description": "Target environment for integration test",
+  "status": "active",
+  "created_at": 1787651219,
+  "updated_at": 1787654746,
+  "variables": {
+    "API_ENDPOINT": {
+      "value": "https://api.example.com",
+      "is_secret": false,
+      "updated_at": 1787651342
+    },
+    "DB_HOST": {
+      "value": "localhost",
+      "is_secret": false,
+      "updated_at": 1787654746
+    },
+    "SYNC_VAR": {
+      "value": "sync_value",
+      "is_secret": false,
+      "updated_at": 1787654746
+    }
+  }
+}

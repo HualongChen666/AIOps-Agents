@@ -1,0 +1,27 @@
+{
+  "id": "db64a1c0-4541-45cf-8927-5df1c4d55504",
+  "name": "Test Environment",
+  "type": "dev",
+  "config": {
+    "log_level": "DEBUG",
+    "timeout": "90",
+    "max_connections": "200",
+    "new_setting": "value"
+  },
+  "description": "A test environment for development",
+  "status": "active",
+  "created_at": 1787651077,
+  "updated_at": 1787651077,
+  "variables": {
+    "API_KEY": {
+      "value": "test-api-key-123",
+      "is_secret": true,
+      "updated_at": 1787651077
+    },
+    "DB_HOST": {
+      "value": "localhost",
+      "is_secret": false,
+      "updated_at": 1787651077
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "1272f699-c4b6-4cd0-a020-a024d8704115",
+  "name": "Integration Target d10c82ab",
+  "type": "staging",
+  "config": {
+    "app_version": "1.0.0",
+    "feature_flags": "new_ui"
+  },
+  "description": "Target environment for integration test",
+  "status": "active",
+  "created_at": 1787651281,
+  "updated_at": 1787651281,
+  "variables": {
+    "API_ENDPOINT": {
+      "value": "https://api.example.com",
+      "is_secret": false,
+      "updated_at": 1787651281
+    }
+  }
+}

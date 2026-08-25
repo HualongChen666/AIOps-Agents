@@ -1,0 +1,218 @@
+[
+  {
+    "alert_id": "alert_check_soc2_change_management_20260825_103928",
+    "rule_id": "soc2_change_management",
+    "rule_name": "SOC 2 Change Management",
+    "severity": "warning",
+    "message": "Compliance violation: SOC 2 Change Management",
+    "framework": "soc2",
+    "triggered_at": "2026-08-25T10:39:30.928436+00:00",
+    "details": {
+      "check_id": "check_soc2_change_management_20260825_103928",
+      "findings": [
+        "Rule SOC 2 Change Management violation detected"
+      ],
+      "recommendations": [
+        "Address SOC 2 Change Management requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:39:28.923804+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_nist_identify_20260825_103929",
+    "rule_id": "nist_identify",
+    "rule_name": "NIST Identify",
+    "severity": "warning",
+    "message": "Compliance violation: NIST Identify",
+    "framework": "nist",
+    "triggered_at": "2026-08-25T10:39:30.928436+00:00",
+    "details": {
+      "check_id": "check_nist_identify_20260825_103929",
+      "findings": [
+        "Rule NIST Identify violation detected"
+      ],
+      "recommendations": [
+        "Address NIST Identify requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:39:30.427013+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_nist_protect_20260825_103930",
+    "rule_id": "nist_protect",
+    "rule_name": "NIST Protect",
+    "severity": "error",
+    "message": "Compliance violation: NIST Protect",
+    "framework": "nist",
+    "triggered_at": "2026-08-25T10:39:30.928436+00:00",
+    "details": {
+      "check_id": "check_nist_protect_20260825_103930",
+      "findings": [
+        "Rule NIST Protect violation detected"
+      ],
+      "recommendations": [
+        "Address NIST Protect requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:39:30.928436+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_gdpr_data_minimization_20260825_104026",
+    "rule_id": "gdpr_data_minimization",
+    "rule_name": "GDPR Data Minimization",
+    "severity": "error",
+    "message": "Compliance violation: GDPR Data Minimization",
+    "framework": "gdpr",
+    "triggered_at": "2026-08-25T10:40:33.537848+00:00",
+    "details": {
+      "check_id": "check_gdpr_data_minimization_20260825_104026",
+      "findings": [
+        "Rule GDPR Data Minimization violation detected"
+      ],
+      "recommendations": [
+        "Address GDPR Data Minimization requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:40:27.454038+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_soc2_access_logging_20260825_104030",
+    "rule_id": "soc2_access_logging",
+    "rule_name": "SOC 2 Access Logging",
+    "severity": "warning",
+    "message": "Compliance violation: SOC 2 Access Logging",
+    "framework": "soc2",
+    "triggered_at": "2026-08-25T10:40:33.538551+00:00",
+    "details": {
+      "check_id": "check_soc2_access_logging_20260825_104030",
+      "findings": [
+        "Rule SOC 2 Access Logging violation detected"
+      ],
+      "recommendations": [
+        "Address SOC 2 Access Logging requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:40:30.997922+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_gdpr_data_minimization_20260825_104645",
+    "rule_id": "gdpr_data_minimization",
+    "rule_name": "GDPR Data Minimization",
+    "severity": "error",
+    "message": "Compliance violation: GDPR Data Minimization",
+    "framework": "gdpr",
+    "triggered_at": "2026-08-25T10:46:51.954128+00:00",
+    "details": {
+      "check_id": "check_gdpr_data_minimization_20260825_104645",
+      "findings": [
+        "Rule GDPR Data Minimization violation detected"
+      ],
+      "recommendations": [
+        "Address GDPR Data Minimization requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:46:45.901010+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_gdpr_data_subject_rights_20260825_104646",
+    "rule_id": "gdpr_data_subject_rights",
+    "rule_name": "GDPR Data Subject Rights",
+    "severity": "error",
+    "message": "Compliance violation: GDPR Data Subject Rights",
+    "framework": "gdpr",
+    "triggered_at": "2026-08-25T10:46:51.954128+00:00",
+    "details": {
+      "check_id": "check_gdpr_data_subject_rights_20260825_104646",
+      "findings": [
+        "Rule GDPR Data Subject Rights violation detected"
+      ],
+      "recommendations": [
+        "Address GDPR Data Subject Rights requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:46:46.902253+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_pci_network_security_20260825_104648",
+    "rule_id": "pci_network_security",
+    "rule_name": "PCI DSS Network Security",
+    "severity": "error",
+    "message": "Compliance violation: PCI DSS Network Security",
+    "framework": "pci_dss",
+    "triggered_at": "2026-08-25T10:46:51.954128+00:00",
+    "details": {
+      "check_id": "check_pci_network_security_20260825_104648",
+      "findings": [
+        "Rule PCI DSS Network Security violation detected"
+      ],
+      "recommendations": [
+        "Address PCI DSS Network Security requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:46:48.920782+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  },
+  {
+    "alert_id": "alert_check_nist_identify_20260825_104650",
+    "rule_id": "nist_identify",
+    "rule_name": "NIST Identify",
+    "severity": "warning",
+    "message": "Compliance violation: NIST Identify",
+    "framework": "nist",
+    "triggered_at": "2026-08-25T10:46:51.954128+00:00",
+    "details": {
+      "check_id": "check_nist_identify_20260825_104650",
+      "findings": [
+        "Rule NIST Identify violation detected"
+      ],
+      "recommendations": [
+        "Address NIST Identify requirements"
+      ],
+      "evidence": {
+        "checked_at": "2026-08-25T10:46:51.453546+00:00"
+      }
+    },
+    "acknowledged": false,
+    "acknowledged_by": null,
+    "acknowledged_at": null
+  }
+]

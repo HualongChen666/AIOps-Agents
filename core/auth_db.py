@@ -16,10 +16,10 @@ from sqlalchemy import (
 )
 
 try:
-    from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+    from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 except ImportError:  # pragma: no cover
     from sqlalchemy.ext.declarative import declarative_base
-    from sqlalchemy.orm import relationship, sessionmaker
+    from sqlalchemy.orm import Session, relationship, sessionmaker
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA_DIR = os.path.join(_BASE_DIR, "data")

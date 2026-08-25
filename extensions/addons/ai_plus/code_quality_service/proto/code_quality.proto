@@ -1,0 +1,191 @@
+syntax = "proto3";
+
+package code_quality;
+
+service CodeQualityService {
+  // Analyze code quality
+  rpc AnalyzeCode(AnalyzeCodeRequest) returns (AnalyzeCodeResponse);
+  
+  // Check code style with flake8
+  rpc CheckStyle(CheckStyleRequest) returns (CheckStyleResponse);
+  
+  // Check types with mypy
+  rpc CheckTypes(CheckTypesRequest) returns (CheckTypesResponse);
+  
+  // Check code quality with pylint
+  rpc CheckQuality(CheckQualityRequest) returns (CheckQualityResponse);
+  
+  // Security check with bandit
+  rpc SecurityCheck(SecurityCheckRequest) returns (SecurityCheckResponse);
+  
+  // Analyze code complexity
+  rpc AnalyzeComplexity(AnalyzeComplexityRequest) returns (AnalyzeComplexityResponse);
+  
+  // Detect code duplication
+  rpc DetectDuplication(DetectDuplicationRequest) returns (DetectDuplicationResponse);
+  
+  // Collect quality metrics
+  rpc CollectMetrics(CollectMetricsRequest) returns (CollectMetricsResponse);
+}
+
+message AnalyzeCodeRequest {
+  string file_path = 1;
+  string code = 2;
+  repeated string checkers = 3;  // flake8, mypy, pylint, bandit, complexity, duplication
+}
+
+message AnalyzeCodeResponse {
+  bool success = 1;
+  string message = 2;
+  map<string, CheckResult> results = 3;
+  QualitySummary summary = 4;
+}
+
+message CheckResult {
+  bool passed = 1;
+  int32 error_count = 2;
+  int32 warning_count = 3;
+  repeated Issue issues = 4;
+  double score = 5;
+}
+
+message Issue {
+  string file_path = 1;
+  int32 line = 2;
+  int32 column = 3;
+  string code = 4;
+  string severity = 5;  // error, warning, info
+  string message = 6;
+  string category = 7;
+}
+
+message QualitySummary {
+  double overall_score = 1;
+  int32 total_issues = 2;
+  int32 critical_issues = 3;
+  int32 major_issues = 4;
+  int32 minor_issues = 5;
+  map<string, double> checker_scores = 6;
+}
+
+message CheckStyleRequest {
+  string file_path = 1;
+  string code = 2;
+  map<string, string> config = 3;
+}
+
+message CheckStyleResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Issue issues = 3;
+  double score = 4;
+}
+
+message CheckTypesRequest {
+  string file_path = 1;
+  string code = 2;
+  map<string, string> config = 3;
+}
+
+message CheckTypesResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Issue issues = 3;
+  double score = 4;
+}
+
+message CheckQualityRequest {
+  string file_path = 1;
+  string code = 2;
+  map<string, string> config = 3;
+}
+
+message CheckQualityResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Issue issues = 3;
+  double score = 4;
+  map<string, double> category_scores = 5;
+}
+
+message SecurityCheckRequest {
+  string file_path = 1;
+  string code = 2;
+  map<string, string> config = 3;
+}
+
+message SecurityCheckResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Issue issues = 3;
+  double score = 4;
+  repeated string security_issues = 5;
+}
+
+message AnalyzeComplexityRequest {
+  string file_path = 1;
+  string code = 2;
+}
+
+message AnalyzeComplexityResponse {
+  bool success = 1;
+  string message = 2;
+  map<string, FunctionComplexity> functions = 3;
+  double average_complexity = 4;
+  int32 max_complexity = 5;
+  double score = 6;
+}
+
+message FunctionComplexity {
+  string name = 1;
+  int32 line = 2;
+  int32 cyclomatic_complexity = 3;
+  int32 lines_of_code = 4;
+  int32 parameters = 5;
+  int32 nesting_depth = 6;
+}
+
+message DetectDuplicationRequest {
+  string file_path = 1;
+  string code = 2;
+  int32 min_lines = 3;  // minimum lines for duplication detection
+}
+
+message DetectDuplicationResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Duplication duplications = 3;
+  double duplication_rate = 4;
+  double score = 5;
+}
+
+message Duplication {
+  string fragment1 = 1;
+  string fragment2 = 2;
+  int32 lines = 3;
+  repeated int32 start_line1 = 4;
+  repeated int32 start_line2 = 5;
+  double similarity = 6;
+}
+
+message CollectMetricsRequest {
+  string file_path = 1;
+  string code = 2;
+}
+
+message CollectMetricsResponse {
+  bool success = 1;
+  string message = 2;
+  CodeMetrics metrics = 3;
+}
+
+message CodeMetrics {
+  int32 total_lines = 1;
+  int32 code_lines = 2;
+  int32 comment_lines = 3;
+  int32 blank_lines = 4;
+  int32 functions = 5;
+  int32 classes = 6;
+  double average_function_length = 7;
+  double maintainability_index = 8;
+}

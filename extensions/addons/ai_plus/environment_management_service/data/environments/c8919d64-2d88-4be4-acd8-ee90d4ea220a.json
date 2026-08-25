@@ -1,0 +1,16 @@
+{
+  "id": "c8919d64-2d88-4be4-acd8-ee90d4ea220a",
+  "name": "Prod Environment",
+  "type": "prod",
+  "config": {
+    "log_level": "WARNING",
+    "max_connections": "1000",
+    "timeout": "120",
+    "feature_flags": "stable"
+  },
+  "description": "Default prod environment",
+  "status": "active",
+  "created_at": 1787651077,
+  "updated_at": 1787651077,
+  "variables": {}
+}

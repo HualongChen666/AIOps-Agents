@@ -1,0 +1,28 @@
+{
+  "id": "29efeb4e-de92-45ca-aee4-3d0b3b80a4f6",
+  "name": "Staging Environment",
+  "type": "staging",
+  "config": {
+    "log_level": "INFO",
+    "max_connections": "500",
+    "timeout": "60",
+    "feature_flags": "beta",
+    "test_key": "test_value"
+  },
+  "description": "Default staging environment",
+  "status": "active",
+  "created_at": 1787651077,
+  "updated_at": 1787651218,
+  "variables": {
+    "SYNC_VAR": {
+      "value": "sync_value",
+      "is_secret": false,
+      "updated_at": 1787651218
+    },
+    "DB_HOST": {
+      "value": "localhost",
+      "is_secret": false,
+      "updated_at": 1787651218
+    }
+  }
+}

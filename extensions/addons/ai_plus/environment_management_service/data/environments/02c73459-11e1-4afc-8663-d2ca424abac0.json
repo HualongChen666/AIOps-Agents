@@ -1,0 +1,33 @@
+{
+  "id": "02c73459-11e1-4afc-8663-d2ca424abac0",
+  "name": "Test Environment df84846b",
+  "type": "dev",
+  "config": {
+    "log_level": "DEBUG",
+    "timeout": "90",
+    "max_connections": "200",
+    "new_setting": "value",
+    "test_key": "test_value"
+  },
+  "description": "A test environment for development",
+  "status": "active",
+  "created_at": 1787654746,
+  "updated_at": 1787654746,
+  "variables": {
+    "API_KEY": {
+      "value": "test-api-key-123",
+      "is_secret": true,
+      "updated_at": 1787654746
+    },
+    "DB_HOST": {
+      "value": "localhost",
+      "is_secret": false,
+      "updated_at": 1787654746
+    },
+    "SYNC_VAR": {
+      "value": "sync_value",
+      "is_secret": false,
+      "updated_at": 1787654746
+    }
+  }
+}

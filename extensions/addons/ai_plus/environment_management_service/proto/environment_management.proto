@@ -1,0 +1,241 @@
+syntax = "proto3";
+
+package environment_management;
+
+service EnvironmentManagementService {
+    // Environment management
+    rpc CreateEnvironment(CreateEnvironmentRequest) returns (EnvironmentResponse);
+    rpc GetEnvironment(GetEnvironmentRequest) returns (EnvironmentResponse);
+    rpc ListEnvironments(ListEnvironmentsRequest) returns (ListEnvironmentsResponse);
+    rpc UpdateEnvironment(UpdateEnvironmentRequest) returns (EnvironmentResponse);
+    rpc DeleteEnvironment(DeleteEnvironmentRequest) returns (DeleteEnvironmentResponse);
+    
+    // Configuration management
+    rpc SyncConfig(SyncConfigRequest) returns (SyncConfigResponse);
+    rpc GetConfig(GetConfigRequest) returns (ConfigResponse);
+    rpc UpdateConfig(UpdateConfigRequest) returns (ConfigResponse);
+    
+    // Deployment orchestration
+    rpc DeployToEnvironment(DeployRequest) returns (DeployResponse);
+    rpc GetDeploymentStatus(GetDeploymentStatusRequest) returns (DeploymentStatusResponse);
+    rpc RollbackDeployment(RollbackRequest) returns (RollbackResponse);
+    
+    // Environment variable management
+    rpc SetEnvironmentVariable(SetVariableRequest) returns (VariableResponse);
+    rpc GetEnvironmentVariable(GetVariableRequest) returns (VariableResponse);
+    rpc ListEnvironmentVariables(ListVariablesRequest) returns (ListVariablesResponse);
+    rpc DeleteEnvironmentVariable(DeleteVariableRequest) returns (DeleteVariableResponse);
+    
+    // Health check
+    rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+    rpc GetEnvironmentMetrics(GetMetricsRequest) returns (MetricsResponse);
+}
+
+message CreateEnvironmentRequest {
+    string name = 1;
+    string type = 2;  // dev, staging, prod
+    map<string, string> config = 3;
+    string description = 4;
+}
+
+message EnvironmentResponse {
+    bool success = 1;
+    string message = 2;
+    Environment environment = 3;
+}
+
+message Environment {
+    string id = 1;
+    string name = 2;
+    string type = 3;
+    map<string, string> config = 4;
+    string description = 5;
+    string status = 6;  // active, inactive, error
+    int64 created_at = 7;
+    int64 updated_at = 8;
+}
+
+message GetEnvironmentRequest {
+    string environment_id = 1;
+}
+
+message ListEnvironmentsRequest {
+    string type = 1;  // optional filter
+    string status = 2;  // optional filter
+}
+
+message ListEnvironmentsResponse {
+    bool success = 1;
+    string message = 2;
+    repeated Environment environments = 3;
+}
+
+message UpdateEnvironmentRequest {
+    string environment_id = 1;
+    map<string, string> config = 2;
+    string description = 3;
+}
+
+message DeleteEnvironmentRequest {
+    string environment_id = 1;
+}
+
+message DeleteEnvironmentResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message SyncConfigRequest {
+    string source_environment_id = 1;
+    string target_environment_id = 2;
+    repeated string config_keys = 3;  // empty means sync all
+}
+
+message SyncConfigResponse {
+    bool success = 1;
+    string message = 2;
+    repeated string synced_keys = 3;
+    repeated string failed_keys = 4;
+}
+
+message GetConfigRequest {
+    string environment_id = 1;
+}
+
+message ConfigResponse {
+    bool success = 1;
+    string message = 2;
+    map<string, string> config = 3;
+}
+
+message UpdateConfigRequest {
+    string environment_id = 1;
+    map<string, string> config = 2;
+}
+
+message DeployRequest {
+    string source_environment_id = 1;
+    string target_environment_id = 2;
+    string deployment_type = 3;  // full, incremental, rollback
+    map<string, string> parameters = 4;
+}
+
+message DeployResponse {
+    bool success = 1;
+    string message = 2;
+    string deployment_id = 3;
+}
+
+message GetDeploymentStatusRequest {
+    string deployment_id = 1;
+}
+
+message DeploymentStatusResponse {
+    bool success = 1;
+    string message = 2;
+    DeploymentStatus status = 3;
+}
+
+message DeploymentStatus {
+    string deployment_id = 1;
+    string status = 2;  // pending, in_progress, completed, failed
+    int32 progress = 3;
+    string current_step = 4;
+    repeated string logs = 5;
+    int64 started_at = 6;
+    int64 completed_at = 7;
+}
+
+message RollbackRequest {
+    string deployment_id = 1;
+    string reason = 2;
+}
+
+message RollbackResponse {
+    bool success = 1;
+    string message = 2;
+    string rollback_id = 3;
+}
+
+message SetVariableRequest {
+    string environment_id = 1;
+    string key = 2;
+    string value = 3;
+    bool is_secret = 4;
+}
+
+message VariableResponse {
+    bool success = 1;
+    string message = 2;
+    EnvironmentVariable variable = 3;
+}
+
+message EnvironmentVariable {
+    string key = 1;
+    string value = 2;
+    bool is_secret = 3;
+    int64 updated_at = 4;
+}
+
+message GetVariableRequest {
+    string environment_id = 1;
+    string key = 2;
+}
+
+message ListVariablesRequest {
+    string environment_id = 1;
+}
+
+message ListVariablesResponse {
+    bool success = 1;
+    string message = 2;
+    repeated EnvironmentVariable variables = 3;
+}
+
+message DeleteVariableRequest {
+    string environment_id = 1;
+    string key = 2;
+}
+
+message DeleteVariableResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message HealthCheckRequest {
+    string environment_id = 1;
+}
+
+message HealthCheckResponse {
+    bool success = 1;
+    string message = 2;
+    bool is_healthy = 3;
+    repeated HealthCheckResult checks = 4;
+}
+
+message HealthCheckResult {
+    string check_name = 1;
+    bool passed = 2;
+    string message = 3;
+    int64 response_time_ms = 4;
+}
+
+message GetMetricsRequest {
+    string environment_id = 1;
+}
+
+message MetricsResponse {
+    bool success = 1;
+    string message = 2;
+    EnvironmentMetrics metrics = 3;
+}
+
+message EnvironmentMetrics {
+    string environment_id = 1;
+    int32 cpu_usage_percent = 2;
+    int32 memory_usage_percent = 3;
+    int32 active_connections = 4;
+    int64 request_count = 5;
+    double error_rate = 6;
+    int64 uptime_seconds = 7;
+}

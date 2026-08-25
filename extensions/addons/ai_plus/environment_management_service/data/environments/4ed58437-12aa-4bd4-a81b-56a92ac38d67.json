@@ -1,0 +1,33 @@
+{
+  "id": "4ed58437-12aa-4bd4-a81b-56a92ac38d67",
+  "name": "Test Environment 00f1b30b",
+  "type": "dev",
+  "config": {
+    "log_level": "DEBUG",
+    "timeout": "90",
+    "max_connections": "200",
+    "new_setting": "value",
+    "test_key": "test_value"
+  },
+  "description": "A test environment for development",
+  "status": "active",
+  "created_at": 1787651195,
+  "updated_at": 1787651280,
+  "variables": {
+    "API_KEY": {
+      "value": "test-api-key-123",
+      "is_secret": true,
+      "updated_at": 1787651195
+    },
+    "DB_HOST": {
+      "value": "localhost",
+      "is_secret": false,
+      "updated_at": 1787651195
+    },
+    "SYNC_VAR": {
+      "value": "sync_value",
+      "is_secret": false,
+      "updated_at": 1787651280
+    }
+  }
+}

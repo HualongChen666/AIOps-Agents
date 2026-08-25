@@ -1,0 +1,32 @@
+{
+  "certificates": [
+    {
+      "certificate_id": "ca37110f-cb26-451c-ad16-60b238d6ae62",
+      "common_name": "test.example.com",
+      "organization": "Test Org",
+      "organizational_unit": "",
+      "country": "US",
+      "state": "",
+      "locality": "",
+      "email": "",
+      "type": "self_signed",
+      "status": "active",
+      "certificate_pem": "-----BEGIN CERTIFICATE-----\nMIIDQzCCAiugAwIBAgIUD5pzR2nKLw3KmYEvB0IVzSe6WhMwDQYJKoZIhvcNAQEL\nBQAwOzEZMBcGA1UEAwwQdGVzdC5leGFtcGxlLmNvbTERMA8GA1UECgwIVGVzdCBP\ncmcxCzAJBgNVBAYTAlVTMB4XDTI2MDgyNTEwMDc1N1oXDTI3MDgyNTEwMDc1N1ow\nOzEZMBcGA1UEAwwQdGVzdC5leGFtcGxlLmNvbTERMA8GA1UECgwIVGVzdCBPcmcx\nCzAJBgNVBAYTAlVTMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkmvL\nYHpLVMyZwRou5Es34cg5k9lgRTkNB/Vn2W7Px8ufNzzTn5KES6F8hM280m9NBQuA\nGTd8eSsANQc+wPDABkbizmtt6Hyc/nPVTfyQGPAD7US/6R35BoS2v/4MYpV0YLqc\n1CicPNM5YyzbeI9aOFfgP/ZYUknXb5+LorqFnFX4YMrXIJY2fcJTkDTtQtnln0iA\nW0wLGhmI8gc9Nmxr4P+V1Zb2RFttuOyJlH63wT8EThpM9ciO09ekxwlqC9vGRXEq\nBzOTdOg/PYpc3acb6ct5pJz+2ESyFiG/wvLXurCLMvUQ0EGqZZKnrVK6J+PVjENV\nCguGAycWcsqj1SogiQIDAQABoz8wPTAMBgNVHRMBAf8EAjAAMA4GA1UdDwEB/wQE\nAwIFoDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQEL\nBQADggEBAEzS3EsyVowxtWniqj697BFa62j8RjJ8v+6rOjEiKckMpZGHCDV5hwRU\ncR4w/Y38tl+Ntxs4CeKQDGcKHopRdDBN/FSjdw0SIyTKgnxiUOg0hSRAE370ItZC\n6u5A0FKOv8DF3U3LdT+HDBIxdRO7RrQ7j5KudaQ2UdN/xhBhaj5LJVQKBDyNepdF\nMooA8HKW0AvD6TB/58COI9ZaxI+pDY3+fLrddbdv5riXmz3UiAUEH/joMoPx/5hq\nDbfV0idn8YuNwrBZD6MmI0fHNMINb6hGShY+1ClSOSupsU0kO4VyDYAJWuelWp85\nznPkz3SvnRgGAvarhjhhOI9h8546Ck8=\n-----END CERTIFICATE-----\n",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkmvLYHpLVMyZwRou5Es3\n4cg5k9lgRTkNB/Vn2W7Px8ufNzzTn5KES6F8hM280m9NBQuAGTd8eSsANQc+wPDA\nBkbizmtt6Hyc/nPVTfyQGPAD7US/6R35BoS2v/4MYpV0YLqc1CicPNM5YyzbeI9a\nOFfgP/ZYUknXb5+LorqFnFX4YMrXIJY2fcJTkDTtQtnln0iAW0wLGhmI8gc9Nmxr\n4P+V1Zb2RFttuOyJlH63wT8EThpM9ciO09ekxwlqC9vGRXEqBzOTdOg/PYpc3acb\n6ct5pJz+2ESyFiG/wvLXurCLMvUQ0EGqZZKnrVK6J+PVjENVCguGAycWcsqj1Sog\niQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signature_algorithm": "sha256WithRSAEncryption",
+      "key_algorithm": "RSA",
+      "key_size": 2048,
+      "valid_from": "2026-08-25T10:07:57.251790+00:00",
+      "valid_to": "2027-08-25T10:07:57.251790+00:00",
+      "issuer_id": "",
+      "serial_number": "89079218536480250531048160265915698863719209491",
+      "tags": {},
+      "created_by": "test",
+      "created_at": "2026-08-25T10:07:57.251790+00:00",
+      "updated_at": "2026-08-25T10:07:57.251790+00:00",
+      "version": 1,
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCSa8tgektUzJnB\nGi7kSzfhyDmT2WBFOQ0H9WfZbs/Hy583PNOfkoRLoXyEzbzSb00FC4AZN3x5KwA1\nBz7A8MAGRuLOa23ofJz+c9VN/JAY8APtRL/pHfkGhLa//gxilXRgupzUKJw80zlj\nLNt4j1o4V+A/9lhSSddvn4uiuoWcVfhgytcgljZ9wlOQNO1C2eWfSIBbTAsaGYjy\nBz02bGvg/5XVlvZEW2247ImUfrfBPwROGkz1yI7T16THCWoL28ZFcSoHM5N06D89\nilzdpxvpy3mknP7YRLIWIb/C8te6sIsy9RDQQaplkqetUron49WMQ1UKC4YDJxZy\nyqPVKiCJAgMBAAECggEAB09F1TBtw9M+BsefmSqPJOCpzTGALpyBQ8ky0MZJLbSC\n449QEkqOe7cZYAjkWQ4Q5oRTNg8Q0fy9UyhkL94k+/s8dekjkMRt0v8l4jGOYQxU\nadsxiHoEVVi5Rd7xL9e9ull+nFHVsOyrlAGoiD2B18e9THwoHx2MGYi5wBs3Md1+\nhCxEfpOEBdq5Di2ZereXe72DxTmcgkuETCHYDTZFavxAr8cMzd2gquoRkxuW4c20\nYytohqjn0vabj76us3rv3eUVG7TVN9B8ayQ1phPhuuEjPHo3mYai9wNuvJFTyg7X\npwfod9a7ny9937BAcrkxf1TnoXV+QQSeefRniDZc4QKBgQDIIFGKSXwOb8RQ2yeK\nEDfIlCLqZ6fQjUJTIZaJXDNjWVKLmWd/fd0XQcGzp872u1MRkQVW5fKCRo2KkR43\nuWUJH/nPvQJ/earhLrKBnRKIyS7BipY6+6kLPpV9PFdUxMqVVEEZzcw91RjowQTL\nzb6oqqo801jVCydz/xM4Q7GBWQKBgQC7TP2PrJguyz/DdBOnhUFJ1S1UyyOdIJr+\nNYXBe3szCVDGZNDCxyn3gt25uQgYFGjuOtGnmIRXo4k+oDxDYvF6oZZWc+a2J0ap\nEOMZ4ovdib7YQGjXA00xEhVnoj4i+1N33YZKAkRT+2ip/3H41seEg6v+bD9XM1uX\n2A5kJTUCsQKBgQC2aLbJ3BcGNZtzs33DmuqtmVCF5XsRXWAB09CZXP+941GYyneK\nvldB9n6u2RqMy8t4bH24ahlz4wjqL0Giuwo7mfih//6B4Iz/eQfdmiSlpvJGGKK8\nGlxHUoEBSHm1WzXnjIdWFL2/8jclF6Hefab1p7FJhb4nWWZZlTqYgyMM6QKBgQCf\nay9ia2/4XCyAirrz2dqxIg38Xw6H/amOdzXKcfRxgxtKUaLSNjyFG9Dm9BNsk2qg\nYlXyRUFXaq01LaM9Y+jPDNvt56ZWIeXlnqb9cDLFtClI3MGfSIMaIh8v3wruMWZg\n3p8fPQC1ToZOM0rplr2pD32EBtR+vwrVmiLdoEGXcQKBgC+6s+M0BLw1xbCsHJkG\n90o1U50SurcRxsFmjtOBXkV7Uesg6lWxNEw1NmwLNzSrP8l1v/Av2PQe1s5TBtuD\nLRf+mR7uQ6jeTuYocfSzlue+TeTKcKyG8s1/08iHEKZy6itapzPWnC6cwOm0Xmli\nZeaIDhStP2WipTgK7QXGY0+Z\n-----END PRIVATE KEY-----\n"
+    }
+  ],
+  "revoked_certificates": {}
+}

@@ -1,0 +1,52 @@
+{
+  "8671efa4-c426-4150-b488-b7b5e23da047": {
+    "admin": {
+      "secret_id": "8671efa4-c426-4150-b488-b7b5e23da047",
+      "principal": "admin",
+      "principal_type": "user",
+      "permissions": [
+        "write",
+        "delete",
+        "read",
+        "rotate"
+      ],
+      "granted_by": "admin",
+      "granted_at": 1787651943674
+    },
+    "test_user": {
+      "secret_id": "8671efa4-c426-4150-b488-b7b5e23da047",
+      "principal": "test_user",
+      "principal_type": "user",
+      "permissions": [
+        "read"
+      ],
+      "granted_by": "admin",
+      "granted_at": 1787651943681
+    }
+  },
+  "ac43286a-192e-46bc-b826-3f7c62c2507f": {
+    "admin": {
+      "secret_id": "ac43286a-192e-46bc-b826-3f7c62c2507f",
+      "principal": "admin",
+      "principal_type": "user",
+      "permissions": [
+        "write",
+        "read",
+        "delete",
+        "rotate"
+      ],
+      "granted_by": "admin",
+      "granted_at": 1787651975624
+    },
+    "test_user": {
+      "secret_id": "ac43286a-192e-46bc-b826-3f7c62c2507f",
+      "principal": "test_user",
+      "principal_type": "user",
+      "permissions": [
+        "read"
+      ],
+      "granted_by": "admin",
+      "granted_at": 1787651975642
+    }
+  }
+}

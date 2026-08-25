@@ -1,0 +1,15 @@
+# Code Quality Service Requirements
+
+# gRPC dependencies
+grpcio>=1.50.0
+grpcio-tools>=1.50.0
+protobuf>=4.0.0
+
+# Code quality tools (optional - will use fallback implementations if not installed)
+flake8>=5.0.0
+mypy>=1.0.0
+pylint>=2.15.0
+bandit>=1.7.0
+
+# Additional dependencies
+ast

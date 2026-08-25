@@ -1,0 +1,23 @@
+[
+  {
+    "timestamp": "2026-08-25T10:39:30.928436+00:00",
+    "total_checks": 13,
+    "passed_checks": 10,
+    "failed_checks": 3,
+    "compliance_rate": 0.7692307692307693
+  },
+  {
+    "timestamp": "2026-08-25T10:40:33.538551+00:00",
+    "total_checks": 13,
+    "passed_checks": 11,
+    "failed_checks": 2,
+    "compliance_rate": 0.8461538461538461
+  },
+  {
+    "timestamp": "2026-08-25T10:46:51.954128+00:00",
+    "total_checks": 13,
+    "passed_checks": 9,
+    "failed_checks": 4,
+    "compliance_rate": 0.6923076923076923
+  }
+]

@@ -1,0 +1,231 @@
+syntax = "proto3";
+
+package certificate_management;
+
+// Certificate Management Service
+service CertificateManagementService {
+  // Generate a new certificate (self-signed or CA-signed)
+  rpc GenerateCertificate(GenerateCertificateRequest) returns (CertificateResponse);
+  
+  // Get a certificate by ID
+  rpc GetCertificate(GetCertificateRequest) returns (CertificateResponse);
+  
+  // Update certificate metadata
+  rpc UpdateCertificate(UpdateCertificateRequest) returns (CertificateResponse);
+  
+  // Delete a certificate
+  rpc DeleteCertificate(DeleteCertificateRequest) returns (DeleteCertificateResponse);
+  
+  // List all certificates
+  rpc ListCertificates(ListCertificatesRequest) returns (ListCertificatesResponse);
+  
+  // Renew an expired or expiring certificate
+  rpc RenewCertificate(RenewCertificateRequest) returns (CertificateResponse);
+  
+  // Revoke a certificate
+  rpc RevokeCertificate(RevokeCertificateRequest) returns (RevokeCertificateResponse);
+  
+  // Validate a certificate
+  rpc ValidateCertificate(ValidateCertificateRequest) returns (ValidateCertificateResponse);
+  
+  // Verify certificate trust chain
+  rpc VerifyTrustChain(VerifyTrustChainRequest) returns (VerifyTrustChainResponse);
+  
+  // Get certificate revocation list
+  rpc GetCRL(GetCRLRequest) returns (GetCRLResponse);
+  
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Certificate metadata
+message CertificateMetadata {
+  string certificate_id = 1;
+  string common_name = 2;
+  string organization = 3;
+  string organizational_unit = 4;
+  string country = 5;
+  string state = 6;
+  string locality = 7;
+  string email = 8;
+  string type = 9;  // self_signed, ca_signed, root_ca, intermediate_ca
+  string status = 10;  // active, expired, revoked, pending
+  int64 created_at = 11;
+  int64 updated_at = 12;
+  int64 valid_from = 13;
+  int64 valid_to = 14;
+  int32 version = 1;
+  map<string, string> tags = 15;
+  string issuer_id = 16;  // ID of the CA that issued this certificate
+  string serial_number = 17;
+}
+
+// Certificate data
+message CertificateData {
+  string certificate_pem = 1;
+  string private_key_pem = 2;
+  string public_key_pem = 3;
+  string certificate_der = 4;
+  string signature_algorithm = 5;
+  string key_algorithm = 6;
+  int32 key_size = 7;
+}
+
+// Certificate with metadata and data
+message Certificate {
+  CertificateMetadata metadata = 1;
+  CertificateData data = 2;
+}
+
+// Generate certificate request
+message GenerateCertificateRequest {
+  string common_name = 1;
+  string organization = 2;
+  string organizational_unit = 3;
+  string country = 4;
+  string state = 5;
+  string locality = 6;
+  string email = 7;
+  string type = 8;  // self_signed, ca_signed
+  int32 validity_days = 9;
+  string key_algorithm = 10;  // RSA, ECDSA, Ed25519
+  int32 key_size = 11;  // 2048, 4096 for RSA; 256, 384, 521 for ECDSA
+  string issuer_id = 12;  // Required for ca_signed certificates
+  map<string, string> san_dns = 13;  // Subject Alternative Names - DNS
+  repeated string san_ip = 14;  // Subject Alternative Names - IP addresses
+  repeated string san_email = 15;  // Subject Alternative Names - Email
+  map<string, string> extensions = 16;  // Custom X.509 extensions
+  string created_by = 17;
+}
+
+// Get certificate request
+message GetCertificateRequest {
+  string certificate_id = 1;
+  bool include_private_key = 2;
+  bool include_certificate_pem = 3;
+}
+
+// Update certificate request
+message UpdateCertificateRequest {
+  string certificate_id = 1;
+  string organization = 2;
+  string organizational_unit = 3;
+  string email = 4;
+  map<string, string> tags = 5;
+  string updated_by = 6;
+}
+
+// Delete certificate request
+message DeleteCertificateRequest {
+  string certificate_id = 1;
+  bool permanent = 2;  // if false, soft delete
+}
+
+// Delete certificate response
+message DeleteCertificateResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// List certificates request
+message ListCertificatesRequest {
+  string filter_status = 1;  // active, expired, revoked, all
+  string filter_type = 2;  // self_signed, ca_signed, root_ca, intermediate_ca, all
+  string filter_tag = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+// List certificates response
+message ListCertificatesResponse {
+  repeated CertificateMetadata certificates = 1;
+  int32 total_count = 2;
+}
+
+// Renew certificate request
+message RenewCertificateRequest {
+  string certificate_id = 1;
+  int32 validity_days = 2;
+  string renewed_by = 3;
+  bool generate_new_key = 4;
+}
+
+// Revoke certificate request
+message RevokeCertificateRequest {
+  string certificate_id = 1;
+  string reason = 2;  // key_compromise, ca_compromise, affiliation_changed, superseded, cessation_of_operation, certificate_hold, remove_from_crl, privilege_withdrawn, aa_compromise
+  string revoked_by = 3;
+  int64 revocation_date = 4;  // Unix timestamp, if 0 use current time
+}
+
+// Revoke certificate response
+message RevokeCertificateResponse {
+  bool success = 1;
+  string message = 2;
+  string revocation_date = 3;
+}
+
+// Validate certificate request
+message ValidateCertificateRequest {
+  string certificate_id = 1;
+  bool check_expiration = 2;
+  bool check_revocation = 3;
+  bool verify_chain = 4;
+}
+
+// Validate certificate response
+message ValidateCertificateResponse {
+  bool valid = 1;
+  string status = 2;  // valid, expired, revoked, invalid_chain, invalid_signature
+  string message = 3;
+  int64 expiration_date = 4;
+  int64 days_until_expiration = 5;
+  repeated string validation_errors = 6;
+}
+
+// Verify trust chain request
+message VerifyTrustChainRequest {
+  string certificate_id = 1;
+  repeated string trusted_ca_ids = 2;
+}
+
+// Verify trust chain response
+message VerifyTrustChainResponse {
+  bool valid = 1;
+  string message = 2;
+  repeated string chain = 3;  // Certificate IDs in the trust chain
+  repeated string validation_errors = 4;
+}
+
+// Get CRL request
+message GetCRLRequest {
+  string issuer_id = 1;  // Get CRL for a specific CA
+}
+
+// Get CRL response
+message GetCRLResponse {
+  string crl_pem = 1;
+  repeated string revoked_serial_numbers = 2;
+  int64 last_updated = 3;
+  int64 next_update = 4;
+}
+
+// Certificate response
+message CertificateResponse {
+  bool success = 1;
+  string message = 2;
+  Certificate certificate = 3;
+}
+
+// Health check request
+message HealthCheckRequest {}
+
+// Health check response
+message HealthCheckResponse {
+  bool healthy = 1;
+  string status = 2;
+  string version = 3;
+  int64 timestamp = 4;
+  int32 certificate_count = 5;
+  int32 revoked_count = 6;
+}

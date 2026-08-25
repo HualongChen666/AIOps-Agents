@@ -1,0 +1,16 @@
+{
+  "id": "57180035-a879-42cf-bbf7-9d1e0a4b7c9d",
+  "name": "Dev Environment",
+  "type": "dev",
+  "config": {
+    "log_level": "DEBUG",
+    "max_connections": "100",
+    "timeout": "30",
+    "feature_flags": "all"
+  },
+  "description": "Default dev environment",
+  "status": "active",
+  "created_at": 1787651077,
+  "updated_at": 1787651077,
+  "variables": {}
+}

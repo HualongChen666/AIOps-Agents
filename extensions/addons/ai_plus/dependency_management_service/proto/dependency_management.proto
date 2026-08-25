@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package dependency_management;
+
+// Service definition
+service DependencyManagementService {
+  // Scan dependencies from a project
+  rpc ScanDependencies(ScanRequest) returns (ScanResponse);
+  
+  // Check for outdated dependencies
+  rpc CheckOutdated(CheckOutdatedRequest) returns (CheckOutdatedResponse);
+  
+  // Check for security vulnerabilities
+  rpc CheckVulnerabilities(CheckVulnerabilitiesRequest) returns (CheckVulnerabilitiesResponse);
+  
+  // Update dependencies
+  rpc UpdateDependencies(UpdateRequest) returns (UpdateResponse);
+  
+  // Detect dependency conflicts
+  rpc DetectConflicts(DetectConflictsRequest) returns (DetectConflictsResponse);
+  
+  // Generate lock file
+  rpc GenerateLockFile(GenerateLockRequest) returns (GenerateLockResponse);
+  
+  // Get dependency tree
+  rpc GetDependencyTree(GetTreeRequest) returns (GetTreeResponse);
+  
+  // Resolve dependencies
+  rpc ResolveDependencies(ResolveRequest) returns (ResolveResponse);
+}
+
+// Scan dependencies
+message ScanRequest {
+  string project_path = 1;
+  repeated string scan_types = 2;  // requirements.txt, pyproject.toml, etc.
+}
+
+message ScanResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Dependency dependencies = 3;
+  ScanMetadata metadata = 4;
+}
+
+// Check outdated
+message CheckOutdatedRequest {
+  string project_path = 1;
+  repeated string package_names = 2;
+}
+
+message CheckOutdatedResponse {
+  bool success = 1;
+  string message = 2;
+  repeated OutdatedPackage outdated = 3;
+}
+
+// Check vulnerabilities
+message CheckVulnerabilitiesRequest {
+  string project_path = 1;
+  repeated string package_names = 2;
+  string severity_level = 3;  // low, medium, high, critical
+}
+
+message CheckVulnerabilitiesResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Vulnerability vulnerabilities = 3;
+}
+
+// Update dependencies
+message UpdateRequest {
+  string project_path = 1;
+  repeated string package_names = 2;
+  string update_type = 3;  // all, specific, security
+  bool dry_run = 4;
+}
+
+message UpdateResponse {
+  bool success = 1;
+  string message = 2;
+  repeated UpdateResult updates = 3;
+  repeated string warnings = 4;
+}
+
+// Detect conflicts
+message DetectConflictsRequest {
+  string project_path = 1;
+  repeated string package_names = 2;
+}
+
+message DetectConflictsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Conflict conflicts = 3;
+}
+
+// Generate lock file
+message GenerateLockRequest {
+  string project_path = 1;
+  string lock_file_type = 2;  // requirements.lock, poetry.lock, etc.
+}
+
+message GenerateLockResponse {
+  bool success = 1;
+  string message = 2;
+  string lock_file_path = 3;
+  int32 dependency_count = 4;
+}
+
+// Get dependency tree
+message GetTreeRequest {
+  string project_path = 1;
+  string package_name = 2;
+  int32 depth = 3;
+}
+
+message GetTreeResponse {
+  bool success = 1;
+  string message = 2;
+  DependencyNode tree = 3;
+}
+
+// Resolve dependencies
+message ResolveRequest {
+  string project_path = 1;
+  repeated string requirements = 2;
+}
+
+message ResolveResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ResolvedDependency resolved = 3;
+  repeated string conflicts = 4;
+}
+
+// Data structures
+message Dependency {
+  string name = 1;
+  string version = 2;
+  string source = 3;  // requirements.txt, pyproject.toml, etc.
+  repeated string extras = 4;
+  bool is_dev = 5;
+}
+
+message ScanMetadata {
+  string scan_time = 1;
+  int32 total_dependencies = 2;
+  repeated string files_scanned = 3;
+  double duration_seconds = 4;
+}
+
+message OutdatedPackage {
+  string name = 1;
+  string current_version = 2;
+  string latest_version = 3;
+  string latest_release_date = 4;
+  repeated string available_versions = 5;
+  bool is_major_update = 6;
+  bool is_security_update = 7;
+}
+
+message Vulnerability {
+  string package_name = 1;
+  string affected_versions = 2;
+  string severity = 3;
+  string cve_id = 4;
+  string description = 5;
+  string published_date = 6;
+  string fixed_in_version = 7;
+  repeated string references = 8;
+}
+
+message UpdateResult {
+  string package_name = 1;
+  string old_version = 2;
+  string new_version = 3;
+  bool success = 4;
+  string message = 5;
+}
+
+message Conflict {
+  string package_name = 1;
+  string conflict_type = 2;  // version, dependency, circular
+  repeated string conflicting_packages = 3;
+  string description = 4;
+  string resolution_suggestion = 5;
+}
+
+message DependencyNode {
+  string name = 1;
+  string version = 2;
+  repeated DependencyNode children = 3;
+  int32 depth = 4;
+}
+
+message ResolvedDependency {
+  string name = 1;
+  string version = 2;
+  repeated string dependencies = 3;
+  string source = 4;
+}

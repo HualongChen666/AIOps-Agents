@@ -1,0 +1,301 @@
+syntax = "proto3";
+
+package compliance_monitoring;
+
+// Compliance Monitoring Service
+service ComplianceMonitoringService {
+  // Run compliance check for a specific rule or framework
+  rpc RunComplianceCheck(RunComplianceCheckRequest) returns (RunComplianceCheckResponse);
+  
+  // Get compliance rules
+  rpc GetComplianceRules(GetComplianceRulesRequest) returns (GetComplianceRulesResponse);
+  
+  // Register a custom compliance rule
+  rpc RegisterComplianceRule(RegisterComplianceRuleRequest) returns (RegisterComplianceRuleResponse);
+  
+  // Update a compliance rule
+  rpc UpdateComplianceRule(UpdateComplianceRuleRequest) returns (UpdateComplianceRuleResponse);
+  
+  // Delete a compliance rule
+  rpc DeleteComplianceRule(DeleteComplianceRuleRequest) returns (DeleteComplianceRuleResponse);
+  
+  // Generate compliance report
+  rpc GenerateComplianceReport(GenerateComplianceReportRequest) returns (GenerateComplianceReportResponse);
+  
+  // Get compliance report
+  rpc GetComplianceReport(GetComplianceReportRequest) returns (GetComplianceReportResponse);
+  
+  // List compliance reports
+  rpc ListComplianceReports(ListComplianceReportsRequest) returns (ListComplianceReportsResponse);
+  
+  // Get compliance check history
+  rpc GetCheckHistory(GetCheckHistoryRequest) returns (GetCheckHistoryResponse);
+  
+  // Get compliance statistics
+  rpc GetComplianceStatistics(GetComplianceStatisticsRequest) returns (GetComplianceStatisticsResponse);
+  
+  // Get compliance trend analysis
+  rpc GetComplianceTrend(GetComplianceTrendRequest) returns (GetComplianceTrendResponse);
+  
+  // Register notification handler
+  rpc RegisterNotificationHandler(RegisterNotificationHandlerRequest) returns (RegisterNotificationHandlerResponse);
+  
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Compliance framework enum
+enum ComplianceFramework {
+  FRAMEWORK_UNKNOWN = 0;
+  GDPR = 1;
+  HIPAA = 2;
+  PCI_DSS = 3;
+  SOC2 = 4;
+  ISO27001 = 5;
+  NIST = 6;
+}
+
+// Compliance status enum
+enum ComplianceStatus {
+  STATUS_UNKNOWN = 0;
+  COMPLIANT = 1;
+  NON_COMPLIANT = 2;
+  PARTIALLY_COMPLIANT = 3;
+  PENDING_REVIEW = 4;
+}
+
+// Risk level enum
+enum RiskLevel {
+  RISK_UNKNOWN = 0;
+  CRITICAL = 1;
+  HIGH = 2;
+  MEDIUM = 3;
+  LOW = 4;
+}
+
+// Compliance rule message
+message ComplianceRule {
+  string rule_id = 1;
+  string rule_name = 2;
+  ComplianceFramework framework = 3;
+  string description = 4;
+  RiskLevel severity = 5;
+  bool enabled = 6;
+  int32 check_frequency = 7;
+  map<string, string> metadata = 8;
+}
+
+// Compliance check result message
+message ComplianceCheck {
+  string check_id = 1;
+  string rule_id = 2;
+  ComplianceStatus status = 3;
+  int64 checked_at = 4;
+  repeated string findings = 5;
+  repeated string recommendations = 6;
+  map<string, string> evidence = 7;
+  map<string, string> metadata = 8;
+}
+
+// Compliance report message
+message ComplianceReport {
+  string report_id = 1;
+  ComplianceFramework framework = 2;
+  int64 period_start = 3;
+  int64 period_end = 4;
+  ComplianceStatus overall_status = 5;
+  int32 total_checks = 6;
+  int32 passed_checks = 7;
+  int32 failed_checks = 8;
+  repeated ComplianceCheck checks = 9;
+  int64 generated_at = 10;
+  map<string, string> metadata = 11;
+}
+
+// Run compliance check request
+message RunComplianceCheckRequest {
+  string rule_id = 1;
+  ComplianceFramework framework = 2;
+  bool force = 3;
+}
+
+// Run compliance check response
+message RunComplianceCheckResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ComplianceCheck checks = 3;
+}
+
+// Get compliance rules request
+message GetComplianceRulesRequest {
+  ComplianceFramework framework = 1;
+  bool enabled_only = 2;
+}
+
+// Get compliance rules response
+message GetComplianceRulesResponse {
+  repeated ComplianceRule rules = 1;
+  int32 total_count = 2;
+}
+
+// Register compliance rule request
+message RegisterComplianceRuleRequest {
+  string rule_id = 1;
+  string rule_name = 2;
+  ComplianceFramework framework = 3;
+  string description = 4;
+  RiskLevel severity = 5;
+  bool enabled = 6;
+  int32 check_frequency = 7;
+  map<string, string> metadata = 8;
+}
+
+// Register compliance rule response
+message RegisterComplianceRuleResponse {
+  bool success = 1;
+  string message = 2;
+  ComplianceRule rule = 3;
+}
+
+// Update compliance rule request
+message UpdateComplianceRuleRequest {
+  string rule_id = 1;
+  string rule_name = 2;
+  string description = 3;
+  RiskLevel severity = 4;
+  bool enabled = 5;
+  int32 check_frequency = 6;
+  map<string, string> metadata = 7;
+}
+
+// Update compliance rule response
+message UpdateComplianceRuleResponse {
+  bool success = 1;
+  string message = 2;
+  ComplianceRule rule = 3;
+}
+
+// Delete compliance rule request
+message DeleteComplianceRuleRequest {
+  string rule_id = 1;
+}
+
+// Delete compliance rule response
+message DeleteComplianceRuleResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Generate compliance report request
+message GenerateComplianceReportRequest {
+  ComplianceFramework framework = 1;
+  int64 period_start = 2;
+  int64 period_end = 3;
+  map<string, string> metadata = 4;
+}
+
+// Generate compliance report response
+message GenerateComplianceReportResponse {
+  bool success = 1;
+  string message = 2;
+  ComplianceReport report = 3;
+}
+
+// Get compliance report request
+message GetComplianceReportRequest {
+  string report_id = 1;
+}
+
+// Get compliance report response
+message GetComplianceReportResponse {
+  bool success = 1;
+  string message = 2;
+  ComplianceReport report = 3;
+}
+
+// List compliance reports request
+message ListComplianceReportsRequest {
+  ComplianceFramework framework = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+// List compliance reports response
+message ListComplianceReportsResponse {
+  repeated ComplianceReport reports = 1;
+  int32 total_count = 2;
+}
+
+// Get check history request
+message GetCheckHistoryRequest {
+  string rule_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+// Get check history response
+message GetCheckHistoryResponse {
+  repeated ComplianceCheck checks = 1;
+  int32 total_count = 2;
+}
+
+// Get compliance statistics request
+message GetComplianceStatisticsRequest {}
+
+// Get compliance statistics response
+message GetComplianceStatisticsResponse {
+  int32 total_rules = 1;
+  int32 enabled_rules = 2;
+  int32 total_checks = 3;
+  int32 total_violations = 4;
+  double violation_rate = 5;
+  int32 total_reports = 6;
+  map<string, int32> framework_stats = 7;
+}
+
+// Get compliance trend request
+message GetComplianceTrendRequest {
+  ComplianceFramework framework = 1;
+  int32 days = 2;
+}
+
+// Get compliance trend response
+message GetComplianceTrendResponse {
+  repeated TrendDataPoint trend_data = 1;
+  string overall_trend = 2;
+}
+
+// Trend data point
+message TrendDataPoint {
+  int64 timestamp = 1;
+  int32 total_checks = 2;
+  int32 passed_checks = 3;
+  int32 failed_checks = 4;
+  double compliance_rate = 5;
+}
+
+// Register notification handler request
+message RegisterNotificationHandlerRequest {
+  string handler_type = 1;
+  map<string, string> handler_config = 2;
+}
+
+// Register notification handler response
+message RegisterNotificationHandlerResponse {
+  bool success = 1;
+  string message = 2;
+  string handler_id = 3;
+}
+
+// Health check request
+message HealthCheckRequest {}
+
+// Health check response
+message HealthCheckResponse {
+  bool healthy = 1;
+  string status = 2;
+  string version = 3;
+  int64 timestamp = 4;
+  int32 active_rules = 5;
+  int32 total_checks_today = 6;
+}

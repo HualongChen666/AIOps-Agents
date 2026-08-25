@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
@@ -34,6 +34,12 @@ __all__ = [
     "query_dependencies",
     "get_transitive_dependencies",
     "_topology_cache",
+    "create_topology_view",
+    "get_topology_view",
+    "get_all_topology_views",
+    "update_topology_view",
+    "delete_topology_view",
+    "_topology_view_cache",
 ]
 
 # ------------------------------------------------------------
@@ -420,3 +426,142 @@ def validate_topology(topology: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(node, dict) and node.get("id") not in connected:
             warnings.append(f"orphan node: {node.get('id')}")
     return {"valid": True, "warnings": warnings}
+
+
+# ------------------------------------------------------------
+# Topology View Management Functions
+# ------------------------------------------------------------
+
+_topology_view_cache: Dict[str, Dict[str, Any]] = {}
+
+
+async def create_topology_view(
+    name: str,
+    description: str,
+    view_type: str,
+    config: Dict[str, Any],
+    created_by: str = "system",
+) -> Dict[str, Any]:
+    """Create a new topology view.
+
+    Args:
+        name: View name
+        description: View description
+        view_type: View type (e.g., 'service', 'network', 'application')
+        config: View configuration (filter rules, layout settings, etc.)
+        created_by: Creator username
+
+    Returns:
+        Dict containing the created view with its ID
+    """
+    import uuid
+
+    view_id = f"view-{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    view = {
+        "id": view_id,
+        "name": name,
+        "description": description,
+        "view_type": view_type,
+        "config": config,
+        "created_by": created_by,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    _topology_view_cache[view_id] = view
+    logger.info(f"Created topology view: {view_id} - {name}")
+    return view
+
+
+async def get_topology_view(view_id: str) -> Optional[Dict[str, Any]]:
+    """Get a topology view by ID.
+
+    Args:
+        view_id: View ID
+
+    Returns:
+        View data or None if not found
+    """
+    view = _topology_view_cache.get(view_id)
+    if view:
+        logger.debug(f"Retrieved topology view: {view_id}")
+        return view
+    logger.warning(f"Topology view not found: {view_id}")
+    return None
+
+
+async def get_all_topology_views(view_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Get all topology views, optionally filtered by type.
+
+    Args:
+        view_type: Optional filter by view type
+
+    Returns:
+        List of topology views
+    """
+    views = list(_topology_view_cache.values())
+    if view_type:
+        views = [v for v in views if v.get("view_type") == view_type]
+    logger.debug(f"Retrieved {len(views)} topology views")
+    return views
+
+
+async def update_topology_view(
+    view_id: str,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    view_type: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None,
+    updated_by: str = "system",
+) -> Optional[Dict[str, Any]]:
+    """Update a topology view.
+
+    Args:
+        view_id: View ID
+        name: New name (optional)
+        description: New description (optional)
+        view_type: New view type (optional)
+        config: New configuration (optional)
+        updated_by: Updater username
+
+    Returns:
+        Updated view data or None if not found
+    """
+    view = _topology_view_cache.get(view_id)
+    if not view:
+        logger.warning(f"Cannot update non-existent view: {view_id}")
+        return None
+
+    if name is not None:
+        view["name"] = name
+    if description is not None:
+        view["description"] = description
+    if view_type is not None:
+        view["view_type"] = view_type
+    if config is not None:
+        view["config"] = config
+
+    view["updated_at"] = datetime.now(timezone.utc).isoformat()
+    view["updated_by"] = updated_by
+
+    logger.info(f"Updated topology view: {view_id}")
+    return view
+
+
+async def delete_topology_view(view_id: str) -> bool:
+    """Delete a topology view.
+
+    Args:
+        view_id: View ID
+
+    Returns:
+        True if deleted, False if not found
+    """
+    if view_id in _topology_view_cache:
+        del _topology_view_cache[view_id]
+        logger.info(f"Deleted topology view: {view_id}")
+        return True
+    logger.warning(f"Cannot delete non-existent view: {view_id}")
+    return False
