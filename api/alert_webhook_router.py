@@ -64,9 +64,10 @@ async def receive_alert(
     """Receive an alert payload from any supported monitoring provider."""
     provider_impl = get_alert_provider(provider)
     if provider_impl is None:
+        available_providers = list_alert_providers()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(f"Unknown alert provider: {provider}. " f"Available: {list_alert_providers()}"),
+            detail=f"Unknown alert provider: {provider}. Available: {available_providers}",
         )
 
     if not AUTO_HEAL_AVAILABLE or try_auto_heal is None:
@@ -120,7 +121,7 @@ async def receive_alert(
                 )
             )
         except Exception as exc:
-            logger.exception("try_auto_heal failed for alert %s", alert_id)
+            logger.error("try_auto_heal failed for alert %s", alert_id)
             results.append(WebhookResult(alert_id=alert_id, status="error", error=str(exc)[:200]))
 
     return WebhookResponse(

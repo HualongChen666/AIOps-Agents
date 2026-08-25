@@ -14,7 +14,15 @@ import urllib.request
 import warnings
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple  # noqa: F401  # Imported for test setup
+from typing import (  # noqa: F401  # Imported for test setup
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+)
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -602,26 +610,38 @@ def test_service_operation(rel: str, cls: type, op: str, kind: str) -> None:
     try:
         if kind == "operation":
             payload = _operation_payload(service, op)
-            result = _call_sync_or_async(service.execute_operation, op, payload)  # noqa: F841  # Variable for test verification
+            result = _call_sync_or_async(
+                service.execute_operation, op, payload
+            )  # noqa: F841  # Variable for test verification
         elif kind == "base":
             if op == "restore_state":
                 _call_sync_or_async(service.execute_operation, "backup_state", {"name": "default"})
             payload = _base_payload(op)
-            result = _call_sync_or_async(service.execute_operation, op, payload)  # noqa: F841  # Variable for test verification
+            result = _call_sync_or_async(
+                service.execute_operation, op, payload
+            )  # noqa: F841  # Variable for test verification
         elif kind == "list_methods":
-            result = _call_sync_or_async(service.list_methods)  # noqa: F841  # Variable for test verification
+            result = _call_sync_or_async(
+                service.list_methods
+            )  # noqa: F841  # Variable for test verification
         elif kind == "get_stats":
-            result = _call_sync_or_async(service.get_stats)  # noqa: F841  # Variable for test verification
+            result = _call_sync_or_async(
+                service.get_stats
+            )  # noqa: F841  # Variable for test verification
         elif kind == "call":
             if _has_method_or_attr(cls, "call"):
-                result = _call_sync_or_async(service.call, "list_methods")  # noqa: F841  # Variable for test verification
+                result = _call_sync_or_async(
+                    service.call, "list_methods"
+                )  # noqa: F841  # Variable for test verification
             else:
                 pytest.skip(f"{rel} has no call method")
         elif kind == "getattr":
             handler = getattr(service, op, None)
             if not callable(handler):
                 pytest.skip(f"{rel} __getattr__ did not yield a callable for {op}")
-            result = _call_sync_or_async(handler, None)  # noqa: F841  # Variable for test verification
+            result = _call_sync_or_async(
+                handler, None
+            )  # noqa: F841  # Variable for test verification
         else:
             pytest.skip(f"Unknown test kind {kind}")
     except Exception as exc:

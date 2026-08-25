@@ -18,7 +18,7 @@ from core.alert_engine import alert_history
 from core.alert_intelligence import AlertPattern, alert_intelligence_engine
 from core.alert_service import alert_service
 from core.auth_service import create_access_token
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.query_optimization import query_cache
 from main import app
 

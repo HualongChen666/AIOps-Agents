@@ -676,4 +676,4 @@ class ErrorHandler:
 
 
 # Global instance
-error_handler = ErrorHandler()
+ERROR_HANDLER = ErrorHandler()

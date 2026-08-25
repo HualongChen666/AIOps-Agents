@@ -10,7 +10,8 @@ from unittest.mock import Mock, patch
 
 import pytest  # noqa: F401  # Imported for test setup
 from sqlalchemy.orm import Session
-from core.auth_db import Base, SessionLocal, engine, User
+
+from core.auth_db import Base, SessionLocal, User, engine
 
 
 def test_login_success(client):
@@ -209,7 +210,11 @@ def test_register_admin_fails_when_users_exist(client):
     assert resp.status_code == 400
     resp_data = resp.json()
     # Check for error message in nested structure
-    error_msg = resp_data.get("detail") or resp_data.get("message") or resp_data.get("error", {}).get("message", "")
+    error_msg = (
+        resp_data.get("detail")
+        or resp_data.get("message")
+        or resp_data.get("error", {}).get("message", "")
+    )
     assert "Bootstrap registration only allowed when no users exist" in error_msg
 
 
@@ -222,7 +227,11 @@ def test_change_password_wrong_old_password(client, admin_token):
     )
     assert resp.status_code == 401
     resp_data = resp.json()
-    error_msg = resp_data.get("detail") or resp_data.get("message") or resp_data.get("error", {}).get("message", "")
+    error_msg = (
+        resp_data.get("detail")
+        or resp_data.get("message")
+        or resp_data.get("error", {}).get("message", "")
+    )
     assert "Old password is incorrect" in error_msg
 
 
@@ -237,9 +246,11 @@ def test_logout_without_jti_in_token(client, test_user):
     token = resp.json()["access_token"]
 
     # Create a malformed token without jti by manually crafting a JWT
-    import jwt
-    import config
     from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    import config
 
     # Create a token payload without jti but with required fields
     payload = {

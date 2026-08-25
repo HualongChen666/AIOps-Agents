@@ -4,19 +4,21 @@ Enhanced test suite for core/ai/token_budget.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 from core.ai.token_budget import (
-    estimate_tokens,
-    _heuristic_token_count,
-    prompt_fits,
-    calculate_prompt_budget,
-    select_model_that_fits,
-    ContextWindowExceededError,
     TIKTOKEN_AVAILABLE,
+    ContextWindowExceededError,
+    _heuristic_token_count,
+    calculate_prompt_budget,
+    estimate_tokens,
+    prompt_fits,
+    select_model_that_fits,
 )
 
 
@@ -40,8 +42,9 @@ class TestEstimateTokens:
         """Test estimate_tokens when tiktoken is not available"""
         # Mock TIKTOKEN_AVAILABLE to False to test fallback path
         import core.ai.token_budget as token_budget_module
+
         original_available = token_budget_module.TIKTOKEN_AVAILABLE
-        
+
         try:
             token_budget_module.TIKTOKEN_AVAILABLE = False
             result = estimate_tokens("hello world")
@@ -56,8 +59,9 @@ class TestEstimateTokens:
         # We can't easily test this without actually breaking the import,
         # but we can verify the module handles the case gracefully
         import core.ai.token_budget as token_budget_module
+
         # The module should have TIKTOKEN_AVAILABLE set
-        assert hasattr(token_budget_module, 'TIKTOKEN_AVAILABLE')
+        assert hasattr(token_budget_module, "TIKTOKEN_AVAILABLE")
         # If tiktoken is available, it should be True
         # If not, it should be False and the module should still work
         result = estimate_tokens("test")
@@ -201,11 +205,7 @@ class TestPromptFits:
 
     def test_prompt_fits_short_prompt(self):
         """Test prompt_fits with short prompt that fits"""
-        fits, prompt_tokens, total = prompt_fits(
-            "hello",
-            max_new_tokens=10,
-            context_window=100
-        )
+        fits, prompt_tokens, total = prompt_fits("hello", max_new_tokens=10, context_window=100)
         assert fits is True
         assert prompt_tokens >= 1
         assert total > prompt_tokens
@@ -213,11 +213,7 @@ class TestPromptFits:
 
     def test_prompt_fits_long_prompt(self):
         """Test prompt_fits with long prompt that doesn't fit"""
-        fits, prompt_tokens, total = prompt_fits(
-            "x" * 1000,
-            max_new_tokens=10,
-            context_window=100
-        )
+        fits, prompt_tokens, total = prompt_fits("x" * 1000, max_new_tokens=10, context_window=100)
         assert fits is False
         assert prompt_tokens > 0
         assert total > 100
@@ -226,21 +222,14 @@ class TestPromptFits:
         """Test prompt_fits with exact fit"""
         # Create a prompt that exactly fits
         prompt = "x" * 50
-        fits, prompt_tokens, total = prompt_fits(
-            prompt,
-            max_new_tokens=10,
-            context_window=100
-        )
+        fits, prompt_tokens, total = prompt_fits(prompt, max_new_tokens=10, context_window=100)
         # Should fit or be very close
         assert total <= 100 or fits is False
 
     def test_prompt_fits_with_model(self):
         """Test prompt_fits with model parameter"""
         fits, prompt_tokens, total = prompt_fits(
-            "hello world",
-            max_new_tokens=10,
-            context_window=100,
-            model="gpt-4"
+            "hello world", max_new_tokens=10, context_window=100, model="gpt-4"
         )
         assert fits is True
         assert prompt_tokens >= 1
@@ -248,10 +237,7 @@ class TestPromptFits:
     def test_prompt_fits_with_reserve_tokens(self):
         """Test prompt_fits with reserve tokens"""
         fits, prompt_tokens, total = prompt_fits(
-            "hello world",
-            max_new_tokens=10,
-            context_window=100,
-            reserve_tokens=20
+            "hello world", max_new_tokens=10, context_window=100, reserve_tokens=20
         )
         assert fits is True
         # Total should include reserve tokens
@@ -260,9 +246,7 @@ class TestPromptFits:
     def test_prompt_fits_zero_max_new_tokens(self):
         """Test prompt_fits with zero max_new_tokens"""
         fits, prompt_tokens, total = prompt_fits(
-            "hello world",
-            max_new_tokens=0,
-            context_window=100
+            "hello world", max_new_tokens=0, context_window=100
         )
         assert fits is True
         assert total == prompt_tokens
@@ -270,21 +254,14 @@ class TestPromptFits:
     def test_prompt_fits_large_reserve(self):
         """Test prompt_fits with large reserve that prevents fit"""
         fits, _, total = prompt_fits(
-            "hello world",
-            max_new_tokens=10,
-            context_window=20,
-            reserve_tokens=50
+            "hello world", max_new_tokens=10, context_window=20, reserve_tokens=50
         )
         assert fits is False
         assert total > 20
 
     def test_prompt_fits_empty_prompt(self):
         """Test prompt_fits with empty prompt"""
-        fits, prompt_tokens, total = prompt_fits(
-            "",
-            max_new_tokens=10,
-            context_window=100
-        )
+        fits, prompt_tokens, total = prompt_fits("", max_new_tokens=10, context_window=100)
         assert fits is True
         assert prompt_tokens == 0
         assert total == 10
@@ -295,70 +272,45 @@ class TestCalculatePromptBudget:
 
     def test_calculate_prompt_budget_basic(self):
         """Test basic prompt budget calculation"""
-        budget = calculate_prompt_budget(
-            context_window=100,
-            max_new_tokens=10
-        )
+        budget = calculate_prompt_budget(context_window=100, max_new_tokens=10)
         # 100 - 10 - 0 - 50 (default reserve) = 40
         assert budget == 40
 
     def test_calculate_prompt_budget_with_system_tokens(self):
         """Test with system tokens"""
-        budget = calculate_prompt_budget(
-            context_window=100,
-            max_new_tokens=10,
-            system_tokens=20
-        )
+        budget = calculate_prompt_budget(context_window=100, max_new_tokens=10, system_tokens=20)
         # 100 - 10 - 20 - 50 = 20
         assert budget == 20
 
     def test_calculate_prompt_budget_with_reserve(self):
         """Test with custom reserve tokens"""
-        budget = calculate_prompt_budget(
-            context_window=100,
-            max_new_tokens=10,
-            reserve_tokens=30
-        )
+        budget = calculate_prompt_budget(context_window=100, max_new_tokens=10, reserve_tokens=30)
         # 100 - 10 - 0 - 30 = 60
         assert budget == 60
 
     def test_calculate_prompt_budget_all_parameters(self):
         """Test with all parameters"""
         budget = calculate_prompt_budget(
-            context_window=1000,
-            max_new_tokens=100,
-            system_tokens=50,
-            reserve_tokens=100
+            context_window=1000, max_new_tokens=100, system_tokens=50, reserve_tokens=100
         )
         # 1000 - 100 - 50 - 100 = 750
         assert budget == 750
 
     def test_calculate_prompt_budget_exceeds_window(self):
         """Test when requirements exceed context window"""
-        budget = calculate_prompt_budget(
-            context_window=100,
-            max_new_tokens=80,
-            system_tokens=30
-        )
+        budget = calculate_prompt_budget(context_window=100, max_new_tokens=80, system_tokens=30)
         # 100 - 80 - 30 - 50 = -60, should return 0
         assert budget == 0
 
     def test_calculate_prompt_budget_zero_result(self):
         """Test when calculation results in zero or negative"""
-        budget = calculate_prompt_budget(
-            context_window=10,
-            max_new_tokens=20
-        )
+        budget = calculate_prompt_budget(context_window=10, max_new_tokens=20)
         # 10 - 20 - 0 - 50 = -60, should return 0
         assert budget == 0
 
     def test_calculate_prompt_budget_exact_zero(self):
         """Test when calculation exactly equals zero"""
-        budget = calculate_prompt_budget(
-            context_window=60,
-            max_new_tokens=10,
-            reserve_tokens=50
-        )
+        budget = calculate_prompt_budget(context_window=60, max_new_tokens=10, reserve_tokens=50)
         # 60 - 10 - 0 - 50 = 0
         assert budget == 0
 
@@ -368,11 +320,7 @@ class TestSelectModelThatFits:
 
     def test_select_model_no_configs(self):
         """Test with empty model configs"""
-        result = select_model_that_fits(
-            prompt="hello",
-            max_new_tokens=10,
-            model_configs=[]
-        )
+        result = select_model_that_fits(prompt="hello", max_new_tokens=10, model_configs=[])
         assert result is None
 
     def test_select_model_all_fit(self):
@@ -411,12 +359,7 @@ class TestSelectModelThatFits:
             {"name": "small", "context_window": 100, "cost_per_1k": 1.0},
             {"name": "large", "context_window": 1000, "cost_per_1k": 0.5},
         ]
-        result = select_model_that_fits(
-            "hello",
-            10,
-            configs,
-            preferred_model="large"
-        )
+        result = select_model_that_fits("hello", 10, configs, preferred_model="large")
         assert result is not None
         assert result["name"] == "large"
 
@@ -429,12 +372,7 @@ class TestSelectModelThatFits:
         # Use a prompt that's too long for small but fits in large
         # "x" * 500 might still fit in 100 tokens due to heuristic estimation
         # Use a much longer prompt
-        result = select_model_that_fits(
-            "x" * 5000,
-            10,
-            configs,
-            preferred_model="small"
-        )
+        result = select_model_that_fits("x" * 5000, 10, configs, preferred_model="small")
         # Should fall back to cheapest that fits
         assert result is not None
         assert result["name"] == "large"
@@ -445,12 +383,7 @@ class TestSelectModelThatFits:
             {"name": "small", "context_window": 100, "cost_per_1k": 1.0},
             {"name": "large", "context_window": 1000, "cost_per_1k": 0.5},
         ]
-        result = select_model_that_fits(
-            "hello",
-            10,
-            configs,
-            preferred_model="nonexistent"
-        )
+        result = select_model_that_fits("hello", 10, configs, preferred_model="nonexistent")
         # Should ignore preferred and return cheapest that fits
         assert result is not None
         # large is cheaper (0.5 vs 1.0)
@@ -469,12 +402,7 @@ class TestSelectModelThatFits:
     def test_select_model_with_both_window_fields(self):
         """Test with config having both context_window and max_tokens"""
         configs = [
-            {
-                "name": "model1",
-                "context_window": 100,
-                "max_tokens": 200,
-                "cost_per_1k": 1.0
-            },
+            {"name": "model1", "context_window": 100, "max_tokens": 200, "cost_per_1k": 1.0},
         ]
         result = select_model_that_fits("hello", 10, configs)
         assert result is not None
@@ -538,10 +466,7 @@ class TestContextWindowExceededError:
     def test_context_window_exceeded_error_creation(self):
         """Test creating ContextWindowExceededError"""
         error = ContextWindowExceededError(
-            message="Prompt too long",
-            prompt_tokens=1000,
-            max_new_tokens=100,
-            context_window=800
+            message="Prompt too long", prompt_tokens=1000, max_new_tokens=100, context_window=800
         )
         assert str(error) == "Prompt too long"
         assert error.prompt_tokens == 1000
@@ -551,10 +476,7 @@ class TestContextWindowExceededError:
     def test_context_window_exceeded_error_is_exception(self):
         """Test that ContextWindowExceededError is an Exception"""
         error = ContextWindowExceededError(
-            message="Test",
-            prompt_tokens=100,
-            max_new_tokens=10,
-            context_window=50
+            message="Test", prompt_tokens=100, max_new_tokens=10, context_window=50
         )
         assert isinstance(error, Exception)
 
@@ -562,9 +484,6 @@ class TestContextWindowExceededError:
         """Test that ContextWindowExceededError can be raised"""
         with pytest.raises(ContextWindowExceededError) as exc_info:
             raise ContextWindowExceededError(
-                message="Test error",
-                prompt_tokens=100,
-                max_new_tokens=10,
-                context_window=50
+                message="Test error", prompt_tokens=100, max_new_tokens=10, context_window=50
             )
         assert exc_info.value.prompt_tokens == 100

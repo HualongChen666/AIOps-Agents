@@ -924,7 +924,9 @@ class NotificationChannel(Base):
     )
 
     def __repr__(self):
-        return f"<NotificationChannel(id={self.id}, name='{self.name}', type='{self.channel_type}')>"
+        return (
+            f"<NotificationChannel(id={self.id}, name='{self.name}', type='{self.channel_type}')>"
+        )
 
 
 class AlertEscalationRule(Base):
@@ -1091,7 +1093,9 @@ class AlertDeduplicationRule(Base):
     )
 
     def __repr__(self):
-        return f"<AlertDeduplicationRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+        return (
+            f"<AlertDeduplicationRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+        )
 
 
 class AlertAggregationRule(Base):
@@ -1185,7 +1189,9 @@ class AlertIntegration(Base):
     __tablename__ = "alert_integrations"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    integration_type = Column(String(50), nullable=False, index=True)  # zabbix, cloudwatch, pagerduty, datadog, grafana, prometheus
+    integration_type = Column(
+        String(50), nullable=False, index=True
+    )  # zabbix, cloudwatch, pagerduty, datadog, grafana, prometheus
     name = Column(String(100), unique=True, nullable=False, index=True)
     config = Column(JSON, nullable=False)  # integration-specific configuration
     enabled = Column(Boolean, default=True, nullable=False, index=True)
@@ -1201,7 +1207,9 @@ class AlertIntegration(Base):
     )
 
     def __repr__(self):
-        return f"<AlertIntegration(id={self.id}, type='{self.integration_type}', name='{self.name}')>"
+        return (
+            f"<AlertIntegration(id={self.id}, type='{self.integration_type}', name='{self.name}')>"
+        )
 
 
 class AlertAcknowledgement(Base):
@@ -1212,7 +1220,9 @@ class AlertAcknowledgement(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     alert_id = Column(String(100), nullable=False, index=True)
     acknowledged_by = Column(String(50), nullable=False)
-    acknowledged_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    acknowledged_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
     comment = Column(Text, nullable=True)
     status = Column(String(20), default="acknowledged", nullable=False)  # acknowledged, resolved
 
@@ -1260,7 +1270,9 @@ class PriorityRule(Base):
     )
 
     def __repr__(self):
-        return f"<PriorityRule(id='{self.id}', name='{self.name}', priority='{self.priority_level}')>"
+        return (
+            f"<PriorityRule(id='{self.id}', name='{self.name}', priority='{self.priority_level}')>"
+        )
 
 
 class PriorityScore(Base):
@@ -1350,7 +1362,9 @@ class RealtimeStream(Base):
     config = Column(JSON, nullable=False)  # 流配置
 
     # 流状态
-    status = Column(String(20), default="active", nullable=False, index=True)  # active, paused, stopped
+    status = Column(
+        String(20), default="active", nullable=False, index=True
+    )  # active, paused, stopped
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -1397,7 +1411,9 @@ class RealtimeEvent(Base):
     )
 
     def __repr__(self):
-        return f"<RealtimeEvent(id={self.id}, stream_id='{self.stream_id}', type='{self.event_type}')>"
+        return (
+            f"<RealtimeEvent(id={self.id}, stream_id='{self.stream_id}', type='{self.event_type}')>"
+        )
 
 
 class RealtimeSubscription(Base):
@@ -1416,7 +1432,9 @@ class RealtimeSubscription(Base):
     filters = Column(JSON, nullable=True)  # 订阅过滤条件
 
     # 订阅状态
-    status = Column(String(20), default="active", nullable=False, index=True)  # active, paused, cancelled
+    status = Column(
+        String(20), default="active", nullable=False, index=True
+    )  # active, paused, cancelled
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -1503,7 +1521,9 @@ class RootCauseHypothesis(Base):
     causal_path = Column(JSON, nullable=True)  # 因果路径
 
     # 验证状态
-    verification_status = Column(String(20), default="pending", nullable=False, index=True)  # pending, verified, rejected
+    verification_status = Column(
+        String(20), default="pending", nullable=False, index=True
+    )  # pending, verified, rejected
     verification_timestamp = Column(DateTime(timezone=True), nullable=True)
 
     # 假设状态
@@ -1549,7 +1569,9 @@ class RootCauseExperiment(Base):
     conclusion = Column(Text, nullable=True)
 
     # 实验状态
-    status = Column(String(20), default="pending", nullable=False, index=True)  # pending, running, completed, failed
+    status = Column(
+        String(20), default="pending", nullable=False, index=True
+    )  # pending, running, completed, failed
 
     # 时间戳
     started_at = Column(DateTime(timezone=True), nullable=True)
@@ -1630,7 +1652,9 @@ class RootCauseConclusion(Base):
     recommended_actions = Column(JSON, nullable=True)  # 推荐操作列表
 
     # 结论状态
-    status = Column(String(20), default="draft", nullable=False, index=True)  # draft, final, archived
+    status = Column(
+        String(20), default="draft", nullable=False, index=True
+    )  # draft, final, archived
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -23,7 +23,9 @@ pytestmark = [pytest.mark.core]
 class TestAccessibilitySupport:
     def test_add_accessibility_headers(self):
         response = Response()
-        result = accessibility_support.AccessibilityHeaders.add_accessibility_headers(response)  # noqa: F841  # Variable for test verification
+        result = accessibility_support.AccessibilityHeaders.add_accessibility_headers(
+            response
+        )  # noqa: F841  # Variable for test verification
         assert result is response
         assert response.headers["Content-Language"] == "zh-CN"
         assert response.headers["Vary"] == "Accept-Language"
@@ -35,7 +37,9 @@ class TestAccessibilitySupport:
             "screen_reader_compatible": True,
             "keyboard_navigable": True,
         }
-        result = accessibility_support.AccessibilityHeaders.add_a11y_metadata(response, metadata)  # noqa: F841  # Variable for test verification
+        result = accessibility_support.AccessibilityHeaders.add_a11y_metadata(
+            response, metadata
+        )  # noqa: F841  # Variable for test verification
         assert result is response
         assert response.headers["X-WCAG-Level"] == "AA"
         assert response.headers["X-ScreenReader-Compatible"] == "true"
@@ -61,7 +65,9 @@ class TestAccessibilitySupport:
                 {"id": "btn2", "role": "presentation"},
             ],
         }
-        result = accessibility_support.AccessibilityAudit.audit_response_data(data)  # noqa: F841  # Variable for test verification
+        result = accessibility_support.AccessibilityAudit.audit_response_data(
+            data
+        )  # noqa: F841  # Variable for test verification
         assert result["total_issues"] == 2
         assert result["wcag_level"] == "AA"
         assert any(i["type"] == "missing_alt_text" for i in result["issues"])
@@ -75,7 +81,9 @@ class TestAccessibilitySupport:
 
     @pytest.mark.asyncio
     async def test_setup_accessibility_support(self):
-        result = await accessibility_support.setup_accessibility_support()  # noqa: F841  # Variable for test verification
+        result = (
+            await accessibility_support.setup_accessibility_support()
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "success"
         assert (
             result["wcag_level"]
@@ -89,7 +97,9 @@ class TestAccessibilitySupport:
             "get_config",
             MagicMock(side_effect=RuntimeError("boom")),
         )
-        result = await accessibility_support.setup_accessibility_support()  # noqa: F841  # Variable for test verification
+        result = (
+            await accessibility_support.setup_accessibility_support()
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "error"
         assert "boom" in result["error"]
 
@@ -109,7 +119,9 @@ class TestApiDeprecation:
         request = MagicMock()
         request.url.path = "/api/v1/legacy"
 
-        result = await api_deprecation.deprecation_middleware(request, call_next)  # noqa: F841  # Variable for test verification
+        result = await api_deprecation.deprecation_middleware(
+            request, call_next
+        )  # noqa: F841  # Variable for test verification
         assert result is response
         assert response.headers["X-API-Deprecated"] == "true"
         assert "X-API-Sunset-Date" in response.headers
@@ -125,7 +137,9 @@ class TestApiDeprecation:
         request = MagicMock()
         request.url.path = "/api/v1/ok"
 
-        result = await api_deprecation.deprecation_middleware(request, call_next)  # noqa: F841  # Variable for test verification
+        result = await api_deprecation.deprecation_middleware(
+            request, call_next
+        )  # noqa: F841  # Variable for test verification
         assert result is response
         assert "X-API-Deprecated" not in response.headers
 
@@ -210,7 +224,9 @@ class TestCollaborationEngine:
 
     def test_resolve_workspace(self, fresh_collab):
         ws = fresh_collab.create_workspace("done")
-        result = fresh_collab.resolve_workspace(ws["id"])  # noqa: F841  # Variable for test verification
+        result = fresh_collab.resolve_workspace(
+            ws["id"]
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "resolved"
         assert any("Resolved at" in n for n in result["notes"])
 
@@ -342,8 +358,10 @@ class TestServiceDiscoveryManager:
         monkeypatch.setattr(service_discovery_manager, "_random", fake_random)
         inst = fresh_discovery.register_service("web", "z", "10.0.0.1", 8080, weight=0)
         inst.status = service_discovery_manager.ServiceStatus.HEALTHY
-        result = fresh_discovery.get_service_instance(  # noqa: F841  # Variable for test verification
-            "web", service_discovery_manager.LoadBalanceStrategy.WEIGHTED
+        result = (
+            fresh_discovery.get_service_instance(  # noqa: F841  # Variable for test verification
+                "web", service_discovery_manager.LoadBalanceStrategy.WEIGHTED
+            )
         )
         assert result.instance_id == "z"
 
@@ -388,7 +406,9 @@ class TestServiceDiscoveryManager:
         monkeypatch.setattr(service_discovery_manager, "_random", fake_random)
 
         inst = fresh_discovery.register_service("web", "h2", "10.0.0.2", 8080)
-        result = await fresh_discovery.health_check(inst)  # noqa: F841  # Variable for test verification
+        result = await fresh_discovery.health_check(
+            inst
+        )  # noqa: F841  # Variable for test verification
         assert result is False
         assert inst.status == service_discovery_manager.ServiceStatus.UNHEALTHY
 

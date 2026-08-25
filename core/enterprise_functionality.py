@@ -784,4 +784,4 @@ class EnterpriseFunctionalityManager:
 
 
 # Global instance
-enterprise_functionality_manager = EnterpriseFunctionalityManager()
+ENTERPRISE_FUNCTIONALITY_MANAGER = EnterpriseFunctionalityManager()

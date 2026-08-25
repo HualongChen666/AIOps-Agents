@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import logging
 
 """
 密钥管理服务
@@ -113,14 +112,17 @@ class FileKeyBackend(KeyBackend):
             with open(self.file_path, "w", encoding="utf-8") as f:
                 json.dump(self._keys, f, indent=2)
 
-            # 在Unix系统上设置文件权限
+            # 在Unix系统上设置文件权限为600（仅所有者可读写）
             try:
                 import stat
 
                 os.chmod(self.file_path, stat.S_IRUSR | stat.S_IWUSR)
+                logger.debug(f"Set file permissions to 600 for {self.file_path}")
+            except (OSError, AttributeError) as e:
+                # chmod may fail on Windows or non-Unix systems
+                logger.debug(f"chmod not supported on this platform: {e}")
             except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
-                logger.debug("chmod not supported on this platform", exc_info=True)
+                logger.warning(f"Unexpected error setting file permissions: {e}")
 
             logger.debug(f"Saved {len(self._keys)} keys to {self.file_path}")
             return True

@@ -798,9 +798,9 @@ class JWTAuthService(AuthService):
         return cast(Dict[str, Any], user.model_dump())
 
 
-auth_service = JWTAuthService()
+AUTH_SERVICE = JWTAuthService()
 Authentication = JWTAuthService
-router = APIRouter(prefix="/auth", tags=["auth"])
+ROUTER = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/token", response_model=Token)
@@ -1182,7 +1182,7 @@ class ComplianceManager:
         return summary
 
 
-tenant_context = TenantContext()
-abac_policy = ABACPolicy()
-sso_provider = SSOProvider()
-compliance_manager = ComplianceManager()
+TENANT_CONTEXT = TenantContext()
+ABAC_POLICY = ABACPolicy()
+SSO_PROVIDER = SSOProvider()
+COMPLIANCE_MANAGER = ComplianceManager()

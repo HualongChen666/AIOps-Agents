@@ -38,9 +38,7 @@ class TestGraphReasoningEngine:
                 relation="DEPENDS_ON",
             ),
         ]
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="neighbors"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="neighbors")
 
         response = engine.reason("graph1", nodes, edges, request)
 
@@ -178,9 +176,7 @@ class TestGraphReasoningEngine:
                 relation="CONNECTS_TO",
             ),
         ]
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="pagerank"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="pagerank")
 
         response = engine.reason("graph1", nodes, edges, request)
 
@@ -276,9 +272,7 @@ class TestGraphReasoningEngine:
                 relation="CONNECTS_TO",
             ),
         ]
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="unknown"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="unknown")
 
         response = engine.reason("graph1", nodes, edges, request)
 
@@ -307,9 +301,7 @@ class TestGraphReasoningEngine:
         engine = GraphReasoningEngine()
         nodes = []
         edges = []
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="neighbors"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="neighbors")
 
         response = engine.reason("graph1", nodes, edges, request)
 
@@ -321,9 +313,7 @@ class TestGraphReasoningEngine:
         engine = GraphReasoningEngine()
         nodes = []
         edges = []
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="pagerank"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="pagerank")
 
         response = engine.reason("graph1", nodes, edges, request)
 
@@ -417,9 +407,7 @@ class TestGraphReasoningEngine:
             GraphNode(node_id="node2", label="Node 2", node_type="entity"),
         ]
         edges = []
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="neighbors"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="neighbors")
 
         response = engine.reason("graph1", nodes, edges, request)
 
@@ -505,9 +493,7 @@ class TestGraphReasoningEngine:
             GraphNode(node_id="node1", label="Node 1", node_type="entity"),
         ]
         edges = []
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="pagerank"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="pagerank")
 
         response = engine.reason("graph1", nodes, edges, request)
 
@@ -534,9 +520,7 @@ class TestGraphReasoningEngine:
                 properties={"weight": 0.5, "type": "strong"},
             ),
         ]
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="neighbors"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="neighbors")
 
         response = engine.reason("graph1", nodes, edges, request)
 

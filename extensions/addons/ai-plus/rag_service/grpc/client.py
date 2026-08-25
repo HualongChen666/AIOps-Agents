@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Optional
 
 import httpx
@@ -18,7 +19,12 @@ class RAGRPCClient:
         """Call an RPC method on the RAG service."""
         if payload is None:
             payload = {}
-        async with httpx.AsyncClient() as client:
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("RAG_SERVICE_SSL_VERIFY", "true").lower() == "true"
+        if not ssl_verify:
+            import logging
+            logging.warning("SSL verification is disabled in RAG service client - this is a security risk!")
+        async with httpx.AsyncClient(verify=ssl_verify) as client:
             response = await client.post(f"{self.base_url}/rpc/{method}", json=payload)
             response.raise_for_status()
             return response.json()

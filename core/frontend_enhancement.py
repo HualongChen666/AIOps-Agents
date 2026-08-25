@@ -593,4 +593,4 @@ class FrontendEnhancementManager:
 
 
 # Global instance
-frontend_enhancement_manager = FrontendEnhancementManager()
+FRONTEND_ENHANCEMENT_MANAGER = FrontendEnhancementManager()

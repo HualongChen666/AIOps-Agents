@@ -4,36 +4,38 @@ Comprehensive test suite for core/backup_strategy.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
 import asyncio
-import sys
 import os
-import tempfile
 import shutil
-from unittest.mock import patch, MagicMock, AsyncMock
+import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from loguru import logger
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.backup_strategy import (
-    configure_backup_strategy,
-    get_backup_config,
-    is_backup_enabled,
-    perform_database_backup,
-    perform_config_backup,
-    perform_logs_backup,
-    perform_full_backup,
-    cleanup_old_backups,
-    get_backup_history,
-    get_recent_backups,
-    get_backup_statistics,
-    calculate_file_hash,
-    verify_backup_integrity,
-    encrypt_file,
-    decrypt_file,
     _backup_config,
     _backup_history,
+    calculate_file_hash,
+    cleanup_old_backups,
+    configure_backup_strategy,
+    decrypt_file,
+    encrypt_file,
+    get_backup_config,
+    get_backup_history,
+    get_backup_statistics,
+    get_recent_backups,
+    is_backup_enabled,
+    perform_config_backup,
+    perform_database_backup,
+    perform_full_backup,
+    perform_logs_backup,
+    verify_backup_integrity,
 )
 
 
@@ -43,7 +45,7 @@ class TestBackupConfiguration:
     def test_configure_backup_strategy_defaults(self):
         """Test configure_backup_strategy with default values"""
         configure_backup_strategy()
-        
+
         assert _backup_config["enabled"] is True
         assert _backup_config["backup_interval_hours"] == 24
         assert _backup_config["retention_days"] == 30
@@ -60,9 +62,9 @@ class TestBackupConfiguration:
             backup_location="/custom/backups",
             compression_enabled=False,
             encryption_enabled=True,
-            backup_types=["database"]
+            backup_types=["database"],
         )
-        
+
         assert _backup_config["backup_interval_hours"] == 12
         assert _backup_config["retention_days"] == 7
         assert _backup_config["backup_location"] == "/custom/backups"
@@ -74,7 +76,7 @@ class TestBackupConfiguration:
         """Test get_backup_config returns copy"""
         configure_backup_strategy()
         config = get_backup_config()
-        
+
         assert config["enabled"] is True
         # Modify returned config should not affect original
         config["enabled"] = False
@@ -84,7 +86,7 @@ class TestBackupConfiguration:
         """Test is_backup_enabled"""
         configure_backup_strategy()
         assert is_backup_enabled() is True
-        
+
         _backup_config["enabled"] = False
         assert is_backup_enabled() is False
 
@@ -94,57 +96,73 @@ class TestCalculateFileHash:
 
     def test_calculate_file_hash_sha256(self):
         """Test SHA256 hash calculation"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             temp_path = f.name
-        
+
         try:
             hash_result = calculate_file_hash(temp_path, "sha256")
             assert len(hash_result) == 64
             assert all(c in "0123456789abcdef" for c in hash_result)
         finally:
-            os.unlink(temp_path)
+            try:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_path}: {e}")
 
     def test_calculate_file_hash_md5(self):
-        """Test MD5 hash calculation"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        """Test MD5 hash calculation (deprecated - for backward compatibility only)"""
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             temp_path = f.name
-        
+
         try:
             hash_result = calculate_file_hash(temp_path, "md5")
             assert len(hash_result) == 32
         finally:
-            os.unlink(temp_path)
+            try:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_path}: {e}")
 
     def test_calculate_file_hash_sha1(self):
-        """Test SHA1 hash calculation"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        """Test SHA1 hash calculation (deprecated - for backward compatibility only)"""
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             temp_path = f.name
-        
+
         try:
             hash_result = calculate_file_hash(temp_path, "sha1")
             assert len(hash_result) == 40
         finally:
-            os.unlink(temp_path)
+            try:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_path}: {e}")
 
     def test_calculate_file_hash_consistency(self):
         """Test that same file produces same hash"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             temp_path = f.name
-        
+
         try:
             hash1 = calculate_file_hash(temp_path)
             hash2 = calculate_file_hash(temp_path)
             assert hash1 == hash2
         finally:
-            os.unlink(temp_path)
+            try:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_path}: {e}")
 
 
 class TestVerifyBackupIntegrity:
@@ -152,30 +170,38 @@ class TestVerifyBackupIntegrity:
 
     def test_verify_backup_integrity_valid(self):
         """Test verification with valid hash"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             temp_path = f.name
-        
+
         try:
             expected_hash = calculate_file_hash(temp_path)
             result = verify_backup_integrity(temp_path, expected_hash)
             assert result is True
         finally:
-            os.unlink(temp_path)
+            try:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_path}: {e}")
 
     def test_verify_backup_integrity_invalid(self):
         """Test verification with invalid hash"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             temp_path = f.name
-        
+
         try:
             result = verify_backup_integrity(temp_path, "invalidhash")
             assert result is False
         finally:
-            os.unlink(temp_path)
+            try:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_path}: {e}")
 
     def test_verify_backup_integrity_file_not_found(self):
         """Test verification with non-existent file"""
@@ -188,44 +214,56 @@ class TestEncryptDecryptFile:
 
     def test_encrypt_file_no_cryptography(self):
         """Test encrypt_file when cryptography not available"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             input_path = f.name
-        
+
         output_path = input_path + ".enc"
-        
+
         try:
-            with patch('core.backup_strategy.cryptography', None):
+            with patch("core.backup_strategy.cryptography", None):
                 result = encrypt_file(input_path, output_path)
                 assert result is True
                 # Should copy file unencrypted
                 assert os.path.exists(output_path)
         finally:
-            if os.path.exists(input_path):
-                os.unlink(input_path)
-            if os.path.exists(output_path):
-                os.unlink(output_path)
+            try:
+                if os.path.exists(input_path):
+                    os.unlink(input_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {input_path}: {e}")
+            try:
+                if os.path.exists(output_path):
+                    os.unlink(output_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {output_path}: {e}")
 
     def test_decrypt_file_no_cryptography(self):
         """Test decrypt_file when cryptography not available"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             f.flush()
             input_path = f.name
-        
+
         output_path = input_path + ".dec"
-        
+
         try:
-            with patch('core.backup_strategy.cryptography', None):
+            with patch("core.backup_strategy.cryptography", None):
                 result = decrypt_file(input_path, output_path)
                 assert result is True
                 assert os.path.exists(output_path)
         finally:
-            if os.path.exists(input_path):
-                os.unlink(input_path)
-            if os.path.exists(output_path):
-                os.unlink(output_path)
+            try:
+                if os.path.exists(input_path):
+                    os.unlink(input_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {input_path}: {e}")
+            try:
+                if os.path.exists(output_path):
+                    os.unlink(output_path)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {output_path}: {e}")
 
 
 class TestPerformDatabaseBackup:
@@ -239,23 +277,23 @@ class TestPerformDatabaseBackup:
             _backup_config["compression_enabled"] = False
             _backup_config["encryption_enabled"] = False
             _backup_config["integrity_check_enabled"] = False
-            
-            with patch('core.backup_strategy.config') as mock_config:
+
+            with patch("core.backup_strategy.config") as mock_config:
                 mock_config.POSTGRES_DB = "testdb"
                 mock_config.POSTGRES_USER = "testuser"
                 mock_config.POSTGRES_HOST = "localhost"
                 mock_config.POSTGRES_PORT = "5432"
                 mock_config.POSTGRES_PASSWORD = "testpass"
-                
+
                 # Mock pg_dump execution
-                with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+                with patch("asyncio.create_subprocess_exec") as mock_subprocess:
                     mock_process = AsyncMock()
                     mock_process.returncode = 0
                     mock_process.communicate = AsyncMock(return_value=(b"SQL content", b""))
                     mock_subprocess.return_value = mock_process
-                    
+
                     result = await perform_database_backup()
-                    
+
                     assert result["status"] == "success"
                     assert result["type"] == "database"
                     assert "backup_id" in result
@@ -268,22 +306,22 @@ class TestPerformDatabaseBackup:
             _backup_config["backup_location"] = temp_dir
             _backup_config["compression_enabled"] = False
             _backup_config["encryption_enabled"] = False
-            
-            with patch('core.backup_strategy.config') as mock_config:
+
+            with patch("core.backup_strategy.config") as mock_config:
                 mock_config.POSTGRES_DB = "testdb"
                 mock_config.POSTGRES_USER = "testuser"
                 mock_config.POSTGRES_HOST = "localhost"
                 mock_config.POSTGRES_PORT = "5432"
                 mock_config.POSTGRES_PASSWORD = "testpass"
-                
-                with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+                with patch("asyncio.create_subprocess_exec") as mock_subprocess:
                     mock_process = AsyncMock()
                     mock_process.returncode = 1
                     mock_process.communicate = AsyncMock(return_value=(b"", b"Error occurred"))
                     mock_subprocess.return_value = mock_process
-                    
+
                     result = await perform_database_backup()
-                    
+
                     assert result["status"] == "failed"
                     assert "error" in result
 
@@ -295,22 +333,22 @@ class TestPerformDatabaseBackup:
             _backup_config["compression_enabled"] = True
             _backup_config["encryption_enabled"] = False
             _backup_config["integrity_check_enabled"] = False
-            
-            with patch('core.backup_strategy.config') as mock_config:
+
+            with patch("core.backup_strategy.config") as mock_config:
                 mock_config.POSTGRES_DB = "testdb"
                 mock_config.POSTGRES_USER = "testuser"
                 mock_config.POSTGRES_HOST = "localhost"
                 mock_config.POSTGRES_PORT = "5432"
                 mock_config.POSTGRES_PASSWORD = "testpass"
-                
-                with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+                with patch("asyncio.create_subprocess_exec") as mock_subprocess:
                     mock_process = AsyncMock()
                     mock_process.returncode = 0
                     mock_process.communicate = AsyncMock(return_value=(b"SQL content", b""))
                     mock_subprocess.return_value = mock_process
-                    
+
                     result = await perform_database_backup()
-                    
+
                     assert result["status"] == "success"
                     assert result["compressed"] is True
 
@@ -322,23 +360,23 @@ class TestPerformDatabaseBackup:
             _backup_config["compression_enabled"] = False
             _backup_config["encryption_enabled"] = True
             _backup_config["integrity_check_enabled"] = False
-            
-            with patch('core.backup_strategy.config') as mock_config:
+
+            with patch("core.backup_strategy.config") as mock_config:
                 mock_config.POSTGRES_DB = "testdb"
                 mock_config.POSTGRES_USER = "testuser"
                 mock_config.POSTGRES_HOST = "localhost"
                 mock_config.POSTGRES_PORT = "5432"
                 mock_config.POSTGRES_PASSWORD = "testpass"
-                
-                with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+                with patch("asyncio.create_subprocess_exec") as mock_subprocess:
                     mock_process = AsyncMock()
                     mock_process.returncode = 0
                     mock_process.communicate = AsyncMock(return_value=(b"SQL content", b""))
                     mock_subprocess.return_value = mock_process
-                    
-                    with patch('core.backup_strategy.encrypt_file', return_value=True):
+
+                    with patch("core.backup_strategy.encrypt_file", return_value=True):
                         result = await perform_database_backup()
-                        
+
                         assert result["status"] == "success"
                         assert result["encrypted"] is True
 
@@ -350,23 +388,23 @@ class TestPerformDatabaseBackup:
             _backup_config["compression_enabled"] = False
             _backup_config["encryption_enabled"] = False
             _backup_config["integrity_check_enabled"] = True
-            
-            with patch('core.backup_strategy.config') as mock_config:
+
+            with patch("core.backup_strategy.config") as mock_config:
                 mock_config.POSTGRES_DB = "testdb"
                 mock_config.POSTGRES_USER = "testuser"
                 mock_config.POSTGRES_HOST = "localhost"
                 mock_config.POSTGRES_PORT = "5432"
                 mock_config.POSTGRES_PASSWORD = "testpass"
-                
-                with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+                with patch("asyncio.create_subprocess_exec") as mock_subprocess:
                     mock_process = AsyncMock()
                     mock_process.returncode = 0
                     mock_process.communicate = AsyncMock(return_value=(b"SQL content", b""))
                     mock_subprocess.return_value = mock_process
-                    
-                    with patch('core.backup_strategy.verify_backup_integrity', return_value=False):
+
+                    with patch("core.backup_strategy.verify_backup_integrity", return_value=False):
                         result = await perform_database_backup()
-                        
+
                         assert result["status"] == "failed"
                         assert "integrity" in result["error"].lower()
 
@@ -380,12 +418,12 @@ class TestPerformConfigBackup:
         with tempfile.TemporaryDirectory() as temp_dir:
             _backup_config["backup_location"] = temp_dir
             _backup_config["compression_enabled"] = False
-            
-            with patch('core.backup_strategy.config') as mock_config:
+
+            with patch("core.backup_strategy.config") as mock_config:
                 mock_config.__file__ = None
-                
+
                 result = await perform_config_backup()
-                
+
                 assert result["status"] == "success"
                 assert result["type"] == "config"
                 assert "backup_id" in result
@@ -396,12 +434,12 @@ class TestPerformConfigBackup:
         with tempfile.TemporaryDirectory() as temp_dir:
             _backup_config["backup_location"] = temp_dir
             _backup_config["compression_enabled"] = True
-            
-            with patch('core.backup_strategy.config') as mock_config:
+
+            with patch("core.backup_strategy.config") as mock_config:
                 mock_config.__file__ = None
-                
+
                 result = await perform_config_backup()
-                
+
                 assert result["status"] == "success"
                 assert result["path"].endswith(".tar.gz")
 
@@ -415,9 +453,9 @@ class TestPerformLogsBackup:
         with tempfile.TemporaryDirectory() as temp_dir:
             _backup_config["backup_location"] = temp_dir
             _backup_config["compression_enabled"] = False
-            
+
             result = await perform_logs_backup()
-            
+
             assert result["status"] == "success"
             assert result["type"] == "logs"
             assert "backup_id" in result
@@ -428,9 +466,9 @@ class TestPerformLogsBackup:
         with tempfile.TemporaryDirectory() as temp_dir:
             _backup_config["backup_location"] = temp_dir
             _backup_config["compression_enabled"] = True
-            
+
             result = await perform_logs_backup()
-            
+
             assert result["status"] == "success"
             assert result["path"].endswith(".tar.gz")
 
@@ -442,18 +480,18 @@ class TestPerformFullBackup:
     async def test_perform_full_backup_all_types(self):
         """Test full backup with all backup types"""
         _backup_config["backup_types"] = ["database", "config", "logs"]
-        
-        with patch('core.backup_strategy.perform_database_backup') as mock_db:
+
+        with patch("core.backup_strategy.perform_database_backup") as mock_db:
             mock_db.return_value = {"status": "success", "type": "database"}
-        
-        with patch('core.backup_strategy.perform_config_backup') as mock_config:
+
+        with patch("core.backup_strategy.perform_config_backup") as mock_config:
             mock_config.return_value = {"status": "success", "type": "config"}
-        
-        with patch('core.backup_strategy.perform_logs_backup') as mock_logs:
+
+        with patch("core.backup_strategy.perform_logs_backup") as mock_logs:
             mock_logs.return_value = {"status": "success", "type": "logs"}
-        
+
         result = await perform_full_backup()
-        
+
         assert result["overall_status"] == "success"
         assert "database" in result["results"]
         assert "config" in result["results"]
@@ -463,30 +501,30 @@ class TestPerformFullBackup:
     async def test_perform_full_backup_partial_failure(self):
         """Test full backup with partial failures"""
         _backup_config["backup_types"] = ["database", "config", "logs"]
-        
-        with patch('core.backup_strategy.perform_database_backup') as mock_db:
+
+        with patch("core.backup_strategy.perform_database_backup") as mock_db:
             mock_db.return_value = {"status": "success", "type": "database"}
-        
-        with patch('core.backup_strategy.perform_config_backup') as mock_config:
+
+        with patch("core.backup_strategy.perform_config_backup") as mock_config:
             mock_config.return_value = {"status": "failed", "type": "config"}
-        
-        with patch('core.backup_strategy.perform_logs_backup') as mock_logs:
+
+        with patch("core.backup_strategy.perform_logs_backup") as mock_logs:
             mock_logs.return_value = {"status": "success", "type": "logs"}
-        
+
         result = await perform_full_backup()
-        
+
         assert result["overall_status"] == "partial"
 
     @pytest.mark.asyncio
     async def test_perform_full_backup_custom_types(self):
         """Test full backup with custom backup types"""
         _backup_config["backup_types"] = ["database"]
-        
-        with patch('core.backup_strategy.perform_database_backup') as mock_db:
+
+        with patch("core.backup_strategy.perform_database_backup") as mock_db:
             mock_db.return_value = {"status": "success", "type": "database"}
-        
+
         result = await perform_full_backup()
-        
+
         assert "database" in result["results"]
         assert "config" not in result["results"]
 
@@ -498,9 +536,9 @@ class TestCleanupOldBackups:
     async def test_cleanup_old_backups_empty_history(self):
         """Test cleanup with empty backup history"""
         _backup_history.clear()
-        
+
         result = await cleanup_old_backups()
-        
+
         assert result == 0
 
     @pytest.mark.asyncio
@@ -514,9 +552,9 @@ class TestCleanupOldBackups:
                 "type": "database",
                 "status": "success",
                 "path": os.path.join(temp_dir, "old_backup"),
-                "timestamp": old_time
+                "timestamp": old_time,
             }
-            
+
             # Create recent backup entry
             recent_time = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
             recent_backup = {
@@ -524,20 +562,20 @@ class TestCleanupOldBackups:
                 "type": "database",
                 "status": "success",
                 "path": os.path.join(temp_dir, "recent_backup"),
-                "timestamp": recent_time
+                "timestamp": recent_time,
             }
-            
+
             _backup_history.extend([old_backup, recent_backup])
             _backup_config["retention_days"] = 30
-            
+
             # Create actual files
-            with open(old_backup["path"], 'w') as f:
+            with open(old_backup["path"], "w") as f:
                 f.write("old")
-            with open(recent_backup["path"], 'w') as f:
+            with open(recent_backup["path"], "w") as f:
                 f.write("recent")
-            
+
             result = await cleanup_old_backups()
-            
+
             assert result >= 1
             assert len(_backup_history) == 1
             assert _backup_history[0]["backup_id"] == "recent_backup"
@@ -551,14 +589,14 @@ class TestCleanupOldBackups:
             "type": "database",
             "status": "success",
             "path": "/nonexistent/path",
-            "timestamp": old_time
+            "timestamp": old_time,
         }
-        
+
         _backup_history.append(old_backup)
         _backup_config["retention_days"] = 30
-        
+
         result = await cleanup_old_backups()
-        
+
         # Should still count as cleaned even if file doesn't exist
         assert result >= 1
 
@@ -569,9 +607,9 @@ class TestGetBackupHistory:
     def test_get_backup_history_empty(self):
         """Test getting empty backup history"""
         _backup_history.clear()
-        
+
         result = get_backup_history()
-        
+
         assert result == []
         assert result is not _backup_history  # Should return copy
 
@@ -580,9 +618,9 @@ class TestGetBackupHistory:
         _backup_history.clear()
         _backup_history.append({"backup_id": "1", "status": "success"})
         _backup_history.append({"backup_id": "2", "status": "success"})
-        
+
         result = get_backup_history()
-        
+
         assert len(result) == 2
         assert result is not _backup_history
 
@@ -595,9 +633,9 @@ class TestGetRecentBackups:
         _backup_history.clear()
         for i in range(20):
             _backup_history.append({"backup_id": str(i), "status": "success"})
-        
+
         result = get_recent_backups()
-        
+
         assert len(result) == 10
         assert result[0]["backup_id"] == "10"
         assert result[-1]["backup_id"] == "19"
@@ -607,9 +645,9 @@ class TestGetRecentBackups:
         _backup_history.clear()
         for i in range(10):
             _backup_history.append({"backup_id": str(i), "status": "success"})
-        
+
         result = get_recent_backups(count=5)
-        
+
         assert len(result) == 5
         assert result[0]["backup_id"] == "5"
         assert result[-1]["backup_id"] == "9"
@@ -617,9 +655,9 @@ class TestGetRecentBackups:
     def test_get_recent_backups_empty(self):
         """Test getting recent backups when empty"""
         _backup_history.clear()
-        
+
         result = get_recent_backups()
-        
+
         assert result == []
 
 
@@ -629,9 +667,9 @@ class TestGetBackupStatistics:
     def test_get_backup_statistics_empty(self):
         """Test getting statistics with no backups"""
         _backup_history.clear()
-        
+
         result = get_backup_statistics()
-        
+
         assert result["total_backups"] == 0
         assert result["successful_backups"] == 0
         assert result["failed_backups"] == 0
@@ -642,28 +680,28 @@ class TestGetBackupStatistics:
     def test_get_backup_statistics_with_data(self):
         """Test getting statistics with backup data"""
         _backup_history.clear()
-        _backup_history.append({
-            "backup_id": "1",
-            "type": "database",
-            "status": "success",
-            "size_bytes": 1000,
-            "duration_seconds": 10.0
-        })
-        _backup_history.append({
-            "backup_id": "2",
-            "type": "config",
-            "status": "success",
-            "size_bytes": 500,
-            "duration_seconds": 5.0
-        })
-        _backup_history.append({
-            "backup_id": "3",
-            "type": "logs",
-            "status": "failed"
-        })
-        
+        _backup_history.append(
+            {
+                "backup_id": "1",
+                "type": "database",
+                "status": "success",
+                "size_bytes": 1000,
+                "duration_seconds": 10.0,
+            }
+        )
+        _backup_history.append(
+            {
+                "backup_id": "2",
+                "type": "config",
+                "status": "success",
+                "size_bytes": 500,
+                "duration_seconds": 5.0,
+            }
+        )
+        _backup_history.append({"backup_id": "3", "type": "logs", "status": "failed"})
+
         result = get_backup_statistics()
-        
+
         assert result["total_backups"] == 3
         assert result["successful_backups"] == 2
         assert result["failed_backups"] == 1
@@ -674,26 +712,16 @@ class TestGetBackupStatistics:
     def test_get_backup_statistics_by_type(self):
         """Test statistics breakdown by backup type"""
         _backup_history.clear()
-        _backup_history.append({
-            "backup_id": "1",
-            "type": "database",
-            "status": "success",
-            "size_bytes": 1000
-        })
-        _backup_history.append({
-            "backup_id": "2",
-            "type": "database",
-            "status": "failed"
-        })
-        _backup_history.append({
-            "backup_id": "3",
-            "type": "config",
-            "status": "success",
-            "size_bytes": 500
-        })
-        
+        _backup_history.append(
+            {"backup_id": "1", "type": "database", "status": "success", "size_bytes": 1000}
+        )
+        _backup_history.append({"backup_id": "2", "type": "database", "status": "failed"})
+        _backup_history.append(
+            {"backup_id": "3", "type": "config", "status": "success", "size_bytes": 500}
+        )
+
         result = get_backup_statistics()
-        
+
         assert "backup_types" in result
         assert "database" in result["backup_types"]
         assert "config" in result["backup_types"]

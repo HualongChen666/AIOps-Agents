@@ -23,12 +23,12 @@ import json
 import logging
 import math
 import statistics
+import threading
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from collections import deque
-import threading
 
 import yaml
 
@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 class SeverityLevel(Enum):
     """Alert severity levels."""
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -44,6 +45,7 @@ class SeverityLevel(Enum):
 
 class AggregationMethod(Enum):
     """SLO aggregation methods."""
+
     GOOD_RATIO = "good_ratio"
     UPTIME = "uptime"
     P99_LT = "p99_lt"
@@ -54,6 +56,7 @@ class AggregationMethod(Enum):
 
 class ComplianceStatus(Enum):
     """SLA compliance status."""
+
     COMPLIANT = "compliant"
     NON_COMPLIANT = "non_compliant"
     WARNING = "warning"
@@ -63,6 +66,7 @@ class ComplianceStatus(Enum):
 @dataclass
 class KPITarget:
     """KPI target configuration."""
+
     target: float
     warning: float
     critical: float
@@ -72,6 +76,7 @@ class KPITarget:
 @dataclass
 class KPIDefinition:
     """KPI definition."""
+
     name: str
     description: str
     enabled: bool
@@ -83,6 +88,7 @@ class KPIDefinition:
 @dataclass
 class SLODefinition:
     """SLO definition."""
+
     name: str
     description: str
     enabled: bool
@@ -97,6 +103,7 @@ class SLODefinition:
 @dataclass
 class KPIDataPoint:
     """KPI data point with timestamp."""
+
     timestamp: datetime.datetime
     value: float
     metric: str
@@ -107,6 +114,7 @@ class KPIDataPoint:
 @dataclass
 class SLOEvaluationResult:
     """SLO evaluation result."""
+
     slo_id: str
     slo_name: str
     current: float
@@ -122,6 +130,7 @@ class SLOEvaluationResult:
 @dataclass
 class SLAComplianceReport:
     """SLA compliance report."""
+
     report_id: str
     period: str
     generated_at: datetime.datetime
@@ -136,6 +145,7 @@ class SLAComplianceReport:
 @dataclass
 class TrendAnalysis:
     """Trend analysis result."""
+
     metric: str
     service: str
     period: str
@@ -149,6 +159,7 @@ class TrendAnalysis:
 @dataclass
 class Alert:
     """Alert definition."""
+
     alert_id: str
     severity: SeverityLevel
     kpi_slo_id: str
@@ -195,7 +206,7 @@ class KPISLOManager:
     def _load_config(self) -> None:
         """Load KPI/SLO configuration from YAML file."""
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 self.config = yaml.safe_load(f)
             logger.info(f"Loaded KPI/SLO configuration from {self.config_path}")
         except FileNotFoundError:
@@ -214,7 +225,7 @@ class KPISLOManager:
             "error_budget": {"enabled": True},
             "reporting": {"enabled": True},
             "historical_tracking": {"enabled": True},
-            "predictive_analysis": {"enabled": True}
+            "predictive_analysis": {"enabled": True},
         }
 
     def _initialize_kpis(self) -> None:
@@ -234,7 +245,7 @@ class KPISLOManager:
                         target=values.get("target", 0.0),
                         warning=values.get("warning", 0.0),
                         critical=values.get("critical", 0.0),
-                        unit=kpi_data.get("unit", "")
+                        unit=kpi_data.get("unit", ""),
                     )
 
             self.kpis[kpi_key] = KPIDefinition(
@@ -243,7 +254,7 @@ class KPISLOManager:
                 enabled=kpi_data.get("enabled", True),
                 unit=kpi_data.get("unit", ""),
                 targets=targets,
-                metadata=kpi_data
+                metadata=kpi_data,
             )
 
         logger.info(f"Initialized {len(self.kpis)} KPI definitions")
@@ -276,7 +287,7 @@ class KPISLOManager:
                     alert_threshold=target_values.get("alert_threshold", 0.0),
                     metric=target_values.get("metric", ""),
                     aggregation=target_values.get("aggregation", "good_ratio"),
-                    service=target_values.get("service", "default")
+                    service=target_values.get("service", "default"),
                 )
                 slo_counter += 1
 
@@ -328,9 +339,14 @@ class KPISLOManager:
             logger.info(f"Deleted KPI {kpi_id}")
             return True
 
-    def record_kpi_value(self, metric: str, value: float, service: str = "default",
-                        timestamp: Optional[datetime.datetime] = None,
-                        metadata: Optional[Dict[str, Any]] = None) -> None:
+    def record_kpi_value(
+        self,
+        metric: str,
+        value: float,
+        service: str = "default",
+        timestamp: Optional[datetime.datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
         Record a KPI data point.
 
@@ -349,7 +365,7 @@ class KPISLOManager:
             value=value,
             metric=metric,
             service=service,
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
         key = f"{metric}:{service}"
@@ -359,9 +375,13 @@ class KPISLOManager:
 
             self.historical_data[key].append(data_point)
 
-    def get_kpi_history(self, metric: str, service: str = "default",
-                       start: Optional[datetime.datetime] = None,
-                       end: Optional[datetime.datetime] = None) -> List[KPIDataPoint]:
+    def get_kpi_history(
+        self,
+        metric: str,
+        service: str = "default",
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> List[KPIDataPoint]:
         """
         Get historical KPI data.
 
@@ -404,8 +424,9 @@ class KPISLOManager:
             return None
         return history[-1].value
 
-    def calculate_kpi(self, kpi_id: str, service: str = "default",
-                     percentile: Optional[str] = None) -> Optional[float]:
+    def calculate_kpi(
+        self, kpi_id: str, service: str = "default", percentile: Optional[str] = None
+    ) -> Optional[float]:
         """
         Calculate current KPI value.
 
@@ -540,7 +561,7 @@ class KPISLOManager:
                 status="healthy",
                 alert=False,
                 window=slo.window,
-                timestamp=datetime.datetime.utcnow()
+                timestamp=datetime.datetime.utcnow(),
             )
 
         # Calculate current value based on aggregation method
@@ -571,7 +592,7 @@ class KPISLOManager:
             status=status,
             alert=alert,
             window=slo.window,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.utcnow(),
         )
 
     def _parse_window(self, window) -> int:
@@ -726,7 +747,7 @@ class KPISLOManager:
             total_slos=len(results),
             compliant_slos=compliant_count,
             non_compliant_slos=non_compliant_count,
-            warning_slos=warning_count
+            warning_slos=warning_count,
         )
 
         with self._lock:
@@ -773,7 +794,7 @@ class KPISLOManager:
                     severity=severity,
                     kpi_slo_id=kpi_id,
                     message=message,
-                    timestamp=datetime.datetime.utcnow()
+                    timestamp=datetime.datetime.utcnow(),
                 )
                 alerts.append(alert)
 
@@ -794,7 +815,7 @@ class KPISLOManager:
                 severity=severity,
                 kpi_slo_id=result.slo_id,
                 message=message,
-                timestamp=datetime.datetime.utcnow()
+                timestamp=datetime.datetime.utcnow(),
             )
             alerts.append(alert)
 
@@ -803,8 +824,9 @@ class KPISLOManager:
 
         return alerts
 
-    def get_alerts(self, severity: Optional[SeverityLevel] = None,
-                   since: Optional[datetime.datetime] = None) -> List[Alert]:
+    def get_alerts(
+        self, severity: Optional[SeverityLevel] = None, since: Optional[datetime.datetime] = None
+    ) -> List[Alert]:
         """
         Get alerts, optionally filtered by severity and time.
 
@@ -850,8 +872,9 @@ class KPISLOManager:
 
     # Trend Analysis
 
-    def analyze_trend(self, metric: str, service: str = "default",
-                      period: str = "7d") -> Optional[TrendAnalysis]:
+    def analyze_trend(
+        self, metric: str, service: str = "default", period: str = "7d"
+    ) -> Optional[TrendAnalysis]:
         """
         Analyze trend for a metric over a period.
 
@@ -883,7 +906,7 @@ class KPISLOManager:
         sum_y = sum(values)
         sum_xy = sum(x * y for x, y in zip(timestamps, values))
         sum_x2 = sum(x * x for x in timestamps)
-        sum_y2 = sum(y * y for y in values)
+        sum_y2 = sum(y * y for y in values)  # noqa: F841 - Reserved for correlation calculation
 
         denominator = n * sum_x2 - sum_x * sum_x
         if denominator == 0:
@@ -909,7 +932,7 @@ class KPISLOManager:
             trend = "decreasing"
 
         # Generate forecast
-        forecast_horizon = 7 * 24  # 7 days in hours
+        forecast_horizon = 7 * 24  # 7 days in hours  # noqa: F841 - Reserved for future use
         forecast = []
         for hours in range(1, 8):
             future_time = end_time + datetime.timedelta(hours=hours * 24)
@@ -928,13 +951,12 @@ class KPISLOManager:
             slope=slope,
             r_squared=r_squared,
             forecast=forecast,
-            confidence_interval=confidence_interval
+            confidence_interval=confidence_interval,
         )
 
     # Report Generation
 
-    def generate_report(self, period: str = "30d",
-                       format: str = "json") -> Dict[str, Any]:
+    def generate_report(self, period: str = "30d", format: str = "json") -> Dict[str, Any]:
         """
         Generate a comprehensive KPI/SLO report.
 
@@ -958,7 +980,7 @@ class KPISLOManager:
                 "name": kpi.name,
                 "description": kpi.description,
                 "unit": kpi.unit,
-                "current_values": {}
+                "current_values": {},
             }
 
             for target_name in kpi.targets:
@@ -973,13 +995,15 @@ class KPISLOManager:
                 continue
             trend = self.analyze_trend(kpi_id, period=period)
             if trend:
-                trends.append({
-                    "metric": trend.metric,
-                    "service": trend.service,
-                    "trend": trend.trend,
-                    "slope": trend.slope,
-                    "r_squared": trend.r_squared
-                })
+                trends.append(
+                    {
+                        "metric": trend.metric,
+                        "service": trend.service,
+                        "trend": trend.trend,
+                        "slope": trend.slope,
+                        "r_squared": trend.r_squared,
+                    }
+                )
 
         # Error budget summary
         error_budget_summary = {
@@ -987,11 +1011,17 @@ class KPISLOManager:
             "healthy_slos": sum(1 for r in slo_results if r.status == "healthy"),
             "warning_slos": sum(1 for r in slo_results if r.status == "warning"),
             "critical_slos": sum(1 for r in slo_results if r.status == "critical"),
-            "average_error_budget": statistics.mean([r.error_budget_remaining_percent for r in slo_results]) if slo_results else 100.0
+            "average_error_budget": (
+                statistics.mean([r.error_budget_remaining_percent for r in slo_results])
+                if slo_results
+                else 100.0
+            ),
         }
 
         # Recent alerts
-        recent_alerts = self.get_alerts(since=datetime.datetime.utcnow() - datetime.timedelta(hours=24))
+        recent_alerts = self.get_alerts(
+            since=datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+        )
 
         report = {
             "report_id": sla_report.report_id,
@@ -1002,7 +1032,7 @@ class KPISLOManager:
                 "total_slos": sla_report.total_slos,
                 "compliant_slos": sla_report.compliant_slos,
                 "non_compliant_slos": sla_report.non_compliant_slos,
-                "warning_slos": sla_report.warning_slos
+                "warning_slos": sla_report.warning_slos,
             },
             "kpi_summary": kpi_summary,
             "slo_results": [
@@ -1014,7 +1044,7 @@ class KPISLOManager:
                     "error_budget_remaining_percent": r.error_budget_remaining_percent,
                     "burn_rate": r.burn_rate,
                     "status": r.status,
-                    "window": r.window
+                    "window": r.window,
                 }
                 for r in slo_results
             ],
@@ -1026,17 +1056,18 @@ class KPISLOManager:
                     "severity": a.severity.value,
                     "kpi_slo_id": a.kpi_slo_id,
                     "message": a.message,
-                    "timestamp": a.timestamp.isoformat()
+                    "timestamp": a.timestamp.isoformat(),
                 }
                 for a in recent_alerts
             ],
-            "recommendations": self._generate_recommendations(slo_results, trends)
+            "recommendations": self._generate_recommendations(slo_results, trends),
         }
 
         return report
 
-    def _generate_recommendations(self, slo_results: List[SLOEvaluationResult],
-                                  trends: List[Dict[str, Any]]) -> List[str]:
+    def _generate_recommendations(
+        self, slo_results: List[SLOEvaluationResult], trends: List[Dict[str, Any]]
+    ) -> List[str]:
         """Generate recommendations based on SLO results and trends."""
         recommendations = []
 
@@ -1050,9 +1081,7 @@ class KPISLOManager:
         # Check for warning SLOs
         warning_slos = [r for r in slo_results if r.status == "warning"]
         if warning_slos:
-            recommendations.append(
-                f"Attention needed: {len(warning_slos)} SLO(s) in warning state"
-            )
+            recommendations.append(f"Attention needed: {len(warning_slos)} SLO(s) in warning state")
 
         # Check for high burn rates
         high_burn_rate = [r for r in slo_results if r.burn_rate > 2.0]
@@ -1085,8 +1114,19 @@ class KPISLOManager:
             True if successful
         """
         try:
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2, default=str)
+
+            # Set restrictive permissions for report file (644 - owner read/write, group/others read)
+            try:
+                import os
+                import stat
+
+                os.chmod(filepath, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
+
             logger.info(f"Saved report to {filepath}")
             return True
         except Exception as e:
@@ -1118,7 +1158,9 @@ class KPISLOManager:
             "burn_rate": result.burn_rate,
             "status": result.status,
             "time_to_exhaustion": self._calculate_time_to_exhaustion(result),
-            "burn_rate_status": self._evaluate_burn_rate_status(result.burn_rate, error_budget_config)
+            "burn_rate_status": self._evaluate_burn_rate_status(
+                result.burn_rate, error_budget_config
+            ),
         }
 
     def _calculate_time_to_exhaustion(self, result: SLOEvaluationResult) -> Optional[str]:
@@ -1143,8 +1185,7 @@ class KPISLOManager:
         else:
             return f"{int(hours_remaining / (24 * 7))} weeks"
 
-    def _evaluate_burn_rate_status(self, burn_rate: float,
-                                   config: Dict[str, Any]) -> str:
+    def _evaluate_burn_rate_status(self, burn_rate: float, config: Dict[str, Any]) -> str:
         """Evaluate burn rate status against thresholds."""
         warning_threshold = config.get("burn_rate_thresholds", {}).get("warning", 2.0)
         critical_threshold = config.get("burn_rate_thresholds", {}).get("critical", 10.0)

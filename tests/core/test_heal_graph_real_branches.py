@@ -60,8 +60,12 @@ from core.heal_graph import (
 
 def test_stats_engine_import_fallback():
     """Test that stats_engine import falls back gracefully."""
-    from core.heal_graph import record_decision as rd  # noqa: E402  # Module level import not at top (intentional for test setup)
-    from core.heal_graph import record_outcome as ro  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        record_decision as rd,
+    )
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        record_outcome as ro,
+    )
 
     # Should be None if import failed, or callable if successful
     assert rd is None or callable(rd)
@@ -70,8 +74,12 @@ def test_stats_engine_import_fallback():
 
 def test_snapshot_store_import_fallback():
     """Test that snapshot_store import falls back gracefully."""
-    from core.heal_graph import save_snapshot as ss  # noqa: E402  # Module level import not at top (intentional for test setup)
-    from core.heal_graph import update_snapshot_status as uss  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        save_snapshot as ss,
+    )
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        update_snapshot_status as uss,
+    )
 
     assert ss is None or callable(ss)
     assert uss is None or callable(uss)
@@ -85,7 +93,10 @@ def test_snapshot_store_import_fallback():
 @pytest.mark.asyncio
 async def test_fallback_stategraph_no_entry_point():
     """Test fallback StateGraph with no entry point."""
-    from core.heal_graph import END, StateGraph  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        END,
+        StateGraph,
+    )
 
     graph = StateGraph()
     graph.add_node("test_node", lambda s: s)
@@ -100,7 +111,10 @@ async def test_fallback_stategraph_no_entry_point():
 @pytest.mark.asyncio
 async def test_fallback_stategraph_node_not_found():
     """Test fallback StateGraph when node is not found."""
-    from core.heal_graph import END, StateGraph  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        END,
+        StateGraph,
+    )
 
     graph = StateGraph()
     graph.set_entry_point("missing_node")
@@ -116,7 +130,10 @@ async def test_fallback_stategraph_node_not_found():
 @pytest.mark.asyncio
 async def test_fallback_stategraph_node_exception():
     """Test fallback StateGraph when node raises exception."""
-    from core.heal_graph import END, StateGraph  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        END,
+        StateGraph,
+    )
 
     async def failing_node(state):
         raise ValueError("Node failed")
@@ -136,7 +153,10 @@ async def test_fallback_stategraph_node_exception():
 @pytest.mark.asyncio
 async def test_fallback_stategraph_no_candidates():
     """Test fallback StateGraph when no outgoing candidates."""
-    from core.heal_graph import END, StateGraph  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        END,
+        StateGraph,
+    )
 
     async def test_node(state):
         return state
@@ -423,7 +443,7 @@ async def test_generate_runbook_exception():
         mock_gen.side_effect = Exception("Generation failed")
 
         # Also patch the fallback to ensure it doesn't interfere
-        with patch("core.auto_heal.repair_script_library.get_script") as mock_get_script:
+        with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY.get_script") as mock_get_script:
             mock_get_script.side_effect = Exception("Fallback also failed")
 
             result = await generate_runbook(state)  # noqa: F841  # Variable for test verification
@@ -592,7 +612,9 @@ async def test_apply_fix_upsert_exception():
                     mock_metrics.to_dict.return_value = {}
 
                     with patch.dict(os.environ, {"HEAL_EXECUTE_ENABLED": "false"}):
-                        result = await apply_fix(state)  # noqa: F841  # Variable for test verification
+                        result = await apply_fix(
+                            state
+                        )  # noqa: F841  # Variable for test verification
                         # Should handle upsert exception gracefully
                         assert result is not None
 
@@ -811,7 +833,9 @@ async def test_apply_fix_snapshot_save_exception():
                     mock_save.side_effect = Exception("Snapshot save failed")
 
                     with patch.dict(os.environ, {"HEAL_EXECUTE_ENABLED": "false"}):
-                        result = await apply_fix(state)  # noqa: F841  # Variable for test verification
+                        result = await apply_fix(
+                            state
+                        )  # noqa: F841  # Variable for test verification
                         # Should handle snapshot save exception gracefully
                         assert result is not None
 
@@ -843,7 +867,9 @@ async def test_apply_fix_snapshot_disabled():
                     mock_config.get.return_value = False  # Disabled
 
                     with patch.dict(os.environ, {"HEAL_EXECUTE_ENABLED": "false"}):
-                        result = await apply_fix(state)  # noqa: F841  # Variable for test verification
+                        result = await apply_fix(
+                            state
+                        )  # noqa: F841  # Variable for test verification
                         # Should use in-memory snapshot
                         assert result.snapshot is not None
 
@@ -936,7 +962,9 @@ async def test_apply_fix_risk_level_none():
                     mock_analyze.return_value = {"risk_level": "BLOCKED"}
 
                     with patch.dict(os.environ, {"HEAL_EXECUTE_ENABLED": "false"}):
-                        result = await apply_fix(state)  # noqa: F841  # Variable for test verification
+                        result = await apply_fix(
+                            state
+                        )  # noqa: F841  # Variable for test verification
                         # Should handle None RiskLevel
                         assert result is not None
 
@@ -2221,7 +2249,9 @@ async def test_run_heal_final_state_error():
 
 def test_build_graph_checkpointer_parameter():
     """Test _build_graph with checkpointer parameter."""
-    from core.heal_graph import CheckpointSQLite  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.heal_graph import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        CheckpointSQLite,
+    )
 
     # Test that checkpointer is passed when available
     graph = _build_graph()

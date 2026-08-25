@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 """Tests for core.agent.coding_tools module - based on actual implementation"""
 
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
 from core.agent.coding_tools import (
+    _MAX_FILE_READ_BYTES,
+    _MAX_FILE_WRITE_BYTES,
     _get_workspace_root,
     _resolve_allowed_path,
     _validate_command_args,
-    _MAX_FILE_READ_BYTES,
-    _MAX_FILE_WRITE_BYTES,
 )
 
 
@@ -18,15 +20,15 @@ class TestWorkspaceFunctions:
 
     def test_get_workspace_root(self):
         """Test getting workspace root"""
-        with patch.dict('os.environ', {'AIOPS_AGENT_WORKSPACE': '/test/workspace'}):
+        with patch.dict("os.environ", {"AIOPS_AGENT_WORKSPACE": "/test/workspace"}):
             root = _get_workspace_root()
             assert root is not None
-            assert 'workspace' in str(root)
+            assert "workspace" in str(root)
 
     def test_get_workspace_root_default(self):
         """Test getting workspace root with default"""
-        with patch.dict('os.environ', {}, clear=True):
-            with patch('os.getcwd', return_value='/current/dir'):
+        with patch.dict("os.environ", {}, clear=True):
+            with patch("os.getcwd", return_value="/current/dir"):
                 root = _get_workspace_root()
                 assert root is not None
 
@@ -37,54 +39,58 @@ class TestPathResolution:
     def test_resolve_allowed_path_relative(self):
         """Test resolving relative path"""
         import platform
-        if platform.system() == 'Windows':
-            workspace = Path('C:/workspace')
+
+        if platform.system() == "Windows":
+            workspace = Path("C:/workspace")
         else:
-            workspace = Path('/workspace')
-        with patch('core.agent.coding_tools._get_workspace_root', return_value=workspace):
-            with patch('os.getcwd', return_value=str(workspace)):
-                result = _resolve_allowed_path('test.py')
+            workspace = Path("/workspace")
+        with patch("core.agent.coding_tools._get_workspace_root", return_value=workspace):
+            with patch("os.getcwd", return_value=str(workspace)):
+                result = _resolve_allowed_path("test.py")
                 assert result is not None
-                assert 'test.py' in str(result)
+                assert "test.py" in str(result)
 
     def test_resolve_allowed_path_absolute_within_workspace(self):
         """Test resolving absolute path within workspace"""
         import platform
-        if platform.system() == 'Windows':
-            workspace = Path('C:/workspace')
-            test_path = 'C:/workspace/test.py'
+
+        if platform.system() == "Windows":
+            workspace = Path("C:/workspace")
+            test_path = "C:/workspace/test.py"
         else:
-            workspace = Path('/workspace')
-            test_path = '/workspace/test.py'
-        with patch('core.agent.coding_tools._get_workspace_root', return_value=workspace):
+            workspace = Path("/workspace")
+            test_path = "/workspace/test.py"
+        with patch("core.agent.coding_tools._get_workspace_root", return_value=workspace):
             result = _resolve_allowed_path(test_path)
             assert result is not None
-            assert result.name == 'test.py'
+            assert result.name == "test.py"
 
     def test_resolve_allowed_path_absolute_outside_workspace(self):
         """Test resolving absolute path outside workspace raises error"""
         import platform
-        if platform.system() == 'Windows':
-            workspace = Path('C:/workspace')
-            test_path = 'C:/etc/passwd'
+
+        if platform.system() == "Windows":
+            workspace = Path("C:/workspace")
+            test_path = "C:/etc/passwd"
         else:
-            workspace = Path('/workspace')
-            test_path = '/etc/passwd'
-        with patch('core.agent.coding_tools._get_workspace_root', return_value=workspace):
+            workspace = Path("/workspace")
+            test_path = "/etc/passwd"
+        with patch("core.agent.coding_tools._get_workspace_root", return_value=workspace):
             with pytest.raises(ValueError, match="outside workspace"):
                 _resolve_allowed_path(test_path)
 
     def test_resolve_allowed_path_with_cwd(self):
         """Test resolving path with custom cwd"""
         import platform
-        if platform.system() == 'Windows':
-            workspace = Path('C:/workspace')
-            cwd = 'C:/workspace/subdir'
+
+        if platform.system() == "Windows":
+            workspace = Path("C:/workspace")
+            cwd = "C:/workspace/subdir"
         else:
-            workspace = Path('/workspace')
-            cwd = '/workspace/subdir'
-        with patch('core.agent.coding_tools._get_workspace_root', return_value=workspace):
-            result = _resolve_allowed_path('test.py', cwd=cwd)
+            workspace = Path("/workspace")
+            cwd = "/workspace/subdir"
+        with patch("core.agent.coding_tools._get_workspace_root", return_value=workspace):
+            result = _resolve_allowed_path("test.py", cwd=cwd)
             assert result is not None
 
 
@@ -99,22 +105,22 @@ class TestCommandValidation:
     def test_validate_command_args_disallowed_base(self):
         """Test validation with disallowed base command"""
         with pytest.raises(ValueError, match="not allowed"):
-            _validate_command_args(['curl', 'http://example.com'])
+            _validate_command_args(["curl", "http://example.com"])
 
     def test_validate_command_args_disallowed_recursive(self):
         """Test validation with recursive flags"""
         with pytest.raises(ValueError, match="not allowed"):
-            _validate_command_args(['rm', '-R', '/test'])
+            _validate_command_args(["rm", "-R", "/test"])
 
     def test_validate_command_args_interpreter_forbidden(self):
         """Test validation with forbidden interpreter patterns"""
         with pytest.raises(ValueError, match="not allowed"):
-            _validate_command_args(['python', '-c', 'print("test")'])
+            _validate_command_args(["python", "-c", 'print("test")'])
 
     def test_validate_command_args_valid(self):
         """Test validation with valid command"""
         # Should not raise
-        _validate_command_args(['ls', '-la'])
+        _validate_command_args(["ls", "-la"])
 
 
 class TestFileLimits:
@@ -134,12 +140,12 @@ class TestPathSecurity:
 
     def test_path_traversal_prevention(self):
         """Test that path traversal is prevented"""
-        with patch('core.agent.coding_tools._get_workspace_root', return_value=Path('/workspace')):
+        with patch("core.agent.coding_tools._get_workspace_root", return_value=Path("/workspace")):
             with pytest.raises(ValueError, match="outside workspace"):
-                _resolve_allowed_path('../../../etc/passwd')
+                _resolve_allowed_path("../../../etc/passwd")
 
     def test_symlink_protection(self):
         """Test that symlinks outside workspace are rejected"""
-        with patch('core.agent.coding_tools._get_workspace_root', return_value=Path('/workspace')):
+        with patch("core.agent.coding_tools._get_workspace_root", return_value=Path("/workspace")):
             with pytest.raises(ValueError, match="outside workspace"):
-                _resolve_allowed_path('/workspace/link/../etc/passwd')
+                _resolve_allowed_path("/workspace/link/../etc/passwd")

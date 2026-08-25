@@ -12,8 +12,10 @@ import pytest  # noqa: F401  # Imported for test setup
 
 # noqa: E402  # Module level import not at top (intentional for env var setup)
 import config
+
 # noqa: E402  # Module level import not at top (intentional for env var setup)
 import core.metrics_history
+
 # noqa: E402  # Module level import not at top (intentional for env var setup)
 from core.verifier import (
     _build_error_result,
@@ -75,7 +77,9 @@ def test_verify_repair_disabled():
     old = config.VERIFY_CONFIG["enabled"]
     try:
         config.VERIFY_CONFIG["enabled"] = False
-        result = _run(verify_repair({"platform": "linux"}, "restart_service", {}, None, ""))  # noqa: F841  # Variable for test verification
+        result = _run(
+            verify_repair({"platform": "linux"}, "restart_service", {}, None, "")
+        )  # noqa: F841  # Variable for test verification
         assert result["strategy"] == "skipped"
         assert "已禁用" in result["recommendation"]
     finally:
@@ -83,24 +87,32 @@ def test_verify_repair_disabled():
 
 
 def test_verify_repair_invalid_alert():
-    result = _run(verify_repair("not-a-dict", "restart_service", {}, None, ""))  # noqa: F841  # Variable for test verification
+    result = _run(
+        verify_repair("not-a-dict", "restart_service", {}, None, "")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "alert 必须为 dict" in result["error_msg"]
 
 
 def test_verify_repair_empty_script_key():
-    result = _run(verify_repair({"platform": "windows"}, "", {}, None, ""))  # noqa: F841  # Variable for test verification
+    result = _run(
+        verify_repair({"platform": "windows"}, "", {}, None, "")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "script_key 不能为空" in result["error_msg"]
 
 
 def test_verify_repair_bad_platform_defaults_to_windows():
-    result = _run(verify_repair({"platform": "Plan9"}, "unknown_script", {}, None, ""))  # noqa: F841  # Variable for test verification
+    result = _run(
+        verify_repair({"platform": "Plan9"}, "unknown_script", {}, None, "")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
 def test_verify_repair_params_not_dict():
-    result = _run(verify_repair({"platform": "linux"}, "restart_service", "notdict", None, ""))  # noqa: F841  # Variable for test verification
+    result = _run(
+        verify_repair({"platform": "linux"}, "restart_service", "notdict", None, "")
+    )  # noqa: F841  # Variable for test verification
     # safe_params becomes {} and no service_name is found, so _verify_service_status skips.
     assert result["strategy"] == "skipped"
 
@@ -226,7 +238,9 @@ def test_verification_wait_params():
 # service_status
 # ---------------------------------------------------------------------------
 def test_verify_service_status_windows_no_name():
-    result = _run(_verify_service_status({"platform": "windows"}, {}, "windows"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_service_status({"platform": "windows"}, {}, "windows")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
@@ -267,7 +281,9 @@ def test_verify_service_status_from_ai_runbook():
 
 
 def test_verify_service_status_linux_no_host():
-    result = _run(_verify_service_status({"platform": "linux"}, {"service_name": "nginx"}, "linux"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_service_status({"platform": "linux"}, {"service_name": "nginx"}, "linux")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "service_status"
     assert ("执行异常" in result["error_msg"]) or ("缺少 host" in result["error_msg"])
 
@@ -300,13 +316,19 @@ def test_verify_process_check_windows():
 
 
 def test_verify_process_check_invalid_pid():
-    result = _run(_verify_process_check({"platform": "windows"}, {"pid": 0}, "windows"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_process_check({"platform": "windows"}, {"pid": 0}, "windows")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
-    result = _run(_verify_process_check({"platform": "windows"}, {"pid": 5_000_000}, "windows"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_process_check({"platform": "windows"}, {"pid": 5_000_000}, "windows")
+    )  # noqa: F841  # Variable for test verification
     assert "超出合法范围" in result["error_msg"]
 
-    result = _run(_verify_process_check({"platform": "windows"}, {"pid": "abc"}, "windows"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_process_check({"platform": "windows"}, {"pid": "abc"}, "windows")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
@@ -447,7 +469,9 @@ def test_verify_network_check_linux():
 # k8s_status
 # ---------------------------------------------------------------------------
 def test_verify_k8s_status_windows_skip():
-    result = _run(_verify_k8s_status({"platform": "windows"}, {"name": "app-0"}, "windows"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_k8s_status({"platform": "windows"}, {"name": "app-0"}, "windows")
+    )  # noqa: F841  # Variable for test verification
     assert "仅支持 Linux" in result["recommendation"]
 
 
@@ -472,7 +496,9 @@ def test_verify_k8s_status_from_ai_runbook():
 
 
 def test_verify_k8s_status_invalid_name():
-    result = _run(_verify_k8s_status({"platform": "linux", "host": "missing"}, {}, "linux"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_k8s_status({"platform": "linux", "host": "missing"}, {}, "linux")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "无法提取 K8s 资源名" in result["recommendation"]
 
@@ -502,25 +528,33 @@ def test_verify_disk_usage_ai_runbook_no_match():
 # metric_threshold
 # ---------------------------------------------------------------------------
 def test_verify_metric_threshold_no_pre_snapshot():
-    result = _run(_verify_metric_threshold("free_cache", None))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", None)
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "无修复前快照" in result["recommendation"]
 
 
 def test_verify_metric_threshold_unmapped_script():
-    result = _run(_verify_metric_threshold("unknown_script", {"memory": [1, 2, 3]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("unknown_script", {"memory": [1, 2, 3]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
 def test_verify_metric_threshold_malformed_series():
-    result = _run(_verify_metric_threshold("free_cache", {"memory": "not-a-list"}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": "not-a-list"})
+    )  # noqa: F841  # Variable for test verification
     assert "序列格式异常" in result["error_msg"]
 
 
 def test_verify_metric_threshold_not_enough_samples():
     _reset_metrics()
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [1.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [1.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "数据点不足" in result["recommendation"]
 
@@ -528,35 +562,45 @@ def test_verify_metric_threshold_not_enough_samples():
 def test_verify_metric_threshold_non_numeric():
     _reset_metrics()
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": ["a", "b", "c"]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": ["a", "b", "c"]})
+    )  # noqa: F841  # Variable for test verification
     assert "指标数值计算异常" in result["error_msg"]
 
 
 def test_verify_metric_threshold_zero_pre_avg():
     _reset_metrics()
     _push_memory_samples([0.0, 0.0, 0.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [0.0, 0.0, 0.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [0.0, 0.0, 0.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is False
 
 
 def test_verify_metric_threshold_significant_drop():
     _reset_metrics()
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is True
 
 
 def test_verify_metric_threshold_insufficient_drop():
     _reset_metrics()
     _push_memory_samples([9.9, 9.9, 9.9])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is False
 
 
 def test_verify_metric_threshold_cpu():
     _reset_metrics()
     _push_cpu_samples([10.0, 10.0, 10.0])
-    result = _run(_verify_metric_threshold("cpu_high_script", {"cpu": [90.0, 90.0, 90.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("cpu_high_script", {"cpu": [90.0, 90.0, 90.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is True
 
 
@@ -611,7 +655,9 @@ def test_verify_custom_command_enabled():
 
 
 def test_verify_custom_command_direct():
-    result = _run(_verify_custom_command({"platform": "linux"}, {}, "linux", None))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_custom_command({"platform": "linux"}, {}, "linux", None)
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
@@ -751,7 +797,9 @@ def test_verify_metric_threshold_cancel_during_sleep():
 
 
 def test_dispatch_verification_unhandled_strategy():
-    from core.verifier import _dispatch_verification  # noqa: E402  # Module level import not at top (intentional for test setup)
+    from core.verifier import (  # noqa: E402  # Module level import not at top (intentional for test setup)
+        _dispatch_verification,
+    )
 
     result = _run(  # noqa: F841  # Variable for test verification
         _dispatch_verification(
@@ -829,7 +877,9 @@ def test_execute_linux_verify_match_by_host_field():
 
 def test_verify_disk_usage_unparseable_windows():
     # Non-existent drive returns empty output, hitting the parse-failure branch.
-    result = _run(_verify_disk_usage({"platform": "windows"}, {"mount_point": "Z:"}, "windows"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_disk_usage({"platform": "windows"}, {"mount_point": "Z:"}, "windows")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "disk_usage"
     assert "无法解析磁盘输出" in result["error_msg"]
 
@@ -884,7 +934,9 @@ def test_verify_process_check_ai_runbook_not_list():
 
 def test_verify_disk_usage_ai_runbook_none():
     # No ai_runbook and no mount_point -> defaults to "/".
-    result = _run(_verify_disk_usage({"platform": "windows"}, {}, "windows", ai_runbook=None))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_disk_usage({"platform": "windows"}, {}, "windows", ai_runbook=None)
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "disk_usage"
 
 

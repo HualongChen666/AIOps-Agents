@@ -15,7 +15,9 @@ async def test_collect_windows_host_without_winrm():
 
 async def test_collect_all_windows(monkeypatch):
     monkeypatch.setattr(core.windows_collector, "WIN_HOSTS", [])
-    result = await core.windows_collector.collect_all_windows()  # noqa: F841  # Variable for test verification
+    result = (
+        await core.windows_collector.collect_all_windows()
+    )  # noqa: F841  # Variable for test verification
     assert result == []  # noqa: F841  # Variable for test verification
 
 

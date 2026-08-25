@@ -8,6 +8,11 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
+from api.common import (
+    create_list_response,
+    handle_service_error,
+    validate_list_length,
+)
 from config import LINUX_HOSTS, LINUX_SSH_TIMEOUT
 from core.api_helpers import find_host_config, get_operator_ip, hostname_field_validator
 from core.linux_collector import (
@@ -83,12 +88,10 @@ class LinuxCollectRequest(BaseModel):
     def _validate_metrics(cls, v: Optional[list[str]]) -> Optional[list[str]]:
         if v is None:
             return None
-        if not isinstance(v, list):
-            raise ValueError("metrics 必须是字符串列表")
-        if len(v) > _METRICS_LIST_MAX:
-            raise ValueError(f"metrics 列表长度超出 {_METRICS_LIST_MAX}: {len(v)}")
+        # 🔧 重构:使用公共 validate_list_length 函数
+        validated = validate_list_length(v, "metrics", max_length=_METRICS_LIST_MAX)
         cleaned = []
-        for item in v:
+        for item in validated:
             if not isinstance(item, str):
                 continue
             stripped = item.strip()[:64]
@@ -139,10 +142,9 @@ async def list_hosts() -> dict[str, Any]:
     logger.info("请求 Linux 主机列表")
     try:
         hosts = get_configured_hosts()
-        return {"total": len(hosts), "hosts": hosts}
+        return create_list_response(hosts)
     except Exception as e:
-        logger.error(f"获取主机列表失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="获取主机列表失败,请查看服务日志")
+        handle_service_error(e, "获取主机列表", detail_prefix="获取主机列表失败,请查看服务日志")
 
 
 @router.get(
@@ -172,10 +174,9 @@ async def list_available_metrics() -> dict[str, Any]:
     logger.info("请求可用指标列表")
     try:
         metrics = get_available_metrics()
-        return {"total": len(metrics), "metrics": metrics}
+        return create_list_response(metrics)
     except Exception as e:
-        logger.error(f"获取指标列表失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="获取指标列表失败")
+        handle_service_error(e, "获取指标列表", detail_prefix="获取指标列表失败")
 
 
 @router.get(

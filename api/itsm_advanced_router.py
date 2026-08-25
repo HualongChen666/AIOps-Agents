@@ -8,9 +8,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/itsm", tags=["ITSM Advanced"])
 
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/v1/itsm", tags=["ITSM Advanced"])
 # Pydantic Models
 class ITSMIncident(BaseModel):
     """ITSM incident model"""
+
     incident_id: str
     title: str
     description: str
@@ -35,6 +36,7 @@ class ITSMIncident(BaseModel):
 
 class ITSMIncidentCreate(BaseModel):
     """ITSM incident creation model"""
+
     title: str
     description: str
     priority: str = Field(default="medium", description="Priority: low, medium, high, critical")
@@ -52,7 +54,7 @@ class ITSMIncidentCreate(BaseModel):
                 "category": "database",
                 "impact": "high",
                 "urgency": "high",
-                "assigned_to": "john.doe"
+                "assigned_to": "john.doe",
             }
         }
     }
@@ -60,6 +62,7 @@ class ITSMIncidentCreate(BaseModel):
 
 class ITSMIncidentUpdate(BaseModel):
     """ITSM incident update model"""
+
     title: Optional[str] = None
     description: Optional[str] = None
     priority: Optional[str] = None
@@ -73,6 +76,7 @@ class ITSMIncidentUpdate(BaseModel):
 
 class ITSMProblem(BaseModel):
     """ITSM problem model"""
+
     problem_id: str
     title: str
     description: str
@@ -88,6 +92,7 @@ class ITSMProblem(BaseModel):
 
 class ITSMProblemCreate(BaseModel):
     """ITSM problem creation model"""
+
     title: str
     description: str
     priority: str = Field(default="medium", description="Priority: low, medium, high, critical")
@@ -96,6 +101,7 @@ class ITSMProblemCreate(BaseModel):
 
 class ITSMChange(BaseModel):
     """ITSM change model"""
+
     change_id: str
     title: str
     description: str
@@ -114,6 +120,7 @@ class ITSMChange(BaseModel):
 
 class ITSMChangeCreate(BaseModel):
     """ITSM change creation model"""
+
     title: str
     description: str
     change_type: str = Field(default="normal", description="Type: standard, normal, emergency")
@@ -133,7 +140,7 @@ class ITSMChangeCreate(BaseModel):
                 "risk_level": "high",
                 "planned_start": "2026-07-10T02:00:00Z",
                 "planned_end": "2026-07-10T04:00:00Z",
-                "requested_by": "admin"
+                "requested_by": "admin",
             }
         }
     }
@@ -141,6 +148,7 @@ class ITSMChangeCreate(BaseModel):
 
 class ServiceCatalogItem(BaseModel):
     """Service catalog item model"""
+
     service_id: str
     name: str
     description: str
@@ -155,6 +163,7 @@ class ServiceCatalogItem(BaseModel):
 
 class SLA(BaseModel):
     """SLA model"""
+
     sla_id: str
     name: str
     description: str
@@ -170,6 +179,7 @@ class SLA(BaseModel):
 
 class KnowledgeBaseArticle(BaseModel):
     """Knowledge base article model"""
+
     article_id: str
     title: str
     content: str
@@ -185,6 +195,7 @@ class KnowledgeBaseArticle(BaseModel):
 
 class KnowledgeBaseArticleCreate(BaseModel):
     """Knowledge base article creation model"""
+
     title: str
     content: str
     category: str
@@ -198,7 +209,7 @@ class KnowledgeBaseArticleCreate(BaseModel):
                 "content": "Step-by-step guide to reset database connection pool...",
                 "category": "database",
                 "tags": ["database", "troubleshooting", "connection"],
-                "author": "support.team"
+                "author": "support.team",
             }
         }
     }
@@ -230,7 +241,7 @@ def _initialize_default_data():
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
                 "resolved_at": None,
-                "resolution_notes": None
+                "resolution_notes": None,
             },
             {
                 "incident_id": str(uuid4()),
@@ -245,12 +256,12 @@ def _initialize_default_data():
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
                 "resolved_at": None,
-                "resolution_notes": None
-            }
+                "resolution_notes": None,
+            },
         ]
         for incident in default_incidents:
             _incidents[incident["incident_id"]] = incident
-    
+
     if not _service_catalog:
         default_services = [
             {
@@ -263,7 +274,7 @@ def _initialize_default_data():
                 "owner": "platform.team",
                 "status": "active",
                 "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.utcnow().isoformat(),
             },
             {
                 "service_id": str(uuid4()),
@@ -275,31 +286,33 @@ def _initialize_default_data():
                 "owner": "database.team",
                 "status": "active",
                 "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
-            }
+                "updated_at": datetime.utcnow().isoformat(),
+            },
         ]
         for service in default_services:
             _service_catalog[service["service_id"]] = service
-    
+
     if not _slas:
         default_slas = [
             {
                 "sla_id": str(uuid4()),
                 "name": "Critical Incident SLA",
                 "description": "SLA for critical incidents",
-                "service_id": list(_service_catalog.keys())[0] if _service_catalog else str(uuid4()),
+                "service_id": (
+                    list(_service_catalog.keys())[0] if _service_catalog else str(uuid4())
+                ),
                 "response_time_target": "15 minutes",
                 "resolution_time_target": "4 hours",
                 "availability_target": 99.9,
                 "current_performance": 99.8,
                 "status": "active",
                 "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.utcnow().isoformat(),
             }
         ]
         for sla in default_slas:
             _slas[sla["sla_id"]] = sla
-    
+
     if not _knowledge_base:
         default_articles = [
             {
@@ -313,7 +326,7 @@ def _initialize_default_data():
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
                 "views": 150,
-                "helpful_count": 45
+                "helpful_count": 45,
             }
         ]
         for article in default_articles:
@@ -330,37 +343,37 @@ _initialize_default_data()
     summary="Get ITSM incidents",
     responses={
         200: {"description": "List of incidents"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def get_incidents(
     limit: int = Query(10, ge=1, le=100),
     status_filter: Optional[str] = Query(None, description="Filter by status"),
     priority_filter: Optional[str] = Query(None, description="Filter by priority"),
-    category_filter: Optional[str] = Query(None, description="Filter by category")
+    category_filter: Optional[str] = Query(None, description="Filter by category"),
 ):
     """
     Get list of ITSM incidents
-    
+
     Args:
         limit: Maximum number of incidents to return
         status_filter: Optional status filter (open, in_progress, resolved, closed)
         priority_filter: Optional priority filter (low, medium, high, critical)
         category_filter: Optional category filter
-    
+
     Returns:
         List of ITSM incidents
     """
     try:
         incidents = list(_incidents.values())
-        
+
         if status_filter:
             incidents = [inc for inc in incidents if inc.get("status") == status_filter]
         if priority_filter:
             incidents = [inc for inc in incidents if inc.get("priority") == priority_filter]
         if category_filter:
             incidents = [inc for inc in incidents if inc.get("category") == category_filter]
-        
+
         return [
             ITSMIncident(**inc)
             for inc in sorted(incidents, key=lambda x: x["created_at"], reverse=True)[:limit]
@@ -377,23 +390,23 @@ async def get_incidents(
     responses={
         200: {"description": "Incident created successfully"},
         400: {"description": "Invalid request"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def create_incident(request: ITSMIncidentCreate):
     """
     Create a new ITSM incident
-    
+
     Args:
         request: Incident creation request
-    
+
     Returns:
         Created incident details
     """
     try:
         incident_id = str(uuid4())
         now = datetime.utcnow().isoformat()
-        
+
         incident = {
             "incident_id": incident_id,
             "title": request.title,
@@ -407,12 +420,12 @@ async def create_incident(request: ITSMIncidentCreate):
             "created_at": now,
             "updated_at": now,
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
-        
+
         _incidents[incident_id] = incident
         logger.info(f"Created incident {request.title} with ID {incident_id}")
-        
+
         return ITSMIncident(**incident)
     except Exception as e:
         logger.error(f"Error creating incident: {e}")
@@ -426,16 +439,16 @@ async def create_incident(request: ITSMIncidentCreate):
     responses={
         200: {"description": "Incident details"},
         404: {"description": "Incident not found"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def get_incident(incident_id: str):
     """
     Get a specific ITSM incident by ID
-    
+
     Args:
         incident_id: Incident ID
-    
+
     Returns:
         Incident details
     """
@@ -443,7 +456,7 @@ async def get_incident(incident_id: str):
         incident = _incidents.get(incident_id)
         if not incident:
             raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
-        
+
         return ITSMIncident(**incident)
     except HTTPException:
         raise
@@ -460,17 +473,17 @@ async def get_incident(incident_id: str):
         200: {"description": "Incident updated successfully"},
         404: {"description": "Incident not found"},
         400: {"description": "Invalid request"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def update_incident(incident_id: str, request: ITSMIncidentUpdate):
     """
     Update an ITSM incident
-    
+
     Args:
         incident_id: Incident ID
         request: Update request
-    
+
     Returns:
         Updated incident details
     """
@@ -478,7 +491,7 @@ async def update_incident(incident_id: str, request: ITSMIncidentUpdate):
         incident = _incidents.get(incident_id)
         if not incident:
             raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
-        
+
         # Update fields
         if request.title is not None:
             incident["title"] = request.title
@@ -501,12 +514,12 @@ async def update_incident(incident_id: str, request: ITSMIncidentUpdate):
             incident["urgency"] = request.urgency
         if request.resolution_notes is not None:
             incident["resolution_notes"] = request.resolution_notes
-        
+
         incident["updated_at"] = datetime.utcnow().isoformat()
         _incidents[incident_id] = incident
-        
+
         logger.info(f"Updated incident {incident_id}")
-        
+
         return ITSMIncident(**incident)
     except HTTPException:
         raise
@@ -521,16 +534,16 @@ async def update_incident(incident_id: str, request: ITSMIncidentUpdate):
     responses={
         200: {"description": "Incident deleted successfully"},
         404: {"description": "Incident not found"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def delete_incident(incident_id: str):
     """
     Delete an ITSM incident
-    
+
     Args:
         incident_id: Incident ID
-    
+
     Returns:
         Deletion confirmation
     """
@@ -538,10 +551,10 @@ async def delete_incident(incident_id: str):
         incident = _incidents.get(incident_id)
         if not incident:
             raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
-        
+
         del _incidents[incident_id]
         logger.info(f"Deleted incident {incident_id}")
-        
+
         return {"message": f"Incident {incident_id} deleted successfully"}
     except HTTPException:
         raise
@@ -556,29 +569,29 @@ async def delete_incident(incident_id: str):
     summary="Get ITSM problems",
     responses={
         200: {"description": "List of problems"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def get_problems(
     limit: int = Query(10, ge=1, le=100),
-    status_filter: Optional[str] = Query(None, description="Filter by status")
+    status_filter: Optional[str] = Query(None, description="Filter by status"),
 ):
     """
     Get list of ITSM problems
-    
+
     Args:
         limit: Maximum number of problems to return
         status_filter: Optional status filter (open, in_progress, resolved, closed)
-    
+
     Returns:
         List of ITSM problems
     """
     try:
         problems = list(_problems.values())
-        
+
         if status_filter:
             problems = [prob for prob in problems if prob.get("status") == status_filter]
-        
+
         # Add default problems if empty
         if not problems:
             default_problems = [
@@ -593,13 +606,13 @@ async def get_problems(
                     "workarounds": ["Restart application server"],
                     "created_at": datetime.utcnow().isoformat(),
                     "updated_at": datetime.utcnow().isoformat(),
-                    "resolved_at": None
+                    "resolved_at": None,
                 }
             ]
             for problem in default_problems:
                 _problems[problem["problem_id"]] = problem
             problems = default_problems
-        
+
         return [
             ITSMProblem(**prob)
             for prob in sorted(problems, key=lambda x: x["created_at"], reverse=True)[:limit]
@@ -616,23 +629,23 @@ async def get_problems(
     responses={
         200: {"description": "Problem created successfully"},
         400: {"description": "Invalid request"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def create_problem(request: ITSMProblemCreate):
     """
     Create a new ITSM problem
-    
+
     Args:
         request: Problem creation request
-    
+
     Returns:
         Created problem details
     """
     try:
         problem_id = str(uuid4())
         now = datetime.utcnow().isoformat()
-        
+
         problem = {
             "problem_id": problem_id,
             "title": request.title,
@@ -644,12 +657,12 @@ async def create_problem(request: ITSMProblemCreate):
             "workarounds": [],
             "created_at": now,
             "updated_at": now,
-            "resolved_at": None
+            "resolved_at": None,
         }
-        
+
         _problems[problem_id] = problem
         logger.info(f"Created problem {request.title} with ID {problem_id}")
-        
+
         return ITSMProblem(**problem)
     except Exception as e:
         logger.error(f"Error creating problem: {e}")
@@ -662,29 +675,29 @@ async def create_problem(request: ITSMProblemCreate):
     summary="Get ITSM changes",
     responses={
         200: {"description": "List of changes"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def get_changes(
     limit: int = Query(10, ge=1, le=100),
-    status_filter: Optional[str] = Query(None, description="Filter by status")
+    status_filter: Optional[str] = Query(None, description="Filter by status"),
 ):
     """
     Get list of ITSM changes
-    
+
     Args:
         limit: Maximum number of changes to return
         status_filter: Optional status filter (pending, approved, in_progress, completed, cancelled)
-    
+
     Returns:
         List of ITSM changes
     """
     try:
         changes = list(_changes.values())
-        
+
         if status_filter:
             changes = [ch for ch in changes if ch.get("status") == status_filter]
-        
+
         # Add default changes if empty
         if not changes:
             default_changes = [
@@ -702,13 +715,13 @@ async def get_changes(
                     "approved_by": None,
                     "created_at": datetime.utcnow().isoformat(),
                     "updated_at": datetime.utcnow().isoformat(),
-                    "implemented_at": None
+                    "implemented_at": None,
                 }
             ]
             for change in default_changes:
                 _changes[change["change_id"]] = change
             changes = default_changes
-        
+
         return [
             ITSMChange(**ch)
             for ch in sorted(changes, key=lambda x: x["created_at"], reverse=True)[:limit]
@@ -725,23 +738,23 @@ async def get_changes(
     responses={
         200: {"description": "Change created successfully"},
         400: {"description": "Invalid request"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def create_change(request: ITSMChangeCreate):
     """
     Create a new ITSM change
-    
+
     Args:
         request: Change creation request
-    
+
     Returns:
         Created change details
     """
     try:
         change_id = str(uuid4())
         now = datetime.utcnow().isoformat()
-        
+
         change = {
             "change_id": change_id,
             "title": request.title,
@@ -756,12 +769,12 @@ async def create_change(request: ITSMChangeCreate):
             "approved_by": None,
             "created_at": now,
             "updated_at": now,
-            "implemented_at": None
+            "implemented_at": None,
         }
-        
+
         _changes[change_id] = change
         logger.info(f"Created change {request.title} with ID {change_id}")
-        
+
         return ITSMChange(**change)
     except Exception as e:
         logger.error(f"Error creating change: {e}")
@@ -774,27 +787,27 @@ async def create_change(request: ITSMChangeCreate):
     summary="Get service catalog",
     responses={
         200: {"description": "Service catalog"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def get_service_catalog(
     category_filter: Optional[str] = Query(None, description="Filter by category")
 ):
     """
     Get service catalog
-    
+
     Args:
         category_filter: Optional category filter
-    
+
     Returns:
         Service catalog items
     """
     try:
         services = list(_service_catalog.values())
-        
+
         if category_filter:
             services = [svc for svc in services if svc.get("category") == category_filter]
-        
+
         return [ServiceCatalogItem(**svc) for svc in services]
     except Exception as e:
         logger.error(f"Error getting service catalog: {e}")
@@ -805,29 +818,24 @@ async def get_service_catalog(
     "/sla",
     response_model=List[SLA],
     summary="Get SLAs",
-    responses={
-        200: {"description": "List of SLAs"},
-        500: {"description": "Internal server error"}
-    }
+    responses={200: {"description": "List of SLAs"}, 500: {"description": "Internal server error"}},
 )
-async def get_slas(
-    service_id: Optional[str] = Query(None, description="Filter by service ID")
-):
+async def get_slas(service_id: Optional[str] = Query(None, description="Filter by service ID")):
     """
     Get SLAs
-    
+
     Args:
         service_id: Optional service ID filter
-    
+
     Returns:
         List of SLAs
     """
     try:
         slas = list(_slas.values())
-        
+
         if service_id:
             slas = [sla for sla in slas if sla.get("service_id") == service_id]
-        
+
         return [SLA(**sla) for sla in slas]
     except Exception as e:
         logger.error(f"Error getting SLAs: {e}")
@@ -840,28 +848,28 @@ async def get_slas(
     summary="Get knowledge base articles",
     responses={
         200: {"description": "Knowledge base articles"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def get_knowledge_base(
     category_filter: Optional[str] = Query(None, description="Filter by category"),
     tag_filter: Optional[str] = Query(None, description="Filter by tag"),
-    search: Optional[str] = Query(None, description="Search in title and content")
+    search: Optional[str] = Query(None, description="Search in title and content"),
 ):
     """
     Get knowledge base articles
-    
+
     Args:
         category_filter: Optional category filter
         tag_filter: Optional tag filter
         search: Optional search term
-    
+
     Returns:
         Knowledge base articles
     """
     try:
         articles = list(_knowledge_base.values())
-        
+
         if category_filter:
             articles = [art for art in articles if art.get("category") == category_filter]
         if tag_filter:
@@ -869,10 +877,12 @@ async def get_knowledge_base(
         if search:
             search_lower = search.lower()
             articles = [
-                art for art in articles
-                if search_lower in art.get("title", "").lower() or search_lower in art.get("content", "").lower()
+                art
+                for art in articles
+                if search_lower in art.get("title", "").lower()
+                or search_lower in art.get("content", "").lower()
             ]
-        
+
         return [KnowledgeBaseArticle(**art) for art in articles]
     except Exception as e:
         logger.error(f"Error getting knowledge base: {e}")
@@ -886,23 +896,23 @@ async def get_knowledge_base(
     responses={
         200: {"description": "Article created successfully"},
         400: {"description": "Invalid request"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 async def create_knowledge_base_article(request: KnowledgeBaseArticleCreate):
     """
     Create a new knowledge base article
-    
+
     Args:
         request: Article creation request
-    
+
     Returns:
         Created article details
     """
     try:
         article_id = str(uuid4())
         now = datetime.utcnow().isoformat()
-        
+
         article = {
             "article_id": article_id,
             "title": request.title,
@@ -914,12 +924,12 @@ async def create_knowledge_base_article(request: KnowledgeBaseArticleCreate):
             "created_at": now,
             "updated_at": now,
             "views": 0,
-            "helpful_count": 0
+            "helpful_count": 0,
         }
-        
+
         _knowledge_base[article_id] = article
         logger.info(f"Created knowledge base article {request.title} with ID {article_id}")
-        
+
         return KnowledgeBaseArticle(**article)
     except Exception as e:
         logger.error(f"Error creating knowledge base article: {e}")

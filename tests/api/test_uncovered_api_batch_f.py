@@ -219,7 +219,9 @@ def _patch_batch_f(monkeypatch):
         get_generator_summary=lambda: {"available": True, "total_templates": 5},
         get_available_templates=lambda: ["api-doc"],
         generate_document=lambda *a, **k: _gen_doc,
-        get_generated_document=lambda d: _gen_doc if d == "doc-2" else None,  # noqa: F841  # Variable for test verification
+        get_generated_document=lambda d: (
+            _gen_doc if d == "doc-2" else None
+        ),  # noqa: F841  # Variable for test verification
         save_generated_document=lambda *a, **k: True,  # noqa: F841  # Variable for test verification
         list_generated_documents=lambda: [_gen_doc],  # noqa: F841  # Variable for test verification
     )
@@ -411,107 +413,103 @@ def _raise(exc):
 
     return _inner
 
+    # def test_plugin_router(client, admin_headers, monkeypatch):
+    #     import api.plugin_router as pr
+    #
+    #     resp = client.get("/api/plugins/", headers=admin_headers)
+    #     assert resp.status_code == 200
+    #     assert resp.json() == ["cpu_monitor"]
+    #
+    #     resp = client.post("/api/plugins/cpu_monitor/run", headers=admin_headers)
+    #     assert resp.status_code == 200
+    #     assert resp.json()["plugin"] == "cpu_monitor"
+    #
+    #     monkeypatch.setattr(pr, "list_plugins", lambda: [])
+    #     resp = client.post("/api/plugins/missing/run", headers=admin_headers)
+    #     assert resp.status_code == 404
+    #
+    #     monkeypatch.setattr(pr, "list_plugins", lambda: ["bad"])
+    #     monkeypatch.setattr(pr, "get_plugin", lambda name: None)
+    #     resp = client.post("/api/plugins/bad/run", headers=admin_headers)
+    #     assert resp.status_code == 404
+    #
+    #     monkeypatch.setattr(pr, "get_plugin", lambda name: SimpleNamespace())
+    #     resp = client.post("/api/plugins/bad/run", headers=admin_headers)
+    #     assert resp.status_code == 500
 
-# def test_plugin_router(client, admin_headers, monkeypatch):
-#     import api.plugin_router as pr
-#
-#     resp = client.get("/api/plugins/", headers=admin_headers)
-#     assert resp.status_code == 200
-#     assert resp.json() == ["cpu_monitor"]
-#
-#     resp = client.post("/api/plugins/cpu_monitor/run", headers=admin_headers)
-#     assert resp.status_code == 200
-#     assert resp.json()["plugin"] == "cpu_monitor"
-#
-#     monkeypatch.setattr(pr, "list_plugins", lambda: [])
-#     resp = client.post("/api/plugins/missing/run", headers=admin_headers)
-#     assert resp.status_code == 404
-#
-#     monkeypatch.setattr(pr, "list_plugins", lambda: ["bad"])
-#     monkeypatch.setattr(pr, "get_plugin", lambda name: None)
-#     resp = client.post("/api/plugins/bad/run", headers=admin_headers)
-#     assert resp.status_code == 404
-#
-#     monkeypatch.setattr(pr, "get_plugin", lambda name: SimpleNamespace())
-#     resp = client.post("/api/plugins/bad/run", headers=admin_headers)
-#     assert resp.status_code == 500
+    # def test_cost_router(client, monkeypatch):
+    #     import api.cost_router as cr
+    #
+    #     resp = client.get("/api/cost/collect")
+    #     assert resp.status_code == 200
+    #     assert "costs" in resp.json()
+    #
+    #     resp = client.get("/api/cost/forecast", params={"days": 7})
+    #     assert resp.status_code == 200
+    #     assert resp.json()["days"] == 7
+    #
+    #     resp = client.get("/api/cost/budget")
+    #     assert resp.status_code == 200
+    #     assert "budget" in resp.json()
+    #
+    #     monkeypatch.setattr(cr, "collect_costs", lambda: [])
+    #     resp = client.get("/api/cost/collect")
+    #     assert resp.status_code == 404
+    #
+    #     monkeypatch.setattr(cr, "forecast_costs", lambda days: [])
+    #     resp = client.get("/api/cost/forecast")
+    #     assert resp.status_code == 404
+    #
+    #     monkeypatch.setattr(cr, "budget_status", _raise(Exception("boom")))
+    #     resp = client.get("/api/cost/budget")
+    #     assert resp.status_code == 500
 
+    # def test_health_router(client, admin_headers, monkeypatch):
+    #     import api.health_router as hr
+    #
+    #     resp = client.get("/api/v1/health/ping")
+    #     assert resp.status_code == 200
+    #     assert resp.json()["status"] == "alive"
+    #
+    #     resp = client.get("/health")
+    #     assert resp.status_code == 200
+    #     assert resp.json()["status"] == "healthy"
+    #
+    #     resp = client.get("/ready")
+    #     assert resp.status_code == 200
+    #     assert resp.json()["ready"] is True
+    #
+    #     resp = client.get("/api/v1/health/detailed", headers=admin_headers)
+    #     assert resp.status_code == 200
+    #     assert resp.json()["status"] == "healthy"
+    #
+    #     resp = client.post("/api/v1/health/check", headers=admin_headers)
+    #     assert resp.status_code == 200
+    #     assert resp.json()["status"] == "healthy"
+    #
+    #     monkeypatch.setattr(hr, "ALLOWED_LOCAL_IPS", [])
+    #     resp = client.get("/api/v1/health/ping")
+    #     assert resp.status_code == 401
+    #
+    #     # monkeypatch.setattr(hr, "get_liveness_status", _raise(Exception("x")))
+    #     # resp = client.get("/health")
+    #     # assert resp.status_code == 503
 
-# def test_cost_router(client, monkeypatch):
-#     import api.cost_router as cr
-#
-#     resp = client.get("/api/cost/collect")
-#     assert resp.status_code == 200
-#     assert "costs" in resp.json()
-#
-#     resp = client.get("/api/cost/forecast", params={"days": 7})
-#     assert resp.status_code == 200
-#     assert resp.json()["days"] == 7
-#
-#     resp = client.get("/api/cost/budget")
-#     assert resp.status_code == 200
-#     assert "budget" in resp.json()
-#
-#     monkeypatch.setattr(cr, "collect_costs", lambda: [])
-#     resp = client.get("/api/cost/collect")
-#     assert resp.status_code == 404
-#
-#     monkeypatch.setattr(cr, "forecast_costs", lambda days: [])
-#     resp = client.get("/api/cost/forecast")
-#     assert resp.status_code == 404
-#
-#     monkeypatch.setattr(cr, "budget_status", _raise(Exception("boom")))
-#     resp = client.get("/api/cost/budget")
-#     assert resp.status_code == 500
-
-
-# def test_health_router(client, admin_headers, monkeypatch):
-#     import api.health_router as hr
-#
-#     resp = client.get("/api/v1/health/ping")
-#     assert resp.status_code == 200
-#     assert resp.json()["status"] == "alive"
-#
-#     resp = client.get("/health")
-#     assert resp.status_code == 200
-#     assert resp.json()["status"] == "healthy"
-#
-#     resp = client.get("/ready")
-#     assert resp.status_code == 200
-#     assert resp.json()["ready"] is True
-#
-#     resp = client.get("/api/v1/health/detailed", headers=admin_headers)
-#     assert resp.status_code == 200
-#     assert resp.json()["status"] == "healthy"
-#
-#     resp = client.post("/api/v1/health/check", headers=admin_headers)
-#     assert resp.status_code == 200
-#     assert resp.json()["status"] == "healthy"
-#
-#     monkeypatch.setattr(hr, "ALLOWED_LOCAL_IPS", [])
-#     resp = client.get("/api/v1/health/ping")
-#     assert resp.status_code == 401
-#
-#     # monkeypatch.setattr(hr, "get_liveness_status", _raise(Exception("x")))
-#     # resp = client.get("/health")
-#     # assert resp.status_code == 503
-
-
-# def test_plugin_ecosystem_router(client, monkeypatch):
-#     import core.plugin_ecosystem_manager as pem
-#
-#     resp = client.get("/api/plugin-ecosystem/status")
-#     assert resp.status_code == 200
-#     assert resp.json()["status"] == "success"
-#
-#     resp = client.post(
-#         "/api/plugin-ecosystem/activity",
-#         params={"plugin_id": "p1", "activity_type": "install", "user_id": "u1"},
-#     )
-#     assert resp.status_code == 200
-#     assert "activity_id" in resp.json()["data"]
-#
-#     resp = client.get("/api/plugin-ecosystem/activities/p1", params={"time_range_hours": 24})
+    # def test_plugin_ecosystem_router(client, monkeypatch):
+    #     import core.plugin_ecosystem_manager as pem
+    #
+    #     resp = client.get("/api/plugin-ecosystem/status")
+    #     assert resp.status_code == 200
+    #     assert resp.json()["status"] == "success"
+    #
+    #     resp = client.post(
+    #         "/api/plugin-ecosystem/activity",
+    #         params={"plugin_id": "p1", "activity_type": "install", "user_id": "u1"},
+    #     )
+    #     assert resp.status_code == 200
+    #     assert "activity_id" in resp.json()["data"]
+    #
+    #     resp = client.get("/api/plugin-ecosystem/activities/p1", params={"time_range_hours": 24})
     assert resp.status_code == 200
 
     resp = client.post(
@@ -590,16 +588,20 @@ def test_documentation_router(client, monkeypatch):
     _doc_manager = SimpleNamespace(
         get_doc_summary=lambda: {"total": 50, "published": 40},
         list_documents=_raise(Exception("list error")),
-        get_document=lambda d: SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        ) if d == "doc-1" else None,
+        get_document=lambda d: (
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+            if d == "doc-1"
+            else None
+        ),
         create_document=lambda *a, **k: True,
         update_document=lambda *a, **k: True,
         get_available_templates=lambda: ["api-doc"],
@@ -611,26 +613,32 @@ def test_documentation_router(client, monkeypatch):
     # Test exception handling for create_document (lines 134-136)
     _doc_manager = SimpleNamespace(
         get_doc_summary=lambda: {"total": 50, "published": 40},
-        list_documents=lambda t, s: [SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        )],
-        get_document=lambda d: SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        ) if d == "doc-1" else None,
+        list_documents=lambda t, s: [
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+        ],
+        get_document=lambda d: (
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+            if d == "doc-1"
+            else None
+        ),
         create_document=_raise(Exception("create error")),
         update_document=lambda *a, **k: True,
         get_available_templates=lambda: ["api-doc"],
@@ -652,16 +660,18 @@ def test_documentation_router(client, monkeypatch):
     # Test exception handling for get_document (lines 176-178) - non-HTTPException
     _doc_manager = SimpleNamespace(
         get_doc_summary=lambda: {"total": 50, "published": 40},
-        list_documents=lambda t, s: [SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        )],
+        list_documents=lambda t, s: [
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+        ],
         get_document=_raise(Exception("get error")),
         create_document=lambda *a, **k: True,
         update_document=lambda *a, **k: True,
@@ -674,26 +684,32 @@ def test_documentation_router(client, monkeypatch):
     # Test exception handling for update_document (lines 204-206)
     _doc_manager = SimpleNamespace(
         get_doc_summary=lambda: {"total": 50, "published": 40},
-        list_documents=lambda t, s: [SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        )],
-        get_document=lambda d: SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        ) if d == "doc-1" else None,
+        list_documents=lambda t, s: [
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+        ],
+        get_document=lambda d: (
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+            if d == "doc-1"
+            else None
+        ),
         create_document=lambda *a, **k: True,
         update_document=_raise(Exception("update error")),
         get_available_templates=lambda: ["api-doc"],
@@ -708,26 +724,32 @@ def test_documentation_router(client, monkeypatch):
     # Test exception handling for get_templates (lines 231-233)
     _doc_manager = SimpleNamespace(
         get_doc_summary=lambda: {"total": 50, "published": 40},
-        list_documents=lambda t, s: [SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        )],
-        get_document=lambda d: SimpleNamespace(
-            doc_id="doc-1",
-            title="Guide",
-            doc_type=_FakeEnum("api"),
-            status=_FakeEnum("published"),
-            version="1.0",
-            author="admin",
-            content="content",
-            last_updated=_dt,
-        ) if d == "doc-1" else None,
+        list_documents=lambda t, s: [
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+        ],
+        get_document=lambda d: (
+            SimpleNamespace(
+                doc_id="doc-1",
+                title="Guide",
+                doc_type=_FakeEnum("api"),
+                status=_FakeEnum("published"),
+                version="1.0",
+                author="admin",
+                content="content",
+                last_updated=_dt,
+            )
+            if d == "doc-1"
+            else None
+        ),
         create_document=lambda *a, **k: True,
         update_document=lambda *a, **k: True,
         get_available_templates=_raise(Exception("templates error")),
@@ -1029,9 +1051,7 @@ def test_enterprise_router(client, monkeypatch):
     resp = client.post("/api/v1/enterprise/compliance/report", json={"standard": "GDPR"})
     assert resp.status_code == 200
 
-    resp = client.post(
-        "/api/v1/enterprise/compliance/report", json={"standard": "BAD_STANDARD"}
-    )
+    resp = client.post("/api/v1/enterprise/compliance/report", json={"standard": "BAD_STANDARD"})
     assert resp.status_code == 400
 
     resp = client.post(
@@ -1082,9 +1102,7 @@ def test_enterprise_router(client, monkeypatch):
     resp = client.get("/api/v1/enterprise/audit/logs", params={"start_date": "not-a-date"})
     assert resp.status_code == 400
 
-    resp = client.get(
-        "/api/v1/enterprise/audit/logs", params={"end_date": "not-a-date"}
-    )
+    resp = client.get("/api/v1/enterprise/audit/logs", params={"end_date": "not-a-date"})
     assert resp.status_code == 400
 
     resp = client.post("/api/v1/enterprise/audit/cleanup")
@@ -1380,7 +1398,9 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         setup_resource_limits=lambda *a, **k: None,
         check_resource_limits=lambda: {"ok": True},
     )
-    monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_response_times_error)
+    monkeypatch.setattr(
+        apo, "get_api_performance_optimizer", lambda: _optimizer_response_times_error
+    )
     resp = client.get("/api/api-performance/response-times")
     assert resp.status_code == 500
 
@@ -1418,7 +1438,9 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         setup_resource_limits=lambda *a, **k: None,
         check_resource_limits=lambda: {"ok": True},
     )
-    monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_optimizations_error)
+    monkeypatch.setattr(
+        apo, "get_api_performance_optimizer", lambda: _optimizer_optimizations_error
+    )
     resp = client.post("/api/api-performance/optimize")
     assert resp.status_code == 500
 
@@ -1440,7 +1462,9 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         setup_response_cache=lambda *a, **k: None,
         invalidate_cache=_raise(Exception("Cache invalidation error")),
     )
-    monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_cache_invalidate_error)
+    monkeypatch.setattr(
+        apo, "get_api_performance_optimizer", lambda: _optimizer_cache_invalidate_error
+    )
     resp = client.delete("/api/api-performance/cache", params={"endpoint": "/api/x"})
     assert resp.status_code == 500
 
@@ -1498,7 +1522,9 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         get_performance_summary=lambda: {"avg_response_time": 150},
         monitor_resource_usage=_raise(Exception("Resource usage monitoring error")),
     )
-    monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_resource_usage_error)
+    monkeypatch.setattr(
+        apo, "get_api_performance_optimizer", lambda: _optimizer_resource_usage_error
+    )
     resp = client.get("/api/api-performance/resources")
     assert resp.status_code == 500
 
@@ -1507,7 +1533,9 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         get_performance_summary=lambda: {"avg_response_time": 150},
         setup_resource_limits=_raise(Exception("Resource limits setup error")),
     )
-    monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_resource_limits_setup_error)
+    monkeypatch.setattr(
+        apo, "get_api_performance_optimizer", lambda: _optimizer_resource_limits_setup_error
+    )
     resp = client.post(
         "/api/api-performance/resource-limits/setup",
         params={"max_memory_mb": 1024.0, "max_cpu_percent": 80.0, "max_connections": 100},
@@ -1519,7 +1547,9 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         get_performance_summary=lambda: {"avg_response_time": 150},
         check_resource_limits=_raise(Exception("Resource limits check error")),
     )
-    monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_resource_limits_check_error)
+    monkeypatch.setattr(
+        apo, "get_api_performance_optimizer", lambda: _optimizer_resource_limits_check_error
+    )
     resp = client.get("/api/api-performance/resource-limits/check")
     assert resp.status_code == 500
 
@@ -1636,12 +1666,13 @@ def test_integration_router(client, monkeypatch):
         config={"provider": "datadog"},
     )
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-dd": _integration_datadog},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     resp = client.post(
         "/api/v1/integration/int-dd/query",
@@ -1662,12 +1693,13 @@ def test_integration_router(client, monkeypatch):
         config={"provider": "grafana"},
     )
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-gf": _integration_grafana},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     resp = client.post(
         "/api/v1/integration/int-gf/query",
@@ -1688,12 +1720,13 @@ def test_integration_router(client, monkeypatch):
         config={"provider": "elk"},
     )
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-elk": _integration_elk},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     resp = client.post(
         "/api/v1/integration/int-elk/query",
@@ -1714,12 +1747,13 @@ def test_integration_router(client, monkeypatch):
         config={"provider": "cloudwatch"},
     )
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-cw": _integration_cw},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     resp = client.post(
         "/api/v1/integration/int-cw/query",
@@ -1740,12 +1774,13 @@ def test_integration_router(client, monkeypatch):
         config={"provider": "pagerduty"},
     )
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-pd": _integration_pd},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     resp = client.post(
         "/api/v1/integration/int-pd/query",
@@ -1766,12 +1801,13 @@ def test_integration_router(client, monkeypatch):
         config={"provider": "unsupported"},
     )
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-unsup": _integration_unsupported},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     resp = client.post(
         "/api/v1/integration/int-unsup/query",
@@ -1781,12 +1817,13 @@ def test_integration_router(client, monkeypatch):
 
     # Test REMOTE_CLIENT_AVAILABLE = False for datadog (line 635-636)
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-dd": _integration_datadog},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     monkeypatch.setattr(ir, "REMOTE_CLIENT_AVAILABLE", False)
     resp = client.post(
@@ -1815,12 +1852,13 @@ def test_integration_router(client, monkeypatch):
         config={"provider": "prometheus"},
     )
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-disabled": _integration_disabled},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
     resp = client.post(
         "/api/v1/integration/int-disabled/query",
@@ -1830,15 +1868,18 @@ def test_integration_router(client, monkeypatch):
 
     # Test query_integration exception handling (line 656-659)
     monkeypatch.setattr(
-        ir, "integration_manager",
+        ir,
+        "integration_manager",
         SimpleNamespace(
             integrations={"int-dd": _integration_datadog},
             query_cloudwatch_metrics=_async_return({"data": []}),
             query_pagerduty_incidents=_async_return({"data": []}),
-        )
+        ),
     )
+
     async def _raise_query_error(*args, **kwargs):
         raise Exception("Query failed")
+
     monkeypatch.setattr(ir, "remote_datadog_query", _raise_query_error)
     resp = client.post(
         "/api/v1/integration/int-dd/query",

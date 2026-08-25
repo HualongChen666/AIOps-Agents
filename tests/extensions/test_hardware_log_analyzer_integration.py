@@ -7,22 +7,28 @@ Tests API integration, data flow, integration with auto_heal/repair_script_libra
 and complete business workflows with real components.
 """
 
-import pytest
 import json
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from core.auto_heal import (
+    PlatformType,
+    REPAIR_SCRIPT_LIBRARY as repair_script_library,
+    RepairScript,
+    RiskLevel,
+)
 from extensions.hardware_remediation.hardware_log_analyzer import (
-    HardwareVendor,
-    ComponentType,
-    SeverityLevel,
-    LogEntry,
-    ComponentIssue,
     AnalysisResult,
+    ComponentIssue,
+    ComponentType,
     HardwareLogAnalyzer,
+    HardwareVendor,
+    LogEntry,
+    SeverityLevel,
     get_hardware_log_analyzer,
 )
-from core.auto_heal import RepairScript, repair_script_library, PlatformType, RiskLevel
 
 
 class TestHardwareLogAnalyzerAutoHealIntegration:
@@ -186,19 +192,19 @@ class TestHardwareLogAnalyzerDataFlow:
     def test_log_to_analysis_to_issue_flow(self):
         """Test complete flow from log input to issue output"""
         log_data = "Dell Inc. CPU 0 temperature critical"
-        
+
         # Step 1: Analyze log
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(log_data)
-        
+
         # Step 2: Verify analysis result
         assert result.vendor == HardwareVendor.DELL
         assert result.total_entries == 1
-        
+
         # Step 3: Extract issue if any
         if result.issues:
             issue = result.issues[0]
-            
+
             # Step 4: Verify issue properties
             assert issue.component == ComponentType.CPU
             assert issue.severity in (SeverityLevel.ERROR, SeverityLevel.CRITICAL)
@@ -209,13 +215,13 @@ class TestHardwareLogAnalyzerDataFlow:
         log_data = """Dell Inc. CPU 0 temperature critical
 DIMM A1 ECC error
 Disk 0 failure"""
-        
+
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(log_data)
-        
+
         assert result.total_entries == 3
         assert result.summary["total_entries"] == 3
-        
+
         # Verify components analyzed
         assert result.summary["components_analyzed"] >= 1
 
@@ -224,7 +230,7 @@ Disk 0 failure"""
         log_data = "Dell Inc. CPU 0 temperature critical"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(log_data)
-        
+
         # Convert to dict manually (AnalysisResult is a dataclass)
         result_dict = {
             "vendor": result.vendor.value,
@@ -241,13 +247,13 @@ Disk 0 failure"""
             "summary": result.summary,
             "analysis_timestamp": result.analysis_timestamp,
         }
-        
+
         # Serialize to JSON
         json_str = json.dumps(result_dict, default=str)
-        
+
         # Deserialize
         deserialized = json.loads(json_str)
-        
+
         # Verify
         assert deserialized["vendor"] == "dell"
         assert deserialized["total_entries"] == 1
@@ -256,13 +262,13 @@ Disk 0 failure"""
         """Test vendor detection is part of data flow"""
         dell_log = "Dell PowerEdge: CPU 0 temperature critical"
         hp_log = "HP ProLiant: DIMM A1 ECC error"
-        
+
         dell_analyzer = HardwareLogAnalyzer()
         dell_result = dell_analyzer.analyze_log(dell_log)
-        
+
         hp_analyzer = HardwareLogAnalyzer()
         hp_result = hp_analyzer.analyze_log(hp_log)
-        
+
         assert dell_result.vendor == HardwareVendor.DELL
         assert hp_result.vendor == HardwareVendor.HP
 
@@ -271,17 +277,22 @@ Disk 0 failure"""
         log_data = "Dell Inc. CPU 0 temperature critical"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(log_data)
-        
+
         if result.issues:
             issue = result.issues[0]
-            assert issue.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL, RiskLevel.MEDIUM, RiskLevel.LOW)
+            assert issue.risk_level in (
+                RiskLevel.HIGH,
+                RiskLevel.CRITICAL,
+                RiskLevel.MEDIUM,
+                RiskLevel.LOW,
+            )
 
     def test_repair_recommendations_generation(self):
         """Test repair recommendations are generated in data flow"""
         log_data = "Dell Inc. CPU 0 temperature critical"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(log_data)
-        
+
         if result.issues:
             issue = result.issues[0]
             assert len(issue.repair_recommendations) > 0
@@ -296,14 +307,14 @@ class TestHardwareLogAnalyzerBusinessWorkflows:
         cpu_log = "Dell Inc. CPU 0 temperature critical"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(cpu_log)
-        
+
         assert result.vendor == HardwareVendor.DELL
         assert result.total_entries == 1
-        
+
         # Step 2: Check for repair script
         ipmi_power = repair_script_library.get_script("ipmi_power_cycle")
         assert ipmi_power is not None
-        
+
         # Step 3: Verify repair recommendations
         if result.issues:
             issue = result.issues[0]
@@ -315,14 +326,14 @@ class TestHardwareLogAnalyzerBusinessWorkflows:
         memory_log = "HP ProLiant DIMM A1 ECC error"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(memory_log)
-        
+
         assert result.vendor == HardwareVendor.HP
         assert result.total_entries == 1
-        
+
         # Step 2: Check for repair script
         ipmi_power = repair_script_library.get_script("ipmi_power_cycle")
         assert ipmi_power is not None
-        
+
         # Step 3: Verify repair recommendations
         if result.issues:
             issue = result.issues[0]
@@ -334,14 +345,14 @@ class TestHardwareLogAnalyzerBusinessWorkflows:
         storage_log = "Dell Inc. Disk 0 failure"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(storage_log)
-        
+
         assert result.vendor == HardwareVendor.DELL
         assert result.total_entries == 1
-        
+
         # Step 2: Check for SMART script
         smart_info = repair_script_library.get_script("smart_info")
         assert smart_info is not None
-        
+
         # Step 3: Verify repair recommendations
         if result.issues:
             issue = result.issues[0]
@@ -353,10 +364,10 @@ class TestHardwareLogAnalyzerBusinessWorkflows:
         power_log = "Dell Inc. Power supply 0 failure"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(power_log)
-        
+
         assert result.vendor == HardwareVendor.DELL
         assert result.total_entries == 1
-        
+
         # Step 2: Verify critical severity
         if result.issues:
             issue = result.issues[0]
@@ -366,13 +377,13 @@ class TestHardwareLogAnalyzerBusinessWorkflows:
         """Test workflow with multiple vendor logs"""
         dell_log = "Dell PowerEdge: CPU 0 temperature critical"
         hp_log = "HP ProLiant: DIMM A1 ECC error"
-        
+
         dell_analyzer = HardwareLogAnalyzer()
         dell_result = dell_analyzer.analyze_log(dell_log)
-        
+
         hp_analyzer = HardwareLogAnalyzer()
         hp_result = hp_analyzer.analyze_log(hp_log)
-        
+
         # Verify vendor-specific detection
         assert dell_result.vendor == HardwareVendor.DELL
         assert hp_result.vendor == HardwareVendor.HP
@@ -386,16 +397,16 @@ class TestHardwareLogAnalyzerBusinessWorkflows:
             "Lenovo ThinkSystem Disk 0 failure",
             "Cisco UCS NIC 0 link down",
         ]
-        
+
         results = []
         for log in logs:
             analyzer = HardwareLogAnalyzer()
             results.append(analyzer.analyze_log(log))
-        
+
         # Verify all sources analyzed
         assert len(results) == 4
         assert all(r.total_entries == 1 for r in results)
-        
+
         # Verify vendors detected
         vendors = [r.vendor for r in results]
         assert HardwareVendor.DELL in vendors
@@ -414,11 +425,11 @@ class TestHardwareLogAnalyzerErrorHandling:
             "   ",
             "\n\n\n",
         ]
-        
+
         for log_data in malformed_logs:
             analyzer = HardwareLogAnalyzer()
             result = analyzer.analyze_log(log_data)
-            
+
             # Should not raise exception
             assert result is not None
             assert isinstance(result, AnalysisResult)
@@ -428,7 +439,7 @@ class TestHardwareLogAnalyzerErrorHandling:
         large_log = "Dell Inc. CPU 0 temperature critical\n" * 1000
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(large_log)
-        
+
         # Should process all lines (may filter some based on severity)
         assert result.total_entries == 1000
 
@@ -440,11 +451,11 @@ class TestHardwareLogAnalyzerErrorHandling:
             "Dell Inc. CPU 0 temperature critical <>&\"'",
             "Dell Inc. CPU 0 temperature critical 中文日本語한국어",
         ]
-        
+
         for log_data in special_logs:
             analyzer = HardwareLogAnalyzer()
             result = analyzer.analyze_log(log_data)
-            
+
             # Should not raise exception
             assert result is not None
 
@@ -461,15 +472,15 @@ class TestHardwareLogAnalyzerRealWorldScenarios:
             "server3": "Lenovo ThinkSystem: DIMM A1 ECC error",
             "server4": "Cisco UCS: Power supply 0 failure",
         }
-        
+
         results = {}
         for server, log in server_logs.items():
             analyzer = HardwareLogAnalyzer()
             results[server] = analyzer.analyze_log(log)
-        
+
         # Verify all servers analyzed
         assert len(results) == 4
-        
+
         # Verify vendors detected
         vendors = [r.vendor for r in results.values()]
         assert HardwareVendor.DELL in vendors
@@ -485,12 +496,12 @@ class TestHardwareLogAnalyzerRealWorldScenarios:
             "Lenovo ThinkSystem Drive State Failed",
             "Cisco UCS SMART overall-health self-assessment test result: FAILED",
         ]
-        
+
         results = []
         for log in logs:
             analyzer = HardwareLogAnalyzer()
             results.append(analyzer.analyze_log(log))
-        
+
         # Verify all sources processed
         assert len(results) == 4
         assert all(r.total_entries == 1 for r in results)
@@ -498,10 +509,10 @@ class TestHardwareLogAnalyzerRealWorldScenarios:
     def test_vendor_specific_workflow(self):
         """Test vendor-specific workflow"""
         dell_log = "Dell PowerEdge R740: CPU 0 temperature critical"
-        
+
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(dell_log)
-        
+
         # Verify Dell vendor detected
         assert result.vendor == HardwareVendor.DELL
 
@@ -515,9 +526,9 @@ class TestHardwareLogAnalyzerCrossComponentIntegration:
         cpu_log = "Dell Inc. CPU 0 temperature critical"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(cpu_log)
-        
+
         assert result.total_entries == 1
-        
+
         # Verify corresponding script exists
         ipmi_power = repair_script_library.get_script("ipmi_power_cycle")
         assert ipmi_power is not None
@@ -528,10 +539,10 @@ class TestHardwareLogAnalyzerCrossComponentIntegration:
         critical_log = "Dell Inc. CPU 0 temperature critical"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(critical_log)
-        
+
         if result.issues:
             assert result.issues[0].severity == SeverityLevel.CRITICAL
-        
+
         # Verify corresponding high-risk script
         ipmi_power = repair_script_library.get_script("ipmi_power_cycle")
         assert ipmi_power.risk_level == RiskLevel.HIGH
@@ -542,7 +553,7 @@ class TestHardwareLogAnalyzerCrossComponentIntegration:
         raid_log = "Dell Inc. RAID 0 degraded"
         analyzer = HardwareLogAnalyzer()
         result = analyzer.analyze_log(raid_log)
-        
+
         # Verify rebuild script requires approval
         raid_rebuild = repair_script_library.get_script("raid_rebuild")
         assert raid_rebuild.requires_approval is True
@@ -553,7 +564,7 @@ class TestHardwareLogAnalyzerCrossComponentIntegration:
         k8s_drain = repair_script_library.get_script("k8s_drain")
         assert PlatformType.LINUX in k8s_drain.platforms
         assert PlatformType.KUBERNETES in k8s_drain.platforms
-        
+
         # Ticket scripts should work on all platforms
         jira_script = repair_script_library.get_script("create_jira_ticket")
         assert PlatformType.LINUX in jira_script.platforms
@@ -567,7 +578,7 @@ class TestHardwareLogAnalyzerRepairPlanGeneration:
     def test_generate_repair_plan_single_issue(self):
         """Test generating repair plan for single issue"""
         analyzer = HardwareLogAnalyzer()
-        
+
         issue = ComponentIssue(
             component=ComponentType.CPU,
             severity=SeverityLevel.CRITICAL,
@@ -577,16 +588,16 @@ class TestHardwareLogAnalyzerRepairPlanGeneration:
             repair_recommendations=["Check cooling"],
             script_keys=["ipmi_power_cycle"],
         )
-        
+
         result = AnalysisResult(
             vendor=HardwareVendor.DELL,
             total_entries=1,
             issues=[issue],
             summary={"total_issues": 1},
         )
-        
+
         plan = analyzer.generate_repair_plan(result)
-        
+
         assert "analysis_summary" in plan
         assert "total_issues" in plan
         assert "prioritized_actions" in plan
@@ -596,7 +607,7 @@ class TestHardwareLogAnalyzerRepairPlanGeneration:
     def test_generate_repair_plan_multiple_issues(self):
         """Test generating repair plan for multiple issues"""
         analyzer = HardwareLogAnalyzer()
-        
+
         issues = [
             ComponentIssue(
                 component=ComponentType.CPU,
@@ -620,16 +631,16 @@ class TestHardwareLogAnalyzerRepairPlanGeneration:
                 risk_level=RiskLevel.LOW,
             ),
         ]
-        
+
         result = AnalysisResult(
             vendor=HardwareVendor.DELL,
             total_entries=3,
             issues=issues,
             summary={"total_issues": 3},
         )
-        
+
         plan = analyzer.generate_repair_plan(result)
-        
+
         assert len(plan["prioritized_actions"]) == 3
         # Critical should be first
         assert plan["prioritized_actions"][0]["priority"] == "critical"
@@ -645,32 +656,38 @@ class TestHardwareLogAnalyzerCommandValidation:
     def test_validate_safe_command(self):
         """Test validating safe command"""
         analyzer = HardwareLogAnalyzer()
-        
-        with patch('extensions.hardware_remediation.hardware_log_analyzer.analyze_command') as mock_analyze:
+
+        with patch(
+            "extensions.hardware_remediation.hardware_log_analyzer.analyze_command"
+        ) as mock_analyze:
             mock_analyze.return_value = {"risk_level": RiskLevel.LOW, "reason": "Safe"}
-            
+
             allowed, reason = analyzer.validate_repair_command("echo test")
-            
+
             assert allowed is True
 
     def test_validate_dangerous_command(self):
         """Test validating dangerous command"""
         analyzer = HardwareLogAnalyzer()
-        
-        with patch('extensions.hardware_remediation.hardware_log_analyzer.analyze_command') as mock_analyze:
+
+        with patch(
+            "extensions.hardware_remediation.hardware_log_analyzer.analyze_command"
+        ) as mock_analyze:
             mock_analyze.return_value = {"risk_level": RiskLevel.BLOCKED, "reason": "Dangerous"}
-            
+
             allowed, reason = analyzer.validate_repair_command("rm -rf /")
-            
+
             assert allowed is False
 
     def test_validate_high_risk_command(self):
         """Test validating high-risk command"""
         analyzer = HardwareLogAnalyzer()
-        
-        with patch('extensions.hardware_remediation.hardware_log_analyzer.analyze_command') as mock_analyze:
+
+        with patch(
+            "extensions.hardware_remediation.hardware_log_analyzer.analyze_command"
+        ) as mock_analyze:
             mock_analyze.return_value = {"risk_level": RiskLevel.HIGH, "reason": "High risk"}
-            
+
             allowed, reason = analyzer.validate_repair_command("systemctl restart critical-service")
-            
+
             assert allowed is False

@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 """Unit tests for orchestrator.py - LLM Router orchestrator."""
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from extensions.addons.ai_plus.llm_router_service.orchestrator import (
     LLMRouterOrchestrator,
 )
 from extensions.addons.ai_plus.llm_router_service.schemas import (
-    RouteRequest,
     GenerateRequest,
-    LiteLLMRequest,
-    TaskType,
-    ProviderType,
-    RouteResponse,
     GenerateResponse,
+    LiteLLMRequest,
+    ProviderType,
+    RouteRequest,
+    RouteResponse,
+    TaskType,
 )
 
 
@@ -207,9 +209,7 @@ class TestLLMRouterOrchestrator:
     async def test_route_with_context(self):
         """Test routing with context."""
         orchestrator = LLMRouterOrchestrator()
-        request = RouteRequest(
-            prompt="Test", context={"language": "python", "domain": "code"}
-        )
+        request = RouteRequest(prompt="Test", context={"language": "python", "domain": "code"})
 
         response = await orchestrator.route(request)
 
@@ -263,7 +263,7 @@ class TestLLMRouterOrchestrator:
         orchestrator = LLMRouterOrchestrator()
 
         # Mock the provider call to avoid actual API calls
-        with patch.object(orchestrator, 'route_and_generate') as mock_route_gen:
+        with patch.object(orchestrator, "route_and_generate") as mock_route_gen:
             mock_response = GenerateResponse(
                 content="Generated text",
                 model="test-model",
@@ -285,7 +285,7 @@ class TestLLMRouterOrchestrator:
         """Test generation with specific model."""
         orchestrator = LLMRouterOrchestrator()
 
-        with patch.object(orchestrator, 'route_and_generate') as mock_route_gen:
+        with patch.object(orchestrator, "route_and_generate") as mock_route_gen:
             mock_response = GenerateResponse(
                 content="Generated text",
                 model="gpt-4",
@@ -306,7 +306,7 @@ class TestLLMRouterOrchestrator:
         """Test generation with task type."""
         orchestrator = LLMRouterOrchestrator()
 
-        with patch.object(orchestrator, 'route_and_generate') as mock_route_gen:
+        with patch.object(orchestrator, "route_and_generate") as mock_route_gen:
             mock_response = GenerateResponse(
                 content="Generated text",
                 model="test-model",
@@ -317,9 +317,7 @@ class TestLLMRouterOrchestrator:
             )
             mock_route_gen.return_value = mock_response
 
-            request = GenerateRequest(
-                prompt="Test", task_type=TaskType.CODE_GENERATION
-            )
+            request = GenerateRequest(prompt="Test", task_type=TaskType.CODE_GENERATION)
             response = await orchestrator.generate(request)
 
             assert isinstance(response, GenerateResponse)
@@ -345,7 +343,7 @@ class TestLLMRouterOrchestrator:
         if models:
             provider = orchestrator._get_provider(models[0].name)
             if provider:
-                with patch.object(provider, 'call', side_effect=mock_call):
+                with patch.object(provider, "call", side_effect=mock_call):
                     request = RouteRequest(prompt="Test", force_model=models[0].name)
                     response = await orchestrator.route_and_generate(request)
 
@@ -367,7 +365,8 @@ class TestLLMRouterOrchestrator:
             second_provider = orchestrator._get_provider(models[1].name)
 
             if first_provider and second_provider:
-                with patch.object(first_provider, 'call', side_effect=failing_call):
+                with patch.object(first_provider, "call", side_effect=failing_call):
+
                     async def success_call(prompt, model, max_tokens=1024, temperature=0.7):
                         return GenerateResponse(
                             content="Fallback response",
@@ -378,7 +377,7 @@ class TestLLMRouterOrchestrator:
                             cost=0.01,
                         )
 
-                    with patch.object(second_provider, 'call', side_effect=success_call):
+                    with patch.object(second_provider, "call", side_effect=success_call):
                         request = RouteRequest(prompt="Test", force_model=models[0].name)
                         response = await orchestrator.route_and_generate(request)
 
@@ -423,7 +422,7 @@ class TestLLMRouterOrchestrator:
         """Test LiteLLM completion."""
         orchestrator = LLMRouterOrchestrator()
 
-        with patch.object(orchestrator, 'generate') as mock_generate:
+        with patch.object(orchestrator, "generate") as mock_generate:
             mock_response = GenerateResponse(
                 content="Completion response",
                 model="test-model",
@@ -434,9 +433,7 @@ class TestLLMRouterOrchestrator:
             )
             mock_generate.return_value = mock_response
 
-            request = LiteLLMRequest(
-                messages=[{"role": "user", "content": "Hello"}]
-            )
+            request = LiteLLMRequest(messages=[{"role": "user", "content": "Hello"}])
             response = await orchestrator.completion(request)
 
             assert response.model == "test-model"
@@ -447,7 +444,7 @@ class TestLLMRouterOrchestrator:
         """Test completion with specific model."""
         orchestrator = LLMRouterOrchestrator()
 
-        with patch.object(orchestrator, 'generate') as mock_generate:
+        with patch.object(orchestrator, "generate") as mock_generate:
             mock_response = GenerateResponse(
                 content="Completion response",
                 model="gpt-4",
@@ -458,10 +455,7 @@ class TestLLMRouterOrchestrator:
             )
             mock_generate.return_value = mock_response
 
-            request = LiteLLMRequest(
-                model="gpt-4",
-                messages=[{"role": "user", "content": "Hello"}]
-            )
+            request = LiteLLMRequest(model="gpt-4", messages=[{"role": "user", "content": "Hello"}])
             response = await orchestrator.completion(request)
 
             assert response.model == "gpt-4"
@@ -471,7 +465,7 @@ class TestLLMRouterOrchestrator:
         """Test completion with auto model selection."""
         orchestrator = LLMRouterOrchestrator()
 
-        with patch.object(orchestrator, 'generate') as mock_generate:
+        with patch.object(orchestrator, "generate") as mock_generate:
             mock_response = GenerateResponse(
                 content="Completion response",
                 model="test-model",
@@ -482,14 +476,12 @@ class TestLLMRouterOrchestrator:
             )
             mock_generate.return_value = mock_response
 
-            request = LiteLLMRequest(
-                model="auto",
-                messages=[{"role": "user", "content": "Hello"}]
-            )
+            request = LiteLLMRequest(model="auto", messages=[{"role": "user", "content": "Hello"}])
             response = await orchestrator.completion(request)
 
             # completion returns LiteLLMResponse, not GenerateResponse
             from extensions.addons.ai_plus.llm_router_service.schemas import LiteLLMResponse
+
             assert isinstance(response, LiteLLMResponse)
 
     @pytest.mark.asyncio
@@ -570,9 +562,7 @@ class TestLLMRouterOrchestrator:
     async def test_route_batch(self):
         """Test batch routing."""
         orchestrator = LLMRouterOrchestrator()
-        requests = [
-            RouteRequest(prompt=f"Test {i}") for i in range(5)
-        ]
+        requests = [RouteRequest(prompt=f"Test {i}") for i in range(5)]
 
         responses = await orchestrator.route_batch(requests)
 
@@ -604,7 +594,7 @@ class TestLLMRouterOrchestrator:
         """Test batch generation."""
         orchestrator = LLMRouterOrchestrator()
 
-        with patch.object(orchestrator, 'route_and_generate') as mock_route_gen:
+        with patch.object(orchestrator, "route_and_generate") as mock_route_gen:
             mock_response = GenerateResponse(
                 content="Generated text",
                 model="test-model",
@@ -615,9 +605,7 @@ class TestLLMRouterOrchestrator:
             )
             mock_route_gen.return_value = mock_response
 
-            requests = [
-                GenerateRequest(prompt=f"Test {i}") for i in range(5)
-            ]
+            requests = [GenerateRequest(prompt=f"Test {i}") for i in range(5)]
             responses = await orchestrator.generate_batch(requests)
 
             assert len(responses) == 5
@@ -734,10 +722,7 @@ class TestLLMRouterOrchestrator:
         """Test concurrent routing requests."""
         orchestrator = LLMRouterOrchestrator()
 
-        requests = [
-            orchestrator.route(RouteRequest(prompt=f"Test {i}"))
-            for i in range(10)
-        ]
+        requests = [orchestrator.route(RouteRequest(prompt=f"Test {i}")) for i in range(10)]
 
         responses = await asyncio.gather(*requests)
 

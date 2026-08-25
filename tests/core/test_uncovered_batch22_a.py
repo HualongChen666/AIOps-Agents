@@ -167,7 +167,9 @@ def test_query_prometheus_branches(fake_observability, monkeypatch):
 def test_query_prometheus_range(fake_observability, monkeypatch):
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", "http://prom")
     fake_observability.Client.response = _FakeResponse({"data": {"result": []}})
-    result = oc.query_prometheus_range("up", 1.0, 2.0, step="15s")  # noqa: F841  # Variable for test verification
+    result = oc.query_prometheus_range(
+        "up", 1.0, 2.0, step="15s"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
 
@@ -490,7 +492,9 @@ async def test_restore_database_backup_success(
         }
     )
     bs._backup_config["integrity_check_enabled"] = True
-    result = await bs.restore_database_backup("db_1")  # noqa: F841  # Variable for test verification
+    result = await bs.restore_database_backup(
+        "db_1"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
 
@@ -720,7 +724,9 @@ async def test_run_security_test(security_system, monkeypatch):
     result_id = await security_system.run_security_test("sast_scan")
     assert result_id == "sast_scan"
     await security_system._execute_test("sast_scan")
-    result = security_system.get_test_result("sast_scan")  # noqa: F841  # Variable for test verification
+    result = security_system.get_test_result(
+        "sast_scan"
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result["status"] == TestStatus.COMPLETED.value
 

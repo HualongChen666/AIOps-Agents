@@ -147,6 +147,16 @@ async def perform_database_backup() -> Dict[str, Any]:
         with open(backup_file, "wb") as f:
             f.write(stdout)
 
+        # Set restrictive permissions for backup file (600 - owner read/write only)
+        try:
+            import stat
+
+            os.chmod(backup_file, stat.S_IRUSR | stat.S_IWUSR)
+            logger.debug(f"Set backup file permissions to 600 for {backup_file}")
+        except (OSError, AttributeError) as e:
+            # chmod may fail on Windows or non-Unix systems
+            logger.debug(f"chmod not supported on this platform: {e}")
+
         # 🔧 P0: Calculate file size and hash
         file_size = os.path.getsize(backup_file)
         file_hash = calculate_file_hash(backup_file)
@@ -159,15 +169,31 @@ async def perform_database_backup() -> Dict[str, Any]:
                     shutil.copyfileobj(f_in, f_out)
 
             # Remove uncompressed file
-            os.remove(backup_file)
+            try:
+                os.remove(backup_file)
+            except OSError as exc:
+                logger.warning(f"Failed to remove uncompressed file {backup_file}: {exc}")
             backup_file = compressed_file
             file_size = os.path.getsize(backup_file)
+
+            # Set restrictive permissions for compressed file (600 - owner read/write only)
+            try:
+                import stat
+
+                os.chmod(backup_file, stat.S_IRUSR | stat.S_IWUSR)
+                logger.debug(f"Set compressed file permissions to 600 for {backup_file}")
+            except (OSError, AttributeError) as e:
+                # chmod may fail on Windows or non-Unix systems
+                logger.debug(f"chmod not supported on this platform: {e}")
 
         # 🔧 P0: Encrypt if enabled
         if _backup_config["encryption_enabled"]:
             encrypted_file = f"{backup_file}.enc"
             encrypt_file(backup_file, encrypted_file)
-            os.remove(backup_file)
+            try:
+                os.remove(backup_file)
+            except OSError as exc:
+                logger.warning(f"Failed to remove unencrypted file {backup_file}: {exc}")
             backup_file = encrypted_file
             file_size = os.path.getsize(backup_file)
 
@@ -222,7 +248,10 @@ async def perform_database_backup() -> Dict[str, Any]:
 
         # 🔧 P0: Cleanup failed backup attempt
         if os.path.exists(backup_dir):
-            shutil.rmtree(backup_dir)
+            try:
+                shutil.rmtree(backup_dir)
+            except OSError as exc:
+                logger.warning(f"Failed to cleanup backup directory {backup_dir}: {exc}")
 
         return {
             "backup_id": backup_id,
@@ -503,16 +532,23 @@ def calculate_file_hash(file_path: str, algorithm: str = "sha256") -> str:
 
     Args:
         file_path: Path to the file
-        algorithm: Hash algorithm (sha256, md5, sha1)
+        algorithm: Hash algorithm (sha256 recommended for security)
 
     Returns:
         Hexadecimal hash string
     """
-    hash_func = hashlib.new(algorithm)
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_func.update(chunk)
-    return hash_func.hexdigest()
+    try:
+        hash_func = hashlib.new(algorithm)
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_func.update(chunk)
+        return hash_func.hexdigest()
+    except (OSError, IOError) as exc:
+        logger.error(f"Failed to calculate hash for file {file_path}: {exc}")
+        raise
+    except ValueError as exc:
+        logger.error(f"Invalid hash algorithm {algorithm}: {exc}")
+        raise
 
 
 def verify_backup_integrity(file_path: str, expected_hash: str) -> bool:
@@ -572,6 +608,17 @@ def encrypt_file(input_path: str, output_path: str) -> bool:
         encrypted = f.encrypt(data)
         with open(output_path, "wb") as outfile:
             outfile.write(encrypted)
+
+        # Set restrictive permissions for encrypted file (600 - owner read/write only)
+        try:
+            import stat
+
+            os.chmod(output_path, stat.S_IRUSR | stat.S_IWUSR)
+            logger.debug(f"Set encrypted file permissions to 600 for {output_path}")
+        except (OSError, AttributeError) as e:
+            # chmod may fail on Windows or non-Unix systems
+            logger.debug(f"chmod not supported on this platform: {e}")
+
         logger.info(f"Encrypted backup file: {input_path} -> {output_path}")
         return True
     except Exception as e:
@@ -608,6 +655,17 @@ def decrypt_file(input_path: str, output_path: str) -> bool:
         decrypted = f.decrypt(data)
         with open(output_path, "wb") as outfile:
             outfile.write(decrypted)
+
+        # Set restrictive permissions for decrypted file (600 - owner read/write only)
+        try:
+            import stat
+
+            os.chmod(output_path, stat.S_IRUSR | stat.S_IWUSR)
+            logger.debug(f"Set decrypted file permissions to 600 for {output_path}")
+        except (OSError, AttributeError) as e:
+            # chmod may fail on Windows or non-Unix systems
+            logger.debug(f"chmod not supported on this platform: {e}")
+
         logger.info(f"Decrypted backup file: {input_path} -> {output_path}")
         return True
     except InvalidToken:

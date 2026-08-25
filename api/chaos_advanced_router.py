@@ -22,9 +22,7 @@ from core.api_response_standard import (
     create_success_response,
 )
 from core.chaos_engineering import (
-    ChaosEngine,
     ChaosExperiment,
-    ExperimentResult,
     ExperimentStatus,
     chaos_engine,
 )
@@ -44,6 +42,7 @@ FAULTS_FILE = DATA_DIR / "chaos_faults.json"
 # Pydantic Models
 class ExperimentStatusEnum(str, Enum):
     """实验状态枚举"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -53,6 +52,7 @@ class ExperimentStatusEnum(str, Enum):
 
 class SeverityEnum(str, Enum):
     """严重程度枚举"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -61,6 +61,7 @@ class SeverityEnum(str, Enum):
 
 class FaultTypeEnum(str, Enum):
     """故障类型枚举"""
+
     NETWORK_LATENCY = "network_latency"
     DISK_FAILURE = "disk_failure"
     CPU_OVERLOAD = "cpu_overload"
@@ -73,6 +74,7 @@ class FaultTypeEnum(str, Enum):
 
 class CreateExperimentRequest(BaseModel):
     """创建实验请求"""
+
     name: str = Field(..., min_length=1, max_length=200, description="实验名称")
     description: Optional[str] = Field(None, max_length=1000, description="实验描述")
     experiment_type: str = Field(..., description="实验类型")
@@ -96,6 +98,7 @@ class CreateExperimentRequest(BaseModel):
 
 class UpdateExperimentRequest(BaseModel):
     """更新实验请求"""
+
     name: Optional[str] = Field(None, max_length=200, description="实验名称")
     description: Optional[str] = Field(None, max_length=1000, description="实验描述")
     parameters: Optional[Dict[str, Any]] = Field(None, description="实验参数")
@@ -114,6 +117,7 @@ class UpdateExperimentRequest(BaseModel):
 
 class CreateScenarioRequest(BaseModel):
     """创建场景请求"""
+
     name: str = Field(..., min_length=1, max_length=200, description="场景名称")
     description: Optional[str] = Field(None, max_length=1000, description="场景描述")
     experiments: List[str] = Field(..., min_items=1, description="包含的实验ID列表")
@@ -135,6 +139,7 @@ class CreateScenarioRequest(BaseModel):
 
 class CreateFaultRequest(BaseModel):
     """创建故障请求"""
+
     name: str = Field(..., min_length=1, max_length=200, description="故障名称")
     fault_type: FaultTypeEnum = Field(..., description="故障类型")
     description: Optional[str] = Field(None, max_length=1000, description="故障描述")
@@ -158,6 +163,7 @@ class CreateFaultRequest(BaseModel):
 
 class SafetyCheckRequest(BaseModel):
     """安全检查请求"""
+
     experiment_id: str = Field(..., description="实验ID")
     check_type: str = Field(..., description="检查类型")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="检查参数")
@@ -182,15 +188,28 @@ def _load_json_file(file_path: Path) -> List[Dict[str, Any]]:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, list) else []
-    except Exception as e:
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning(f"Failed to load JSON file {file_path}: {exc}")
+        return []
+    except Exception as e:  # noqa: F841 - Exception intentionally unused
         return []
 
 
 def _save_json_file(file_path: Path, data: List[Dict[str, Any]]) -> None:
     """保存JSON文件"""
+    import os
+    import stat
+
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+        # Set restrictive permissions for chaos engineering data file (600 - owner read/write only)
+        try:
+            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+        except (OSError, AttributeError):
+            # chmod may fail on Windows or non-Unix systems
+            pass
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}")
 
@@ -348,9 +367,7 @@ async def get_experiment(experiment_id: str) -> Dict[str, Any]:
         500: {"description": "服务器错误"},
     },
 )
-async def update_experiment(
-    experiment_id: str, request: UpdateExperimentRequest
-) -> Dict[str, Any]:
+async def update_experiment(experiment_id: str, request: UpdateExperimentRequest) -> Dict[str, Any]:
     """
     更新实验配置
 
@@ -745,7 +762,9 @@ async def get_chaos_metrics() -> Dict[str, Any]:
         failed_experiments = sum(1 for e in experiments if e.get("status") == "failed")
 
         # 计算成功率
-        success_count = sum(1 for e in experiments if e.get("last_result", {}).get("success", False))
+        success_count = sum(
+            1 for e in experiments if e.get("last_result", {}).get("success", False)
+        )
         success_rate = (
             (success_count / completed_experiments * 100) if completed_experiments > 0 else 0
         )
@@ -827,7 +846,9 @@ async def perform_safety_check(request: SafetyCheckRequest) -> Dict[str, Any]:
             {
                 "name": "chaos_engine_enabled",
                 "status": "pass" if chaos_enabled else "fail",
-                "message": "Chaos engine is enabled" if chaos_enabled else "Chaos engine is disabled",
+                "message": (
+                    "Chaos engine is enabled" if chaos_enabled else "Chaos engine is disabled"
+                ),
             }
         )
 
@@ -838,7 +859,9 @@ async def perform_safety_check(request: SafetyCheckRequest) -> Dict[str, Any]:
             {
                 "name": "no_running_experiments",
                 "status": "pass" if not has_running else "warning",
-                "message": "No running experiments" if not has_running else "Another experiment is running",
+                "message": (
+                    "No running experiments" if not has_running else "Another experiment is running"
+                ),
             }
         )
 

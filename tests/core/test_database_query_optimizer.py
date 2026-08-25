@@ -14,7 +14,9 @@ def test_get_database_query_optimizer():
 
 def test_analyze_and_classify():
     opt = DatabaseQueryOptimizer()
-    result = opt.analyze_query_performance("SELECT * FROM users", duration_ms=1500)  # noqa: F841  # Variable for test verification
+    result = opt.analyze_query_performance(
+        "SELECT * FROM users", duration_ms=1500
+    )  # noqa: F841  # Variable for test verification
     assert "recommendations" in result
     assert result["pattern"] == "select_star"
 

@@ -108,7 +108,9 @@ async def test_detect_regression_no_baseline(monkeypatch):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("missing", 200.0)  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "missing", 200.0
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -119,7 +121,9 @@ async def test_detect_regression_p95_warning(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-gateway", 120.0)  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-gateway", 120.0
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result["severity"] == "warning"
     assert result["deviation"] == pytest.approx(0.2)
@@ -132,7 +136,9 @@ async def test_detect_regression_p95_critical(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-gateway", 160.0)  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-gateway", 160.0
+    )  # noqa: F841  # Variable for test verification
     assert result["severity"] == "critical"
     assert result["deviation"] == pytest.approx(0.6)
 
@@ -144,7 +150,9 @@ async def test_detect_regression_p99(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-gateway", 200.0, metric_name="p99_time_ms")  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-gateway", 200.0, metric_name="p99_time_ms"
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result["baseline_value"] == 150.0
 
@@ -156,7 +164,9 @@ async def test_detect_regression_throughput(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-gateway", 600.0, metric_name="throughput")  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-gateway", 600.0, metric_name="throughput"
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result["baseline_value"] == 500.0
 
@@ -168,7 +178,9 @@ async def test_detect_regression_unsupported_metric(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-gateway", 10.0, metric_name="unknown")  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-gateway", 10.0, metric_name="unknown"
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -180,7 +192,9 @@ async def test_detect_regression_baseline_none_metric(monkeypatch, mock_baseline
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-gateway", 10.0, metric_name="p99_time_ms")  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-gateway", 10.0, metric_name="p99_time_ms"
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -191,7 +205,9 @@ async def test_detect_regression_no_deviation(monkeypatch, mock_baseline):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-gateway", 100.0)  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-gateway", 100.0
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -208,7 +224,9 @@ async def test_detect_regression_zero_baseline(monkeypatch):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api-zero", 50.0)  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api-zero", 50.0
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -219,7 +237,9 @@ async def test_detect_regression_exception(monkeypatch):
         performance_regression_detector, "AsyncSessionLocal", MagicMock(return_value=session)
     )
     detector = performance_regression_detector.PerformanceRegressionDetector()
-    result = await detector.detect_regression("api", 100.0)  # noqa: F841  # Variable for test verification
+    result = await detector.detect_regression(
+        "api", 100.0
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -538,7 +558,9 @@ def test_detect_anomalies_high_cpu():
         "cpu": [10.0] * 29 + [95.0],
         "timestamps": [f"00:{i:02d}:00" for i in range(30)],
     }
-    result = anomaly_engine.detect_anomalies(history, "cpu")  # noqa: F841  # Variable for test verification
+    result = anomaly_engine.detect_anomalies(
+        history, "cpu"
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0]["metric"] == "CPU使用率"
     assert result[0]["confidence"] > 0
@@ -549,7 +571,9 @@ def test_detect_anomalies_low_memory():
         "memory": [50.0] * 29 + [5.0],
         "timestamps": [f"00:{i:02d}:00" for i in range(30)],
     }
-    result = anomaly_engine.detect_anomalies(history, "memory")  # noqa: F841  # Variable for test verification
+    result = anomaly_engine.detect_anomalies(
+        history, "memory"
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0]["metric"] == "内存使用率"
 
@@ -559,14 +583,18 @@ def test_detect_anomalies_net_in():
         "net_in": [1000.0] * 29 + [50000.0],
         "timestamps": [f"00:{i:02d}:00" for i in range(30)],
     }
-    result = anomaly_engine.detect_anomalies(history, "net_in")  # noqa: F841  # Variable for test verification
+    result = anomaly_engine.detect_anomalies(
+        history, "net_in"
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0]["metric"] == "网络入流量"
 
 
 def test_detect_anomalies_unknown_metric():
     history = {"disk": [10.0] * 29 + [95.0]}
-    result = anomaly_engine.detect_anomalies(history, "disk", threshold_z=1.5)  # noqa: F841  # Variable for test verification
+    result = anomaly_engine.detect_anomalies(
+        history, "disk", threshold_z=1.5
+    )  # noqa: F841  # Variable for test verification
     assert result[0]["metric"] == "disk"
 
 
@@ -679,7 +707,9 @@ def test_list_collections_failure(qdrant_mocks):
 def test_create_collection_success(qdrant_mocks):
     _, mock_client = qdrant_mocks
     qdrant_service._qdrant_client = mock_client
-    result = qdrant_service.create_collection("incidents", 384, distance="Cosine")  # noqa: F841  # Variable for test verification
+    result = qdrant_service.create_collection(
+        "incidents", 384, distance="Cosine"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert mock_client.create_collection.called
 
@@ -695,7 +725,9 @@ def test_create_collection_failure(qdrant_mocks):
 def test_delete_collection_success(qdrant_mocks):
     _, mock_client = qdrant_mocks
     qdrant_service._qdrant_client = mock_client
-    result = qdrant_service.delete_collection("incidents")  # noqa: F841  # Variable for test verification
+    result = qdrant_service.delete_collection(
+        "incidents"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
 
@@ -714,7 +746,9 @@ def test_upsert_points_success(qdrant_mocks):
         {"id": "p1", "vector": [0.1, 0.2], "payload": {"tag": "x"}},
         {"id": "p2", "vector": [0.3, 0.4]},
     ]
-    result = qdrant_service.upsert_points("incidents", points)  # noqa: F841  # Variable for test verification
+    result = qdrant_service.upsert_points(
+        "incidents", points
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["count"] == 2
 
@@ -760,7 +794,9 @@ def test_search_failure(qdrant_mocks):
 def test_delete_points_success(qdrant_mocks):
     _, mock_client = qdrant_mocks
     qdrant_service._qdrant_client = mock_client
-    result = qdrant_service.delete_points("incidents", ["p1", "p2"])  # noqa: F841  # Variable for test verification
+    result = qdrant_service.delete_points(
+        "incidents", ["p1", "p2"]
+    )  # noqa: F841  # Variable for test verification
     assert result["count"] == 2
 
 

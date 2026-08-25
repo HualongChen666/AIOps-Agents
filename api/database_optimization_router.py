@@ -234,7 +234,10 @@ async def record_query_execution(
 
         manager = get_database_optimization_manager()
         manager.record_query_execution(
-            query_text=query_text, duration_ms=duration_ms, database=database, table_name=table_name
+            query_text=query_text,
+            duration_ms=duration_ms,
+            database=database,
+            table_name=table_name,
         )
 
         return {

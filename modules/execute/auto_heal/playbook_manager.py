@@ -71,8 +71,12 @@ class PlaybookManager:
                 logger.warning("Playbook file not found: %s", playbook_path)
                 return False
 
-            with open(playbook_path, "r", encoding="utf-8") as f:
-                content = f.read()
+            try:
+                with open(playbook_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except OSError as exc:
+                logger.error("Failed to read playbook file %s: %s", playbook_path, exc)
+                return False
 
         try:
             playbook = yaml.safe_load(content)

@@ -27,7 +27,6 @@ os.environ["USE_SYNC_SQLITE"] = "false"
 
 from services.agent_orchestration_service.main import OrchestratePayload, app
 
-
 # ============================================================================
 # Health Endpoint Tests
 # ============================================================================
@@ -38,7 +37,7 @@ def test_health_endpoint():
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["status"] == "healthy"
 
@@ -48,7 +47,7 @@ def test_health_endpoint_response_format():
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert isinstance(data, dict)
         assert "status" in data
@@ -69,8 +68,10 @@ def test_orchestrate_endpoint_success():
         "level": "WARNING",
         "status": "firing",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         # Mock successful heal
         mock_state = MagicMock()
         mock_state.fix_applied = True
@@ -79,11 +80,11 @@ def test_orchestrate_endpoint_success():
         mock_state.runbook = "Restart service"
         mock_state.verification = "Service is healthy"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["alert_id"] == "test-1"
             assert data["success"] is True
@@ -104,8 +105,10 @@ def test_orchestrate_endpoint_failure():
         "level": "WARNING",
         "status": "firing",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         # Mock failed heal
         mock_state = MagicMock()
         mock_state.fix_applied = False
@@ -114,11 +117,11 @@ def test_orchestrate_endpoint_failure():
         mock_state.runbook = None
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["alert_id"] == "test-1"
             assert data["success"] is False
@@ -136,8 +139,10 @@ def test_orchestrate_endpoint_no_fix_applied():
         "level": "INFO",
         "status": "firing",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         # Mock no fix applied
         mock_state = MagicMock()
         mock_state.fix_applied = False
@@ -146,11 +151,11 @@ def test_orchestrate_endpoint_no_fix_applied():
         mock_state.runbook = None
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["success"] is False
             assert data["fix_applied"] is False
@@ -159,7 +164,9 @@ def test_orchestrate_endpoint_no_fix_applied():
 
 def test_orchestrate_endpoint_empty_alert():
     """Test /orchestrate endpoint with empty alert."""
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = False
         mock_state.error = None
@@ -167,11 +174,11 @@ def test_orchestrate_endpoint_empty_alert():
         mock_state.runbook = None
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": {}})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["alert_id"] is None
 
@@ -182,8 +189,10 @@ def test_orchestrate_endpoint_missing_alert_id():
         "title": "Test Alert",
         "category": "system",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = True
         mock_state.error = None
@@ -191,11 +200,11 @@ def test_orchestrate_endpoint_missing_alert_id():
         mock_state.runbook = "Runbook"
         mock_state.verification = "Verified"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["alert_id"] is None
 
@@ -206,8 +215,10 @@ def test_orchestrate_endpoint_with_analysis_only():
         "id": "test-1",
         "title": "Test Alert",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = False
         mock_state.error = None
@@ -215,11 +226,11 @@ def test_orchestrate_endpoint_with_analysis_only():
         mock_state.runbook = None
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["analysis"] == "Detailed analysis"
             assert data["runbook"] is None
@@ -232,8 +243,10 @@ def test_orchestrate_endpoint_with_runbook_only():
         "id": "test-1",
         "title": "Test Alert",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = False
         mock_state.error = None
@@ -241,11 +254,11 @@ def test_orchestrate_endpoint_with_runbook_only():
         mock_state.runbook = "Manual intervention required"
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["runbook"] == "Manual intervention required"
 
@@ -256,8 +269,10 @@ def test_orchestrate_endpoint_with_verification():
         "id": "test-1",
         "title": "Test Alert",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = True
         mock_state.error = None
@@ -265,11 +280,11 @@ def test_orchestrate_endpoint_with_verification():
         mock_state.runbook = "Runbook"
         mock_state.verification = "Fix verified successfully"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["verification"] == "Fix verified successfully"
 
@@ -296,8 +311,10 @@ def test_orchestrate_endpoint_complex_alert():
             "description": "No active connections to database",
         },
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = True
         mock_state.error = None
@@ -305,11 +322,11 @@ def test_orchestrate_endpoint_complex_alert():
         mock_state.runbook = "Restart database service"
         mock_state.verification = "Database connections restored"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
-            
+
             data = response.json()
             assert data["alert_id"] == "test-1"
             assert data["success"] is True
@@ -333,14 +350,14 @@ def test_orchestrate_payload_valid():
         "title": "Test Alert",
     }
     payload = OrchestratePayload(alert=alert_data)
-    
+
     assert payload.alert == alert_data
 
 
 def test_orchestrate_payload_empty_alert():
     """Test OrchestratePayload with empty alert."""
     payload = OrchestratePayload(alert={})
-    
+
     assert payload.alert == {}
 
 
@@ -354,7 +371,7 @@ def test_orchestrate_payload_complex_alert():
         },
     }
     payload = OrchestratePayload(alert=alert_data)
-    
+
     assert payload.alert["nested"]["key"] == "value"
 
 
@@ -365,7 +382,9 @@ def test_orchestrate_payload_complex_alert():
 
 def test_full_workflow():
     """Test full workflow: health check, orchestrate."""
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = True
         mock_state.error = None
@@ -373,12 +392,12 @@ def test_full_workflow():
         mock_state.runbook = "Runbook"
         mock_state.verification = "Verified"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             # Health check
             health_response = client.get("/health")
             assert health_response.status_code == 200
-            
+
             # Orchestrate
             alert_data = {"id": "test-1", "title": "Test Alert"}
             orch_response = client.post("/orchestrate", json={"alert": alert_data})
@@ -387,7 +406,9 @@ def test_full_workflow():
 
 def test_concurrent_orchestrate_requests():
     """Test handling concurrent orchestrate requests."""
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = True
         mock_state.error = None
@@ -395,7 +416,7 @@ def test_concurrent_orchestrate_requests():
         mock_state.runbook = "Runbook"
         mock_state.verification = "Verified"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             # Send multiple concurrent requests
             responses = []
@@ -403,7 +424,7 @@ def test_concurrent_orchestrate_requests():
                 alert_data = {"id": f"test-{i}", "title": f"Alert {i}"}
                 response = client.post("/orchestrate", json={"alert": alert_data})
                 responses.append(response)
-            
+
             # All should succeed
             for response in responses:
                 assert response.status_code == 200
@@ -421,8 +442,10 @@ def test_orchestrate_with_null_fields():
         "title": None,
         "category": None,
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = False
         mock_state.error = None
@@ -430,7 +453,7 @@ def test_orchestrate_with_null_fields():
         mock_state.runbook = None
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
@@ -444,8 +467,10 @@ def test_orchestrate_with_large_alert():
         "description": "A" * 10000,  # Large description
         "labels": {f"key{i}": f"value{i}" for i in range(100)},
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = True
         mock_state.error = None
@@ -453,7 +478,7 @@ def test_orchestrate_with_large_alert():
         mock_state.runbook = "Runbook"
         mock_state.verification = "Verified"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
@@ -466,8 +491,10 @@ def test_orchestrate_with_special_characters():
         "title": "Test <script>alert('xss')</script>",
         "description": "Test & special <> characters",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = False
         mock_state.error = None
@@ -475,7 +502,7 @@ def test_orchestrate_with_special_characters():
         mock_state.runbook = None
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
@@ -488,8 +515,10 @@ def test_orchestrate_with_unicode():
         "title": "测试警报",
         "description": "Test with émojis 🚨 and unicode",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = False
         mock_state.error = None
@@ -497,7 +526,7 @@ def test_orchestrate_with_unicode():
         mock_state.runbook = None
         mock_state.verification = None
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             response = client.post("/orchestrate", json={"alert": alert_data})
             assert response.status_code == 200
@@ -533,8 +562,10 @@ def test_orchestrate_with_extra_fields():
         "alert": {"id": "test-1"},
         "extra_field": "should be ignored",
     }
-    
-    with patch("services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock) as mock_heal:
+
+    with patch(
+        "services.agent_orchestration_service.main.run_heal", new_callable=AsyncMock
+    ) as mock_heal:
         mock_state = MagicMock()
         mock_state.fix_applied = True
         mock_state.error = None
@@ -542,7 +573,7 @@ def test_orchestrate_with_extra_fields():
         mock_state.runbook = "Runbook"
         mock_state.verification = "Verified"
         mock_heal.return_value = mock_state
-        
+
         with TestClient(app) as client:
             # Pydantic should ignore extra fields
             response = client.post("/orchestrate", json=payload)

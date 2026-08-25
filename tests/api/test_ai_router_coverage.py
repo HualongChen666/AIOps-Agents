@@ -2,8 +2,9 @@
 """Comprehensive tests for ai_router.py to achieve 90%+ coverage."""
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi import Request
 
 
@@ -13,39 +14,46 @@ class TestSafeAlertValue:
     def test_safe_alert_value_none(self):
         """Test with None value (line 78)."""
         from api.ai_router import _safe_alert_value
+
         assert _safe_alert_value(None) is None
 
     def test_safe_alert_value_int(self):
         """Test with integer value (line 78)."""
         from api.ai_router import _safe_alert_value
+
         assert _safe_alert_value(42) == 42
 
     def test_safe_alert_value_float(self):
         """Test with float value (line 78)."""
         from api.ai_router import _safe_alert_value
+
         assert _safe_alert_value(3.14) == 3.14
 
     def test_safe_alert_value_bool(self):
         """Test with boolean value (line 78)."""
         from api.ai_router import _safe_alert_value
+
         assert _safe_alert_value(True) is True
         assert _safe_alert_value(False) is False
 
     def test_safe_alert_value_string_numeric(self):
         """Test with numeric string (lines 80-83)."""
         from api.ai_router import _safe_alert_value
+
         assert _safe_alert_value("42") == 42.0
         assert _safe_alert_value("3.14") == 3.14
 
     def test_safe_alert_value_string_non_numeric(self):
         """Test with non-numeric string (line 84)."""
         from api.ai_router import _safe_alert_value
+
         result = _safe_alert_value("not-a-number")
         assert result == "not-a-number"
 
     def test_safe_alert_value_string_truncation(self):
         """Test string truncation (line 84)."""
         from api.ai_router import _safe_alert_value
+
         long_string = "a" * 100
         result = _safe_alert_value(long_string)
         assert len(result) == 64
@@ -53,6 +61,7 @@ class TestSafeAlertValue:
     def test_safe_alert_value_other_type(self):
         """Test with other types (line 85)."""
         from api.ai_router import _safe_alert_value
+
         assert _safe_alert_value([1, 2, 3]) == "[1, 2, 3]"
         assert _safe_alert_value({"key": "value"}) == "{'key': 'value'}"
 
@@ -63,40 +72,47 @@ class TestSafeGetMetric:
     def test_safe_get_metric_none_snapshot(self):
         """Test with None snapshot (line 97)."""
         from api.ai_router import _safe_get_metric
+
         assert _safe_get_metric(None, "cpu", "usage_percent") == "N/A"
 
     def test_safe_get_metric_non_dict_snapshot(self):
         """Test with non-dict snapshot (line 97)."""
         from api.ai_router import _safe_get_metric
+
         assert _safe_get_metric("not a dict", "cpu", "usage_percent") == "N/A"
 
     def test_safe_get_metric_section_not_dict(self):
         """Test when section is not a dict (line 99)."""
         from api.ai_router import _safe_get_metric
+
         snapshot = {"cpu": "not a dict"}
         assert _safe_get_metric(snapshot, "cpu", "usage_percent") == "N/A"
 
     def test_safe_get_metric_section_missing(self):
         """Test when section is missing (line 98)."""
         from api.ai_router import _safe_get_metric
+
         snapshot = {"memory": {"usage_percent": 50}}
         assert _safe_get_metric(snapshot, "cpu", "usage_percent") == "N/A"
 
     def test_safe_get_metric_field_missing(self):
         """Test when field is missing (line 100)."""
         from api.ai_router import _safe_get_metric
+
         snapshot = {"cpu": {"temperature": 60}}
         assert _safe_get_metric(snapshot, "cpu", "usage_percent") == "N/A"
 
     def test_safe_get_metric_success(self):
         """Test successful metric retrieval."""
         from api.ai_router import _safe_get_metric
+
         snapshot = {"cpu": {"usage_percent": 75.5}}
         assert _safe_get_metric(snapshot, "cpu", "usage_percent") == 75.5
 
     def test_safe_get_metric_custom_default(self):
         """Test with custom default value."""
         from api.ai_router import _safe_get_metric
+
         assert _safe_get_metric(None, "cpu", "usage_percent", default=0) == 0
 
 
@@ -106,41 +122,48 @@ class TestExtractGatherResult:
     def test_extract_gather_result_cancelled_error(self):
         """Test with CancelledError (lines 119-121)."""
         from api.ai_router import _extract_gather_result
+
         result = asyncio.CancelledError()
         assert _extract_gather_result(result, "test", dict) is None
 
     def test_extract_gather_result_exception(self):
         """Test with Exception (lines 122-124)."""
         from api.ai_router import _extract_gather_result
+
         result = Exception("Test error")
         assert _extract_gather_result(result, "test", dict) is None
 
     def test_extract_gather_result_none(self):
         """Test with None (lines 125-126)."""
         from api.ai_router import _extract_gather_result
+
         assert _extract_gather_result(None, "test", dict) is None
 
     def test_extract_gather_result_correct_type(self):
         """Test with correct type (lines 127-128)."""
         from api.ai_router import _extract_gather_result
+
         result = {"key": "value"}
         assert _extract_gather_result(result, "test", dict) == result
 
     def test_extract_gather_result_wrong_type(self):
         """Test with wrong type (lines 129-132)."""
         from api.ai_router import _extract_gather_result
+
         result = "not a dict"
         assert _extract_gather_result(result, "test", dict) is None
 
     def test_extract_gather_result_list_expected_dict(self):
         """Test with list when dict expected."""
         from api.ai_router import _extract_gather_result
+
         result = [1, 2, 3]
         assert _extract_gather_result(result, "test", dict) is None
 
     def test_extract_gather_result_dict_expected_list(self):
         """Test with dict when list expected."""
         from api.ai_router import _extract_gather_result
+
         result = {"key": "value"}
         assert _extract_gather_result(result, "test", list) is None
 
@@ -151,36 +174,42 @@ class TestExtractDiskUsage:
     def test_extract_disk_usage_list(self):
         """Test with disk data as list (lines 218-221)."""
         from api.ai_router import _extract_disk_usage
+
         snapshot = {"disk": [{"usage_percent": 75.5}]}
         assert _extract_disk_usage(snapshot) == 75.5
 
     def test_extract_disk_usage_dict(self):
         """Test with disk data as dict (lines 222-227)."""
         from api.ai_router import _extract_disk_usage
+
         snapshot = {"disk": {"C:": {"usage_percent": 80.0}}}
         assert _extract_disk_usage(snapshot) == 80.0
 
     def test_extract_disk_usage_empty_list(self):
         """Test with empty list."""
         from api.ai_router import _extract_disk_usage
+
         snapshot = {"disk": []}
         assert _extract_disk_usage(snapshot) == "N/A"
 
     def test_extract_disk_usage_empty_dict(self):
         """Test with empty dict."""
         from api.ai_router import _extract_disk_usage
+
         snapshot = {"disk": {}}
         assert _extract_disk_usage(snapshot) == "N/A"
 
     def test_extract_disk_usage_missing_key(self):
         """Test when disk key is missing."""
         from api.ai_router import _extract_disk_usage
+
         snapshot = {"cpu": {"usage_percent": 50}}
         assert _extract_disk_usage(snapshot) == "N/A"
 
     def test_extract_disk_usage_missing_usage_percent(self):
         """Test when usage_percent is missing."""
         from api.ai_router import _extract_disk_usage
+
         snapshot = {"disk": [{"total": 100}]}
         assert _extract_disk_usage(snapshot) == "N/A"
 
@@ -191,10 +220,11 @@ class TestBuildMetricsContext:
     def test_build_metrics_context_basic(self):
         """Test basic metrics context building (lines 233-239)."""
         from api.ai_router import _build_metrics_context
+
         snapshot = {
             "cpu": {"usage_percent": 75.5},
             "memory": {"usage_percent": 60.0},
-            "disk": [{"usage_percent": 80.0}]
+            "disk": [{"usage_percent": 80.0}],
         }
         result = _build_metrics_context(snapshot)
         assert "CPU=75.5%" in result
@@ -204,10 +234,11 @@ class TestBuildMetricsContext:
     def test_build_metrics_context_truncation(self):
         """Test context truncation (line 236-238)."""
         from api.ai_router import _build_metrics_context
+
         snapshot = {
             "cpu": {"usage_percent": 75.5},
             "memory": {"usage_percent": 60.0},
-            "disk": [{"usage_percent": 80.0}]
+            "disk": [{"usage_percent": 80.0}],
         }
         result = _build_metrics_context(snapshot)
         assert len(result) <= 500
@@ -215,6 +246,7 @@ class TestBuildMetricsContext:
     def test_build_metrics_context_missing_fields(self):
         """Test with missing fields."""
         from api.ai_router import _build_metrics_context
+
         snapshot = {"cpu": {"usage_percent": 75.5}}
         result = _build_metrics_context(snapshot)
         assert "CPU=75.5%" in result
@@ -228,10 +260,11 @@ class TestBuildContextSummary:
     def test_build_context_summary_with_rich_context(self):
         """Test with rich context (lines 254-259)."""
         from api.ai_router import _build_context_summary
+
         rich_context = {
             "top_processes": [1, 2, 3],
             "recent_alerts": [1, 2, 3, 4, 5],
-            "recent_repairs": [1, 2]
+            "recent_repairs": [1, 2],
         }
         result = _build_context_summary(rich_context)
         assert result["rich_enabled"] is True
@@ -242,6 +275,7 @@ class TestBuildContextSummary:
     def test_build_context_summary_without_rich_context(self):
         """Test without rich context (lines 255-259)."""
         from api.ai_router import _build_context_summary
+
         result = _build_context_summary(None)
         assert result["rich_enabled"] is False
         assert result["process_count"] == 0
@@ -251,6 +285,7 @@ class TestBuildContextSummary:
     def test_build_context_summary_empty_rich_context(self):
         """Test with empty rich context."""
         from api.ai_router import _build_context_summary
+
         rich_context = {}
         result = _build_context_summary(rich_context)
         assert result["rich_enabled"] is True
@@ -273,7 +308,7 @@ class TestCollectSnapshotWithCache:
     def test_collect_snapshot_with_cache_miss(self):
         """Test cache miss (lines 245-246)."""
         from api.ai_router import _collect_snapshot_with_cache
-        from core.collector import get_cached_snapshot, collect_all
+        from core.collector import collect_all, get_cached_snapshot
 
         with patch("core.collector.get_cached_snapshot") as mock_cache:
             mock_cache.return_value = None
@@ -297,7 +332,7 @@ class TestGetRecentRepairs:
                     "rule_name": "test_rule",
                     "script_key": "test_script",
                     "repair_duration_sec": 1.5,
-                    "platform": "windows"
+                    "platform": "windows",
                 }
             ]
             result = _get_recent_repairs()
@@ -336,32 +371,36 @@ class TestAnalyzeRequestValidation:
 
     def test_analyze_request_query_empty_error(self):
         """Test error on empty query (lines 54-56)."""
-        from api.ai_router import AnalyzeRequest
         from pydantic import ValidationError
+
+        from api.ai_router import AnalyzeRequest
 
         with pytest.raises(ValidationError):
             AnalyzeRequest(query="   ")
 
     def test_analyze_request_query_min_length(self):
         """Test minimum length validation (line 32)."""
-        from api.ai_router import AnalyzeRequest
         from pydantic import ValidationError
+
+        from api.ai_router import AnalyzeRequest
 
         with pytest.raises(ValidationError):
             AnalyzeRequest(query="")
 
     def test_analyze_request_query_max_length(self):
         """Test maximum length validation (line 33)."""
-        from api.ai_router import AnalyzeRequest
         from pydantic import ValidationError
+
+        from api.ai_router import AnalyzeRequest
 
         with pytest.raises(ValidationError):
             AnalyzeRequest(query="a" * 2001)
 
     def test_analyze_request_platform_validation(self):
         """Test platform pattern validation (line 39)."""
-        from api.ai_router import AnalyzeRequest
         from pydantic import ValidationError
+
+        from api.ai_router import AnalyzeRequest
 
         with pytest.raises(ValidationError):
             AnalyzeRequest(query="test", platform="invalid")
@@ -373,15 +412,9 @@ class TestAIAnalyze:
     def test_ai_analyze_basic(self, client):
         """Test basic AI analysis (lines 329-451)."""
         with patch("api.ai_router.analyze") as mock_analyze:
-            mock_analyze.return_value = {
-                "analysis": "Test analysis",
-                "confidence": 0.9
-            }
+            mock_analyze.return_value = {"analysis": "Test analysis", "confidence": 0.9}
 
-            resp = client.post(
-                "/api/ai/analyze",
-                json={"query": "CPU usage high"}
-            )
+            resp = client.post("/api/ai/analyze", json={"query": "CPU usage high"})
             assert resp.status_code == 200
             data = resp.json()
             assert data["status"] == "ok"
@@ -394,8 +427,7 @@ class TestAIAnalyze:
                 mock_collect.return_value = {"cpu": {"usage_percent": 75}}
 
                 resp = client.post(
-                    "/api/ai/analyze",
-                    json={"query": "test", "include_metrics": True}
+                    "/api/ai/analyze", json={"query": "test", "include_metrics": True}
                 )
                 assert resp.status_code == 200
 
@@ -404,10 +436,7 @@ class TestAIAnalyze:
         with patch("api.ai_router.analyze") as mock_analyze:
             mock_analyze.return_value = {"analysis": "Test"}
 
-            resp = client.post(
-                "/api/ai/analyze",
-                json={"query": "test", "include_metrics": False}
-            )
+            resp = client.post("/api/ai/analyze", json={"query": "test", "include_metrics": False})
             assert resp.status_code == 200
 
     def test_ai_analyze_with_rich_context(self, client):
@@ -418,8 +447,7 @@ class TestAIAnalyze:
                 mock_collect.return_value = {"top_processes": []}
 
                 resp = client.post(
-                    "/api/ai/analyze",
-                    json={"query": "test", "include_rich_context": True}
+                    "/api/ai/analyze", json={"query": "test", "include_rich_context": True}
                 )
                 assert resp.status_code == 200
 
@@ -428,10 +456,7 @@ class TestAIAnalyze:
         with patch("api.ai_router._collect_snapshot_with_cache") as mock_collect:
             mock_collect.side_effect = asyncio.CancelledError()
 
-            resp = client.post(
-                "/api/ai/analyze",
-                json={"query": "test", "include_metrics": True}
-            )
+            resp = client.post("/api/ai/analyze", json={"query": "test", "include_metrics": True})
             # Should propagate CancelledError
             assert resp.status_code in (200, 500)
 
@@ -443,8 +468,7 @@ class TestAIAnalyze:
                 mock_collect.side_effect = Exception("Collection error")
 
                 resp = client.post(
-                    "/api/ai/analyze",
-                    json={"query": "test", "include_metrics": True}
+                    "/api/ai/analyze", json={"query": "test", "include_metrics": True}
                 )
                 assert resp.status_code == 200
 
@@ -456,8 +480,7 @@ class TestAIAnalyze:
                 mock_collect.side_effect = Exception("Context error")
 
                 resp = client.post(
-                    "/api/ai/analyze",
-                    json={"query": "test", "include_rich_context": True}
+                    "/api/ai/analyze", json={"query": "test", "include_rich_context": True}
                 )
                 assert resp.status_code == 200
 
@@ -466,10 +489,7 @@ class TestAIAnalyze:
         with patch("api.ai_router.analyze") as mock_analyze:
             mock_analyze.side_effect = Exception("AI error")
 
-            resp = client.post(
-                "/api/ai/analyze",
-                json={"query": "test"}
-            )
+            resp = client.post("/api/ai/analyze", json={"query": "test"})
             assert resp.status_code == 500
 
     def test_ai_analyze_http_exception(self, client):
@@ -479,15 +499,12 @@ class TestAIAnalyze:
         with patch("api.ai_router.analyze") as mock_analyze:
             mock_analyze.side_effect = HTTPException(status_code=503, detail="Service unavailable")
 
-            resp = client.post(
-                "/api/ai/analyze",
-                json={"query": "test"}
-            )
+            resp = client.post("/api/ai/analyze", json={"query": "test"})
             assert resp.status_code == 503
 
     def test_ai_analyze_string_result(self):
         """Test when analyze returns string (lines 429-436)."""
-        from api.ai_router import ai_analyze, AnalyzeRequest
+        from api.ai_router import AnalyzeRequest, ai_analyze
         from api.ai_service import ai_context_service
 
         with patch("api.ai_router.analyze") as mock_analyze:
@@ -506,7 +523,7 @@ class TestAIAnalyze:
 
     def test_ai_analyze_invalid_json(self):
         """Test when analyze returns invalid JSON (lines 434-436)."""
-        from api.ai_router import ai_analyze, AnalyzeRequest
+        from api.ai_router import AnalyzeRequest, ai_analyze
 
         with patch("api.ai_router.analyze") as mock_analyze:
             mock_analyze.return_value = "invalid json"
@@ -527,10 +544,7 @@ class TestAIAnalyze:
         with patch("api.ai_router.analyze") as mock_analyze:
             mock_analyze.return_value = {"analysis": "Test"}
 
-            resp = client.post(
-                "/api/ai/analyze",
-                json={"query": "test", "platform": "windows"}
-            )
+            resp = client.post("/api/ai/analyze", json={"query": "test", "platform": "windows"})
             assert resp.status_code == 200
 
     def test_ai_analyze_platform_linux(self, client):
@@ -538,10 +552,7 @@ class TestAIAnalyze:
         with patch("api.ai_router.analyze") as mock_analyze:
             mock_analyze.return_value = {"analysis": "Test"}
 
-            resp = client.post(
-                "/api/ai/analyze",
-                json={"query": "test", "platform": "linux"}
-            )
+            resp = client.post("/api/ai/analyze", json={"query": "test", "platform": "linux"})
             assert resp.status_code == 200
 
 

@@ -197,7 +197,7 @@ class AIContextService:
         # 数据源 4: 统计信息
         async def _fetch_stats():
             try:
-                from core.metrics_history import metrics_history
+                from core.metrics_history import METRICS_HISTORY as metrics_history
 
                 if hasattr(metrics_history, "get_stats"):
                     result = metrics_history.get_stats()
@@ -471,4 +471,4 @@ class AIContextService:
 
 
 # 默认服务实例
-ai_context_service = AIContextService()
+AI_CONTEXT_SERVICE = AIContextService()

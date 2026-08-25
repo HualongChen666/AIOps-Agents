@@ -214,8 +214,8 @@ def get_etag_for_data(data: Any) -> str:
     else:
         data_str = str(data)
 
-    # 生成MD5哈希
-    hash_obj = hashlib.md5(data_str.encode(), usedforsecurity=False)
+    # 生成SHA256哈希
+    hash_obj = hashlib.sha256(data_str.encode())
     return hash_obj.hexdigest()
 
 

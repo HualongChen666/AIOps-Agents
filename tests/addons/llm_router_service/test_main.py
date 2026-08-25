@@ -2,20 +2,22 @@
 """Unit tests for main.py - Real LLM router add-on microservice."""
 
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
+
 from extensions.addons.ai_plus.llm_router_service.main import (
-    app,
     MODELS,
-    _estimate_cost,
-    _select,
     HealthResponse,
+    InvokeRequest,
+    InvokeResponse,
     ModelsResponse,
     RouteRequest,
     RouteResponse,
-    InvokeRequest,
-    InvokeResponse,
+    _estimate_cost,
+    _select,
+    app,
 )
 
 
@@ -402,9 +404,7 @@ class TestInvokeEndpoint:
         """Test invoke endpoint with OpenAI API key (mocked)."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "Test response"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "Test response"}}]}
         mock_response.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()

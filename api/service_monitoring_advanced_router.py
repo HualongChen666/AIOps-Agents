@@ -18,20 +18,26 @@ router = APIRouter(prefix="/api/v1/service-monitoring", tags=["Service Monitorin
 # Pydantic Models
 class AlertCreate(BaseModel):
     """Alert creation model"""
+
     name: str = Field(..., description="Alert name")
     service_name: str = Field(..., description="Service name")
     metric_name: str = Field(..., description="Metric name")
     condition: str = Field(..., description="Alert condition (greater_than, less_than, equals)")
     threshold: float = Field(..., description="Threshold value")
-    severity: str = Field(default="warning", description="Alert severity (info, warning, error, critical)")
+    severity: str = Field(
+        default="warning", description="Alert severity (info, warning, error, critical)"
+    )
     description: Optional[str] = Field(None, description="Alert description")
     enabled: bool = Field(default=True, description="Alert enabled status")
-    notification_channels: List[str] = Field(default_factory=list, description="Notification channels")
+    notification_channels: List[str] = Field(
+        default_factory=list, description="Notification channels"
+    )
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Alert metadata")
 
 
 class AlertUpdate(BaseModel):
     """Alert update model"""
+
     name: Optional[str] = Field(None, description="Alert name")
     condition: Optional[str] = Field(None, description="Alert condition")
     threshold: Optional[float] = Field(None, description="Threshold value")
@@ -44,6 +50,7 @@ class AlertUpdate(BaseModel):
 
 class DashboardCreate(BaseModel):
     """Dashboard creation model"""
+
     name: str = Field(..., description="Dashboard name")
     description: Optional[str] = Field(None, description="Dashboard description")
     widgets: List[Dict[str, Any]] = Field(..., description="Dashboard widgets")
@@ -54,6 +61,7 @@ class DashboardCreate(BaseModel):
 
 class DashboardUpdate(BaseModel):
     """Dashboard update model"""
+
     name: Optional[str] = Field(None, description="Dashboard name")
     description: Optional[str] = Field(None, description="Dashboard description")
     widgets: Optional[List[Dict[str, Any]]] = Field(None, description="Dashboard widgets")
@@ -116,9 +124,7 @@ async def list_monitored_services(
                 "metrics_count": manager.service_metrics.get(service_name, {}).get(
                     "total_metrics", 0
                 ),
-                "last_updated": manager.service_metrics.get(service_name, {}).get(
-                    "last_updated"
-                ),
+                "last_updated": manager.service_metrics.get(service_name, {}).get("last_updated"),
             }
 
             if status and service_data["status"] != status:
@@ -362,7 +368,9 @@ async def get_sla_metrics(
             latency_count = len([m for m in metrics if m.metric_name == "latency_ms"])
 
             availability = (
-                ((total_requests - error_count) / total_requests * 100) if total_requests > 0 else 100.0
+                ((total_requests - error_count) / total_requests * 100)
+                if total_requests > 0
+                else 100.0
             )
             avg_latency = (total_latency / latency_count) if latency_count > 0 else 0
 
@@ -373,7 +381,9 @@ async def get_sla_metrics(
                     "avg_latency_ms": round(avg_latency, 2),
                     "total_requests": total_requests,
                     "error_count": error_count,
-                    "error_rate": round((error_count / total_requests * 100) if total_requests > 0 else 0, 2),
+                    "error_rate": round(
+                        (error_count / total_requests * 100) if total_requests > 0 else 0, 2
+                    ),
                     "time_range_hours": time_range_hours,
                 }
             )
@@ -402,7 +412,9 @@ async def get_sla_metrics(
 async def list_alerts(
     service_name: Optional[str] = Query(None, description="Filter by service name"),
     severity: Optional[str] = Query(None, description="Filter by severity"),
-    status: Optional[str] = Query(None, description="Filter by status (active, resolved, acknowledged)"),
+    status: Optional[str] = Query(
+        None, description="Filter by status (active, resolved, acknowledged)"
+    ),
     enabled_only: bool = Query(False, description="Only return enabled alerts"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
@@ -798,9 +810,7 @@ async def get_reports(
             }
         elif report_type == "detailed":
             services_data = []
-            services_to_check = (
-                [service_name] if service_name else summary.get("services", [])
-            )
+            services_to_check = [service_name] if service_name else summary.get("services", [])
 
             for svc_name in services_to_check:
                 metrics = manager.get_service_metrics(svc_name, time_range)
@@ -821,9 +831,7 @@ async def get_reports(
             }
         elif report_type == "sla":
             sla_data = []
-            services_to_check = (
-                [service_name] if service_name else summary.get("services", [])
-            )
+            services_to_check = [service_name] if service_name else summary.get("services", [])
 
             for svc_name in services_to_check:
                 metrics = manager.get_service_metrics(svc_name, time_range)

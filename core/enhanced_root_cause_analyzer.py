@@ -756,7 +756,7 @@ class EnhancedRootCauseAnalyzer:
     def _generate_similarity_hash(self, features: Dict[str, Any]) -> str:
         """生成相似度哈希"""
         feature_str = json.dumps(features, sort_keys=True)
-        return hashlib.md5(feature_str.encode(), usedforsecurity=False).hexdigest()
+        return hashlib.sha256(feature_str.encode()).hexdigest()
 
     def _calculate_pattern_similarity(self, hash1: str, hash2: str) -> float:
         """计算模式相似度"""
@@ -808,7 +808,7 @@ class EnhancedRootCauseAnalyzer:
         """生成分析键"""
         nodes_str = "|".join(sorted(anomaly_nodes))
         context_str = json.dumps(context, sort_keys=True) if context else ""
-        return hashlib.md5(f"{nodes_str}_{context_str}".encode(), usedforsecurity=False).hexdigest()
+        return hashlib.sha256(f"{nodes_str}_{context_str}".encode()).hexdigest()
 
     def _get_node_types(self, nodes: Set[str]) -> List[str]:
         """获取节点类型"""

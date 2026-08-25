@@ -10,6 +10,7 @@ from typing import Any  # noqa: F401  # Imported for test setup
 from unittest.mock import patch
 
 import pytest  # noqa: F401  # Imported for test setup
+from fastapi import HTTPException
 
 import api.ai_router
 import api.dashboard_router
@@ -30,7 +31,6 @@ import core.authentication
 import core.db_engine
 import core.service_monitoring_manager
 import core.stats_engine
-from fastapi import HTTPException
 
 pytestmark = [pytest.mark.api]
 
@@ -195,6 +195,7 @@ def test_workflow_structure(client, admin_headers, monkeypatch):
 # Additional coverage tests for workflow_visualization_router
 def test_workflow_structure_load_exception(monkeypatch):
     """Test exception handling when get_workflow_definitions fails (covers lines 69-71)."""
+
     def fake_get_definitions_with_error():
         raise RuntimeError("Database connection failed")
 
@@ -1624,7 +1625,9 @@ def test_team_collaboration_errors(client, admin_headers, monkeypatch):
     resp = client.get("/api/v1/team-collaboration/teams/team-1/oncall", headers=admin_headers)
     assert resp.status_code == 404
     # The error message is in the response, check it contains the expected text
-    assert "Team has no active rotation" in resp.text or "Team has no active rotation" in str(resp.json())
+    assert "Team has no active rotation" in resp.text or "Team has no active rotation" in str(
+        resp.json()
+    )
 
     # Test get_oncall with RuntimeError (lines 75-77)
     monkeypatch.setattr(api.team_collaboration_router, "get_team_oncall", raise_runtime)
@@ -1768,6 +1771,7 @@ def test_priority_router_exceptions(client, admin_headers, monkeypatch):
 
 def test_priority_assess_without_to_dict(client, admin_headers, monkeypatch):
     """Test assess_impact when impact object has no to_dict method (line 107)"""
+
     class ImpactWithoutToDict:
         def __init__(self):
             self.impact_level = "medium"

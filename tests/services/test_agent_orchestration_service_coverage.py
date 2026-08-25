@@ -229,7 +229,9 @@ def test_grpc_client_call(monkeypatch):
     fake_client.__aenter__ = AsyncMock(return_value=fake_client)
     fake_client.__aexit__ = AsyncMock()
 
-    monkeypatch.setattr(grpc_client_module.httpx, "AsyncClient", MagicMock(return_value=fake_client))
+    monkeypatch.setattr(
+        grpc_client_module.httpx, "AsyncClient", MagicMock(return_value=fake_client)
+    )
 
     client = AgentRPCClient(base_url="http://localhost:9407")
     result = _run(client.call("test_method", {"param": "value"}))
@@ -248,7 +250,9 @@ def test_grpc_client_call_with_none_payload(monkeypatch):
     fake_client.__aenter__ = AsyncMock(return_value=fake_client)
     fake_client.__aexit__ = AsyncMock()
 
-    monkeypatch.setattr(grpc_client_module.httpx, "AsyncClient", MagicMock(return_value=fake_client))
+    monkeypatch.setattr(
+        grpc_client_module.httpx, "AsyncClient", MagicMock(return_value=fake_client)
+    )
 
     client = AgentRPCClient(base_url="http://localhost:9407")
     result = _run(client.call("test_method"))
@@ -268,7 +272,9 @@ def test_grpc_client_call_error(monkeypatch):
     fake_client.__aenter__ = AsyncMock(return_value=fake_client)
     fake_client.__aexit__ = AsyncMock()
 
-    monkeypatch.setattr(grpc_client_module.httpx, "AsyncClient", MagicMock(return_value=fake_client))
+    monkeypatch.setattr(
+        grpc_client_module.httpx, "AsyncClient", MagicMock(return_value=fake_client)
+    )
 
     client = AgentRPCClient(base_url="http://localhost:9407")
     # Skip this test as the error handling doesn't raise as expected
@@ -455,7 +461,9 @@ def test_retry_engine_execute_no_retry():
 def test_retry_engine_execute_with_retry():
     """Test retry engine with retries."""
     # Use a custom policy that allows retrying ValueError
-    custom_policy = RetryPolicy(name="test_retry", max_retries=3, base_delay_seconds=0.01, retryable_errors=[])
+    custom_policy = RetryPolicy(
+        name="test_retry", max_retries=3, base_delay_seconds=0.01, retryable_errors=[]
+    )
     engine = AgentRetryEngine()
     engine.add_policy(custom_policy)
     attempt_count = 0
@@ -525,7 +533,9 @@ def test_retry_engine_compute_delay_exponential():
 def test_retry_engine_compute_delay_max_cap():
     """Test _compute_delay with max delay cap."""
     engine = AgentRetryEngine()
-    policy = RetryPolicy(name="test", base_delay_seconds=10.0, max_delay_seconds=30.0, exponential_base=2.0)
+    policy = RetryPolicy(
+        name="test", base_delay_seconds=10.0, max_delay_seconds=30.0, exponential_base=2.0
+    )
 
     assert engine._compute_delay(1, policy) == 10.0
     assert engine._compute_delay(2, policy) == 20.0

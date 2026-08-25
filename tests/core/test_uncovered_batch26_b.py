@@ -237,7 +237,9 @@ async def test_audit_detect_suspicious_activity(audit_service_module, monkeypatc
         for _ in range(3)
     ]
     _patch_audit_session(monkeypatch, all_logs=fake_logs)
-    result = await audit_service_module.AuditService.detect_suspicious_activity("admin", hours=24)  # noqa: F841  # Variable for test verification
+    result = await audit_service_module.AuditService.detect_suspicious_activity(
+        "admin", hours=24
+    )  # noqa: F841  # Variable for test verification
     types = [r["type"] for r in result]
     assert "multiple_failed_logins" in types
     assert "multiple_permission_denied" in types
@@ -247,7 +249,9 @@ async def test_audit_detect_suspicious_activity(audit_service_module, monkeypatc
 @pytest.mark.asyncio
 async def test_audit_detect_suspicious_activity_no_results(audit_service_module, monkeypatch):
     _patch_audit_session(monkeypatch, all_logs=[])
-    result = await audit_service_module.AuditService.detect_suspicious_activity("admin")  # noqa: F841  # Variable for test verification
+    result = await audit_service_module.AuditService.detect_suspicious_activity(
+        "admin"
+    )  # noqa: F841  # Variable for test verification
     assert result == []  # noqa: F841  # Variable for test verification
 
 
@@ -685,7 +689,9 @@ async def test_dim_pruning_and_storage(dim_manager, monkeypatch):
 @pytest.mark.asyncio
 async def test_dim_sync_data(dim_manager, monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", AsyncMock())
-    result = await dim_manager.sync_data("user_data")  # noqa: F841  # Variable for test verification
+    result = await dim_manager.sync_data(
+        "user_data"
+    )  # noqa: F841  # Variable for test verification
     assert result["total_records_synced"] >= 0
     assert "user_data" in result["sources"]
 
@@ -870,7 +876,9 @@ async def test_backup_restore(backup_manager, monkeypatch):
     monkeypatch.setattr(backup.BackupManager, "_get_backup_size", lambda self, bid: 0)
     info = await backup_manager.create_backup(backup.BackupType.FULL)
 
-    result = await backup_manager.restore_backup(info.backup_id)  # noqa: F841  # Variable for test verification
+    result = await backup_manager.restore_backup(
+        info.backup_id
+    )  # noqa: F841  # Variable for test verification
     assert result is True
 
     not_found = await backup_manager.restore_backup("missing")

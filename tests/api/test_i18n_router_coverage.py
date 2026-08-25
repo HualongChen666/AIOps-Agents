@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Comprehensive tests for i18n_router.py to achieve 90%+ coverage."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi import HTTPException
 
 
@@ -124,10 +125,11 @@ def test_update_translation_with_language(client):
 def test_update_translation_without_language_with_current_locale(client):
     """Test update translation without language but with current locale (lines 267-275)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
     # Ensure current_locale is set
     manager.current_locale = manager.locales.get("zh-CN")
-    
+
     resp = client.put(
         "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common"
     )
@@ -137,10 +139,11 @@ def test_update_translation_without_language_with_current_locale(client):
 def test_update_translation_without_language_without_current_locale(client):
     """Test update translation without language and without current locale (line 277)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
     # Clear current_locale to trigger the else branch
     manager.current_locale = None
-    
+
     resp = client.put(
         "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common"
     )
@@ -151,9 +154,10 @@ def test_update_translation_without_language_without_current_locale(client):
 def test_update_translation_http_exception(client):
     """Test update translation handles HTTPException (line 292-293)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
-    
-    with patch.object(manager, 'set_translation', return_value=False):
+
+    with patch.object(manager, "set_translation", return_value=False):
         resp = client.put(
             "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common&language=invalid-locale"
         )
@@ -165,9 +169,7 @@ def test_update_translation_exception(client):
     """Test update translation handles exceptions (lines 294-296)."""
     with patch("core.i18n_manager.get_i18n_manager") as mock_get:
         mock_get.side_effect = Exception("Update translation error")
-        resp = client.put(
-            "/api/i18n/translate?key=test_key&translation=Test Translation"
-        )
+        resp = client.put("/api/i18n/translate?key=test_key&translation=Test Translation")
         assert resp.status_code == 500
 
 
@@ -298,9 +300,7 @@ def test_translate_with_invalid_language_enum(client):
 
 def test_update_translation_unsupported_locale(client):
     """Test update translation with unsupported locale."""
-    resp = client.put(
-        "/api/i18n/translate?key=test&translation=Test&language=unsupported-locale"
-    )
+    resp = client.put("/api/i18n/translate?key=test&translation=Test&language=unsupported-locale")
     # Should either succeed with fallback or return error
     assert resp.status_code in (200, 400, 500)
 
@@ -386,10 +386,11 @@ def test_get_locale_info_different_locales(client):
 def test_update_translation_with_valid_language_in_locales(client):
     """Test update translation when language is in manager.locales (line 265-266)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
     # Ensure the locale exists
     assert "zh-CN" in manager.locales
-    
+
     resp = client.put(
         "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common&language=zh-CN"
     )
@@ -399,10 +400,11 @@ def test_update_translation_with_valid_language_in_locales(client):
 def test_update_translation_with_language_not_in_locales_but_current_locale_exists(client):
     """Test update translation when language not in locales but current_locale exists (line 267-275)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
     # Set current_locale
     manager.current_locale = manager.locales.get("zh-CN")
-    
+
     resp = client.put(
         "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common&language=xx-XX"
     )
@@ -413,10 +415,11 @@ def test_update_translation_with_language_not_in_locales_but_current_locale_exis
 def test_update_translation_no_language_no_current_locale(client):
     """Test update translation with no language and no current_locale (line 277)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
     # Clear current_locale
     manager.current_locale = None
-    
+
     resp = client.put(
         "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common"
     )
@@ -427,9 +430,10 @@ def test_update_translation_no_language_no_current_locale(client):
 def test_update_translation_set_translation_fails(client):
     """Test update translation when set_translation returns False (line 279-280)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
-    
-    with patch.object(manager, 'set_translation', return_value=False):
+
+    with patch.object(manager, "set_translation", return_value=False):
         resp = client.put(
             "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common&language=zh-CN"
         )
@@ -440,9 +444,10 @@ def test_update_translation_set_translation_fails(client):
 def test_update_translation_set_translation_succeeds(client):
     """Test update translation when set_translation returns True (line 278-291)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
-    
-    with patch.object(manager, 'set_translation', return_value=True):
+
+    with patch.object(manager, "set_translation", return_value=True):
         resp = client.put(
             "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common&language=zh-CN"
         )
@@ -453,10 +458,13 @@ def test_update_translation_set_translation_succeeds(client):
 def test_update_translation_http_exception_rethrown(client):
     """Test update translation when HTTPException is raised and rethrown (line 292-293)."""
     from core.i18n_manager import get_i18n_manager
+
     manager = get_i18n_manager()
-    
+
     # Simulate HTTPException being raised from within the try block
-    with patch.object(manager, 'set_translation', side_effect=HTTPException(status_code=400, detail="Test error")):
+    with patch.object(
+        manager, "set_translation", side_effect=HTTPException(status_code=400, detail="Test error")
+    ):
         resp = client.put(
             "/api/i18n/translate?key=test_key&translation=Test Translation&namespace=common&language=zh-CN"
         )

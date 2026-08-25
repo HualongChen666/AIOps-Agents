@@ -11,6 +11,9 @@ from core.security_config import SecurityConfig, setup_enterprise_security
 
 
 def _make_self_signed(tmp_path):
+    import os
+    import stat
+
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "test")])
     cert = (
@@ -34,6 +37,13 @@ def _make_self_signed(tmp_path):
             encryption_algorithm=serialization.NoEncryption(),
         )
     )
+    # Set restrictive permissions: 600 for private key, 644 for certificate
+    try:
+        os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)  # 600
+        os.chmod(cert_path, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)  # 644
+    except (OSError, AttributeError):
+        # chmod may fail on Windows or non-Unix systems
+        pass
     return str(cert_path), str(key_path)
 
 

@@ -1019,7 +1019,7 @@ class DatabaseEngine:
 
 
 # 默认告警仓储实例
-alert_repository = PostgreSQLAlertRepository()
+ALERT_REPOSITORY = PostgreSQLAlertRepository()
 
 
 class _SimpleRepairDB:

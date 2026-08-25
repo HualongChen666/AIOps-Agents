@@ -55,7 +55,12 @@ async def _call_agent_orchestration(alert: Dict[str, Any]) -> Dict[str, Any]:
     if not _AGENT_ORCH_URL:
         raise RuntimeError("AGENT_ORCHESTRATION_SERVICE_URL not configured")
     url = f"{_AGENT_ORCH_URL}/orchestrate"
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+    # Use environment variable to control SSL verification (default: True for security)
+    ssl_verify = os.environ.get("ALERT_SERVICE_SSL_VERIFY", "true").lower() == "true"
+    if not ssl_verify:
+        _logger = __import__("logging").getLogger(__name__)
+        _logger.warning("SSL verification is disabled in alert_service - this is a security risk!")
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, verify=ssl_verify) as client:
         resp = await client.post(url, json={"alert": alert})
         resp.raise_for_status()
         return cast(Dict[str, Any], resp.json())

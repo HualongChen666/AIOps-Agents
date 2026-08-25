@@ -157,10 +157,14 @@ class TestTestCoverageManager:
         manager = TestCoverageManager()
         assert manager.check_coverage_threshold("nope", "core")["meets_threshold"] is False
         manager.add_module_coverage("c1", "core1", 100, 85)
-        result = manager.check_coverage_threshold("c1", "core")  # noqa: F841  # Variable for test verification
+        result = manager.check_coverage_threshold(
+            "c1", "core"
+        )  # noqa: F841  # Variable for test verification
         assert result["meets_minimum"] is True
         assert result["meets_target"] is True
-        result = manager.check_coverage_threshold("c1", "unknown")  # noqa: F841  # Variable for test verification
+        result = manager.check_coverage_threshold(
+            "c1", "unknown"
+        )  # noqa: F841  # Variable for test verification
         assert result["minimum_coverage"] == 80.0
 
     def test_summary_and_report(self):
@@ -299,7 +303,9 @@ class TestErrorHandling:
         result = handle_aiops_exception(exc)  # noqa: F841  # Variable for test verification
         assert result["error_code"] == "GEN_1001"
 
-        result = handle_generic_exception(ValueError("oops"))  # noqa: F841  # Variable for test verification
+        result = handle_generic_exception(
+            ValueError("oops")
+        )  # noqa: F841  # Variable for test verification
         assert result["error_code"] == "GEN_1000"
 
     def test_create_and_log_error(self, caplog):

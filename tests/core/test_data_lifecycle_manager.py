@@ -21,12 +21,18 @@ def test_get_retention_days():
 @pytest.mark.asyncio
 async def test_archive_old_data():
     manager = DataLifecycleManager()
-    result = await manager.archive_old_data(DataCategory.ALERTS)  # noqa: F841  # Variable for test verification
+    result = await manager.archive_old_data(
+        DataCategory.ALERTS
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["category"] == DataCategory.ALERTS.value
-    result = await manager.archive_old_data(DataCategory.TEMPORARY)  # noqa: F841  # Variable for test verification
+    result = await manager.archive_old_data(
+        DataCategory.TEMPORARY
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "skipped"
-    result = await manager.archive_old_data("unknown")  # noqa: F841  # Variable for test verification
+    result = await manager.archive_old_data(
+        "unknown"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
 
 
@@ -41,9 +47,13 @@ async def test_cleanup_temp_data():
 @pytest.mark.asyncio
 async def test_apply_retention_policy():
     manager = DataLifecycleManager()
-    result = await manager.apply_retention_policy(DataCategory.METRICS)  # noqa: F841  # Variable for test verification
+    result = await manager.apply_retention_policy(
+        DataCategory.METRICS
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
-    result = await manager.apply_retention_policy(DataCategory.CONFIGURATION)  # noqa: F841  # Variable for test verification
+    result = await manager.apply_retention_policy(
+        DataCategory.CONFIGURATION
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
 

@@ -92,7 +92,9 @@ def test_tenant_isolation_enabled_and_disabled():
 
 def test_gdpr_compliance_pass_and_fail():
     mgr = EnterpriseFunctionalityManager()
-    result = _run(mgr.run_compliance_check(ComplianceStandard.GDPR))  # noqa: F841  # Variable for test verification
+    result = _run(
+        mgr.run_compliance_check(ComplianceStandard.GDPR)
+    )  # noqa: F841  # Variable for test verification
     assert result.passed is True
     assert not result.findings
     assert result.severity == "low"
@@ -100,7 +102,9 @@ def test_gdpr_compliance_pass_and_fail():
     mgr.privacy_policies["user_consent"]["explicit_consent_required"] = False
     mgr.privacy_policies["data_retention"]["max_retention_days"] = 400
     mgr.privacy_policies["data_minimization"]["collect_only_necessary"] = False
-    result = _run(mgr.run_compliance_check(ComplianceStandard.GDPR))  # noqa: F841  # Variable for test verification
+    result = _run(
+        mgr.run_compliance_check(ComplianceStandard.GDPR)
+    )  # noqa: F841  # Variable for test verification
     assert result.passed is False
     assert result.severity == "high"
     assert len(result.findings) == 3
@@ -115,14 +119,18 @@ def test_soc2_compliance_pass_and_fail():
         }
     )
     pass_mgr.create_audit_log("t", "u", "LOGIN", "user", "r1", "success")
-    result = _run(pass_mgr.run_compliance_check(ComplianceStandard.SOC2))  # noqa: F841  # Variable for test verification
+    result = _run(
+        pass_mgr.run_compliance_check(ComplianceStandard.SOC2)
+    )  # noqa: F841  # Variable for test verification
     assert result.passed is True
     assert not result.findings
 
     fail_mgr = EnterpriseFunctionalityManager(
         config={"encryption_enabled": False, "tenant_isolation": False}
     )
-    result = _run(fail_mgr.run_compliance_check(ComplianceStandard.SOC2))  # noqa: F841  # Variable for test verification
+    result = _run(
+        fail_mgr.run_compliance_check(ComplianceStandard.SOC2)
+    )  # noqa: F841  # Variable for test verification
     assert result.passed is False
     assert any("audit" in f.lower() for f in result.findings)
     assert any("encryption" in f.lower() for f in result.findings)
@@ -133,7 +141,9 @@ def test_iso27001_compliance_levels():
     standard_mgr = EnterpriseFunctionalityManager(
         config={"encryption_enabled": True, "encryption_level": "standard"}
     )
-    result = _run(standard_mgr.run_compliance_check(ComplianceStandard.ISO27001))  # noqa: F841  # Variable for test verification
+    result = _run(
+        standard_mgr.run_compliance_check(ComplianceStandard.ISO27001)
+    )  # noqa: F841  # Variable for test verification
     assert result.passed is True
     assert len(result.findings) == 2
     assert any("high" in f for f in result.findings)
@@ -142,7 +152,9 @@ def test_iso27001_compliance_levels():
     high_mgr = EnterpriseFunctionalityManager(
         config={"encryption_enabled": True, "encryption_level": "high"}
     )
-    result = _run(high_mgr.run_compliance_check(ComplianceStandard.ISO27001))  # noqa: F841  # Variable for test verification
+    result = _run(
+        high_mgr.run_compliance_check(ComplianceStandard.ISO27001)
+    )  # noqa: F841  # Variable for test verification
     assert result.passed is True
     assert len(result.findings) == 1
     assert "access control" in result.findings[0].lower()
@@ -150,7 +162,9 @@ def test_iso27001_compliance_levels():
 
 def test_unsupported_compliance_standard_and_report():
     mgr = EnterpriseFunctionalityManager()
-    result = _run(mgr.run_compliance_check(ComplianceStandard.HIPAA))  # noqa: F841  # Variable for test verification
+    result = _run(
+        mgr.run_compliance_check(ComplianceStandard.HIPAA)
+    )  # noqa: F841  # Variable for test verification
     assert result.passed is True
     assert any("No specific checks" in f for f in result.findings)
 
@@ -433,5 +447,7 @@ def test_encrypt_data_exception_returns_original():
     mgr = EnterpriseFunctionalityManager(
         config={"encryption_enabled": True, "encryption_password": "ex"}
     )
-    result = mgr.encrypt_data(123, DataClassification.CONFIDENTIAL)  # noqa: F841  # Variable for test verification
+    result = mgr.encrypt_data(
+        123, DataClassification.CONFIDENTIAL
+    )  # noqa: F841  # Variable for test verification
     assert result == 123  # noqa: F841  # Variable for test verification

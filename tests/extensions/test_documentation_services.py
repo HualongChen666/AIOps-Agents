@@ -32,7 +32,9 @@ def sphinx_service(monkeypatch):
 def test_sphinx_build_docs_returns_expected_result(sphinx_service):
     """execute_operation for build_docs returns a dict with expected keys."""
     payload = {"source": "docs", "output": "_build"}
-    result = sphinx_service.execute_operation("build_docs", payload)  # noqa: F841  # Variable for test verification
+    result = sphinx_service.execute_operation(
+        "build_docs", payload
+    )  # noqa: F841  # Variable for test verification
 
     assert isinstance(result, dict)
     assert result["success"] is True
@@ -46,7 +48,9 @@ def test_sphinx_build_docs_returns_expected_result(sphinx_service):
 
 def test_sphinx_list_methods_returns_expected_result(sphinx_service):
     """execute_operation for list_methods returns a valid response."""
-    result = sphinx_service.execute_operation("list_methods")  # noqa: F841  # Variable for test verification
+    result = sphinx_service.execute_operation(
+        "list_methods"
+    )  # noqa: F841  # Variable for test verification
 
     assert isinstance(result, dict)
     assert result["success"] is True
@@ -57,7 +61,9 @@ def test_sphinx_list_methods_returns_expected_result(sphinx_service):
 
 def test_sphinx_get_stats_returns_valid_dict(sphinx_service):
     """execute_operation for get_stats returns a valid dict."""
-    result = sphinx_service.execute_operation("get_stats", {})  # noqa: F841  # Variable for test verification
+    result = sphinx_service.execute_operation(
+        "get_stats", {}
+    )  # noqa: F841  # Variable for test verification
 
     assert result is not None
     assert isinstance(result, dict)

@@ -14,43 +14,45 @@ Comprehensive tests for service mesh advanced features including:
 - Permission control
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
-import uuid
-import sys
 import os
+import sys
+import uuid
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
 
 # Add the project root to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from api.service_mesh_advanced_router import (
-    router,
     MeshConfigurationCreate,
     MeshConfigurationUpdate,
-    TrafficRuleCreate,
-    SecurityPolicyCreate,
     ObservabilityConfigCreate,
     PolicyCreate,
+    SecurityPolicyCreate,
+    TrafficRuleCreate,
     _configurations_db,
-    _traffic_rules_db,
-    _security_policies_db,
     _observability_configs_db,
     _policies_db,
+    _security_policies_db,
+    _traffic_rules_db,
+    router,
 )
-
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def client():
     """Create a test client for the service mesh router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     # Disable CORS for testing
@@ -91,7 +93,7 @@ def sample_mesh_config_create():
         auto_injection_enabled=True,
         mtls_enabled=True,
         resource_limits={"cpu": "1000m", "memory": "1Gi"},
-        metadata={"environment": "production"}
+        metadata={"environment": "production"},
     )
 
 
@@ -105,7 +107,7 @@ def sample_mesh_config_update():
         auto_injection_enabled=False,
         mtls_enabled=False,
         resource_limits={"cpu": "2000m", "memory": "2Gi"},
-        metadata={"environment": "staging"}
+        metadata={"environment": "staging"},
     )
 
 
@@ -121,7 +123,7 @@ def sample_traffic_rule_create():
         timeout_seconds=30,
         retry_policy={"attempts": 3, "per_try_timeout": "5s"},
         fault_injection=None,
-        metadata={"description": "Test traffic rule"}
+        metadata={"description": "Test traffic rule"},
     )
 
 
@@ -136,7 +138,7 @@ def sample_security_policy_create():
         allowed_principals=["cluster.local/ns/default/sa/test"],
         denied_principals=[],
         jwt_validation={"issuer": "https://test.com"},
-        metadata={"description": "Test security policy"}
+        metadata={"description": "Test security policy"},
     )
 
 
@@ -151,7 +153,7 @@ def sample_observability_config_create():
         sampling_rate=1.0,
         prometheus_enabled=True,
         grafana_enabled=False,
-        metadata={"description": "Test observability config"}
+        metadata={"description": "Test observability config"},
     )
 
 
@@ -164,7 +166,7 @@ def sample_policy_create():
         target_service="test-service",
         rules=[{"action": "allow", "rate": 100}],
         enabled=True,
-        metadata={"description": "Test general policy"}
+        metadata={"description": "Test general policy"},
     )
 
 
@@ -175,7 +177,7 @@ def mock_service_mesh_manager():
     manager.generate_service_mesh_summary.return_value = {
         "total_meshes": 3,
         "active_meshes": 2,
-        "total_services": 10
+        "total_services": 10,
     }
     manager.generate_istio_control_plane_config.return_value = True
     manager.generate_mtls_config.return_value = True
@@ -187,14 +189,15 @@ def mock_service_mesh_manager():
 # GET /services - List Mesh Services Tests
 # ============================================================================
 
+
 class TestListMeshServices:
     """Test cases for listing mesh services"""
 
     def test_list_mesh_services_success(self, client, mock_service_mesh_manager):
         """Test successful listing of mesh services"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add a test configuration
             config_id = str(uuid.uuid4())
             _configurations_db[config_id] = {
@@ -211,7 +214,7 @@ class TestListMeshServices:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get("/api/v1/service-mesh/services")
             assert response.status_code == 200
             data = response.json()
@@ -221,9 +224,9 @@ class TestListMeshServices:
 
     def test_list_mesh_services_with_mesh_type_filter(self, client, mock_service_mesh_manager):
         """Test listing mesh services with mesh type filter"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add test configurations with different mesh types
             config_id1 = str(uuid.uuid4())
             _configurations_db[config_id1] = {
@@ -240,7 +243,7 @@ class TestListMeshServices:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             config_id2 = str(uuid.uuid4())
             _configurations_db[config_id2] = {
                 "name": "linkerd-mesh",
@@ -256,7 +259,7 @@ class TestListMeshServices:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get("/api/v1/service-mesh/services?mesh_type=istio")
             assert response.status_code == 200
             data = response.json()
@@ -264,9 +267,9 @@ class TestListMeshServices:
 
     def test_list_mesh_services_with_status_filter(self, client, mock_service_mesh_manager):
         """Test listing mesh services with status filter"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add test configurations with different statuses
             config_id1 = str(uuid.uuid4())
             _configurations_db[config_id1] = {
@@ -283,7 +286,7 @@ class TestListMeshServices:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             config_id2 = str(uuid.uuid4())
             _configurations_db[config_id2] = {
                 "name": "inactive-mesh",
@@ -299,7 +302,7 @@ class TestListMeshServices:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get("/api/v1/service-mesh/services?status=active")
             assert response.status_code == 200
             data = response.json()
@@ -307,9 +310,9 @@ class TestListMeshServices:
 
     def test_list_mesh_services_with_pagination(self, client, mock_service_mesh_manager):
         """Test listing mesh services with pagination"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add multiple configurations
             for i in range(5):
                 config_id = str(uuid.uuid4())
@@ -327,7 +330,7 @@ class TestListMeshServices:
                     "created_at": datetime.utcnow().isoformat(),
                     "updated_at": datetime.utcnow().isoformat(),
                 }
-            
+
             response = client.get("/api/v1/service-mesh/services?limit=2&offset=0")
             assert response.status_code == 200
             data = response.json()
@@ -337,17 +340,17 @@ class TestListMeshServices:
 
     def test_list_mesh_services_invalid_limit(self, client, mock_service_mesh_manager):
         """Test listing mesh services with invalid limit"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             response = client.get("/api/v1/service-mesh/services?limit=0")
             assert response.status_code == 422
 
     def test_list_mesh_services_manager_error(self, client):
         """Test listing mesh services when manager raises error"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.get("/api/v1/service-mesh/services")
             assert response.status_code == 500
 
@@ -356,14 +359,15 @@ class TestListMeshServices:
 # GET /configurations - List Configurations Tests
 # ============================================================================
 
+
 class TestListConfigurations:
     """Test cases for listing configurations"""
 
     def test_list_configurations_success(self, client, mock_service_mesh_manager):
         """Test successful listing of configurations"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add a test configuration
             config_id = str(uuid.uuid4())
             _configurations_db[config_id] = {
@@ -380,7 +384,7 @@ class TestListConfigurations:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get("/api/v1/service-mesh/configurations")
             assert response.status_code == 200
             data = response.json()
@@ -389,9 +393,9 @@ class TestListConfigurations:
 
     def test_list_configurations_with_filters(self, client, mock_service_mesh_manager):
         """Test listing configurations with filters"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add test configurations
             config_id1 = str(uuid.uuid4())
             _configurations_db[config_id1] = {
@@ -408,7 +412,7 @@ class TestListConfigurations:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             config_id2 = str(uuid.uuid4())
             _configurations_db[config_id2] = {
                 "name": "linkerd-config",
@@ -424,28 +428,35 @@ class TestListConfigurations:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
-            response = client.get("/api/v1/service-mesh/configurations?mesh_type=istio&status=active")
+
+            response = client.get(
+                "/api/v1/service-mesh/configurations?mesh_type=istio&status=active"
+            )
             assert response.status_code == 200
             data = response.json()
-            assert all(c["mesh_type"] == "istio" and c["status"] == "active" for c in data["data"]["configurations"])
+            assert all(
+                c["mesh_type"] == "istio" and c["status"] == "active"
+                for c in data["data"]["configurations"]
+            )
 
 
 # ============================================================================
 # POST /configurations - Create Configuration Tests
 # ============================================================================
 
+
 class TestCreateConfiguration:
     """Test cases for creating configurations"""
 
-    def test_create_configuration_success(self, client, sample_mesh_config_create, mock_service_mesh_manager):
+    def test_create_configuration_success(
+        self, client, sample_mesh_config_create, mock_service_mesh_manager
+    ):
         """Test successful configuration creation"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             response = client.post(
-                "/api/v1/service-mesh/configurations",
-                json=sample_mesh_config_create.dict()
+                "/api/v1/service-mesh/configurations", json=sample_mesh_config_create.dict()
             )
             assert response.status_code == 201
             data = response.json()
@@ -457,18 +468,18 @@ class TestCreateConfiguration:
 
     def test_create_configuration_istio_with_mtls(self, client, mock_service_mesh_manager):
         """Test configuration creation for Istio with mTLS"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             config_data = {
                 "name": "istio-mtls-mesh",
                 "mesh_type": "istio",
                 "namespace": "istio-system",
                 "profile": "default",
                 "auto_injection_enabled": True,
-                "mtls_enabled": True
+                "mtls_enabled": True,
             }
-            
+
             response = client.post("/api/v1/service-mesh/configurations", json=config_data)
             assert response.status_code == 201
             # Verify that mTLS config was generated
@@ -476,16 +487,16 @@ class TestCreateConfiguration:
 
     def test_create_configuration_linkerd(self, client, mock_service_mesh_manager):
         """Test configuration creation for Linkerd"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             config_data = {
                 "name": "linkerd-mesh",
                 "mesh_type": "linkerd",
                 "namespace": "linkerd",
-                "profile": "default"
+                "profile": "default",
             }
-            
+
             response = client.post("/api/v1/service-mesh/configurations", json=config_data)
             assert response.status_code == 201
             # Linkerd should not trigger Istio-specific config generation
@@ -495,7 +506,7 @@ class TestCreateConfiguration:
         """Test configuration creation with missing required field"""
         invalid_data = {
             "mesh_type": "istio",
-            "namespace": "istio-system"
+            "namespace": "istio-system",
             # Missing name
         }
         response = client.post("/api/v1/service-mesh/configurations", json=invalid_data)
@@ -503,12 +514,11 @@ class TestCreateConfiguration:
 
     def test_create_configuration_manager_error(self, client, sample_mesh_config_create):
         """Test configuration creation when manager raises error"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.post(
-                "/api/v1/service-mesh/configurations",
-                json=sample_mesh_config_create.dict()
+                "/api/v1/service-mesh/configurations", json=sample_mesh_config_create.dict()
             )
             assert response.status_code == 500
 
@@ -517,14 +527,15 @@ class TestCreateConfiguration:
 # GET /configurations/{config_id} - Get Configuration Tests
 # ============================================================================
 
+
 class TestGetConfiguration:
     """Test cases for getting a specific configuration"""
 
     def test_get_configuration_success(self, client, mock_service_mesh_manager):
         """Test successful configuration retrieval"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add a test configuration
             config_id = str(uuid.uuid4())
             _configurations_db[config_id] = {
@@ -541,7 +552,7 @@ class TestGetConfiguration:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get(f"/api/v1/service-mesh/configurations/{config_id}")
             assert response.status_code == 200
             data = response.json()
@@ -562,14 +573,17 @@ class TestGetConfiguration:
 # PATCH /configurations/{config_id} - Update Configuration Tests
 # ============================================================================
 
+
 class TestUpdateConfiguration:
     """Test cases for updating configurations"""
 
-    def test_update_configuration_success(self, client, sample_mesh_config_update, mock_service_mesh_manager):
+    def test_update_configuration_success(
+        self, client, sample_mesh_config_update, mock_service_mesh_manager
+    ):
         """Test successful configuration update"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add a test configuration
             config_id = str(uuid.uuid4())
             _configurations_db[config_id] = {
@@ -586,10 +600,10 @@ class TestUpdateConfiguration:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.patch(
                 f"/api/v1/service-mesh/configurations/{config_id}",
-                json=sample_mesh_config_update.dict()
+                json=sample_mesh_config_update.dict(),
             )
             assert response.status_code == 200
             data = response.json()
@@ -599,9 +613,9 @@ class TestUpdateConfiguration:
 
     def test_update_configuration_partial(self, client, mock_service_mesh_manager):
         """Test partial configuration update"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add a test configuration
             config_id = str(uuid.uuid4())
             _configurations_db[config_id] = {
@@ -618,11 +632,10 @@ class TestUpdateConfiguration:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             partial_update = {"name": "updated-name"}
             response = client.patch(
-                f"/api/v1/service-mesh/configurations/{config_id}",
-                json=partial_update
+                f"/api/v1/service-mesh/configurations/{config_id}", json=partial_update
             )
             assert response.status_code == 200
             data = response.json()
@@ -633,8 +646,7 @@ class TestUpdateConfiguration:
         """Test updating a non-existent configuration"""
         fake_id = str(uuid.uuid4())
         response = client.patch(
-            f"/api/v1/service-mesh/configurations/{fake_id}",
-            json=sample_mesh_config_update.dict()
+            f"/api/v1/service-mesh/configurations/{fake_id}", json=sample_mesh_config_update.dict()
         )
         assert response.status_code == 404
 
@@ -643,14 +655,15 @@ class TestUpdateConfiguration:
 # DELETE /configurations/{config_id} - Delete Configuration Tests
 # ============================================================================
 
+
 class TestDeleteConfiguration:
     """Test cases for deleting configurations"""
 
     def test_delete_configuration_success(self, client, mock_service_mesh_manager):
         """Test successful configuration deletion"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add a test configuration
             config_id = str(uuid.uuid4())
             _configurations_db[config_id] = {
@@ -667,7 +680,7 @@ class TestDeleteConfiguration:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.delete(f"/api/v1/service-mesh/configurations/{config_id}")
             assert response.status_code == 200
             data = response.json()
@@ -685,14 +698,15 @@ class TestDeleteConfiguration:
 # GET /traffic - List Traffic Rules Tests
 # ============================================================================
 
+
 class TestListTrafficRules:
     """Test cases for listing traffic rules"""
 
     def test_list_traffic_rules_success(self, client, mock_service_mesh_manager):
         """Test successful listing of traffic rules"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add a test traffic rule
             rule_id = str(uuid.uuid4())
             _traffic_rules_db[rule_id] = {
@@ -709,7 +723,7 @@ class TestListTrafficRules:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get("/api/v1/service-mesh/traffic")
             assert response.status_code == 200
             data = response.json()
@@ -718,9 +732,9 @@ class TestListTrafficRules:
 
     def test_list_traffic_rules_with_service_filter(self, client, mock_service_mesh_manager):
         """Test listing traffic rules with service filter"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add test traffic rules
             rule_id1 = str(uuid.uuid4())
             _traffic_rules_db[rule_id1] = {
@@ -737,7 +751,7 @@ class TestListTrafficRules:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             rule_id2 = str(uuid.uuid4())
             _traffic_rules_db[rule_id2] = {
                 "name": "rule-2",
@@ -753,17 +767,19 @@ class TestListTrafficRules:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get("/api/v1/service-mesh/traffic?service_name=service-1")
             assert response.status_code == 200
             data = response.json()
-            assert all(rule["service_name"] == "service-1" for rule in data["data"]["traffic_rules"])
+            assert all(
+                rule["service_name"] == "service-1" for rule in data["data"]["traffic_rules"]
+            )
 
     def test_list_traffic_rules_enabled_only(self, client, mock_service_mesh_manager):
         """Test listing only enabled traffic rules"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Add test traffic rules
             rule_id1 = str(uuid.uuid4())
             _traffic_rules_db[rule_id1] = {
@@ -780,7 +796,7 @@ class TestListTrafficRules:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             rule_id2 = str(uuid.uuid4())
             _traffic_rules_db[rule_id2] = {
                 "name": "disabled-rule",
@@ -796,7 +812,7 @@ class TestListTrafficRules:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             response = client.get("/api/v1/service-mesh/traffic?enabled_only=true")
             assert response.status_code == 200
             data = response.json()
@@ -807,17 +823,19 @@ class TestListTrafficRules:
 # POST /traffic - Create Traffic Rule Tests
 # ============================================================================
 
+
 class TestCreateTrafficRule:
     """Test cases for creating traffic rules"""
 
-    def test_create_traffic_rule_success(self, client, sample_traffic_rule_create, mock_service_mesh_manager):
+    def test_create_traffic_rule_success(
+        self, client, sample_traffic_rule_create, mock_service_mesh_manager
+    ):
         """Test successful traffic rule creation"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             response = client.post(
-                "/api/v1/service-mesh/traffic",
-                json=sample_traffic_rule_create.dict()
+                "/api/v1/service-mesh/traffic", json=sample_traffic_rule_create.dict()
             )
             assert response.status_code == 201
             data = response.json()
@@ -828,9 +846,9 @@ class TestCreateTrafficRule:
 
     def test_create_traffic_rule_with_retry_policy(self, client, mock_service_mesh_manager):
         """Test traffic rule creation with retry policy"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             rule_data = {
                 "name": "retry-rule",
                 "service_name": "test-service",
@@ -838,17 +856,17 @@ class TestCreateTrafficRule:
                 "destination": {"host": "test-service"},
                 "weight": 100,
                 "timeout_seconds": 30,
-                "retry_policy": {"attempts": 3, "per_try_timeout": "5s"}
+                "retry_policy": {"attempts": 3, "per_try_timeout": "5s"},
             }
-            
+
             response = client.post("/api/v1/service-mesh/traffic", json=rule_data)
             assert response.status_code == 201
 
     def test_create_traffic_rule_with_fault_injection(self, client, mock_service_mesh_manager):
         """Test traffic rule creation with fault injection"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             rule_data = {
                 "name": "fault-rule",
                 "service_name": "test-service",
@@ -856,9 +874,9 @@ class TestCreateTrafficRule:
                 "destination": {"host": "test-service"},
                 "weight": 100,
                 "timeout_seconds": 30,
-                "fault_injection": {"delay": {"percentage": 10, "duration": "5s"}}
+                "fault_injection": {"delay": {"percentage": 10, "duration": "5s"}},
             }
-            
+
             response = client.post("/api/v1/service-mesh/traffic", json=rule_data)
             assert response.status_code == 201
 
@@ -869,7 +887,7 @@ class TestCreateTrafficRule:
             "service_name": "test-service",
             "match_conditions": {},
             "destination": {},
-            "weight": 150  # Invalid weight (> 100)
+            "weight": 150,  # Invalid weight (> 100)
         }
         response = client.post("/api/v1/service-mesh/traffic", json=invalid_data)
         assert response.status_code == 422
@@ -881,7 +899,7 @@ class TestCreateTrafficRule:
             "service_name": "test-service",
             "match_conditions": {},
             "destination": {},
-            "timeout_seconds": 0  # Invalid timeout (< 1)
+            "timeout_seconds": 0,  # Invalid timeout (< 1)
         }
         response = client.post("/api/v1/service-mesh/traffic", json=invalid_data)
         assert response.status_code == 422
@@ -891,7 +909,7 @@ class TestCreateTrafficRule:
         invalid_data = {
             "service_name": "test-service",
             "match_conditions": {},
-            "destination": {}
+            "destination": {},
             # Missing name
         }
         response = client.post("/api/v1/service-mesh/traffic", json=invalid_data)
@@ -899,12 +917,11 @@ class TestCreateTrafficRule:
 
     def test_create_traffic_rule_manager_error(self, client, sample_traffic_rule_create):
         """Test traffic rule creation when manager raises error"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.post(
-                "/api/v1/service-mesh/traffic",
-                json=sample_traffic_rule_create.dict()
+                "/api/v1/service-mesh/traffic", json=sample_traffic_rule_create.dict()
             )
             assert response.status_code == 500
 
@@ -912,6 +929,7 @@ class TestCreateTrafficRule:
 # ============================================================================
 # GET /security - List Security Policies Tests
 # ============================================================================
+
 
 class TestListSecurityPolicies:
     """Test cases for listing security policies"""
@@ -933,7 +951,7 @@ class TestListSecurityPolicies:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-mesh/security")
         assert response.status_code == 200
         data = response.json()
@@ -957,7 +975,7 @@ class TestListSecurityPolicies:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         policy_id2 = str(uuid.uuid4())
         _security_policies_db[policy_id2] = {
             "name": "authz-policy",
@@ -972,17 +990,22 @@ class TestListSecurityPolicies:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
-        response = client.get("/api/v1/service-mesh/security?policy_type=authentication&target_service=service-1")
+
+        response = client.get(
+            "/api/v1/service-mesh/security?policy_type=authentication&target_service=service-1"
+        )
         assert response.status_code == 200
         data = response.json()
-        assert all(p["policy_type"] == "authentication" and p["target_service"] == "service-1" 
-                   for p in data["data"]["security_policies"])
+        assert all(
+            p["policy_type"] == "authentication" and p["target_service"] == "service-1"
+            for p in data["data"]["security_policies"]
+        )
 
 
 # ============================================================================
 # POST /security - Create Security Policy Tests
 # ============================================================================
+
 
 class TestCreateSecurityPolicy:
     """Test cases for creating security policies"""
@@ -990,8 +1013,7 @@ class TestCreateSecurityPolicy:
     def test_create_security_policy_success(self, client, sample_security_policy_create):
         """Test successful security policy creation"""
         response = client.post(
-            "/api/v1/service-mesh/security",
-            json=sample_security_policy_create.dict()
+            "/api/v1/service-mesh/security", json=sample_security_policy_create.dict()
         )
         assert response.status_code == 201
         data = response.json()
@@ -1007,10 +1029,13 @@ class TestCreateSecurityPolicy:
             "policy_type": "authorization",
             "target_service": "test-service",
             "mtls_mode": "STRICT",
-            "allowed_principals": ["cluster.local/ns/default/sa/app1", "cluster.local/ns/default/sa/app2"],
-            "denied_principals": ["cluster.local/ns/default/sa/bad-app"]
+            "allowed_principals": [
+                "cluster.local/ns/default/sa/app1",
+                "cluster.local/ns/default/sa/app2",
+            ],
+            "denied_principals": ["cluster.local/ns/default/sa/bad-app"],
         }
-        
+
         response = client.post("/api/v1/service-mesh/security", json=policy_data)
         assert response.status_code == 201
         data = response.json()
@@ -1021,7 +1046,7 @@ class TestCreateSecurityPolicy:
         """Test security policy creation with missing required field"""
         invalid_data = {
             "policy_type": "authentication",
-            "target_service": "test-service"
+            "target_service": "test-service",
             # Missing name
         }
         response = client.post("/api/v1/service-mesh/security", json=invalid_data)
@@ -1031,6 +1056,7 @@ class TestCreateSecurityPolicy:
 # ============================================================================
 # GET /observability - List Observability Configs Tests
 # ============================================================================
+
 
 class TestListObservabilityConfigs:
     """Test cases for listing observability configurations"""
@@ -1052,7 +1078,7 @@ class TestListObservabilityConfigs:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-mesh/observability")
         assert response.status_code == 200
         data = response.json()
@@ -1076,7 +1102,7 @@ class TestListObservabilityConfigs:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         config_id2 = str(uuid.uuid4())
         _observability_configs_db[config_id2] = {
             "name": "disabled-config",
@@ -1091,7 +1117,7 @@ class TestListObservabilityConfigs:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-mesh/observability?enabled_only=true")
         assert response.status_code == 200
         data = response.json()
@@ -1102,14 +1128,14 @@ class TestListObservabilityConfigs:
 # POST /observability - Create Observability Config Tests
 # ============================================================================
 
+
 class TestCreateObservabilityConfig:
     """Test cases for creating observability configurations"""
 
     def test_create_observability_config_success(self, client, sample_observability_config_create):
         """Test successful observability configuration creation"""
         response = client.post(
-            "/api/v1/service-mesh/observability",
-            json=sample_observability_config_create.dict()
+            "/api/v1/service-mesh/observability", json=sample_observability_config_create.dict()
         )
         assert response.status_code == 201
         data = response.json()
@@ -1122,7 +1148,7 @@ class TestCreateObservabilityConfig:
         """Test observability configuration creation with invalid sampling rate"""
         invalid_data = {
             "name": "test-observability",
-            "sampling_rate": 1.5  # Invalid sampling rate (> 1.0)
+            "sampling_rate": 1.5,  # Invalid sampling rate (> 1.0)
         }
         response = client.post("/api/v1/service-mesh/observability", json=invalid_data)
         assert response.status_code == 422
@@ -1131,7 +1157,7 @@ class TestCreateObservabilityConfig:
         """Test observability configuration creation with negative sampling rate"""
         invalid_data = {
             "name": "test-observability",
-            "sampling_rate": -0.5  # Invalid sampling rate (< 0.0)
+            "sampling_rate": -0.5,  # Invalid sampling rate (< 0.0)
         }
         response = client.post("/api/v1/service-mesh/observability", json=invalid_data)
         assert response.status_code == 422
@@ -1140,7 +1166,7 @@ class TestCreateObservabilityConfig:
         """Test observability configuration creation with missing required field"""
         invalid_data = {
             "tracing_enabled": True,
-            "metrics_enabled": True
+            "metrics_enabled": True,
             # Missing name
         }
         response = client.post("/api/v1/service-mesh/observability", json=invalid_data)
@@ -1150,6 +1176,7 @@ class TestCreateObservabilityConfig:
 # ============================================================================
 # GET /policies - List Policies Tests
 # ============================================================================
+
 
 class TestListPolicies:
     """Test cases for listing policies"""
@@ -1168,7 +1195,7 @@ class TestListPolicies:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-mesh/policies")
         assert response.status_code == 200
         data = response.json()
@@ -1189,7 +1216,7 @@ class TestListPolicies:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         policy_id2 = str(uuid.uuid4())
         _policies_db[policy_id2] = {
             "name": "circuit-breaker-policy",
@@ -1201,27 +1228,31 @@ class TestListPolicies:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
-        response = client.get("/api/v1/service-mesh/policies?policy_type=rate-limiting&target_service=service-1&enabled_only=true")
+
+        response = client.get(
+            "/api/v1/service-mesh/policies?policy_type=rate-limiting&target_service=service-1&enabled_only=true"
+        )
         assert response.status_code == 200
         data = response.json()
-        assert all(p["policy_type"] == "rate-limiting" and p["target_service"] == "service-1" and p["enabled"] == True
-                   for p in data["data"]["policies"])
+        assert all(
+            p["policy_type"] == "rate-limiting"
+            and p["target_service"] == "service-1"
+            and p["enabled"] == True
+            for p in data["data"]["policies"]
+        )
 
 
 # ============================================================================
 # POST /policies - Create Policy Tests
 # ============================================================================
 
+
 class TestCreatePolicy:
     """Test cases for creating policies"""
 
     def test_create_policy_success(self, client, sample_policy_create):
         """Test successful policy creation"""
-        response = client.post(
-            "/api/v1/service-mesh/policies",
-            json=sample_policy_create.dict()
-        )
+        response = client.post("/api/v1/service-mesh/policies", json=sample_policy_create.dict())
         assert response.status_code == 201
         data = response.json()
         assert data["status"] == "success"
@@ -1236,9 +1267,9 @@ class TestCreatePolicy:
             "policy_type": "rate-limiting",
             "target_service": "test-service",
             "rules": [],
-            "enabled": False
+            "enabled": False,
         }
-        
+
         response = client.post("/api/v1/service-mesh/policies", json=policy_data)
         assert response.status_code == 201
         data = response.json()
@@ -1249,7 +1280,7 @@ class TestCreatePolicy:
         invalid_data = {
             "policy_type": "rate-limiting",
             "target_service": "test-service",
-            "rules": []
+            "rules": [],
             # Missing name
         }
         response = client.post("/api/v1/service-mesh/policies", json=invalid_data)
@@ -1260,16 +1291,13 @@ class TestCreatePolicy:
 # Data Validation Tests
 # ============================================================================
 
+
 class TestDataValidation:
     """Test cases for data validation"""
 
     def test_mesh_config_with_empty_name(self, client):
         """Test mesh configuration creation with empty name"""
-        invalid_data = {
-            "name": "",
-            "mesh_type": "istio",
-            "namespace": "istio-system"
-        }
+        invalid_data = {"name": "", "mesh_type": "istio", "namespace": "istio-system"}
         response = client.post("/api/v1/service-mesh/configurations", json=invalid_data)
         # Pydantic may accept empty string, so we check if it's created or rejected
         assert response.status_code in [201, 422]
@@ -1280,7 +1308,7 @@ class TestDataValidation:
             "name": "test-rule",
             "service_name": "",
             "match_conditions": {},
-            "destination": {}
+            "destination": {},
         }
         response = client.post("/api/v1/service-mesh/traffic", json=invalid_data)
         # Pydantic may accept empty string, so we check if it's created or rejected
@@ -1292,7 +1320,7 @@ class TestDataValidation:
             "name": "test-policy",
             "policy_type": "authentication",
             "target_service": "test-service",
-            "mtls_mode": "INVALID_MODE"
+            "mtls_mode": "INVALID_MODE",
         }
         response = client.post("/api/v1/service-mesh/security", json=invalid_data)
         # This may pass validation but should be handled in business logic
@@ -1302,6 +1330,7 @@ class TestDataValidation:
 # ============================================================================
 # Permission Control Tests
 # ============================================================================
+
 
 class TestPermissionControl:
     """Test cases for permission control"""
@@ -1326,60 +1355,70 @@ class TestPermissionControl:
 # Integration Tests
 # ============================================================================
 
+
 class TestIntegration:
     """Integration tests for service mesh router"""
 
-    def test_full_configuration_lifecycle(self, client, sample_mesh_config_create, sample_mesh_config_update, mock_service_mesh_manager):
+    def test_full_configuration_lifecycle(
+        self,
+        client,
+        sample_mesh_config_create,
+        sample_mesh_config_update,
+        mock_service_mesh_manager,
+    ):
         """Test complete configuration lifecycle: create, read, update, delete"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Create
             create_response = client.post(
-                "/api/v1/service-mesh/configurations",
-                json=sample_mesh_config_create.dict()
+                "/api/v1/service-mesh/configurations", json=sample_mesh_config_create.dict()
             )
             assert create_response.status_code == 201
             config_id = create_response.json()["data"]["id"]
-            
+
             # Read
             get_response = client.get(f"/api/v1/service-mesh/configurations/{config_id}")
             assert get_response.status_code == 200
-            
+
             # Update
             update_response = client.patch(
                 f"/api/v1/service-mesh/configurations/{config_id}",
-                json=sample_mesh_config_update.dict()
+                json=sample_mesh_config_update.dict(),
             )
             assert update_response.status_code == 200
-            
+
             # Delete
             delete_response = client.delete(f"/api/v1/service-mesh/configurations/{config_id}")
             assert delete_response.status_code == 200
-            
+
             # Verify deletion
             verify_response = client.get(f"/api/v1/service-mesh/configurations/{config_id}")
             assert verify_response.status_code == 404
 
-    def test_mesh_with_traffic_rule_lifecycle(self, client, sample_mesh_config_create, sample_traffic_rule_create, mock_service_mesh_manager):
+    def test_mesh_with_traffic_rule_lifecycle(
+        self,
+        client,
+        sample_mesh_config_create,
+        sample_traffic_rule_create,
+        mock_service_mesh_manager,
+    ):
         """Test mesh configuration and traffic rule lifecycle together"""
-        with patch('core.service_mesh_manager.get_service_mesh_manager') as mock_get_manager:
+        with patch("core.service_mesh_manager.get_service_mesh_manager") as mock_get_manager:
             mock_get_manager.return_value = mock_service_mesh_manager
-            
+
             # Create configuration
             create_response = client.post(
-                "/api/v1/service-mesh/configurations",
-                json=sample_mesh_config_create.dict()
+                "/api/v1/service-mesh/configurations", json=sample_mesh_config_create.dict()
             )
             assert create_response.status_code == 201
-            
+
             # Create traffic rule
             traffic_response = client.post(
-                "/api/v1/service-mesh/traffic",
-                json=sample_traffic_rule_create.dict()
+                "/api/v1/service-mesh/traffic", json=sample_traffic_rule_create.dict()
             )
             assert traffic_response.status_code == 201
-            
+
             # List traffic rules
             list_response = client.get("/api/v1/service-mesh/traffic")
             assert list_response.status_code == 200

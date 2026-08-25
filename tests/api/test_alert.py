@@ -1,6 +1,7 @@
-import pytest  # noqa: F401  # Imported for test setup
-from unittest.mock import patch, MagicMock
 from datetime import datetime
+from unittest.mock import MagicMock, patch
+
+import pytest  # noqa: F401  # Imported for test setup
 
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for the alert management and webhook endpoints."""
@@ -131,8 +132,9 @@ def test_alert_patterns_unavailable(client):
 
 def test_alert_patterns_with_noise(client):
     """Test patterns endpoint with include_noise=True (lines 302-303)."""
-    from core.alert_intelligence import alert_intelligence_engine, AlertPattern
     from datetime import datetime
+
+    from core.alert_intelligence import AlertPattern, alert_intelligence_engine
 
     # Add some test patterns
     alert_intelligence_engine.patterns = {
@@ -142,15 +144,15 @@ def test_alert_patterns_with_noise(client):
             frequency=10,
             last_seen=datetime.now(),
             is_noise=True,
-            noise_reason="高频低级别"
+            noise_reason="高频低级别",
         ),
         "pattern_2": AlertPattern(
             pattern_id="pattern_2",
             signature="memory_high",
             frequency=5,
             last_seen=datetime.now(),
-            is_noise=False
-        )
+            is_noise=False,
+        ),
     }
 
     # Test with include_noise=False (default)
@@ -183,7 +185,7 @@ def test_predict_trend_unavailable(client):
 
 def test_predict_trend_incomplete_data(client):
     """Test 400 response when metric data is incomplete (line 366)."""
-    from core.metrics_history import metrics_history
+    from core.metrics_history import METRICS_HISTORY as metrics_history
 
     # Clear and add incomplete data (timestamps and values mismatch)
     metrics_history.clear()
@@ -208,7 +210,7 @@ def test_predict_trend_incomplete_data(client):
 
 def test_predict_trend_insufficient_data(client):
     """Test 400 response when historical data is insufficient (line 374)."""
-    from core.metrics_history import metrics_history
+    from core.metrics_history import METRICS_HISTORY as metrics_history
 
     # Clear and add only 5 data points (less than required 10)
     metrics_history.clear()
@@ -229,7 +231,7 @@ def test_predict_trend_insufficient_data(client):
 
 def test_predict_trend_invalid_timestamps(client):
     """Test prediction with invalid timestamp formats (lines 371-372)."""
-    from core.metrics_history import metrics_history
+    from core.metrics_history import METRICS_HISTORY as metrics_history
 
     # Clear and add data with some invalid timestamps
     metrics_history.clear()
@@ -354,7 +356,7 @@ def test_alert_patterns_limit_parameter(client):
 
 def test_predict_trend_with_sufficient_data(client):
     """Test prediction with sufficient valid data."""
-    from core.metrics_history import metrics_history
+    from core.metrics_history import METRICS_HISTORY as metrics_history
 
     # Clear and add 15 data points (more than required 10)
     metrics_history.clear()
@@ -387,7 +389,7 @@ def test_topology_context_with_alerts(client):
         "category": "system",
         "metric": "cpu",
         "value": 85.0,
-        "raw_time": "10:30:00"
+        "raw_time": "10:30:00",
     }
     alert_history.appendleft(test_alert)
 
@@ -441,17 +443,19 @@ def test_route_alerts_intelligently(client):
 
     # Add some test alerts for routing
     for i in range(5):
-        alert_history.appendleft({
-            "id": f"route-test-{i}",
-            "level": "warning" if i % 2 == 0 else "critical",
-            "title": f"Alert {i}",
-            "desc": f"Description {i}",
-            "host": f"server-{i}",
-            "category": "system",
-            "metric": "cpu",
-            "value": 80.0 + i,
-            "raw_time": f"10:{i}:00"
-        })
+        alert_history.appendleft(
+            {
+                "id": f"route-test-{i}",
+                "level": "warning" if i % 2 == 0 else "critical",
+                "title": f"Alert {i}",
+                "desc": f"Description {i}",
+                "host": f"server-{i}",
+                "category": "system",
+                "metric": "cpu",
+                "value": 80.0 + i,
+                "raw_time": f"10:{i}:00",
+            }
+        )
 
     resp = client.post("/api/v1/alerts/intelligence/route-alerts")
     assert resp.status_code in (200, 503)

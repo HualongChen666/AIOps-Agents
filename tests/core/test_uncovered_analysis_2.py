@@ -203,7 +203,9 @@ def test_learn_and_update_historical_pattern(rci_engine):
 async def test_causal_graph_analysis(rci_engine):
     alert = {"id": "a5", "source_service": "svc", "metric": "cpu", "value": 99}
     metrics = {"cpu": 99}
-    result = await rci_engine._causal_graph_analysis(alert, metrics)  # noqa: F841  # Variable for test verification
+    result = await rci_engine._causal_graph_analysis(
+        alert, metrics
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, list)
     assert all(isinstance(h, rci.RootCauseHypothesis) for h in result)
     assert result[0].causal_path[0] == "svc"
@@ -212,7 +214,9 @@ async def test_causal_graph_analysis(rci_engine):
 async def test_ml_based_analysis(rci_engine):
     alert = {"metric": "cpu", "value": 100, "threshold": 80}
     metrics = {"cpu": 10.0, "cpu2": 20.0}
-    result = await rci_engine._ml_based_analysis(alert, metrics)  # noqa: F841  # Variable for test verification
+    result = await rci_engine._ml_based_analysis(
+        alert, metrics
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, list)
     assert isinstance(result[0], rci.RootCauseHypothesis)
     assert 0.0 <= result[0].confidence <= 1.0
@@ -273,7 +277,9 @@ async def test_verify_root_cause_scenarios(rci_engine):
         "observed_symptoms": ["dns timeout"],
         "dns_resolution_error_rate": 2.0,
     }
-    result = await rci_engine.verify_root_cause(hyp, data)  # noqa: F841  # Variable for test verification
+    result = await rci_engine.verify_root_cause(
+        hyp, data
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["verification_status"] in (
         "verified",
@@ -494,7 +500,9 @@ async def test_langgraph_engine_analyze_fallback(l2_engine, monkeypatch):
             "escalation_recommended": False,
         },
     )
-    result = await l2_engine.analyze("dns latency", context={"cluster": "c1"})  # noqa: F841  # Variable for test verification
+    result = await l2_engine.analyze(
+        "dns latency", context={"cluster": "c1"}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "candidates" in result or "error" in result
 
@@ -510,7 +518,9 @@ def test_langgraph_query_builders(l2_engine):
 
 
 def test_langgraph_assess_completeness(l2_engine):
-    result = l2_engine._assess_completeness({"data": []}, {"_data_completeness": "failed"})  # noqa: F841  # Variable for test verification
+    result = l2_engine._assess_completeness(
+        {"data": []}, {"_data_completeness": "failed"}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["metrics_available"] is True
     assert result["logs_available"] is False
@@ -548,7 +558,9 @@ async def test_enhanced_causal_analyze_relationships(eca_analyzer):
 
 async def test_enhanced_causal_realtime(eca_analyzer):
     stream = {"cpu": 80.0, "memory": 70.0}
-    result = await eca_analyzer.realtime_analysis(stream, window_size=10)  # noqa: F841  # Variable for test verification
+    result = await eca_analyzer.realtime_analysis(
+        stream, window_size=10
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, eca.CausalAnalysisResult)
     assert result.confidence == 0.7
     assert "cpu" in result.root_causes

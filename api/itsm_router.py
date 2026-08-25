@@ -113,7 +113,8 @@ async def create_incident(data: Dict, provider: str = "servicenow") -> Dict[str,
                         "incident_id": result.get("sys_id", incident_id),
                         "message": "工单创建成功",
                     }
-                logger.warning(f"ServiceNow create incident failed: {resp.status_code} {resp.text}")
+                msg = f"ServiceNow create incident failed: {resp.status_code} {resp.text}"
+                logger.warning(msg)
 
         return {
             "status": "created",
@@ -122,7 +123,8 @@ async def create_incident(data: Dict, provider: str = "servicenow") -> Dict[str,
             "message": "工单创建成功（本地记录，未实际调用外部ITSM）",
         }
     except Exception as exc:
-        logger.warning(f"External ITSM create failed for {provider}: {exc}; returning local record")
+        msg = f"External ITSM create failed for {provider}: {exc}; returning local record"
+        logger.warning(msg)
         return {
             "status": "created",
             "provider": provider,
@@ -190,7 +192,11 @@ async def resolve_incident(incident_id: str, provider: str = "servicenow") -> Di
             async with httpx.AsyncClient() as client:
                 resp = await client.put(
                     f"{SERVICE_NOW_URL.rstrip('/')}/api/now/table/incident/{incident_id}",
-                    json={"state": "6", "close_code": "Resolved", "close_notes": "Closed by AIOps"},
+                    json={
+                        "state": "6",
+                        "close_code": "Resolved",
+                        "close_notes": "Closed by AIOps",
+                    },
                     headers={
                         "Authorization": f"Basic {SERVICE_NOW_TOKEN}",
                         "Content-Type": "application/json",

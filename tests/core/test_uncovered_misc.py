@@ -23,7 +23,9 @@ pytestmark = [pytest.mark.core]
 @pytest.mark.asyncio
 async def test_alert_intelligence_empty_analysis():
     engine = AlertIntelligenceEngine()
-    result = await engine.analyze_and_aggregate_alerts([])  # noqa: F841  # Variable for test verification
+    result = await engine.analyze_and_aggregate_alerts(
+        []
+    )  # noqa: F841  # Variable for test verification
     assert result == []  # noqa: F841  # Variable for test verification
 
 
@@ -176,7 +178,9 @@ async def test_snapshot_store_save_and_get(monkeypatch, fake_session):
     )
     fake_session.get.return_value = snap
 
-    result = await snapshot_store.get_snapshot(snapshot_id)  # noqa: F841  # Variable for test verification
+    result = await snapshot_store.get_snapshot(
+        snapshot_id
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["id"] == snapshot_id
     assert result["alert_id"] == "a1"
@@ -250,7 +254,9 @@ async def test_integration_manager_query_prometheus(monkeypatch):
         IntegrationType.MONITORING, "prometheus", {"url": "http://prometheus:9090"}
     )
     response.json.return_value = {"data": {"result": [{"values": []}]}}
-    result = await manager.query_prometheus_metrics(config.integration_id, "up", "1h")  # noqa: F841  # Variable for test verification
+    result = await manager.query_prometheus_metrics(
+        config.integration_id, "up", "1h"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "data" in result
 
@@ -262,7 +268,9 @@ async def test_integration_manager_query_pagerduty(monkeypatch):
         IntegrationType.ITSM, "pagerduty", {"api_key": "pd-key"}
     )
     response.json.return_value = {"incidents": []}
-    result = await manager.query_pagerduty_incidents(config.integration_id, "svc", "1h")  # noqa: F841  # Variable for test verification
+    result = await manager.query_pagerduty_incidents(
+        config.integration_id, "svc", "1h"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "incidents" in result
 
@@ -294,7 +302,9 @@ async def test_integration_manager_jira_and_jenkins(monkeypatch):
         "jenkins",
         {"url": "http://jenkins", "username": "u", "api_token": "t"},
     )
-    result = await manager.trigger_jenkins_job(jenkins.integration_id, "build")  # noqa: F841  # Variable for test verification
+    result = await manager.trigger_jenkins_job(
+        jenkins.integration_id, "build"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["job_name"] == "build"
 
@@ -303,7 +313,9 @@ async def test_integration_manager_jira_and_jenkins(monkeypatch):
         "jira",
         {"url": "http://jira", "username": "u", "api_token": "t"},
     )
-    result = await manager.create_jira_issue(jira.integration_id, "bug", "desc")  # noqa: F841  # Variable for test verification
+    result = await manager.create_jira_issue(
+        jira.integration_id, "bug", "desc"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert "issue_key" in result
 
@@ -314,7 +326,9 @@ async def test_integration_manager_webhook(monkeypatch):
     webhook_id = await manager.register_webhook("github", "push", "http://example/hook")
     assert isinstance(webhook_id, str)
 
-    result = await manager.handle_webhook(webhook_id, {"ref": "refs/heads/main"})  # noqa: F841  # Variable for test verification
+    result = await manager.handle_webhook(
+        webhook_id, {"ref": "refs/heads/main"}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert "event_id" in result
 

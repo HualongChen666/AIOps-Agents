@@ -268,7 +268,10 @@ async def test_parallel_node_success():
         child_nodes=[_TestNode("fetch_metrics", {"cpu": 0.8}), _TestNode("fetch_logs", ["error"])],
     )
     result = await node.execute(WorkflowContext())  # noqa: F841  # Variable for test verification
-    assert result == {"fetch_metrics": {"cpu": 0.8}, "fetch_logs": ["error"]}  # noqa: F841  # Variable for test verification
+    assert result == {
+        "fetch_metrics": {"cpu": 0.8},
+        "fetch_logs": ["error"],
+    }  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -362,7 +365,9 @@ async def test_approval_notifier_parallel_success(hitl_module):
     notifier.configure(hitl_module.NotificationConfig(platform="email", address="ops@example.com"))
     notifier.configure(hitl_module.NotificationConfig(platform="slack", channel="#sre"))
 
-    result = await notifier.send_approval_request("alice", _sample_request_data())  # noqa: F841  # Variable for test verification
+    result = await notifier.send_approval_request(
+        "alice", _sample_request_data()
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert "wecom" in result["channels"]
     assert "email" in result["channels"]
@@ -393,7 +398,9 @@ async def test_approval_notifier_sequential_fallback(hitl_module, monkeypatch):
 @pytest.mark.asyncio
 async def test_approval_notifier_no_channels_configured(hitl_module):
     notifier = hitl_module.ApprovalNotifier()
-    result = await notifier.send_approval_request("carol", _sample_request_data())  # noqa: F841  # Variable for test verification
+    result = await notifier.send_approval_request(
+        "carol", _sample_request_data()
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert result["errors"] == ["no channels configured"]
 
@@ -422,7 +429,9 @@ async def test_approval_notifier_partial_failure_and_exception(hitl_module, monk
         AsyncMock(return_value={"success": False, "error": "rate limited"}),
     )
 
-    result = await notifier.send_approval_request("eve", _sample_request_data())  # noqa: F841  # Variable for test verification
+    result = await notifier.send_approval_request(
+        "eve", _sample_request_data()
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["channels"] == ["email"]
     assert any("wecom" in e for e in result["errors"])
@@ -489,7 +498,9 @@ def test_approval_notifier_build_completion_message(hitl_module):
 async def test_approval_notifier_send_approval_complete(hitl_module):
     notifier = hitl_module.ApprovalNotifier()
     notifier.configure(hitl_module.NotificationConfig(platform="wecom"))
-    result = await notifier.send_approval_complete("frank", _sample_request_data(), approved=True)  # noqa: F841  # Variable for test verification
+    result = await notifier.send_approval_complete(
+        "frank", _sample_request_data(), approved=True
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert "wecom" in result["channels"]
 

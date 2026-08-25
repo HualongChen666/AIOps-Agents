@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """Unit tests for retry.py - Configurable retry engine for LLM provider calls."""
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
 from extensions.addons.ai_plus.llm_router_service.retry import (
-    RetryPolicy,
     LLMRetryEngine,
+    RetryPolicy,
 )
 
 
@@ -52,9 +54,7 @@ class TestRetryPolicy:
 
     def test_retry_policy_zero_delays(self):
         """Test retry policy with zero delays."""
-        policy = RetryPolicy(
-            name="immediate", base_delay_seconds=0, max_delay_seconds=0
-        )
+        policy = RetryPolicy(name="immediate", base_delay_seconds=0, max_delay_seconds=0)
         assert policy.base_delay_seconds == 0
         assert policy.max_delay_seconds == 0
 
@@ -100,9 +100,7 @@ class TestLLMRetryEngine:
     def test_add_policy(self):
         """Test adding a custom retry policy."""
         engine = LLMRetryEngine()
-        custom_policy = RetryPolicy(
-            name="custom", max_retries=2, base_delay_seconds=0.5
-        )
+        custom_policy = RetryPolicy(name="custom", max_retries=2, base_delay_seconds=0.5)
         engine.add_policy(custom_policy)
 
         assert "custom" in engine.policies
@@ -302,7 +300,9 @@ class TestLLMRetryEngine:
     async def test_compute_delay_max_delay(self):
         """Test _compute_delay respects max_delay_seconds."""
         engine = LLMRetryEngine()
-        policy = RetryPolicy(name="test", base_delay_seconds=1, max_delay_seconds=5, exponential_base=10)
+        policy = RetryPolicy(
+            name="test", base_delay_seconds=1, max_delay_seconds=5, exponential_base=10
+        )
 
         delay = engine._compute_delay(10, policy)
 

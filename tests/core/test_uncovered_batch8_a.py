@@ -251,15 +251,17 @@ def test_setup_fastapi_telemetry_all_enabled(monkeypatch):
     monkeypatch.setattr("core.telemetry.initialize_telemetry", _init_telemetry_success)
     app = MagicMock()
     engine = MagicMock()
-    result = telemetry_fastapi.setup_fastapi_telemetry(  # noqa: F841  # Variable for test verification
-        app,
-        service_name="aiops-test",
-        instrument_http=True,
-        instrument_db=True,
-        enable_redis_instrumentation=True,
-        db_engine=engine,
-        otlp_endpoint="localhost:4317",
-        environment="testing",
+    result = (
+        telemetry_fastapi.setup_fastapi_telemetry(  # noqa: F841  # Variable for test verification
+            app,
+            service_name="aiops-test",
+            instrument_http=True,
+            instrument_db=True,
+            enable_redis_instrumentation=True,
+            db_engine=engine,
+            otlp_endpoint="localhost:4317",
+            environment="testing",
+        )
     )
     assert result is True
     telemetry_fastapi.FastAPIInstrumentor.instrument_app.assert_called()
@@ -269,24 +271,30 @@ def test_setup_fastapi_telemetry_all_enabled(monkeypatch):
 
 def test_setup_fastapi_telemetry_init_false(monkeypatch):
     monkeypatch.setattr("core.telemetry.initialize_telemetry", _init_telemetry_false)
-    result = telemetry_fastapi.setup_fastapi_telemetry(MagicMock())  # noqa: F841  # Variable for test verification
+    result = telemetry_fastapi.setup_fastapi_telemetry(
+        MagicMock()
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
 def test_setup_fastapi_telemetry_import_error(monkeypatch):
     monkeypatch.setattr("core.telemetry.initialize_telemetry", _init_telemetry_import_error)
-    result = telemetry_fastapi.setup_fastapi_telemetry(MagicMock())  # noqa: F841  # Variable for test verification
+    result = telemetry_fastapi.setup_fastapi_telemetry(
+        MagicMock()
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
 def test_setup_fastapi_telemetry_optional_instruments_off(monkeypatch):
     monkeypatch.setattr("core.telemetry.initialize_telemetry", _init_telemetry_success)
     app = MagicMock()
-    result = telemetry_fastapi.setup_fastapi_telemetry(  # noqa: F841  # Variable for test verification
-        app,
-        instrument_http=False,
-        instrument_db=False,
-        enable_redis_instrumentation=False,
+    result = (
+        telemetry_fastapi.setup_fastapi_telemetry(  # noqa: F841  # Variable for test verification
+            app,
+            instrument_http=False,
+            instrument_db=False,
+            enable_redis_instrumentation=False,
+        )
     )
     assert result is True
     # HTTPX / SQLAlchemy / Redis instrumentors should not have been invoked.
@@ -299,11 +307,13 @@ def test_setup_fastapi_telemetry_optional_instruments_off(monkeypatch):
 def test_setup_fastapi_telemetry_db_enabled_without_engine(monkeypatch):
     monkeypatch.setattr("core.telemetry.initialize_telemetry", _init_telemetry_success)
     app = MagicMock()
-    result = telemetry_fastapi.setup_fastapi_telemetry(  # noqa: F841  # Variable for test verification
-        app,
-        instrument_http=False,
-        instrument_db=True,
-        enable_redis_instrumentation=False,
+    result = (
+        telemetry_fastapi.setup_fastapi_telemetry(  # noqa: F841  # Variable for test verification
+            app,
+            instrument_http=False,
+            instrument_db=True,
+            enable_redis_instrumentation=False,
+        )
     )
     assert result is True
     assert not telemetry_fastapi.SQLAlchemyInstrumentor().instrument.called

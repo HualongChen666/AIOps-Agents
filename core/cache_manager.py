@@ -132,10 +132,20 @@ class RedisCacheBackend(CacheBackend):
 
     def get(self, key: str) -> Optional[Any]:
         raw = self._client.get(key)
-        return json.loads(raw) if raw is not None else None
+        if raw is not None:
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as exc:
+                logger.error(f"Failed to decode cached value for key {key}: {exc}")
+                return None
+        return None
 
     def set(self, key: str, value: Any, ttl: int) -> None:
-        self._client.setex(key, ttl, json.dumps(value, default=str))
+        try:
+            self._client.setex(key, ttl, json.dumps(value, default=str))
+        except (TypeError, ValueError) as exc:
+            logger.error(f"Failed to serialize value for key {key}: {exc}")
+            raise
 
     def delete(self, key: str) -> bool:
         return bool(self._client.delete(key))
@@ -179,7 +189,7 @@ class DiskCacheBackend(CacheBackend):
 # ---------------------------------------------------------------------------
 def _generate_cache_key(func_name: str, args: tuple, kwargs: dict) -> str:
     key_str = f"{func_name}_{str(args)}_{str(sorted(kwargs.items()))}"
-    return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()
+    return hashlib.sha256(key_str.encode()).hexdigest()
 
 
 def cache_result(

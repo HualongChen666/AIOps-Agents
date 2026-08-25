@@ -4,11 +4,10 @@
 import json
 
 import pytest
-
+from schemas import WorkflowDefinition
 from versioning import (
     WorkflowVersionManager,
 )
-from schemas import WorkflowDefinition
 
 
 class TestWorkflowVersionManager:
@@ -344,7 +343,9 @@ class TestWorkflowVersionManager:
         assert len(version.commit_hash) == 16
 
     @pytest.mark.asyncio
-    async def test_commit_with_special_characters_in_message(self, version_manager, workflow_definition):
+    async def test_commit_with_special_characters_in_message(
+        self, version_manager, workflow_definition
+    ):
         """Test commit with special characters in message."""
         special_message = "Commit with @#$%^&*() special chars! 测试中文"
         version = await version_manager.commit(workflow_definition, special_message)

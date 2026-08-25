@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock
 import pytest  # noqa: F401  # Imported for test setup
 import yaml
 from fastapi.testclient import TestClient
-from services.repair_service.schemas import PlatformType, RiskLevel
 
 from services.alert_service import flapping_detector as flap_mod
 from services.alert_service import main as alert_main
@@ -35,7 +34,7 @@ from services.audit_service.schemas import (
 )
 from services.repair_service.grpc.server import RPCServer
 from services.repair_service.runbook_parser import RunbookParser, get_runbook_catalog
-from services.repair_service.schemas import RepairRunbook, RepairStep
+from services.repair_service.schemas import PlatformType, RepairRunbook, RepairStep, RiskLevel
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +121,9 @@ def test_alert_call_agent_orchestration(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(alert_main.httpx, "AsyncClient", FakeClient)
     monkeypatch.setattr(alert_main, "_AGENT_ORCH_URL", "http://agent-orch")
 
-    result = asyncio.run(alert_main._call_agent_orchestration({"id": "a3"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        alert_main._call_agent_orchestration({"id": "a3"})
+    )  # noqa: F841  # Variable for test verification
     assert result == {"ok": True}  # noqa: F841  # Variable for test verification
 
 
@@ -302,7 +303,9 @@ def test_audit_orchestrator():
             tenant_id="t1",
             severity=AuditEventSeverity.LOW,
         )
-        result = await orchestrator.record_event(event)  # noqa: F841  # Variable for test verification
+        result = await orchestrator.record_event(
+            event
+        )  # noqa: F841  # Variable for test verification
         assert result["event_id"] == "eo1"
 
         log = OperationLog(
@@ -432,8 +435,9 @@ def test_runbook_parser_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 def test_runbook_parser_yaml_not_available():
     """Test error when PyYAML is not available."""
     import services.repair_service.runbook_parser as parser_module
+
     original = parser_module._YAML_AVAILABLE
-    
+
     try:
         parser_module._YAML_AVAILABLE = False
         with pytest.raises(RuntimeError, match="PyYAML is not installed"):
@@ -449,7 +453,7 @@ def test_runbook_parser_build_runbook_defaults():
         "name": "Test",
         "steps": [{"name": "s1", "command": "echo"}],
     }
-    
+
     runbook = RunbookParser._build_runbook(data)
     assert runbook.platform == PlatformType.LINUX  # default
     assert runbook.risk_level == RiskLevel.LOW  # default
@@ -466,20 +470,20 @@ def test_runbook_parser_build_runbook_defaults():
 def test_rpc_server_register_multiple():
     """Test registering multiple handlers."""
     server = RPCServer()
-    
+
     async def handler1():
         return "1"
-    
+
     async def handler2():
         return "2"
-    
+
     def sync_handler():
         return "3"
-    
+
     server.register("h1", handler1)
     server.register("h2", handler2)
     server.register("h3", sync_handler)
-    
+
     methods = server.list_methods()
     assert len(methods) == 3
     assert "h1" in methods
@@ -490,12 +494,12 @@ def test_rpc_server_register_multiple():
 def test_rpc_server_call_with_kwargs():
     """Test calling handler with keyword arguments."""
     server = RPCServer()
-    
+
     async def add(a, b):
         return a + b
-    
+
     server.register("add", add)
-    
+
     result = asyncio.run(server.call("add", a=5, b=3))
     assert result == 8
 
@@ -503,11 +507,11 @@ def test_rpc_server_call_with_kwargs():
 def test_rpc_server_handler_exception():
     """Test handler exception is propagated."""
     server = RPCServer()
-    
+
     async def failing_handler():
         raise ValueError("handler failed")
-    
+
     server.register("fail", failing_handler)
-    
+
     with pytest.raises(ValueError, match="handler failed"):
         asyncio.run(server.call("fail"))

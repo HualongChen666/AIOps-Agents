@@ -335,8 +335,12 @@ def test_safe_extract_step():
 @pytest.mark.asyncio
 async def test_execute_langgraph_workflow_not_available(monkeypatch):
     monkeypatch.setattr(wf, "_langgraph_executor", None)
-    result = await wf.execute_langgraph_workflow("w1", {"x": 1})  # noqa: F841  # Variable for test verification
-    assert result == {"error": "LangGraph not available"}  # noqa: F841  # Variable for test verification
+    result = await wf.execute_langgraph_workflow(
+        "w1", {"x": 1}
+    )  # noqa: F841  # Variable for test verification
+    assert result == {
+        "error": "LangGraph not available"
+    }  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -346,7 +350,9 @@ async def test_execute_langgraph_workflow_success(monkeypatch):
     monkeypatch.setattr(wf, "_langgraph_executor", executor)
     monkeypatch.setattr(wf, "Workflow", MagicMock(), raising=False)
     monkeypatch.setattr(wf, "LLMNode", MagicMock(), raising=False)
-    result = await wf.execute_langgraph_workflow("w1", {"x": 1})  # noqa: F841  # Variable for test verification
+    result = await wf.execute_langgraph_workflow(
+        "w1", {"x": 1}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"ok": True}  # noqa: F841  # Variable for test verification
 
 
@@ -357,7 +363,9 @@ async def test_execute_langgraph_workflow_failure(monkeypatch):
     monkeypatch.setattr(wf, "_langgraph_executor", executor)
     monkeypatch.setattr(wf, "Workflow", MagicMock(), raising=False)
     monkeypatch.setattr(wf, "LLMNode", MagicMock(), raising=False)
-    result = await wf.execute_langgraph_workflow("w1", {"x": 1})  # noqa: F841  # Variable for test verification
+    result = await wf.execute_langgraph_workflow(
+        "w1", {"x": 1}
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
 
 
@@ -507,7 +515,12 @@ def test_parse_chat_command_roles(monkeypatch):
 
 def test_parse_chat_command_scenarios(monkeypatch):
     monkeypatch.setenv("CHAT_COMMAND_ROLES", "alice:admin,oncall,sre")
-    base = {"user_id": "alice", "user_name": "Alice", "channel": "slack", "verified": True}  # noqa: F841  # Variable for test verification
+    base = {
+        "user_id": "alice",
+        "user_name": "Alice",
+        "channel": "slack",
+        "verified": True,
+    }  # noqa: F841  # Variable for test verification
 
     status = cch.parse_chat_command("现在状态如何", **base)
     assert status.action == cch.ActionType.STATUS
@@ -535,7 +548,9 @@ def test_parse_chat_command_scenarios(monkeypatch):
 
 
 def test_handle_instruction():
-    result = cch.handle_instruction("状态", user_id="admin", verified=True)  # noqa: F841  # Variable for test verification
+    result = cch.handle_instruction(
+        "状态", user_id="admin", verified=True
+    )  # noqa: F841  # Variable for test verification
     assert result["action"] == "status"
     assert result["allowed"] is True
     assert "risk_level" in result

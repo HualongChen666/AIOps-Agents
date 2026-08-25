@@ -22,7 +22,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.auto_heal import PlatformType, RepairScript, repair_script_library
+from core.auto_heal import RepairScript, repair_script_library
 from core.command_guard import RiskLevel, analyze_command
 
 logger = logging.getLogger(__name__)
@@ -460,6 +460,87 @@ class HardwareLogAnalyzer:
         
         return SeverityLevel.INFO
 
+    def _parse_log_entries(self, log_content: str, vendor: Optional[HardwareVendor]) -> tuple:
+        """
+        Parse log content into entries and detect vendor.
+        
+        Args:
+            log_content: Raw log content as string
+            vendor: Optional vendor hint
+            
+        Returns:
+            Tuple of (detected_vendor, log_entries, lines_count)
+        """
+        detected_vendor = vendor or self.detect_vendor(log_content)
+        lines = log_content.split('\n')
+        log_entries = []
+        
+        for line in lines:
+            entry = self.parse_log_line(line, detected_vendor)
+            if entry:
+                log_entries.append(entry)
+        
+        return detected_vendor, log_entries, len(lines)
+
+    def _group_entries_by_component(self, log_entries: List[LogEntry]) -> Dict[ComponentType, List[LogEntry]]:
+        """
+        Group log entries by component type.
+        
+        Args:
+            log_entries: List of parsed log entries
+            
+        Returns:
+            Dictionary mapping component types to their entries
+        """
+        component_entries: Dict[ComponentType, List[LogEntry]] = {}
+        for entry in log_entries:
+            if entry.component not in component_entries:
+                component_entries[entry.component] = []
+            component_entries[entry.component].append(entry)
+        return component_entries
+
+    def _analyze_all_components(self, component_entries: Dict[ComponentType, List[LogEntry]]) -> List[ComponentIssue]:
+        """
+        Analyze all components for issues.
+        
+        Args:
+            component_entries: Dictionary of component entries
+            
+        Returns:
+            List of all detected issues
+        """
+        issues = []
+        for component, entries in component_entries.items():
+            component_issues = self._analyze_component(component, entries)
+            issues.extend(component_issues)
+        return issues
+
+    def _build_analysis_summary(self, detected_vendor: HardwareVendor, log_entries: List[LogEntry], 
+                                component_entries: Dict[ComponentType, List[LogEntry]], 
+                                issues: List[ComponentIssue], lines_count: int) -> Dict[str, Any]:
+        """
+        Build analysis summary dictionary.
+        
+        Args:
+            detected_vendor: Detected hardware vendor
+            log_entries: All parsed log entries
+            component_entries: Grouped component entries
+            issues: Detected issues
+            lines_count: Total number of log lines
+            
+        Returns:
+            Summary dictionary
+        """
+        return {
+            "vendor": detected_vendor.value,
+            "total_entries": len(log_entries),
+            "components_analyzed": len(component_entries),
+            "issues_found": len(issues),
+            "critical_issues": sum(1 for i in issues if i.severity == SeverityLevel.CRITICAL),
+            "error_issues": sum(1 for i in issues if i.severity == SeverityLevel.ERROR),
+            "warning_issues": sum(1 for i in issues if i.severity == SeverityLevel.WARNING),
+        }
+
     def analyze_log(self, log_content: str, vendor: Optional[HardwareVendor] = None) -> AnalysisResult:
         """
         Analyze hardware log content and detect issues
@@ -479,16 +560,8 @@ class HardwareLogAnalyzer:
                 summary={"error": "Empty log content"},
             )
 
-        # Detect vendor if not provided
-        detected_vendor = vendor or self.detect_vendor(log_content)
-        
-        # Parse log lines
-        lines = log_content.split('\n')
-        log_entries = []
-        for line in lines:
-            entry = self.parse_log_line(line, detected_vendor)
-            if entry:
-                log_entries.append(entry)
+        # Parse log entries
+        detected_vendor, log_entries, lines_count = self._parse_log_entries(log_content, vendor)
 
         if not log_entries:
             return AnalysisResult(
@@ -499,35 +572,18 @@ class HardwareLogAnalyzer:
             )
 
         # Group by component and detect issues
-        component_entries: Dict[ComponentType, List[LogEntry]] = {}
-        for entry in log_entries:
-            if entry.component not in component_entries:
-                component_entries[entry.component] = []
-            component_entries[entry.component].append(entry)
-
-        # Analyze each component for issues
-        issues = []
-        for component, entries in component_entries.items():
-            component_issues = self._analyze_component(component, entries)
-            issues.extend(component_issues)
+        component_entries = self._group_entries_by_component(log_entries)
+        issues = self._analyze_all_components(component_entries)
 
         # Build summary
-        summary = {
-            "vendor": detected_vendor.value,
-            "total_entries": len(log_entries),
-            "components_analyzed": len(component_entries),
-            "issues_found": len(issues),
-            "critical_issues": sum(1 for i in issues if i.severity == SeverityLevel.CRITICAL),
-            "error_issues": sum(1 for i in issues if i.severity == SeverityLevel.ERROR),
-            "warning_issues": sum(1 for i in issues if i.severity == SeverityLevel.WARNING),
-        }
+        summary = self._build_analysis_summary(detected_vendor, log_entries, component_entries, issues, lines_count)
 
         return AnalysisResult(
             vendor=detected_vendor,
             total_entries=len(log_entries),
             issues=issues,
             summary=summary,
-            metadata={"log_lines": len(lines)},
+            metadata={"log_lines": lines_count},
         )
 
     def _analyze_component(self, component: ComponentType, entries: List[LogEntry]) -> List[ComponentIssue]:
@@ -585,25 +641,34 @@ class HardwareLogAnalyzer:
         return issues
 
     def _classify_issue_type(self, entry: LogEntry) -> str:
-        """Classify the type of issue from a log entry"""
+        """
+        Classify the type of issue from a log entry.
+        
+        Args:
+            entry: Log entry to classify
+            
+        Returns:
+            Issue type string
+        """
         message = entry.message.lower()
         
-        if "failure" in message or "fail" in message:
-            return "failure"
-        elif "error" in message:
-            return "error"
-        elif "warning" in message or "warn" in message:
-            return "warning"
-        elif "threshold" in message:
-            return "threshold_exceeded"
-        elif "degraded" in message:
-            return "degraded"
-        elif "overheat" in message or "thermal" in message or "temperature" in message:
-            return "thermal"
-        elif "disconnect" in message or "link down" in message:
-            return "connectivity_loss"
-        else:
-            return "generic"
+        # Define issue type patterns
+        issue_patterns = [
+            (("failure", "fail"), "failure"),
+            (("error",), "error"),
+            (("warning", "warn"), "warning"),
+            (("threshold",), "threshold_exceeded"),
+            (("degraded",), "degraded"),
+            (("overheat", "thermal", "temperature"), "thermal"),
+            (("disconnect", "link down"), "connectivity_loss"),
+        ]
+        
+        # Check each pattern
+        for patterns, issue_type in issue_patterns:
+            if any(pattern in message for pattern in patterns):
+                return issue_type
+        
+        return "generic"
 
     def _extract_affected_units(self, entries: List[LogEntry]) -> List[str]:
         """Extract affected component identifiers from log entries"""
@@ -644,34 +709,40 @@ class HardwareLogAnalyzer:
         return RiskLevel.LOW
 
     def _get_specific_recommendations(self, component: ComponentType, issue_type: str) -> List[str]:
-        """Get specific recommendations based on component and issue type"""
-        specific = []
+        """
+        Get specific recommendations based on component and issue type.
         
-        if component == ComponentType.CPU and issue_type == "thermal":
-            specific.extend([
+        Args:
+            component: Component type
+            issue_type: Type of issue
+            
+        Returns:
+            List of specific recommendations
+        """
+        # Define recommendation matrix
+        recommendation_matrix = {
+            (ComponentType.CPU, "thermal"): [
                 "Immediate action: Check ambient temperature",
                 "Verify all fans are operational",
                 "Consider throttling CPU if thermal shutdown imminent",
-            ])
-        elif component == ComponentType.MEMORY and issue_type == "failure":
-            specific.extend([
+            ],
+            (ComponentType.MEMORY, "failure"): [
                 "Immediate action: Backup data before DIMM replacement",
                 "Test memory in different slot to rule out motherboard issue",
-            ])
-        elif component == ComponentType.STORAGE and issue_type == "failure":
-            specific.extend([
+            ],
+            (ComponentType.STORAGE, "failure"): [
                 "Immediate action: Backup critical data",
                 "Do not write to affected drive",
                 "Prepare replacement drive of same or larger capacity",
-            ])
-        elif component == ComponentType.RAID and issue_type == "degraded":
-            specific.extend([
+            ],
+            (ComponentType.RAID, "degraded"): [
                 "Check RAID array status immediately",
                 "Ensure hot spare is available if configured",
                 "Schedule drive replacement during maintenance window",
-            ])
+            ],
+        }
         
-        return specific
+        return recommendation_matrix.get((component, issue_type), [])
 
     def _generate_issue_description(self, component: ComponentType, issue_type: str, severity: SeverityLevel) -> str:
         """Generate human-readable issue description"""
@@ -776,6 +847,33 @@ class HardwareLogAnalyzer:
                 repair_plan["requires_maintenance_window"] = True
 
         return repair_plan
+
+
+def register_hardware_log_scripts() -> None:
+    """
+    Register hardware log analysis scripts in the global RepairScriptLibrary.
+    This function is called during module initialization.
+    """
+    try:
+        from core.repair_script_library import RepairScriptLibrary
+        
+        library = RepairScriptLibrary()
+        
+        # Register hardware log analysis script
+        library.register_script(
+            name="analyze_hardware_log",
+            description="Analyze hardware logs to detect issues and generate repair recommendations",
+            execute_func=lambda log_content: str(_hardware_log_analyzer.analyze_log(log_content)),
+            dry_run_func=lambda log_content: str(_hardware_log_analyzer.analyze_log(log_content)),
+            category="hardware",
+            risk_level="low"
+        )
+        
+        logger.info("Hardware log analysis scripts registered successfully")
+    except ImportError:
+        logger.warning("RepairScriptLibrary not available, skipping hardware log script registration")
+    except Exception as e:
+        logger.error(f"Error registering hardware log scripts: {e}")
 
 
 # Global analyzer instance

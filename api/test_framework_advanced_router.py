@@ -61,6 +61,7 @@ def get_client_ip(request: Request) -> str:
 # ============ Enums ============
 class FrameworkType(str, Enum):
     """测试框架类型"""
+
     PYTEST = "pytest"
     JUNIT = "junit"
     SELENIUM = "selenium"
@@ -71,6 +72,7 @@ class FrameworkType(str, Enum):
 
 class ParallelMode(str, Enum):
     """并行模式"""
+
     NONE = "none"
     PROCESSES = "processes"
     THREADS = "threads"
@@ -270,7 +272,8 @@ async def update_framework_configuration(
     _framework_configs[id] = config
 
     logger.info(
-        f"Framework config updated | config_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Framework config updated | config_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return config

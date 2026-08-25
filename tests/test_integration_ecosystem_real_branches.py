@@ -73,7 +73,9 @@ async def test_monitoring_validation_connection_failure():
         status=ie.IntegrationStatus.PENDING,
     )
 
-    result = await ecosystem._validate_monitoring_integration(integration)  # noqa: F841  # Variable for test verification
+    result = await ecosystem._validate_monitoring_integration(
+        integration
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "Connection test failed" in result["error"]
 
@@ -289,7 +291,9 @@ async def test_query_prometheus_real_failure():
     # Provide a real session only for the query so validation passes.
     ecosystem.http_session = requests.Session()
 
-    result = await ecosystem.query_prometheus_metrics("up", prom.id, time_range="1h")  # noqa: F841  # Variable for test verification
+    result = await ecosystem.query_prometheus_metrics(
+        "up", prom.id, time_range="1h"
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert "error" in result
 
@@ -323,7 +327,9 @@ async def test_create_jira_real_failure():
         credentials={"username": "u", "api_token": "t"},
     )
 
-    result = await ecosystem.create_jira_ticket("summary", "description", jira.id)  # noqa: F841  # Variable for test verification
+    result = await ecosystem.create_jira_ticket(
+        "summary", "description", jira.id
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 

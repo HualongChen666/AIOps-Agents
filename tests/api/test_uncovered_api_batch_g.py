@@ -1281,12 +1281,15 @@ def test_stats_record_repair_with_empty_fields(client, monkeypatch):
 
 def test_stats_summary_with_cache_hit(client, monkeypatch):
     """Test that cache is hit when within TTL."""
-    import api.stats_router as _sr
     import time
+
+    import api.stats_router as _sr
 
     # Set cache with recent timestamp
     monkeypatch.setattr(
-        _sr, "_summary_cache", {"data": {"total_alerts": 100, "resolved": 50}, "ts": time.monotonic()}
+        _sr,
+        "_summary_cache",
+        {"data": {"total_alerts": 100, "resolved": 50}, "ts": time.monotonic()},
     )
     resp = client.get("/api/v1/stats/summary")
     assert resp.status_code == 200
@@ -1295,8 +1298,9 @@ def test_stats_summary_with_cache_hit(client, monkeypatch):
 
 def test_stats_summary_cache_expires(client, monkeypatch):
     """Test that cache expires after TTL."""
-    import api.stats_router as _sr
     import time
+
+    import api.stats_router as _sr
 
     # Set cache with old timestamp (older than TTL)
     monkeypatch.setattr(
@@ -1374,7 +1378,7 @@ def test_stats_record_repair_invalidates_cache(client, monkeypatch):
     monkeypatch.setattr(_sr, "TRUST_PROXY_HEADER", False)
     # Set initial cache
     monkeypatch.setattr(_sr, "_summary_cache", {"data": {"total_alerts": 100}, "ts": 0.0})
-    
+
     resp = client.post(
         "/api/v1/stats/repair/record",
         json={

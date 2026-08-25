@@ -148,6 +148,7 @@ async def execute_repair_sync(
             text=True,
             timeout=60,
             check=False,
+            shell=False,
         )
         result["success"] = proc.returncode == 0
         result["returncode"] = proc.returncode

@@ -26,6 +26,7 @@ def _run_kubectl(args: list[str]) -> Dict[str, Any]:
             text=True,
             timeout=180,
             check=False,
+            shell=False,
         )
         return {
             "success": result.returncode == 0,
@@ -34,7 +35,7 @@ def _run_kubectl(args: list[str]) -> Dict[str, Any]:
             "stderr": result.stderr[:1000],
         }
     except Exception as exc:
-        logger.exception("kubectl command failed: %s", args)
+        logger.error("kubectl command failed")
         return {"success": False, "error": str(exc)}
 
 

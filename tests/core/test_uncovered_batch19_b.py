@@ -64,7 +64,9 @@ def test_multi_level_approval_scenario():
     assert "bob" in required
     assert "carol" not in required
 
-    pending = approver.get_pending_approvals("alice")  # noqa: F841  # Variable for test verification
+    pending = approver.get_pending_approvals(
+        "alice"
+    )  # noqa: F841  # Variable for test verification
     assert any(p["request_id"] == request.request_id for p in pending)
 
     # Edge cases with missing request/approver
@@ -536,7 +538,9 @@ async def test_optimize_database_queries(monkeypatch):
         AsyncMock(return_value={"healthy": True}),
     )
 
-    result = await db_opt.optimize_database_queries()  # noqa: F841  # Variable for test verification
+    result = (
+        await db_opt.optimize_database_queries()
+    )  # noqa: F841  # Variable for test verification
     assert result["cache_cleanup"] == "completed"
     assert "healthy" in str(result["pool_health"])
 
@@ -546,6 +550,8 @@ async def test_optimize_database_queries(monkeypatch):
         "check_pool_health",
         AsyncMock(side_effect=RuntimeError("boom")),
     )
-    result = await db_opt.optimize_database_queries()  # noqa: F841  # Variable for test verification
+    result = (
+        await db_opt.optimize_database_queries()
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
     assert result["cache_cleanup"] == "completed"

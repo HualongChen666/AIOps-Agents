@@ -27,7 +27,13 @@ class BaseRepairRequest(BaseModel):
 
     model_config = {
         "extra": "ignore",
-        "json_schema_extra": {"example": {"host": "example", "script_name": "example", "args": {}}},
+        "json_schema_extra": {
+            "example": {
+                "host": "example",
+                "script_name": "example",
+                "args": {},
+            }
+        },
     }
 
 
@@ -112,7 +118,13 @@ class DockerRepairRequest(BaseModel):
 
     model_config = {
         "extra": "ignore",
-        "json_schema_extra": {"example": {"host": "example", "script_name": "example", "args": {}}},
+        "json_schema_extra": {
+            "example": {
+                "host": "example",
+                "script_name": "example",
+                "args": {},
+            }
+        },
     }
 
 
@@ -130,7 +142,13 @@ class K8sRepairRequest(BaseModel):
 
     model_config = {
         "extra": "ignore",
-        "json_schema_extra": {"example": {"host": "example", "script_name": "example", "args": {}}},
+        "json_schema_extra": {
+            "example": {
+                "host": "example",
+                "script_name": "example",
+                "args": {},
+            }
+        },
     }
 
 
@@ -148,7 +166,13 @@ class CloudRepairRequest(BaseModel):
 
     model_config = {
         "extra": "ignore",
-        "json_schema_extra": {"example": {"host": "example", "script_name": "example", "args": {}}},
+        "json_schema_extra": {
+            "example": {
+                "host": "example",
+                "script_name": "example",
+                "args": {},
+            }
+        },
     }
 
 

@@ -606,7 +606,9 @@ async def update_accessibility_settings(user_id: str, settings: dict[str, Any]) 
     """
     if not FRONTEND_AVAILABLE:
         raise HTTPException(status_code=503, detail="前端增强管理器不可用")
-    updated_settings = frontend_enhancement_manager.update_accessibility_settings(user_id, settings)
+    # Update accessibility settings
+    manager = frontend_enhancement_manager
+    updated_settings = manager.update_accessibility_settings(user_id, settings)
     return {"status": "success", "accessibility_settings": updated_settings}
 
 
@@ -655,4 +657,5 @@ async def get_responsive_breakpoints() -> dict[str, Any]:
     """
     if not FRONTEND_AVAILABLE:
         raise HTTPException(status_code=503, detail="前端增强管理器不可用")
-    return {"status": "success", "breakpoints": frontend_enhancement_manager.responsive_breakpoints}
+    breakpoints = frontend_enhancement_manager.responsive_breakpoints
+    return {"status": "success", "breakpoints": breakpoints}

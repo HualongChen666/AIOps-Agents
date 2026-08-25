@@ -68,6 +68,7 @@ def test_ai_feedback_db_init_directory_creation_failure(client, admin_headers, m
 
     # Mock sqlite3.connect to prevent connection failure after directory creation fails
     import sqlite3
+
     original_connect = sqlite3.connect
 
     def fake_connect(path, *args, **kwargs):
@@ -620,7 +621,9 @@ def test_ai_feedback_stats_accuracy_calculation(client, admin_headers):
     assert data["positive"] >= initial_positive + 8
     assert data["negative"] >= initial_negative + 2
     # Accuracy should be calculated correctly
-    expected_accuracy = round((data["positive"] / data["total"]) * 100, 2) if data["total"] > 0 else 0.0
+    expected_accuracy = (
+        round((data["positive"] / data["total"]) * 100, 2) if data["total"] > 0 else 0.0
+    )
     assert data["accuracy"] == expected_accuracy
 
 

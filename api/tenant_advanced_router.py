@@ -3,9 +3,8 @@
 
 from __future__ import annotations
 
-import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -14,11 +13,8 @@ from pydantic import BaseModel, Field
 
 from core.authentication import UserInDB, get_user, verify_token
 from core.tenant_engine import (
-    Quota,
-    Tenant,
     _PLAN_LIMITS,
     get_tenant,
-    list_tenants,
     update_tenant,
 )
 
@@ -356,7 +352,8 @@ async def update_tenant_configurations(
     _tenant_configs[tenant_id] = config
 
     logger.info(
-        f"Tenant config updated | tenant_id={tenant_id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Tenant config updated | tenant_id={tenant_id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return config
@@ -408,7 +405,8 @@ async def update_tenant_settings_endpoint(
     _tenant_settings[tenant_id] = settings
 
     logger.info(
-        f"Tenant settings updated | tenant_id={tenant_id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Tenant settings updated | tenant_id={tenant_id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return settings
@@ -443,7 +441,8 @@ async def update_tenant_config(
     _tenant_configs[tenant_id] = config
 
     logger.info(
-        f"Tenant config updated | tenant_id={tenant_id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Tenant config updated | tenant_id={tenant_id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return config
@@ -549,7 +548,8 @@ async def update_tenant_quotas(
         )
 
     logger.info(
-        f"Tenant quota updated | tenant_id={tenant_id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Tenant quota updated | tenant_id={tenant_id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return await get_tenant_limits(tenant_id, current_user)
@@ -655,7 +655,7 @@ async def get_tenant_metrics(
 
     # 生成模拟指标数据
     import random
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     now = datetime.now()
     metrics = {
@@ -821,6 +821,7 @@ async def add_tenant_member(
 
     # 获取用户信息
     from core.user_service import user_service
+
     user = await user_service.get_user_by_id(member_create.user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

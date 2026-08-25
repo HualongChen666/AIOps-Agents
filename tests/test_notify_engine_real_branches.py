@@ -22,6 +22,7 @@ os.environ.setdefault("NOTIFY_MIN_LEVEL", "info")
 
 # noqa: E402  # Module level import not at top (intentional for env var setup)
 import core.notify_engine as notify_engine  # noqa: E402  # Module level import not at top (intentional for test setup)
+
 # noqa: E402  # Module level import not at top (intentional for env var setup)
 import core.oncall_adapter as oncall_adapter  # noqa: E402  # Module level import not at top (intentional for test setup)
 
@@ -285,7 +286,9 @@ async def test_send_alert_notification_routes_all_channels(webhook_server):
             "raw_time": "2024-01-01T00:00:00Z",
             "links": {},
         }
-        result = await ne.send_alert_notification(alert)  # noqa: F841  # Variable for test verification
+        result = await ne.send_alert_notification(
+            alert
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] in ("ok", "all_failed")
         assert result["level"] == "critical"
         # Most configured channels should have received a POST.
@@ -323,7 +326,9 @@ async def test_send_alert_notification_warning_stops_after_first_success(webhook
             "raw_time": "2024-01-01T00:00:00Z",
             "links": {},
         }
-        result = await ne.send_alert_notification(alert)  # noqa: F841  # Variable for test verification
+        result = await ne.send_alert_notification(
+            alert
+        )  # noqa: F841  # Variable for test verification
         # warning stops after first success
         sent = result["channels_sent"]
         assert isinstance(sent, list)
@@ -402,7 +407,9 @@ async def test_send_one_channel_email_uses_oncall_and_fallback_admin(webhook_ser
     with _env_vars(**env1):
         _reload_notify_modules()
         ne = notify_engine
-        result = await ne._send_one_channel(base_alert, "email", ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+        result = await ne._send_one_channel(
+            base_alert, "email", ne.NOTIFY_CONFIG
+        )  # noqa: F841  # Variable for test verification
         assert result.get("recipient") == "oncall@example.com"
 
     # Case 2: no oncall email -> fallback to admin@example.com.
@@ -550,7 +557,9 @@ async def test_send_teams_notification_connection_error():
         _reload_notify_modules()
         ne = notify_engine
     # Port 1 should refuse the connection, exercising the except branch.
-    result = await ne.send_teams_notification("hello", "http://127.0.0.1:1/webhook")  # noqa: F841  # Variable for test verification
+    result = await ne.send_teams_notification(
+        "hello", "http://127.0.0.1:1/webhook"
+    )  # noqa: F841  # Variable for test verification
     assert result.get("success") is False
 
 
@@ -629,7 +638,9 @@ def test_get_notification_read_status_not_found():
 def test_channel_configured_not_configured():
     """Test the branch where channel is not configured (line 257)."""
     empty_cfg = {}
-    result = notify_engine._channel_configured("wecom", empty_cfg)  # noqa: F841  # Variable for test verification
+    result = notify_engine._channel_configured(
+        "wecom", empty_cfg
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
@@ -645,13 +656,17 @@ def test_close_http_client_exception():
 def test_validate_webhook_url_parse_exception():
     """Test URL parse exception branch (line 325)."""
     # Create a URL that will fail to parse
-    result = notify_engine._validate_webhook_url("http://[invalid-ipv6", "test")  # noqa: F841  # Variable for test verification
+    result = notify_engine._validate_webhook_url(
+        "http://[invalid-ipv6", "test"
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
 def test_validate_webhook_url_no_netloc():
     """Test missing netloc branch (lines 341-343)."""
-    result = notify_engine._validate_webhook_url("http://", "test")  # noqa: F841  # Variable for test verification
+    result = notify_engine._validate_webhook_url(
+        "http://", "test"
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
@@ -747,7 +762,9 @@ async def test_send_slack_notification_once_client_none():
     with _env_vars(SLACK_BOT_TOKEN=""):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne._send_slack_notification_once("test", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await ne._send_slack_notification_once(
+        "test", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "not configured" in result.get("error", "").lower()
 
@@ -761,7 +778,9 @@ async def test_send_slack_notification_once_rate_limit():
     with _env_vars(SLACK_BOT_TOKEN="invalid-token"):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne.send_slack_notification("test", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await ne.send_slack_notification(
+        "test", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     # Should fail with some error
     assert result["success"] is False
 
@@ -773,7 +792,9 @@ async def test_send_slack_notification_retry_logic():
         _reload_notify_modules()
         ne = notify_engine
     # Test with max_retries > 0
-    result = await ne.send_slack_notification("test", "#alerts", max_retries=2)  # noqa: F841  # Variable for test verification
+    result = await ne.send_slack_notification(
+        "test", "#alerts", max_retries=2
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -784,7 +805,9 @@ async def test_send_teams_notification_aiohttp_none():
     original_aiohttp = notify_engine.aiohttp  # noqa: F841  # Variable for test verification
     notify_engine.aiohttp = None
     try:
-        result = await notify_engine.send_teams_notification("test", "http://example.com")  # noqa: F841  # Variable for test verification
+        result = await notify_engine.send_teams_notification(
+            "test", "http://example.com"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "aiohttp" in result.get("error", "").lower()
     finally:
@@ -794,7 +817,9 @@ async def test_send_teams_notification_aiohttp_none():
 @pytest.mark.asyncio
 async def test_send_teams_notification_invalid_url():
     """Test invalid URL branch (line 662-663)."""
-    result = await notify_engine.send_teams_notification("test", "invalid-url")  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_teams_notification(
+        "test", "invalid-url"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "invalid" in result.get("error", "").lower()
 
@@ -802,7 +827,9 @@ async def test_send_teams_notification_invalid_url():
 @pytest.mark.asyncio
 async def test_send_email_notification_invalid_email():
     """Test invalid email branch (line 682-683)."""
-    result = await notify_engine.send_email_notification("not-an-email", "test", "body")  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_email_notification(
+        "not-an-email", "test", "body"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "invalid" in result.get("error", "").lower()
 
@@ -811,8 +838,10 @@ async def test_send_email_notification_invalid_email():
 async def test_send_email_notification_smtp_error():
     """Test SMTP error handling (lines 687-688)."""
     # Try to send to a non-existent SMTP server
-    result = await notify_engine.send_email_notification(  # noqa: F841  # Variable for test verification
-        "test@example.com", "test", "body", smtp_host="127.0.0.1", smtp_port=9999
+    result = (
+        await notify_engine.send_email_notification(  # noqa: F841  # Variable for test verification
+            "test@example.com", "test", "body", smtp_host="127.0.0.1", smtp_port=9999
+        )
     )
     assert result["success"] is False
 
@@ -834,7 +863,9 @@ async def test_get_notification_history_exception():
 @pytest.mark.asyncio
 async def test_send_notification_invalid_alert():
     """Test invalid alert validation (line 712-713)."""
-    result = await notify_engine.send_notification("not-a-dict")  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_notification(
+        "not-a-dict"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "invalid" in result.get("error", "").lower()
 
@@ -846,7 +877,9 @@ async def test_send_notification_invalid_alert():
 async def test_send_notification_no_channels():
     """Test no channels specified branch (line 720-721)."""
     alert = {"type": "test", "message": "test"}
-    result = await notify_engine.send_notification(alert, channels=[])  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_notification(
+        alert, channels=[]
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "no channels" in result.get("error", "").lower()
 
@@ -855,7 +888,9 @@ async def test_send_notification_no_channels():
 async def test_send_notification_unsupported_channel():
     """Test unsupported channel branch (line 740)."""
     alert = {"type": "test", "message": "test"}
-    result = await notify_engine.send_notification(alert, channels=["unsupported"])  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_notification(
+        alert, channels=["unsupported"]
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     # The error might be "all notification channels failed" or contain "unsupported"
     error = result.get("error", "").lower()
@@ -867,7 +902,9 @@ async def test_send_notification_exception_in_channel():
     """Test exception handling in channel execution (line 746-748)."""
     # This is covered by the existing tests that fail on email/Slack
     alert = {"type": "test", "message": "test", "severity": "critical"}
-    result = await notify_engine.send_notification(alert, channels=["email"])  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_notification(
+        alert, channels=["email"]
+    )  # noqa: F841  # Variable for test verification
     # Email will fail due to no SMTP server
     assert result["success"] is False
 
@@ -883,7 +920,9 @@ async def test_send_notification_partial_success():
 @pytest.mark.asyncio
 async def test_unsupported_channel_function():
     """Test _unsupported_channel function (line 759)."""
-    result = await notify_engine._unsupported_channel("test_channel")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._unsupported_channel(
+        "test_channel"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "unsupported" in result.get("error", "").lower()
 
@@ -898,7 +937,9 @@ async def test_resolve_oncall_recipients_import_error():
     if oncall_adapter:
         del sys.modules["core.oncall_adapter"]
     try:
-        result = await notify_engine._resolve_oncall_recipients({})  # noqa: F841  # Variable for test verification
+        result = await notify_engine._resolve_oncall_recipients(
+            {}
+        )  # noqa: F841  # Variable for test verification
         assert result == []  # noqa: F841  # Variable for test verification
     finally:
         # Restore
@@ -912,7 +953,9 @@ async def test_send_phone_notification_no_provider():
     with _env_vars(PHONE_PROVIDER=""):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne._send_phone_notification({}, ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_phone_notification(
+        {}, ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "not configured" in result.get("error", "").lower()
 
@@ -923,7 +966,9 @@ async def test_send_phone_notification_no_recipient():
     with _env_vars(PHONE_PROVIDER="http://example.com", ONCALL_PROVIDER=""):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne._send_phone_notification({}, ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_phone_notification(
+        {}, ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "no phone recipient" in result.get("error", "").lower()
 
@@ -945,7 +990,9 @@ async def test_send_phone_notification_http_error():
         "raw_time": "now",
         "links": {},
     }
-    result = await ne._send_phone_notification(alert, ne.NOTIFY_CONFIG, recipient="+1234567890")  # noqa: F841  # Variable for test verification
+    result = await ne._send_phone_notification(
+        alert, ne.NOTIFY_CONFIG, recipient="+1234567890"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -955,7 +1002,9 @@ async def test_send_sms_notification_no_provider():
     with _env_vars(SMS_PROVIDER=""):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne._send_sms_notification({}, ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_sms_notification(
+        {}, ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "not configured" in result.get("error", "").lower()
 
@@ -966,7 +1015,9 @@ async def test_send_sms_notification_no_recipient():
     with _env_vars(SMS_PROVIDER="http://example.com", ONCALL_PROVIDER=""):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne._send_sms_notification({}, ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_sms_notification(
+        {}, ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "no sms recipient" in result.get("error", "").lower()
 
@@ -988,7 +1039,9 @@ async def test_send_sms_notification_http_error():
         "raw_time": "now",
         "links": {},
     }
-    result = await ne._send_sms_notification(alert, ne.NOTIFY_CONFIG, recipient="+1234567890")  # noqa: F841  # Variable for test verification
+    result = await ne._send_sms_notification(
+        alert, ne.NOTIFY_CONFIG, recipient="+1234567890"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -1012,7 +1065,9 @@ async def test_send_one_channel_slack_branch(webhook_server):
         "links": {},
         "channel": "#alerts",
     }
-    result = await ne._send_one_channel(alert, "slack", ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_one_channel(
+        alert, "slack", ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     # Will fail due to invalid token, but exercises the branch
     assert result is not None
 
@@ -1054,7 +1109,9 @@ async def test_send_one_channel_exception_handling():
         "raw_time": "now",
         "links": "invalid-links-type",  # This should be a dict
     }
-    result = await notify_engine._send_one_channel(alert, "email", notify_engine.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_one_channel(
+        alert, "email", notify_engine.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     # Should handle the exception gracefully
     assert result is not None
 
@@ -1073,7 +1130,9 @@ async def test_send_alert_notification_disabled():
     with _env_vars(NOTIFY_ENABLED="false"):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne.send_alert_notification({"level": "critical"})  # noqa: F841  # Variable for test verification
+    result = await ne.send_alert_notification(
+        {"level": "critical"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "disabled"
 
 
@@ -1083,7 +1142,9 @@ async def test_send_alert_notification_level_filtered():
     with _env_vars(NOTIFY_ENABLED="true", NOTIFY_MIN_LEVEL="critical"):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne.send_alert_notification({"level": "info"})  # noqa: F841  # Variable for test verification
+    result = await ne.send_alert_notification(
+        {"level": "info"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "filtered"
 
 
@@ -1093,7 +1154,9 @@ async def test_send_alert_notification_no_channel_configured():
     with _env_vars(NOTIFY_ENABLED="true", NOTIFY_MIN_LEVEL="info"):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne.send_alert_notification({"level": "critical"})  # noqa: F841  # Variable for test verification
+    result = await ne.send_alert_notification(
+        {"level": "critical"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "no_channel_configured"
 
 
@@ -1132,7 +1195,9 @@ async def test_send_alert_notification_cooldown(webhook_server):
 @pytest.mark.asyncio
 async def test_post_webhook_empty_url():
     """Test empty URL branch (lines 1171-1173)."""
-    result = await notify_engine._post_webhook("", {"test": "data"}, "test")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._post_webhook(
+        "", {"test": "data"}, "test"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "URL" in result.get("error", "")
 
@@ -1141,7 +1206,9 @@ async def test_post_webhook_empty_url():
 async def test_post_webhook_url_too_long():
     """Test URL too long branch (lines 1175-1181)."""
     long_url = "https://example.com/" + "a" * 3000
-    result = await notify_engine._post_webhook(long_url, {"test": "data"}, "test")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._post_webhook(
+        long_url, {"test": "data"}, "test"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "超长" in result.get("error", "") or "long" in result.get("error", "").lower()
 
@@ -1149,7 +1216,9 @@ async def test_post_webhook_url_too_long():
 @pytest.mark.asyncio
 async def test_post_webhook_invalid_payload():
     """Test invalid payload branch (lines 1183-1189)."""
-    result = await notify_engine._post_webhook("http://example.com", "not-a-dict", "test")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._post_webhook(
+        "http://example.com", "not-a-dict", "test"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "payload" in result.get("error", "")
 
@@ -1158,14 +1227,18 @@ async def test_post_webhook_invalid_payload():
 async def test_post_webhook_timeout():
     """Test timeout exception (line 1212-1214)."""
     # Use a URL that will timeout
-    result = await notify_engine._post_webhook("http://10.255.255.1:9999", {"test": "data"}, "test")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._post_webhook(
+        "http://10.255.255.1:9999", {"test": "data"}, "test"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
 @pytest.mark.asyncio
 async def test_post_webhook_connect_error():
     """Test connect error exception (lines 1215-1221)."""
-    result = await notify_engine._post_webhook("http://127.0.0.1:9999", {"test": "data"}, "test")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._post_webhook(
+        "http://127.0.0.1:9999", {"test": "data"}, "test"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert (
         "connect" in result.get("error", "").lower() or "network" in result.get("error", "").lower()
@@ -1194,7 +1267,9 @@ def test_track_notification_status_max_history():
 def test_mark_notification_read_not_found():
     """Test branch when message_id is not found (line 146-145)."""
     notify_engine._notification_history.clear()
-    result = notify_engine.mark_notification_read("NONEXISTENT", "email")  # noqa: F841  # Variable for test verification
+    result = notify_engine.mark_notification_read(
+        "NONEXISTENT", "email"
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
@@ -1208,7 +1283,9 @@ def test_channels_for_severity_teams_webhook():
 def test_validate_webhook_url_scheme_check():
     """Test additional scheme validation branches (line 324)."""
     # Test with a valid scheme that should pass
-    result = notify_engine._validate_webhook_url("https://example.com/hook", "test")  # noqa: F841  # Variable for test verification
+    result = notify_engine._validate_webhook_url(
+        "https://example.com/hook", "test"
+    )  # noqa: F841  # Variable for test verification
     assert result is True
 
 
@@ -1250,7 +1327,9 @@ async def test_send_slack_notification_once_response_dict():
     with _env_vars(SLACK_BOT_TOKEN="invalid"):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne._send_slack_notification_once("test", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await ne._send_slack_notification_once(
+        "test", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     # Will fail but exercises the branch
     assert result is not None
 
@@ -1289,7 +1368,9 @@ async def test_send_slack_notification_retry_exhausted():
     with _env_vars(SLACK_BOT_TOKEN="invalid"):
         _reload_notify_modules()
         ne = notify_engine
-    result = await ne.send_slack_notification("test", "#alerts", max_retries=3)  # noqa: F841  # Variable for test verification
+    result = await ne.send_slack_notification(
+        "test", "#alerts", max_retries=3
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -1320,7 +1401,9 @@ async def test_get_notification_history_exception_handling():
 async def test_send_notification_all_channels_fail():
     """Test all channels fail branch (line 746-747)."""
     alert = {"type": "test", "message": "test", "severity": "critical"}
-    result = await notify_engine.send_notification(alert, channels=["email"])  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_notification(
+        alert, channels=["email"]
+    )  # noqa: F841  # Variable for test verification
     # Email will fail
     assert result["success"] is False
     assert result["channels_sent"] == 0
@@ -1351,7 +1434,9 @@ async def test_send_phone_notification_recipient_from_config():
         "raw_time": "now",
         "links": {},
     }
-    result = await ne._send_phone_notification(alert, ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_phone_notification(
+        alert, ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     # Will fail on HTTP but should have recipient
     assert result.get("recipient") == "+1234567890"
 
@@ -1373,7 +1458,9 @@ async def test_send_sms_notification_recipient_from_config():
         "raw_time": "now",
         "links": {},
     }
-    result = await ne._send_sms_notification(alert, ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_sms_notification(
+        alert, ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     # Will fail on HTTP but should have recipient
     assert result.get("recipient") == "+1234567890"
 
@@ -1395,7 +1482,9 @@ async def test_send_one_channel_email_no_oncall():
         "raw_time": "now",
         "links": {},
     }
-    result = await ne._send_one_channel(alert, "email", ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_one_channel(
+        alert, "email", ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     # Will fail on SMTP but should use admin@example.com
     assert result.get("recipient") == "admin@example.com"
 
@@ -1417,7 +1506,9 @@ async def test_send_one_channel_phone_no_oncall():
         "raw_time": "now",
         "links": {},
     }
-    result = await ne._send_one_channel(alert, "phone", ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_one_channel(
+        alert, "phone", ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     # Will fail on HTTP but should use config phone
     assert result.get("recipient") == "+1234567890"
 
@@ -1439,7 +1530,9 @@ async def test_send_one_channel_sms_no_oncall():
         "raw_time": "now",
         "links": {},
     }
-    result = await ne._send_one_channel(alert, "sms", ne.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await ne._send_one_channel(
+        alert, "sms", ne.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     # Will fail on HTTP but should use config SMS
     assert result.get("recipient") == "+1234567890"
 
@@ -1447,7 +1540,9 @@ async def test_send_one_channel_sms_no_oncall():
 @pytest.mark.asyncio
 async def test_send_alert_notification_invalid_alert_type():
     """Test invalid alert type branch (line 966-967)."""
-    result = await notify_engine.send_alert_notification("not-a-dict")  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_alert_notification(
+        "not-a-dict"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "invalid_alert"
 
 
@@ -1523,7 +1618,9 @@ async def test_send_slack_notification_response_handling(monkeypatch):
 
     # Test with ok=True
     monkeypatch.setattr(notify_engine, "_get_slack_client", lambda: MockClient())
-    result = await notify_engine._send_slack_notification_once("test", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_slack_notification_once(
+        "test", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
     # Test with ok=False
@@ -1532,7 +1629,9 @@ async def test_send_slack_notification_response_handling(monkeypatch):
             return MockResponse(ok=False)
 
     monkeypatch.setattr(notify_engine, "_get_slack_client", lambda: MockClientFalse())
-    result = await notify_engine._send_slack_notification_once("test", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_slack_notification_once(
+        "test", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -1545,7 +1644,9 @@ async def test_send_slack_notification_rate_limit(monkeypatch):
             raise Exception("rate limit exceeded")
 
     monkeypatch.setattr(notify_engine, "_get_slack_client", lambda: MockClientRateLimit())
-    result = await notify_engine._send_slack_notification_once("test", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_slack_notification_once(
+        "test", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "rate limit" in result.get("error", "").lower()
 
@@ -1569,7 +1670,9 @@ async def test_send_teams_non_200(monkeypatch):
         return MockResponse()
 
     monkeypatch.setattr(aiohttp.ClientSession, "post", mock_post)
-    result = await notify_engine.send_teams_notification("test", "http://example.com")  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_teams_notification(
+        "test", "http://example.com"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "500" in result.get("error", "")
 
@@ -1608,5 +1711,7 @@ async def test_send_one_channel_email_exception(monkeypatch):
         "raw_time": "now",
         "links": {},
     }
-    result = await notify_engine._send_one_channel(alert, "email", notify_engine.NOTIFY_CONFIG)  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_one_channel(
+        alert, "email", notify_engine.NOTIFY_CONFIG
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False

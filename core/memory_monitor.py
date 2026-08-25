@@ -357,8 +357,8 @@ class MemoryLeakDetector:
 
 
 # 全局内存监控实例
-memory_monitor = MemoryMonitor()
-memory_leak_detector = MemoryLeakDetector()
+MEMORY_MONITOR = MemoryMonitor()
+MEMORY_LEAK_DETECTOR = MemoryLeakDetector()
 
 
 async def setup_memory_monitoring():
@@ -370,7 +370,7 @@ async def setup_memory_monitoring():
     """
     try:
         # 启用内存跟踪
-        memory_monitor.enable_tracemalloc()
+        MEMORY_MONITOR.enable_tracemalloc()
 
         # 启用内存泄漏检测
         memory_leak_detector.enable()

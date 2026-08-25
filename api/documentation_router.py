@@ -186,7 +186,11 @@ async def get_document(doc_id: str):
         500: {"description": "更新失败"},
     },
 )
-async def update_document(doc_id: str, content: Optional[str] = None, status: Optional[str] = None):
+async def update_document(
+    doc_id: str,
+    content: Optional[str] = None,
+    status: Optional[str] = None,
+):
     """Update document"""
     try:
         from core.documentation_manager import DocStatus, get_documentation_manager

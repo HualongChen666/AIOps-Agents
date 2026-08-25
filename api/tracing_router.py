@@ -47,7 +47,7 @@ def _services() -> List[str]:
 
 def _generate_synthetic_trace(trace_id: str, seed: Optional[int] = None) -> Dict[str, Any]:
     """Generate a deterministic synthetic trace from the trace_id."""
-    digest = int(hashlib.md5(trace_id.encode()).hexdigest(), 16)
+    digest = int(hashlib.sha256(trace_id.encode()).hexdigest(), 16)
     rand = digest % 1000
     services = _services()
     span_count = 3 + (rand % 8)
@@ -91,7 +91,7 @@ def _recent_synthetic_traces(limit: int) -> List[Dict[str, Any]]:
     now = int(time.time())
     traces = []
     for i in range(limit):
-        trace_id = hashlib.md5(f"synthetic-{now - i * 60}".encode()).hexdigest()[:16]
+        trace_id = hashlib.sha256(f"synthetic-{now - i * 60}".encode()).hexdigest()[:16]
         trace = _generate_synthetic_trace(trace_id, seed=i)
         traces.append(
             {

@@ -148,7 +148,9 @@ def sample_workflow():
 
 @pytest.mark.asyncio
 async def test_workflow_execute(sample_workflow):
-    result = await sample_workflow.execute({"input": 1})  # noqa: F841  # Variable for test verification
+    result = await sample_workflow.execute(
+        {"input": 1}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "completed"
     assert sample_workflow.context.get("process") == "result-process"
     assert len(result["history"]) == 3
@@ -251,7 +253,9 @@ async def test_alert_intelligence_analysis(engine, monkeypatch):
             "alert_type": "info",
         },
     ]
-    result = await engine.analyze_and_aggregate_alerts(alerts)  # noqa: F841  # Variable for test verification
+    result = await engine.analyze_and_aggregate_alerts(
+        alerts
+    )  # noqa: F841  # Variable for test verification
     assert result
     for r in result:
         if "aggregated_count" in r:
@@ -341,7 +345,9 @@ async def test_alert_intelligence_cascade(engine):
         {"host": "h1", "aggregated_alerts": [{"host": "h2"}]},
         {"host": "h2", "aggregated_alerts": []},
     ]
-    result = await engine._detect_cascade_alerts(aggregated)  # noqa: F841  # Variable for test verification
+    result = await engine._detect_cascade_alerts(
+        aggregated
+    )  # noqa: F841  # Variable for test verification
     assert any("is_cascade" in r for r in result)
     for r in result:
         if "is_cascade" in r:
@@ -380,11 +386,15 @@ async def test_alert_intelligence_ml_clustering(engine):
 
     saved_scaler = engine.scaler
     engine.scaler = None
-    result = await engine._ml_based_clustering(alerts, features)  # noqa: F841  # Variable for test verification
+    result = await engine._ml_based_clustering(
+        alerts, features
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == len(alerts)
 
     engine.scaler = saved_scaler
-    result = await engine._ml_based_clustering(alerts, features)  # noqa: F841  # Variable for test verification
+    result = await engine._ml_based_clustering(
+        alerts, features
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == len(alerts)
 
 
@@ -521,7 +531,9 @@ def ai_service_mocks(monkeypatch):
 @pytest.mark.asyncio
 async def test_ai_context_service_collect(ai_service_mocks):
     svc = ai_service.AIContextService()
-    result = await svc.collect_rich_context(service_name="svc")  # noqa: F841  # Variable for test verification
+    result = await svc.collect_rich_context(
+        service_name="svc"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["top_processes"]
     assert result["recent_alerts"]
@@ -546,7 +558,9 @@ async def test_ai_context_service_timeout(ai_service_mocks, monkeypatch):
 
     monkeypatch.setattr("core.topology_engine.get_full_link_topology", slow_topology)
     svc = ai_service.AIContextService()
-    result = await svc.collect_rich_context(service_name="svc")  # noqa: F841  # Variable for test verification
+    result = await svc.collect_rich_context(
+        service_name="svc"
+    )  # noqa: F841  # Variable for test verification
     assert result["topology"] == {}
 
 
@@ -609,7 +623,9 @@ async def test_ai_context_service_errors(monkeypatch):
     monkeypatch.setattr("core.config_manager.config_manager", BadConfig())
 
     svc = ai_service.AIContextService()
-    result = await svc.collect_rich_context(service_name="svc")  # noqa: F841  # Variable for test verification
+    result = await svc.collect_rich_context(
+        service_name="svc"
+    )  # noqa: F841  # Variable for test verification
     assert result["topology"] == {}
     assert result["top_processes"] == []
     assert result["recent_alerts"] == []

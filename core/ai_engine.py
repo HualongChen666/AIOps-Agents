@@ -1203,7 +1203,7 @@ class LLMAnalysisService(AIAnalysisService):
 
 
 # 默认 AI 服务实例
-ai_service = LLMAnalysisService()
+AI_SERVICE = LLMAnalysisService()
 
 
 # ============================================================
@@ -1634,6 +1634,6 @@ class NaturalLanguageInteraction:
 # ============================================================
 # P2 Enhancement: Global instances
 # ============================================================
-predictive_analysis_engine = PredictiveAnalysisEngine()
-intelligent_recommendation_engine = IntelligentRecommendationEngine()
-natural_language_interaction = NaturalLanguageInteraction()
+PREDICTIVE_ANALYSIS_ENGINE = PredictiveAnalysisEngine()
+INTELLIGENT_RECOMMENDATION_ENGINE = IntelligentRecommendationEngine()
+NATURAL_LANGUAGE_INTERACTION = NaturalLanguageInteraction()

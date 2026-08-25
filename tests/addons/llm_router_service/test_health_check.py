@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """Unit tests for health_check.py - Health check for LLM router service."""
 
-import pytest
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from extensions.addons.ai_plus.llm_router_service.health_check import (
-    HealthCheckEngine,
     _START_TIME,
+    HealthCheckEngine,
 )
 from extensions.addons.ai_plus.llm_router_service.schemas import ServiceHealth
 
@@ -63,7 +65,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_with_psutil_available(self):
         """Test health check when psutil is available."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock normal conditions
             mock_vm = MagicMock()
             mock_vm.percent = 50.0
@@ -83,7 +87,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_high_memory_usage(self):
         """Test health check with high memory usage."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock high memory usage
             mock_vm = MagicMock()
             mock_vm.percent = 96.0
@@ -101,7 +107,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_high_disk_usage(self):
         """Test health check with high disk usage."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock high disk usage
             mock_vm = MagicMock()
             mock_vm.percent = 50.0
@@ -119,7 +127,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_both_high_memory_and_disk(self):
         """Test health check with both high memory and disk usage."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock high memory and disk usage
             mock_vm = MagicMock()
             mock_vm.percent = 97.0
@@ -137,7 +147,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_boundary_memory_95(self):
         """Test health check at memory boundary (95%)."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock memory at exactly 95%
             mock_vm = MagicMock()
             mock_vm.percent = 95.0
@@ -155,7 +167,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_boundary_memory_96(self):
         """Test health check at memory boundary (96%)."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock memory at 96%
             mock_vm = MagicMock()
             mock_vm.percent = 96.0
@@ -173,7 +187,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_boundary_disk_98(self):
         """Test health check at disk boundary (98%)."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock disk at exactly 98%
             mock_vm = MagicMock()
             mock_vm.percent = 50.0
@@ -191,7 +207,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_boundary_disk_99(self):
         """Test health check at disk boundary (99%)."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             # Mock disk at 99%
             mock_vm = MagicMock()
             mock_vm.percent = 50.0
@@ -209,7 +227,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_psutil_exception(self):
         """Test health check when psutil raises exception."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             mock_psutil.virtual_memory.side_effect = Exception("psutil error")
 
             engine = HealthCheckEngine()
@@ -222,7 +242,10 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_psutil_import_error(self):
         """Test health check when psutil is not installed."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil", side_effect=ImportError):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil",
+            side_effect=ImportError,
+        ):
             engine = HealthCheckEngine()
             health = await engine.check(service_name="test")
 
@@ -233,7 +256,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_psutil_attribute_error(self):
         """Test health check when psutil has attribute error."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             mock_psutil.virtual_memory.side_effect = AttributeError("No attribute")
 
             engine = HealthCheckEngine()
@@ -358,7 +383,9 @@ class TestHealthCheckEngine:
     @pytest.mark.asyncio
     async def test_health_check_disk_usage_path(self):
         """Test that disk usage checks root path."""
-        with patch("extensions.addons.ai_plus.llm_router_service.health_check.psutil") as mock_psutil:
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.health_check.psutil"
+        ) as mock_psutil:
             mock_vm = MagicMock()
             mock_vm.percent = 50.0
             mock_psutil.virtual_memory.return_value = mock_vm

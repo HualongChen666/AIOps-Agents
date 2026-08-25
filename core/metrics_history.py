@@ -395,4 +395,4 @@ class MetricsHistory:
 # ============================================================
 # 全局单例
 # ============================================================
-metrics_history = MetricsHistory()
+METRICS_HISTORY = MetricsHistory()

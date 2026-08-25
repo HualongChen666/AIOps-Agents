@@ -212,7 +212,9 @@ def test_analyze_impact_with_cycle():
     graph.add_edge(CausalEdge("a", "b"))
     graph.add_edge(CausalEdge("b", "a"))
 
-    result = graph.analyze_impact("a", impact_threshold=0.1)  # noqa: F841  # Variable for test verification
+    result = graph.analyze_impact(
+        "a", impact_threshold=0.1
+    )  # noqa: F841  # Variable for test verification
     assert result["impacted_count"] == 2
 
 

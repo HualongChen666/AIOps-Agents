@@ -299,7 +299,7 @@ def cache_decorator(ttl_seconds: Optional[int] = None):
         def wrapper(*args, **kwargs) -> Any:
             # Generate cache key from function name and arguments
             key_data = f"{func.__name__}_{str(args)}_{str(kwargs)}"
-            cache_key = hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()
+            cache_key = hashlib.sha256(key_data.encode()).hexdigest()
 
             # Try to get from cache
             cached_value = get_cache(cache_key)

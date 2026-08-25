@@ -478,7 +478,9 @@ def test_teams_post_message_success(monkeypatch, fake_teams_client):
         teams_adapter, "_get_http_client", AsyncMock(return_value=fake_teams_client)
     )
 
-    result = asyncio.run(teams_adapter.post_message("alert!", title="A", color="FF0000"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        teams_adapter.post_message("alert!", title="A", color="FF0000")
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
     assert result["http_status"] == 202
     fake_teams_client.post.assert_awaited_once()
@@ -552,7 +554,9 @@ def test_preprocess_interpolate_and_normalize(sample_ts_data):
 
 def test_preprocess_drop_and_no_normalize(sample_ts_data):
     pp = TimeSeriesPreprocessor(handle_missing="drop", normalize=False, detect_outliers=False)
-    result = pp.preprocess(sample_ts_data, target_columns=["cpu"])  # noqa: F841  # Variable for test verification
+    result = pp.preprocess(
+        sample_ts_data, target_columns=["cpu"]
+    )  # noqa: F841  # Variable for test verification
     assert result.shape[0] < 20
     assert result.shape[1] == 1
 
@@ -567,7 +571,9 @@ def test_preprocess_forward_fill_warns(sample_ts_data):
 
 def test_handle_missing_values_unknown(sample_ts_data):
     pp = TimeSeriesPreprocessor(handle_missing="unknown")
-    result = pp._handle_missing_values(sample_ts_data)  # noqa: F841  # Variable for test verification
+    result = pp._handle_missing_values(
+        sample_ts_data
+    )  # noqa: F841  # Variable for test verification
     # Unknown method returns the data as-is; NaNs remain
     assert result.isna().sum().sum() == sample_ts_data.isna().sum().sum()
 

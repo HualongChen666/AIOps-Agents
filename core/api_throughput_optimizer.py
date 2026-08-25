@@ -292,7 +292,7 @@ class APIThroughputOptimizer:
             # IP hash
             import hashlib
 
-            hash_value = int(hashlib.md5(client_ip.encode(), usedforsecurity=False).hexdigest(), 16)
+            hash_value = int(hashlib.sha256(client_ip.encode()).hexdigest(), 16)
             index = hash_value % len(healthy_servers)
             return healthy_servers[index]
 

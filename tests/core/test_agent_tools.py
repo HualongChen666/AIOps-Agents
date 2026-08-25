@@ -38,7 +38,9 @@ def _make_registry():
 def test_custom_tool_lifecycle():
     registry = _make_registry()
     tool = registry.get_tool("echo")
-    result = tool.execute(service="foo", dry_run=True)  # noqa: F841  # Variable for test verification
+    result = tool.execute(
+        service="foo", dry_run=True
+    )  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
     assert "foo" in result["parameters"]["service"]
     assert tool.to_dict()["name"] == "echo"
@@ -47,7 +49,9 @@ def test_custom_tool_lifecycle():
 def test_tool_executor():
     registry = _make_registry()
     executor = ToolExecutor(registry, dry_run=True)
-    result = executor.execute_tool("echo", service="bar")  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "echo", service="bar"
+    )  # noqa: F841  # Variable for test verification
     assert "bar" in str(result)
     chain = executor.execute_chain([("echo", {"service": "baz"})])
     assert isinstance(chain, list)

@@ -668,7 +668,9 @@ def test_ai_timeseries_prediction(ai, monkeypatch):
 
     data = [(datetime.datetime.now() - datetime.timedelta(hours=i), float(i)) for i in range(30)]
     data.reverse()
-    result = _run(ai.predict_timeseries("cpu_usage", data))  # noqa: F841  # Variable for test verification
+    result = _run(
+        ai.predict_timeseries("cpu_usage", data)
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result.prediction_type == PredictionType.TIMESERIES
 
@@ -694,7 +696,9 @@ def test_ai_anomaly_prediction(ai, monkeypatch):
     ai.anomaly_detectors["cpu"] = FakeDetector()
     data = [(datetime.datetime.now() - datetime.timedelta(hours=i), 1.0) for i in range(60)]
     data.reverse()
-    result = _run(ai.predict_anomalies("cpu", 100.0, data))  # noqa: F841  # Variable for test verification
+    result = _run(
+        ai.predict_anomalies("cpu", 100.0, data)
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result.is_anomalous is True
 

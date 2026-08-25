@@ -363,7 +363,9 @@ def test_set_execution_mode_invalid():
 
 def test_execute_plan_empty_and_dry_run():
     executor = make_executor([], [])
-    result = executor.execute_plan("goal", {"session_id": "s1"}, [])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "goal", {"session_id": "s1"}, []
+    )  # noqa: F841  # Variable for test verification
     assert result["goal"] == "goal"
 
 
@@ -378,7 +380,9 @@ def test_execute_plan_session_and_diagnostic_state_branches():
         "_select_tool": "ok",
         "diagnostic_state": {"findings": [], "hypotheses": []},
     }
-    result = executor.execute_plan("check health", ctx, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "check health", ctx, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert result["session_id"]
     assert result["diagnostic_state"]
     assert result["summary"]["diagnostic_state"]
@@ -386,7 +390,9 @@ def test_execute_plan_session_and_diagnostic_state_branches():
 
 def test_execute_plan_max_depth():
     executor = make_executor([], [])
-    result = executor.execute_plan("goal", {}, [], _depth=5)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "goal", {}, [], _depth=5
+    )  # noqa: F841  # Variable for test verification
     assert "Maximum subagent recursion" in result["error"]
 
 
@@ -413,7 +419,9 @@ def test_execute_plan_behavior_anomaly():
     executor = make_executor([task], [ok_tool])
     executor.behavior_monitor.set_thresholds(max_iterations=0)
     executor.behavior_monitor.reset(executor.agent_id)
-    result = executor.execute_plan("check", {"_select_tool": "ok"}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "check", {"_select_tool": "ok"}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert "Behavior anomaly" in result["error"]
     executor.behavior_monitor.reset(executor.agent_id)
 
@@ -425,7 +433,9 @@ def test_execute_plan_repeated_action():
         Task(id="t2", description="check"),
     ]
     executor = make_executor(tasks, [ok_tool])
-    result = executor.execute_plan("check", {"_select_tool": "ok"}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "check", {"_select_tool": "ok"}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert result["results"][0]["status"] == "completed"
     assert "Repeated action signature" in result["results"][1]["error"]
 
@@ -452,7 +462,9 @@ def test_execute_plan_with_memory():
 
 def test_execute_task_no_tool():
     executor = make_executor([Task(id="t1", description="weird")], [])
-    result = executor.execute_task(Task(id="t1", description="weird"), {})  # noqa: F841  # Variable for test verification
+    result = executor.execute_task(
+        Task(id="t1", description="weird"), {}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "failed"
 
 
@@ -582,7 +594,9 @@ def test_execute_task_success_and_merge_metric():
         parameters={"_select_tool": "collect_metrics"},
     )
     executor = make_executor([task], [metric_tool])
-    result = executor.execute_task(task, {"_select_tool": "collect_metrics"})  # noqa: F841  # Variable for test verification
+    result = executor.execute_task(
+        task, {"_select_tool": "collect_metrics"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "completed"
 
 
@@ -678,7 +692,9 @@ def test_execute_plan_with_subagents():
 
 def test_execute_plan_parallel():
     executor = make_executor([], [])
-    result = executor.execute_plan_parallel("goal", {}, [], _depth=0)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan_parallel(
+        "goal", {}, [], _depth=0
+    )  # noqa: F841  # Variable for test verification
     assert result["goal"] == "goal"
 
 
@@ -720,11 +736,15 @@ def test_execute_plan_memory_retrieval_empty_and_exception():
     executor = make_executor([task], [ok_tool])
 
     executor.set_memory_bridge(EmptyMemoryBridge())
-    result = executor.execute_plan("ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert result["results"][0]["status"] == "completed"
 
     executor.set_memory_bridge(BadRetrieveMemoryBridge())
-    result = executor.execute_plan("ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert result["results"][0]["status"] == "completed"
 
 
@@ -733,7 +753,9 @@ def test_execute_plan_max_iterations():
     tasks = [Task(id=f"t{i}", description="ok") for i in range(3)]
     executor = make_executor(tasks, [ok_tool])
     executor.max_iterations = 1
-    result = executor.execute_plan("ok", {"_select_tool": "ok"}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "ok", {"_select_tool": "ok"}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert "Maximum iteration count" in result["results"][1]["error"]
 
 
@@ -742,7 +764,9 @@ def test_execute_plan_failed_task_records_error():
         "boom", ToolCategory.DIAGNOSTIC, lambda **kwargs: (_ for _ in ()).throw(ValueError("err"))
     )
     executor = make_executor([Task(id="t1", description="boom")], [boom_tool])
-    result = executor.execute_plan("boom", {"_select_tool": "boom"}, ["boom"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "boom", {"_select_tool": "boom"}, ["boom"]
+    )  # noqa: F841  # Variable for test verification
     assert result["results"][0]["status"] == "failed"
 
 
@@ -751,7 +775,9 @@ def test_execute_plan_anomaly_after_execution():
     executor = make_executor([Task(id="t1", description="ok")], [ok_tool])
     executor.behavior_monitor.set_thresholds(max_total_tool_calls=0)
     executor.behavior_monitor.reset(executor.agent_id)
-    result = executor.execute_plan("ok", {"_select_tool": "ok"}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "ok", {"_select_tool": "ok"}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert "behavior_alert" in result["results"][0]
     executor.behavior_monitor.reset(executor.agent_id)
 
@@ -760,7 +786,9 @@ def test_execute_plan_memory_save_no_result():
     ok_tool = simple_tool("ok", ToolCategory.DIAGNOSTIC, lambda **kwargs: {"v": 1})
     executor = make_executor([Task(id="t1", description="ok")], [ok_tool])
     executor.set_memory_bridge(EmptyMemoryBridge())
-    result = executor.execute_plan("ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert "memory" not in result["summary"]
 
 
@@ -768,7 +796,9 @@ def test_execute_plan_memory_save_exception():
     ok_tool = simple_tool("ok", ToolCategory.DIAGNOSTIC, lambda **kwargs: {"v": 1})
     executor = make_executor([Task(id="t1", description="ok")], [ok_tool])
     executor.set_memory_bridge(BadSaveMemoryBridge())
-    result = executor.execute_plan("ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "ok", {"_select_tool": "ok", "enable_memory": True}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert result["results"][0]["status"] == "completed"
 
 
@@ -789,7 +819,9 @@ def test_execute_task_manual_no_approval():
     executor = make_executor([Task(id="t1", description="probe")], [ok_tool])
     executor.execution_mode = "manual"
     executor.safety_boundary = SafetyBoundary(require_approval_for=["admin"])
-    result = executor.execute_task(Task(id="t1", description="probe"), {"_select_tool": "ok"})  # noqa: F841  # Variable for test verification
+    result = executor.execute_task(
+        Task(id="t1", description="probe"), {"_select_tool": "ok"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "completed"
 
 
@@ -797,7 +829,9 @@ def test_execute_task_hybrid_low_risk():
     ok_tool = simple_tool("ok", ToolCategory.DIAGNOSTIC, lambda **kwargs: {"v": 1})
     executor = make_executor([Task(id="t1", description="probe")], [ok_tool])
     executor.execution_mode = "hybrid"
-    result = executor.execute_task(Task(id="t1", description="probe"), {"_select_tool": "ok"})  # noqa: F841  # Variable for test verification
+    result = executor.execute_task(
+        Task(id="t1", description="probe"), {"_select_tool": "ok"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "completed"
 
 
@@ -809,7 +843,9 @@ def test_get_execution_confidence_non_dict_and_bad_candidate():
 
 def test_execute_plan_with_subagents_creates_dispatcher():
     executor = make_executor([], [])
-    result = executor.execute_plan_with_subagents("goal", {}, [], max_subagents=2)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan_with_subagents(
+        "goal", {}, [], max_subagents=2
+    )  # noqa: F841  # Variable for test verification
     assert result["subagent_results"] == []
 
 
@@ -821,7 +857,9 @@ def test_execute_plan_with_subagents_failed_result():
         max_workers=2, subagent_factory=FailingQuickSubAgent, dry_run=True
     )
     executor.set_subagent_dispatcher(dispatcher)
-    result = executor.execute_plan_with_subagents("goal", {}, ["ok"], max_subagents=2)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan_with_subagents(
+        "goal", {}, ["ok"], max_subagents=2
+    )  # noqa: F841  # Variable for test verification
     assert result["subagent_results"][0]["status"] == "failed"
     dispatcher.shutdown()
 
@@ -840,7 +878,9 @@ def test_execute_plan_parallel_inputs():
 def test_execute_plan_parallel_max_tasks():
     tasks = [Task(id=f"t{i}", description="ok") for i in range(25)]
     executor = make_executor(tasks, [])
-    result = executor.execute_plan_parallel("big", {}, [], _depth=0)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan_parallel(
+        "big", {}, [], _depth=0
+    )  # noqa: F841  # Variable for test verification
     assert "exceed maximum" in result["error"]
 
 
@@ -881,7 +921,9 @@ def test_execute_plan_tool_select_exception():
     tool_executor = FixedToolExecutor(registry)
     tool_executor.selector = BrokenSelector(registry)
     executor = AutonomousExecutor(FixedPlanner([Task(id="t1", description="raise")]), tool_executor)
-    result = executor.execute_plan("raise", {"_raise_select": True, "_select_tool": "ok"}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "raise", {"_raise_select": True, "_select_tool": "ok"}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert result["results"][0]["status"] == "completed"
 
 
@@ -890,7 +932,9 @@ def test_execute_plan_pending_task_not_failed():
     executor = make_executor([Task(id="t1", description="admin")], [ok_tool])
     executor.execution_mode = "manual"
     executor.safety_boundary = SafetyBoundary(require_approval_for=["admin"])
-    result = executor.execute_plan("admin", {"_select_tool": "ok"}, ["ok"])  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan(
+        "admin", {"_select_tool": "ok"}, ["ok"]
+    )  # noqa: F841  # Variable for test verification
     assert result["results"][0]["status"] == "pending_approval"
 
 
@@ -977,7 +1021,9 @@ def test_execute_plan_parallel_behavior_anomaly():
     executor = make_executor([], [])
     executor.behavior_monitor.set_thresholds(max_iterations=0)
     executor.behavior_monitor.reset(executor.agent_id)
-    result = executor.execute_plan_parallel("ok", {}, [], _depth=0)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan_parallel(
+        "ok", {}, [], _depth=0
+    )  # noqa: F841  # Variable for test verification
     assert "Behavior anomaly" in result["error"]
     executor.behavior_monitor.reset(executor.agent_id)
 
@@ -1036,7 +1082,9 @@ def test_execute_plan_parallel_memory_save_exception():
 def test_execute_plan_parallel_max_iterations():
     executor = make_executor([Task(id="t1", description="ok")], [])
     executor.max_iterations = 0
-    result = executor.execute_plan_parallel("ok", {}, [], _depth=0)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan_parallel(
+        "ok", {}, [], _depth=0
+    )  # noqa: F841  # Variable for test verification
     assert "Maximum iteration count" in result["results"][0]["error"]
 
 
@@ -1045,7 +1093,9 @@ def test_execute_plan_parallel_unmet_dependencies():
     t2 = Task(id="t2", description="ok", dependencies=["t1"])
     t1.status = TaskStatus.FAILED
     executor = make_executor([t1, t2], [])
-    result = executor.execute_plan_parallel("ok", {}, [], _depth=0)  # noqa: F841  # Variable for test verification
+    result = executor.execute_plan_parallel(
+        "ok", {}, [], _depth=0
+    )  # noqa: F841  # Variable for test verification
     assert any("Unmet dependencies" in r.get("error", "") for r in result["results"])
 
 

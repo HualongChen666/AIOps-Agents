@@ -572,19 +572,98 @@ class RootCauseGraphBuilder:
         }
 
     def save_graph(self, path: str) -> None:
-        """保存图到文件"""
-        import pickle
+        """
+        保存图到文件 (使用安全的 JSON 格式)
 
-        with open(path, "wb") as f:
-            pickle.dump(self.graph, f)
+        Args:
+            path: 文件路径
+        """
+        from pathlib import Path
+
+        # Security check: validate file path
+        file_path = Path(path).resolve()
+        allowed_dirs = [Path.cwd(), Path.home() / ".aiops"]
+        if not any(str(file_path).startswith(str(d.resolve())) for d in allowed_dirs):
+            logger.error(f"Invalid save path (outside allowed directories): {file_path}")
+            raise ValueError(f"Invalid save path: {file_path}")
+
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Use JSON instead of pickle for security
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(self.to_json())
+
+        # Set restrictive permissions for graph file (644 - owner read/write, group/others read)
+        try:
+            import os
+            import stat
+
+            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+        except (OSError, AttributeError):
+            # chmod may fail on Windows or non-Unix systems
+            pass
+
         logger.info("Graph saved to %s", path)
 
     def load_graph(self, path: str) -> None:
-        """从文件加载图"""
-        import pickle
+        """
+        从文件加载图 (使用安全的 JSON 格式)
 
-        with open(path, "rb") as f:
-            self.graph = pickle.load(f)
+        Args:
+            path: 文件路径
+
+        Raises:
+            ValueError: 如果路径不安全或数据无效
+            TypeError: 如果数据类型不正确
+        """
+        from pathlib import Path
+
+        # Security check: validate file path
+        file_path = Path(path).resolve()
+        allowed_dirs = [Path.cwd(), Path.home() / ".aiops"]
+        if not any(str(file_path).startswith(str(d.resolve())) for d in allowed_dirs):
+            logger.error(f"Invalid load path (outside allowed directories): {file_path}")
+            raise ValueError(f"Invalid load path: {file_path}")
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        # Load JSON and reconstruct graph
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Validate data structure
+        if not isinstance(data, dict):
+            raise TypeError(f"Expected dict, got {type(data)}")
+
+        if "nodes" not in data or "edges" not in data:
+            raise ValueError("Invalid graph data: missing 'nodes' or 'edges'")
+
+        # Reconstruct graph
+        if self.multi_graph:
+            self.graph = nx.MultiDiGraph() if self.directed else nx.MultiGraph()
+        else:
+            self.graph = nx.DiGraph() if self.directed else nx.Graph()
+
+        # Add nodes
+        for node_data in data["nodes"]:
+            node_id = node_data.get("id")
+            if node_id is None:
+                continue
+            self.graph.add_node(node_id, **{k: v for k, v in node_data.items() if k != "id"})
+
+        # Add edges
+        for edge_data in data["edges"]:
+            source = edge_data.get("source")
+            target = edge_data.get("target")
+            if source is None or target is None:
+                continue
+            self.graph.add_edge(
+                source,
+                target,
+                **{k: v for k, v in edge_data.items() if k not in ["source", "target"]},
+            )
+
         self.node_counter = self.graph.number_of_nodes()
         self.edge_counter = self.graph.number_of_edges()
         logger.info("Graph loaded from %s", path)

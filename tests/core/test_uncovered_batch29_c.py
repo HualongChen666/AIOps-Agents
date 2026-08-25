@@ -177,7 +177,9 @@ def test_validate_manifest(tmp_path):
 @pytest.mark.asyncio
 async def test_restore_database_not_found():
     backup._backup_history.clear()
-    result = await backup.restore_database_backup("no-such-id")  # noqa: F841  # Variable for test verification
+    result = await backup.restore_database_backup(
+        "no-such-id"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "failed"
 
 
@@ -215,7 +217,9 @@ async def test_restore_database_validation_and_decompress(monkeypatch, tmp_path)
     }
     backup._backup_history.append(record)
     monkeypatch.setattr("asyncio.create_subprocess_exec", _make_subprocess_mock(b"", 1))
-    result = await backup.restore_database_backup(bid)  # noqa: F841  # Variable for test verification
+    result = await backup.restore_database_backup(
+        bid
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "failed" or "psql" in result.get("error", "")
 
 
@@ -236,7 +240,9 @@ async def test_restore_database_encrypted_invalid(monkeypatch, tmp_path):
         "encrypted": True,
     }
     backup._backup_history.append(record)
-    result = await backup.restore_database_backup(bid)  # noqa: F841  # Variable for test verification
+    result = await backup.restore_database_backup(
+        bid
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "failed"
 
 

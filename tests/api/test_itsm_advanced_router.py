@@ -4,31 +4,32 @@ Comprehensive test suite for ITSM Advanced API Router
 Tests all endpoints with various scenarios including success, error cases, validation, and mocking
 """
 
-import pytest
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.itsm_advanced_router import (
-    router,
+    SLA,
+    ITSMChange,
+    ITSMChangeCreate,
     ITSMIncident,
     ITSMIncidentCreate,
     ITSMIncidentUpdate,
     ITSMProblem,
     ITSMProblemCreate,
-    ITSMChange,
-    ITSMChangeCreate,
-    ServiceCatalogItem,
-    SLA,
     KnowledgeBaseArticle,
     KnowledgeBaseArticleCreate,
-    _incidents,
-    _problems,
+    ServiceCatalogItem,
     _changes,
+    _incidents,
+    _knowledge_base,
+    _problems,
     _service_catalog,
     _slas,
-    _knowledge_base
+    router,
 )
 
 
@@ -36,6 +37,7 @@ from api.itsm_advanced_router import (
 def client():
     """Create a test client for the ITSM router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -72,7 +74,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
         response = client.get("/api/v1/itsm/incidents")
@@ -96,7 +98,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
         _incidents["incident-2"] = {
             "incident_id": "incident-2",
@@ -111,7 +113,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": datetime.utcnow().isoformat(),
-            "resolution_notes": "Fixed query"
+            "resolution_notes": "Fixed query",
         }
 
         response = client.get("/api/v1/itsm/incidents?status_filter=open")
@@ -134,7 +136,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
         _incidents["incident-2"] = {
             "incident_id": "incident-2",
@@ -149,7 +151,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
         response = client.get("/api/v1/itsm/incidents?priority_filter=critical")
@@ -172,7 +174,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
         _incidents["incident-2"] = {
             "incident_id": "incident-2",
@@ -187,7 +189,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
         response = client.get("/api/v1/itsm/incidents?category_filter=database")
@@ -211,7 +213,7 @@ class TestITSMIncidentEndpoints:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
                 "resolved_at": None,
-                "resolution_notes": None
+                "resolution_notes": None,
             }
 
         response = client.get("/api/v1/itsm/incidents?limit=3")
@@ -238,7 +240,7 @@ class TestITSMIncidentEndpoints:
             "category": "database",
             "impact": "high",
             "urgency": "high",
-            "assigned_to": "john.doe"
+            "assigned_to": "john.doe",
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
@@ -253,7 +255,7 @@ class TestITSMIncidentEndpoints:
         request_data = {
             "title": "Test incident",
             "description": "Test description",
-            "category": "general"
+            "category": "general",
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
@@ -289,7 +291,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
         response = client.get(f"/api/v1/itsm/incidents/{incident_id}")
@@ -318,13 +320,10 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
-        update_data = {
-            "status": "in_progress",
-            "assigned_to": "jane.smith"
-        }
+        update_data = {"status": "in_progress", "assigned_to": "jane.smith"}
 
         response = client.patch(f"/api/v1/itsm/incidents/{incident_id}", json=update_data)
         assert response.status_code == 200
@@ -348,12 +347,12 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
         update_data = {
             "status": "resolved",
-            "resolution_notes": "Fixed CPU issue by optimizing queries"
+            "resolution_notes": "Fixed CPU issue by optimizing queries",
         }
 
         response = client.patch(f"/api/v1/itsm/incidents/{incident_id}", json=update_data)
@@ -386,12 +385,10 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
-        update_data = {
-            "priority": "critical"
-        }
+        update_data = {"priority": "critical"}
 
         response = client.patch(f"/api/v1/itsm/incidents/{incident_id}", json=update_data)
         assert response.status_code == 200
@@ -415,7 +412,7 @@ class TestITSMIncidentEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
         response = client.delete(f"/api/v1/itsm/incidents/{incident_id}")
@@ -447,7 +444,7 @@ class TestITSMProblemEndpoints:
             "workarounds": ["Restart application"],
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
-            "resolved_at": None
+            "resolved_at": None,
         }
 
         response = client.get("/api/v1/itsm/problems")
@@ -469,7 +466,7 @@ class TestITSMProblemEndpoints:
             "workarounds": [],
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
-            "resolved_at": None
+            "resolved_at": None,
         }
         _problems["problem-2"] = {
             "problem_id": "problem-2",
@@ -482,7 +479,7 @@ class TestITSMProblemEndpoints:
             "workarounds": [],
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
-            "resolved_at": datetime.utcnow().isoformat()
+            "resolved_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/itsm/problems?status_filter=open")
@@ -504,7 +501,7 @@ class TestITSMProblemEndpoints:
             "title": "Recurring memory leaks",
             "description": "Applications experiencing memory leaks",
             "priority": "high",
-            "related_incidents": ["incident-1", "incident-2"]
+            "related_incidents": ["incident-1", "incident-2"],
         }
 
         response = client.post("/api/v1/itsm/problems", json=request_data)
@@ -517,10 +514,7 @@ class TestITSMProblemEndpoints:
 
     def test_create_problem_with_defaults(self, client):
         """Test POST /problems with default values"""
-        request_data = {
-            "title": "Test problem",
-            "description": "Test description"
-        }
+        request_data = {"title": "Test problem", "description": "Test description"}
 
         response = client.post("/api/v1/itsm/problems", json=request_data)
         assert response.status_code == 200
@@ -558,7 +552,7 @@ class TestITSMChangeEndpoints:
             "approved_by": None,
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
-            "implemented_at": None
+            "implemented_at": None,
         }
 
         response = client.get("/api/v1/itsm/changes")
@@ -583,7 +577,7 @@ class TestITSMChangeEndpoints:
             "approved_by": None,
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
-            "implemented_at": None
+            "implemented_at": None,
         }
         _changes["change-2"] = {
             "change_id": "change-2",
@@ -599,7 +593,7 @@ class TestITSMChangeEndpoints:
             "approved_by": "admin",
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
-            "implemented_at": datetime.utcnow().isoformat()
+            "implemented_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/itsm/changes?status_filter=pending")
@@ -625,7 +619,7 @@ class TestITSMChangeEndpoints:
             "risk_level": "high",
             "planned_start": "2026-07-10T02:00:00Z",
             "planned_end": "2026-07-10T04:00:00Z",
-            "requested_by": "admin"
+            "requested_by": "admin",
         }
 
         response = client.post("/api/v1/itsm/changes", json=request_data)
@@ -642,7 +636,7 @@ class TestITSMChangeEndpoints:
             "description": "Test description",
             "planned_start": "2026-07-10T02:00:00Z",
             "planned_end": "2026-07-10T04:00:00Z",
-            "requested_by": "admin"
+            "requested_by": "admin",
         }
 
         response = client.post("/api/v1/itsm/changes", json=request_data)
@@ -678,7 +672,7 @@ class TestITSMServiceCatalogEndpoints:
             "owner": "platform.team",
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/itsm/service-catalog")
@@ -699,7 +693,7 @@ class TestITSMServiceCatalogEndpoints:
             "owner": "platform.team",
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         _service_catalog["service-2"] = {
             "service_id": "service-2",
@@ -711,7 +705,7 @@ class TestITSMServiceCatalogEndpoints:
             "owner": "database.team",
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/itsm/service-catalog?category_filter=database")
@@ -737,7 +731,7 @@ class TestITSMSLAEndpoints:
             "current_performance": 99.8,
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/itsm/sla")
@@ -759,7 +753,7 @@ class TestITSMSLAEndpoints:
             "current_performance": 99.8,
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         _slas["sla-2"] = {
             "sla_id": "sla-2",
@@ -772,7 +766,7 @@ class TestITSMSLAEndpoints:
             "current_performance": 99.6,
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/itsm/sla?service_id=service-1")
@@ -798,7 +792,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "views": 150,
-            "helpful_count": 45
+            "helpful_count": 45,
         }
 
         response = client.get("/api/v1/itsm/knowledge-base")
@@ -820,7 +814,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "views": 100,
-            "helpful_count": 30
+            "helpful_count": 30,
         }
         _knowledge_base["article-2"] = {
             "article_id": "article-2",
@@ -833,7 +827,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "views": 80,
-            "helpful_count": 25
+            "helpful_count": 25,
         }
 
         response = client.get("/api/v1/itsm/knowledge-base?category_filter=database")
@@ -854,7 +848,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "views": 100,
-            "helpful_count": 30
+            "helpful_count": 30,
         }
         _knowledge_base["article-2"] = {
             "article_id": "article-2",
@@ -867,7 +861,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "views": 80,
-            "helpful_count": 25
+            "helpful_count": 25,
         }
 
         response = client.get("/api/v1/itsm/knowledge-base?tag_filter=troubleshooting")
@@ -888,7 +882,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "views": 100,
-            "helpful_count": 30
+            "helpful_count": 30,
         }
         _knowledge_base["article-2"] = {
             "article_id": "article-2",
@@ -901,7 +895,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "views": 80,
-            "helpful_count": 25
+            "helpful_count": 25,
         }
 
         response = client.get("/api/v1/itsm/knowledge-base?search=troubleshoot")
@@ -917,7 +911,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "content": "Step-by-step guide to reset database connection pool...",
             "category": "database",
             "tags": ["database", "troubleshooting", "connection"],
-            "author": "support.team"
+            "author": "support.team",
         }
 
         response = client.post("/api/v1/itsm/knowledge-base", json=request_data)
@@ -933,7 +927,7 @@ class TestITSMKnowledgeBaseEndpoints:
             "title": "Test article",
             "content": "Test content",
             "category": "general",
-            "author": "test.user"
+            "author": "test.user",
         }
 
         response = client.post("/api/v1/itsm/knowledge-base", json=request_data)
@@ -971,7 +965,7 @@ class TestITSMRouterErrorHandling:
         response = client.post(
             "/api/v1/itsm/incidents",
             data="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 422
 
@@ -986,7 +980,7 @@ class TestITSMRouterDataValidation:
             "title": "Test incident",
             "description": "Test description",
             "category": "general",
-            "priority": "invalid_priority"
+            "priority": "invalid_priority",
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
@@ -1001,7 +995,7 @@ class TestITSMRouterDataValidation:
             "planned_start": "2026-07-10T02:00:00Z",
             "planned_end": "2026-07-10T04:00:00Z",
             "requested_by": "admin",
-            "risk_level": "invalid_risk"
+            "risk_level": "invalid_risk",
         }
 
         response = client.post("/api/v1/itsm/changes", json=request_data)
@@ -1024,12 +1018,10 @@ class TestITSMRouterDataValidation:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
-        update_data = {
-            "status": "invalid_status"
-        }
+        update_data = {"status": "invalid_status"}
 
         response = client.patch(f"/api/v1/itsm/incidents/{incident_id}", json=update_data)
         # May pass validation if not strictly validated
@@ -1044,34 +1036,49 @@ class TestITSMRouterResponseModels:
         request_data = {
             "title": "Test incident",
             "description": "Test description",
-            "category": "general"
+            "category": "general",
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
         assert response.status_code == 200
         data = response.json()
         required_fields = [
-            "incident_id", "title", "description", "priority", "status",
-            "assigned_to", "category", "impact", "urgency",
-            "created_at", "updated_at", "resolved_at", "resolution_notes"
+            "incident_id",
+            "title",
+            "description",
+            "priority",
+            "status",
+            "assigned_to",
+            "category",
+            "impact",
+            "urgency",
+            "created_at",
+            "updated_at",
+            "resolved_at",
+            "resolution_notes",
         ]
         for field in required_fields:
             assert field in data
 
     def test_problem_response_structure(self, client):
         """Test problem response has correct structure"""
-        request_data = {
-            "title": "Test problem",
-            "description": "Test description"
-        }
+        request_data = {"title": "Test problem", "description": "Test description"}
 
         response = client.post("/api/v1/itsm/problems", json=request_data)
         assert response.status_code == 200
         data = response.json()
         required_fields = [
-            "problem_id", "title", "description", "status", "priority",
-            "root_cause", "related_incidents", "workarounds",
-            "created_at", "updated_at", "resolved_at"
+            "problem_id",
+            "title",
+            "description",
+            "status",
+            "priority",
+            "root_cause",
+            "related_incidents",
+            "workarounds",
+            "created_at",
+            "updated_at",
+            "resolved_at",
         ]
         for field in required_fields:
             assert field in data
@@ -1083,16 +1090,27 @@ class TestITSMRouterResponseModels:
             "description": "Test description",
             "planned_start": "2026-07-10T02:00:00Z",
             "planned_end": "2026-07-10T04:00:00Z",
-            "requested_by": "admin"
+            "requested_by": "admin",
         }
 
         response = client.post("/api/v1/itsm/changes", json=request_data)
         assert response.status_code == 200
         data = response.json()
         required_fields = [
-            "change_id", "title", "description", "change_type", "status",
-            "priority", "risk_level", "planned_start", "planned_end",
-            "requested_by", "approved_by", "created_at", "updated_at", "implemented_at"
+            "change_id",
+            "title",
+            "description",
+            "change_type",
+            "status",
+            "priority",
+            "risk_level",
+            "planned_start",
+            "planned_end",
+            "requested_by",
+            "approved_by",
+            "created_at",
+            "updated_at",
+            "implemented_at",
         ]
         for field in required_fields:
             assert field in data
@@ -1103,15 +1121,24 @@ class TestITSMRouterResponseModels:
             "title": "Test article",
             "content": "Test content",
             "category": "general",
-            "author": "test.user"
+            "author": "test.user",
         }
 
         response = client.post("/api/v1/itsm/knowledge-base", json=request_data)
         assert response.status_code == 200
         data = response.json()
         required_fields = [
-            "article_id", "title", "content", "category", "tags",
-            "author", "status", "created_at", "updated_at", "views", "helpful_count"
+            "article_id",
+            "title",
+            "content",
+            "category",
+            "tags",
+            "author",
+            "status",
+            "created_at",
+            "updated_at",
+            "views",
+            "helpful_count",
         ]
         for field in required_fields:
             assert field in data
@@ -1129,7 +1156,7 @@ class TestITSMRouterEdgeCases:
             "category": "infrastructure",
             "impact": "high",
             "urgency": "high",
-            "assigned_to": "admin.user"
+            "assigned_to": "admin.user",
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
@@ -1148,7 +1175,7 @@ class TestITSMRouterEdgeCases:
             "risk_level": "high",
             "planned_start": "2026-07-10T02:00:00Z",
             "planned_end": "2026-07-10T04:00:00Z",
-            "requested_by": "admin"
+            "requested_by": "admin",
         }
 
         response = client.post("/api/v1/itsm/changes", json=request_data)
@@ -1163,7 +1190,7 @@ class TestITSMRouterEdgeCases:
             "content": "Comprehensive content",
             "category": "general",
             "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-            "author": "expert.user"
+            "author": "expert.user",
         }
 
         response = client.post("/api/v1/itsm/knowledge-base", json=request_data)
@@ -1177,7 +1204,7 @@ class TestITSMRouterEdgeCases:
             "title": "Complex problem",
             "description": "Complex description",
             "priority": "high",
-            "related_incidents": ["incident-1", "incident-2", "incident-3"]
+            "related_incidents": ["incident-1", "incident-2", "incident-3"],
         }
 
         response = client.post("/api/v1/itsm/problems", json=request_data)
@@ -1200,7 +1227,7 @@ class TestITSMRouterEdgeCases:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
         _incidents["incident-2"] = {
             "incident_id": "incident-2",
@@ -1215,7 +1242,7 @@ class TestITSMRouterEdgeCases:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "resolved_at": None,
-            "resolution_notes": None
+            "resolution_notes": None,
         }
 
         response = client.get(
@@ -1223,7 +1250,10 @@ class TestITSMRouterEdgeCases:
         )
         assert response.status_code == 200
         data = response.json()
-        assert all(inc["priority"] == "high" and inc["status"] == "open" and inc["category"] == "database" for inc in data)
+        assert all(
+            inc["priority"] == "high" and inc["status"] == "open" and inc["category"] == "database"
+            for inc in data
+        )
 
 
 if __name__ == "__main__":

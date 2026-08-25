@@ -205,7 +205,9 @@ async def test_db_engine_async_pending_approval(monkeypatch):
     assert got2["id"] == approval_id
 
     _patch_session(monkeypatch, _FakeResult(scalars=[approval]))
-    all_pending = await db_engine.async_get_all_pending_approvals()  # noqa: F841  # Variable for test verification
+    all_pending = (
+        await db_engine.async_get_all_pending_approvals()
+    )  # noqa: F841  # Variable for test verification
     assert len(all_pending) == 1
 
     _patch_session(monkeypatch, _FakeResult(scalar_one_or_none=approval))
@@ -487,13 +489,19 @@ def test_auto_heal_handle_alert_and_trigger(monkeypatch):
 
 
 def test_auto_heal_simulate_and_verify():
-    ok_result = auto_heal.simulate_repair({"platform": "windows"}, "memory_high_script")  # noqa: F841  # Variable for test verification
+    ok_result = auto_heal.simulate_repair(
+        {"platform": "windows"}, "memory_high_script"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(ok_result, dict)
 
-    bad_result = auto_heal.simulate_repair({"platform": "windows"}, "missing_script")  # noqa: F841  # Variable for test verification
+    bad_result = auto_heal.simulate_repair(
+        {"platform": "windows"}, "missing_script"
+    )  # noqa: F841  # Variable for test verification
     assert bad_result.get("success") is False
 
-    cpu_result = auto_heal.simulate_repair({"platform": "windows"}, "cpu_high_script")  # noqa: F841  # Variable for test verification
+    cpu_result = auto_heal.simulate_repair(
+        {"platform": "windows"}, "cpu_high_script"
+    )  # noqa: F841  # Variable for test verification
     assert cpu_result.get("requires_approval") or not cpu_result.get("success")
 
     success_verify = auto_heal.simulate_verify({"id": "1"}, ok_result)
@@ -532,7 +540,7 @@ def test_auto_heal_risk_assessment_engine(monkeypatch):
         rollback_script="rb",
         requires_approval=False,
     )
-    assessment = auto_heal.risk_assessment_engine.assess_repair_risk(
+    assessment = auto_heal.RISK_ASSESSMENT_ENGINE.assess_repair_risk(
         script, {"environment": "production", "affected_components": ["db"]}
     )
     assert assessment.approval_required is True
@@ -561,7 +569,9 @@ async def test_auto_heal_try_auto_heal(monkeypatch):
     monkeypatch.setattr("core.heal_graph.run_heal", AsyncMock(return_value=final_state))
     monkeypatch.setattr("core.heal_graph.HealState", MagicMock())
 
-    result = await auto_heal.try_auto_heal({"id": "1"})  # noqa: F841  # Variable for test verification
+    result = await auto_heal.try_auto_heal(
+        {"id": "1"}
+    )  # noqa: F841  # Variable for test verification
     assert result["healed"] is True
     assert result["alert_id"] == "1"
 
@@ -569,7 +579,9 @@ async def test_auto_heal_try_auto_heal(monkeypatch):
 @pytest.mark.asyncio
 async def test_auto_heal_maintenance_window(monkeypatch):
     monkeypatch.setenv("HEAL_MAINTENANCE_MODE", "true")
-    result = await auto_heal.try_auto_heal({"id": "1"})  # noqa: F841  # Variable for test verification
+    result = await auto_heal.try_auto_heal(
+        {"id": "1"}
+    )  # noqa: F841  # Variable for test verification
     assert result.get("maintenance") is True
 
 
@@ -577,7 +589,9 @@ async def test_auto_heal_maintenance_window(monkeypatch):
 async def test_auto_heal_escalation(monkeypatch):
     key = auto_heal._get_resource_key({"id": "1"})
     monkeypatch.setattr(auto_heal, "_HEAL_FAILURE_TRACKER", {key: {"count": 10}})
-    result = await auto_heal.try_auto_heal({"id": "1"})  # noqa: F841  # Variable for test verification
+    result = await auto_heal.try_auto_heal(
+        {"id": "1"}
+    )  # noqa: F841  # Variable for test verification
     assert result.get("escalated") is True
 
 
@@ -609,7 +623,9 @@ async def test_auto_heal_approve_reject_and_pending(monkeypatch):
         "core.approval_store.get_pending_only_snapshot",
         lambda: {"2": {"info": "x"}},
     )
-    pending = await auto_heal.get_pending_approvals()  # noqa: F841  # Variable for test verification
+    pending = (
+        await auto_heal.get_pending_approvals()
+    )  # noqa: F841  # Variable for test verification
     assert any(p.get("alert_id") == "1" for p in pending)
     assert any(p.get("alert_id") == "2" for p in pending)
 
@@ -721,7 +737,9 @@ async def test_generate_repair_runbook_success(runbook_mocks):
         "recent_alerts": [{"level": "warning", "title": "prev"}],
         "stats": {"current_anomalies": 1, "heal_rate": 50, "total_alerts": 3},
     }
-    result = await runbook_gen.generate_repair_runbook(alert, rich)  # noqa: F841  # Variable for test verification
+    result = await runbook_gen.generate_repair_runbook(
+        alert, rich
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["alert_id"] == "r1"
     assert result["worst_risk"] == RiskLevel.LOW.value
@@ -744,17 +762,23 @@ async def test_generate_repair_runbook_blocked(monkeypatch, runbook_mocks):
         "value": 1,
         "platform": "windows",
     }
-    result = await runbook_gen.generate_repair_runbook(alert)  # noqa: F841  # Variable for test verification
+    result = await runbook_gen.generate_repair_runbook(
+        alert
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "BLOCKED" in result["error"] or result.get("worst_risk") == RiskLevel.BLOCKED.value
 
 
 @pytest.mark.asyncio
 async def test_generate_repair_runbook_invalid_inputs(monkeypatch, runbook_mocks):
-    result = await runbook_gen.generate_repair_runbook("not-a-dict")  # noqa: F841  # Variable for test verification
+    result = await runbook_gen.generate_repair_runbook(
+        "not-a-dict"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
-    result = await runbook_gen.generate_repair_runbook({})  # noqa: F841  # Variable for test verification
+    result = await runbook_gen.generate_repair_runbook(
+        {}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -774,7 +798,9 @@ async def test_generate_repair_runbook_moderation_fail(monkeypatch, runbook_mock
         "value": 1,
         "platform": "windows",
     }
-    result = await runbook_gen.generate_repair_runbook(alert)  # noqa: F841  # Variable for test verification
+    result = await runbook_gen.generate_repair_runbook(
+        alert
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "Prompt content violation" in result["error"]
 
@@ -977,47 +1003,53 @@ def test_db_engine_sync_wrapper_errors(monkeypatch):
 async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
     # invalid/empty JSON from LLM
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value="{}"))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r4",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "macos",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r4",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "macos",
+            }
+        )
     )
     assert result["success"] is False
 
     # LLM raises
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(side_effect=RuntimeError("llm")))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r5",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r5",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is False
     assert "AI 引擎调用失败" in result["error"]
 
     # empty LLM output
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=""))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r6",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r6",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is False
 
@@ -1033,32 +1065,36 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
         }
     )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=f"```json\n{good}\n```"))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r7",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r7",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is True
 
     # moderation disabled
     monkeypatch.setattr(runbook_gen, "MODERATION_AVAILABLE", False)
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r8",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r8",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is True
 
@@ -1066,16 +1102,18 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
     monkeypatch.setattr(runbook_gen, "MODERATION_AVAILABLE", True)
     monkeypatch.setattr(runbook_gen, "AUDIT_AVAILABLE", False)
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r9",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r9",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is True
 
@@ -1087,16 +1125,18 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
         lambda cmd: (_ for _ in ()).throw(RuntimeError("bad")),
     )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r10",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r10",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is False
     assert "护栏审查异常" in result["error"]
@@ -1107,16 +1147,18 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
         runbook_gen, "upsert_pending_approval", MagicMock(side_effect=RuntimeError("queue"))
     )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r11",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r11",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is False
     assert "审批队列写入失败" in result["error"]
@@ -1125,16 +1167,18 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
     monkeypatch.setattr(runbook_gen, "upsert_pending_approval", MagicMock(return_value=None))
     monkeypatch.setattr(runbook_gen, "search_similar", lambda *a, **k: [])
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r12",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r12",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is True
 
@@ -1143,16 +1187,18 @@ async def test_generate_repair_runbook_edge_cases(monkeypatch, runbook_mocks):
         runbook_gen, "search_similar", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("rag"))
     )
     monkeypatch.setattr(runbook_gen, "analyze", AsyncMock(return_value=good))
-    result = await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
-        {
-            "id": "r13",
-            "level": "warning",
-            "title": "T",
-            "desc": "d",
-            "metric": "x",
-            "value": 1,
-            "platform": "windows",
-        }
+    result = (
+        await runbook_gen.generate_repair_runbook(  # noqa: F841  # Variable for test verification
+            {
+                "id": "r13",
+                "level": "warning",
+                "title": "T",
+                "desc": "d",
+                "metric": "x",
+                "value": 1,
+                "platform": "windows",
+            }
+        )
     )
     assert result["success"] is True
 

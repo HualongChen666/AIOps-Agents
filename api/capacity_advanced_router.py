@@ -16,17 +16,17 @@ Endpoints:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from core.auth_service import require_roles
 from core.capacity_engine import forecast_capacity, generate_scaling_recommendations
 from core.collector import get_disk_metrics
-from core.metrics_history import metrics_history
-from core.auth_service import require_roles
+from core.metrics_history import METRICS_HISTORY as metrics_history
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,10 @@ _DISK_HISTORY_LEN = 10
 # Enums and Models
 # ============================================================================
 
+
 class ResourceType(str, Enum):
     """Resource type for capacity planning."""
+
     CPU = "cpu"
     MEMORY = "memory"
     DISK = "disk"
@@ -52,6 +54,7 @@ class ResourceType(str, Enum):
 
 class PlanningHorizon(str, Enum):
     """Planning time horizon."""
+
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
@@ -60,6 +63,7 @@ class PlanningHorizon(str, Enum):
 
 class OptimizationStrategy(str, Enum):
     """Optimization strategy."""
+
     COST_OPTIMIZATION = "cost_optimization"
     PERFORMANCE_OPTIMIZATION = "performance_optimization"
     BALANCED = "balanced"
@@ -68,6 +72,7 @@ class OptimizationStrategy(str, Enum):
 
 class RightsizingAction(str, Enum):
     """Rightsizing action type."""
+
     SCALE_UP = "scale_up"
     SCALE_DOWN = "scale_down"
     SCALE_OUT = "scale_out"
@@ -77,6 +82,7 @@ class RightsizingAction(str, Enum):
 
 class Priority(str, Enum):
     """Priority level."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -87,8 +93,10 @@ class Priority(str, Enum):
 # Pydantic Models
 # ============================================================================
 
+
 class CapacityPlan(BaseModel):
     """Model for capacity planning."""
+
     id: str = Field(..., description="Plan ID")
     name: str = Field(..., description="Plan name")
     resource_type: ResourceType = Field(..., description="Resource type")
@@ -109,6 +117,7 @@ class CapacityPlan(BaseModel):
 
 class CapacityPlanCreate(BaseModel):
     """Model for creating a capacity plan."""
+
     name: str = Field(..., min_length=1, max_length=255)
     resource_type: ResourceType
     service: str
@@ -122,6 +131,7 @@ class CapacityPlanCreate(BaseModel):
 
 class CapacityForecast(BaseModel):
     """Model for capacity forecast."""
+
     metric: str = Field(..., description="Metric name")
     resource_type: ResourceType = Field(..., description="Resource type")
     service: str = Field(..., description="Service name")
@@ -138,16 +148,22 @@ class CapacityForecast(BaseModel):
 
 class OptimizationRequest(BaseModel):
     """Model for optimization request."""
+
     service: str = Field(..., description="Service name")
     resource_types: List[ResourceType] = Field(default_factory=list)
     strategy: OptimizationStrategy = Field(default=OptimizationStrategy.BALANCED)
-    target_cost_reduction: float = Field(default=0.2, ge=0, le=1, description="Target cost reduction (0-1)")
-    min_performance_sla: float = Field(default=0.95, ge=0, le=1, description="Minimum performance SLA")
+    target_cost_reduction: float = Field(
+        default=0.2, ge=0, le=1, description="Target cost reduction (0-1)"
+    )
+    min_performance_sla: float = Field(
+        default=0.95, ge=0, le=1, description="Minimum performance SLA"
+    )
     constraints: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class OptimizationResult(BaseModel):
     """Model for optimization result."""
+
     id: str = Field(..., description="Optimization ID")
     service: str = Field(..., description="Service name")
     strategy: OptimizationStrategy = Field(..., description="Strategy used")
@@ -164,6 +180,7 @@ class OptimizationResult(BaseModel):
 
 class RightsizingRecommendation(BaseModel):
     """Model for rightsizing recommendation."""
+
     id: str = Field(..., description="Recommendation ID")
     service: str = Field(..., description="Service name")
     resource_type: ResourceType = Field(..., description="Resource type")
@@ -180,6 +197,7 @@ class RightsizingRecommendation(BaseModel):
 
 class ScalingRecommendation(BaseModel):
     """Model for scaling recommendation."""
+
     id: str = Field(..., description="Recommendation ID")
     service: str = Field(..., description="Service name")
     action: str = Field(..., description="Action (scale-up/scale-down/no-action)")
@@ -206,18 +224,21 @@ _rightsizing_recommendations: List[RightsizingRecommendation] = []
 def _generate_plan_id() -> str:
     """Generate a unique plan ID."""
     import uuid
+
     return f"CP-{uuid.uuid4().hex[:8].upper()}"
 
 
 def _generate_optimization_id() -> str:
     """Generate a unique optimization ID."""
     import uuid
+
     return f"OPT-{uuid.uuid4().hex[:8].upper()}"
 
 
 def _generate_rightsizing_id() -> str:
     """Generate a unique rightsizing ID."""
     import uuid
+
     return f"RS-{uuid.uuid4().hex[:8].upper()}"
 
 
@@ -225,27 +246,28 @@ def _generate_rightsizing_id() -> str:
 # Helper Functions
 # ============================================================================
 
+
 async def _build_metric_history() -> Dict[str, List[float]]:
     """Build a normalized metric history dict for the forecasting engine."""
     hist = metrics_history.to_dict()
-    
+
     cpu = [float(v) for v in hist.get("cpu", [])]
     memory = [float(v) for v in hist.get("memory", [])]
     net_in = [float(v) for v in hist.get("net_in", [])]
     network = [max(0.0, min(100.0, v / _NETWORK_CAP_MB * 100.0)) for v in net_in]
-    
+
     try:
         disks = await asyncio.to_thread(get_disk_metrics)
         avg = sum(d.get("usage_percent", 0.0) for d in disks) / max(len(disks), 1)
     except Exception as e:
         logger.warning(f"磁盘指标采集失败，使用默认值: {e}")
         avg = 45.0
-    
+
     disk = [
         max(0.0, min(100.0, avg - (_DISK_HISTORY_LEN - 1 - i) * 0.5))
         for i in range(_DISK_HISTORY_LEN)
     ]
-    
+
     return {
         "cpu": cpu,
         "memory": memory,
@@ -280,6 +302,7 @@ def _calculate_confidence(history_length: int) -> float:
 # API Endpoints - Planning
 # ============================================================================
 
+
 @router.get("/planning", response_model=List[CapacityPlan])
 async def list_capacity_plans(
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -290,13 +313,13 @@ async def list_capacity_plans(
 ):
     """
     List all capacity plans with optional filtering.
-    
+
     Returns capacity planning documents that define resource allocation
     targets and timelines for services.
     """
     try:
         plans = list(_capacity_plans.values())
-        
+
         if service:
             plans = [p for p in plans if p.service == service]
         if resource_type:
@@ -305,7 +328,7 @@ async def list_capacity_plans(
             plans = [p for p in plans if p.status == status]
         if horizon:
             plans = [p for p in plans if p.horizon == horizon]
-        
+
         return sorted(plans, key=lambda p: p.created_at, reverse=True)
     except Exception as e:
         logger.error(f"Error listing capacity plans: {e}", exc_info=True)
@@ -319,19 +342,19 @@ async def create_capacity_plan(
 ):
     """
     Create a new capacity plan.
-    
+
     Creates a capacity planning document defining resource targets
     and implementation timelines.
     """
     try:
         plan_id = _generate_plan_id()
-        
+
         # Get current capacity from metrics
         metric_history = await _build_metric_history()
         resource_key = plan.resource_type.value
         current_values = metric_history.get(resource_key, [50.0])
         current_capacity = current_values[-1] if current_values else 50.0
-        
+
         # Calculate projected capacity based on horizon
         if plan.horizon == PlanningHorizon.WEEKLY:
             days_ahead = 7
@@ -341,11 +364,11 @@ async def create_capacity_plan(
             days_ahead = 90
         else:
             days_ahead = 365
-        
+
         # Simple projection: assume 2% growth per week
         growth_rate = 1.02 ** (days_ahead / 7)
         projected_capacity = current_capacity * growth_rate
-        
+
         # Determine unit based on resource type
         unit_map = {
             ResourceType.CPU: "%",
@@ -356,7 +379,7 @@ async def create_capacity_plan(
             ResourceType.STORAGE: "GB",
         }
         unit = unit_map.get(plan.resource_type, "%")
-        
+
         new_plan = CapacityPlan(
             id=plan_id,
             name=plan.name,
@@ -370,15 +393,15 @@ async def create_capacity_plan(
             threshold=plan.threshold,
             recommended_action=plan.recommended_action,
             estimated_cost=plan.estimated_cost,
-            created_by=current_user.username if hasattr(current_user, 'username') else "system",
+            created_by=current_user.username if hasattr(current_user, "username") else "system",
             status="draft",
             metadata=plan.metadata,
         )
-        
+
         _capacity_plans[plan_id] = new_plan
-        
+
         logger.info(f"Created capacity plan: {plan_id} for service {plan.service}")
-        
+
         return new_plan
     except Exception as e:
         logger.error(f"Error creating capacity plan: {e}", exc_info=True)
@@ -414,18 +437,18 @@ async def update_capacity_plan(
     try:
         if plan_id not in _capacity_plans:
             raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
-        
+
         plan = _capacity_plans[plan_id]
-        
+
         if status is not None:
             plan.status = status
         if recommended_action is not None:
             plan.recommended_action = recommended_action
         if estimated_cost is not None:
             plan.estimated_cost = estimated_cost
-        
+
         logger.info(f"Updated capacity plan: {plan_id}")
-        
+
         return plan
     except HTTPException:
         raise
@@ -443,11 +466,11 @@ async def delete_capacity_plan(
     try:
         if plan_id not in _capacity_plans:
             raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
-        
+
         del _capacity_plans[plan_id]
-        
+
         logger.info(f"Deleted capacity plan: {plan_id}")
-        
+
         return None
     except HTTPException:
         raise
@@ -460,6 +483,7 @@ async def delete_capacity_plan(
 # API Endpoints - Forecasts
 # ============================================================================
 
+
 @router.get("/forecasts", response_model=List[CapacityForecast])
 async def get_capacity_forecasts(
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -468,14 +492,14 @@ async def get_capacity_forecasts(
 ):
     """
     Get capacity forecasts.
-    
+
     Returns multi-horizon forecasts (7, 30, 90 days) for various resources
     with confidence intervals and trend analysis.
     """
     try:
         metric_history = await _build_metric_history()
         forecasts = forecast_capacity(metric_history, days_ahead=7)
-        
+
         # Map service names
         service_map = {
             "cpu": "compute-service",
@@ -483,27 +507,27 @@ async def get_capacity_forecasts(
             "disk": "database",
             "network": "api-gateway",
         }
-        
+
         resource_type_map = {
             "cpu": ResourceType.CPU,
             "memory": ResourceType.MEMORY,
             "disk": ResourceType.DISK,
             "network": ResourceType.NETWORK,
         }
-        
+
         result = []
         for key, forecast in forecasts.items():
             rt = resource_type_map.get(key, ResourceType.CPU)
             svc = service or service_map.get(key, "unknown")
-            
+
             # Calculate 90-day forecast (extrapolate from 30-day)
             forecast_30 = forecast.get("forecast30d", 0.0)
             forecast_90 = forecast_30 * 1.1  # Assume 10% additional growth
-            
+
             current = forecast.get("currentValue", 0.0)
             trend = _calculate_trend(current, forecast_90)
             confidence = _calculate_confidence(len(metric_history.get(key, [])))
-            
+
             result.append(
                 CapacityForecast(
                     metric=forecast.get("metric", key),
@@ -519,10 +543,10 @@ async def get_capacity_forecasts(
                     trend=trend,
                 )
             )
-        
+
         if resource_type:
             result = [f for f in result if f.resource_type == resource_type]
-        
+
         return result
     except Exception as e:
         logger.error(f"Error getting capacity forecasts: {e}", exc_info=True)
@@ -533,6 +557,7 @@ async def get_capacity_forecasts(
 # API Endpoints - Optimization
 # ============================================================================
 
+
 @router.get("/optimization", response_model=List[OptimizationResult])
 async def list_optimization_results(
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -541,91 +566,109 @@ async def list_optimization_results(
 ):
     """
     List optimization results.
-    
+
     Returns historical optimization analysis results showing cost savings
     and performance improvements.
     """
     try:
         results = list(_optimization_results.values())
-        
+
         if service:
             results = [r for r in results if r.service == service]
         if strategy:
             results = [r for r in results if r.strategy == strategy]
-        
+
         return sorted(results, key=lambda r: r.created_at, reverse=True)
     except Exception as e:
         logger.error(f"Error listing optimization results: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to list optimization results: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list optimization results: {str(e)}"
+        )
 
 
-@router.post("/optimization", response_model=OptimizationResult, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/optimization", response_model=OptimizationResult, status_code=status.HTTP_201_CREATED
+)
 async def create_optimization(
     request: OptimizationRequest,
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
     Create a new optimization analysis.
-    
+
     Analyzes resource usage patterns and generates optimization
     recommendations based on the specified strategy.
     """
     try:
         opt_id = _generate_optimization_id()
-        
+
         # Get current metrics
-        metric_history = await _build_metric_history()
-        
+        metric_history = await _build_metric_history()  # noqa: F841 - Reserved for future use
+
         # Calculate current cost (simplified model)
         current_cost = 1000.0  # Base monthly cost
-        
+
         # Calculate optimization based on strategy
         if request.strategy == OptimizationStrategy.COST_OPTIMIZATION:
             cost_reduction = request.target_cost_reduction
-            performance_impact = 0.05  # 5% performance impact
+            performance_impact = (
+                0.05  # 5% performance impact  # noqa: F841 - Reserved for future use
+            )
         elif request.strategy == OptimizationStrategy.PERFORMANCE_OPTIMIZATION:
             cost_reduction = 0.1  # 10% cost reduction
-            performance_impact = -0.15  # 15% performance improvement
+            performance_impact = (
+                -0.15
+            )  # 15% performance improvement  # noqa: F841 - Reserved for future use
         elif request.strategy == OptimizationStrategy.AGGRESSIVE:
             cost_reduction = 0.3  # 30% cost reduction
-            performance_impact = 0.15  # 15% performance impact
+            performance_impact = (
+                0.15  # 15% performance impact  # noqa: F841 - Reserved for future use
+            )
         else:  # BALANCED
             cost_reduction = 0.2  # 20% cost reduction
-            performance_impact = 0.02  # 2% performance impact
-        
+            performance_impact = (
+                0.02  # 2% performance impact  # noqa: F841 - Reserved for future use
+            )
+
         optimized_cost = current_cost * (1 - cost_reduction)
         cost_savings = current_cost - optimized_cost
         savings_percentage = cost_savings / current_cost * 100
-        
+
         # Generate recommendations
         recommendations = []
         if request.resource_types:
             for rt in request.resource_types:
                 if rt == ResourceType.CPU:
-                    recommendations.append({
-                        "resource_type": "CPU",
-                        "action": "rightsize_instances",
-                        "current": "4 vCPU",
-                        "recommended": "2 vCPU",
-                        "savings": 200.0,
-                    })
+                    recommendations.append(
+                        {
+                            "resource_type": "CPU",
+                            "action": "rightsize_instances",
+                            "current": "4 vCPU",
+                            "recommended": "2 vCPU",
+                            "savings": 200.0,
+                        }
+                    )
                 elif rt == ResourceType.MEMORY:
-                    recommendations.append({
-                        "resource_type": "Memory",
-                        "action": "optimize_memory_allocation",
-                        "current": "16 GB",
-                        "recommended": "8 GB",
-                        "savings": 150.0,
-                    })
+                    recommendations.append(
+                        {
+                            "resource_type": "Memory",
+                            "action": "optimize_memory_allocation",
+                            "current": "16 GB",
+                            "recommended": "8 GB",
+                            "savings": 150.0,
+                        }
+                    )
                 elif rt == ResourceType.STORAGE:
-                    recommendations.append({
-                        "resource_type": "Storage",
-                        "action": "implement_storage_tiering",
-                        "current": "1 TB SSD",
-                        "recommended": "500 GB SSD + 500 GB HDD",
-                        "savings": 100.0,
-                    })
-        
+                    recommendations.append(
+                        {
+                            "resource_type": "Storage",
+                            "action": "implement_storage_tiering",
+                            "current": "1 TB SSD",
+                            "recommended": "500 GB SSD + 500 GB HDD",
+                            "savings": 100.0,
+                        }
+                    )
+
         # Implementation steps
         implementation_steps = [
             "1. Analyze current resource utilization patterns",
@@ -634,7 +677,7 @@ async def create_optimization(
             "4. Monitor performance post-optimization",
             "5. Adjust based on observed results",
         ]
-        
+
         # Risk assessment
         if cost_reduction > 0.25:
             risk_assessment = "High - significant performance impact possible"
@@ -645,7 +688,7 @@ async def create_optimization(
         else:
             risk_assessment = "Low - minimal performance impact expected"
             implementation_time = "1-2 weeks"
-        
+
         result = OptimizationResult(
             id=opt_id,
             service=request.service,
@@ -659,11 +702,11 @@ async def create_optimization(
             risk_assessment=risk_assessment,
             estimated_implementation_time=implementation_time,
         )
-        
+
         _optimization_results[opt_id] = result
-        
+
         logger.info(f"Created optimization analysis: {opt_id} for service {request.service}")
-        
+
         return result
     except Exception as e:
         logger.error(f"Error creating optimization: {e}", exc_info=True)
@@ -674,6 +717,7 @@ async def create_optimization(
 # API Endpoints - Rightsizing
 # ============================================================================
 
+
 @router.get("/rightsizing", response_model=List[RightsizingRecommendation])
 async def get_rightsizing_recommendations(
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -683,7 +727,7 @@ async def get_rightsizing_recommendations(
 ):
     """
     Get rightsizing recommendations.
-    
+
     Returns recommendations for rightsizing resources based on
     actual usage patterns to optimize costs.
     """
@@ -691,16 +735,16 @@ async def get_rightsizing_recommendations(
         # Generate recommendations if not already done
         if not _rightsizing_recommendations:
             await _generate_rightsizing_recommendations()
-        
+
         recommendations = _rightsizing_recommendations
-        
+
         if service:
             recommendations = [r for r in recommendations if r.service == service]
         if resource_type:
             recommendations = [r for r in recommendations if r.resource_type == resource_type]
         if priority:
             recommendations = [r for r in recommendations if r.priority == priority]
-        
+
         return recommendations
     except Exception as e:
         logger.error(f"Error getting rightsizing recommendations: {e}", exc_info=True)
@@ -710,18 +754,18 @@ async def get_rightsizing_recommendations(
 async def _generate_rightsizing_recommendations() -> None:
     """Generate rightsizing recommendations based on current metrics."""
     global _rightsizing_recommendations
-    
+
     metric_history = await _build_metric_history()
-    
+
     services = ["compute-service", "cache-service", "database", "api-gateway"]
     resource_types = [ResourceType.CPU, ResourceType.MEMORY, ResourceType.DISK]
-    
+
     for service in services:
         for rt in resource_types:
             key = rt.value
             values = metric_history.get(key, [50.0])
             current_value = values[-1] if values else 50.0
-            
+
             # Determine action based on utilization
             if current_value < 30:
                 action = RightsizingAction.SCALE_DOWN
@@ -747,7 +791,7 @@ async def _generate_rightsizing_recommendations() -> None:
                 recommended_spec = {"value": current_value, "unit": "%"}
                 savings = 0.0
                 performance_impact = "None - current configuration is optimal"
-            
+
             rec = RightsizingRecommendation(
                 id=_generate_rightsizing_id(),
                 service=service,
@@ -759,15 +803,18 @@ async def _generate_rightsizing_recommendations() -> None:
                 priority=priority,
                 estimated_monthly_savings=savings,
                 performance_impact=performance_impact,
-                implementation_complexity="Low" if action == RightsizingAction.NO_ACTION else "Medium",
+                implementation_complexity=(
+                    "Low" if action == RightsizingAction.NO_ACTION else "Medium"
+                ),
             )
-            
+
             _rightsizing_recommendations.append(rec)
 
 
 # ============================================================================
 # API Endpoints - Recommendations
 # ============================================================================
+
 
 @router.get("/recommendations", response_model=List[ScalingRecommendation])
 async def get_scaling_recommendations(
@@ -778,7 +825,7 @@ async def get_scaling_recommendations(
 ):
     """
     Get scaling recommendations.
-    
+
     Returns actionable scaling recommendations based on capacity
     forecasts and current utilization patterns.
     """
@@ -786,7 +833,7 @@ async def get_scaling_recommendations(
         metric_history = await _build_metric_history()
         forecasts = forecast_capacity(metric_history, days_ahead=7)
         base_recommendations = generate_scaling_recommendations(forecasts)
-        
+
         # Map to enhanced model
         service_map = {
             "cpu": "compute-service",
@@ -794,30 +841,30 @@ async def get_scaling_recommendations(
             "disk": "database",
             "network": "api-gateway",
         }
-        
+
         resource_type_map = {
             "cpu": ResourceType.CPU,
             "memory": ResourceType.MEMORY,
             "disk": ResourceType.DISK,
             "network": ResourceType.NETWORK,
         }
-        
+
         priority_map = {
             "high": Priority.HIGH,
             "medium": Priority.MEDIUM,
             "low": Priority.LOW,
         }
-        
+
         result = []
         for rec in base_recommendations:
             key = rec["id"].split("-")[1].lower()
             rt = resource_type_map.get(key, ResourceType.CPU)
             svc = service or service_map.get(key, "unknown")
-            
+
             forecast = forecasts.get(key, {})
             current_value = forecast.get("currentValue", 0.0)
             threshold = forecast.get("threshold", 80.0)
-            
+
             # Calculate recommended value
             if rec["action"] == "scale-up":
                 recommended_value = threshold * 0.9
@@ -825,7 +872,7 @@ async def get_scaling_recommendations(
                 recommended_value = threshold * 0.5
             else:
                 recommended_value = current_value
-            
+
             result.append(
                 ScalingRecommendation(
                     id=rec["id"],
@@ -842,14 +889,14 @@ async def get_scaling_recommendations(
                     confidence=0.75,
                 )
             )
-        
+
         if service:
             result = [r for r in result if r.service == service]
         if resource_type:
             result = [r for r in result if r.resource_type == resource_type]
         if priority:
             result = [r for r in result if r.priority == priority]
-        
+
         return result
     except Exception as e:
         logger.error(f"Error getting scaling recommendations: {e}", exc_info=True)

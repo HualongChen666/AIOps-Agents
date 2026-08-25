@@ -230,15 +230,16 @@ class RUMSDKGenerator:
         else:
             return f"# SDK for {platform.value} not yet implemented"
 
-    def _generate_web_sdk(self, config: SDKConfig) -> str:
-        """生成 Web SDK"""
-        return f"""
-// AIOps RUM Web SDK
-// Generated at: {datetime.now().isoformat()}
+    def _generate_web_sdk_class(self) -> str:
+        """
+        生成Web SDK类定义
 
-(function(window) {{
-    class AIOpsRUM {{
-        constructor(config) {{
+        Returns:
+            Web SDK类定义字符串
+        """
+        return """
+    class AIOpsRUM {
+        constructor(config) {
             this.config = config;
             this.sessionId = this.generateSessionId();
             this.events = [];
@@ -247,40 +248,40 @@ class RUMSDKGenerator:
             this.errors = 0;
 
             this.init();
-        }}
+        }
 
-        generateSessionId() {{
+        generateSessionId() {
             return 'rum-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
-        }}
+        }
 
-        init() {{
+        init() {
             // 初始化性能监控
-            if (this.config.enable_performance) {{
+            if (this.config.enable_performance) {
                 this.initPerformanceMonitoring();
-            }}
+            }
 
             // 初始化错误监控
-            if (this.config.enable_errors) {{
+            if (this.config.enable_errors) {
                 this.initErrorMonitoring();
-            }}
+            }
 
             // 页面可见性变化
-            document.addEventListener('visibilitychange', () => {{
-                if (document.hidden) {{
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
                     this.flush();
-                }}
-            }});
+                }
+            });
 
             // 定期刷新
             setInterval(() => this.flush(), this.config.flush_interval);
-        }}
+        }
 
-        initPerformanceMonitoring() {{
+        initPerformanceMonitoring() {
             // 监听页面加载
-            window.addEventListener('load', () => {{
-                if (performance.timing) {{
+            window.addEventListener('load', () => {
+                if (performance.timing) {
                     const timing = performance.timing;
-                    const pageLoadEvent = {{
+                    const pageLoadEvent = {
                         sessionId: this.sessionId,
                         pageUrl: window.location.href,
                         loadTime: timing.loadEventEnd - timing.navigationStart,
@@ -289,29 +290,29 @@ class RUMSDKGenerator:
                         firstContentfulPaint: timing.responseStart - timing.navigationStart,
                         largestContentfulPaint: timing.loadEventEnd - timing.navigationStart,
                         timestamp: new Date().toISOString()
-                    }};
+                    };
                     this.track('page_load', pageLoadEvent);
-                }}
-            }});
+                }
+            });
 
             // 监听 Largest Contentful Paint
-            if ('PerformanceObserver' in window) {{
-                const observer = new PerformanceObserver((list) => {{
+            if ('PerformanceObserver' in window) {
+                const observer = new PerformanceObserver((list) => {
                     const entries = list.getEntries();
-                    entries.forEach(entry => {{
-                        this.track('lcp', {{
+                    entries.forEach(entry => {
+                        this.track('lcp', {
                             value: entry.startTime,
                             timestamp: new Date().toISOString()
-                        }});
-                    }});
-                }});
-                observer.observe({{ type: 'largest-contentful-paint', buffered: true }});
-            }}
-        }}
+                        });
+                    });
+                });
+                observer.observe({ type: 'largest-contentful-paint', buffered: true });
+            }
+        }
 
-        initErrorMonitoring() {{
-            window.addEventListener('error', (event) => {{
-                const errorEvent = {{
+        initErrorMonitoring() {
+            window.addEventListener('error', (event) => {
+                const errorEvent = {
                     sessionId: this.sessionId,
                     errorType: event.error?.name || 'Error',
                     errorMessage: event.error?.message || event.message,
@@ -319,13 +320,13 @@ class RUMSDKGenerator:
                     userAgent: navigator.userAgent,
                     pageUrl: window.location.href,
                     timestamp: new Date().toISOString()
-                }};
+                };
                 this.track('error', errorEvent);
                 this.errors++;
-            }});
+            });
 
-            window.addEventListener('unhandledrejection', (event) => {{
-                const errorEvent = {{
+            window.addEventListener('unhandledrejection', (event) => {
+                const errorEvent = {
                     sessionId: this.sessionId,
                     errorType: 'PromiseRejection',
                     errorMessage: event.reason?.message || String(event.reason),
@@ -333,81 +334,93 @@ class RUMSDKGenerator:
                     userAgent: navigator.userAgent,
                     pageUrl: window.location.href,
                     timestamp: new Date().toISOString()
-                }};
+                };
                 this.track('error', errorEvent);
                 this.errors++;
-            }});
-        }}
+            });
+        }
 
-        track(eventName, data) {{
-            if (Math.random() > this.config.sample_rate) {{
+        track(eventName, data) {
+            if (Math.random() > this.config.sample_rate) {
                 return;
-            }}
+            }
 
-            this.events.push({{
+            this.events.push({
                 type: eventName,
                 data: data,
                 timestamp: Date.now()
-            }});
+            });
 
-            if (this.events.length >= this.config.batchSize) {{
+            if (this.events.length >= this.config.batchSize) {
                 this.flush();
-            }}
-        }}
+            }
+        }
 
-        trackPageView(pageUrl) {{
+        trackPageView(pageUrl) {
             this.pageViews++;
-            this.track('page_view', {{
+            this.track('page_view', {
                 sessionId: this.sessionId,
                 pageUrl: pageUrl || window.location.href,
                 timestamp: new Date().toISOString()
-            }});
-        }}
+            });
+        }
 
-        trackCustomEvent(eventName, properties) {{
-            this.track('custom', {{
+        trackCustomEvent(eventName, properties) {
+            this.track('custom', {
                 sessionId: this.sessionId,
                 eventName: eventName,
                 properties: properties,
                 timestamp: new Date().toISOString()
-            }});
-        }}
+            });
+        }
 
-        async flush() {{
-            if (this.events.length === 0) {{
+        async flush() {
+            if (this.events.length === 0) {
                 return;
-            }}
+            }
 
-            const payload = {{
+            const payload = {
                 apiKey: this.config.apiKey,
                 sessionId: this.sessionId,
                 events: this.events,
-                session: {{
+                session: {
                     startTime: new Date(this.sessionStartTime).toISOString(),
                     pageViews: this.pageViews,
                     errors: this.errors,
                     duration: Date.now() - this.sessionStartTime
-                }}
-            }};
+                }
+            };
 
-            try {{
-                const response = await fetch(this.config.api_endpoint, {{
+            try {
+                const response = await fetch(this.config.api_endpoint, {
                     method: 'POST',
-                    headers: {{
+                    headers: {
                         'Content-Type': 'application/json'
-                    }},
+                    },
                     body: JSON.stringify(payload)
-                }});
+                });
 
-                if (response.ok) {{
+                if (response.ok) {
                     this.events = [];
-                }}
-            }} catch (error) {{
+                }
+            } catch (error) {
                 console.error('Failed to send RUM data:', error);
-            }}
-        }}
-    }}
+            }
+        }
+    }
+"""
 
+    def _generate_web_sdk_initialization(self, config: SDKConfig) -> str:
+        """
+        生成Web SDK初始化代码
+
+        Args:
+            config: SDK配置
+
+        Returns:
+            初始化代码字符串
+        """
+        return f"""
     // 初始化 SDK
     window.AIOpsRUM = new AIOpsRUM({{
         apiKey: '{config.api_key}',
@@ -421,7 +434,20 @@ class RUMSDKGenerator:
 
     // 自动追踪页面视图
     window.AIOpsRUM.trackPageView();
+"""
 
+    def _generate_web_sdk(self, config: SDKConfig) -> str:
+        """生成 Web SDK"""
+        class_def = self._generate_web_sdk_class()
+        init_code = self._generate_web_sdk_initialization(config)
+
+        return f"""
+// AIOps RUM Web SDK
+// Generated at: {datetime.now().isoformat()}
+
+(function(window) {{
+{class_def}
+{init_code}
 }})(window);
 """
 

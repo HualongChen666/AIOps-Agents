@@ -239,7 +239,9 @@ async def test_notification_query_and_read_not_found():
         mp.setattr(
             notify_engine, "query_notifications", AsyncMock(side_effect=RuntimeError("boom"))
         )
-        result = await notify_engine.get_notification_history(limit=5)  # noqa: F841  # Variable for test verification
+        result = await notify_engine.get_notification_history(
+            limit=5
+        )  # noqa: F841  # Variable for test verification
         assert result == []  # noqa: F841  # Variable for test verification
 
 
@@ -270,19 +272,25 @@ async def test_slack_notification_with_client(monkeypatch):
     fake_client.chat_postMessage = AsyncMock(return_value={"ok": True, "channel": "#alerts"})
     monkeypatch.setattr(notify_engine, "_get_slack_client", lambda: fake_client)
 
-    result = await notify_engine._send_slack_notification_once("hello", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_slack_notification_once(
+        "hello", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
     # Response object with ok attribute
     fake_client.chat_postMessage = AsyncMock(return_value=MagicMock(ok=True))
-    result = await notify_engine._send_slack_notification_once("hello", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_slack_notification_once(
+        "hello", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
     # Rate-limit error message
     fake_client.chat_postMessage = AsyncMock(
         side_effect=Exception("rate limit exceeded"),
     )
-    result = await notify_engine._send_slack_notification_once("hello", "#alerts")  # noqa: F841  # Variable for test verification
+    result = await notify_engine._send_slack_notification_once(
+        "hello", "#alerts"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "rate limit" in result["error"]
 
@@ -292,12 +300,16 @@ async def test_send_slack_notification_retry(monkeypatch):
     once = AsyncMock(side_effect=[{"success": False}, {"success": True}])
     monkeypatch.setattr(notify_engine, "_send_slack_notification_once", once)
 
-    result = await notify_engine.send_slack_notification("m", "#c", max_retries=2)  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_slack_notification(
+        "m", "#c", max_retries=2
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert once.await_count == 2
 
     once.side_effect = [{"success": False}, {"success": False}]
-    result = await notify_engine.send_slack_notification("m", "#c", max_retries=2)  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_slack_notification(
+        "m", "#c", max_retries=2
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -421,8 +433,10 @@ async def test_send_alert_notification_critical_all_channels(monkeypatch):
     )
     notify_engine._notification_cooldowns.clear()
 
-    result = await notify_engine.send_alert_notification(  # noqa: F841  # Variable for test verification
-        {"id": "F1", "level": "fatal", "title": "boom", "desc": "bad"}
+    result = (
+        await notify_engine.send_alert_notification(  # noqa: F841  # Variable for test verification
+            {"id": "F1", "level": "fatal", "title": "boom", "desc": "bad"}
+        )
     )
     assert result["status"] == "ok"
     assert "wecom" in result["channels_sent"]
@@ -452,8 +466,10 @@ async def test_send_alert_notification_warning_break_and_all_failed(monkeypatch)
     notify_engine._notification_cooldowns.clear()
 
     # warning: wecom succeeds and breaks
-    result = await notify_engine.send_alert_notification(  # noqa: F841  # Variable for test verification
-        {"id": "W1", "level": "warning", "title": "w", "desc": "d"}
+    result = (
+        await notify_engine.send_alert_notification(  # noqa: F841  # Variable for test verification
+            {"id": "W1", "level": "warning", "title": "w", "desc": "d"}
+        )
     )
     assert result["status"] == "ok"
     assert result["channels_sent"] == ["wecom"]
@@ -461,8 +477,10 @@ async def test_send_alert_notification_warning_break_and_all_failed(monkeypatch)
     # All configured channels fail
     notify_engine._post_webhook = AsyncMock(return_value={"success": False})
     notify_engine.send_email_notification = AsyncMock(return_value={"success": False})
-    result = await notify_engine.send_alert_notification(  # noqa: F841  # Variable for test verification
-        {"id": "W2", "level": "warning", "title": "w", "desc": "d"}
+    result = (
+        await notify_engine.send_alert_notification(  # noqa: F841  # Variable for test verification
+            {"id": "W2", "level": "warning", "title": "w", "desc": "d"}
+        )
     )
     assert result["status"] == "all_failed"
 

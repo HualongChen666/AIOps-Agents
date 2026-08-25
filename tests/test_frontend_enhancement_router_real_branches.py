@@ -651,9 +651,10 @@ def test_get_view_modes_endpoint(client):
 def test_get_view_modes_when_frontend_unavailable(client):
     """Test get_view_modes still works when FRONTEND_AVAILABLE is False"""
     import api.frontend_enhancement_router as fem
+
     original = fem.FRONTEND_AVAILABLE
     fem.FRONTEND_AVAILABLE = False
-    
+
     try:
         r = client.get("/api/v1/frontend/view-modes")
         assert r.status_code == 200

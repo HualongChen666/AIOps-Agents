@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator
 from loguru import logger
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter(prefix="/api/v1/notify", tags=["Notification Advanced"])
 
@@ -18,8 +18,11 @@ router = APIRouter(prefix="/api/v1/notify", tags=["Notification Advanced"])
 # Pydantic Models
 class ChannelCreate(BaseModel):
     """Notification channel creation model"""
+
     name: str = Field(..., description="Channel name")
-    type: str = Field(..., description="Channel type (email, slack, pagerduty, sms, webhook, teams)")
+    type: str = Field(
+        ..., description="Channel type (email, slack, pagerduty, sms, webhook, teams)"
+    )
     enabled: bool = Field(default=True, description="Whether the channel is enabled")
     config: Dict[str, Any] = Field(default_factory=dict, description="Channel configuration")
     priority: int = Field(default=0, description="Channel priority")
@@ -37,6 +40,7 @@ class ChannelCreate(BaseModel):
 
 class ChannelUpdate(BaseModel):
     """Notification channel update model"""
+
     name: Optional[str] = None
     enabled: Optional[bool] = None
     config: Optional[Dict[str, Any]] = None
@@ -47,6 +51,7 @@ class ChannelUpdate(BaseModel):
 
 class ChannelResponse(BaseModel):
     """Notification channel response model"""
+
     id: str
     name: str
     type: str
@@ -61,6 +66,7 @@ class ChannelResponse(BaseModel):
 
 class TemplateCreate(BaseModel):
     """Notification template creation model"""
+
     name: str = Field(..., description="Template name")
     subject: str = Field(..., description="Template subject")
     body: str = Field(..., description="Template body")
@@ -72,6 +78,7 @@ class TemplateCreate(BaseModel):
 
 class TemplateUpdate(BaseModel):
     """Notification template update model"""
+
     name: Optional[str] = None
     subject: Optional[str] = None
     body: Optional[str] = None
@@ -83,6 +90,7 @@ class TemplateUpdate(BaseModel):
 
 class TemplateResponse(BaseModel):
     """Notification template response model"""
+
     id: str
     name: str
     subject: str
@@ -97,6 +105,7 @@ class TemplateResponse(BaseModel):
 
 class RuleCreate(BaseModel):
     """Notification rule creation model"""
+
     name: str = Field(..., description="Rule name")
     condition: str = Field(..., description="Rule condition expression")
     channels: List[str] = Field(..., description="Channel IDs to notify")
@@ -108,6 +117,7 @@ class RuleCreate(BaseModel):
 
 class RuleUpdate(BaseModel):
     """Notification rule update model"""
+
     name: Optional[str] = None
     condition: Optional[str] = None
     channels: Optional[List[str]] = None
@@ -119,6 +129,7 @@ class RuleUpdate(BaseModel):
 
 class RuleResponse(BaseModel):
     """Notification rule response model"""
+
     id: str
     name: str
     condition: str
@@ -133,6 +144,7 @@ class RuleResponse(BaseModel):
 
 class NotificationHistoryResponse(BaseModel):
     """Notification history response model"""
+
     id: str
     channel_id: str
     channel_name: str
@@ -146,6 +158,7 @@ class NotificationHistoryResponse(BaseModel):
 
 class NotificationSettings(BaseModel):
     """Notification settings model"""
+
     enabled: bool = Field(default=True, description="Global notification enabled")
     min_level: str = Field(default="info", description="Minimum notification level")
     rate_limit_enabled: bool = Field(default=True, description="Rate limiting enabled")
@@ -218,7 +231,10 @@ def _initialize_default_data():
                 "id": str(uuid4()),
                 "name": "Alert Template",
                 "subject": "Alert: {{alert_title}}",
-                "body": "Alert Details:\n\nTitle: {{alert_title}}\nLevel: {{alert_level}}\nDescription: {{alert_description}}\nTime: {{alert_time}}",
+                "body": (
+                    "Alert Details:\n\nTitle: {{alert_title}}\nLevel: {{alert_level}}\n"
+                    "Description: {{alert_description}}\nTime: {{alert_time}}"
+                ),
                 "type": "email",
                 "variables": ["alert_title", "alert_level", "alert_description", "alert_time"],
                 "enabled": True,
@@ -234,7 +250,7 @@ def _initialize_default_data():
     if not _rules:
         template_id = list(_templates.keys())[0] if _templates else str(uuid4())
         channel_id = list(_channels.keys())[0] if _channels else str(uuid4())
-        
+
         default_rules = [
             {
                 "id": str(uuid4()),
@@ -257,47 +273,51 @@ _initialize_default_data()
 
 
 # Channel Endpoints
-@router.get("/channels", response_model=List[ChannelResponse], summary="Get all notification channels")
+@router.get(
+    "/channels", response_model=List[ChannelResponse], summary="Get all notification channels"
+)
 async def get_channels(
     enabled: Optional[bool] = Query(None, description="Filter by enabled status"),
-    type: Optional[str] = Query(None, description="Filter by channel type")
+    type: Optional[str] = Query(None, description="Filter by channel type"),
 ):
     """
     Get all notification channels with optional filtering
-    
+
     Args:
         enabled: Filter by enabled status
         type: Filter by channel type
-        
+
     Returns:
         List of notification channels
     """
     try:
         channels = list(_channels.values())
-        
+
         if enabled is not None:
             channels = [ch for ch in channels if ch["enabled"] == enabled]
-        
+
         if type:
             channels = [ch for ch in channels if ch["type"] == type]
-        
+
         # Sort by priority
         channels.sort(key=lambda x: x["priority"], reverse=True)
-        
+
         return [ChannelResponse(**ch) for ch in channels]
     except Exception as e:
         logger.error(f"Error getting channels: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/channels", response_model=ChannelResponse, summary="Create a new notification channel")
+@router.post(
+    "/channels", response_model=ChannelResponse, summary="Create a new notification channel"
+)
 async def create_channel(channel: ChannelCreate):
     """
     Create a new notification channel
-    
+
     Args:
         channel: Channel data
-        
+
     Returns:
         Created channel
     """
@@ -315,7 +335,7 @@ async def create_channel(channel: ChannelCreate):
             "updated_at": datetime.utcnow(),
         }
         _channels[new_channel["id"]] = new_channel
-        
+
         logger.info(f"Created notification channel: {channel.name}")
         return ChannelResponse(**new_channel)
     except Exception as e:
@@ -327,17 +347,17 @@ async def create_channel(channel: ChannelCreate):
 async def get_channel(channel_id: str):
     """
     Get a notification channel by ID
-    
+
     Args:
         channel_id: Channel ID
-        
+
     Returns:
         Channel data
     """
     try:
         if channel_id not in _channels:
             raise HTTPException(status_code=404, detail="Channel not found")
-        
+
         return ChannelResponse(**_channels[channel_id])
     except HTTPException:
         raise
@@ -350,20 +370,20 @@ async def get_channel(channel_id: str):
 async def update_channel(channel_id: str, channel: ChannelUpdate):
     """
     Update a notification channel
-    
+
     Args:
         channel_id: Channel ID
         channel: Updated channel data
-        
+
     Returns:
         Updated channel
     """
     try:
         if channel_id not in _channels:
             raise HTTPException(status_code=404, detail="Channel not found")
-        
+
         existing = _channels[channel_id]
-        
+
         if channel.name is not None:
             existing["name"] = channel.name
         if channel.enabled is not None:
@@ -376,9 +396,9 @@ async def update_channel(channel_id: str, channel: ChannelUpdate):
             existing["retry_count"] = channel.retry_count
         if channel.timeout is not None:
             existing["timeout"] = channel.timeout
-        
+
         existing["updated_at"] = datetime.utcnow()
-        
+
         logger.info(f"Updated notification channel: {channel_id}")
         return ChannelResponse(**existing)
     except HTTPException:
@@ -392,27 +412,27 @@ async def update_channel(channel_id: str, channel: ChannelUpdate):
 async def delete_channel(channel_id: str):
     """
     Delete a notification channel
-    
+
     Args:
         channel_id: Channel ID
-        
+
     Returns:
         Deletion result
     """
     try:
         if channel_id not in _channels:
             raise HTTPException(status_code=404, detail="Channel not found")
-        
+
         # Check if channel is used by any rules
         for rule in _rules.values():
             if channel_id in rule["channels"]:
                 raise HTTPException(
-                    status_code=400, 
-                    detail="Cannot delete channel: it is used by one or more notification rules"
+                    status_code=400,
+                    detail="Cannot delete channel: it is used by one or more notification rules",
                 )
-        
+
         del _channels[channel_id]
-        
+
         logger.info(f"Deleted notification channel: {channel_id}")
         return {"status": "success", "message": "Channel deleted successfully"}
     except HTTPException:
@@ -423,44 +443,48 @@ async def delete_channel(channel_id: str):
 
 
 # Template Endpoints
-@router.get("/templates", response_model=List[TemplateResponse], summary="Get all notification templates")
+@router.get(
+    "/templates", response_model=List[TemplateResponse], summary="Get all notification templates"
+)
 async def get_templates(
     enabled: Optional[bool] = Query(None, description="Filter by enabled status"),
-    type: Optional[str] = Query(None, description="Filter by template type")
+    type: Optional[str] = Query(None, description="Filter by template type"),
 ):
     """
     Get all notification templates with optional filtering
-    
+
     Args:
         enabled: Filter by enabled status
         type: Filter by template type
-        
+
     Returns:
         List of notification templates
     """
     try:
         templates = list(_templates.values())
-        
+
         if enabled is not None:
             templates = [t for t in templates if t["enabled"] == enabled]
-        
+
         if type:
             templates = [t for t in templates if t["type"] == type]
-        
+
         return [TemplateResponse(**t) for t in templates]
     except Exception as e:
         logger.error(f"Error getting templates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/templates", response_model=TemplateResponse, summary="Create a new notification template")
+@router.post(
+    "/templates", response_model=TemplateResponse, summary="Create a new notification template"
+)
 async def create_template(template: TemplateCreate):
     """
     Create a new notification template
-    
+
     Args:
         template: Template data
-        
+
     Returns:
         Created template
     """
@@ -478,7 +502,7 @@ async def create_template(template: TemplateCreate):
             "updated_at": datetime.utcnow(),
         }
         _templates[new_template["id"]] = new_template
-        
+
         logger.info(f"Created notification template: {template.name}")
         return TemplateResponse(**new_template)
     except Exception as e:
@@ -486,21 +510,23 @@ async def create_template(template: TemplateCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/templates/{template_id}", response_model=TemplateResponse, summary="Get a template by ID")
+@router.get(
+    "/templates/{template_id}", response_model=TemplateResponse, summary="Get a template by ID"
+)
 async def get_template(template_id: str):
     """
     Get a notification template by ID
-    
+
     Args:
         template_id: Template ID
-        
+
     Returns:
         Template data
     """
     try:
         if template_id not in _templates:
             raise HTTPException(status_code=404, detail="Template not found")
-        
+
         return TemplateResponse(**_templates[template_id])
     except HTTPException:
         raise
@@ -509,24 +535,26 @@ async def get_template(template_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.patch("/templates/{template_id}", response_model=TemplateResponse, summary="Update a template")
+@router.patch(
+    "/templates/{template_id}", response_model=TemplateResponse, summary="Update a template"
+)
 async def update_template(template_id: str, template: TemplateUpdate):
     """
     Update a notification template
-    
+
     Args:
         template_id: Template ID
         template: Updated template data
-        
+
     Returns:
         Updated template
     """
     try:
         if template_id not in _templates:
             raise HTTPException(status_code=404, detail="Template not found")
-        
+
         existing = _templates[template_id]
-        
+
         if template.name is not None:
             existing["name"] = template.name
         if template.subject is not None:
@@ -541,9 +569,9 @@ async def update_template(template_id: str, template: TemplateUpdate):
             existing["enabled"] = template.enabled
         if template.metadata is not None:
             existing["metadata"] = template.metadata
-        
+
         existing["updated_at"] = datetime.utcnow()
-        
+
         logger.info(f"Updated notification template: {template_id}")
         return TemplateResponse(**existing)
     except HTTPException:
@@ -557,27 +585,27 @@ async def update_template(template_id: str, template: TemplateUpdate):
 async def delete_template(template_id: str):
     """
     Delete a notification template
-    
+
     Args:
         template_id: Template ID
-        
+
     Returns:
         Deletion result
     """
     try:
         if template_id not in _templates:
             raise HTTPException(status_code=404, detail="Template not found")
-        
+
         # Check if template is used by any rules
         for rule in _rules.values():
             if rule["template_id"] == template_id:
                 raise HTTPException(
-                    status_code=400, 
-                    detail="Cannot delete template: it is used by one or more notification rules"
+                    status_code=400,
+                    detail="Cannot delete template: it is used by one or more notification rules",
                 )
-        
+
         del _templates[template_id]
-        
+
         logger.info(f"Deleted notification template: {template_id}")
         return {"status": "success", "message": "Template deleted successfully"}
     except HTTPException:
@@ -589,27 +617,25 @@ async def delete_template(template_id: str):
 
 # Rule Endpoints
 @router.get("/rules", response_model=List[RuleResponse], summary="Get all notification rules")
-async def get_rules(
-    enabled: Optional[bool] = Query(None, description="Filter by enabled status")
-):
+async def get_rules(enabled: Optional[bool] = Query(None, description="Filter by enabled status")):
     """
     Get all notification rules with optional filtering
-    
+
     Args:
         enabled: Filter by enabled status
-        
+
     Returns:
         List of notification rules
     """
     try:
         rules = list(_rules.values())
-        
+
         if enabled is not None:
             rules = [r for r in rules if r["enabled"] == enabled]
-        
+
         # Sort by priority
         rules.sort(key=lambda x: x["priority"], reverse=True)
-        
+
         return [RuleResponse(**r) for r in rules]
     except Exception as e:
         logger.error(f"Error getting rules: {e}")
@@ -620,10 +646,10 @@ async def get_rules(
 async def create_rule(rule: RuleCreate):
     """
     Create a new notification rule
-    
+
     Args:
         rule: Rule data
-        
+
     Returns:
         Created rule
     """
@@ -631,12 +657,12 @@ async def create_rule(rule: RuleCreate):
         # Validate template exists
         if rule.template_id not in _templates:
             raise HTTPException(status_code=400, detail="Template not found")
-        
+
         # Validate channels exist
         for channel_id in rule.channels:
             if channel_id not in _channels:
                 raise HTTPException(status_code=400, detail=f"Channel {channel_id} not found")
-        
+
         new_rule = {
             "id": str(uuid4()),
             "name": rule.name,
@@ -650,7 +676,7 @@ async def create_rule(rule: RuleCreate):
             "updated_at": datetime.utcnow(),
         }
         _rules[new_rule["id"]] = new_rule
-        
+
         logger.info(f"Created notification rule: {rule.name}")
         return RuleResponse(**new_rule)
     except HTTPException:
@@ -664,17 +690,17 @@ async def create_rule(rule: RuleCreate):
 async def get_rule(rule_id: str):
     """
     Get a notification rule by ID
-    
+
     Args:
         rule_id: Rule ID
-        
+
     Returns:
         Rule data
     """
     try:
         if rule_id not in _rules:
             raise HTTPException(status_code=404, detail="Rule not found")
-        
+
         return RuleResponse(**_rules[rule_id])
     except HTTPException:
         raise
@@ -687,20 +713,20 @@ async def get_rule(rule_id: str):
 async def update_rule(rule_id: str, rule: RuleUpdate):
     """
     Update a notification rule
-    
+
     Args:
         rule_id: Rule ID
         rule: Updated rule data
-        
+
     Returns:
         Updated rule
     """
     try:
         if rule_id not in _rules:
             raise HTTPException(status_code=404, detail="Rule not found")
-        
+
         existing = _rules[rule_id]
-        
+
         if rule.name is not None:
             existing["name"] = rule.name
         if rule.condition is not None:
@@ -721,9 +747,9 @@ async def update_rule(rule_id: str, rule: RuleUpdate):
             existing["priority"] = rule.priority
         if rule.metadata is not None:
             existing["metadata"] = rule.metadata
-        
+
         existing["updated_at"] = datetime.utcnow()
-        
+
         logger.info(f"Updated notification rule: {rule_id}")
         return RuleResponse(**existing)
     except HTTPException:
@@ -737,19 +763,19 @@ async def update_rule(rule_id: str, rule: RuleUpdate):
 async def delete_rule(rule_id: str):
     """
     Delete a notification rule
-    
+
     Args:
         rule_id: Rule ID
-        
+
     Returns:
         Deletion result
     """
     try:
         if rule_id not in _rules:
             raise HTTPException(status_code=404, detail="Rule not found")
-        
+
         del _rules[rule_id]
-        
+
         logger.info(f"Deleted notification rule: {rule_id}")
         return {"status": "success", "message": "Rule deleted successfully"}
     except HTTPException:
@@ -760,38 +786,40 @@ async def delete_rule(rule_id: str):
 
 
 # History Endpoints
-@router.get("/history", response_model=List[NotificationHistoryResponse], summary="Get notification history")
+@router.get(
+    "/history", response_model=List[NotificationHistoryResponse], summary="Get notification history"
+)
 async def get_notification_history(
     channel_id: Optional[str] = Query(None, description="Filter by channel ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records")
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records"),
 ):
     """
     Get notification history with optional filtering
-    
+
     Args:
         channel_id: Filter by channel ID
         status: Filter by status
         limit: Maximum number of records
-        
+
     Returns:
         List of notification history records
     """
     try:
         history = _history.copy()
-        
+
         if channel_id:
             history = [h for h in history if h["channel_id"] == channel_id]
-        
+
         if status:
             history = [h for h in history if h["status"] == status]
-        
+
         # Sort by sent time (newest first)
         history.sort(key=lambda x: x["sent_at"], reverse=True)
-        
+
         # Limit results
         history = history[:limit]
-        
+
         return [NotificationHistoryResponse(**h) for h in history]
     except Exception as e:
         logger.error(f"Error getting notification history: {e}")
@@ -803,7 +831,7 @@ async def get_notification_history(
 async def get_notification_settings():
     """
     Get global notification settings
-    
+
     Returns:
         Notification settings
     """
@@ -814,20 +842,22 @@ async def get_notification_settings():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.patch("/settings", response_model=NotificationSettings, summary="Update notification settings")
+@router.patch(
+    "/settings", response_model=NotificationSettings, summary="Update notification settings"
+)
 async def update_notification_settings(settings: NotificationSettings):
     """
     Update global notification settings
-    
+
     Args:
         settings: Updated settings
-        
+
     Returns:
         Updated settings
     """
     try:
         _settings.update(settings.model_dump(exclude_unset=True))
-        
+
         logger.info("Updated notification settings")
         return NotificationSettings(**_settings)
     except Exception as e:

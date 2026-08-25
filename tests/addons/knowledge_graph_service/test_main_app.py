@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Tests for main_app.py module."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from extensions.addons.ai_plus.knowledge_graph_service.main_app import (
     app,
@@ -11,17 +12,17 @@ from extensions.addons.ai_plus.knowledge_graph_service.main_app import (
 )
 from extensions.addons.ai_plus.knowledge_graph_service.schemas import (
     EntityModelingRequest,
+    FaultPropagationGraphRequest,
+    FaultRule,
+    FaultState,
     GraphBuildRequest,
     GraphQueryRequest,
     GraphReasonRequest,
     GraphVisualizationRequest,
-    ServiceDependencyGraphRequest,
-    ServiceDependency,
-    InfrastructureGraphRequest,
     InfrastructureComponent,
-    FaultPropagationGraphRequest,
-    FaultRule,
-    FaultState,
+    InfrastructureGraphRequest,
+    ServiceDependency,
+    ServiceDependencyGraphRequest,
 )
 
 
@@ -100,9 +101,7 @@ class TestMainApp:
             )
         )
 
-        request = EntityModelingRequest(
-            entity_name="Test Entity", entity_type="generic"
-        )
+        request = EntityModelingRequest(entity_name="Test Entity", entity_type="generic")
 
         response = client.post("/entity/model", json=request.model_dump())
 
@@ -115,9 +114,7 @@ class TestMainApp:
         """Test /entity/model endpoint with error."""
         mock_orchestrator.model_entity = AsyncMock(side_effect=Exception("Test error"))
 
-        request = EntityModelingRequest(
-            entity_name="Test Entity", entity_type="generic"
-        )
+        request = EntityModelingRequest(entity_name="Test Entity", entity_type="generic")
 
         response = client.post("/entity/model", json=request.model_dump())
 
@@ -153,14 +150,12 @@ class TestMainApp:
     def test_graph_build_endpoint(self, client, mock_orchestrator):
         """Test /graph/build endpoint."""
         from extensions.addons.ai_plus.knowledge_graph_service.schemas import (
-            GraphNode,
             GraphEdge,
+            GraphNode,
         )
 
         mock_orchestrator.build_graph = AsyncMock(
-            return_value=MagicMock(
-                graph_id="graph1", nodes_count=2, edges_count=1, built=True
-            )
+            return_value=MagicMock(graph_id="graph1", nodes_count=2, edges_count=1, built=True)
         )
 
         request = GraphBuildRequest(
@@ -227,9 +222,7 @@ class TestMainApp:
             )
         )
 
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="neighbors"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="neighbors")
 
         response = client.post("/graph/reason", json=request.model_dump())
 
@@ -269,9 +262,7 @@ class TestMainApp:
 
     def test_graph_visualize_endpoint_not_found(self, client, mock_orchestrator):
         """Test /graph/visualize endpoint with graph not found."""
-        mock_orchestrator.visualize_graph = AsyncMock(
-            side_effect=KeyError("Graph not found")
-        )
+        mock_orchestrator.visualize_graph = AsyncMock(side_effect=KeyError("Graph not found"))
 
         request = GraphVisualizationRequest(graph_id="nonexistent")
 
@@ -346,14 +337,8 @@ class TestMainApp:
         )
 
         request = FaultPropagationGraphRequest(
-            states=[
-                FaultState(component_id="Database", fault_type="down", severity=1.0)
-            ],
-            rules=[
-                FaultRule(
-                    source="Database", target="API", condition="down", impact="high"
-                )
-            ],
+            states=[FaultState(component_id="Database", fault_type="down", severity=1.0)],
+            rules=[FaultRule(source="Database", target="API", condition="down", impact="high")],
         )
 
         response = client.post("/fault-propagation/build", json=request.model_dump())
@@ -444,9 +429,9 @@ class TestMainApp:
             return_value=mock_orchestrator,
         ):
             # Simulate startup
-            from extensions.addons.ai_plus.knowledge_graph_service.main_app import startup
-
             import asyncio
+
+            from extensions.addons.ai_plus.knowledge_graph_service.main_app import startup
 
             asyncio.run(startup())
 

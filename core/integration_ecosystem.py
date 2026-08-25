@@ -212,8 +212,12 @@ class IntegrationEcosystem:
                 logger.info(f"No integration configuration file found at {path}")
                 return
 
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.error(f"Failed to load integration configuration from {path}: {exc}")
+                return
 
             for item in data:
                 try:
@@ -999,7 +1003,7 @@ class IntegrationEcosystem:
 
 
 # 全局实例
-integration_ecosystem = IntegrationEcosystem()
+INTEGRATION_ECOSYSTEM = IntegrationEcosystem()
 
 
 # ============================================================
@@ -1859,6 +1863,6 @@ plugin_config = {
 # ============================================================
 # P2 Enhancement: Global instances
 # ============================================================
-extended_integration_registry = ExtendedIntegrationRegistry()
-connector_marketplace = ConnectorMarketplace()
-plugin_sdk = PluginSDK()
+EXTENDED_INTEGRATION_REGISTRY = ExtendedIntegrationRegistry()
+CONNECTOR_MARKETPLACE = ConnectorMarketplace()
+PLUGIN_SDK = PluginSDK()

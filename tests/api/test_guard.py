@@ -68,6 +68,7 @@ def test_guard_endpoint(client, approval_headers, method, path, body, params, ex
 # /check endpoint - comprehensive tests
 # ---------------------------------------------------------------------------
 
+
 def test_check_safe_command(client):
     """Test checking a safe command."""
     resp = client.post("/api/guard/check", json={"command": "ls -la"})
@@ -184,6 +185,7 @@ def test_check_with_target_host(client):
 # /allowed endpoint
 # ---------------------------------------------------------------------------
 
+
 def test_allowed_true(client):
     """Test allowed endpoint for safe command."""
     resp = client.post("/api/guard/allowed", json={"command": "ls"})
@@ -215,6 +217,7 @@ def test_allowed_with_target_host(client):
 # ---------------------------------------------------------------------------
 # /rewrite endpoint
 # ---------------------------------------------------------------------------
+
 
 def test_rewrite_rm_to_safe(client):
     """Test rewriting rm command to safe version."""
@@ -249,6 +252,7 @@ def test_rewrite_validation_too_long(client):
 # ---------------------------------------------------------------------------
 # /dryrun endpoint
 # ---------------------------------------------------------------------------
+
 
 def test_dryrun_rm(client):
     """Test dryrun for rm command."""
@@ -289,6 +293,7 @@ def test_dryrun_validation_empty(client):
 # ---------------------------------------------------------------------------
 # /audit endpoint
 # ---------------------------------------------------------------------------
+
 
 def _audit_headers(key: str):
     """Helper to create audit headers."""
@@ -440,6 +445,7 @@ def test_audit_with_limit(client):
 # /stats endpoint
 # ---------------------------------------------------------------------------
 
+
 def test_stats_with_valid_key(client):
     """Test stats endpoint with valid key."""
     clear_audit_log()
@@ -479,6 +485,7 @@ def test_stats_with_wrong_key_denied(client):
 # ---------------------------------------------------------------------------
 # /api/v1/security/events endpoint
 # ---------------------------------------------------------------------------
+
 
 def test_security_events(client):
     """Test security events endpoint."""
@@ -526,6 +533,7 @@ def test_security_events_with_limit(client):
 # /api/v1/security/stats endpoint
 # ---------------------------------------------------------------------------
 
+
 def test_security_stats(client):
     """Test security stats endpoint."""
     clear_audit_log()
@@ -561,6 +569,7 @@ def test_security_stats_with_limit(client):
 # ---------------------------------------------------------------------------
 # Additional edge case tests
 # ---------------------------------------------------------------------------
+
 
 def test_check_medium_risk_command(client):
     """Test checking a medium risk command."""
@@ -611,7 +620,7 @@ def test_audit_with_all_risk_levels(client):
     record_audit("h1", "iptables -F", "medium", executor="remote@testclient", result="allowed")
     record_audit("h1", "reboot", "high", executor="remote@testclient", result="checked_high")
     record_audit("h1", "rm -rf /", "blocked", executor="remote@testclient", result="blocked")
-    
+
     for level in ["safe", "low", "medium", "high", "blocked"]:
         resp = client.get(
             "/api/guard/audit",
@@ -631,7 +640,7 @@ def test_stats_with_all_risk_levels(client):
     record_audit("h1", "iptables -F", "medium", executor="remote@testclient", result="allowed")
     record_audit("h1", "reboot", "high", executor="remote@testclient", result="checked_high")
     record_audit("h1", "rm -rf /", "blocked", executor="remote@testclient", result="blocked")
-    
+
     resp = client.get("/api/guard/stats", headers=_audit_headers(config.INTERNAL_API_KEY))
     assert resp.status_code == 200
     data = resp.json()
@@ -650,11 +659,11 @@ def test_security_events_all_types(client):
     record_audit("h1", "reboot", "high", executor="remote@testclient", result="checked_high")
     record_audit("h1", "iptables -F", "medium", executor="remote@testclient", result="allowed")
     record_audit("h1", "ls", "safe", executor="local_caller", result="allowed")
-    
+
     resp = client.get("/api/v1/security/events", headers=_audit_headers(config.INTERNAL_API_KEY))
     assert resp.status_code == 200
     data = resp.json()
-    
+
     # Check all event types are present
     event_types = {e["type"] for e in data["events"]}
     assert "compliance" in event_types  # blocked
@@ -670,11 +679,11 @@ def test_security_stats_comprehensive(client):
     record_audit("h1", "reboot", "high", executor="remote@testclient", result="checked_high")
     record_audit("h1", "iptables -F", "medium", executor="remote@testclient", result="allowed")
     record_audit("h1", "ls", "safe", executor="local_caller", result="allowed")
-    
+
     resp = client.get("/api/v1/security/stats", headers=_audit_headers(config.INTERNAL_API_KEY))
     assert resp.status_code == 200
     data = resp.json()
-    
+
     assert data["total"] >= 4
     assert data["threat_count"] >= 2  # high + blocked
     assert data["vulnerability_count"] >= 1  # medium

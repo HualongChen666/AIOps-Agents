@@ -126,7 +126,9 @@ INTEGRATIONS_ENABLED: bool = _safe_bool("INTEGRATIONS_ENABLED", default=True)
 # Security & Compliance Pack
 SECURITY_SCANNING_ENABLED: bool = _safe_bool("SECURITY_SCANNING_ENABLED", default=True)
 PENETRATION_TESTING_ENABLED: bool = _safe_bool("PENETRATION_TESTING_ENABLED", default=True)
-VULNERABILITY_INTELLIGENCE_ENABLED: bool = _safe_bool("VULNERABILITY_INTELLIGENCE_ENABLED", default=True)
+VULNERABILITY_INTELLIGENCE_ENABLED: bool = _safe_bool(
+    "VULNERABILITY_INTELLIGENCE_ENABLED", default=True
+)
 
 # Infrastructure & Plugin Ecosystem Pack
 PLUGINS_ENABLED: bool = _safe_bool("PLUGINS_ENABLED", default=True)
@@ -185,7 +187,13 @@ TEAMS_DEFAULT_CHANNEL: str = os.getenv("TEAMS_DEFAULT_CHANNEL", "General").strip
 # ============================================================
 # Internal API Key for protected endpoints
 # ============================================================
-INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "dev-internal-key-2026").strip()
+INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "").strip()
+if environment == "production":
+    if not INTERNAL_API_KEY:
+        raise ValueError(
+            "INTERNAL_API_KEY must be set in production environment. "
+            "Set it via environment variable."
+        )
 
 # ============================================================
 # Proxy configuration
@@ -238,12 +246,22 @@ if environment == "production":
         )
 else:
     if not POSTGRES_PASSWORD:
-        POSTGRES_PASSWORD = "postgres"
+        logger.warning(
+            "[config] POSTGRES_PASSWORD not set in development environment. "
+            "Please set it via environment variable for proper functionality."
+        )
 
-POSTGRES_URL: str = os.getenv(
-    "POSTGRES_URL",
-    f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
-)
+# Build POSTGRES_URL safely - only include password if it's set
+if POSTGRES_PASSWORD:
+    POSTGRES_URL: str = os.getenv(
+        "POSTGRES_URL",
+        f"postgresql+asyncpg://{POSTGRES_USER}:{_encoded_password}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
+    )
+else:
+    POSTGRES_URL: str = os.getenv(
+        "POSTGRES_URL",
+        f"postgresql+asyncpg://{POSTGRES_USER}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
+    )
 
 # ============================================================
 # Qdrant Vector Database Configuration
@@ -317,7 +335,10 @@ if environment == "production":
         )
 else:
     if not JWT_SECRET_KEY:
-        JWT_SECRET_KEY = "dev-secret-key-change-me-in-production"
+        logger.warning(
+            "[config] JWT_SECRET_KEY not set in development environment. "
+            "Please set it via environment variable for proper authentication."
+        )
 
 JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256").strip()
 JWT_ACCESS_EXPIRE_MINUTES: int = _safe_int(
@@ -338,8 +359,7 @@ VULNERABILITY_INTELLIGENCE_CONFIG: dict[str, Any] = {
     "enabled": VULNERABILITY_INTELLIGENCE_ENABLED,
     "nvd_api_key": os.getenv("NVD_API_KEY", "").strip(),
     "nvd_api_url": os.getenv(
-        "NVD_API_URL",
-        "https://services.nvd.nist.gov/rest/json/cves/2.0"
+        "NVD_API_URL", "https://services.nvd.nist.gov/rest/json/cves/2.0"
     ).strip(),
     "nvd_rate_limit": _safe_int("NVD_RATE_LIMIT", default=50, min_val=1, max_val=1000),
     "osv_api_url": os.getenv("OSV_API_URL", "https://api.osv.dev/v1").strip(),
@@ -385,11 +405,17 @@ SSL_KEY_FILE: str = os.getenv("SSL_KEY_FILE", "").strip()
 # Database URL with Encoding
 # ============================================================
 
-_encoded_password = quote_plus(POSTGRES_PASSWORD)
-DATABASE_URL: str = os.getenv(
-    "DATABASE_URL",
-    f"postgresql+asyncpg://{POSTGRES_USER}:{_encoded_password}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
-).strip()
+if POSTGRES_PASSWORD:
+    _encoded_password = quote_plus(POSTGRES_PASSWORD)
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        f"postgresql+asyncpg://{POSTGRES_USER}:{_encoded_password}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
+    ).strip()
+else:
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        f"postgresql+asyncpg://{POSTGRES_USER}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
+    ).strip()
 
 # ============================================================
 # Redis Password Configuration
@@ -1072,43 +1098,58 @@ PERFORMANCE_ALERT_ENABLED: bool = _safe_bool("PERFORMANCE_ALERT_ENABLED", True)
 # ============================================================
 # Configuration Validation
 # ============================================================
-def validate_config() -> Dict[str, Any]:
+def _validate_security_config(environment: str, validation_results: Dict[str, Any]) -> None:
     """
-    Validate configuration completeness and correctness.
-    Returns a dictionary with validation results.
+    Validate security-related configuration settings.
+
+    Args:
+        environment: Current environment (development/production)
+        validation_results: Dictionary to store validation results
     """
-    validation_results: dict[str, Any] = {
-        "is_valid": True,
-        "errors": [],
-        "warnings": [],
-        "info": [],
-    }
-
-    environment = os.getenv("ENVIRONMENT", "development")
-
-    # Security validation for production
     if environment == "production":
         # Check JWT secret key
-        if JWT_SECRET_KEY == "dev-secret-key-change-me-in-production":
+        if not JWT_SECRET_KEY or len(JWT_SECRET_KEY) < 32:
             validation_results["errors"].append(
-                "JWT_SECRET_KEY is using default value in production environment"
+                "JWT_SECRET_KEY must be set and at least 32 characters in production environment"
             )
             validation_results["is_valid"] = False
 
         # Check PostgreSQL password
-        if POSTGRES_PASSWORD in ("", "postgres"):
+        if not POSTGRES_PASSWORD or len(POSTGRES_PASSWORD) < 8:
             validation_results["errors"].append(
-                "POSTGRES_PASSWORD is using default/empty value in production environment"
+                "POSTGRES_PASSWORD must be set and at least 8 characters in production environment"
             )
             validation_results["is_valid"] = False
 
         # Check internal API key
         if not INTERNAL_API_KEY:
+            validation_results["errors"].append(
+                "INTERNAL_API_KEY must be set in production environment"
+            )
+            validation_results["is_valid"] = False
+    else:
+        # Development environment warnings
+        if not JWT_SECRET_KEY:
             validation_results["warnings"].append(
-                "INTERNAL_API_KEY is not set in production environment"
+                "JWT_SECRET_KEY not set in development environment. Authentication may not work properly."
+            )
+        if not POSTGRES_PASSWORD:
+            validation_results["warnings"].append(
+                "POSTGRES_PASSWORD not set in development environment. Database connection may fail."
+            )
+        if not INTERNAL_API_KEY:
+            validation_results["warnings"].append(
+                "INTERNAL_API_KEY not set in development environment. Some API endpoints may be inaccessible."
             )
 
-    # Database connectivity validation
+
+def _validate_database_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate database configuration settings.
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     try:
         # Validate database URL format (PostgreSQL or SQLite for dev/testing)
         if not POSTGRES_URL.startswith(
@@ -1125,7 +1166,14 @@ def validate_config() -> Dict[str, Any]:
         validation_results["errors"].append(f"Error validating POSTGRES_URL: {str(e)}")
         validation_results["is_valid"] = False
 
-    # Redis configuration validation
+
+def _validate_redis_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate Redis configuration settings.
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     if REDIS_PASSWORD and REDIS_MODE == "standalone":
         validation_results["info"].append("Redis password is configured for standalone mode")
 
@@ -1135,7 +1183,15 @@ def validate_config() -> Dict[str, Any]:
         )
         validation_results["is_valid"] = False
 
-    # AI configuration validation
+
+def _validate_ai_config(environment: str, validation_results: Dict[str, Any]) -> None:
+    """
+    Validate AI configuration settings.
+
+    Args:
+        environment: Current environment (development/production)
+        validation_results: Dictionary to store validation results
+    """
     if AI_CONFIG["is_enabled"]:
         if not AI_CONFIG["api_key"]:
             validation_results["warnings"].append(
@@ -1143,12 +1199,24 @@ def validate_config() -> Dict[str, Any]:
             )
         else:
             validation_results["info"].append("AI configuration is properly set up")
+    elif environment == "production":
+        validation_results["warnings"].append(
+            "AI_ENABLED is False in production environment. AI features will be disabled."
+        )
 
     # LLM Router validation
     if not LLM_ROUTER_MODELS:
         validation_results["errors"].append("LLM_ROUTER_MODELS is empty")
         validation_results["is_valid"] = False
 
+
+def _validate_storage_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate storage layer configuration settings.
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     # L4 Storage Layer validation
     l4_enabled_count = sum([VICTORIAMETRICS_ENABLED, LOKI_ENABLED, TEMPO_ENABLED])
 
@@ -1163,6 +1231,14 @@ def validate_config() -> Dict[str, Any]:
     if LANGGRAPH_ENABLED and not RAG_ENABLED:
         validation_results["warnings"].append("LANGGRAPH_ENABLED is True but RAG_ENABLED is False")
 
+
+def _validate_integration_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate integration configuration settings.
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     # Integration validation
     if L7_INTEGRATION_CONFIG["itsm"]["servicenow"]["enabled"]:
         if not all([SERVICENOW_INSTANCE, SERVICENOW_USERNAME, SERVICENOW_PASSWORD]):
@@ -1189,6 +1265,14 @@ def validate_config() -> Dict[str, Any]:
             "TEAMS_ENABLED is True but TEAMS_WEBHOOK is not configured"
         )
 
+
+def _validate_streaming_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate streaming configuration settings (Kafka, Flink).
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     # Kafka validation
     if not KAFKA_BROKERS:
         validation_results["warnings"].append("KAFKA_BROKERS is empty")
@@ -1200,6 +1284,14 @@ def validate_config() -> Dict[str, Any]:
         )
         validation_results["is_valid"] = False
 
+
+def _validate_observability_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate observability configuration settings (Langfuse, etc.).
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     # Langfuse validation
     if LANGFUSE_CONFIG["is_enabled"]:
         if not all([LANGFUSE_CONFIG["public_key"], LANGFUSE_CONFIG["secret_key"]]):
@@ -1207,6 +1299,14 @@ def validate_config() -> Dict[str, Any]:
                 "LANGFUSE_ENABLED is True but required keys are missing, tracking will be disabled"
             )
 
+
+def _validate_database_advanced_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate advanced database configuration settings (replication, backup).
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     # Database replication validation
     if DB_REPLICATION_ENABLED:
         if not DB_REPLICA_HOSTS:
@@ -1222,7 +1322,14 @@ def validate_config() -> Dict[str, Any]:
             )
             validation_results["is_valid"] = False
 
-    # Vulnerability Intelligence validation
+
+def _validate_vulnerability_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate vulnerability intelligence configuration settings.
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     if VULNERABILITY_INTELLIGENCE_CONFIG["enabled"]:
         if VULNERABILITY_INTELLIGENCE_CONFIG["nvd_api_key"]:
             validation_results["info"].append(
@@ -1234,7 +1341,14 @@ def validate_config() -> Dict[str, Any]:
                 "Rate limits will apply."
             )
 
-    # Port validation
+
+def _validate_port_config(validation_results: Dict[str, Any]) -> None:
+    """
+    Validate port configuration settings.
+
+    Args:
+        validation_results: Dictionary to store validation results
+    """
     ports_to_check = {
         "REDIS_PORT": REDIS_PORT,
         "POSTGRES_PORT": POSTGRES_PORT,
@@ -1251,7 +1365,14 @@ def validate_config() -> Dict[str, Any]:
             validation_results["errors"].append(f"{port_name} has invalid value: {port_value}")
             validation_results["is_valid"] = False
 
-    # Log validation results
+
+def _log_validation_results(validation_results: Dict[str, Any]) -> None:
+    """
+    Log validation results to the logger.
+
+    Args:
+        validation_results: Dictionary containing validation results
+    """
     if validation_results["errors"]:
         for error in validation_results["errors"]:
             logger.error(f"[config validation] ERROR: {error}")
@@ -1268,6 +1389,37 @@ def validate_config() -> Dict[str, Any]:
         logger.info("[config validation] Configuration validation passed")
     else:
         logger.error("[config validation] Configuration validation failed")
+
+
+def validate_config() -> Dict[str, Any]:
+    """
+    Validate configuration completeness and correctness.
+    Returns a dictionary with validation results.
+    """
+    validation_results: dict[str, Any] = {
+        "is_valid": True,
+        "errors": [],
+        "warnings": [],
+        "info": [],
+    }
+
+    environment = os.getenv("ENVIRONMENT", "development")
+
+    # Validate different configuration sections
+    _validate_security_config(environment, validation_results)
+    _validate_database_config(validation_results)
+    _validate_redis_config(validation_results)
+    _validate_ai_config(environment, validation_results)
+    _validate_storage_config(validation_results)
+    _validate_integration_config(validation_results)
+    _validate_streaming_config(validation_results)
+    _validate_observability_config(validation_results)
+    _validate_database_advanced_config(validation_results)
+    _validate_vulnerability_config(validation_results)
+    _validate_port_config(validation_results)
+
+    # Log validation results
+    _log_validation_results(validation_results)
 
     return validation_results
 
@@ -1529,8 +1681,25 @@ def save_config_documentation(output_path: str = "CONFIG_DOCUMENTATION.md") -> N
         output_path: Path to save the documentation file
     """
     documentation = generate_config_documentation()
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(documentation)
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(documentation)
+    except OSError as exc:
+        logger.error(
+            f"[config] Failed to write configuration documentation to {output_path}: {exc}"
+        )
+        raise
+
+    # Set restrictive permissions for config documentation file (644 - owner read/write, group/others read)
+    try:
+        import os
+        import stat
+
+        os.chmod(output_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+    except (OSError, AttributeError):
+        # chmod may fail on Windows or non-Unix systems
+        pass
+
     logger.info(f"[config] Configuration documentation saved to {output_path}")
 
 

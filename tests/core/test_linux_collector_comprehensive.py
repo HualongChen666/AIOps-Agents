@@ -4,30 +4,31 @@ Comprehensive test suite for core/linux_collector.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
 import asyncio
-import sys
 import os
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime
+import sys
 import time
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.linux_collector import (
+    _HOST_COOLDOWN_SEC,
+    _HOST_MAX_FAILURES,
+    _SSH_BATCH_SIZE,
+    _SSH_CONCURRENCY_PER_HOST,
+    COLLECT_COMMANDS,
     _get_host_semaphore,
-    get_last_snapshot,
     _is_host_in_cooldown,
     _record_host_failure,
     _record_host_success,
-    get_host_cooldown_status,
     _ssh_execute,
-    COLLECT_COMMANDS,
-    _SSH_CONCURRENCY_PER_HOST,
-    _SSH_BATCH_SIZE,
-    _HOST_COOLDOWN_SEC,
-    _HOST_MAX_FAILURES,
+    get_host_cooldown_status,
+    get_last_snapshot,
 )
 
 
@@ -49,18 +50,19 @@ class TestGetHostSemaphore:
     def test_get_host_semaphore_thread_safety(self):
         """Test semaphore creation is thread-safe"""
         import threading
-        
+
         results = []
+
         def create_semaphore():
             sem = _get_host_semaphore("thread_test_host")
             results.append(sem)
-        
+
         threads = [threading.Thread(target=create_semaphore) for _ in range(10)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        
+
         # All should return the same semaphore instance
         assert all(sem is results[0] for sem in results)
 
@@ -71,18 +73,20 @@ class TestGetLastSnapshot:
     def test_get_last_snapshot_empty(self):
         """Test getting snapshot when cache is empty"""
         from core.linux_collector import _last_collect_cache
+
         _last_collect_cache.clear()
-        
+
         result = get_last_snapshot()
         assert result == {}
 
     def test_get_last_snapshot_with_data(self):
         """Test getting snapshot with cached data"""
         from core.linux_collector import _last_collect_cache
+
         _last_collect_cache.clear()
         _last_collect_cache["host1"] = {"cpu": 50}
         _last_collect_cache["host2"] = {"cpu": 60}
-        
+
         result = get_last_snapshot()
         assert result == {"host1": {"cpu": 50}, "host2": {"cpu": 60}}
         # Should return a copy
@@ -95,42 +99,43 @@ class TestHostCooldownMechanism:
     def test_is_host_in_cooldown_no_tracker(self):
         """Test cooldown check when host has no tracker"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
-        
+
         result = _is_host_in_cooldown("test_host")
         assert result is False
 
     def test_is_host_in_cooldown_below_threshold(self):
         """Test cooldown check when failure count below threshold"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         _host_failure_tracker["test_host"] = {"count": 1, "last_fail": time.monotonic()}
-        
+
         result = _is_host_in_cooldown("test_host")
         assert result is False
 
     def test_is_host_in_cooldown_in_cooldown(self):
         """Test cooldown check when host is in cooldown"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         _host_failure_tracker["test_host"] = {
             "count": _HOST_MAX_FAILURES,
-            "last_fail": time.monotonic()
+            "last_fail": time.monotonic(),
         }
-        
+
         result = _is_host_in_cooldown("test_host")
         assert result is True
 
     def test_is_host_in_cooldown_expired(self):
         """Test cooldown check when cooldown period has expired"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         old_time = time.monotonic() - (_HOST_COOLDOWN_SEC + 100)
-        _host_failure_tracker["test_host"] = {
-            "count": _HOST_MAX_FAILURES,
-            "last_fail": old_time
-        }
-        
+        _host_failure_tracker["test_host"] = {"count": _HOST_MAX_FAILURES, "last_fail": old_time}
+
         result = _is_host_in_cooldown("test_host")
         assert result is False
         assert "test_host" not in _host_failure_tracker
@@ -138,13 +143,11 @@ class TestHostCooldownMechanism:
     def test_is_host_in_cooldown_time_regression(self):
         """Test cooldown check handles time regression"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         future_time = time.monotonic() + 1000
-        _host_failure_tracker["test_host"] = {
-            "count": _HOST_MAX_FAILURES,
-            "last_fail": future_time
-        }
-        
+        _host_failure_tracker["test_host"] = {"count": _HOST_MAX_FAILURES, "last_fail": future_time}
+
         result = _is_host_in_cooldown("test_host")
         assert result is False
         assert "test_host" not in _host_failure_tracker
@@ -152,51 +155,56 @@ class TestHostCooldownMechanism:
     def test_record_host_failure_new_host(self):
         """Test recording failure for new host"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
-        
+
         _record_host_failure("test_host")
-        
+
         assert "test_host" in _host_failure_tracker
         assert _host_failure_tracker["test_host"]["count"] == 1
 
     def test_record_host_failure_existing_host(self):
         """Test recording failure for existing host"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         _host_failure_tracker["test_host"] = {"count": 2, "last_fail": time.monotonic()}
-        
+
         _record_host_failure("test_host")
-        
+
         assert _host_failure_tracker["test_host"]["count"] == 3
 
     def test_record_host_failure_threshold_reached(self):
         """Test recording failure when threshold is reached"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         _host_failure_tracker["test_host"] = {
             "count": _HOST_MAX_FAILURES - 1,
-            "last_fail": time.monotonic()
+            "last_fail": time.monotonic(),
         }
-        
+
         _record_host_failure("test_host")
-        
+
         assert _host_failure_tracker["test_host"]["count"] == _HOST_MAX_FAILURES
 
     def test_record_host_success(self):
         """Test recording host success"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         _host_failure_tracker["test_host"] = {"count": 5, "last_fail": time.monotonic()}
-        
+
         _record_host_success("test_host")
-        
+
         assert "test_host" not in _host_failure_tracker
 
     def test_get_host_cooldown_status_empty(self):
         """Test getting cooldown status when no hosts tracked"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
-        
+
         result = get_host_cooldown_status()
         assert result["total_tracked"] == 0
         assert result["stale_hosts"] == []
@@ -204,18 +212,16 @@ class TestHostCooldownMechanism:
     def test_get_host_cooldown_status_with_stale_hosts(self):
         """Test getting cooldown status with stale hosts"""
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
         _host_failure_tracker["host1"] = {
             "count": _HOST_MAX_FAILURES,
-            "last_fail": time.monotonic() - 100
+            "last_fail": time.monotonic() - 100,
         }
-        _host_failure_tracker["host2"] = {
-            "count": 1,
-            "last_fail": time.monotonic()
-        }
-        
+        _host_failure_tracker["host2"] = {"count": 1, "last_fail": time.monotonic()}
+
         result = get_host_cooldown_status()
-        
+
         assert result["total_tracked"] == 2
         assert len(result["stale_hosts"]) == 1
         assert result["stale_hosts"][0]["host"] == "host1"
@@ -231,17 +237,17 @@ class TestSshExecute:
             "host": "testhost",
             "port": 22,
             "username": "testuser",
-            "key_file": "/path/to/key"
+            "key_file": "/path/to/key",
         }
-        
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = AsyncMock()
             mock_process.returncode = 0
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
             mock_subprocess.return_value = mock_process
-            
+
             result = await _ssh_execute(host_config, "test command")
-            
+
             assert result == "output"
 
     @pytest.mark.asyncio
@@ -278,16 +284,16 @@ class TestSshExecute:
             "host": "testhost",
             "port": 22,
             "username": "testuser",
-            "key_file": "/path/to/key"
+            "key_file": "/path/to/key",
         }
-        
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = AsyncMock()
             mock_process.communicate = AsyncMock(side_effect=asyncio.TimeoutError)
             mock_subprocess.return_value = mock_process
-            
+
             result = await _ssh_execute(host_config, "test command")
-            
+
             assert result == "TIMEOUT"
 
     @pytest.mark.asyncio
@@ -297,14 +303,14 @@ class TestSshExecute:
             "host": "testhost",
             "port": 22,
             "username": "testuser",
-            "password": "testpass"
+            "password": "testpass",
         }
-        
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_subprocess.side_effect = FileNotFoundError()
-            
+
             result = await _ssh_execute(host_config, "test command")
-            
+
             assert "NOT_FOUND" in result
 
     @pytest.mark.asyncio
@@ -314,17 +320,17 @@ class TestSshExecute:
             "host": "testhost",
             "port": 22,
             "username": "testuser",
-            "password": "testpass"
+            "password": "testpass",
         }
-        
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = AsyncMock()
             mock_process.returncode = 0
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
             mock_subprocess.return_value = mock_process
-            
+
             result = await _ssh_execute(host_config, "test command")
-            
+
             assert result == "output"
 
     @pytest.mark.asyncio
@@ -334,17 +340,17 @@ class TestSshExecute:
             "host": "testhost",
             "port": 22,
             "username": "testuser",
-            "key_file": "/path/to/key"
+            "key_file": "/path/to/key",
         }
-        
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = AsyncMock()
             mock_process.returncode = 1
             mock_process.communicate = AsyncMock(return_value=(b"", b"error message"))
             mock_subprocess.return_value = mock_process
-            
+
             result = await _ssh_execute(host_config, "test command")
-            
+
             assert result == ""
 
 
@@ -355,7 +361,7 @@ class TestCollectCommands:
         """Test that COLLECT_COMMANDS has expected structure"""
         assert isinstance(COLLECT_COMMANDS, dict)
         assert len(COLLECT_COMMANDS) > 0
-        
+
         for key, value in COLLECT_COMMANDS.items():
             assert isinstance(key, str)
             assert isinstance(value, dict)
@@ -427,17 +433,17 @@ class TestEdgeCases:
             "host": "testhost",
             "port": 22,
             "username": "testuser",
-            "key_file": "/path/to/key"
+            "key_file": "/path/to/key",
         }
-        
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = AsyncMock()
             mock_process.returncode = 0
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
             mock_subprocess.return_value = mock_process
-            
+
             result = await _ssh_execute(host_config, "test 命令")
-            
+
             assert result == "output"
 
     @pytest.mark.asyncio
@@ -447,35 +453,38 @@ class TestEdgeCases:
             "host": "testhost",
             "port": 22,
             "username": "testuser",
-            "key_file": "/path/to/key"
+            "key_file": "/path/to/key",
         }
-        
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+
+        with patch("asyncio.create_subprocess_exec") as mock_subprocess:
             mock_process = AsyncMock()
             mock_process.returncode = 0
-            mock_process.communicate = AsyncMock(return_value=(b"output \xe4\xb8\xad\xe6\x96\x87", b""))
+            mock_process.communicate = AsyncMock(
+                return_value=(b"output \xe4\xb8\xad\xe6\x96\x87", b"")
+            )
             mock_subprocess.return_value = mock_process
-            
+
             result = await _ssh_execute(host_config, "test command")
-            
+
             assert isinstance(result, str)
 
     def test_host_cooldown_concurrent_access(self):
         """Test cooldown mechanism with concurrent access"""
         import threading
-        
+
         from core.linux_collector import _host_failure_tracker
+
         _host_failure_tracker.clear()
-        
+
         def record_failures():
             for _ in range(10):
                 _record_host_failure("concurrent_host")
-        
+
         threads = [threading.Thread(target=record_failures) for _ in range(5)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        
+
         # Should have recorded all failures
         assert _host_failure_tracker["concurrent_host"]["count"] == 50

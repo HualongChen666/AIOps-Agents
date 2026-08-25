@@ -139,6 +139,8 @@ def _get_http_client() -> Optional[Any]:
     if not HTTPX_AVAILABLE or httpx is None:
         return None
     if _HTTP_CLIENT is None:
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("AIOPS_OBSERVABILITY_SSL_VERIFY", "true").lower() == "true"
         _HTTP_CLIENT = httpx.Client(
             timeout=float(os.environ.get("AIOPS_OBSERVABILITY_TIMEOUT", "10")),
             limits=httpx.Limits(
@@ -146,7 +148,12 @@ def _get_http_client() -> Optional[Any]:
                 max_keepalive_connections=10,
             ),
             follow_redirects=True,
+            verify=ssl_verify,
         )
+        if not ssl_verify:
+            logger.warning(
+                "SSL verification is disabled in observability_client - this is a security risk!"
+            )
     return _HTTP_CLIENT
 
 
@@ -181,7 +188,11 @@ def _http_get_json(
     response_bytes = 0
     try:
         with _QUERY_SEM:
-            response = client.get(url, headers=headers, timeout=timeout)
+            # Use verify parameter if provided, otherwise use client's default
+            request_kwargs = {"url": url, "headers": headers, "timeout": timeout}
+            if verify is not None:
+                request_kwargs["verify"] = verify
+            response = client.get(**request_kwargs)
         response.raise_for_status()
         response_bytes = len(response.content)
         if response_bytes > _MAX_RESPONSE_BYTES:

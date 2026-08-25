@@ -11,6 +11,7 @@ samples used by the SLA/SLO engine.  Two built-in implementations are included:
 from __future__ import annotations
 
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -54,7 +55,7 @@ class LocalMetricsHistoryAdapter(MetricsClient):
 
     def __init__(self, history: Any = None) -> None:
         if history is None:
-            from core.metrics_history import metrics_history
+            from core.metrics_history import METRICS_HISTORY as metrics_history
 
             history = metrics_history
         self._history = history
@@ -173,10 +174,17 @@ class VictoriaMetricsClient(MetricsClient):
         }
 
         try:
+            # Use environment variable to control SSL verification (default: True for security)
+            ssl_verify = os.environ.get("SLO_METRICS_SSL_VERIFY", "true").lower() == "true"
+            if not ssl_verify:
+                logger.warning(
+                    "SSL verification is disabled in slo_metrics_client - this is a security risk!"
+                )
             response = requests.get(
                 f"{self.base_url}/api/v1/query_range",
                 params=params,
                 timeout=self.timeout,
+                verify=ssl_verify,
             )
             response.raise_for_status()
             data = response.json()

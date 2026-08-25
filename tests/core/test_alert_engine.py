@@ -4,36 +4,37 @@ Comprehensive test suite for core/alert_engine.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-import sys
-import os
 import asyncio
-from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock, AsyncMock
+import os
+import sys
 from collections import deque
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.alert_engine import (
-    _check_ssh_brute_force,
-    _cleanup_ssh_brute_force_cache,
-    _dedup_key,
-    _try_dedup,
-    check_linux_security_alerts,
-    alert_history,
-    _ssh_failed_window,
-    _ssh_last_alert_time,
-    _dedup_cache,
-    _get_alert_repository,
-    _restore_alert_cache,
-    _SSH_WINDOW_SEC,
-    _SSH_FAIL_THRESHOLD,
+    _DEDUP_CACHE_MAX,
+    _DEDUP_WINDOW_SEC,
     _SSH_ALERT_COOLDOWN_SEC,
     _SSH_CACHE_EXPIRY_SEC,
     _SSH_CACHE_MAX_HOSTS,
-    _DEDUP_WINDOW_SEC,
-    _DEDUP_CACHE_MAX,
+    _SSH_FAIL_THRESHOLD,
+    _SSH_WINDOW_SEC,
+    _check_ssh_brute_force,
+    _cleanup_ssh_brute_force_cache,
+    _dedup_cache,
+    _dedup_key,
+    _get_alert_repository,
+    _restore_alert_cache,
+    _ssh_failed_window,
+    _ssh_last_alert_time,
+    _try_dedup,
+    alert_history,
+    check_linux_security_alerts,
 )
 
 
@@ -103,7 +104,9 @@ class TestSSHBruteForceDetection:
 
         # Manually expire cooldown
         old_time = _ssh_last_alert_time["test-host"]
-        _ssh_last_alert_time["test-host"] = old_time - timedelta(seconds=_SSH_ALERT_COOLDOWN_SEC + 10)
+        _ssh_last_alert_time["test-host"] = old_time - timedelta(
+            seconds=_SSH_ALERT_COOLDOWN_SEC + 10
+        )
 
         # Add new data point after cooldown
         _check_ssh_brute_force("test-host", 25)
@@ -115,7 +118,7 @@ class TestSSHBruteForceDetection:
         """Test that old data points are cleaned from window"""
         # Add data point
         _check_ssh_brute_force("test-host", 0)
-        
+
         # Manually age the data point
         old_time = datetime.now() - timedelta(seconds=_SSH_WINDOW_SEC + 10)
         _ssh_failed_window["test-host"][0] = (old_time, 0)
@@ -168,7 +171,7 @@ class TestSSHCleanup:
         # Add expired entry
         old_time = datetime.now() - timedelta(seconds=_SSH_CACHE_EXPIRY_SEC + 10)
         _ssh_failed_window["host1"] = [(old_time, 10)]
-        
+
         _cleanup_ssh_brute_force_cache()
         assert "host1" not in _ssh_failed_window
 
@@ -177,7 +180,7 @@ class TestSSHCleanup:
         # Add expired alert time
         old_time = datetime.now() - timedelta(seconds=_SSH_CACHE_EXPIRY_SEC + 10)
         _ssh_last_alert_time["host1"] = old_time
-        
+
         _cleanup_ssh_brute_force_cache()
         assert "host1" not in _ssh_last_alert_time
 
@@ -187,7 +190,7 @@ class TestSSHCleanup:
         recent_time = datetime.now() - timedelta(seconds=100)
         _ssh_failed_window["host1"] = [(recent_time, 10)]
         _ssh_last_alert_time["host1"] = recent_time
-        
+
         _cleanup_ssh_brute_force_cache()
         assert "host1" in _ssh_failed_window
         assert "host1" in _ssh_last_alert_time
@@ -197,7 +200,7 @@ class TestSSHCleanup:
         # Add more hosts than limit
         for i in range(_SSH_CACHE_MAX_HOSTS + 10):
             _ssh_failed_window[f"host{i}"] = [(datetime.now(), i)]
-        
+
         _cleanup_ssh_brute_force_cache()
         # Should be limited to max
         assert len(_ssh_failed_window) <= _SSH_CACHE_MAX_HOSTS
@@ -205,7 +208,7 @@ class TestSSHCleanup:
     def test_cleanup_ssh_brute_force_cache_empty_window(self):
         """Test cleanup of hosts with empty windows"""
         _ssh_failed_window["host1"] = []
-        
+
         _cleanup_ssh_brute_force_cache()
         assert "host1" not in _ssh_failed_window
 
@@ -221,31 +224,19 @@ class TestDedupKey:
 
     def test_dedup_key_disk_alert(self):
         """Test dedup key for disk alerts with device"""
-        alert = {
-            "metric": "disk_percent",
-            "level": "critical",
-            "id": "DISK-C:-12:30:45"
-        }
+        alert = {"metric": "disk_percent", "level": "critical", "id": "DISK-C:-12:30:45"}
         key = _dedup_key(alert)
         assert key == "disk_percent_critical_C:"
 
     def test_dedup_key_disk_alert_complex_device(self):
         """Test dedup key for disk alerts with complex device name"""
-        alert = {
-            "metric": "disk_percent",
-            "level": "warning",
-            "id": "DISK-data-volume-01-12:30:45"
-        }
+        alert = {"metric": "disk_percent", "level": "warning", "id": "DISK-data-volume-01-12:30:45"}
         key = _dedup_key(alert)
         assert key == "disk_percent_warning_data-volume-01"
 
     def test_dedup_key_disk_alert_no_id(self):
         """Test disk alert without proper ID format"""
-        alert = {
-            "metric": "disk_percent",
-            "level": "critical",
-            "id": "invalid-format"
-        }
+        alert = {"metric": "disk_percent", "level": "critical", "id": "invalid-format"}
         key = _dedup_key(alert)
         assert key == "disk_percent_critical"
 
@@ -273,7 +264,7 @@ class TestTryDedup:
         """Test that duplicate within window is deduplicated"""
         alert1 = {"metric": "cpu", "level": "warning", "value": 80}
         _try_dedup(alert1)
-        
+
         # Same alert within window
         alert2 = {"metric": "cpu", "level": "warning", "value": 82}
         result = _try_dedup(alert2)
@@ -283,11 +274,11 @@ class TestTryDedup:
         """Test that duplicate after window is not deduplicated"""
         alert1 = {"metric": "cpu", "level": "warning", "value": 80}
         _try_dedup(alert1)
-        
+
         # Manually expire the cache entry
         for key, entry in _dedup_cache.items():
             entry["last_time"] = datetime.now() - timedelta(seconds=_DEDUP_WINDOW_SEC + 10)
-        
+
         # Same alert after window
         alert2 = {"metric": "cpu", "level": "warning", "value": 82}
         result = _try_dedup(alert2)
@@ -297,7 +288,7 @@ class TestTryDedup:
         """Test that different metrics are not deduplicated"""
         alert1 = {"metric": "cpu", "level": "warning", "value": 80}
         _try_dedup(alert1)
-        
+
         alert2 = {"metric": "memory", "level": "warning", "value": 80}
         result = _try_dedup(alert2)
         assert result is False  # Should not be deduplicated
@@ -306,7 +297,7 @@ class TestTryDedup:
         """Test that different levels are not deduplicated"""
         alert1 = {"metric": "cpu", "level": "warning", "value": 80}
         _try_dedup(alert1)
-        
+
         alert2 = {"metric": "cpu", "level": "critical", "value": 80}
         result = _try_dedup(alert2)
         assert result is False  # Should not be deduplicated
@@ -317,7 +308,7 @@ class TestTryDedup:
         for i in range(_DEDUP_CACHE_MAX + 10):
             alert = {"metric": f"metric{i}", "level": "warning", "value": 80}
             _try_dedup(alert)
-        
+
         # Cache should be limited
         assert len(_dedup_cache) <= _DEDUP_CACHE_MAX
 
@@ -336,7 +327,7 @@ class TestCheckLinuxSecurityAlerts:
         """Test with invalid input"""
         result = await check_linux_security_alerts(None)
         assert result == []
-        
+
         result = await check_linux_security_alerts("not a list")
         assert result == []
 
@@ -349,31 +340,25 @@ class TestCheckLinuxSecurityAlerts:
     @pytest.mark.asyncio
     async def test_check_linux_security_alerts_invalid_status(self):
         """Test with invalid host status"""
-        result = await check_linux_security_alerts([
-            {"name": "host1", "status": "error", "metrics": {}}
-        ])
+        result = await check_linux_security_alerts(
+            [{"name": "host1", "status": "error", "metrics": {}}]
+        )
         assert result == []
 
     @pytest.mark.asyncio
     async def test_check_linux_security_alerts_no_ssh_metric(self):
         """Test host without SSH metric"""
-        result = await check_linux_security_alerts([
-            {"name": "host1", "status": "ok", "metrics": {}}
-        ])
+        result = await check_linux_security_alerts(
+            [{"name": "host1", "status": "ok", "metrics": {}}]
+        )
         assert result == []
 
     @pytest.mark.asyncio
     async def test_check_linux_security_alerts_ssh_metric_below_threshold(self):
         """Test SSH metric below threshold"""
-        result = await check_linux_security_alerts([
-            {
-                "name": "host1",
-                "status": "ok",
-                "metrics": {
-                    "ssh_failed_logins": {"value": "5"}
-                }
-            }
-        ])
+        result = await check_linux_security_alerts(
+            [{"name": "host1", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "5"}}}]
+        )
         assert result == []
 
     @pytest.mark.asyncio
@@ -382,66 +367,50 @@ class TestCheckLinuxSecurityAlerts:
         # Reset SSH state
         _ssh_failed_window.clear()
         _ssh_last_alert_time.clear()
-        
-        result = await check_linux_security_alerts([
-            {
-                "name": "host1",
-                "status": "ok",
-                "metrics": {
-                    "ssh_failed_logins": {"value": "20"}
-                }
-            }
-        ])
+
+        result = await check_linux_security_alerts(
+            [{"name": "host1", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "20"}}}]
+        )
         # Should generate alert on first collection if above threshold
         assert len(result) >= 0  # May or may not alert depending on state
 
     @pytest.mark.asyncio
     async def test_check_linux_security_alerts_ssh_metric_invalid_value(self):
         """Test SSH metric with invalid value"""
-        result = await check_linux_security_alerts([
-            {
-                "name": "host1",
-                "status": "ok",
-                "metrics": {
-                    "ssh_failed_logins": {"value": "not a number"}
+        result = await check_linux_security_alerts(
+            [
+                {
+                    "name": "host1",
+                    "status": "ok",
+                    "metrics": {"ssh_failed_logins": {"value": "not a number"}},
                 }
-            }
-        ])
+            ]
+        )
         assert result == []
 
     @pytest.mark.asyncio
     async def test_check_linux_security_alerts_ssh_metric_error_value(self):
         """Test SSH metric with error value"""
-        result = await check_linux_security_alerts([
-            {
-                "name": "host1",
-                "status": "ok",
-                "metrics": {
-                    "ssh_failed_logins": {"value": "ERROR"}
+        result = await check_linux_security_alerts(
+            [
+                {
+                    "name": "host1",
+                    "status": "ok",
+                    "metrics": {"ssh_failed_logins": {"value": "ERROR"}},
                 }
-            }
-        ])
+            ]
+        )
         assert result == []
 
     @pytest.mark.asyncio
     async def test_check_linux_security_alerts_multiple_hosts(self):
         """Test with multiple hosts"""
-        result = await check_linux_security_alerts([
-            {
-                "name": "host1",
-                "status": "ok",
-                "metrics": {
-                    "ssh_failed_logins": {"value": "5"}
-                }
-            },
-            {
-                "name": "host2",
-                "status": "ok",
-                "metrics": {
-                    "ssh_failed_logins": {"value": "5"}
-                }
-            }
-        ])
+        result = await check_linux_security_alerts(
+            [
+                {"name": "host1", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "5"}}},
+                {"name": "host2", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "5"}}},
+            ]
+        )
         assert isinstance(result, list)
 
     @pytest.mark.asyncio
@@ -450,22 +419,22 @@ class TestCheckLinuxSecurityAlerts:
         # Reset SSH state
         _ssh_failed_window.clear()
         _ssh_last_alert_time.clear()
-        
-        with patch('core.alert_engine._get_alert_repository') as mock_repo:
+
+        with patch("core.alert_engine._get_alert_repository") as mock_repo:
             mock_repo_instance = AsyncMock()
             mock_repo.return_value = mock_repo_instance
             mock_repo_instance.save = AsyncMock()
-            
-            result = await check_linux_security_alerts([
-                {
-                    "name": "host1",
-                    "status": "ok",
-                    "metrics": {
-                        "ssh_failed_logins": {"value": "20"}
+
+            result = await check_linux_security_alerts(
+                [
+                    {
+                        "name": "host1",
+                        "status": "ok",
+                        "metrics": {"ssh_failed_logins": {"value": "20"}},
                     }
-                }
-            ])
-            
+                ]
+            )
+
             # Should attempt to save if alert generated
             if result:
                 mock_repo_instance.save.assert_called()
@@ -476,22 +445,22 @@ class TestCheckLinuxSecurityAlerts:
         # Reset SSH state
         _ssh_failed_window.clear()
         _ssh_last_alert_time.clear()
-        
-        with patch('core.alert_engine._get_alert_repository') as mock_repo:
+
+        with patch("core.alert_engine._get_alert_repository") as mock_repo:
             mock_repo_instance = AsyncMock()
             mock_repo.return_value = mock_repo_instance
             mock_repo_instance.save = AsyncMock(side_effect=Exception("DB error"))
-            
-            result = await check_linux_security_alerts([
-                {
-                    "name": "host1",
-                    "status": "ok",
-                    "metrics": {
-                        "ssh_failed_logins": {"value": "20"}
+
+            result = await check_linux_security_alerts(
+                [
+                    {
+                        "name": "host1",
+                        "status": "ok",
+                        "metrics": {"ssh_failed_logins": {"value": "20"}},
                     }
-                }
-            ])
-            
+                ]
+            )
+
             # Should still return alerts even if DB fails
             assert isinstance(result, list)
 
@@ -501,20 +470,22 @@ class TestCheckLinuxSecurityAlerts:
         # Reset SSH state
         _ssh_failed_window.clear()
         _ssh_last_alert_time.clear()
-        
-        with patch('core.notify_engine.send_alert_notification', new_callable=AsyncMock) as mock_notify:
+
+        with patch(
+            "core.notify_engine.send_alert_notification", new_callable=AsyncMock
+        ) as mock_notify:
             mock_notify.return_value = {"status": "success"}
-            
-            result = await check_linux_security_alerts([
-                {
-                    "name": "host1",
-                    "status": "ok",
-                    "metrics": {
-                        "ssh_failed_logins": {"value": "20"}
+
+            result = await check_linux_security_alerts(
+                [
+                    {
+                        "name": "host1",
+                        "status": "ok",
+                        "metrics": {"ssh_failed_logins": {"value": "20"}},
                     }
-                }
-            ])
-            
+                ]
+            )
+
             # Should attempt notification if alert generated
             if result:
                 mock_notify.assert_called()
@@ -525,20 +496,20 @@ class TestCheckLinuxSecurityAlerts:
         # Reset SSH state
         _ssh_failed_window.clear()
         _ssh_last_alert_time.clear()
-        
-        with patch('core.auto_heal.try_auto_heal', new_callable=AsyncMock) as mock_heal:
+
+        with patch("core.auto_heal.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"status": "dispatched"}
-            
-            result = await check_linux_security_alerts([
-                {
-                    "name": "host1",
-                    "status": "ok",
-                    "metrics": {
-                        "ssh_failed_logins": {"value": "20"}
+
+            result = await check_linux_security_alerts(
+                [
+                    {
+                        "name": "host1",
+                        "status": "ok",
+                        "metrics": {"ssh_failed_logins": {"value": "20"}},
                     }
-                }
-            ])
-            
+                ]
+            )
+
             # Should attempt auto-heal if alert generated
             if result:
                 mock_heal.assert_called()
@@ -550,24 +521,28 @@ class TestAlertRepository:
     def test_get_alert_repository_module_level(self):
         """Test getting module-level repository"""
         from core.alert_engine import alert_repository
+
         result = _get_alert_repository()
         assert result is not None
 
     def test_get_alert_repository_db_fallback(self):
         """Test fallback to database repository"""
         from core.alert_engine import alert_repository
+
         original_repo = alert_repository
-        
+
         try:
             # Set module-level repo to None to test fallback
             from core import alert_engine
+
             alert_engine.alert_repository = None
-            
+
             result = _get_alert_repository()
             assert result is not None
         finally:
             # Restore original
             from core import alert_engine
+
             alert_engine.alert_repository = original_repo
 
 
@@ -581,40 +556,39 @@ class TestRestoreAlertCache:
     @pytest.mark.asyncio
     async def test_restore_alert_cache_success(self):
         """Test successful cache restoration"""
-        with patch('core.alert_engine._get_alert_repository') as mock_repo:
+        with patch("core.alert_engine._get_alert_repository") as mock_repo:
             mock_repo_instance = AsyncMock()
             mock_repo.return_value = mock_repo_instance
-            mock_repo_instance.get_recent = AsyncMock(return_value=[
-                {"id": "1", "level": "warning"},
-                {"id": "2", "level": "critical"}
-            ])
-            
+            mock_repo_instance.get_recent = AsyncMock(
+                return_value=[{"id": "1", "level": "warning"}, {"id": "2", "level": "critical"}]
+            )
+
             await _restore_alert_cache()
-            
+
             # Should have restored alerts
             assert len(alert_history) == 2
 
     @pytest.mark.asyncio
     async def test_restore_alert_cache_empty(self):
         """Test restoration with empty database"""
-        with patch('core.alert_engine._get_alert_repository') as mock_repo:
+        with patch("core.alert_engine._get_alert_repository") as mock_repo:
             mock_repo_instance = AsyncMock()
             mock_repo.return_value = mock_repo_instance
             mock_repo_instance.get_recent = AsyncMock(return_value=[])
-            
+
             await _restore_alert_cache()
-            
+
             # Should have empty cache
             assert len(alert_history) == 0
 
     @pytest.mark.asyncio
     async def test_restore_alert_cache_failure(self):
         """Test handling of restoration failure"""
-        with patch('core.alert_engine._get_alert_repository') as mock_repo:
+        with patch("core.alert_engine._get_alert_repository") as mock_repo:
             mock_repo_instance = AsyncMock()
             mock_repo.return_value = mock_repo_instance
             mock_repo_instance.get_recent = AsyncMock(side_effect=Exception("DB error"))
-            
+
             # Should not raise exception
             await _restore_alert_cache()
 
@@ -629,6 +603,7 @@ class TestAlertHistory:
     def test_alert_history_maxlen(self):
         """Test that alert_history has max length"""
         from config import ALERT_HISTORY_MAX
+
         assert alert_history.maxlen == ALERT_HISTORY_MAX
 
 

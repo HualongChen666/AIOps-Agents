@@ -73,18 +73,19 @@ def test_health_ping_local_ip_bypass(client):
     # The testserver is added to ALLOWED_LOCAL_IPS in conftest.py
     # This test verifies that local IPs can access without auth
     # We need to mock the request to use a local IP
-    from unittest.mock import MagicMock
     import asyncio
-    
+    from unittest.mock import MagicMock
+
+    from fastapi import Request
+
     # Import the router to test directly
     from api.health_router import ping
-    from fastapi import Request
-    
+
     # Create a mock request with local IP
     mock_request = MagicMock(spec=Request)
     mock_request.client.host = "127.0.0.1"
     mock_request.headers.get.return_value = ""
-    
+
     # Call the endpoint directly (it's async)
     result = asyncio.run(ping(mock_request))
     assert result["status"] == "alive"
@@ -125,15 +126,17 @@ def test_detailed_health_local_access(client):
 
 def test_detailed_health_local_ip_bypass(client):
     """Test detailed health bypasses auth for local IPs (covers line 233)."""
-    from unittest.mock import MagicMock
     import asyncio
-    from api.health_router import detailed_health
+    from unittest.mock import MagicMock
+
     from fastapi import Request
-    
+
+    from api.health_router import detailed_health
+
     # Create a mock request with local IP
     mock_request = MagicMock(spec=Request)
     mock_request.client.host = "127.0.0.1"
-    
+
     # Call the endpoint directly (it's async)
     result = asyncio.run(detailed_health(mock_request))
     # Should return health data without auth
@@ -142,15 +145,17 @@ def test_detailed_health_local_ip_bypass(client):
 
 def test_detailed_health_no_client_info():
     """Test detailed health when request.client is None (covers line 230 else branch)."""
-    from unittest.mock import MagicMock
     import asyncio
-    from api.health_router import detailed_health
+    from unittest.mock import MagicMock
+
     from fastapi import Request
-    
+
+    from api.health_router import detailed_health
+
     # Create a mock request with no client info
     mock_request = MagicMock(spec=Request)
     mock_request.client = None
-    
+
     # Call the endpoint directly (it's async)
     result = asyncio.run(detailed_health(mock_request))
     # Should return health data
@@ -185,22 +190,24 @@ def test_trigger_health_check_local_access(client):
 def test_trigger_health_check_local_ip_bypass(client):
     """Test trigger health check bypasses auth for local IPs (covers line 304)."""
     import asyncio
-    from unittest.mock import MagicMock, AsyncMock
-    from api.health_router import trigger_health_check
+    from unittest.mock import AsyncMock, MagicMock
+
     from fastapi import Request
-    
+
+    from api.health_router import trigger_health_check
+
     # Create a mock request with local IP
     mock_request = MagicMock(spec=Request)
     mock_request.client.host = "127.0.0.1"
-    
+
     # Mock perform_health_checks to return a valid result
     with patch("api.health_router.perform_health_checks", new_callable=AsyncMock) as mock_health:
         mock_health.return_value = {
             "status": "healthy",
             "timestamp": "2026-08-18T00:00:00Z",
-            "checks": {}
+            "checks": {},
         }
-        
+
         # Call the endpoint directly
         result = asyncio.run(trigger_health_check(mock_request))
         # Should return health data without auth
@@ -211,22 +218,24 @@ def test_trigger_health_check_local_ip_bypass(client):
 def test_trigger_health_check_no_client_info():
     """Test trigger health check when request.client is None (covers line 301 else branch)."""
     import asyncio
-    from unittest.mock import MagicMock, AsyncMock
-    from api.health_router import trigger_health_check
+    from unittest.mock import AsyncMock, MagicMock
+
     from fastapi import Request
-    
+
+    from api.health_router import trigger_health_check
+
     # Create a mock request with no client info
     mock_request = MagicMock(spec=Request)
     mock_request.client = None
-    
+
     # Mock perform_health_checks to return a valid result
     with patch("api.health_router.perform_health_checks", new_callable=AsyncMock) as mock_health:
         mock_health.return_value = {
             "status": "healthy",
             "timestamp": "2026-08-18T00:00:00Z",
-            "checks": {}
+            "checks": {},
         }
-        
+
         # Call the endpoint directly
         result = asyncio.run(trigger_health_check(mock_request))
         # Should return health data

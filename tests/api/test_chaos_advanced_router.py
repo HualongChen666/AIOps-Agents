@@ -5,30 +5,31 @@ Test suite for Chaos Engineering Advanced Router
 """
 
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from datetime import datetime, timezone
-from fastapi.testclient import TestClient
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from api.chaos_advanced_router import (
-    router,
     CreateExperimentRequest,
-    UpdateExperimentRequest,
-    CreateScenarioRequest,
     CreateFaultRequest,
-    SafetyCheckRequest,
+    CreateScenarioRequest,
     ExperimentStatusEnum,
-    SeverityEnum,
     FaultTypeEnum,
-    _load_json_file,
-    _save_json_file,
+    SafetyCheckRequest,
+    SeverityEnum,
+    UpdateExperimentRequest,
     _generate_id,
+    _load_json_file,
     _now,
+    _save_json_file,
+    router,
 )
-from core.api_response_standard import ErrorCode, create_success_response, create_error_response
-from core.chaos_engineering import ChaosExperiment, ExperimentStatus, ExperimentResult
+from core.api_response_standard import ErrorCode, create_error_response, create_success_response
+from core.chaos_engineering import ChaosExperiment, ExperimentResult, ExperimentStatus
 
 
 # Test fixtures
@@ -36,6 +37,7 @@ from core.chaos_engineering import ChaosExperiment, ExperimentStatus, Experiment
 def client():
     """Create a test client for the router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -54,11 +56,9 @@ def mock_chaos_engine():
     """Mock the chaos engine"""
     engine = Mock()
     engine.run_experiment = AsyncMock()
-    engine.get_experiment_stats = Mock(return_value={
-        "total_experiments": 10,
-        "successful_experiments": 8,
-        "failed_experiments": 2
-    })
+    engine.get_experiment_stats = Mock(
+        return_value={"total_experiments": 10, "successful_experiments": 8, "failed_experiments": 2}
+    )
     engine.is_enabled = Mock(return_value=True)
     engine.get_experiment_history = Mock(return_value=[])
     return engine
@@ -178,7 +178,7 @@ class TestExperimentEndpoints:
 
     def test_get_experiments_empty(self, client, tmp_path):
         """Test getting experiments when none exist"""
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', tmp_path / "experiments.json"):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", tmp_path / "experiments.json"):
             response = client.get("/api/v1/chaos/experiments")
             assert response.status_code == 200
             data = response.json()
@@ -192,7 +192,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.get("/api/v1/chaos/experiments")
             assert response.status_code == 200
             data = response.json()
@@ -207,7 +207,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.get("/api/v1/chaos/experiments?status=running")
             assert response.status_code == 200
             data = response.json()
@@ -221,7 +221,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.get("/api/v1/chaos/experiments?severity=high")
             assert response.status_code == 200
             data = response.json()
@@ -232,17 +232,19 @@ class TestExperimentEndpoints:
         """Test getting experiments with pagination"""
         experiments = []
         for i in range(25):
-            experiments.append({
-                "id": f"EXP-{i:08d}",
-                "name": f"Experiment {i}",
-                "status": "pending",
-                "severity": "medium",
-            })
+            experiments.append(
+                {
+                    "id": f"EXP-{i:08d}",
+                    "name": f"Experiment {i}",
+                    "status": "pending",
+                    "severity": "medium",
+                }
+            )
         experiments_file = tmp_path / "experiments.json"
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump(experiments, f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.get("/api/v1/chaos/experiments?limit=10&offset=0")
             assert response.status_code == 200
             data = response.json()
@@ -253,8 +255,8 @@ class TestExperimentEndpoints:
     def test_create_experiment_success(self, client, tmp_path, mock_chaos_engine):
         """Test creating an experiment successfully"""
         experiments_file = tmp_path / "experiments.json"
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 response = client.post(
                     "/api/v1/chaos/experiments",
                     json={
@@ -264,7 +266,7 @@ class TestExperimentEndpoints:
                         "parameters": {"delay_ms": 100},
                         "severity": "medium",
                         "tags": ["test"],
-                    }
+                    },
                 )
                 assert response.status_code == 201
                 data = response.json()
@@ -275,15 +277,15 @@ class TestExperimentEndpoints:
     def test_create_experiment_invalid_type(self, client, tmp_path, mock_chaos_engine):
         """Test creating an experiment with invalid type"""
         experiments_file = tmp_path / "experiments.json"
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 response = client.post(
                     "/api/v1/chaos/experiments",
                     json={
                         "name": "Test Experiment",
                         "experiment_type": "invalid_type",
                         "parameters": {},
-                    }
+                    },
                 )
                 # API returns 201 even for error responses
                 assert response.status_code == 201
@@ -294,13 +296,13 @@ class TestExperimentEndpoints:
     def test_create_experiment_validation_error(self, client, tmp_path):
         """Test creating an experiment with validation error"""
         experiments_file = tmp_path / "experiments.json"
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.post(
                 "/api/v1/chaos/experiments",
                 json={
                     "name": "",  # Empty name should fail validation
                     "experiment_type": "latency_injection",
-                }
+                },
             )
             assert response.status_code == 422  # Validation error
 
@@ -310,7 +312,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.get(f"/api/v1/chaos/experiments/{sample_experiment['id']}")
             assert response.status_code == 200
             data = response.json()
@@ -323,7 +325,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.get("/api/v1/chaos/experiments/EXP-NONEXIST")
             assert response.status_code == 200
             data = response.json()
@@ -336,13 +338,13 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.patch(
                 f"/api/v1/chaos/experiments/{sample_experiment['id']}",
                 json={
                     "name": "Updated Name",
                     "description": "Updated description",
-                }
+                },
             )
             assert response.status_code == 200
             data = response.json()
@@ -355,10 +357,9 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.patch(
-                "/api/v1/chaos/experiments/EXP-NONEXIST",
-                json={"name": "Updated Name"}
+                "/api/v1/chaos/experiments/EXP-NONEXIST", json={"name": "Updated Name"}
             )
             assert response.status_code == 200
             data = response.json()
@@ -371,7 +372,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.delete(f"/api/v1/chaos/experiments/{sample_experiment['id']}")
             assert response.status_code == 200
             data = response.json()
@@ -383,7 +384,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.delete("/api/v1/chaos/experiments/EXP-NONEXIST")
             assert response.status_code == 200
             data = response.json()
@@ -394,6 +395,7 @@ class TestExperimentEndpoints:
         """Test running an experiment successfully"""
         # Mock the experiment result with proper constructor
         from core.chaos_engineering import ChaosExperiment
+
         mock_experiment = ChaosExperiment.LATENCY_INJECTION
         mock_result = ExperimentResult(
             experiment=mock_experiment,
@@ -402,7 +404,7 @@ class TestExperimentEndpoints:
             success=True,
             duration_seconds=5.0,
             metrics={"test_metric": 100},
-            error_message=None
+            error_message=None,
         )
         mock_chaos_engine.run_experiment = AsyncMock(return_value=mock_result)
 
@@ -411,8 +413,8 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 response = client.post(f"/api/v1/chaos/experiments/{sample_experiment['id']}/run")
                 assert response.status_code == 200
                 data = response.json()
@@ -425,8 +427,8 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 response = client.post("/api/v1/chaos/experiments/EXP-NONEXIST/run")
                 assert response.status_code == 200
                 data = response.json()
@@ -440,7 +442,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.post(f"/api/v1/chaos/experiments/{sample_experiment['id']}/stop")
             assert response.status_code == 200
             data = response.json()
@@ -453,7 +455,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.post(f"/api/v1/chaos/experiments/{sample_experiment['id']}/stop")
             assert response.status_code == 200
             data = response.json()
@@ -466,7 +468,7 @@ class TestExperimentEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
             response = client.post("/api/v1/chaos/experiments/EXP-NONEXIST/stop")
             assert response.status_code == 200
             data = response.json()
@@ -480,7 +482,7 @@ class TestScenarioEndpoints:
 
     def test_get_scenarios_empty(self, client, tmp_path):
         """Test getting scenarios when none exist"""
-        with patch('api.chaos_advanced_router.SCENARIOS_FILE', tmp_path / "scenarios.json"):
+        with patch("api.chaos_advanced_router.SCENARIOS_FILE", tmp_path / "scenarios.json"):
             response = client.get("/api/v1/chaos/scenarios")
             assert response.status_code == 200
             data = response.json()
@@ -493,7 +495,7 @@ class TestScenarioEndpoints:
         with open(scenarios_file, "w", encoding="utf-8") as f:
             json.dump([sample_scenario], f)
 
-        with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
+        with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
             response = client.get("/api/v1/chaos/scenarios")
             assert response.status_code == 200
             data = response.json()
@@ -507,7 +509,7 @@ class TestScenarioEndpoints:
         with open(scenarios_file, "w", encoding="utf-8") as f:
             json.dump([sample_scenario], f)
 
-        with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
+        with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
             response = client.get("/api/v1/chaos/scenarios?enabled=true")
             assert response.status_code == 200
             data = response.json()
@@ -521,8 +523,8 @@ class TestScenarioEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
-            with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
+            with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
                 response = client.post(
                     "/api/v1/chaos/scenarios",
                     json={
@@ -531,7 +533,7 @@ class TestScenarioEndpoints:
                         "experiments": [sample_experiment["id"]],
                         "enabled": True,
                         "schedule": "0 2 * * *",
-                    }
+                    },
                 )
                 assert response.status_code == 201
                 data = response.json()
@@ -545,14 +547,14 @@ class TestScenarioEndpoints:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
-            with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+        with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
+            with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
                 response = client.post(
                     "/api/v1/chaos/scenarios",
                     json={
                         "name": "Test Scenario",
                         "experiments": ["EXP-NONEXIST"],
-                    }
+                    },
                 )
                 # API returns 201 even for error responses
                 assert response.status_code == 201
@@ -563,13 +565,13 @@ class TestScenarioEndpoints:
     def test_create_scenario_validation_error(self, client, tmp_path):
         """Test creating a scenario with validation error"""
         scenarios_file = tmp_path / "scenarios.json"
-        with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
+        with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
             response = client.post(
                 "/api/v1/chaos/scenarios",
                 json={
                     "name": "",  # Empty name
                     "experiments": [],  # Empty experiments list
-                }
+                },
             )
             assert response.status_code == 422  # Validation error
 
@@ -580,7 +582,7 @@ class TestFaultEndpoints:
 
     def test_get_faults_empty(self, client, tmp_path):
         """Test getting faults when none exist"""
-        with patch('api.chaos_advanced_router.FAULTS_FILE', tmp_path / "faults.json"):
+        with patch("api.chaos_advanced_router.FAULTS_FILE", tmp_path / "faults.json"):
             response = client.get("/api/v1/chaos/faults")
             assert response.status_code == 200
             data = response.json()
@@ -593,7 +595,7 @@ class TestFaultEndpoints:
         with open(faults_file, "w", encoding="utf-8") as f:
             json.dump([sample_fault], f)
 
-        with patch('api.chaos_advanced_router.FAULTS_FILE', faults_file):
+        with patch("api.chaos_advanced_router.FAULTS_FILE", faults_file):
             response = client.get("/api/v1/chaos/faults")
             assert response.status_code == 200
             data = response.json()
@@ -607,7 +609,7 @@ class TestFaultEndpoints:
         with open(faults_file, "w", encoding="utf-8") as f:
             json.dump([sample_fault], f)
 
-        with patch('api.chaos_advanced_router.FAULTS_FILE', faults_file):
+        with patch("api.chaos_advanced_router.FAULTS_FILE", faults_file):
             response = client.get("/api/v1/chaos/faults?fault_type=database_error")
             assert response.status_code == 200
             data = response.json()
@@ -617,7 +619,7 @@ class TestFaultEndpoints:
     def test_create_fault_success(self, client, tmp_path):
         """Test creating a fault successfully"""
         faults_file = tmp_path / "faults.json"
-        with patch('api.chaos_advanced_router.FAULTS_FILE', faults_file):
+        with patch("api.chaos_advanced_router.FAULTS_FILE", faults_file):
             response = client.post(
                 "/api/v1/chaos/faults",
                 json={
@@ -627,7 +629,7 @@ class TestFaultEndpoints:
                     "parameters": {"delay_ms": 1000},
                     "severity": "high",
                     "recovery_strategy": "auto_retry",
-                }
+                },
             )
             assert response.status_code == 201
             data = response.json()
@@ -637,13 +639,13 @@ class TestFaultEndpoints:
     def test_create_fault_validation_error(self, client, tmp_path):
         """Test creating a fault with validation error"""
         faults_file = tmp_path / "faults.json"
-        with patch('api.chaos_advanced_router.FAULTS_FILE', faults_file):
+        with patch("api.chaos_advanced_router.FAULTS_FILE", faults_file):
             response = client.post(
                 "/api/v1/chaos/faults",
                 json={
                     "name": "",  # Empty name
                     "fault_type": "invalid_type",
-                }
+                },
             )
             assert response.status_code == 422  # Validation error
 
@@ -665,17 +667,19 @@ class TestMetricsEndpoint:
         with open(faults_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
-                with patch('api.chaos_advanced_router.FAULTS_FILE', faults_file):
-                    with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
+                with patch("api.chaos_advanced_router.FAULTS_FILE", faults_file):
+                    with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                         response = client.get("/api/v1/chaos/metrics")
                         assert response.status_code == 200
                         data = response.json()
                         assert data["success"] is True
                         assert data["data"]["experiments"]["total"] == 0
 
-    def test_get_chaos_metrics_with_data(self, client, tmp_path, sample_experiment, sample_scenario, sample_fault, mock_chaos_engine):
+    def test_get_chaos_metrics_with_data(
+        self, client, tmp_path, sample_experiment, sample_scenario, sample_fault, mock_chaos_engine
+    ):
         """Test getting chaos metrics with data"""
         experiments_file = tmp_path / "experiments.json"
         scenarios_file = tmp_path / "scenarios.json"
@@ -688,10 +692,10 @@ class TestMetricsEndpoint:
         with open(faults_file, "w", encoding="utf-8") as f:
             json.dump([sample_fault], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
-                with patch('api.chaos_advanced_router.FAULTS_FILE', faults_file):
-                    with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
+                with patch("api.chaos_advanced_router.FAULTS_FILE", faults_file):
+                    with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                         response = client.get("/api/v1/chaos/metrics")
                         assert response.status_code == 200
                         data = response.json()
@@ -711,8 +715,8 @@ class TestSafetyCheckEndpoint:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([sample_experiment], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 response = client.post(
                     "/api/v1/chaos/safety-checks",
                     json={
@@ -722,7 +726,7 @@ class TestSafetyCheckEndpoint:
                             "check_dependencies": True,
                             "check_resources": True,
                         },
-                    }
+                    },
                 )
                 assert response.status_code == 200
                 data = response.json()
@@ -735,14 +739,14 @@ class TestSafetyCheckEndpoint:
         with open(experiments_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 response = client.post(
                     "/api/v1/chaos/safety-checks",
                     json={
                         "experiment_id": "EXP-NONEXIST",
                         "check_type": "pre_execution",
-                    }
+                    },
                 )
                 assert response.status_code == 200
                 data = response.json()
@@ -758,7 +762,7 @@ class TestSafetyCheckEndpoint:
             json={
                 "experiment_id": "",  # Empty ID
                 "check_type": "",
-            }
+            },
         )
         # The endpoint returns 200 with error in body
         assert response.status_code == 200
@@ -852,8 +856,10 @@ class TestErrorHandling:
         """Test exception handling in get_experiments"""
         # Create a file that will cause an error
         experiments_file = tmp_path / "experiments.json"
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router._load_json_file', side_effect=Exception("Test error")):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch(
+                "api.chaos_advanced_router._load_json_file", side_effect=Exception("Test error")
+            ):
                 response = client.get("/api/v1/chaos/experiments")
                 assert response.status_code == 200
                 data = response.json()
@@ -862,14 +868,16 @@ class TestErrorHandling:
     def test_exception_handling_in_create_experiment(self, client, tmp_path):
         """Test exception handling in create_experiment"""
         experiments_file = tmp_path / "experiments.json"
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router._save_json_file', side_effect=Exception("Save error")):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch(
+                "api.chaos_advanced_router._save_json_file", side_effect=Exception("Save error")
+            ):
                 response = client.post(
                     "/api/v1/chaos/experiments",
                     json={
                         "name": "Test Experiment",
                         "experiment_type": "latency_injection",
-                    }
+                    },
                 )
                 # API returns 201 even for error responses
                 assert response.status_code == 201
@@ -898,15 +906,15 @@ class TestIntegration:
         experiments_file = tmp_path / "experiments.json"
 
         # Create
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 create_response = client.post(
                     "/api/v1/chaos/experiments",
                     json={
                         "name": "Lifecycle Test",
                         "experiment_type": "latency_injection",
                         "parameters": {"delay_ms": 100},
-                    }
+                    },
                 )
                 assert create_response.status_code == 201
                 experiment_id = create_response.json()["data"]["id"]
@@ -919,7 +927,7 @@ class TestIntegration:
                 # Update
                 update_response = client.patch(
                     f"/api/v1/chaos/experiments/{experiment_id}",
-                    json={"name": "Updated Lifecycle Test"}
+                    json={"name": "Updated Lifecycle Test"},
                 )
                 assert update_response.status_code == 200
                 assert update_response.json()["data"]["name"] == "Updated Lifecycle Test"
@@ -935,21 +943,21 @@ class TestIntegration:
         scenarios_file = tmp_path / "scenarios.json"
 
         # Create experiments
-        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
-            with patch('api.chaos_advanced_router.chaos_engine', mock_chaos_engine):
+        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
+            with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
                 exp1_response = client.post(
                     "/api/v1/chaos/experiments",
                     json={
                         "name": "Experiment 1",
                         "experiment_type": "latency_injection",
-                    }
+                    },
                 )
                 exp2_response = client.post(
                     "/api/v1/chaos/experiments",
                     json={
                         "name": "Experiment 2",
                         "experiment_type": "network_latency",
-                    }
+                    },
                 )
                 # Check if responses are successful
                 assert exp1_response.status_code == 201
@@ -963,14 +971,14 @@ class TestIntegration:
                     exp2_id = exp2_data["data"]["id"]
 
                     # Create scenario
-                    with patch('api.chaos_advanced_router.SCENARIOS_FILE', scenarios_file):
-                        with patch('api.chaos_advanced_router.EXPERIMENTS_FILE', experiments_file):
+                    with patch("api.chaos_advanced_router.SCENARIOS_FILE", scenarios_file):
+                        with patch("api.chaos_advanced_router.EXPERIMENTS_FILE", experiments_file):
                             scenario_response = client.post(
                                 "/api/v1/chaos/scenarios",
                                 json={
                                     "name": "Multi-Experiment Scenario",
                                     "experiments": [exp1_id, exp2_id],
-                                }
+                                },
                             )
                             assert scenario_response.status_code == 201
                             assert len(scenario_response.json()["data"]["experiments"]) == 2

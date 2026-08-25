@@ -92,7 +92,7 @@ class Alert:
 
         # 基于标题、标签和源生成指纹
         fingerprint_data = f"{self.title}|{self.source}|{sorted(self.labels.items())}"
-        self.fingerprint = hashlib.md5(fingerprint_data.encode()).hexdigest()
+        self.fingerprint = hashlib.sha256(fingerprint_data.encode()).hexdigest()
         return self.fingerprint
 
 

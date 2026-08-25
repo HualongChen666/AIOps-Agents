@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for GraphStore module."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from extensions.addons.ai_plus.knowledge_graph_service.graph_store import GraphStore
 from extensions.addons.ai_plus.knowledge_graph_service.schemas import (
@@ -87,9 +88,7 @@ class TestGraphStore:
     @patch("extensions.addons.ai_plus.knowledge_graph_service.graph_store.neo4j")
     async def test_connect_neo4j_failure(self, mock_neo4j, graph_store_with_neo4j):
         """Test Neo4j connection failure."""
-        mock_neo4j.AsyncGraphDatabase.driver.side_effect = Exception(
-            "Connection failed"
-        )
+        mock_neo4j.AsyncGraphDatabase.driver.side_effect = Exception("Connection failed")
 
         await graph_store_with_neo4j.connect()
 
@@ -158,9 +157,7 @@ class TestGraphStore:
     async def test_add_node_neo4j_failure_fallback(self, graph_store_with_neo4j):
         """Test adding node to Neo4j fails and falls back to memory."""
         graph_store_with_neo4j._driver = AsyncMock()
-        graph_store_with_neo4j._driver.execute_query.side_effect = Exception(
-            "Neo4j error"
-        )
+        graph_store_with_neo4j._driver.execute_query.side_effect = Exception("Neo4j error")
         graph_store_with_neo4j._in_memory = False
 
         node = GraphNode(node_id="node1", label="Node 1", node_type="entity")
@@ -222,9 +219,7 @@ class TestGraphStore:
     async def test_add_edge_neo4j_failure_fallback(self, graph_store_with_neo4j):
         """Test adding edge to Neo4j fails and falls back to memory."""
         graph_store_with_neo4j._driver = AsyncMock()
-        graph_store_with_neo4j._driver.execute_query.side_effect = Exception(
-            "Neo4j error"
-        )
+        graph_store_with_neo4j._driver.execute_query.side_effect = Exception("Neo4j error")
         graph_store_with_neo4j._in_memory = False
 
         edge = GraphEdge(
@@ -258,15 +253,9 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_get_neighbors(self, graph_store):
         """Test getting neighbors of a node."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node3", label="Node 3", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node3", label="Node 3", node_type="entity"))
         await graph_store.add_edge(
             GraphEdge(
                 edge_id="edge1",
@@ -293,9 +282,7 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_get_neighbors_no_edges(self, graph_store):
         """Test getting neighbors when node has no edges."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
 
         neighbors = await graph_store.get_neighbors("node1")
 
@@ -304,12 +291,8 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_query_nodes_all(self, graph_store):
         """Test querying all nodes."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="service")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="service"))
 
         nodes = await graph_store.query_nodes()
 
@@ -318,12 +301,8 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_query_nodes_by_label(self, graph_store):
         """Test querying nodes by label."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="entity"))
         await graph_store.add_node(
             GraphNode(node_id="node3", label="Different", node_type="entity")
         )
@@ -336,15 +315,9 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_query_nodes_by_type(self, graph_store):
         """Test querying nodes by type."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="service")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node3", label="Node 3", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="service"))
+        await graph_store.add_node(GraphNode(node_id="node3", label="Node 3", node_type="entity"))
 
         nodes = await graph_store.query_nodes(node_type="service")
 
@@ -354,12 +327,8 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_query_nodes_by_label_and_type(self, graph_store):
         """Test querying nodes by both label and type."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 1", node_type="service")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 1", node_type="service"))
 
         nodes = await graph_store.query_nodes(label="Node 1", node_type="entity")
 
@@ -425,15 +394,9 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_find_paths_simple(self, graph_store):
         """Test finding simple path between nodes."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node3", label="Node 3", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node3", label="Node 3", node_type="entity"))
         await graph_store.add_edge(
             GraphEdge(
                 edge_id="edge1",
@@ -459,12 +422,8 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_find_paths_no_path(self, graph_store):
         """Test finding path when none exists."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="entity"))
 
         paths = await graph_store.find_paths("node1", "node2")
 
@@ -473,18 +432,10 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_find_paths_max_depth(self, graph_store):
         """Test finding paths with max depth limit."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node3", label="Node 3", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node4", label="Node 4", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node3", label="Node 3", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node4", label="Node 4", node_type="entity"))
         await graph_store.add_edge(
             GraphEdge(
                 edge_id="edge1",
@@ -517,15 +468,9 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_find_paths_multiple(self, graph_store):
         """Test finding multiple paths."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node3", label="Node 3", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node3", label="Node 3", node_type="entity"))
         await graph_store.add_edge(
             GraphEdge(
                 edge_id="edge1",
@@ -583,9 +528,7 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_as_graph(self, graph_store):
         """Test converting store to Graph object."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
         await graph_store.add_edge(
             GraphEdge(
                 edge_id="edge1",
@@ -605,9 +548,7 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_clear(self, graph_store):
         """Test clearing the store."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
         await graph_store.add_edge(
             GraphEdge(
                 edge_id="edge1",
@@ -634,9 +575,7 @@ class TestGraphStore:
     async def test_add_multiple_nodes(self, graph_store):
         """Test adding multiple nodes."""
         for i in range(10):
-            node = GraphNode(
-                node_id=f"node{i}", label=f"Node {i}", node_type="entity"
-            )
+            node = GraphNode(node_id=f"node{i}", label=f"Node {i}", node_type="entity")
             await graph_store.add_node(node)
 
         assert len(graph_store._nodes) == 10
@@ -702,12 +641,8 @@ class TestGraphStore:
     @pytest.mark.asyncio
     async def test_collect_nodes(self, graph_store):
         """Test _collect_nodes helper method."""
-        await graph_store.add_node(
-            GraphNode(node_id="node1", label="Node 1", node_type="entity")
-        )
-        await graph_store.add_node(
-            GraphNode(node_id="node2", label="Node 2", node_type="entity")
-        )
+        await graph_store.add_node(GraphNode(node_id="node1", label="Node 1", node_type="entity"))
+        await graph_store.add_node(GraphNode(node_id="node2", label="Node 2", node_type="entity"))
         await graph_store.add_edge(
             GraphEdge(
                 edge_id="edge1",

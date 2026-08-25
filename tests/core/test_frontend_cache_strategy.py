@@ -40,7 +40,9 @@ def test_get_etag_for_data():
 def test_apply_cache_headers_and_middleware():
     response = Response(content="data")
     strategy = CacheStrategy(max_age=300)
-    result = apply_cache_headers(response, strategy, etag="abc")  # noqa: F841  # Variable for test verification
+    result = apply_cache_headers(
+        response, strategy, etag="abc"
+    )  # noqa: F841  # Variable for test verification
     assert result.headers.get("Cache-Control")
     assert result.headers.get("ETag") == "abc"
     assert "Expires" in result.headers

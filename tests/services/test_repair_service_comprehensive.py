@@ -3,7 +3,7 @@
 
 This file covers modules that can be tested independently without full app initialization:
 - config.py
-- metrics.py  
+- metrics.py
 - mq.py
 - schemas.py
 - repository.py
@@ -21,8 +21,8 @@ This file covers modules that can be tested independently without full app initi
 from __future__ import annotations
 
 import asyncio
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict
@@ -39,8 +39,13 @@ ROOT = Path(__file__).parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from services.repair_service.audit import AuditStore
+
 # Import modules that don't require full app initialization
 from services.repair_service.config import RepairServiceSettings, settings
+from services.repair_service.grpc.client import RPCClient
+from services.repair_service.grpc.server import RPCServer
+from services.repair_service.health_check import HealthCheckEngine
 from services.repair_service.metrics import (
     REPAIR_ACTIVE_EXECUTIONS,
     REPAIR_AUDIT_EVENTS,
@@ -52,6 +57,10 @@ from services.repair_service.metrics import (
     REPAIR_VERIFICATION_DURATION,
 )
 from services.repair_service.mq import InMemoryMessageQueue, message_queue
+from services.repair_service.repository import InMemoryRepairRepository, get_repository
+from services.repair_service.rollback import RollbackEngine, SnapshotStore
+from services.repair_service.runbook_parser import RunbookParser, get_runbook_catalog
+from services.repair_service.saga import SagaOrchestrator
 from services.repair_service.schemas import (
     AuditEvent,
     PlatformType,
@@ -68,16 +77,8 @@ from services.repair_service.schemas import (
     ServiceHealth,
     VerificationResult,
 )
-from services.repair_service.repository import InMemoryRepairRepository, get_repository
-from services.repair_service.rollback import RollbackEngine, SnapshotStore
 from services.repair_service.state_machine import RepairStateMachine
-from services.repair_service.saga import SagaOrchestrator
-from services.repair_service.grpc.client import RPCClient
-from services.repair_service.grpc.server import RPCServer
-from services.repair_service.health_check import HealthCheckEngine
-from services.repair_service.runbook_parser import RunbookParser, get_runbook_catalog
 from services.repair_service.strategy_manager import RepairStrategyManager
-from services.repair_service.audit import AuditStore
 
 
 def _run(coro):
@@ -113,7 +114,7 @@ def test_config_settings_from_env(monkeypatch):
     monkeypatch.setenv("REPAIR_SERVICE_LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("REPAIR_SERVICE_ORCHESTRATOR_PORT", "9999")
     monkeypatch.setenv("REPAIR_SERVICE_USE_IN_MEMORY", "false")
-    
+
     cfg = RepairServiceSettings()
     assert cfg.service_name == "custom-service"
     assert cfg.environment == "production"
@@ -143,7 +144,7 @@ def test_metrics_import():
     assert REPAIR_AUDIT_EVENTS is not None
     assert REPAIR_SAGA_STATUS is not None
     assert REPAIR_ACTIVE_EXECUTIONS is not None
-    
+
     # Test metric labels
     REPAIR_TASKS_CREATED.labels(platform="linux").inc()
     REPAIR_TASKS_COMPLETED.labels(status="success", platform="linux").inc()
@@ -171,10 +172,10 @@ async def test_mq_publish_consume():
     """Test publish and consume operations."""
     mq = InMemoryMessageQueue()
     mq.reset()
-    
+
     payload = {"type": "test", "data": "value"}
     await mq.publish("test_channel", payload)
-    
+
     consumed = await mq.consume("test_channel")
     assert consumed == payload
 
@@ -184,13 +185,13 @@ async def test_mq_multiple_channels():
     """Test multiple channels."""
     mq = InMemoryMessageQueue()
     mq.reset()
-    
+
     await mq.publish("channel1", {"msg": "1"})
     await mq.publish("channel2", {"msg": "2"})
-    
+
     msg1 = await mq.consume("channel1")
     msg2 = await mq.consume("channel2")
-    
+
     assert msg1["msg"] == "1"
     assert msg2["msg"] == "2"
 
@@ -207,7 +208,7 @@ def test_mq_reset():
     mq = InMemoryMessageQueue()
     _run(mq.publish("ch1", {"x": 1}))
     _run(mq.publish("ch2", {"x": 2}))
-    
+
     mq.reset()
     assert len(mq._queues) == 0
 
@@ -243,11 +244,11 @@ def test_schemas_models():
     )
     assert strategy.name == "test"
     assert strategy.enabled is True  # default
-    
+
     step = RepairStep(name="step1", command="echo test")
     assert step.name == "step1"
     assert step.timeout_seconds == 60  # default
-    
+
     runbook = RepairRunbook(
         runbook_id="rb1",
         name="Test Runbook",
@@ -256,7 +257,7 @@ def test_schemas_models():
     )
     assert runbook.runbook_id == "rb1"
     assert len(runbook.steps) == 1
-    
+
     task = RepairTask(
         task_id="t1",
         alert_id="a1",
@@ -264,11 +265,11 @@ def test_schemas_models():
         platform=PlatformType.LINUX,
     )
     assert task.status == RepairStatus.PENDING  # default
-    
+
     result = RepairExecutionResult(task_id="t1", success=True)
     assert result.success is True
     assert result.return_code == 0  # default
-    
+
     verification = VerificationResult(task_id="t1", verified=True)
     assert verification.verified is True
     assert verification.confidence == 0.0  # default
@@ -295,7 +296,7 @@ def test_schemas_saga():
         compensation="comp",
     )
     assert step.status == "pending"  # default
-    
+
     transaction = SagaTransaction(
         saga_id="sg1",
         task_id="t1",
@@ -336,7 +337,7 @@ async def test_repository_save_auto_id():
 async def test_repository_crud():
     """Test full CRUD operations."""
     repo = InMemoryRepairRepository()
-    
+
     # Create
     task = RepairTask(
         task_id="t1",
@@ -346,25 +347,25 @@ async def test_repository_crud():
         status=RepairStatus.PENDING,
     )
     await repo.save(task)
-    
+
     # Read
     fetched = await repo.get("t1")
     assert fetched is not None
     assert fetched.task_id == "t1"
-    
+
     # Update
     await repo.update("t1", {"status": RepairStatus.APPROVED})
     updated = await repo.get("t1")
     assert updated.status == RepairStatus.APPROVED
-    
+
     # List
     tasks = await repo.list(limit=10)
     assert len(tasks) == 1
-    
+
     # Count
     count = await repo.count()
     assert count == 1
-    
+
     # Delete
     deleted = await repo.delete("t1")
     assert deleted is True
@@ -375,10 +376,26 @@ async def test_repository_crud():
 async def test_repository_list_with_status():
     """Test listing with status filter."""
     repo = InMemoryRepairRepository()
-    
-    await repo.save(RepairTask(task_id="t1", alert_id="a1", host="h1", platform=PlatformType.LINUX, status=RepairStatus.PENDING))
-    await repo.save(RepairTask(task_id="t2", alert_id="a2", host="h1", platform=PlatformType.LINUX, status=RepairStatus.SUCCEEDED))
-    
+
+    await repo.save(
+        RepairTask(
+            task_id="t1",
+            alert_id="a1",
+            host="h1",
+            platform=PlatformType.LINUX,
+            status=RepairStatus.PENDING,
+        )
+    )
+    await repo.save(
+        RepairTask(
+            task_id="t2",
+            alert_id="a2",
+            host="h1",
+            platform=PlatformType.LINUX,
+            status=RepairStatus.SUCCEEDED,
+        )
+    )
+
     pending = await repo.list(status=RepairStatus.PENDING)
     assert len(pending) == 1
     assert pending[0].task_id == "t1"
@@ -417,7 +434,7 @@ def test_rollback_list_strategies():
 def test_rollback_detect_strategy():
     """Test strategy detection."""
     engine = RollbackEngine()
-    
+
     # No strategy
     task = RepairTask(
         task_id="t1",
@@ -427,13 +444,15 @@ def test_rollback_detect_strategy():
         strategy=None,
     )
     assert engine._detect_strategy(task) == "generic"
-    
+
     # CPU strategy
     task.strategy = RepairStrategy(name="s", script_key="cpu_high", platform=PlatformType.LINUX)
     assert engine._detect_strategy(task) == "process_restart"
-    
+
     # Service strategy
-    task.strategy = RepairStrategy(name="s", script_key="service_restart", platform=PlatformType.LINUX)
+    task.strategy = RepairStrategy(
+        name="s", script_key="service_restart", platform=PlatformType.LINUX
+    )
     assert engine._detect_strategy(task) == "service_restart"
 
 
@@ -465,7 +484,7 @@ async def test_rollback_execute():
         strategy=RepairStrategy(name="s", script_key="cpu_high", platform=PlatformType.LINUX),
     )
     result = RepairExecutionResult(task_id="t1", success=False)
-    
+
     rollback_result = await engine.rollback(task, result)
     assert rollback_result.success is True
     assert "process" in rollback_result.output.lower()
@@ -475,12 +494,12 @@ async def test_rollback_execute():
 async def test_rollback_execute_failure():
     """Test rollback with failure."""
     engine = RollbackEngine()
-    
+
     async def boom(task, result):
         raise RuntimeError("rollback failed")
-    
+
     engine._strategies["generic"] = boom
-    
+
     task = RepairTask(
         task_id="t1",
         alert_id="a1",
@@ -489,7 +508,7 @@ async def test_rollback_execute_failure():
         strategy=RepairStrategy(name="s", script_key="unknown", platform=PlatformType.LINUX),
     )
     result = RepairExecutionResult(task_id="t1", success=False)
-    
+
     rollback_result = await engine.rollback(task, result)
     assert rollback_result.success is False
     assert "rollback failed" in rollback_result.error
@@ -519,14 +538,14 @@ def test_state_machine_transitions():
         status=RepairStatus.PENDING,
     )
     sm = RepairStateMachine(task)
-    
+
     assert sm.current_state == RepairStatus.PENDING
     assert sm.can_transition(RepairStatus.APPROVED)
     assert not sm.can_transition(RepairStatus.COMPLETED)
-    
+
     assert sm.transition(RepairStatus.APPROVED)
     assert sm.current_state == RepairStatus.APPROVED
-    
+
     assert sm.transition(RepairStatus.EXECUTING)
     assert sm.transition(RepairStatus.SUCCEEDED)
     assert sm.transition(RepairStatus.VERIFYING)
@@ -544,10 +563,10 @@ def test_state_machine_invalid_transition():
         status=RepairStatus.PENDING,
     )
     sm = RepairStateMachine(task)
-    
+
     # Cannot go directly from PENDING to COMPLETED
     assert not sm.transition(RepairStatus.COMPLETED)
-    
+
     # Cannot transition to same state
     assert not sm.transition(RepairStatus.PENDING)
 
@@ -562,10 +581,10 @@ def test_state_machine_history():
         status=RepairStatus.PENDING,
     )
     sm = RepairStateMachine(task)
-    
+
     sm.transition(RepairStatus.APPROVED, reason="test")
     sm.transition(RepairStatus.EXECUTING, reason="test")
-    
+
     assert len(sm.history) == 3  # initial + 2 transitions
     assert sm.history[0]["event"] == "initialized"
     assert sm.history[1]["event"] == "transition"
@@ -581,7 +600,7 @@ def test_state_machine_to_dict():
         status=RepairStatus.PENDING,
     )
     sm = RepairStateMachine(task)
-    
+
     d = sm.to_dict()
     assert d["task_id"] == "t1"
     assert d["current_state"] == "pending"
@@ -597,15 +616,15 @@ def test_saga_register_and_execute():
     """Test saga registration and execution."""
     orch = SagaOrchestrator()
     step = SagaStep(step_id="s1", service="svc", action="act", compensation="comp")
-    
+
     async def act():
         return {"ok": True}
-    
+
     async def comp():
         return {"ok": True}
-    
+
     orch.register("sg1", [step], {"act": act}, {"comp": comp})
-    
+
     result = _run(orch.execute("sg1"))
     assert result["success"] is True
     assert result["saga_id"] == "sg1"
@@ -616,21 +635,23 @@ def test_saga_execute_failure_compensation():
     orch = SagaOrchestrator()
     step1 = SagaStep(step_id="s1", service="svc", action="act1", compensation="comp1")
     step2 = SagaStep(step_id="s2", service="svc", action="act2", compensation="comp2")
-    
+
     async def act1():
         return {"ok": True}
-    
+
     async def act2():
         raise RuntimeError("step2 failed")
-    
+
     async def comp1():
         return {"compensated": True}
-    
+
     async def comp2():
         return {"compensated": True}
-    
-    orch.register("sg2", [step1, step2], {"act1": act1, "act2": act2}, {"comp1": comp1, "comp2": comp2})
-    
+
+    orch.register(
+        "sg2", [step1, step2], {"act1": act1, "act2": act2}, {"comp1": comp1, "comp2": comp2}
+    )
+
     result = _run(orch.execute("sg2"))
     assert result["success"] is False
     assert orch.get_transaction("sg2").status == "compensating"
@@ -648,9 +669,9 @@ def test_saga_missing_action():
     """Test saga with missing action handler."""
     orch = SagaOrchestrator()
     step = SagaStep(step_id="s1", service="svc", action="missing", compensation="comp")
-    
+
     orch.register("sg3", [step], {}, {})
-    
+
     result = _run(orch.execute("sg3"))
     assert result["success"] is False
     assert "No action" in result["error"]
@@ -660,15 +681,15 @@ def test_saga_get_transaction():
     """Test getting a transaction."""
     orch = SagaOrchestrator()
     step = SagaStep(step_id="s1", service="svc", action="act", compensation="comp")
-    
+
     async def act():
         return {"ok": True}
-    
+
     async def comp():
         return {"ok": True}
-    
+
     orch.register("sg4", [step], {"act": act}, {"comp": comp})
-    
+
     transaction = orch.get_transaction("sg4")
     assert transaction.saga_id == "sg4"
     assert len(transaction.steps) == 1
@@ -677,18 +698,18 @@ def test_saga_get_transaction():
 def test_saga_step_validation():
     """Test step validation in register."""
     orch = SagaOrchestrator()
-    
+
     # Test with dict step (should be converted to SagaStep)
     dict_step = {"step_id": "s1", "service": "svc", "action": "act", "compensation": "comp"}
-    
+
     async def act():
         return {"ok": True}
-    
+
     async def comp():
         return {"ok": True}
-    
+
     orch.register("sg5", [dict_step], {"act": act}, {"comp": comp})
-    
+
     transaction = orch.get_transaction("sg5")
     assert isinstance(transaction.steps[0], SagaStep)
 
@@ -701,15 +722,15 @@ def test_saga_step_validation():
 def test_rpc_server():
     """Test RPC server."""
     server = RPCServer()
-    
+
     async def handler(x: int) -> int:
         return x * 2
-    
+
     server.register("double", handler)
-    
+
     assert server.list_methods() == ["double"]
     assert _run(server.call("double", x=5)) == 10
-    
+
     with pytest.raises(ValueError, match="Unknown RPC method"):
         _run(server.call("missing"))
 
@@ -717,10 +738,10 @@ def test_rpc_server():
 def test_rpc_server_sync_handler():
     """Test server with synchronous handler."""
     server = RPCServer()
-    
+
     async def sync_handler(x: int) -> int:
         return x + 1
-    
+
     server.register("inc", sync_handler)
     result = _run(server.call("inc", x=5))
     assert result == 6
@@ -741,12 +762,12 @@ def test_rpc_server_empty():
 async def test_rpc_client_with_server():
     """Test RPC client with server transport."""
     server = RPCServer()
-    
+
     async def handler(name: str) -> str:
         return f"hello {name}"
-    
+
     server.register("greet", handler)
-    
+
     client = RPCClient(server=server)
     result = await client.call("greet", name="world")
     assert result == "hello world"
@@ -764,10 +785,12 @@ async def test_rpc_client_without_transport():
 async def test_rpc_client_close():
     """Test closing client without HTTP transport."""
     server = RPCServer()
+
     async def handler():
         return "ok"
+
     server.register("test", handler)
-    
+
     client = RPCClient(server=server)
     await client.close()  # Should not raise
 
@@ -781,17 +804,17 @@ async def test_rpc_client_close():
 async def test_health_check_metric_threshold():
     """Test metric threshold check."""
     engine = HealthCheckEngine(timeout=1)
-    
+
     # Mock _run to avoid actual command execution
     async def fake_run(cmd, default_stdout=""):
         return {"success": True, "stdout": default_stdout, "stderr": "", "return_code": 0}
-    
+
     engine._run = fake_run
-    
+
     # Test successful threshold
     result = await engine.check_metric_threshold("cpu", 100.0, 90.0, threshold_percent=5.0)
     assert result["success"] is True
-    
+
     # Test failed threshold (not enough drop)
     result = await engine.check_metric_threshold("cpu", 100.0, 98.0, threshold_percent=5.0)
     assert result["success"] is False
@@ -801,11 +824,11 @@ async def test_health_check_metric_threshold():
 async def test_health_check_timeout():
     """Test health check timeout."""
     engine = HealthCheckEngine(timeout=1)
-    
+
     # The actual _run method handles TimeoutError internally, so we don't need to mock it
     # Just test that the timeout parameter is set correctly
     assert engine.timeout == 1
-    
+
     # Test with a very short timeout to simulate timeout scenario
     engine_short = HealthCheckEngine(timeout=0.001)
     # This would timeout on real systems, but we can't test that without actual commands
@@ -820,7 +843,7 @@ async def test_health_check_exception():
     # So we just test that the engine can be created and has the expected timeout
     engine = HealthCheckEngine(timeout=1)
     assert engine.timeout == 1
-    
+
     # Test that metric threshold check works correctly
     result = await engine.check_metric_threshold("cpu", 100.0, 95.0, 5.0)
     assert result["success"] is True
@@ -831,20 +854,20 @@ async def test_health_check_exception():
 async def test_health_check_platform_commands():
     """Test different platform commands."""
     engine = HealthCheckEngine(timeout=1)
-    
+
     async def fake_run(cmd, default_stdout=""):
         return {"success": True, "stdout": default_stdout, "stderr": "", "return_code": 0}
-    
+
     engine._run = fake_run
-    
+
     # Linux
     result = await engine.check_service_status("nginx", platform="linux")
     assert result["success"] is True
-    
+
     # Windows
     result = await engine.check_service_status("nginx", platform="windows")
     assert result["success"] is True
-    
+
     # Process check
     result = await engine.check_process_exists(1234, platform="linux")
     assert result["success"] is True
@@ -891,7 +914,7 @@ def test_runbook_parser_render_command():
     """Test command rendering."""
     rendered = RunbookParser.render_command("echo {msg}", {"msg": "hello"})
     assert rendered == "echo hello"
-    
+
     rendered = RunbookParser.render_command("echo {missing}", {})
     assert rendered == "echo {missing}"
 
@@ -908,20 +931,20 @@ def test_runbook_parser_validate():
     )
     errors = RunbookParser.validate(runbook)
     assert errors == []
-    
+
     # Missing runbook_id
     runbook.runbook_id = ""
     errors = RunbookParser.validate(runbook)
     assert len(errors) > 0
     assert any("runbook_id" in e.lower() for e in errors)
-    
+
     # No steps
     runbook.runbook_id = "test"
     runbook.steps = []
     errors = RunbookParser.validate(runbook)
     assert len(errors) > 0
     assert any("step" in e.lower() for e in errors)
-    
+
     # Empty command
     runbook.steps = [RepairStep(name="s1", command="")]
     errors = RunbookParser.validate(runbook)
@@ -934,11 +957,11 @@ def test_runbook_parser_errors():
     # Not a mapping
     with pytest.raises(ValueError, match="must be a mapping"):
         RunbookParser.from_yaml("just a string")
-    
+
     # Steps not a list
     with pytest.raises(ValueError, match="steps.*must be a list"):
         RunbookParser.from_yaml("runbook_id: test\nsteps: notlist")
-    
+
     # Step not a mapping
     with pytest.raises(ValueError, match="Step.*must be a mapping"):
         RunbookParser.from_yaml("runbook_id: test\nsteps:\n  - 123")
@@ -984,7 +1007,7 @@ def test_strategy_manager_get_strategy():
     strategy = mgr.get_strategy("cpu_high_linux")
     assert strategy is not None
     assert strategy.name == "cpu_high_linux"
-    
+
     # Non-existent strategy
     assert mgr.get_strategy("nonexistent") is None
 
@@ -992,7 +1015,7 @@ def test_strategy_manager_get_strategy():
 def test_strategy_manager_match():
     """Test strategy matching."""
     mgr = RepairStrategyManager()
-    
+
     # Exact match
     req = RepairRequest(
         alert_id="a1",
@@ -1003,7 +1026,7 @@ def test_strategy_manager_match():
     matched = mgr.match(req)
     assert matched is not None
     assert matched.name == "cpu_high_linux"
-    
+
     # Wildcard match
     req2 = RepairRequest(
         alert_id="a2",
@@ -1013,7 +1036,7 @@ def test_strategy_manager_match():
     )
     matched2 = mgr.match(req2)
     assert matched2 is not None  # Should match wildcard strategy
-    
+
     # No match
     req3 = RepairRequest(
         alert_id="a3",
@@ -1028,7 +1051,7 @@ def test_strategy_manager_match():
 def test_strategy_manager_add_strategy():
     """Test adding custom strategy."""
     mgr = RepairStrategyManager()
-    
+
     new_strategy = RepairStrategy(
         name="custom",
         conditions={"metric": "custom_metric", "platform": "linux"},
@@ -1038,21 +1061,21 @@ def test_strategy_manager_add_strategy():
         priority=100,
     )
     mgr.add_strategy(new_strategy)
-    
+
     assert mgr.get_strategy("custom") == new_strategy
 
 
 def test_strategy_manager_create_task():
     """Test creating task from request."""
     mgr = RepairStrategyManager()
-    
+
     req = RepairRequest(
         alert_id="a1",
         host="h1",
         platform=PlatformType.LINUX,
         metric="cpu_percent",
     )
-    
+
     task = mgr.create_task_from_request(req, "TASK-1")
     assert task.task_id == "TASK-1"
     assert task.alert_id == "a1"
@@ -1065,21 +1088,21 @@ def test_strategy_manager_create_task():
 def test_strategy_manager_score():
     """Test strategy scoring."""
     mgr = RepairStrategyManager()
-    
+
     strategy = RepairStrategy(
         name="test",
         conditions={"platform": "linux", "metric": "cpu"},
         script_key="test",
         platform=PlatformType.LINUX,
     )
-    
+
     req = RepairRequest(
         alert_id="a1",
         host="h1",
         platform=PlatformType.LINUX,
         metric="cpu_percent",
     )
-    
+
     score = mgr._score(strategy, req)
     assert score > 0  # Should match on platform and metric
 
@@ -1093,7 +1116,7 @@ def test_strategy_manager_score():
 async def test_audit_record():
     """Test recording audit events."""
     store = AuditStore()
-    
+
     event = await store.record("t1", "created", actor="system", payload={"key": "value"})
     assert event.task_id == "t1"
     assert event.event_type == "created"
@@ -1105,11 +1128,11 @@ async def test_audit_record():
 async def test_audit_get_events():
     """Test getting events for a task."""
     store = AuditStore()
-    
+
     await store.record("t1", "created")
     await store.record("t1", "approved")
     await store.record("t2", "created")
-    
+
     events = await store.get_events("t1")
     assert len(events) == 2
     assert all(e.task_id == "t1" for e in events)
@@ -1119,15 +1142,15 @@ async def test_audit_get_events():
 async def test_audit_query():
     """Test querying events."""
     store = AuditStore()
-    
+
     await store.record("t1", "type_a")
     await store.record("t1", "type_b")
     await store.record("t2", "type_a")
-    
+
     # All events
     all_events = await store.query(limit=10)
     assert len(all_events) == 3
-    
+
     # Filter by type
     type_a = await store.query(event_type="type_a", limit=10)
     assert len(type_a) == 2
@@ -1138,11 +1161,11 @@ async def test_audit_query():
 async def test_audit_analyze():
     """Test analyzing events."""
     store = AuditStore()
-    
+
     await store.record("t1", "created")
     await store.record("t1", "approved")
     await store.record("t1", "completed")
-    
+
     analysis = await store.analyze("t1")
     assert analysis["task_id"] == "t1"
     assert analysis["total_events"] == 3
@@ -1155,9 +1178,9 @@ async def test_audit_analyze():
 async def test_audit_snapshot():
     """Test recording snapshot."""
     store = AuditStore()
-    
+
     await store.snapshot("t1", {"state": "ok"})
-    
+
     events = await store.get_events("t1")
     assert len(events) == 1
     assert events[0].event_type == "snapshot"
@@ -1168,13 +1191,13 @@ async def test_audit_snapshot():
 async def test_audit_empty():
     """Test operations with no events."""
     store = AuditStore()
-    
+
     events = await store.get_events("nonexistent")
     assert events == []
-    
+
     events = await store.query(limit=10)
     assert events == []
-    
+
     analysis = await store.analyze("t1")
     assert analysis["total_events"] == 0
     assert analysis["event_types"] == {}

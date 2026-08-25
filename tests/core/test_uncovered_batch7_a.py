@@ -179,7 +179,9 @@ def test_redis_store_falls_back_to_memory(monkeypatch):
 
 
 def test_generate_idempotency_key_variations():
-    base = idem.generate_idempotency_key("POST", "/api/orders")  # noqa: F841  # Variable for test verification
+    base = idem.generate_idempotency_key(
+        "POST", "/api/orders"
+    )  # noqa: F841  # Variable for test verification
     assert len(base) == 64
 
     with_body = idem.generate_idempotency_key(

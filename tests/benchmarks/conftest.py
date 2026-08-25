@@ -11,10 +11,20 @@ from typing import AsyncGenerator, Generator
 import pytest
 
 # Add workflow_service to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "extensions" / "addons" / "operations" / "workflow_service"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).parent.parent.parent
+        / "extensions"
+        / "addons"
+        / "operations"
+        / "workflow_service"
+    ),
+)
 
 # Clear prometheus metrics registry to avoid duplicate registration errors
 from prometheus_client import REGISTRY
+
 try:
     REGISTRY._collector_to_names.clear()
     REGISTRY._names_to_collectors.clear()
@@ -34,6 +44,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 def reset_metrics():
     """Reset metrics before each test."""
     from prometheus_client import REGISTRY
+
     try:
         # Clear all metrics
         for collector in list(REGISTRY._collector_to_names.keys()):

@@ -3,14 +3,14 @@
 
 import pytest
 
+from extensions.addons.ai_plus.knowledge_graph_service.builder import GraphBuilder
 from extensions.addons.ai_plus.knowledge_graph_service.dependency_graph import (
     ServiceDependencyGraphBuilder,
 )
-from extensions.addons.ai_plus.knowledge_graph_service.builder import GraphBuilder
 from extensions.addons.ai_plus.knowledge_graph_service.graph_store import GraphStore
 from extensions.addons.ai_plus.knowledge_graph_service.schemas import (
-    ServiceDependencyGraphRequest,
     ServiceDependency,
+    ServiceDependencyGraphRequest,
 )
 
 
@@ -88,11 +88,7 @@ class TestServiceDependencyGraphBuilder:
     async def test_build_single_service_with_deps(self, dependency_builder):
         """Test building graph with single service and dependencies."""
         request = ServiceDependencyGraphRequest(
-            services=[
-                ServiceDependency(
-                    service="Service A", depends_on=["Service B", "Service C"]
-                )
-            ]
+            services=[ServiceDependency(service="Service A", depends_on=["Service B", "Service C"])]
         )
 
         response = await dependency_builder.build(request)
@@ -183,9 +179,7 @@ class TestServiceDependencyGraphBuilder:
         """Test building complex dependency tree."""
         request = ServiceDependencyGraphRequest(
             services=[
-                ServiceDependency(
-                    service="Frontend", depends_on=["API Gateway", "Auth Service"]
-                ),
+                ServiceDependency(service="Frontend", depends_on=["API Gateway", "Auth Service"]),
                 ServiceDependency(
                     service="API Gateway", depends_on=["User Service", "Order Service"]
                 ),
@@ -207,11 +201,7 @@ class TestServiceDependencyGraphBuilder:
     async def test_build_with_implicit_dependencies(self, dependency_builder):
         """Test building graph where dependencies are not explicitly listed as services."""
         request = ServiceDependencyGraphRequest(
-            services=[
-                ServiceDependency(
-                    service="Service A", depends_on=["Service B", "Service C"]
-                )
-            ]
+            services=[ServiceDependency(service="Service A", depends_on=["Service B", "Service C"])]
         )
 
         response = await dependency_builder.build(request)
@@ -288,9 +278,7 @@ class TestServiceDependencyGraphBuilder:
     async def test_build_with_self_dependency(self, dependency_builder):
         """Test building with self dependency (edge case)."""
         request = ServiceDependencyGraphRequest(
-            services=[
-                ServiceDependency(service="Service A", depends_on=["Service A"])
-            ]
+            services=[ServiceDependency(service="Service A", depends_on=["Service A"])]
         )
 
         response = await dependency_builder.build(request)
@@ -318,12 +306,8 @@ class TestServiceDependencyGraphBuilder:
 
         assert response.built is True
         # Check that graph was built with properties
-        graph = await dependency_builder.graph_builder.store.as_graph(
-            response.graph_id, "test"
-        )
-        service_a_node = next(
-            (n for n in graph.nodes if n.node_id == "service_a"), None
-        )
+        graph = await dependency_builder.graph_builder.store.as_graph(response.graph_id, "test")
+        service_a_node = next((n for n in graph.nodes if n.node_id == "service_a"), None)
         assert service_a_node is not None
         assert service_a_node.properties.get("version") == "1.0"
         assert service_a_node.properties.get("owner") == "team-a"

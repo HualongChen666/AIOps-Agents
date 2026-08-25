@@ -30,6 +30,7 @@ def _run_storcli(args: list[str]) -> Dict[str, Any]:
             text=True,
             timeout=120,
             check=False,
+            shell=False,
         )
         return {
             "success": result.returncode == 0,
@@ -38,7 +39,7 @@ def _run_storcli(args: list[str]) -> Dict[str, Any]:
             "stderr": result.stderr[:1000],
         }
     except Exception as exc:
-        logger.exception("StorCLI command failed: %s", args)
+        logger.error("StorCLI command failed")
         return {"success": False, "error": str(exc)}
 
 

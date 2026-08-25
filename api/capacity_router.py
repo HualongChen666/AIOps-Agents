@@ -16,9 +16,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from api.common import handle_service_error
 from core.capacity_engine import forecast_capacity, generate_scaling_recommendations
 from core.collector import get_disk_metrics
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +96,7 @@ async def get_forecast() -> dict[str, Any]:
         forecasts = forecast_capacity(metric_history, days_ahead=7)
         return {"data": list(forecasts.values())}
     except Exception as e:
-        logger.error(f"容量预测失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"容量预测失败: {str(e)[:200]}")
+        handle_service_error(e, "容量预测", detail_prefix="容量预测失败")
 
 
 @router.get(
@@ -135,5 +135,4 @@ async def get_recommendations() -> dict[str, Any]:
         recommendations = generate_scaling_recommendations(forecasts)
         return {"data": recommendations}
     except Exception as e:
-        logger.error(f"扩容建议生成失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"扩容建议生成失败: {str(e)[:200]}")
+        handle_service_error(e, "扩容建议生成", detail_prefix="扩容建议生成失败")

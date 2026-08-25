@@ -132,7 +132,9 @@ def test_memory_bridge_retrieve_and_save_with_orchestrator(scenario_memory_modul
     bridge._orchestrator.search_similar = AsyncMock(
         return_value=SimpleNamespace(results=[ev1, ev2])
     )
-    result = bridge.retrieve_relevant_experiences("query", top_k=3, session_id="s1")  # noqa: F841  # Variable for test verification
+    result = bridge.retrieve_relevant_experiences(
+        "query", top_k=3, session_id="s1"
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0]["event_id"] == "e1"
 
@@ -520,7 +522,9 @@ async def test_fault_tolerant_executor_success():
 
 async def test_fault_tolerant_executor_sync_and_no_circuit():
     e = fte.FaultTolerantExecutor({"default_timeout": 1.0})
-    result = await e.execute(lambda: "ok", "op2", circuit_breaker_enabled=False)  # noqa: F841  # Variable for test verification
+    result = await e.execute(
+        lambda: "ok", "op2", circuit_breaker_enabled=False
+    )  # noqa: F841  # Variable for test verification
     assert result.result == "ok"  # noqa: F841  # Variable for test verification
 
 

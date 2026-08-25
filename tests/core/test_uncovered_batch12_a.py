@@ -273,7 +273,9 @@ async def test_trigger_repair_success(monkeypatch):
     state = MagicMock(fix_applied=True, verification="ok", error=None)
     monkeypatch.setattr(heal_graph, "HealState", MagicMock(return_value=state))
     monkeypatch.setattr(heal_graph, "run_heal", AsyncMock(return_value=state))
-    result = await mcp.trigger_repair("A1", "user", "fix it")  # noqa: F841  # Variable for test verification
+    result = await mcp.trigger_repair(
+        "A1", "user", "fix it"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["status"] == "completed"
     assert result["fix_applied"] is True
@@ -318,12 +320,16 @@ async def test_get_metrics(monkeypatch):
     monkeypatch.setattr(
         mcp, "get_cached_snapshot", MagicMock(return_value={"cpu": 0.5, "mem": 0.8})
     )
-    result = await mcp.get_metrics("host-1", ["cpu", "disk"])  # noqa: F841  # Variable for test verification
+    result = await mcp.get_metrics(
+        "host-1", ["cpu", "disk"]
+    )  # noqa: F841  # Variable for test verification
     assert result["cpu"] == 0.5
     assert result["disk"] is None
 
     monkeypatch.setattr(mcp, "get_cached_snapshot", MagicMock(return_value=None))
-    result = await mcp.get_metrics("host-1", ["cpu"])  # noqa: F841  # Variable for test verification
+    result = await mcp.get_metrics(
+        "host-1", ["cpu"]
+    )  # noqa: F841  # Variable for test verification
     assert result["cpu"] is None
 
 
@@ -343,7 +349,9 @@ async def test_approve_repair(monkeypatch):
 
     db.reset_mock()
     db.get_repair_record.return_value = {"id": "R1"}
-    result = await mcp.approve_repair("R1", False, "rejected by user")  # noqa: F841  # Variable for test verification
+    result = await mcp.approve_repair(
+        "R1", False, "rejected by user"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "rejected"
 
 
@@ -352,7 +360,9 @@ async def test_trigger_repair_with_hitl(monkeypatch):
     state = MagicMock(fix_applied=True, verification="ok", error=None)
     monkeypatch.setattr(heal_graph, "HealState", MagicMock(return_value=state))
     monkeypatch.setattr(heal_graph, "run_heal", AsyncMock(return_value=state))
-    result = await mcp.trigger_repair_with_hitl("A4", "admin", "go")  # noqa: F841  # Variable for test verification
+    result = await mcp.trigger_repair_with_hitl(
+        "A4", "admin", "go"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
 
@@ -517,7 +527,9 @@ from core.causal.graph import CausalEdge, CausalGraph, CausalStrength
 
 
 def test_conditional_independence_test():
-    result = ConditionalIndependenceTest(True, 0.1, 0.05)  # noqa: F841  # Variable for test verification
+    result = ConditionalIndependenceTest(
+        True, 0.1, 0.05
+    )  # noqa: F841  # Variable for test verification
     assert result.independent is True
 
 

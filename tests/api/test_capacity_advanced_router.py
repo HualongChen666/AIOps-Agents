@@ -7,40 +7,41 @@ Comprehensive tests for capacity planning endpoints including planning,
 forecasts, optimization, rightsizing, and recommendations.
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException, status
 
 from api.capacity_advanced_router import (
-    router,
-    ResourceType,
-    PlanningHorizon,
-    OptimizationStrategy,
-    RightsizingAction,
-    Priority,
+    CapacityForecast,
     CapacityPlan,
     CapacityPlanCreate,
-    CapacityForecast,
     OptimizationRequest,
     OptimizationResult,
+    OptimizationStrategy,
+    PlanningHorizon,
+    Priority,
+    ResourceType,
+    RightsizingAction,
     RightsizingRecommendation,
     ScalingRecommendation,
+    _build_metric_history,
+    _calculate_confidence,
+    _calculate_trend,
     _capacity_plans,
+    _generate_optimization_id,
+    _generate_plan_id,
+    _generate_rightsizing_id,
     _optimization_results,
     _rightsizing_recommendations,
-    _generate_plan_id,
-    _generate_optimization_id,
-    _generate_rightsizing_id,
-    _build_metric_history,
-    _calculate_trend,
-    _calculate_confidence,
+    router,
 )
-
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_admin_user():
@@ -139,17 +140,20 @@ def clear_in_memory_data():
 # Test Planning Endpoints
 # ============================================================================
 
+
 class TestListCapacityPlans:
     """Tests for GET /api/v1/capacity/planning"""
 
     @pytest.mark.asyncio
-    async def test_list_plans_success(self, sample_capacity_plan, mock_admin_user, clear_in_memory_data):
+    async def test_list_plans_success(
+        self, sample_capacity_plan, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful listing of capacity plans."""
         # Setup
         _capacity_plans["CP-12345678"] = sample_capacity_plan
 
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[0].endpoint(
                 service=None,
                 resource_type=None,
@@ -163,13 +167,15 @@ class TestListCapacityPlans:
         assert result[0].id == "CP-12345678"
 
     @pytest.mark.asyncio
-    async def test_list_plans_with_filters(self, sample_capacity_plan, mock_admin_user, clear_in_memory_data):
+    async def test_list_plans_with_filters(
+        self, sample_capacity_plan, mock_admin_user, clear_in_memory_data
+    ):
         """Test listing plans with filters."""
         # Setup
         _capacity_plans["CP-12345678"] = sample_capacity_plan
 
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[0].endpoint(
                 service="compute-service",
                 resource_type=ResourceType.CPU,
@@ -185,7 +191,7 @@ class TestListCapacityPlans:
     async def test_list_plans_empty_result(self, mock_admin_user, clear_in_memory_data):
         """Test listing plans with no results."""
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[0].endpoint(
                 service=None,
                 resource_type=None,
@@ -201,7 +207,10 @@ class TestListCapacityPlans:
     async def test_list_plans_permission_denied(self):
         """Test listing plans without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[0].endpoint(
@@ -220,7 +229,7 @@ class TestListCapacityPlans:
         _capacity_plans["CP-12345678"] = "invalid_data"  # Invalid data type
 
         # Execute & Assert
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[0].endpoint(
                     service=None,
@@ -236,12 +245,17 @@ class TestCreateCapacityPlan:
     """Tests for POST /api/v1/capacity/planning"""
 
     @pytest.mark.asyncio
-    async def test_create_plan_success(self, sample_plan_create, mock_admin_user, clear_in_memory_data):
+    async def test_create_plan_success(
+        self, sample_plan_create, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful creation of capacity plan."""
         # Setup
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0, 55.0, 60.0]}):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history",
+            return_value={"cpu": [50.0, 55.0, 60.0]},
+        ):
             # Execute
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[1].endpoint(
                     plan=sample_plan_create,
                     current_user=mock_admin_user,
@@ -267,7 +281,7 @@ class TestCreateCapacityPlan:
         )
 
         # Execute & Assert
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(Exception):  # Pydantic validation error
                 await router.routes[1].endpoint(
                     plan=invalid_data,
@@ -289,7 +303,7 @@ class TestCreateCapacityPlan:
         )
 
         # Execute & Assert
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(Exception):  # Pydantic validation error
                 await router.routes[1].endpoint(
                     plan=invalid_data,
@@ -300,7 +314,10 @@ class TestCreateCapacityPlan:
     async def test_create_plan_permission_denied(self, sample_plan_create, mock_business_user):
         """Test creating plan without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[1].endpoint(
@@ -310,12 +327,16 @@ class TestCreateCapacityPlan:
             assert exc_info.value.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_create_plan_different_horizons(self, sample_plan_create, mock_admin_user, clear_in_memory_data):
+    async def test_create_plan_different_horizons(
+        self, sample_plan_create, mock_admin_user, clear_in_memory_data
+    ):
         """Test creating plans with different horizons."""
         # Test weekly
         sample_plan_create.horizon = PlanningHorizon.WEEKLY
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[1].endpoint(
                     plan=sample_plan_create,
                     current_user=mock_admin_user,
@@ -324,8 +345,10 @@ class TestCreateCapacityPlan:
 
         # Test quarterly
         sample_plan_create.horizon = PlanningHorizon.QUARTERLY
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[1].endpoint(
                     plan=sample_plan_create,
                     current_user=mock_admin_user,
@@ -334,8 +357,10 @@ class TestCreateCapacityPlan:
 
         # Test yearly
         sample_plan_create.horizon = PlanningHorizon.YEARLY
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[1].endpoint(
                     plan=sample_plan_create,
                     current_user=mock_admin_user,
@@ -347,13 +372,15 @@ class TestGetCapacityPlan:
     """Tests for GET /api/v1/capacity/planning/{id}"""
 
     @pytest.mark.asyncio
-    async def test_get_plan_success(self, sample_capacity_plan, mock_admin_user, clear_in_memory_data):
+    async def test_get_plan_success(
+        self, sample_capacity_plan, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful retrieval of capacity plan."""
         # Setup
         _capacity_plans["CP-12345678"] = sample_capacity_plan
 
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[2].endpoint(
                 plan_id="CP-12345678",
                 current_user=mock_admin_user,
@@ -367,7 +394,7 @@ class TestGetCapacityPlan:
     async def test_get_plan_not_found(self, mock_admin_user):
         """Test retrieving non-existent plan."""
         # Execute & Assert
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[2].endpoint(
                     plan_id="CP-NOTFOUND",
@@ -379,7 +406,10 @@ class TestGetCapacityPlan:
     async def test_get_plan_permission_denied(self):
         """Test retrieving plan without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[2].endpoint(
@@ -393,13 +423,15 @@ class TestUpdateCapacityPlan:
     """Tests for PATCH /api/v1/capacity/planning/{id}"""
 
     @pytest.mark.asyncio
-    async def test_update_plan_success(self, sample_capacity_plan, mock_admin_user, clear_in_memory_data):
+    async def test_update_plan_success(
+        self, sample_capacity_plan, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful update of capacity plan."""
         # Setup
         _capacity_plans["CP-12345678"] = sample_capacity_plan
 
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[3].endpoint(
                 plan_id="CP-12345678",
                 status="approved",
@@ -417,7 +449,7 @@ class TestUpdateCapacityPlan:
     async def test_update_plan_not_found(self, mock_admin_user):
         """Test updating non-existent plan."""
         # Execute & Assert
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[3].endpoint(
                     plan_id="CP-NOTFOUND",
@@ -427,13 +459,15 @@ class TestUpdateCapacityPlan:
             assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_update_plan_partial_update(self, sample_capacity_plan, mock_admin_user, clear_in_memory_data):
+    async def test_update_plan_partial_update(
+        self, sample_capacity_plan, mock_admin_user, clear_in_memory_data
+    ):
         """Test partial update of capacity plan."""
         # Setup
         _capacity_plans["CP-12345678"] = sample_capacity_plan
 
         # Execute - update only status
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[3].endpoint(
                 plan_id="CP-12345678",
                 status="approved",
@@ -448,7 +482,10 @@ class TestUpdateCapacityPlan:
     async def test_update_plan_permission_denied(self, mock_business_user):
         """Test updating plan without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[3].endpoint(
@@ -463,13 +500,15 @@ class TestDeleteCapacityPlan:
     """Tests for DELETE /api/v1/capacity/planning/{id}"""
 
     @pytest.mark.asyncio
-    async def test_delete_plan_success(self, sample_capacity_plan, mock_admin_user, clear_in_memory_data):
+    async def test_delete_plan_success(
+        self, sample_capacity_plan, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful deletion of capacity plan."""
         # Setup
         _capacity_plans["CP-12345678"] = sample_capacity_plan
 
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[4].endpoint(
                 plan_id="CP-12345678",
                 current_user=mock_admin_user,
@@ -483,7 +522,7 @@ class TestDeleteCapacityPlan:
     async def test_delete_plan_not_found(self, mock_admin_user):
         """Test deleting non-existent plan."""
         # Execute & Assert
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[4].endpoint(
                     plan_id="CP-NOTFOUND",
@@ -495,7 +534,10 @@ class TestDeleteCapacityPlan:
     async def test_delete_plan_permission_denied(self, mock_operator_user):
         """Test deleting plan without admin permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[4].endpoint(
@@ -508,6 +550,7 @@ class TestDeleteCapacityPlan:
 # ============================================================================
 # Test Forecasts Endpoints
 # ============================================================================
+
 
 class TestGetCapacityForecasts:
     """Tests for GET /api/v1/capacity/forecasts"""
@@ -526,10 +569,16 @@ class TestGetCapacityForecasts:
                 "unit": "%",
             }
         }
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.forecast_capacity', return_value=mock_forecasts):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch(
+                "api.capacity_advanced_router.forecast_capacity", return_value=mock_forecasts
+            ):
                 # Execute
-                with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+                with patch(
+                    "api.capacity_advanced_router.require_roles", return_value=mock_admin_user
+                ):
                     result = await router.routes[5].endpoint(
                         service=None,
                         resource_type=None,
@@ -553,10 +602,16 @@ class TestGetCapacityForecasts:
                 "unit": "%",
             }
         }
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.forecast_capacity', return_value=mock_forecasts):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch(
+                "api.capacity_advanced_router.forecast_capacity", return_value=mock_forecasts
+            ):
                 # Execute
-                with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+                with patch(
+                    "api.capacity_advanced_router.require_roles", return_value=mock_admin_user
+                ):
                     result = await router.routes[5].endpoint(
                         service="compute-service",
                         resource_type=ResourceType.CPU,
@@ -570,7 +625,10 @@ class TestGetCapacityForecasts:
     async def test_get_forecasts_permission_denied(self):
         """Test retrieving forecasts without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[5].endpoint(
@@ -584,9 +642,12 @@ class TestGetCapacityForecasts:
     async def test_get_forecasts_error_handling(self, mock_admin_user):
         """Test retrieving forecasts with error."""
         # Setup
-        with patch('api.capacity_advanced_router._build_metric_history', side_effect=Exception("Metric error")):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history",
+            side_effect=Exception("Metric error"),
+        ):
             # Execute & Assert
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 with pytest.raises(HTTPException) as exc_info:
                     await router.routes[5].endpoint(
                         service=None,
@@ -599,6 +660,7 @@ class TestGetCapacityForecasts:
 # ============================================================================
 # Test Optimization Endpoints
 # ============================================================================
+
 
 class TestListOptimizationResults:
     """Tests for GET /api/v1/capacity/optimization"""
@@ -623,7 +685,7 @@ class TestListOptimizationResults:
         _optimization_results["OPT-12345678"] = optimization
 
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[6].endpoint(
                 service=None,
                 strategy=None,
@@ -654,7 +716,7 @@ class TestListOptimizationResults:
         _optimization_results["OPT-12345678"] = optimization
 
         # Execute
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[6].endpoint(
                 service="compute-service",
                 strategy=OptimizationStrategy.BALANCED,
@@ -668,7 +730,10 @@ class TestListOptimizationResults:
     async def test_list_optimizations_permission_denied(self):
         """Test listing optimizations without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[6].endpoint(
@@ -683,12 +748,16 @@ class TestCreateOptimization:
     """Tests for POST /api/v1/capacity/optimization"""
 
     @pytest.mark.asyncio
-    async def test_create_optimization_success(self, sample_optimization_request, mock_admin_user, clear_in_memory_data):
+    async def test_create_optimization_success(
+        self, sample_optimization_request, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful creation of optimization analysis."""
         # Setup
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
             # Execute
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[7].endpoint(
                     request=sample_optimization_request,
                     current_user=mock_admin_user,
@@ -700,12 +769,16 @@ class TestCreateOptimization:
         assert result.cost_savings > 0
 
     @pytest.mark.asyncio
-    async def test_create_optimization_different_strategies(self, sample_optimization_request, mock_admin_user, clear_in_memory_data):
+    async def test_create_optimization_different_strategies(
+        self, sample_optimization_request, mock_admin_user, clear_in_memory_data
+    ):
         """Test creating optimizations with different strategies."""
         # Test cost optimization
         sample_optimization_request.strategy = OptimizationStrategy.COST_OPTIMIZATION
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[7].endpoint(
                     request=sample_optimization_request,
                     current_user=mock_admin_user,
@@ -714,8 +787,10 @@ class TestCreateOptimization:
 
         # Test performance optimization
         sample_optimization_request.strategy = OptimizationStrategy.PERFORMANCE_OPTIMIZATION
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[7].endpoint(
                     request=sample_optimization_request,
                     current_user=mock_admin_user,
@@ -724,8 +799,10 @@ class TestCreateOptimization:
 
         # Test aggressive
         sample_optimization_request.strategy = OptimizationStrategy.AGGRESSIVE
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[7].endpoint(
                     request=sample_optimization_request,
                     current_user=mock_admin_user,
@@ -742,7 +819,7 @@ class TestCreateOptimization:
         )
 
         # Execute & Assert
-        with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(Exception):  # Pydantic validation error
                 await router.routes[7].endpoint(
                     request=invalid_data,
@@ -750,10 +827,15 @@ class TestCreateOptimization:
                 )
 
     @pytest.mark.asyncio
-    async def test_create_optimization_permission_denied(self, sample_optimization_request, mock_business_user):
+    async def test_create_optimization_permission_denied(
+        self, sample_optimization_request, mock_business_user
+    ):
         """Test creating optimization without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[7].endpoint(
@@ -767,6 +849,7 @@ class TestCreateOptimization:
 # Test Rightsizing Endpoints
 # ============================================================================
 
+
 class TestGetRightsizingRecommendations:
     """Tests for GET /api/v1/capacity/rightsizing"""
 
@@ -774,9 +857,11 @@ class TestGetRightsizingRecommendations:
     async def test_get_rightsizing_success(self, mock_admin_user, clear_in_memory_data):
         """Test successful retrieval of rightsizing recommendations."""
         # Setup
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [25.0]}):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [25.0]}
+        ):
             # Execute
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[8].endpoint(
                     service=None,
                     resource_type=None,
@@ -791,9 +876,11 @@ class TestGetRightsizingRecommendations:
     async def test_get_rightsizing_with_filters(self, mock_admin_user, clear_in_memory_data):
         """Test retrieving rightsizing with filters."""
         # Setup
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [25.0]}):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [25.0]}
+        ):
             # Execute
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[8].endpoint(
                     service="compute-service",
                     resource_type=ResourceType.CPU,
@@ -808,7 +895,10 @@ class TestGetRightsizingRecommendations:
     async def test_get_rightsizing_permission_denied(self):
         """Test retrieving rightsizing without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[8].endpoint(
@@ -823,9 +913,11 @@ class TestGetRightsizingRecommendations:
     async def test_get_rightsizing_scale_down(self, mock_admin_user, clear_in_memory_data):
         """Test rightsizing recommendation for scale down."""
         # Setup - low utilization
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [20.0]}):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [20.0]}
+        ):
             # Execute
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[8].endpoint(
                     service=None,
                     resource_type=None,
@@ -841,9 +933,11 @@ class TestGetRightsizingRecommendations:
     async def test_get_rightsizing_scale_up(self, mock_admin_user, clear_in_memory_data):
         """Test rightsizing recommendation for scale up."""
         # Setup - high utilization
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [90.0]}):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [90.0]}
+        ):
             # Execute
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 result = await router.routes[8].endpoint(
                     service=None,
                     resource_type=None,
@@ -859,6 +953,7 @@ class TestGetRightsizingRecommendations:
 # ============================================================================
 # Test Recommendations Endpoints
 # ============================================================================
+
 
 class TestGetScalingRecommendations:
     """Tests for GET /api/v1/capacity/recommendations"""
@@ -886,11 +981,20 @@ class TestGetScalingRecommendations:
                 "estimatedCost": 0.0,
             }
         ]
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.forecast_capacity', return_value=mock_forecasts):
-                with patch('api.capacity_advanced_router.generate_scaling_recommendations', return_value=mock_recommendations):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch(
+                "api.capacity_advanced_router.forecast_capacity", return_value=mock_forecasts
+            ):
+                with patch(
+                    "api.capacity_advanced_router.generate_scaling_recommendations",
+                    return_value=mock_recommendations,
+                ):
                     # Execute
-                    with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+                    with patch(
+                        "api.capacity_advanced_router.require_roles", return_value=mock_admin_user
+                    ):
                         result = await router.routes[9].endpoint(
                             service=None,
                             resource_type=None,
@@ -924,11 +1028,20 @@ class TestGetScalingRecommendations:
                 "estimatedCost": 0.0,
             }
         ]
-        with patch('api.capacity_advanced_router._build_metric_history', return_value={"cpu": [50.0]}):
-            with patch('api.capacity_advanced_router.forecast_capacity', return_value=mock_forecasts):
-                with patch('api.capacity_advanced_router.generate_scaling_recommendations', return_value=mock_recommendations):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history", return_value={"cpu": [50.0]}
+        ):
+            with patch(
+                "api.capacity_advanced_router.forecast_capacity", return_value=mock_forecasts
+            ):
+                with patch(
+                    "api.capacity_advanced_router.generate_scaling_recommendations",
+                    return_value=mock_recommendations,
+                ):
                     # Execute
-                    with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+                    with patch(
+                        "api.capacity_advanced_router.require_roles", return_value=mock_admin_user
+                    ):
                         result = await router.routes[9].endpoint(
                             service="compute-service",
                             resource_type=ResourceType.CPU,
@@ -943,7 +1056,10 @@ class TestGetScalingRecommendations:
     async def test_get_recommendations_permission_denied(self):
         """Test retrieving recommendations without proper permissions."""
         # Setup
-        with patch('api.capacity_advanced_router.require_roles', side_effect=HTTPException(status_code=403, detail="Forbidden")):
+        with patch(
+            "api.capacity_advanced_router.require_roles",
+            side_effect=HTTPException(status_code=403, detail="Forbidden"),
+        ):
             # Execute & Assert
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[9].endpoint(
@@ -958,9 +1074,12 @@ class TestGetScalingRecommendations:
     async def test_get_recommendations_error_handling(self, mock_admin_user):
         """Test retrieving recommendations with error."""
         # Setup
-        with patch('api.capacity_advanced_router._build_metric_history', side_effect=Exception("Metric error")):
+        with patch(
+            "api.capacity_advanced_router._build_metric_history",
+            side_effect=Exception("Metric error"),
+        ):
             # Execute & Assert
-            with patch('api.capacity_advanced_router.require_roles', return_value=mock_admin_user):
+            with patch("api.capacity_advanced_router.require_roles", return_value=mock_admin_user):
                 with pytest.raises(HTTPException) as exc_info:
                     await router.routes[9].endpoint(
                         service=None,
@@ -974,6 +1093,7 @@ class TestGetScalingRecommendations:
 # ============================================================================
 # Test Helper Functions
 # ============================================================================
+
 
 class TestHelperFunctions:
     """Tests for helper functions"""

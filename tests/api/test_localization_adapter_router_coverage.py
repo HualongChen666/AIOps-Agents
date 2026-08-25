@@ -202,6 +202,7 @@ class TestLocalizationAdapterRouterErrorPaths:
         """Test exception handling in get_adapter_status endpoint"""
         # Mock the adapter to raise an exception
         import core.localization_adapter as la_module
+
         original_get = la_module.get_localization_adapter
 
         def mock_get_error():
@@ -220,6 +221,7 @@ class TestLocalizationAdapterRouterErrorPaths:
     def test_get_supported_locales_exception(self, client, admin_headers):
         """Test exception handling in get_supported_locales endpoint"""
         import core.localization_adapter as la_module
+
         original_get = la_module.get_localization_adapter
 
         def mock_get_error():
@@ -237,6 +239,7 @@ class TestLocalizationAdapterRouterErrorPaths:
     def test_set_current_locale_exception(self, client, admin_headers):
         """Test exception handling in set_current_locale endpoint (lines 114-116)"""
         import core.localization_adapter as la_module
+
         original_get = la_module.get_localization_adapter
 
         def mock_get_error():
@@ -278,6 +281,7 @@ class TestLocalizationAdapterRouterErrorPaths:
     def test_format_datetime_exception(self, client, admin_headers):
         """Test exception handling in format_datetime endpoint (lines 191-193)"""
         import core.localization_adapter as la_module
+
         original_get = la_module.get_localization_adapter
 
         def mock_get_error():
@@ -319,6 +323,7 @@ class TestLocalizationAdapterRouterErrorPaths:
     def test_format_number_exception(self, client, admin_headers):
         """Test exception handling in format_number endpoint (lines 224-226)"""
         import core.localization_adapter as la_module
+
         original_get = la_module.get_localization_adapter
 
         def mock_get_error():
@@ -350,6 +355,7 @@ class TestLocalizationAdapterRouterErrorPaths:
     def test_format_currency_exception(self, client, admin_headers):
         """Test exception handling in format_currency endpoint (lines 259-261)"""
         import core.localization_adapter as la_module
+
         original_get = la_module.get_localization_adapter
 
         def mock_get_error():
@@ -371,6 +377,7 @@ class TestLocalizationAdapterRouterErrorPaths:
     def test_format_unit_exception(self, client, admin_headers):
         """Test exception handling in format_unit endpoint (lines 293-295)"""
         import core.localization_adapter as la_module
+
         original_get = la_module.get_localization_adapter
 
         def mock_get_error():

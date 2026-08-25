@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for alert webhook router to achieve 90%+ coverage."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 
 def test_webhook_unknown_provider(client):
@@ -41,7 +42,7 @@ def test_webhook_status_not_firing(client):
     """Test webhook when alert status is not 'firing' (lines 89-99)."""
     # Mock the provider to return resolved alerts
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -55,15 +56,15 @@ def test_webhook_status_not_firing(client):
                 "severity": "critical",
             },
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         # Also need to mock try_auto_heal to avoid actual processing
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            
+
             # Should succeed but skip non-firing alerts
             assert resp.status_code in (200, 503)
             if resp.status_code == 200:
@@ -77,18 +78,18 @@ def test_webhook_status_not_firing(client):
 def test_webhook_status_case_insensitive(client):
     """Test webhook status handling with different cases (line 90)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {"id": "test-1", "status": "FIRING"},  # uppercase
             {"id": "test-2", "status": "Firing"},  # mixed case
             {"id": "test-3", "status": "firing"},  # lowercase
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"alert_id": "test", "status": "processed"}
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
             assert resp.status_code in (200, 503)
@@ -97,7 +98,7 @@ def test_webhook_status_case_insensitive(client):
 def test_webhook_record_audit_available(client):
     """Test webhook when record_audit is available (lines 101-110)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -108,18 +109,20 @@ def test_webhook_record_audit_available(client):
                 "trace_id": "trace-123",
             },
         ]
-    
+
     # Mock record_audit to be available
     mock_record_audit = MagicMock()
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.record_audit", mock_record_audit):
-            with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+            with patch(
+                "api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-                
+
                 payload = {"test": "data"}
                 resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-                
+
                 assert resp.status_code in (200, 503)
                 if resp.status_code == 200:
                     # Check that record_audit was called
@@ -131,7 +134,7 @@ def test_webhook_record_audit_available(client):
 def test_webhook_record_audit_exception(client):
     """Test webhook when record_audit raises an exception (lines 111-112)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -141,15 +144,17 @@ def test_webhook_record_audit_exception(client):
                 "host": "test-server",
             },
         ]
-    
+
     # Mock record_audit to raise an exception
     mock_record_audit = MagicMock(side_effect=Exception("Audit failed"))
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.record_audit", mock_record_audit):
-            with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+            with patch(
+                "api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-                
+
                 payload = {"test": "data"}
                 # Should not raise, but log the exception
                 resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
@@ -159,7 +164,7 @@ def test_webhook_record_audit_exception(client):
 def test_webhook_try_auto_heal_exception(client):
     """Test webhook when try_auto_heal raises an exception (lines 122-124)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -168,14 +173,14 @@ def test_webhook_try_auto_heal_exception(client):
                 "severity": "critical",
             },
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.side_effect = Exception("Auto-heal failed")
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            
+
             assert resp.status_code in (200, 503)
             if resp.status_code == 200:
                 data = resp.json()
@@ -218,7 +223,7 @@ def test_webhook_prometheus_root_endpoint(client):
 def test_webhook_alert_without_id(client):
     """Test webhook when alert dict doesn't have an 'id' field (line 87)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -227,11 +232,11 @@ def test_webhook_alert_without_id(client):
                 "severity": "critical",
             },
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"status": "processed"}
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
             assert resp.status_code in (200, 503)
@@ -240,7 +245,7 @@ def test_webhook_alert_without_id(client):
 def test_webhook_multiple_alerts_mixed_status(client):
     """Test webhook with multiple alerts having mixed statuses."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {"id": "test-1", "status": "firing", "severity": "critical"},
@@ -248,14 +253,14 @@ def test_webhook_multiple_alerts_mixed_status(client):
             {"id": "test-3", "status": "firing", "severity": "warning"},
             {"id": "test-4", "status": "pending", "severity": "info"},
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"alert_id": "test", "status": "processed"}
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            
+
             assert resp.status_code in (200, 503)
             if resp.status_code == 200:
                 data = resp.json()
@@ -270,14 +275,14 @@ def test_webhook_multiple_alerts_mixed_status(client):
 def test_webhook_empty_alerts_list(client):
     """Test webhook with empty alerts list."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return []
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         payload = {"test": "data"}
         resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-        
+
         assert resp.status_code in (200, 503)
         if resp.status_code == 200:
             data = resp.json()
@@ -290,7 +295,7 @@ def test_webhook_empty_alerts_list(client):
 def test_webhook_record_audit_with_missing_fields(client):
     """Test record_audit with missing alert fields (lines 104-109)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -299,17 +304,19 @@ def test_webhook_record_audit_with_missing_fields(client):
                 # Missing host, severity, trace_id
             },
         ]
-    
+
     mock_record_audit = MagicMock()
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.record_audit", mock_record_audit):
-            with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+            with patch(
+                "api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-                
+
                 payload = {"test": "data"}
                 resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-                
+
                 assert resp.status_code in (200, 503)
                 if resp.status_code == 200:
                     # Check that record_audit was called with defaults
@@ -322,7 +329,7 @@ def test_webhook_record_audit_with_missing_fields(client):
 def test_webhook_alert_non_dict(client):
     """Test webhook when alert is not a dict (line 81-83)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         # Return a mix of dict and non-dict
         return [
@@ -330,11 +337,11 @@ def test_webhook_alert_non_dict(client):
             "string_alert",  # non-dict - should be skipped
             123,  # non-dict - should be skipped
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
             assert resp.status_code in (200, 503)
@@ -343,12 +350,12 @@ def test_webhook_alert_non_dict(client):
 def test_webhook_try_auto_heal_none(client):
     """Test webhook when try_auto_heal is None (line 72-76)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {"id": "test-1", "status": "firing", "severity": "critical"},
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", None):
             payload = {"test": "data"}
@@ -359,7 +366,7 @@ def test_webhook_try_auto_heal_none(client):
 def test_webhook_alert_status_none(client):
     """Test webhook when alert status is None (line 90)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -368,11 +375,11 @@ def test_webhook_alert_status_none(client):
                 "severity": "critical",
             },
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
             assert resp.status_code in (200, 503)
@@ -381,7 +388,7 @@ def test_webhook_alert_status_none(client):
 def test_webhook_record_audit_is_none(client):
     """Test webhook when record_audit is None (line 101)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -391,12 +398,14 @@ def test_webhook_record_audit_is_none(client):
                 "host": "test-server",
             },
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.record_audit", None):
-            with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+            with patch(
+                "api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-                
+
                 payload = {"test": "data"}
                 resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
                 assert resp.status_code in (200, 503)
@@ -405,7 +414,7 @@ def test_webhook_record_audit_is_none(client):
 def test_webhook_alert_get_status_missing(client):
     """Test webhook when alert dict doesn't have status field (line 90)."""
     from core.alert_providers import PrometheusAlertProvider
-    
+
     def mock_normalize(self, raw_payload):
         return [
             {
@@ -414,11 +423,11 @@ def test_webhook_alert_get_status_missing(client):
                 "severity": "critical",
             },
         ]
-    
+
     with patch.object(PrometheusAlertProvider, "normalize", mock_normalize):
         with patch("api.alert_webhook_router.try_auto_heal", new_callable=AsyncMock) as mock_heal:
             mock_heal.return_value = {"alert_id": "test-1", "status": "processed"}
-            
+
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
             assert resp.status_code in (200, 503)

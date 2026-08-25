@@ -1,32 +1,33 @@
 # -*- coding: utf-8 -*-
 """Tests for KnowledgeGraphOrchestrator module."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from extensions.addons.ai_plus.knowledge_graph_service.cache import CacheManager
+from extensions.addons.ai_plus.knowledge_graph_service.graph_store import GraphStore
 from extensions.addons.ai_plus.knowledge_graph_service.orchestrator import (
     KnowledgeGraphOrchestrator,
 )
-from extensions.addons.ai_plus.knowledge_graph_service.cache import CacheManager
-from extensions.addons.ai_plus.knowledge_graph_service.graph_store import GraphStore
 from extensions.addons.ai_plus.knowledge_graph_service.retry import KnowledgeGraphRetryEngine
 from extensions.addons.ai_plus.knowledge_graph_service.schemas import (
     EntityModelingRequest,
-    RelationModelingRequest,
-    GraphBuildRequest,
-    GraphQueryRequest,
-    GraphReasonRequest,
-    GraphVisualizationRequest,
-    ServiceDependencyGraphRequest,
-    ServiceDependency,
-    InfrastructureGraphRequest,
-    InfrastructureComponent,
     FaultPropagationGraphRequest,
     FaultRule,
     FaultState,
-    GraphNode,
-    GraphEdge,
     Graph,
+    GraphBuildRequest,
+    GraphEdge,
+    GraphNode,
+    GraphQueryRequest,
+    GraphReasonRequest,
+    GraphVisualizationRequest,
+    InfrastructureComponent,
+    InfrastructureGraphRequest,
+    RelationModelingRequest,
+    ServiceDependency,
+    ServiceDependencyGraphRequest,
 )
 
 
@@ -141,9 +142,7 @@ class TestKnowledgeGraphOrchestrator:
     @pytest.mark.asyncio
     async def test_model_entity(self, orchestrator):
         """Test model_entity."""
-        request = EntityModelingRequest(
-            entity_name="Test Entity", entity_type="generic"
-        )
+        request = EntityModelingRequest(entity_name="Test Entity", entity_type="generic")
 
         response = await orchestrator.model_entity(request)
 
@@ -252,9 +251,7 @@ class TestKnowledgeGraphOrchestrator:
         )
         orchestrator._graphs["graph1"] = graph
 
-        request = GraphReasonRequest(
-            graph_id="graph1", node_id="node1", reason_type="neighbors"
-        )
+        request = GraphReasonRequest(graph_id="graph1", node_id="node1", reason_type="neighbors")
 
         response = await orchestrator.infer_graph(request)
 
@@ -339,14 +336,8 @@ class TestKnowledgeGraphOrchestrator:
     async def test_build_fault_propagation_graph(self, orchestrator):
         """Test build_fault_propagation_graph."""
         request = FaultPropagationGraphRequest(
-            states=[
-                FaultState(component_id="Database", fault_type="down", severity=1.0)
-            ],
-            rules=[
-                FaultRule(
-                    source="Database", target="API", condition="down", impact="high"
-                )
-            ],
+            states=[FaultState(component_id="Database", fault_type="down", severity=1.0)],
+            rules=[FaultRule(source="Database", target="API", condition="down", impact="high")],
         )
 
         response = await orchestrator.build_fault_propagation_graph(request)
@@ -442,9 +433,7 @@ class TestKnowledgeGraphOrchestrator:
     @pytest.mark.asyncio
     async def test_build_graph_empty(self, orchestrator, mock_store, mock_retry_engine):
         """Test build_graph with empty graph."""
-        request = GraphBuildRequest(
-            graph_name="empty-graph", nodes=[], edges=[]
-        )
+        request = GraphBuildRequest(graph_name="empty-graph", nodes=[], edges=[])
 
         mock_graph = Graph(
             graph_id="graph1",
@@ -603,15 +592,9 @@ class TestKnowledgeGraphOrchestrator:
                 FaultState(component_id="Cache", fault_type="timeout", severity=0.8),
             ],
             rules=[
-                FaultRule(
-                    source="Database", target="API", condition="down", impact="critical"
-                ),
-                FaultRule(
-                    source="Cache", target="API", condition="timeout", impact="high"
-                ),
-                FaultRule(
-                    source="API", target="Frontend", condition="*", impact="medium"
-                ),
+                FaultRule(source="Database", target="API", condition="down", impact="critical"),
+                FaultRule(source="Cache", target="API", condition="timeout", impact="high"),
+                FaultRule(source="API", target="Frontend", condition="*", impact="medium"),
             ],
         )
 

@@ -7,38 +7,39 @@ Comprehensive tests for asset management endpoints including inventory,
 relationships, lifecycle tracking, and dependency analysis.
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, MagicMock, patch, AsyncMock
-from sqlalchemy.orm import Session
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
 from api.assets_advanced_router import (
-    router,
-    AssetType,
+    AssetDependency,
+    AssetInventoryCreate,
+    AssetInventoryResponse,
+    AssetInventoryUpdate,
+    AssetLifecycle,
+    AssetRelationship,
     AssetStatus,
+    AssetType,
     LifecycleStage,
     RelationshipType,
-    AssetInventoryCreate,
-    AssetInventoryUpdate,
-    AssetInventoryResponse,
-    AssetRelationship,
-    AssetLifecycle,
-    AssetDependency,
-    _asset_inventory_metadata,
-    _asset_relationships,
-    _asset_lifecycle_data,
     _asset_dependencies,
+    _asset_inventory_metadata,
+    _asset_lifecycle_data,
+    _asset_relationships,
+    _delete_inventory_metadata,
     _get_inventory_metadata,
     _set_inventory_metadata,
-    _delete_inventory_metadata,
+    router,
 )
 from core.auth_db import Asset
-
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_db():
@@ -166,11 +167,14 @@ def clear_in_memory_data():
 # Test Inventory Endpoints
 # ============================================================================
 
+
 class TestListInventory:
     """Tests for GET /api/v1/assets/inventory"""
 
     @pytest.mark.asyncio
-    async def test_list_inventory_empty_result(self, mock_db, mock_admin_user, clear_in_memory_data):
+    async def test_list_inventory_empty_result(
+        self, mock_db, mock_admin_user, clear_in_memory_data
+    ):
         """Test listing inventory with no matching results."""
         # Setup
         mock_query = Mock()
@@ -181,7 +185,7 @@ class TestListInventory:
         mock_db.query.return_value = mock_query
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[0].endpoint(
                 asset_type=None,
                 status=None,
@@ -204,7 +208,7 @@ class TestListInventory:
         mock_db.query.side_effect = Exception("Database connection failed")
 
         # Execute & Assert
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[0].endpoint(
                     asset_type=None,
@@ -233,7 +237,7 @@ class TestGetInventoryItem:
         mock_db.query.return_value = mock_query
 
         # Execute & Assert
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[2].endpoint(
                     asset_id=999,
@@ -247,7 +251,9 @@ class TestUpdateInventoryItem:
     """Tests for PATCH /api/v1/assets/inventory/{id}"""
 
     @pytest.mark.asyncio
-    async def test_update_inventory_item_not_found(self, mock_db, sample_inventory_update, mock_admin_user):
+    async def test_update_inventory_item_not_found(
+        self, mock_db, sample_inventory_update, mock_admin_user
+    ):
         """Test updating non-existent inventory item."""
         # Setup
         mock_query = Mock()
@@ -256,7 +262,7 @@ class TestUpdateInventoryItem:
         mock_db.query.return_value = mock_query
 
         # Execute & Assert
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[3].endpoint(
                     asset_id=999,
@@ -280,7 +286,7 @@ class TestDeleteInventoryItem:
         mock_db.query.return_value = mock_query
 
         # Execute & Assert
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[4].endpoint(
                     asset_id=999,
@@ -294,17 +300,20 @@ class TestDeleteInventoryItem:
 # Test Relationships Endpoints
 # ============================================================================
 
+
 class TestGetAssetRelationships:
     """Tests for GET /api/v1/assets/relationships"""
 
     @pytest.mark.asyncio
-    async def test_get_relationships_success(self, sample_relationship, mock_admin_user, clear_in_memory_data):
+    async def test_get_relationships_success(
+        self, sample_relationship, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful retrieval of asset relationships."""
         # Setup
         _asset_relationships.append(sample_relationship)
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[5].endpoint(
                 asset_id=None,
                 relationship_type=None,
@@ -317,13 +326,15 @@ class TestGetAssetRelationships:
         assert result[0].target_id == 2
 
     @pytest.mark.asyncio
-    async def test_get_relationships_with_filters(self, sample_relationship, mock_admin_user, clear_in_memory_data):
+    async def test_get_relationships_with_filters(
+        self, sample_relationship, mock_admin_user, clear_in_memory_data
+    ):
         """Test retrieving relationships with filters."""
         # Setup
         _asset_relationships.append(sample_relationship)
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[5].endpoint(
                 asset_id=1,
                 relationship_type=RelationshipType.DEPENDS_ON,
@@ -338,7 +349,9 @@ class TestCreateAssetRelationship:
     """Tests for POST /api/v1/assets/relationships"""
 
     @pytest.mark.asyncio
-    async def test_create_relationship_source_not_found(self, mock_db, sample_relationship, mock_admin_user):
+    async def test_create_relationship_source_not_found(
+        self, mock_db, sample_relationship, mock_admin_user
+    ):
         """Test creating relationship with non-existent source asset."""
         # Setup
         mock_query = Mock()
@@ -347,7 +360,7 @@ class TestCreateAssetRelationship:
         mock_db.query.return_value = mock_query
 
         # Execute & Assert
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[6].endpoint(
                     relationship=sample_relationship,
@@ -357,7 +370,9 @@ class TestCreateAssetRelationship:
             assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_create_relationship_duplicate(self, mock_db, sample_relationship, mock_admin_user, clear_in_memory_data):
+    async def test_create_relationship_duplicate(
+        self, mock_db, sample_relationship, mock_admin_user, clear_in_memory_data
+    ):
         """Test creating duplicate relationship."""
         # Setup
         mock_asset1 = Mock(spec=Asset)
@@ -371,7 +386,7 @@ class TestCreateAssetRelationship:
         _asset_relationships.append(sample_relationship)
 
         # Execute & Assert
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[6].endpoint(
                     relationship=sample_relationship,
@@ -385,17 +400,20 @@ class TestCreateAssetRelationship:
 # Test Lifecycle Endpoints
 # ============================================================================
 
+
 class TestGetAssetLifecycle:
     """Tests for GET /api/v1/assets/lifecycle"""
 
     @pytest.mark.asyncio
-    async def test_get_lifecycle_success(self, sample_lifecycle, mock_admin_user, clear_in_memory_data):
+    async def test_get_lifecycle_success(
+        self, sample_lifecycle, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful retrieval of asset lifecycle."""
         # Setup
         _asset_lifecycle_data[1] = sample_lifecycle
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[7].endpoint(
                 asset_id=None,
                 current_stage=None,
@@ -407,13 +425,15 @@ class TestGetAssetLifecycle:
         assert result[0].asset_id == 1
 
     @pytest.mark.asyncio
-    async def test_get_lifecycle_with_filters(self, sample_lifecycle, mock_admin_user, clear_in_memory_data):
+    async def test_get_lifecycle_with_filters(
+        self, sample_lifecycle, mock_admin_user, clear_in_memory_data
+    ):
         """Test retrieving lifecycle with filters."""
         # Setup
         _asset_lifecycle_data[1] = sample_lifecycle
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[7].endpoint(
                 asset_id=1,
                 current_stage=LifecycleStage.OPERATION,
@@ -428,13 +448,15 @@ class TestUpdateAssetLifecycle:
     """Tests for PATCH /api/v1/assets/lifecycle/{id}"""
 
     @pytest.mark.asyncio
-    async def test_update_lifecycle_success(self, sample_lifecycle, mock_admin_user, clear_in_memory_data):
+    async def test_update_lifecycle_success(
+        self, sample_lifecycle, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful update of asset lifecycle."""
         # Setup
         _asset_lifecycle_data[1] = sample_lifecycle
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[8].endpoint(
                 asset_id=1,
                 current_stage=LifecycleStage.RETIREMENT,
@@ -448,7 +470,7 @@ class TestUpdateAssetLifecycle:
     async def test_update_lifecycle_not_found(self, mock_admin_user):
         """Test updating lifecycle for non-existent asset."""
         # Execute & Assert
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             with pytest.raises(HTTPException) as exc_info:
                 await router.routes[8].endpoint(
                     asset_id=999,
@@ -462,11 +484,14 @@ class TestUpdateAssetLifecycle:
 # Test Dependencies Endpoints
 # ============================================================================
 
+
 class TestGetAssetDependencies:
     """Tests for GET /api/v1/assets/dependencies"""
 
     @pytest.mark.asyncio
-    async def test_get_dependencies_success(self, mock_db, mock_asset, mock_admin_user, clear_in_memory_data):
+    async def test_get_dependencies_success(
+        self, mock_db, mock_asset, mock_admin_user, clear_in_memory_data
+    ):
         """Test successful retrieval of asset dependencies."""
         # Setup
         mock_query = Mock()
@@ -483,7 +508,7 @@ class TestGetAssetDependencies:
         )
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[9].endpoint(
                 asset_id=None,
                 criticality=None,
@@ -496,7 +521,9 @@ class TestGetAssetDependencies:
         assert result[0].asset_id == 1
 
     @pytest.mark.asyncio
-    async def test_get_dependencies_with_filters(self, mock_db, mock_asset, mock_admin_user, clear_in_memory_data):
+    async def test_get_dependencies_with_filters(
+        self, mock_db, mock_asset, mock_admin_user, clear_in_memory_data
+    ):
         """Test retrieving dependencies with filters."""
         # Setup
         mock_query = Mock()
@@ -513,7 +540,7 @@ class TestGetAssetDependencies:
         )
 
         # Execute
-        with patch('api.assets_advanced_router.require_roles', return_value=mock_admin_user):
+        with patch("api.assets_advanced_router.require_roles", return_value=mock_admin_user):
             result = await router.routes[9].endpoint(
                 asset_id=1,
                 criticality="high",
@@ -529,6 +556,7 @@ class TestGetAssetDependencies:
 # ============================================================================
 # Test Helper Functions
 # ============================================================================
+
 
 class TestHelperFunctions:
     """Tests for helper functions"""

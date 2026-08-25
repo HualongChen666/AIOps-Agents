@@ -62,6 +62,7 @@ def get_client_ip(request: Request) -> str:
 # ============ Enums ============
 class WidgetType(str, Enum):
     """小部件类型"""
+
     METRIC = "metric"
     CHART = "chart"
     TABLE = "table"
@@ -72,6 +73,7 @@ class WidgetType(str, Enum):
 
 class LayoutType(str, Enum):
     """布局类型"""
+
     GRID = "grid"
     FLEX = "flex"
     CUSTOM = "custom"
@@ -364,7 +366,8 @@ async def update_dashboard_widget(
     _dashboard_widgets[id] = widget
 
     logger.info(
-        f"Dashboard widget updated | widget_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Dashboard widget updated | widget_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return widget
@@ -398,7 +401,8 @@ async def delete_dashboard_widget(
             layout.updated_at = datetime.now()
 
     logger.info(
-        f"Dashboard widget deleted | widget_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Dashboard widget deleted | widget_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
 
@@ -431,9 +435,9 @@ async def get_dashboard_layouts(
     },
 )
 async def create_dashboard_layout(
+    request: Request,
     layout_name: str,
     layout_type: LayoutType = LayoutType.GRID,
-    request: Request,
     current_user: UserInDB = Depends(get_current_user),
 ) -> DashboardLayout:
     """创建新的仪表盘布局"""
@@ -515,7 +519,8 @@ async def update_dashboard_layout(
     _dashboard_layouts[id] = layout
 
     logger.info(
-        f"Dashboard layout updated | layout_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Dashboard layout updated | layout_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return layout
@@ -555,5 +560,6 @@ async def delete_dashboard_layout(
     del _dashboard_layouts[id]
 
     logger.info(
-        f"Dashboard layout deleted | layout_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Dashboard layout deleted | layout_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )

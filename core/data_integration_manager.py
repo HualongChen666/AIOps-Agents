@@ -369,8 +369,12 @@ class DataIntegrationManager:
             "updated_at": record.updated_at.isoformat() if record.updated_at else None,
         }
 
-        with open(record_path, "a") as f:
-            f.write(json.dumps(record_dict) + "\n")
+        try:
+            with open(record_path, "a") as f:
+                f.write(json.dumps(record_dict) + "\n")
+        except OSError as exc:
+            logger.error(f"Failed to write data record to {record_path}: {exc}")
+            raise
 
         # Prune old records
         if len(self.data_records) > self.max_records:

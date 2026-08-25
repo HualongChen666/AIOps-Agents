@@ -110,7 +110,7 @@ class DualWriteStrategy:
         try:
             import datetime
 
-            from core.metrics_history import metrics_history
+            from core.metrics_history import METRICS_HISTORY as metrics_history
 
             service = labels.get("service", "default") if isinstance(labels, dict) else "default"
             ts: datetime.datetime | None = None

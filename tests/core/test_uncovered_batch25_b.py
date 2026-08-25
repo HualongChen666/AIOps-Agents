@@ -108,7 +108,9 @@ async def test_enhanced_analyze_with_full_components(eca_full):
         "disk": [1.0, 2.0, 1.0, 2.0],
     }
     timestamps = [datetime.now(timezone.utc) for _ in range(len(data["cpu"]))]
-    result = await eca_full.analyze_causal_relationships(data, timestamps, target_variable="cpu")  # noqa: F841  # Variable for test verification
+    result = await eca_full.analyze_causal_relationships(
+        data, timestamps, target_variable="cpu"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, eca.CausalAnalysisResult)
     assert result.confidence > 0.0
     assert "memory" in result.root_causes

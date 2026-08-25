@@ -45,10 +45,9 @@ from services.alert_service.schemas import (
     ClassificationRule,
     EscalationRule,
     RoutingRule,
-    SuppressionRule,
     ServiceHealth,
+    SuppressionRule,
 )
-
 
 # ============================================================================
 # Setup Helper
@@ -77,7 +76,7 @@ def setup_pipeline(window_seconds=None):
 def test_pipeline_creation():
     """Test creating a pipeline."""
     pipeline, repo, mq = setup_pipeline()
-    
+
     assert pipeline is not None
     assert pipeline.repository == repo
     assert pipeline.mq == mq
@@ -87,19 +86,19 @@ def test_pipeline_creation():
 def test_pipeline_uptime():
     """Test pipeline uptime calculation."""
     pipeline, _, _ = setup_pipeline()
-    
+
     time.sleep(0.1)
     uptime = pipeline.uptime_seconds()
-    
+
     assert uptime >= 0
 
 
 def test_pipeline_get_stats():
     """Test getting pipeline statistics."""
     pipeline, _, _ = setup_pipeline()
-    
+
     stats = pipeline.get_stats()
-    
+
     assert "dedup" in stats
     assert "noise" in stats
     assert "patterns" in stats
@@ -112,10 +111,10 @@ def test_pipeline_get_stats():
 def test_pipeline_stop():
     """Test stopping the pipeline."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Initially not running
     assert not pipeline._running
-    
+
     # Stop should set _running to False
     pipeline.stop()
     assert not pipeline._running
@@ -129,17 +128,17 @@ def test_pipeline_stop():
 def test_add_routing_rule():
     """Test adding a routing rule."""
     pipeline, _, _ = setup_pipeline()
-    
+
     rule = RoutingRule(
         name="test_route",
         conditions={"category": "system"},
         destination="team-a",
         enabled=True,
     )
-    
+
     # Add rule directly to pipeline
     pipeline.router.add_rule(rule)
-    
+
     # Verify it was added
     rules = pipeline.router.list_rules()
     assert len(rules) >= 1
@@ -149,7 +148,7 @@ def test_add_routing_rule():
 def test_list_routing_rules():
     """Test listing routing rules."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add a rule first
     rule = RoutingRule(
         name="test_route",
@@ -158,7 +157,7 @@ def test_list_routing_rules():
         enabled=True,
     )
     pipeline.router.add_rule(rule)
-    
+
     # List rules directly
     rules = pipeline.router.list_rules()
     assert len(rules) >= 1
@@ -173,17 +172,17 @@ def test_list_routing_rules():
 def test_add_suppression_rule():
     """Test adding a suppression rule."""
     pipeline, _, _ = setup_pipeline()
-    
+
     rule = SuppressionRule(
         name="test_suppression",
         pattern="test",
         reason="Test pattern",
         enabled=True,
     )
-    
+
     # Add rule directly to pipeline
     pipeline.noise_suppressor.add_rule(rule)
-    
+
     # Verify it was added
     rules = pipeline.noise_suppressor.list_rules()
     assert len(rules) >= 1
@@ -193,7 +192,7 @@ def test_add_suppression_rule():
 def test_list_suppression_rules():
     """Test listing suppression rules."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add a rule first
     rule = SuppressionRule(
         name="test_suppression",
@@ -202,7 +201,7 @@ def test_list_suppression_rules():
         enabled=True,
     )
     pipeline.noise_suppressor.add_rule(rule)
-    
+
     # List rules directly
     rules = pipeline.noise_suppressor.list_rules()
     assert len(rules) >= 1
@@ -217,7 +216,7 @@ def test_list_suppression_rules():
 def test_add_escalation_rule():
     """Test adding an escalation rule."""
     pipeline, _, _ = setup_pipeline()
-    
+
     rule = EscalationRule(
         name="test_escalation",
         level_threshold=AlertSeverity.CRITICAL,
@@ -225,10 +224,10 @@ def test_add_escalation_rule():
         escalation_target="manager",
         enabled=True,
     )
-    
+
     # Add rule directly to pipeline
     pipeline.escalator.add_rule(rule)
-    
+
     # Verify it was added
     rules = pipeline.escalator.list_rules()
     assert len(rules) >= 1
@@ -238,7 +237,7 @@ def test_add_escalation_rule():
 def test_list_escalation_rules():
     """Test listing escalation rules."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add a rule first
     rule = EscalationRule(
         name="test_escalation",
@@ -248,7 +247,7 @@ def test_list_escalation_rules():
         enabled=True,
     )
     pipeline.escalator.add_rule(rule)
-    
+
     # List rules directly
     rules = pipeline.escalator.list_rules()
     assert len(rules) >= 1
@@ -263,7 +262,7 @@ def test_list_escalation_rules():
 def test_add_classification_rule():
     """Test adding a classification rule."""
     pipeline, _, _ = setup_pipeline()
-    
+
     rule = ClassificationRule(
         name="test_classification",
         conditions={"category": "system"},
@@ -271,10 +270,10 @@ def test_add_classification_rule():
         priority="P1",
         enabled=True,
     )
-    
+
     # Add rule directly to pipeline
     pipeline.classifier.add_rule(rule)
-    
+
     # Verify it was added
     rules = pipeline.classifier.list_rules()
     assert len(rules) >= 1
@@ -284,7 +283,7 @@ def test_add_classification_rule():
 def test_list_classification_rules():
     """Test listing classification rules."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add a rule first
     rule = ClassificationRule(
         name="test_classification",
@@ -294,7 +293,7 @@ def test_list_classification_rules():
         enabled=True,
     )
     pipeline.classifier.add_rule(rule)
-    
+
     # List rules directly
     rules = pipeline.classifier.list_rules()
     assert len(rules) >= 1
@@ -310,7 +309,7 @@ def test_list_classification_rules():
 async def test_process_alert():
     """Test processing an alert through the pipeline."""
     pipeline, _, _ = setup_pipeline()
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -319,9 +318,9 @@ async def test_process_alert():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     result = await pipeline.process_alert(alert)
-    
+
     assert "status" in result
     assert "alert_id" in result
     assert result["alert_id"] == "test-1"
@@ -331,7 +330,7 @@ async def test_process_alert():
 async def test_process_alert_with_flush():
     """Test processing an alert with flush."""
     pipeline, _, _ = setup_pipeline()
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -342,9 +341,9 @@ async def test_process_alert_with_flush():
         status=AlertStatus.PENDING,
         detected_at=datetime.now(timezone.utc),
     )
-    
+
     result = await pipeline.process_and_flush(alert)
-    
+
     assert "flushed" in result
     assert isinstance(result["flushed"], list)
 
@@ -353,10 +352,10 @@ async def test_process_alert_with_flush():
 async def test_process_alert_invalid_data():
     """Test processing invalid alert data."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Test with invalid alert data
     invalid_data = {"invalid": "data"}
-    
+
     # Should raise validation error when creating Alert
     with pytest.raises(Exception):
         Alert(**invalid_data)
@@ -371,7 +370,7 @@ async def test_process_alert_invalid_data():
 async def test_full_workflow():
     """Test full workflow: add rules, process alert, check stats."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add routing rule
     routing_rule = RoutingRule(
         name="test_route",
@@ -380,7 +379,7 @@ async def test_full_workflow():
         enabled=True,
     )
     pipeline.router.add_rule(routing_rule)
-    
+
     # Add suppression rule
     suppression_rule = SuppressionRule(
         name="test_suppression",
@@ -389,7 +388,7 @@ async def test_full_workflow():
         enabled=True,
     )
     pipeline.noise_suppressor.add_rule(suppression_rule)
-    
+
     # Add escalation rule
     escalation_rule = EscalationRule(
         name="test_escalation",
@@ -399,7 +398,7 @@ async def test_full_workflow():
         enabled=True,
     )
     pipeline.escalator.add_rule(escalation_rule)
-    
+
     # Add classification rule
     classification_rule = ClassificationRule(
         name="test_classification",
@@ -409,7 +408,7 @@ async def test_full_workflow():
         enabled=True,
     )
     pipeline.classifier.add_rule(classification_rule)
-    
+
     # Process alert
     alert = Alert(
         id="test-1",
@@ -421,10 +420,10 @@ async def test_full_workflow():
     )
     result = await pipeline.process_alert(alert)
     assert result["alert_id"] == "test-1"
-    
+
     # Check stats
     stats = pipeline.get_stats()
-    
+
     # Verify rules were added
     assert stats["rules"]["routing"] >= 1
     assert stats["rules"]["suppression"] >= 1
@@ -436,7 +435,7 @@ async def test_full_workflow():
 async def test_concurrent_requests():
     """Test handling concurrent requests."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Process multiple alerts concurrently
     tasks = []
     for i in range(5):
@@ -449,9 +448,9 @@ async def test_concurrent_requests():
             status=AlertStatus.PENDING,
         )
         tasks.append(pipeline.process_alert(alert))
-    
+
     results = await asyncio.gather(*tasks)
-    
+
     # All should succeed
     for result in results:
         assert "alert_id" in result
@@ -466,7 +465,7 @@ async def test_concurrent_requests():
 async def test_pipeline_flush():
     """Test flushing the pipeline."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add some alerts
     for i in range(3):
         alert = Alert(
@@ -480,10 +479,10 @@ async def test_pipeline_flush():
             detected_at=datetime.now(timezone.utc),
         )
         await pipeline.process_alert(alert)
-    
+
     # Flush
     results = await pipeline.flush(force=True)
-    
+
     assert isinstance(results, list)
 
 
@@ -502,7 +501,7 @@ def test_service_health_schema():
         service="test-service",
         uptime_seconds=100,
     )
-    
+
     assert health.status == "ok"
     assert health.service == "test-service"
     assert health.uptime_seconds == 100
@@ -511,7 +510,7 @@ def test_service_health_schema():
 def test_app_exists():
     """Test that the FastAPI app exists."""
     from services.alert_service.processor import app
-    
+
     assert app is not None
     assert app.title == "Alert Processor"
     assert app.version == "0.1.0"
@@ -520,9 +519,9 @@ def test_app_exists():
 def test_app_routes():
     """Test that the app has the expected routes."""
     from services.alert_service.processor import app
-    
+
     route_paths = [route.path for route in app.routes]
-    
+
     assert "/health" in route_paths
     assert "/metrics" in route_paths
     assert "/stats" in route_paths
@@ -632,7 +631,7 @@ async def test_process_alert_endpoint():
 async def test_process_alert_classification():
     """Test alert classification in pipeline."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add a classification rule
     rule = ClassificationRule(
         name="test_rule",
@@ -642,7 +641,7 @@ async def test_process_alert_classification():
         enabled=True,
     )
     pipeline.classifier.add_rule(rule)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -651,9 +650,9 @@ async def test_process_alert_classification():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     result = await pipeline.process_alert(alert)
-    
+
     assert result["status"] in ["buffered", "suppressed", "duplicate"]
     assert result["alert_id"] == "test-1"
 
@@ -662,7 +661,7 @@ async def test_process_alert_classification():
 async def test_process_alert_noise_suppression():
     """Test noise suppression in pipeline."""
     pipeline, _, _ = setup_pipeline()
-    
+
     # Add a suppression rule
     rule = SuppressionRule(
         name="test_suppression",
@@ -671,7 +670,7 @@ async def test_process_alert_noise_suppression():
         enabled=True,
     )
     pipeline.noise_suppressor.add_rule(rule)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -680,9 +679,9 @@ async def test_process_alert_noise_suppression():
         level=AlertSeverity.INFO,
         status=AlertStatus.PENDING,
     )
-    
+
     result = await pipeline.process_alert(alert)
-    
+
     assert result["status"] == "suppressed"
     assert result["alert_id"] == "test-1"
 
@@ -691,7 +690,7 @@ async def test_process_alert_noise_suppression():
 async def test_process_alert_deduplication():
     """Test deduplication in pipeline."""
     pipeline, _, _ = setup_pipeline(window_seconds=10)
-    
+
     alert1 = Alert(
         id="test-1",
         title="Test Alert",
@@ -702,10 +701,10 @@ async def test_process_alert_deduplication():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     result1 = await pipeline.process_alert(alert1)
     assert result1["status"] != "duplicate"
-    
+
     # Duplicate alert
     alert2 = Alert(
         id="test-2",
@@ -717,6 +716,6 @@ async def test_process_alert_deduplication():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     result2 = await pipeline.process_alert(alert2)
     assert result2["status"] == "duplicate"

@@ -4,21 +4,22 @@ Comprehensive test suite for core/analysis/l2/langgraph_engine.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-import sys
-import os
 import asyncio
+import os
+import sys
 from datetime import datetime
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 from core.analysis.l2.langgraph_engine import (
+    LANGGRAPH_AVAILABLE,
     AnalysisState,
     AnalysisStep,
     LangGraphAnalysisEngine,
-    LANGGRAPH_AVAILABLE,
 )
 
 
@@ -73,7 +74,7 @@ class TestLangGraphAnalysisEngine:
 
     def test_init_when_langgraph_unavailable(self):
         """Test initialization when LangGraph is not available"""
-        with patch('core.analysis.l2.langgraph_engine.LANGGRAPH_AVAILABLE', False):
+        with patch("core.analysis.l2.langgraph_engine.LANGGRAPH_AVAILABLE", False):
             engine = LangGraphAnalysisEngine()
             assert engine._is_initialized is False
 
@@ -81,7 +82,7 @@ class TestLangGraphAnalysisEngine:
         """Test successful graph building"""
         if not LANGGRAPH_AVAILABLE:
             pytest.skip("LangGraph not available")
-        
+
         engine = LangGraphAnalysisEngine()
         if LANGGRAPH_AVAILABLE:
             assert engine._is_initialized is True
@@ -91,8 +92,10 @@ class TestLangGraphAnalysisEngine:
         """Test graph building failure"""
         if not LANGGRAPH_AVAILABLE:
             pytest.skip("LangGraph not available")
-        
-        with patch('core.analysis.l2.langgraph_engine.StateGraph', side_effect=Exception("Build error")):
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.StateGraph", side_effect=Exception("Build error")
+        ):
             engine = LangGraphAnalysisEngine()
             assert engine._is_initialized is False
 
@@ -107,7 +110,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._initialize_step(state)
         assert result["current_step"] == AnalysisStep.INITIALIZE.value
         assert result["context"] == {}
@@ -125,7 +128,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._initialize_step(state)
         assert result["context"] == {"existing": "data"}
 
@@ -141,27 +144,29 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
-        with patch('core.analysis.l2.langgraph_engine.get_l4_storage_manager') as mock_l4:
+
+        with patch("core.analysis.l2.langgraph_engine.get_l4_storage_manager") as mock_l4:
             mock_l4_instance = MagicMock()
             mock_l4.return_value = mock_l4_instance
-            
+
             mock_vm = AsyncMock()
             mock_loki = AsyncMock()
             mock_l4_instance.get_victoriametrics.return_value = mock_vm
             mock_l4_instance.get_loki.return_value = mock_loki
-            
+
             mock_vm.query_range = AsyncMock(return_value=[])
             mock_loki.query_range = AsyncMock(return_value=[])
-            
-            with patch('core.analysis.l2.langgraph_engine.get_cached_snapshot', return_value={}):
-                with patch('core.analysis.l2.langgraph_engine.alert_history', []):
-                    with patch('core.analysis.l2.langgraph_engine.config_manager') as mock_config:
+
+            with patch("core.analysis.l2.langgraph_engine.get_cached_snapshot", return_value={}):
+                with patch("core.analysis.l2.langgraph_engine.alert_history", []):
+                    with patch("core.analysis.l2.langgraph_engine.config_manager") as mock_config:
                         mock_config._audit_log = []
-                        with patch('core.analysis.l2.langgraph_engine.repair_history', []):
-                            with patch('core.analysis.l2.langgraph_engine.root_cause_intelligence_engine') as mock_rc:
+                        with patch("core.analysis.l2.langgraph_engine.repair_history", []):
+                            with patch(
+                                "core.analysis.l2.langgraph_engine.root_cause_intelligence_engine"
+                            ) as mock_rc:
                                 mock_rc.topology_graph = {}
-                                
+
                                 result = await engine._collect_data_step(state)
                                 assert result["current_step"] == AnalysisStep.COLLECT_DATA.value
 
@@ -177,16 +182,18 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
-        with patch('core.analysis.l2.langgraph_engine.get_l4_storage_manager', return_value=None):
-            with patch('core.analysis.l2.langgraph_engine.get_cached_snapshot', return_value={}):
-                with patch('core.analysis.l2.langgraph_engine.alert_history', []):
-                    with patch('core.analysis.l2.langgraph_engine.config_manager') as mock_config:
+
+        with patch("core.analysis.l2.langgraph_engine.get_l4_storage_manager", return_value=None):
+            with patch("core.analysis.l2.langgraph_engine.get_cached_snapshot", return_value={}):
+                with patch("core.analysis.l2.langgraph_engine.alert_history", []):
+                    with patch("core.analysis.l2.langgraph_engine.config_manager") as mock_config:
                         mock_config._audit_log = []
-                        with patch('core.analysis.l2.langgraph_engine.repair_history', []):
-                            with patch('core.analysis.l2.langgraph_engine.root_cause_intelligence_engine') as mock_rc:
+                        with patch("core.analysis.l2.langgraph_engine.repair_history", []):
+                            with patch(
+                                "core.analysis.l2.langgraph_engine.root_cause_intelligence_engine"
+                            ) as mock_rc:
                                 mock_rc.topology_graph = {}
-                                
+
                                 result = await engine._collect_data_step(state)
                                 assert result["current_step"] == AnalysisStep.COLLECT_DATA.value
 
@@ -202,8 +209,11 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
-        with patch('core.analysis.l2.langgraph_engine.get_l4_storage_manager', side_effect=Exception("L4 error")):
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.get_l4_storage_manager",
+            side_effect=Exception("L4 error"),
+        ):
             result = await engine._collect_data_step(state)
             assert result["current_step"] == AnalysisStep.COLLECT_DATA.value
             assert result["error"] is not None
@@ -219,17 +229,26 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
-        with patch('core.analysis.l2.langgraph_engine.get_cached_snapshot', return_value={"cpu": {"usage": 50}}):
-            with patch('core.analysis.l2.langgraph_engine.alert_history', [{"level": "warning"}]):
-                with patch('core.analysis.l2.langgraph_engine.config_manager') as mock_config:
-                    mock_config._audit_log = [{"timestamp": "2024-01-01", "change": "test", "details": "test"}]
-                    with patch('core.analysis.l2.langgraph_engine.repair_history', [{"action": "restart"}]):
-                        with patch('core.analysis.l2.langgraph_engine.root_cause_intelligence_engine') as mock_rc:
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.get_cached_snapshot",
+            return_value={"cpu": {"usage": 50}},
+        ):
+            with patch("core.analysis.l2.langgraph_engine.alert_history", [{"level": "warning"}]):
+                with patch("core.analysis.l2.langgraph_engine.config_manager") as mock_config:
+                    mock_config._audit_log = [
+                        {"timestamp": "2024-01-01", "change": "test", "details": "test"}
+                    ]
+                    with patch(
+                        "core.analysis.l2.langgraph_engine.repair_history", [{"action": "restart"}]
+                    ):
+                        with patch(
+                            "core.analysis.l2.langgraph_engine.root_cause_intelligence_engine"
+                        ) as mock_rc:
                             mock_rc.topology_graph = {"service1": ["service2"]}
-                            
+
                             engine._collect_extended_context(state)
-                            
+
                             assert "infrastructure_metrics" in state["context"]
                             assert "recent_alerts" in state["context"]
                             assert "change_events" in state["context"]
@@ -247,12 +266,27 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
-        with patch('core.analysis.l2.langgraph_engine.get_cached_snapshot', side_effect=Exception("Snapshot error")):
-            with patch('core.analysis.l2.langgraph_engine.alert_history', side_effect=Exception("Alert error")):
-                with patch('core.analysis.l2.langgraph_engine.config_manager', side_effect=Exception("Config error")):
-                    with patch('core.analysis.l2.langgraph_engine.repair_history', side_effect=Exception("Repair error")):
-                        with patch('core.analysis.l2.langgraph_engine.root_cause_intelligence_engine', side_effect=Exception("RC error")):
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.get_cached_snapshot",
+            side_effect=Exception("Snapshot error"),
+        ):
+            with patch(
+                "core.analysis.l2.langgraph_engine.alert_history",
+                side_effect=Exception("Alert error"),
+            ):
+                with patch(
+                    "core.analysis.l2.langgraph_engine.config_manager",
+                    side_effect=Exception("Config error"),
+                ):
+                    with patch(
+                        "core.analysis.l2.langgraph_engine.repair_history",
+                        side_effect=Exception("Repair error"),
+                    ):
+                        with patch(
+                            "core.analysis.l2.langgraph_engine.root_cause_intelligence_engine",
+                            side_effect=Exception("RC error"),
+                        ):
                             engine._collect_extended_context(state)
                             # Should not raise exception, just log warnings
 
@@ -268,8 +302,8 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
-        with patch('core.analysis.l2.langgraph_engine.analyze', return_value={"result": "success"}):
+
+        with patch("core.analysis.l2.langgraph_engine.analyze", return_value={"result": "success"}):
             result = await engine._analyze_step(state)
             assert result["current_step"] == AnalysisStep.ANALYZE.value
             assert result["analysis_result"] == {"result": "success"}
@@ -286,8 +320,10 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
-        with patch('core.analysis.l2.langgraph_engine.analyze', side_effect=Exception("Analysis error")):
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.analyze", side_effect=Exception("Analysis error")
+        ):
             result = await engine._analyze_step(state)
             assert result["current_step"] == AnalysisStep.ANALYZE.value
             assert result["error"] is not None
@@ -315,7 +351,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._validate_step(state)
         assert result["current_step"] == AnalysisStep.VALIDATE.value
         assert result["error"] is None
@@ -331,7 +367,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._validate_step(state)
         assert result["current_step"] == AnalysisStep.VALIDATE.value
         assert result["error"] is not None
@@ -347,7 +383,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._validate_step(state)
         assert result["current_step"] == AnalysisStep.VALIDATE.value
         assert result["error"] is not None
@@ -373,7 +409,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._validate_step(state)
         assert result["current_step"] == AnalysisStep.VALIDATE.value
         assert result["error"] is not None
@@ -389,7 +425,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._validate_step(state)
         assert result["current_step"] == AnalysisStep.VALIDATE.value
         assert result["error"] is not None
@@ -405,7 +441,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._finalize_step(state)
         assert result["current_step"] == AnalysisStep.FINALIZE.value
         assert "metadata" in result["analysis_result"]
@@ -422,7 +458,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._finalize_step(state)
         assert result["current_step"] == AnalysisStep.FINALIZE.value
         assert result["analysis_result"] is None
@@ -438,7 +474,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": "test error",
         }
-        
+
         result = engine._should_retry(state)
         assert result == "retry"
 
@@ -453,7 +489,7 @@ class TestLangGraphAnalysisEngine:
             "current_step": "",
             "error": None,
         }
-        
+
         result = engine._should_retry(state)
         assert result == "finalize"
 
@@ -463,8 +499,10 @@ class TestLangGraphAnalysisEngine:
         engine = LangGraphAnalysisEngine()
         mock_vm = AsyncMock()
         mock_vm.query_range = AsyncMock(return_value=[])
-        
-        result = await engine._collect_metrics(mock_vm, "test query", datetime.now(), datetime.now())
+
+        result = await engine._collect_metrics(
+            mock_vm, "test query", datetime.now(), datetime.now()
+        )
         assert "query" in result
         assert "data" in result
         assert "count" in result
@@ -475,8 +513,10 @@ class TestLangGraphAnalysisEngine:
         engine = LangGraphAnalysisEngine()
         mock_vm = AsyncMock()
         mock_vm.query_range = AsyncMock(side_effect=Exception("Query error"))
-        
-        result = await engine._collect_metrics(mock_vm, "test query", datetime.now(), datetime.now())
+
+        result = await engine._collect_metrics(
+            mock_vm, "test query", datetime.now(), datetime.now()
+        )
         assert "error" in result
 
     @pytest.mark.asyncio
@@ -485,7 +525,7 @@ class TestLangGraphAnalysisEngine:
         engine = LangGraphAnalysisEngine()
         mock_loki = AsyncMock()
         mock_loki.query_range = AsyncMock(return_value=[])
-        
+
         result = await engine._collect_logs(mock_loki, "test query", datetime.now(), datetime.now())
         assert "query" in result
         assert "data" in result
@@ -497,7 +537,7 @@ class TestLangGraphAnalysisEngine:
         engine = LangGraphAnalysisEngine()
         mock_loki = AsyncMock()
         mock_loki.query_range = AsyncMock(side_effect=Exception("Query error"))
-        
+
         result = await engine._collect_logs(mock_loki, "test query", datetime.now(), datetime.now())
         assert "error" in result
 
@@ -531,7 +571,9 @@ class TestLangGraphAnalysisEngine:
     def test_assess_completeness_both_failed(self):
         """Test completeness assessment with both sources failed"""
         engine = LangGraphAnalysisEngine()
-        result = engine._assess_completeness({"_data_completeness": "failed"}, {"_data_completeness": "failed"})
+        result = engine._assess_completeness(
+            {"_data_completeness": "failed"}, {"_data_completeness": "failed"}
+        )
         assert result["metrics_available"] is False
         assert result["logs_available"] is False
         assert result["complete"] is False
@@ -552,7 +594,7 @@ class TestLangGraphAnalysisEngine:
             "metrics": "cpu: 80%",
             "logs": "error: connection failed",
         }
-        
+
         prompt = engine._build_analysis_prompt("test input", context)
         assert "test input" in prompt
         assert "cpu: 80%" in prompt
@@ -565,7 +607,7 @@ class TestLangGraphAnalysisEngine:
             "metrics": "cpu: 80%",
             "_data_completeness": {"complete": True},
         }
-        
+
         prompt = engine._build_analysis_prompt("test input", context)
         assert "test input" in prompt
         assert "Data completeness assessment" in prompt
@@ -653,12 +695,12 @@ class TestLangGraphAnalysisEngine:
         """Test successful analysis"""
         if not LANGGRAPH_AVAILABLE:
             pytest.skip("LangGraph not available")
-        
+
         engine = LangGraphAnalysisEngine()
         if not engine._is_initialized:
             pytest.skip("Engine not initialized")
-        
-        with patch.object(engine.graph, 'ainvoke', new_callable=AsyncMock) as mock_invoke:
+
+        with patch.object(engine.graph, "ainvoke", new_callable=AsyncMock) as mock_invoke:
             mock_invoke.return_value = {
                 "input": "test",
                 "context": {},
@@ -667,7 +709,7 @@ class TestLangGraphAnalysisEngine:
                 "current_step": "finalize",
                 "error": None,
             }
-            
+
             result = await engine.analyze("test input")
             assert result == {"result": "success"}
 
@@ -676,8 +718,10 @@ class TestLangGraphAnalysisEngine:
         """Test analysis when engine not initialized"""
         engine = LangGraphAnalysisEngine()
         engine._is_initialized = False
-        
-        with patch('core.analysis.l2.langgraph_engine.analyze', return_value={"result": "fallback"}):
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.analyze", return_value={"result": "fallback"}
+        ):
             result = await engine.analyze("test input")
             assert result == {"result": "fallback"}
 
@@ -686,13 +730,15 @@ class TestLangGraphAnalysisEngine:
         """Test analysis with exception"""
         if not LANGGRAPH_AVAILABLE:
             pytest.skip("LangGraph not available")
-        
+
         engine = LangGraphAnalysisEngine()
         if not engine._is_initialized:
             pytest.skip("Engine not initialized")
-        
-        with patch.object(engine.graph, 'ainvoke', side_effect=Exception("Analysis error")):
-            with patch('core.analysis.l2.langgraph_engine.analyze', return_value={"result": "fallback"}):
+
+        with patch.object(engine.graph, "ainvoke", side_effect=Exception("Analysis error")):
+            with patch(
+                "core.analysis.l2.langgraph_engine.analyze", return_value={"result": "fallback"}
+            ):
                 result = await engine.analyze("test input")
                 assert result == {"result": "fallback"}
 
@@ -700,8 +746,10 @@ class TestLangGraphAnalysisEngine:
     async def test_fallback_analyze_success(self):
         """Test successful fallback analysis"""
         engine = LangGraphAnalysisEngine()
-        
-        with patch('core.analysis.l2.langgraph_engine.analyze', return_value={"result": "fallback success"}):
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.analyze", return_value={"result": "fallback success"}
+        ):
             result = await engine._fallback_analyze("test input")
             assert result == {"result": "fallback success"}
 
@@ -709,8 +757,10 @@ class TestLangGraphAnalysisEngine:
     async def test_fallback_analyze_exception(self):
         """Test fallback analysis with exception"""
         engine = LangGraphAnalysisEngine()
-        
-        with patch('core.analysis.l2.langgraph_engine.analyze', side_effect=Exception("Fallback error")):
+
+        with patch(
+            "core.analysis.l2.langgraph_engine.analyze", side_effect=Exception("Fallback error")
+        ):
             result = await engine._fallback_analyze("test input")
             assert "error" in result
 

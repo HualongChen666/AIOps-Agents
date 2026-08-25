@@ -495,7 +495,9 @@ async def test_intelligent_warmer_basic():
     assert cache.get("warm_double:5") == 10
 
     assert warmer.predict_next_access("double") == 0.0
-    result = await warmer.warm_with_prediction("double", 3)  # noqa: F841  # Variable for test verification
+    result = await warmer.warm_with_prediction(
+        "double", 3
+    )  # noqa: F841  # Variable for test verification
     assert result == 6  # noqa: F841  # Variable for test verification
 
 
@@ -520,7 +522,9 @@ async def test_intelligent_warmer_prediction():
     interval = warmer.predict_next_access("inc")
     assert interval > 0.0
 
-    result = await warmer.warm_with_prediction("inc", 5)  # noqa: F841  # Variable for test verification
+    result = await warmer.warm_with_prediction(
+        "inc", 5
+    )  # noqa: F841  # Variable for test verification
     assert result == 6  # noqa: F841  # Variable for test verification
 
 

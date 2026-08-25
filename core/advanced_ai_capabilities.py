@@ -863,4 +863,4 @@ class AdvancedAICapabilities:
 
 
 # Global instance
-advanced_ai_capabilities = AdvancedAICapabilities()
+ADVANCED_AI_CAPABILITIES = AdvancedAICapabilities()

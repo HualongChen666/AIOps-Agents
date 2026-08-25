@@ -312,7 +312,9 @@ def test_query_prometheus_range_success(obs_server, monkeypatch):
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", obs_server)
     end = time.time()
     start = end - 3600
-    result = oc.query_prometheus_range("up", start, end, step="15s")  # noqa: F841  # Variable for test verification
+    result = oc.query_prometheus_range(
+        "up", start, end, step="15s"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("status") == "success"
 
@@ -331,7 +333,9 @@ def test_query_prometheus_range_invalid(obs_server, monkeypatch):
 
     # Valid PromQL but invalid backend returns an error-shaped dict.
     monkeypatch.setenv("AIOPS_PROMETHEUS_URL", "http://127.0.0.1:1")
-    result = oc.query_prometheus_range("up", start, end)  # noqa: F841  # Variable for test verification
+    result = oc.query_prometheus_range(
+        "up", start, end
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("status") == "error"
 

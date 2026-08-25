@@ -154,7 +154,9 @@ async def generate_plugin_package(
         return {
             "status": "success",
             "data": {
-                "plugin_id": f"{plugin_name.lower().replace(' ', '_')}_{version.replace('.', '_')}",
+                "plugin_id": (
+                    f"{plugin_name.lower().replace(' ', '_')}_" f"{version.replace('.', '_')}"
+                ),
                 "plugin_name": package["plugin_name"],
                 "version": package["version"],
                 "template_type": package["template_type"],

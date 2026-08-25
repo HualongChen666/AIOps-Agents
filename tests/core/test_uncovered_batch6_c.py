@@ -261,7 +261,9 @@ def test_get_resource_no_kubectl(monkeypatch):
 
 def test_run_cmd_command_not_found(gitops_run):
     gitops_run.side_effect = FileNotFoundError("not found")
-    result = gitops._run_cmd(["/fake/kubectl", "get", "pods"])  # noqa: F841  # Variable for test verification
+    result = gitops._run_cmd(
+        ["/fake/kubectl", "get", "pods"]
+    )  # noqa: F841  # Variable for test verification
     assert result.returncode == 127
     assert "not found" in result.stderr
 

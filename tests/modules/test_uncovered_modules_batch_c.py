@@ -273,7 +273,9 @@ def test_playbook_manager_builtins(pb_manager):
 
 @pytest.mark.asyncio
 async def test_playbook_manager_execute_not_found(pb_manager):
-    result = await pb_manager.execute_playbook("missing")  # noqa: F841  # Variable for test verification
+    result = await pb_manager.execute_playbook(
+        "missing"
+    )  # noqa: F841  # Variable for test verification
     assert not result["success"]
 
 
@@ -296,7 +298,9 @@ async def test_playbook_manager_execute_dry_run(pb_manager, monkeypatch):
         "modules.execute.auto_heal.playbook_manager.asyncio.create_subprocess_exec",
         fake_subprocess,
     )
-    result = await pb_manager.execute_playbook("ok", extra_vars={"a": 1}, tags=["t"], limit="all")  # noqa: F841  # Variable for test verification
+    result = await pb_manager.execute_playbook(
+        "ok", extra_vars={"a": 1}, tags=["t"], limit="all"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"]
     assert result["stdout"] == "ok"
 
@@ -334,7 +338,9 @@ async def test_playbook_executor_heal(pb_manager, monkeypatch):
         return {"success": True}
 
     monkeypatch.setattr(pb_manager, "execute_playbook", fake_execute)
-    result = await executor.execute_heal_playbook("restart_service", {"service_name": "nginx"})  # noqa: F841  # Variable for test verification
+    result = await executor.execute_heal_playbook(
+        "restart_service", {"service_name": "nginx"}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"]
     assert executor.get_executions()
     assert executor.get_execution(list(executor._executions.keys())[0])
@@ -864,7 +870,9 @@ async def test_saga_success():
         saga_coordinator.SagaStep(name="ship", action=ship),
     ]
     saga = coordinator.create_saga("order", steps)
-    result = await coordinator.execute_saga(saga.saga_id)  # noqa: F841  # Variable for test verification
+    result = await coordinator.execute_saga(
+        saga.saga_id
+    )  # noqa: F841  # Variable for test verification
     assert result["success"]
     assert coordinator.get_saga(saga.saga_id).state == saga_coordinator.SagaState.COMPLETED
 
@@ -888,7 +896,9 @@ async def test_saga_failure_and_compensation():
         saga_coordinator.SagaStep("s2", action_fail),
     ]
     saga = coordinator.create_saga("order", steps)
-    result = await coordinator.execute_saga(saga.saga_id)  # noqa: F841  # Variable for test verification
+    result = await coordinator.execute_saga(
+        saga.saga_id
+    )  # noqa: F841  # Variable for test verification
     assert not result["success"]
     assert compensate_called["value"]
     assert coordinator.get_saga(saga.saga_id).state == saga_coordinator.SagaState.COMPENSATED
@@ -919,7 +929,9 @@ async def test_saga_compensation_variants():
         saga_coordinator.SagaStep("fail", lambda ctx: (_ for _ in ()).throw(RuntimeError("boom"))),
     ]
     saga = coordinator.create_saga("x", steps)
-    result = await coordinator.execute_saga(saga.saga_id)  # noqa: F841  # Variable for test verification
+    result = await coordinator.execute_saga(
+        saga.saga_id
+    )  # noqa: F841  # Variable for test verification
     assert not result["success"]
     assert not called["skip"]
     assert called["fail"]

@@ -2,8 +2,9 @@
 """Comprehensive tests for audit_router.py to achieve 90%+ coverage."""
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi import BackgroundTasks
 
 
@@ -31,7 +32,7 @@ class TestVerifyInternalKey:
 
     def test_verify_internal_key_missing_header(self, client):
         """Test verification when X-Internal-Key header is missing (lines 32-33)."""
-        from api.audit_router import _verify_internal_key, HTTPException
+        from api.audit_router import HTTPException, _verify_internal_key
 
         with patch("config.INTERNAL_API_KEY", "test-key"):
             mock_request = MagicMock()
@@ -44,7 +45,7 @@ class TestVerifyInternalKey:
 
     def test_verify_internal_key_invalid_key(self, client):
         """Test verification with invalid X-Internal-Key (lines 34-35)."""
-        from api.audit_router import _verify_internal_key, HTTPException
+        from api.audit_router import HTTPException, _verify_internal_key
 
         with patch("config.INTERNAL_API_KEY", "correct-key"):
             mock_request = MagicMock()
@@ -76,12 +77,16 @@ class TestExportAudit:
 
         with patch("core.command_guard.get_audit_log") as mock_get:
             mock_get.return_value = [
-                {"timestamp": "2026-01-01", "event": "test", "risk_level": "low", "result": "allowed"}
+                {
+                    "timestamp": "2026-01-01",
+                    "event": "test",
+                    "risk_level": "low",
+                    "result": "allowed",
+                }
             ]
 
             resp = client.get(
-                "/api/v1/audit/export?fmt=csv&limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             assert resp.headers["content-type"] == "text/csv"
@@ -92,12 +97,16 @@ class TestExportAudit:
 
         with patch("core.command_guard.get_audit_log") as mock_get:
             mock_get.return_value = [
-                {"timestamp": "2026-01-01", "event": "test", "risk_level": "low", "result": "allowed"}
+                {
+                    "timestamp": "2026-01-01",
+                    "event": "test",
+                    "risk_level": "low",
+                    "result": "allowed",
+                }
             ]
 
             resp = client.get(
-                "/api/v1/audit/export?fmt=excel&limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/export?fmt=excel&limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             assert "excel" in resp.headers["content-type"]
@@ -110,8 +119,7 @@ class TestExportAudit:
             mock_get.return_value = []
 
             resp = client.get(
-                "/api/v1/audit/export?fmt=csv&limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             assert resp.headers["content-type"] == "text/csv"
@@ -124,8 +132,7 @@ class TestExportAudit:
             mock_get.return_value = []
 
             resp = client.get(
-                "/api/v1/audit/export?fmt=excel&limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/export?fmt=excel&limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             assert "excel" in resp.headers["content-type"]
@@ -137,10 +144,12 @@ class TestExportAudit:
         with patch("core.command_guard.get_audit_log") as mock_get:
             mock_get.return_value = []
 
-            with patch("api.audit_router.openpyxl", side_effect=ImportError("No module named 'openpyxl'")):
+            with patch(
+                "api.audit_router.openpyxl", side_effect=ImportError("No module named 'openpyxl'")
+            ):
                 resp = client.get(
                     "/api/v1/audit/export?fmt=excel&limit=10",
-                    headers={"X-Internal-Key": "test-key"}
+                    headers={"X-Internal-Key": "test-key"},
                 )
                 assert resp.status_code == 500
                 assert "openpyxl 未安装" in resp.json()["detail"]
@@ -154,8 +163,7 @@ class TestExportAudit:
     def test_export_audit_invalid_format(self, client):
         """Test export with invalid format (should be validated by FastAPI)."""
         resp = client.get(
-            "/api/v1/audit/export?fmt=invalid",
-            headers={"X-Internal-Key": "test-key"}
+            "/api/v1/audit/export?fmt=invalid", headers={"X-Internal-Key": "test-key"}
         )
         # FastAPI validation should reject this
         assert resp.status_code == 422
@@ -164,15 +172,13 @@ class TestExportAudit:
         """Test export with limit validation (line 53)."""
         # Test with limit below minimum
         resp = client.get(
-            "/api/v1/audit/export?fmt=csv&limit=0",
-            headers={"X-Internal-Key": "test-key"}
+            "/api/v1/audit/export?fmt=csv&limit=0", headers={"X-Internal-Key": "test-key"}
         )
         assert resp.status_code == 422
 
         # Test with limit above maximum
         resp = client.get(
-            "/api/v1/audit/export?fmt=csv&limit=5001",
-            headers={"X-Internal-Key": "test-key"}
+            "/api/v1/audit/export?fmt=csv&limit=5001", headers={"X-Internal-Key": "test-key"}
         )
         assert resp.status_code == 422
 
@@ -191,7 +197,7 @@ class TestExportAudit:
 
                 resp = client.get(
                     "/api/v1/audit/export?fmt=excel&limit=10",
-                    headers={"X-Internal-Key": "test-key"}
+                    headers={"X-Internal-Key": "test-key"},
                 )
                 assert resp.status_code == 200
 
@@ -207,8 +213,7 @@ class TestExportAudit:
                 mock_bg.return_value = mock_bg_instance
 
                 resp = client.get(
-                    "/api/v1/audit/export?fmt=csv&limit=10",
-                    headers={"X-Internal-Key": "test-key"}
+                    "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
                 )
                 assert resp.status_code == 200
                 # Verify background task was added
@@ -224,13 +229,22 @@ class TestAuditReport:
 
         with patch("core.command_guard.get_audit_log") as mock_get:
             mock_get.return_value = [
-                {"timestamp": "2026-01-01", "event": "test", "risk_level": "low", "result": "allowed"},
-                {"timestamp": "2026-01-02", "event": "test2", "risk_level": "high", "result": "blocked"},
+                {
+                    "timestamp": "2026-01-01",
+                    "event": "test",
+                    "risk_level": "low",
+                    "result": "allowed",
+                },
+                {
+                    "timestamp": "2026-01-02",
+                    "event": "test2",
+                    "risk_level": "high",
+                    "result": "blocked",
+                },
             ]
 
             resp = client.get(
-                "/api/v1/audit/report?limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/report?limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -247,8 +261,7 @@ class TestAuditReport:
             mock_get.return_value = []
 
             resp = client.get(
-                "/api/v1/audit/report?limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/report?limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -266,17 +279,11 @@ class TestAuditReport:
     def test_audit_report_limit_validation(self, client):
         """Test report with limit validation (line 159)."""
         # Test with limit below minimum
-        resp = client.get(
-            "/api/v1/audit/report?limit=0",
-            headers={"X-Internal-Key": "test-key"}
-        )
+        resp = client.get("/api/v1/audit/report?limit=0", headers={"X-Internal-Key": "test-key"})
         assert resp.status_code == 422
 
         # Test with limit above maximum
-        resp = client.get(
-            "/api/v1/audit/report?limit=5001",
-            headers={"X-Internal-Key": "test-key"}
-        )
+        resp = client.get("/api/v1/audit/report?limit=5001", headers={"X-Internal-Key": "test-key"})
         assert resp.status_code == 422
 
     def test_audit_report_missing_risk_level(self, client):
@@ -289,8 +296,7 @@ class TestAuditReport:
             ]
 
             resp = client.get(
-                "/api/v1/audit/report?limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/report?limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -306,8 +312,7 @@ class TestAuditReport:
             ]
 
             resp = client.get(
-                "/api/v1/audit/report?limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/report?limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -323,13 +328,15 @@ class TestListAudit:
 
         with patch("core.command_guard.get_audit_log") as mock_get:
             mock_get.return_value = [
-                {"timestamp": "2026-01-01", "event": "test", "risk_level": "low", "result": "allowed"}
+                {
+                    "timestamp": "2026-01-01",
+                    "event": "test",
+                    "risk_level": "low",
+                    "result": "allowed",
+                }
             ]
 
-            resp = client.get(
-                "/api/v1/audit?limit=10",
-                headers={"X-Internal-Key": "test-key"}
-            )
+            resp = client.get("/api/v1/audit?limit=10", headers={"X-Internal-Key": "test-key"})
             assert resp.status_code == 200
             data = resp.json()
             assert len(data) == 1
@@ -341,10 +348,7 @@ class TestListAudit:
         with patch("core.command_guard.get_audit_log") as mock_get:
             mock_get.return_value = []
 
-            resp = client.get(
-                "/api/v1/audit?limit=10",
-                headers={"X-Internal-Key": "test-key"}
-            )
+            resp = client.get("/api/v1/audit?limit=10", headers={"X-Internal-Key": "test-key"})
             assert resp.status_code == 200
             data = resp.json()
             assert len(data) == 0
@@ -358,17 +362,11 @@ class TestListAudit:
     def test_list_audit_limit_validation(self, client):
         """Test list with limit validation (line 204)."""
         # Test with limit below minimum
-        resp = client.get(
-            "/api/v1/audit?limit=0",
-            headers={"X-Internal-Key": "test-key"}
-        )
+        resp = client.get("/api/v1/audit?limit=0", headers={"X-Internal-Key": "test-key"})
         assert resp.status_code == 422
 
         # Test with limit above maximum
-        resp = client.get(
-            "/api/v1/audit?limit=5001",
-            headers={"X-Internal-Key": "test-key"}
-        )
+        resp = client.get("/api/v1/audit?limit=5001", headers={"X-Internal-Key": "test-key"})
         assert resp.status_code == 422
 
 
@@ -384,7 +382,7 @@ class TestMaskSensitiveDict:
             "event": "test",
             "password": "secret123",
             "token": "abc123",
-            "result": "allowed"
+            "result": "allowed",
         }
 
         masked = mask_sensitive_dict(log)
@@ -399,10 +397,7 @@ class TestMaskSensitiveDict:
         log = {
             "timestamp": "2026-01-01",
             "event": "test",
-            "data": {
-                "password": "secret123",
-                "user": "test"
-            }
+            "data": {"password": "secret123", "user": "test"},
         }
 
         masked = mask_sensitive_dict(log)
@@ -419,12 +414,16 @@ class TestExportAuditEdgeCases:
 
         with patch("core.command_guard.get_audit_log") as mock_get:
             mock_get.return_value = [
-                {"timestamp": "2026-01-01", "event": "test", "risk_level": "low", "result": "allowed"}
+                {
+                    "timestamp": "2026-01-01",
+                    "event": "test",
+                    "risk_level": "low",
+                    "result": "allowed",
+                }
             ]
 
             resp = client.get(
-                "/api/v1/audit/export?fmt=csv&limit=5000",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/export?fmt=csv&limit=5000", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
 
@@ -436,8 +435,7 @@ class TestExportAuditEdgeCases:
             mock_get.return_value = []
 
             resp = client.get(
-                "/api/v1/audit/export?fmt=csv&limit=1",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/export?fmt=csv&limit=1", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200
 
@@ -454,12 +452,11 @@ class TestExportAuditEdgeCases:
                     "result": "allowed",
                     "user": "testuser",
                     "ip": "127.0.0.1",
-                    "command": "test command"
+                    "command": "test command",
                 }
             ]
 
             resp = client.get(
-                "/api/v1/audit/export?fmt=csv&limit=10",
-                headers={"X-Internal-Key": "test-key"}
+                "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
             )
             assert resp.status_code == 200

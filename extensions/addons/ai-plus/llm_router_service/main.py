@@ -169,7 +169,11 @@ async def invoke(req: InvokeRequest) -> InvokeResponse:
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # Use environment variable to control SSL verification (default: True for security)
+            ssl_verify = os.environ.get("LLM_ROUTER_SERVICE_SSL_VERIFY", "true").lower() == "true"
+            if not ssl_verify:
+                logger.warning("SSL verification is disabled in llm_router_service - this is a security risk!")
+            async with httpx.AsyncClient(timeout=60.0, verify=ssl_verify) as client:
                 r = await client.post(
                     f"{OPENAI_BASE_URL}/chat/completions",
                     headers={
@@ -193,7 +197,11 @@ async def invoke(req: InvokeRequest) -> InvokeResponse:
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # Use environment variable to control SSL verification (default: True for security)
+            ssl_verify = os.environ.get("LLM_ROUTER_SERVICE_SSL_VERIFY", "true").lower() == "true"
+            if not ssl_verify:
+                logger.warning("SSL verification is disabled in llm_router_service - this is a security risk!")
+            async with httpx.AsyncClient(timeout=60.0, verify=ssl_verify) as client:
                 r = await client.post(
                     f"{ollama_url}/api/generate",
                     json={

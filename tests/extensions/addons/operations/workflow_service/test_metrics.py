@@ -2,7 +2,6 @@
 """Tests for workflow_service metrics module."""
 
 import pytest
-
 from metrics import (
     WORKFLOW_ACTIVE_EXECUTIONS,
     WORKFLOW_EXECUTION_DURATION,

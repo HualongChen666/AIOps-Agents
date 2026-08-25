@@ -187,7 +187,9 @@ def test_api_response_time_optimizer():
         async def async_task():
             return 42
 
-        result = await opt.process_async_task(async_task)  # noqa: F841  # Variable for test verification
+        result = await opt.process_async_task(
+            async_task
+        )  # noqa: F841  # Variable for test verification
         assert result == 42  # noqa: F841  # Variable for test verification
 
     asyncio.run(_run())

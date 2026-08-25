@@ -230,7 +230,9 @@ class TestCPUUsageOptimizer:
             optimizer.cpu_limits.clear()
             optimizer.set_cpu_limit(action.value, max_cpu_percent=100.0, action_on_exceed=action)
             optimizer.component_cpu[action.value] = 120.0
-            result = optimizer.optimize_cpu(action.value)  # noqa: F841  # Variable for test verification
+            result = optimizer.optimize_cpu(
+                action.value
+            )  # noqa: F841  # Variable for test verification
             assert result["component"] == action.value
             if action != CPUOptimizationAction.ALERT_ONLY:
                 assert len(result["actions_taken"]) == 1

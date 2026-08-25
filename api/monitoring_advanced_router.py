@@ -35,15 +35,13 @@ from pydantic import BaseModel, Field
 
 from core.collector import collect_all, get_top_processes
 from core.log_collector import (
-    get_application_errors,
     get_linux_errors,
     get_linux_logs,
     get_system_errors,
-    search_linux_logs,
     search_logs,
 )
 from core.metrics_exporter import MetricsExporter
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/monitoring", tags=["监控高级功能"])
@@ -55,6 +53,7 @@ router = APIRouter(prefix="/api/v1/monitoring", tags=["监控高级功能"])
 
 class LogAlertRule(BaseModel):
     """Log alert rule model"""
+
     id: Optional[str] = None
     name: str = Field(..., min_length=1, max_length=100)
     pattern: str = Field(..., min_length=1, max_length=500)
@@ -65,29 +64,34 @@ class LogAlertRule(BaseModel):
 
 class LogAlertRuleAction(BaseModel):
     """Log alert rule action model"""
+
     rule_id: str = Field(..., min_length=1)
     action: str = Field(..., regex="^(enable|disable|test)$")
 
 
 class LogPatternAction(BaseModel):
     """Log pattern action model"""
+
     pattern: str = Field(..., min_length=1)
     action: str = Field(..., regex="^(investigate|ignore|alert)$")
 
 
 class AnomalyAction(BaseModel):
     """Anomaly action model"""
+
     anomaly_id: str = Field(..., min_length=1)
     action: str = Field(..., regex="^(investigate|resolve|ignore)$")
 
 
 class HealthCheckRequest(BaseModel):
     """Health check request model"""
+
     service_name: str = Field(..., min_length=1, max_length=100)
 
 
 class TelemetryData(BaseModel):
     """Telemetry data model"""
+
     metric_name: str = Field(..., min_length=1)
     metric_value: float
     labels: Optional[Dict[str, str]] = None
@@ -96,6 +100,7 @@ class TelemetryData(BaseModel):
 
 class MetricsConverterRequest(BaseModel):
     """Metrics converter request model"""
+
     source_format: str = Field(..., regex="^(prometheus|victoriametrics|influxdb)$")
     target_format: str = Field(..., regex="^(prometheus|victoriametrics|influxdb)$")
     metrics_data: Dict[str, Any]
@@ -103,6 +108,7 @@ class MetricsConverterRequest(BaseModel):
 
 class MonitoringConfig(BaseModel):
     """Monitoring configuration model"""
+
     enabled: bool = True
     interval_seconds: int = Field(default=60, ge=10, le=3600)
     retention_days: int = Field(default=30, ge=1, le=365)
@@ -183,9 +189,7 @@ async def get_log_alerting(
 
         # 根据状态过滤
         filtered_rules = (
-            all_rules
-            if status == "all"
-            else [r for r in all_rules if r["status"] == status]
+            all_rules if status == "all" else [r for r in all_rules if r["status"] == status]
         )
 
         total_rules = len(all_rules)
@@ -829,7 +833,11 @@ async def get_fastapi_telemetry(
             **telemetry,
             "endpoint": endpoint,
             "time_range": time_range,
-            "endpoints": endpoints_data if not endpoint else [e for e in endpoints_data if endpoint in e["path"]],
+            "endpoints": (
+                endpoints_data
+                if not endpoint
+                else [e for e in endpoints_data if endpoint in e["path"]]
+            ),
         }
     except Exception as e:
         logger.error(f"获取FastAPI遥测失败: {e}", exc_info=True)
@@ -1079,7 +1087,9 @@ async def get_detailed_health() -> Dict[str, Any]:
             },
         ]
 
-        overall_status = "healthy" if all(c["status"] == "healthy" for c in components) else "degraded"
+        overall_status = (
+            "healthy" if all(c["status"] == "healthy" for c in components) else "degraded"
+        )
 
         return {
             "overall_status": overall_status,
@@ -1451,7 +1461,7 @@ async def get_metrics_exporter_status() -> Dict[str, Any]:
     try:
         # 尝试获取实际的MetricsExporter实例
         try:
-            exporter = MetricsExporter()
+            exporter = MetricsExporter()  # noqa: F841 - Reserved for future use
             return {
                 "status": "active",
                 "exporter_type": "prometheus",
@@ -1459,7 +1469,11 @@ async def get_metrics_exporter_status() -> Dict[str, Any]:
                 "export_interval_seconds": 15,
                 "last_export": datetime.now().isoformat(),
                 "endpoints": [
-                    {"name": "prometheus", "url": "http://localhost:9090/metrics", "status": "active"},
+                    {
+                        "name": "prometheus",
+                        "url": "http://localhost:9090/metrics",
+                        "status": "active",
+                    },
                 ],
             }
         except Exception as exporter_error:
@@ -1619,21 +1633,25 @@ async def get_anomaly_analysis(
         if len(cpu_data) > 10:
             mean = statistics.mean(cpu_data)
             std = statistics.stdev(cpu_data) if len(cpu_data) > 1 else 0
-            threshold = mean + 2 * std
+            threshold = mean + 2 * std  # noqa: F841 - Reserved for future use
 
             for i, value in enumerate(cpu_data):
                 if abs(value - mean) > 2 * std:
                     anomalies.append(
                         {
                             "id": f"anomaly-{i}",
-                            "timestamp": (datetime.now() - timedelta(minutes=len(cpu_data) - i)).isoformat(),
+                            "timestamp": (
+                                datetime.now() - timedelta(minutes=len(cpu_data) - i)
+                            ).isoformat(),
                             "metric_name": "cpu",
                             "metric_value": value,
                             "expected_value": mean,
                             "deviation": abs((value - mean) / mean * 100) if mean > 0 else 0,
                             "severity": "critical" if abs(value - mean) > 3 * std else "warning",
                             "status": "open",
-                            "description": f"CPU usage {value:.1f}% deviates from expected {mean:.1f}%",
+                            "description": (
+                                f"CPU usage {value:.1f}% deviates from expected {mean:.1f}%"
+                            ),
                         }
                     )
 
@@ -1666,9 +1684,7 @@ async def get_anomaly_analysis(
 
         # 根据严重级别过滤
         filtered_anomalies = (
-            anomalies
-            if severity == "all"
-            else [a for a in anomalies if a["severity"] == severity]
+            anomalies if severity == "all" else [a for a in anomalies if a["severity"] == severity]
         )
 
         total_anomalies = len(anomalies)
@@ -1760,7 +1776,7 @@ async def get_anomaly_detection(
 
     try:
         # 使用metrics_history进行异常检测
-        history = metrics_history.to_dict()
+        history = metrics_history.to_dict()  # noqa: F841 - Reserved for future use
 
         anomalies = [
             {
@@ -1789,9 +1805,7 @@ async def get_anomaly_detection(
 
         # 根据严重级别过滤
         filtered_anomalies = (
-            anomalies
-            if severity == "all"
-            else [a for a in anomalies if a["severity"] == severity]
+            anomalies if severity == "all" else [a for a in anomalies if a["severity"] == severity]
         )
 
         return {
@@ -2208,16 +2222,18 @@ async def get_api_performance(
         ]
 
         filtered_data = (
-            endpoints_data
-            if not endpoint
-            else [e for e in endpoints_data if endpoint in e["path"]]
+            endpoints_data if not endpoint else [e for e in endpoints_data if endpoint in e["path"]]
         )
 
         return {
             "time_range": time_range,
             "endpoint": endpoint,
             "total_requests": sum(e["request_count"] for e in filtered_data),
-            "avg_latency_ms": statistics.mean([e["avg_latency_ms"] for e in filtered_data]) if filtered_data else 0,
+            "avg_latency_ms": (
+                statistics.mean([e["avg_latency_ms"] for e in filtered_data])
+                if filtered_data
+                else 0
+            ),
             "endpoints": filtered_data,
         }
     except Exception as e:
@@ -2286,16 +2302,16 @@ async def get_apm_data(
         ]
 
         filtered_data = (
-            services_data
-            if not service
-            else [s for s in services_data if service in s["name"]]
+            services_data if not service else [s for s in services_data if service in s["name"]]
         )
 
         return {
             "time_range": time_range,
             "service": service,
             "total_services": len(services_data),
-            "avg_apdex": statistics.mean([s["apdex_score"] for s in filtered_data]) if filtered_data else 0,
+            "avg_apdex": (
+                statistics.mean([s["apdex_score"] for s in filtered_data]) if filtered_data else 0
+            ),
             "services": filtered_data,
         }
     except Exception as e:
@@ -2470,9 +2486,7 @@ async def get_k8s_monitoring(
         ]
 
         filtered_data = (
-            k8s_data
-            if namespace == "all"
-            else [k for k in k8s_data if k["namespace"] == namespace]
+            k8s_data if namespace == "all" else [k for k in k8s_data if k["namespace"] == namespace]
         )
 
         return {

@@ -74,9 +74,9 @@ class _InMemoryScheduler:
         while True:
             try:
                 await coro()
-            except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
-                logger.exception("Task %s raised exception", name)
+            except Exception as e:  # noqa: F841 - Exception intentionally unused
+                logging.error("Unexpected exception in interval task")
+                logger.error("Task %s raised exception", name)
             await asyncio.sleep(interval)
 
     async def _run_cron(self, name: str, coro: TaskCallable, cron_expr: str) -> None:
@@ -93,15 +93,15 @@ class _InMemoryScheduler:
                     wait_seconds = ((next_min - now.minute) % 60) * 60 - now.second
                 else:
                     wait_seconds = 60  # fallback 1‑minute
-            except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
+            except Exception as e:  # noqa: F841 - Exception intentionally unused
+                logging.error("Unexpected exception in cron parsing")
                 wait_seconds = 60
             await asyncio.sleep(max(wait_seconds, 0))
             try:
                 await coro()
-            except Exception as e:
-                logging.exception("Unexpected exception: %s", e)
-                logger.exception("Cron task %s raised exception", name)
+            except Exception as e:  # noqa: F841 - Exception intentionally unused
+                logging.error("Unexpected exception in cron task")
+                logger.error("Cron task %s raised exception", name)
 
     def schedule(
         self,

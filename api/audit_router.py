@@ -21,6 +21,206 @@ from core.compliance import mask_sensitive_dict
 router = APIRouter(prefix="/api/v1/audit", tags=["Audit Export & Report"])
 
 
+def _safe_remove_file(file_path: str) -> None:
+    """Safely remove a file with error handling."""
+    try:
+        os.remove(file_path)
+    except OSError as exc:
+        logger.warning(f"Failed to remove temporary file {file_path}: {exc}")
+
+
+def _get_and_mask_audit_logs(limit: int) -> List[Dict[str, Any]]:
+    """
+    获取并脱敏审计日志
+
+    Args:
+        limit: 获取日志的数量限制
+
+    Returns:
+        脱敏后的审计日志列表
+    """
+    raw_logs: List[Dict[str, Any]] = get_audit_log(limit=limit)
+    return [mask_sensitive_dict(log) for log in raw_logs]
+
+
+def _write_empty_csv_file(tmp_path: str, header_fields: List[str]) -> None:
+    """
+    写入空CSV文件
+
+    Args:
+        tmp_path: 临时文件路径
+        header_fields: 表头字段列表
+
+    Raises:
+        HTTPException: 写入失败
+    """
+    try:
+        with open(tmp_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=header_fields)
+            writer.writeheader()
+    except (OSError, IOError) as exc:
+        logger.error(f"Failed to write empty CSV file: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate empty CSV export")
+
+
+def _write_empty_excel_file(tmp_path: str, header_fields: List[str]) -> None:
+    """
+    写入空Excel文件
+
+    Args:
+        tmp_path: 临时文件路径
+        header_fields: 表头字段列表
+
+    Raises:
+        HTTPException: 写入失败或openpyxl未安装
+    """
+    try:
+        from openpyxl import Workbook
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"openpyxl 未安装: {e}")
+
+    try:
+        wb = Workbook()
+        ws = wb.active
+        if ws is None:
+            ws = wb.create_sheet("Audit Log")
+        ws.append(header_fields)
+        wb.save(tmp_path)
+    except Exception as exc:
+        logger.error(f"Failed to write empty Excel file: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate empty Excel export")
+
+
+def _create_empty_export_file(fmt: str, background_tasks: BackgroundTasks) -> FileResponse:
+    """
+    创建空导出文件
+
+    Args:
+        fmt: 导出格式 (csv 或 excel)
+        background_tasks: 后台任务对象
+
+    Returns:
+        文件响应对象
+
+    Raises:
+        HTTPException: 创建失败
+    """
+    header_fields = ["timestamp", "event", "risk_level", "result"]
+
+    if fmt == "csv":
+        fd, tmp_path = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        _write_empty_csv_file(tmp_path, header_fields)
+        filename = f"audit_export_{fmt}.csv"
+        background_tasks.add_task(_safe_remove_file, tmp_path)
+        return FileResponse(
+            path=tmp_path, filename=filename, media_type="text/csv", background=background_tasks
+        )
+    else:
+        fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        _write_empty_excel_file(tmp_path, header_fields)
+        filename = f"audit_export_{fmt}.xlsx"
+        background_tasks.add_task(_safe_remove_file, tmp_path)
+        return FileResponse(
+            path=tmp_path,
+            filename=filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            background=background_tasks,
+        )
+
+
+def _write_csv_file(tmp_path: str, logs: List[Dict[str, Any]]) -> None:
+    """
+    写入CSV文件
+
+    Args:
+        tmp_path: 临时文件路径
+        logs: 审计日志列表
+
+    Raises:
+        HTTPException: 写入失败
+    """
+    try:
+        with open(tmp_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=logs[0].keys())
+            writer.writeheader()
+            writer.writerows(logs)
+    except (OSError, IOError) as exc:
+        logger.error(f"Failed to write CSV file: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate audit export")
+
+
+def _write_excel_file(tmp_path: str, logs: List[Dict[str, Any]]) -> None:
+    """
+    写入Excel文件
+
+    Args:
+        tmp_path: 临时文件路径
+        logs: 审计日志列表
+
+    Raises:
+        HTTPException: 写入失败或openpyxl未安装
+    """
+    try:
+        from openpyxl import Workbook
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"openpyxl 未安装: {e}")
+
+    try:
+        wb = Workbook()
+        ws = wb.active
+        if ws is None:
+            ws = wb.create_sheet("Audit Log")
+        ws.append(list(logs[0].keys()))
+        for row in logs:
+            ws.append([row.get(col) for col in logs[0].keys()])
+        wb.save(tmp_path)
+    except Exception as exc:
+        logger.error(f"Failed to write Excel file: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate audit export")
+
+
+def _create_export_file(
+    fmt: str, logs: List[Dict[str, Any]], background_tasks: BackgroundTasks
+) -> FileResponse:
+    """
+    创建导出文件
+
+    Args:
+        fmt: 导出格式 (csv 或 excel)
+        logs: 审计日志列表
+        background_tasks: 后台任务对象
+
+    Returns:
+        文件响应对象
+
+    Raises:
+        HTTPException: 创建失败
+    """
+    suffix = ".csv" if fmt == "csv" else ".xlsx"
+    fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+
+    try:
+        if fmt == "csv":
+            _write_csv_file(tmp_path, logs)
+        else:
+            _write_excel_file(tmp_path, logs)
+    except Exception as exc:
+        logger.error(f"Failed to generate audit export: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate audit export")
+
+    filename = f"audit_export_{fmt}{suffix}"
+    background_tasks.add_task(_safe_remove_file, tmp_path)
+    return FileResponse(
+        path=tmp_path,
+        filename=filename,
+        media_type="application/octet-stream",
+        background=background_tasks,
+    )
+
+
 def _verify_internal_key(request: Request) -> None:
     """验证内部 API Key，仅本地或通过环境变量配置的请求可访问。
     当 `INTERNAL_API_KEY` 为空时，视为未启用校验，直接通过。
@@ -59,77 +259,15 @@ async def export_audit(
     _verify_internal_key(request)
     logger.debug("export_audit called with fmt=%s limit=%d", fmt, limit)
 
-    raw_logs: List[Dict[str, Any]] = get_audit_log(limit=limit)
-    # 对审计日志进行脱敏处理，防止敏感信息泄露
-    logs = [mask_sensitive_dict(log) for log in raw_logs]
+    # 获取并脱敏审计日志
+    logs = _get_and_mask_audit_logs(limit)
+
+    # 如果没有日志，返回空文件
     if not logs:
-        # 若没有审计日志，返回一个空的 CSV/Excel 文件（仅包含表头）
-        header_fields = ["timestamp", "event", "risk_level", "result"]
-        if fmt == "csv":
-            fd, tmp_path = tempfile.mkstemp(suffix=".csv")
-            os.close(fd)
-            with open(tmp_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=header_fields)
-                writer.writeheader()
-            filename = f"audit_export_{fmt}.csv"
-            background_tasks.add_task(os.remove, tmp_path)
-            return FileResponse(
-                path=tmp_path, filename=filename, media_type="text/csv", background=background_tasks
-            )
-        else:
-            try:
-                from openpyxl import Workbook
-            except ImportError as e:
-                raise HTTPException(status_code=500, detail=f"openpyxl 未安装: {e}")
-            fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
-            os.close(fd)
-            wb = Workbook()
-            ws = wb.active
-            if ws is None:
-                ws = wb.create_sheet("Audit Log")
-            ws.append(header_fields)
-            wb.save(tmp_path)
-            filename = f"audit_export_{fmt}.xlsx"
-            background_tasks.add_task(os.remove, tmp_path)
-            return FileResponse(
-                path=tmp_path,
-                filename=filename,
-                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                background=background_tasks,
-            )
-        raise HTTPException(status_code=500, detail="Failed to generate empty audit export")
+        return _create_empty_export_file(fmt, background_tasks)
 
-    suffix = ".csv" if fmt == "csv" else ".xlsx"
-    fd, tmp_path = tempfile.mkstemp(suffix=suffix)
-    os.close(fd)
-
-    if fmt == "csv":
-        with open(tmp_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=logs[0].keys())
-            writer.writeheader()
-            writer.writerows(logs)
-    else:
-        try:
-            from openpyxl import Workbook
-        except ImportError as e:
-            raise HTTPException(status_code=500, detail=f"openpyxl 未安装: {e}")
-        wb = Workbook()
-        ws = wb.active
-        if ws is None:
-            ws = wb.create_sheet("Audit Log")
-        ws.append(list(logs[0].keys()))
-        for row in logs:
-            ws.append([row.get(col) for col in logs[0].keys()])
-        wb.save(tmp_path)
-
-    filename = f"audit_export_{fmt}{suffix}"
-    background_tasks.add_task(os.remove, tmp_path)
-    return FileResponse(
-        path=tmp_path,
-        filename=filename,
-        media_type="application/octet-stream",
-        background=background_tasks,
-    )
+    # 创建导出文件
+    return _create_export_file(fmt, logs, background_tasks)
 
 
 @router.get(

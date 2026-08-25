@@ -105,6 +105,9 @@ async def _load_store() -> None:
 
 async def _persist() -> None:
     """将变更请求数据保存到 JSON 文件."""
+    import os
+    import stat
+
     async with _LOCK:
         await asyncio.to_thread(partial(_DATA_DIR.mkdir, parents=True, exist_ok=True))
         payload = {rid: req.model_dump(mode="json") for rid, req in _REQUESTS.items()}
@@ -115,6 +118,16 @@ async def _persist() -> None:
                 encoding="utf-8",
             )
         )
+
+        # Set restrictive permissions for change request file (600 - owner read/write only)
+        def _set_permissions():
+            try:
+                os.chmod(_DATA_FILE, stat.S_IRUSR | stat.S_IWUSR)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
+
+        await asyncio.to_thread(_set_permissions)
 
 
 async def create_request(data: dict[str, Any], tenant_id: str = "default") -> ChangeRequest:

@@ -134,9 +134,19 @@ def _read_configs() -> list[dict[str, Any]]:
 
 
 def _write_configs(configs: list[dict[str, Any]]) -> None:
+    import os
+    import stat
+
     with _lock:
         with open(_KPI_CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(configs, f, ensure_ascii=False, indent=2)
+
+        # Set restrictive permissions for KPI config file (644 - owner read/write, group/others read)
+        try:
+            os.chmod(_KPI_CONFIG_PATH, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+        except (OSError, AttributeError):
+            # chmod may fail on Windows or non-Unix systems
+            pass
 
 
 def list_kpi_configs() -> list[dict[str, Any]]:

@@ -17,42 +17,42 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 
 class PerformanceTrendGenerator:
     """Generates performance trend reports"""
-    
+
     def __init__(self, history_dir: str):
         self.history_dir = Path(history_dir)
         self.history_data: List[Dict[str, Any]] = []
         self.load_history()
-    
+
     def load_history(self):
         """Load historical performance data"""
         if not self.history_dir.exists():
             print(f"Warning: History directory not found: {self.history_dir}")
             return
-        
+
         # Load all JSON files in history directory
         for history_file in sorted(self.history_dir.glob("performance_*.json")):
             try:
-                with open(history_file, 'r') as f:
+                with open(history_file, "r") as f:
                     data = json.load(f)
                     self.history_data.append(data)
             except Exception as e:
                 print(f"Warning: Could not load {history_file}: {e}")
-        
+
         print(f"Loaded {len(self.history_data)} historical records")
-    
+
     def extract_metric_series(self, metric_name: str) -> List[Dict[str, Any]]:
         """Extract time series data for a specific metric"""
         series = []
-        
+
         for record in self.history_data:
             timestamp = record.get("timestamp")
             value = None
-            
+
             # Try to extract metric from various locations
             if metric_name in record:
                 value = record[metric_name]
@@ -63,27 +63,24 @@ class PerformanceTrendGenerator:
                     if metric_name in stats:
                         value = stats[metric_name]
                         break
-            
+
             if value is not None:
-                series.append({
-                    "timestamp": timestamp,
-                    "value": value
-                })
-        
+                series.append({"timestamp": timestamp, "value": value})
+
         return series
-    
+
     def calculate_trend(self, series: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate trend statistics for a metric series"""
         if len(series) < 2:
             return {"trend": "insufficient_data"}
-        
+
         values = [s["value"] for s in series]
-        
+
         # Calculate simple trend
         first_value = values[0]
         last_value = values[-1]
         change_percent = ((last_value - first_value) / first_value * 100) if first_value != 0 else 0
-        
+
         # Determine trend direction
         if change_percent > 5:
             trend = "increasing"
@@ -91,7 +88,7 @@ class PerformanceTrendGenerator:
             trend = "decreasing"
         else:
             trend = "stable"
-        
+
         return {
             "trend": trend,
             "change_percent": change_percent,
@@ -99,9 +96,9 @@ class PerformanceTrendGenerator:
             "last_value": last_value,
             "min_value": min(values),
             "max_value": max(values),
-            "avg_value": sum(values) / len(values)
+            "avg_value": sum(values) / len(values),
         }
-    
+
     def generate_html_report(self, current_report: Dict[str, Any]) -> str:
         """Generate HTML trend report"""
         html = """
@@ -249,7 +246,7 @@ class PerformanceTrendGenerator:
             </div>
         </div>
 """
-        
+
         # Fill in summary values
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         commit = current_report.get("commit", "N/A")[:8]
@@ -257,49 +254,45 @@ class PerformanceTrendGenerator:
         throughput = f"{current_report.get('throughput_ops_per_sec', 0):.0f} ops/s"
         latency = f"{current_report.get('avg_latency_ns', 0) / 1_000_000:.2f} ms"
         p99 = f"{current_report.get('p99_latency_ns', 0) / 1_000_000:.2f} ms"
-        
+
         html = html.format(
             timestamp=timestamp,
             record_count=record_count,
             commit=commit,
             throughput=throughput,
             latency=latency,
-            p99=p99
+            p99=p99,
         )
-        
+
         # Add charts for key metrics
         metrics_to_chart = [
             ("throughput_ops_per_sec", "Throughput (ops/s)"),
             ("avg_latency_ns", "Average Latency (ns)"),
-            ("p99_latency_ns", "P99 Latency (ns)")
+            ("p99_latency_ns", "P99 Latency (ns)"),
         ]
-        
+
         for metric, label in metrics_to_chart:
             series = self.extract_metric_series(metric)
             if len(series) >= 2:
                 trend = self.calculate_trend(series)
                 html += self._generate_chart_section(metric, label, series, trend)
-        
+
         # Add historical data table
         html += self._generate_history_table()
-        
+
         html += """
     </div>
 </body>
 </html>
 """
         return html
-    
+
     def _generate_chart_section(
-        self,
-        metric: str,
-        label: str,
-        series: List[Dict[str, Any]],
-        trend: Dict[str, Any]
+        self, metric: str, label: str, series: List[Dict[str, Any]], trend: Dict[str, Any]
     ) -> str:
         """Generate HTML section for a single chart"""
         trend_class = f"trend-{trend['trend']}"
-        
+
         html = f"""
         <div class="chart-section">
             <h2>{label}</h2>
@@ -313,11 +306,11 @@ class PerformanceTrendGenerator:
             </div>
         </div>
 """
-        
+
         # Add chart JavaScript
         labels = [s["timestamp"][:19] for s in series]  # Truncate to datetime
         values = [s["value"] for s in series]
-        
+
         html += f"""
         <script>
         (function() {{
@@ -352,9 +345,9 @@ class PerformanceTrendGenerator:
         }})();
         </script>
 """
-        
+
         return html
-    
+
     def _generate_history_table(self) -> str:
         """Generate HTML table of historical data"""
         html = """
@@ -372,14 +365,14 @@ class PerformanceTrendGenerator:
                 </thead>
                 <tbody>
 """
-        
+
         for record in reversed(self.history_data[-20:]):  # Show last 20 records
             timestamp = record.get("timestamp", "N/A")[:19]
             commit = record.get("commit", "N/A")[:8]
             throughput = record.get("throughput_ops_per_sec", 0)
             avg_latency = record.get("avg_latency_ns", 0) / 1_000_000
             p99_latency = record.get("p99_latency_ns", 0) / 1_000_000
-            
+
             html += f"""
                     <tr>
                         <td>{timestamp}</td>
@@ -389,39 +382,41 @@ class PerformanceTrendGenerator:
                         <td>{p99_latency:.2f}</td>
                     </tr>
 """
-        
+
         html += """
                 </tbody>
             </table>
         </div>
 """
-        
+
         return html
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate performance trend report")
-    parser.add_argument("--history-dir", required=True, help="Directory containing historical performance data")
+    parser.add_argument(
+        "--history-dir", required=True, help="Directory containing historical performance data"
+    )
     parser.add_argument("--current", required=True, help="Path to current performance report")
     parser.add_argument("--output", required=True, help="Path to output HTML report")
-    
+
     args = parser.parse_args()
-    
+
     # Load current report
-    with open(args.current, 'r') as f:
+    with open(args.current, "r") as f:
         current_report = json.load(f)
-    
+
     # Generate trend report
     generator = PerformanceTrendGenerator(args.history_dir)
     html = generator.generate_html_report(current_report)
-    
+
     # Write output
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(output_path, 'w') as f:
+
+    with open(output_path, "w") as f:
         f.write(html)
-    
+
     print(f"Trend report generated: {args.output}")
 
 

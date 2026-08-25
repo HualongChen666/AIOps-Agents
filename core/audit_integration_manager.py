@@ -296,8 +296,12 @@ class AuditIntegrationManager:
             "timestamp": trail.timestamp.isoformat(),
         }
 
-        with open(trail_path, "a") as f:
-            f.write(json.dumps(trail_dict) + "\n")
+        try:
+            with open(trail_path, "a") as f:
+                f.write(json.dumps(trail_dict) + "\n")
+        except OSError as exc:
+            logger.error(f"Failed to write audit trail to {trail_path}: {exc}")
+            raise
 
     async def generate_audit_report(
         self,
@@ -383,8 +387,12 @@ class AuditIntegrationManager:
             "generated_at": report.generated_at.isoformat(),
         }
 
-        with open(report_path, "w") as f:
-            json.dump(report_dict, f, indent=2)
+        try:
+            with open(report_path, "w") as f:
+                json.dump(report_dict, f, indent=2)
+        except OSError as exc:
+            logger.error(f"Failed to write audit report to {report_path}: {exc}")
+            raise
 
     def query_trails(
         self,

@@ -178,7 +178,9 @@ def _find_update_field_and_value(model, create_payload):
                 break
     if chosen is None:
         return None, None
-    base = _sensible_value(_field_annotation(fields[chosen]))  # noqa: F841  # Variable for test verification
+    base = _sensible_value(
+        _field_annotation(fields[chosen])
+    )  # noqa: F841  # Variable for test verification
     if base == "x":  # noqa: F841  # Variable for test verification
         return chosen, "y"
     if base == 0:  # noqa: F841  # Variable for test verification

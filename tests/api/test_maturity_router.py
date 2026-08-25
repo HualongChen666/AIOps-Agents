@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for the maturity router endpoints."""
 
-import pytest  # noqa: F401  # Imported for test setup
 from unittest.mock import AsyncMock, patch
+
+import pytest  # noqa: F401  # Imported for test setup
 
 pytestmark = [pytest.mark.api]
 
@@ -25,6 +26,7 @@ def test_get_maturity_assessment_success(client):
 def test_get_maturity_assessment_exception_handling(client):
     """Test maturity assessment endpoint handles exceptions and returns 500 (covers lines 78-81)."""
     import api.maturity_router as maturity_router
+
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Simulated assessment failure")
         resp = client.get("/api/v1/maturity/assess")
@@ -38,6 +40,7 @@ def test_get_maturity_assessment_exception_handling(client):
 def test_get_maturity_assessment_exception_with_custom_error(client):
     """Test maturity assessment endpoint with ValueError exception."""
     import api.maturity_router as maturity_router
+
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = ValueError("Invalid configuration")
         resp = client.get("/api/v1/maturity/assess")
@@ -50,6 +53,7 @@ def test_get_maturity_assessment_exception_with_custom_error(client):
 def test_get_maturity_assessment_exception_with_timeout(client):
     """Test maturity assessment endpoint with timeout-like exception."""
     import api.maturity_router as maturity_router
+
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = TimeoutError("Assessment timed out")
         resp = client.get("/api/v1/maturity/assess")
@@ -95,12 +99,12 @@ def test_maturity_assessment_response_structure(client):
     resp = client.get("/api/v1/maturity/assess")
     assert resp.status_code == 200
     data = resp.json()
-    
+
     # Validate overall score range
     assert 0 <= data["overall_score"] <= 100
     assert 1 <= data["level"] <= 5
     assert data["level_name"] in ["初始级", "可重复级", "已定义级", "已管理级", "优化级"]
-    
+
     # Validate dimensions
     for dim in data["dimensions"]:
         assert "name" in dim
@@ -109,7 +113,7 @@ def test_maturity_assessment_response_structure(client):
         assert "description" in dim
         assert 0 <= dim["score"] <= 100
         assert dim["maxScore"] == 100
-    
+
     # Validate recommendations
     for rec in data["recommendations"]:
         assert "id" in rec
@@ -126,6 +130,7 @@ def test_maturity_assessment_response_structure(client):
 def test_maturity_assessment_with_mocked_high_scores(client):
     """Test maturity assessment with mocked high scores."""
     import core.maturity_engine as maturity_engine
+
     with patch.object(maturity_engine, "_gather_signals", new_callable=AsyncMock) as mock_signals:
         mock_signals.return_value = {
             "total_alerts": 100,
@@ -157,6 +162,7 @@ def test_maturity_assessment_with_mocked_high_scores(client):
 def test_maturity_assessment_with_mocked_low_scores(client):
     """Test maturity assessment with mocked low scores."""
     import core.maturity_engine as maturity_engine
+
     with patch.object(maturity_engine, "_gather_signals", new_callable=AsyncMock) as mock_signals:
         mock_signals.return_value = {
             "total_alerts": 100,
@@ -188,7 +194,7 @@ def test_maturity_router_endpoints_respond(client):
     # Test assess endpoint
     resp = client.get("/api/v1/maturity/assess")
     assert resp.status_code in (200, 500)
-    
+
     # Test dimensions endpoint
     resp = client.get("/api/v1/maturity/dimensions")
     assert resp.status_code == 200

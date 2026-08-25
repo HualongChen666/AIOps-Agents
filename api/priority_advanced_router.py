@@ -6,7 +6,6 @@ Priority Advanced API Router
 
 import logging
 import uuid
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.models import PriorityRule, PriorityScore, PriorityHistory
+from core.models import PriorityHistory, PriorityRule, PriorityScore
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +189,8 @@ async def create_priority_rule(
         valid_levels = ["P0", "P1", "P2", "P3", "P4"]
         if rule.priority_level not in valid_levels:
             raise HTTPException(
-                status_code=400, detail=f"无效的优先级级别: {rule.priority_level}, 必须是 {valid_levels}"
+                status_code=400,
+                detail=f"无效的优先级级别: {rule.priority_level}, 必须是 {valid_levels}",
             )
 
         # 检查名称是否已存在
@@ -240,9 +240,7 @@ async def create_priority_rule(
 
 
 @router.get("/rules/{rule_id}", response_model=PriorityRuleResponse, summary="获取单个优先级规则")
-async def get_priority_rule(
-    rule_id: str, db: Session = Depends(get_db)
-) -> PriorityRuleResponse:
+async def get_priority_rule(rule_id: str, db: Session = Depends(get_db)) -> PriorityRuleResponse:
     """
     根据ID获取单个优先级规则
     """
@@ -369,7 +367,9 @@ async def get_priority_scores(
         if priority_level is not None:
             query = query.filter(PriorityScore.priority_level == priority_level)
 
-        scores = query.order_by(PriorityScore.calculated_at.desc()).offset(offset).limit(limit).all()
+        scores = (
+            query.order_by(PriorityScore.calculated_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return [
             PriorityScoreResponse(
@@ -525,7 +525,9 @@ async def get_priority_history(
         if alert_id is not None:
             query = query.filter(PriorityHistory.alert_id == alert_id)
 
-        history = query.order_by(PriorityHistory.changed_at.desc()).offset(offset).limit(limit).all()
+        history = (
+            query.order_by(PriorityHistory.changed_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return [
             PriorityHistoryResponse(

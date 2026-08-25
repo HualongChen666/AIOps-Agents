@@ -213,7 +213,9 @@ async def test_integration_ecosystem_query_prometheus(ecosystem):
         status_code=200,
         json=MagicMock(return_value={"data": {"result": []}}),
     )
-    result = await ecosystem.query_prometheus_metrics("up", prom.id)  # noqa: F841  # Variable for test verification
+    result = await ecosystem.query_prometheus_metrics(
+        "up", prom.id
+    )  # noqa: F841  # Variable for test verification
     # first successful call returns the mocked json payload
     assert isinstance(result, dict)
     assert result.get("data", {}).get("result") == []
@@ -290,7 +292,9 @@ async def test_plugin_sdk():
     reg = await sdk.register_plugin("p1", "Test Plugin", "1.0.0", {}, handler)
     assert reg["success"] is True
 
-    exec_result = await sdk.execute_plugin("p1", {"x": 1})  # noqa: F841  # Variable for test verification
+    exec_result = await sdk.execute_plugin(
+        "p1", {"x": 1}
+    )  # noqa: F841  # Variable for test verification
     assert exec_result["success"] is True
     assert exec_result["result"] == "done"
 
@@ -544,7 +548,9 @@ def ai_llm_mocks(monkeypatch):
 async def test_analyze_disabled(monkeypatch):
     """analyze falls back to the rule engine when AI is disabled."""
     monkeypatch.setattr(ai_engine, "AI_CONFIG", {"is_enabled": False})
-    result = await ai_engine.analyze(query="cpu high", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu high", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, str)
     assert "规则降级" in result
 
@@ -562,7 +568,9 @@ async def test_analyze_with_llm_and_validation(ai_llm_mocks, monkeypatch):
     )
     monkeypatch.setattr(ai_engine, "get_llm_router", lambda: router)
 
-    result = await ai_engine.analyze(query="cpu high", platform="linux", validate_json=True)  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu high", platform="linux", validate_json=True
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, str)
     assert "reliability_score" in result
     router.generate.assert_awaited_once()
@@ -735,7 +743,9 @@ async def test_async_query_alerts(fake_session):
 
 
 async def test_async_count_and_clear_alerts(fake_session):
-    count_result = MagicMock(scalar=MagicMock(return_value=5))  # noqa: F841  # Variable for test verification
+    count_result = MagicMock(
+        scalar=MagicMock(return_value=5)
+    )  # noqa: F841  # Variable for test verification
     fake_session.execute.return_value = count_result
     assert await db_engine.async_count_alerts(level="critical") == 5
 

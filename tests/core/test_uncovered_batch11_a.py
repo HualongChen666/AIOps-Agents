@@ -258,7 +258,9 @@ async def test_router_no_models_raises():
 @pytest.mark.asyncio
 async def test_router_generate_no_key_fallback():
     router = enhanced_router.EnhancedLLMRouter(MODEL_CFGS)
-    result = await router.generate("What is the issue?")  # noqa: F841  # Variable for test verification
+    result = await router.generate(
+        "What is the issue?"
+    )  # noqa: F841  # Variable for test verification
     assert result["content"].startswith("[AI Router fallback]")
     assert "model" in result
     assert "usage" in result
@@ -269,7 +271,9 @@ async def test_router_generate_success(monkeypatch):
     _install_fake_openai(monkeypatch)
     monkeypatch.setenv("AI_API_KEY", "test-key")
     router = enhanced_router.EnhancedLLMRouter(MODEL_CFGS)
-    result = await router.generate("analyze", system="sre", max_new_tokens=20)  # noqa: F841  # Variable for test verification
+    result = await router.generate(
+        "analyze", system="sre", max_new_tokens=20
+    )  # noqa: F841  # Variable for test verification
     assert result["content"] == "AI generated analysis result"
     assert result["model"] == "gpt-3.5-turbo"
     assert result["usage"]["total_tokens"] == 6
@@ -286,7 +290,9 @@ async def test_router_generate_budget_exceeded():
 async def test_router_generate_context_window_fallback():
     tiny = [{"model": "tiny", "max_tokens": 2, "context_window": 2, "cost_per_1k": 0.001}]
     router = enhanced_router.EnhancedLLMRouter(tiny)
-    result = await router.generate("This is a very long prompt that exceeds tiny context")  # noqa: F841  # Variable for test verification
+    result = await router.generate(
+        "This is a very long prompt that exceeds tiny context"
+    )  # noqa: F841  # Variable for test verification
     assert result["content"].startswith("[AI Router fallback]")
 
 
@@ -441,7 +447,9 @@ async def test_k8s_repair_all(k8s_mocks, monkeypatch):
 
 
 def test_k8s_inspect_pod_state():
-    result = k8s_repair._inspect_pod_state("default", "pod-1")  # noqa: F841  # Variable for test verification
+    result = k8s_repair._inspect_pod_state(
+        "default", "pod-1"
+    )  # noqa: F841  # Variable for test verification
     assert "owner_kind" in result or "error" in result
 
 
@@ -624,7 +632,9 @@ def test_k8s_sanitize_type_error():
 
 @pytest.mark.asyncio
 async def test_k8s_inspect_pod_state_success(k8s_mocks):
-    result = k8s_repair._inspect_pod_state("default", "web-0")  # noqa: F841  # Variable for test verification
+    result = k8s_repair._inspect_pod_state(
+        "default", "web-0"
+    )  # noqa: F841  # Variable for test verification
     assert result["owner_kind"] == "Deployment"
     assert result["has_pvc"] is False
 
@@ -742,7 +752,9 @@ async def test_router_generate_fitting_model(monkeypatch):
         {"model": "huge", "max_tokens": 128000, "context_window": 128000, "cost_per_1k": 0.1},
     ]
     router = enhanced_router.EnhancedLLMRouter(tiny_large)
-    result = await router.generate("this is a test prompt", max_new_tokens=20)  # noqa: F841  # Variable for test verification
+    result = await router.generate(
+        "this is a test prompt", max_new_tokens=20
+    )  # noqa: F841  # Variable for test verification
     assert result["content"] == "AI generated analysis result"
     assert result["model"] == "huge"
 

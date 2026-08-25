@@ -32,7 +32,6 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-
 # ============================================================
 # Performance Benchmark Configuration
 # ============================================================
@@ -159,6 +158,7 @@ class PerformanceMetrics:
 # ============================================================
 # Performance History Management
 # ============================================================
+
 
 class PerformanceHistory:
     """Manage historical performance data for regression detection"""
@@ -291,11 +291,10 @@ class PerformanceHistory:
                     "baseline": baseline_error_rate,
                     "current": current_error_rate,
                     "degradation_pct": (
-                        (current_error_rate - baseline_error_rate) / baseline_error_rate
-                    )
-                    * 100
-                    if baseline_error_rate > 0
-                    else 0,
+                        ((current_error_rate - baseline_error_rate) / baseline_error_rate) * 100
+                        if baseline_error_rate > 0
+                        else 0
+                    ),
                 }
             )
 
@@ -309,6 +308,7 @@ class PerformanceHistory:
 # ============================================================
 # Performance Test Helpers
 # ============================================================
+
 
 def measure_endpoint(
     client: TestClient,
@@ -461,6 +461,7 @@ def run_sequential_requests(
 # Performance Report Generator
 # ============================================================
 
+
 class PerformanceReport:
     """Generate comprehensive performance reports"""
 
@@ -543,14 +544,19 @@ class PerformanceReport:
                 )
 
         if not recommendations:
-            recommendations.append("All endpoints meet performance benchmarks. Continue monitoring.")
+            recommendations.append(
+                "All endpoints meet performance benchmarks. Continue monitoring."
+            )
 
         return recommendations
 
     def save_report(self, output_file: Optional[Path] = None):
         """Save performance report to file"""
         if output_file is None:
-            output_file = Path(__file__).parent / f"performance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            output_file = (
+                Path(__file__).parent
+                / f"performance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            )
 
         output_file.parent.mkdir(parents=True, exist_ok=True)
         report = self.generate_report()
@@ -575,7 +581,9 @@ def test_health_liveness_performance(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     # Store metrics for report
     pytest.performance_report.add_metrics(metrics)
@@ -590,7 +598,9 @@ def test_health_liveness_concurrent(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     pytest.performance_report.add_metrics(metrics)
 
@@ -618,7 +628,9 @@ def test_health_ready_performance(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     pytest.performance_report.add_metrics(metrics)
 
@@ -632,7 +644,9 @@ def test_health_detailed_performance(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     pytest.performance_report.add_metrics(metrics)
 
@@ -665,10 +679,18 @@ def test_ai_analyze_performance(client):
         )
 
         # Assert performance benchmarks
-        assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
-        assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
-        assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-        assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+        assert (
+            metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"]
+        ), f"P50 {metrics.p50}ms exceeds benchmark"
+        assert (
+            metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"]
+        ), f"P95 {metrics.p95}ms exceeds benchmark"
+        assert (
+            metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"]
+        ), f"P99 {metrics.p99}ms exceeds benchmark"
+        assert (
+            metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+        ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
         pytest.performance_report.add_metrics(metrics)
 
@@ -695,10 +717,18 @@ def test_ai_analyze_concurrent(client):
         )
 
         # Assert performance benchmarks
-        assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
-        assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
-        assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-        assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+        assert (
+            metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"]
+        ), f"P50 {metrics.p50}ms exceeds benchmark"
+        assert (
+            metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"]
+        ), f"P95 {metrics.p95}ms exceeds benchmark"
+        assert (
+            metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"]
+        ), f"P99 {metrics.p99}ms exceeds benchmark"
+        assert (
+            metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+        ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
         pytest.performance_report.add_metrics(metrics)
 
@@ -717,7 +747,9 @@ def test_backup_list_performance(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     pytest.performance_report.add_metrics(metrics)
 
@@ -733,7 +765,9 @@ def test_backup_list_concurrent(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     pytest.performance_report.add_metrics(metrics)
 
@@ -749,10 +783,18 @@ def test_backup_configuration_performance(client):
         )
 
         # Assert performance benchmarks
-        assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
-        assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
-        assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-        assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+        assert (
+            metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"]
+        ), f"P50 {metrics.p50}ms exceeds benchmark"
+        assert (
+            metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"]
+        ), f"P95 {metrics.p95}ms exceeds benchmark"
+        assert (
+            metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"]
+        ), f"P99 {metrics.p99}ms exceeds benchmark"
+        assert (
+            metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+        ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
         pytest.performance_report.add_metrics(metrics)
 
@@ -771,7 +813,9 @@ def test_plugin_list_performance(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     pytest.performance_report.add_metrics(metrics)
 
@@ -787,7 +831,9 @@ def test_plugin_list_concurrent(client):
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"
     assert metrics.p95 < PERFORMANCE_BENCHMARKS["p95_ms"], f"P95 {metrics.p95}ms exceeds benchmark"
     assert metrics.p99 < PERFORMANCE_BENCHMARKS["p99_ms"], f"P99 {metrics.p99}ms exceeds benchmark"
-    assert metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"], f"Error rate {metrics.error_rate} exceeds benchmark"
+    assert (
+        metrics.error_rate < PERFORMANCE_BENCHMARKS["max_error_rate"]
+    ), f"Error rate {metrics.error_rate} exceeds benchmark"
 
     pytest.performance_report.add_metrics(metrics)
 
@@ -838,8 +884,12 @@ def test_cache_effectiveness_health(client):
     metrics_warm = run_sequential_requests(client, "GET", "/health", num_requests=50)
 
     # Warm requests should be faster (very lenient assertion)
-    assert metrics_warm.p50 <= metrics_cold.p50 * 3.0, "Warm cache should improve or maintain P50 latency"
-    assert metrics_warm.p95 <= metrics_cold.p95 * 3.0, "Warm cache should improve or maintain P95 latency"
+    assert (
+        metrics_warm.p50 <= metrics_cold.p50 * 3.0
+    ), "Warm cache should improve or maintain P50 latency"
+    assert (
+        metrics_warm.p95 <= metrics_cold.p95 * 3.0
+    ), "Warm cache should improve or maintain P95 latency"
 
     pytest.performance_report.add_metrics(metrics_cold)
     pytest.performance_report.add_metrics(metrics_warm)
@@ -855,8 +905,12 @@ def test_cache_effectiveness_plugin_list(client):
     metrics_warm = run_sequential_requests(client, "GET", "/api/plugins/", num_requests=50)
 
     # Warm requests should be faster (very lenient assertion)
-    assert metrics_warm.p50 <= metrics_cold.p50 * 3.0, "Warm cache should improve or maintain P50 latency"
-    assert metrics_warm.p95 <= metrics_cold.p95 * 3.0, "Warm cache should improve or maintain P95 latency"
+    assert (
+        metrics_warm.p50 <= metrics_cold.p50 * 3.0
+    ), "Warm cache should improve or maintain P50 latency"
+    assert (
+        metrics_warm.p95 <= metrics_cold.p95 * 3.0
+    ), "Warm cache should improve or maintain P95 latency"
 
     pytest.performance_report.add_metrics(metrics_cold)
     pytest.performance_report.add_metrics(metrics_warm)
@@ -873,7 +927,9 @@ def test_error_rate_invalid_endpoint(client):
     metrics = run_sequential_requests(client, "GET", "/api/invalid/endpoint", num_requests=20)
 
     # All requests should fail with 404
-    assert metrics.failed_requests == metrics.total_requests, "All requests to invalid endpoint should fail"
+    assert (
+        metrics.failed_requests == metrics.total_requests
+    ), "All requests to invalid endpoint should fail"
     assert metrics.error_rate == 1.0, "Error rate should be 100% for invalid endpoint"
 
     pytest.performance_report.add_metrics(metrics)
@@ -884,9 +940,7 @@ def test_error_rate_invalid_method(client):
     """Test error rate for invalid HTTP methods"""
     # TestClient doesn't support arbitrary methods, so we test with invalid data
     request_data = {"invalid": "data"}
-    metrics = run_sequential_requests(
-        client, "POST", "/health", num_requests=20, data=request_data
-    )
+    metrics = run_sequential_requests(client, "POST", "/health", num_requests=20, data=request_data)
 
     # Should handle gracefully (may return 405 or 422)
     # We expect 100% error rate for invalid method, but response should be fast
@@ -922,8 +976,12 @@ def performance_report():
     report_data = report.generate_report()
     print(f"\nPerformance Test Summary:")
     print(f"  Total endpoints tested: {report_data['summary']['total_endpoints_tested']}")
-    print(f"  Endpoints meeting benchmarks: {report_data['summary']['endpoints_meeting_benchmarks']}")
-    print(f"  Endpoints failing benchmarks: {report_data['summary']['endpoints_failing_benchmarks']}")
+    print(
+        f"  Endpoints meeting benchmarks: {report_data['summary']['endpoints_meeting_benchmarks']}"
+    )
+    print(
+        f"  Endpoints failing benchmarks: {report_data['summary']['endpoints_failing_benchmarks']}"
+    )
     print(f"  Endpoints with regression: {report_data['summary']['endpoints_with_regression']}")
     print(f"  Benchmark compliance rate: {report_data['summary']['benchmark_compliance_rate']:.2%}")
 

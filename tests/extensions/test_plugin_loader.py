@@ -4,23 +4,24 @@
 import sys
 import types
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Import the module to ensure coverage tracking
 import extensions.plugin_loader as plugin_loader_module
 from extensions.plugin_loader import (
-    _sanitize,
+    PREFIX,
+    ROOT,
+    _load_one,
     _module_name,
     _parent_package,
-    _load_one,
-    load_all_addons,
-    list_addons,
+    _sanitize,
     get_addon,
-    ROOT,
-    PREFIX,
+    list_addons,
+    load_all_addons,
 )
+
 
 # Simple fixture to avoid database issues
 @pytest.fixture(autouse=True)
@@ -172,8 +173,8 @@ class TestLoadOne:
         """Test handling of invalid spec."""
         # Use a non-existent path to trigger spec creation failure
         test_file = tmp_path / "nonexistent.py"
-        
-        with patch('importlib.util.spec_from_file_location', return_value=None):
+
+        with patch("importlib.util.spec_from_file_location", return_value=None):
             module, ok, err = _load_one(test_file, "nonexistent")
             assert ok is False
             assert err == "could not create spec"
@@ -186,9 +187,10 @@ class TestLoadAllAddons:
     def test_load_all_addons_empty_directory(self, tmp_path):
         """Test loading from an empty directory."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             result = load_all_addons()
             assert result["loaded"] == []
@@ -200,14 +202,15 @@ class TestLoadAllAddons:
     def test_load_all_addons_successful_load(self, tmp_path):
         """Test successful loading of multiple modules."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             # Create test modules
             (tmp_path / "module1.py").write_text("x = 1\n")
             (tmp_path / "module2.py").write_text("y = 2\n")
-            
+
             result = load_all_addons()
             assert result["total"] == 2
             assert len(result["loaded"]) == 2
@@ -220,13 +223,14 @@ class TestLoadAllAddons:
     def test_load_all_addons_with_failure(self, tmp_path):
         """Test loading with some modules failing."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             (tmp_path / "good.py").write_text("x = 1\n")
             (tmp_path / "bad.py").write_text("import nonexistent\n")
-            
+
             result = load_all_addons(max_passes=1)
             assert result["total"] == 2
             assert len(result["loaded"]) == 1
@@ -239,9 +243,10 @@ class TestLoadAllAddons:
     def test_load_all_addons_relative_imports(self, tmp_path):
         """Test that relative imports work with multiple passes."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             # Create a package structure
             pkg_dir = tmp_path / "pkg"
@@ -249,7 +254,7 @@ class TestLoadAllAddons:
             (pkg_dir / "__init__.py").write_text("")
             (pkg_dir / "a.py").write_text("x = 1\n")
             (pkg_dir / "b.py").write_text("from . import a\ny = a.x + 1\n")
-            
+
             result = load_all_addons(max_passes=3)
             assert result["total"] == 3  # __init__.py, a.py, b.py
             assert len(result["loaded"]) >= 2  # At least a.py and b.py should load
@@ -259,12 +264,13 @@ class TestLoadAllAddons:
     def test_load_all_addons_max_passes(self, tmp_path):
         """Test that max_passes parameter is respected."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             (tmp_path / "module.py").write_text("pass\n")
-            
+
             result = load_all_addons(max_passes=10)
             assert result["total"] == 1
             assert len(result["loaded"]) == 1
@@ -274,12 +280,13 @@ class TestLoadAllAddons:
     def test_load_all_addons_no_progress(self, tmp_path):
         """Test that loading stops when no progress is made."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             (tmp_path / "bad.py").write_text("import nonexistent\n")
-            
+
             result = load_all_addons(max_passes=5)
             # Should stop early since no progress can be made
             assert result["total"] == 1
@@ -290,14 +297,15 @@ class TestLoadAllAddons:
     def test_load_all_addons_hyphenated_directory(self, tmp_path):
         """Test loading from directories with hyphens."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             hyphen_dir = tmp_path / "test-module"
             hyphen_dir.mkdir()
             (hyphen_dir / "file.py").write_text("z = 3\n")
-            
+
             result = load_all_addons()
             assert result["total"] == 1
             assert f"{PREFIX}.test_module.file" in result["loaded"]
@@ -307,14 +315,15 @@ class TestLoadAllAddons:
     def test_load_all_addons_nested_structure(self, tmp_path):
         """Test loading from nested directory structure."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             nested = tmp_path / "a" / "b" / "c"
             nested.mkdir(parents=True)
             (nested / "module.py").write_text("value = 42\n")
-            
+
             result = load_all_addons()
             assert result["total"] == 1
             assert f"{PREFIX}.a.b.c.module" in result["loaded"]
@@ -324,15 +333,16 @@ class TestLoadAllAddons:
     def test_load_all_addons_with_init_files(self, tmp_path):
         """Test that __init__.py files are handled correctly."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             pkg = tmp_path / "package"
             pkg.mkdir()
             (pkg / "__init__.py").write_text("pkg_var = 10\n")
             (pkg / "module.py").write_text("mod_var = 20\n")
-            
+
             result = load_all_addons()
             assert result["total"] == 2
             assert f"{PREFIX}.package" in result["loaded"]
@@ -347,9 +357,10 @@ class TestListAddons:
     def test_list_addons_empty(self, tmp_path):
         """Test listing from empty directory."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             result = list_addons()
             assert result == []
@@ -359,13 +370,14 @@ class TestListAddons:
     def test_list_addons_files(self, tmp_path):
         """Test listing Python files."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             (tmp_path / "a.py").write_text("")
             (tmp_path / "b.py").write_text("")
-            
+
             result = list_addons()
             assert len(result) == 2
             assert "a.py" in result
@@ -376,14 +388,15 @@ class TestListAddons:
     def test_list_addons_nested(self, tmp_path):
         """Test listing from nested directories."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             nested = tmp_path / "subdir"
             nested.mkdir()
             (nested / "module.py").write_text("")
-            
+
             result = list_addons()
             assert len(result) == 1
             assert str(Path("subdir") / "module.py") in result
@@ -393,14 +406,15 @@ class TestListAddons:
     def test_list_addons_sorted(self, tmp_path):
         """Test that results are sorted."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             (tmp_path / "z.py").write_text("")
             (tmp_path / "a.py").write_text("")
             (tmp_path / "m.py").write_text("")
-            
+
             result = list_addons()
             assert result == ["a.py", "m.py", "z.py"]
         finally:
@@ -409,14 +423,15 @@ class TestListAddons:
     def test_list_addons_non_py_files_ignored(self, tmp_path):
         """Test that non-Python files are ignored."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             (tmp_path / "test.txt").write_text("")
             (tmp_path / "test.md").write_text("")
             (tmp_path / "test.py").write_text("")
-            
+
             result = list_addons()
             assert result == ["test.py"]
         finally:
@@ -432,7 +447,7 @@ class TestGetAddon:
         test_file = tmp_path / "test.py"
         test_file.write_text("value = 123\n")
         _load_one(test_file, "test_addon")
-        
+
         result = get_addon("test_addon")
         assert result is not None
         assert result.value == 123
@@ -448,24 +463,24 @@ class TestGetAddon:
         test_module = types.ModuleType("manual_addon")
         test_module.custom_attr = "test"
         sys.modules["manual_addon"] = test_module
-        
+
         result = get_addon("manual_addon")
         assert result is not None
         assert result.custom_attr == "test"
-        
+
         # Cleanup
         del sys.modules["manual_addon"]
 
     def test_get_addon_case_sensitive(self):
         """Test that addon names are case-sensitive."""
         sys.modules["TestAddon"] = types.ModuleType("TestAddon")
-        
+
         result = get_addon("testaddon")
         assert result is None
-        
+
         result = get_addon("TestAddon")
         assert result is not None
-        
+
         del sys.modules["TestAddon"]
 
 
@@ -475,25 +490,26 @@ class TestIntegration:
     def test_full_workflow(self, tmp_path):
         """Test the complete workflow of listing, loading, and getting addons."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             # Create test structure
             pkg = tmp_path / "test_pkg"
             pkg.mkdir()
             (pkg / "__init__.py").write_text("init_var = 1\n")
             (pkg / "module.py").write_text("mod_var = 2\n")
-            
+
             # List addons
             addons = list_addons()
             assert len(addons) == 2
-            
+
             # Load all addons
             result = load_all_addons()
             assert result["total"] == 2
             assert len(result["loaded"]) == 2
-            
+
             # Get specific addon
             addon = get_addon(f"{PREFIX}.test_pkg.module")
             assert addon is not None
@@ -504,14 +520,15 @@ class TestIntegration:
     def test_error_recovery(self, tmp_path):
         """Test that errors in one module don't prevent loading others."""
         import extensions.plugin_loader as pl
+
         original_root = pl.ROOT
         pl.ROOT = tmp_path
-        
+
         try:
             (tmp_path / "good1.py").write_text("x = 1\n")
             (tmp_path / "bad.py").write_text("import nonexistent\n")
             (tmp_path / "good2.py").write_text("y = 2\n")
-            
+
             result = load_all_addons()
             assert result["total"] == 3
             assert len(result["loaded"]) == 2

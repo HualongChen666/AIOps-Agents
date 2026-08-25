@@ -237,7 +237,9 @@ def fake_os(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_execute_macos_repair_remote():
-    result = await macos.execute_macos_repair("remote", "repair.sh")  # noqa: F841  # Variable for test verification
+    result = await macos.execute_macos_repair(
+        "remote", "repair.sh"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert "Remote macOS" in result["output"]
 
@@ -250,7 +252,9 @@ async def test_execute_macos_repair_found_script(monkeypatch, fake_os):
         return _FakeProc(0, b"fixed")
 
     monkeypatch.setattr(macos.asyncio, "create_subprocess_shell", create_shell)
-    result = await macos.execute_macos_repair("localhost", "/exists/repair.sh", {"key": "value"})  # noqa: F841  # Variable for test verification
+    result = await macos.execute_macos_repair(
+        "localhost", "/exists/repair.sh", {"key": "value"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["output"] == "fixed"
     assert result["exit_code"] == 0
@@ -262,7 +266,9 @@ async def test_execute_macos_repair_fallback(monkeypatch, fake_os):
         return _FakeProc(1, b"", b"fail")
 
     monkeypatch.setattr(macos.asyncio, "create_subprocess_shell", create_shell)
-    result = await macos.execute_macos_repair("localhost", "missing_cmd")  # noqa: F841  # Variable for test verification
+    result = await macos.execute_macos_repair(
+        "localhost", "missing_cmd"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert result["exit_code"] == 1
 

@@ -33,7 +33,7 @@ from core.auth_service import (
     get_current_user,
     require_roles,
 )
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.sla_report_storage import delete_report as delete_sla_report
 from core.sla_report_storage import get_report as get_sla_report
 from core.sla_report_storage import list_reports as list_sla_reports

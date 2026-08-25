@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """Tests for workflow_service grpc module."""
 
+import os
+import sys
+
 import pytest
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from extensions.addons.operations.workflow_service.grpc.client import WorkflowRPCClient
 from extensions.addons.operations.workflow_service.grpc.server import WorkflowRPCServer
@@ -21,6 +22,7 @@ class TestWorkflowRPCServer:
 
     def test_register_handler(self, grpc_server):
         """Test registering a handler."""
+
         async def test_handler(**kwargs):
             return {"result": "success"}
 
@@ -31,6 +33,7 @@ class TestWorkflowRPCServer:
 
     def test_register_multiple_handlers(self, grpc_server):
         """Test registering multiple handlers."""
+
         async def handler1(**kwargs):
             return {"result": "success1"}
 
@@ -44,6 +47,7 @@ class TestWorkflowRPCServer:
 
     def test_register_overwrites_existing(self, grpc_server):
         """Test that registering with same method name overwrites existing."""
+
         async def handler1(**kwargs):
             return {"result": "handler1"}
 
@@ -60,6 +64,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_registered_method(self, grpc_server):
         """Test calling a registered method."""
+
         async def test_handler(**kwargs):
             return {"result": "success", "input": kwargs}
 
@@ -79,6 +84,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_with_no_arguments(self, grpc_server):
         """Test calling a method with no arguments."""
+
         async def no_args_handler(**kwargs):
             return {"result": "no args"}
 
@@ -91,6 +97,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_with_multiple_arguments(self, grpc_server):
         """Test calling a method with multiple arguments."""
+
         async def multi_args_handler(**kwargs):
             return {"args": kwargs}
 
@@ -105,6 +112,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_with_complex_arguments(self, grpc_server):
         """Test calling a method with complex argument types."""
+
         async def complex_handler(**kwargs):
             return {"received": kwargs}
 
@@ -125,6 +133,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_handler_raises_exception(self, grpc_server):
         """Test that handler exceptions are propagated."""
+
         async def failing_handler(**kwargs):
             raise ValueError("Handler failed")
 
@@ -136,6 +145,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_handler_returns_none(self, grpc_server):
         """Test calling a handler that returns None."""
+
         async def none_handler(**kwargs):
             return None
 
@@ -148,6 +158,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_handler_returns_string(self, grpc_server):
         """Test calling a handler that returns a string."""
+
         async def string_handler(**kwargs):
             return "string result"
 
@@ -160,6 +171,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_handler_returns_dict(self, grpc_server):
         """Test calling a handler that returns a dict."""
+
         async def dict_handler(**kwargs):
             return {"key": "value", "number": 42}
 
@@ -173,6 +185,7 @@ class TestWorkflowRPCServer:
     @pytest.mark.asyncio
     async def test_call_handler_returns_list(self, grpc_server):
         """Test calling a handler that returns a list."""
+
         async def list_handler(**kwargs):
             return [1, 2, 3, 4, 5]
 
@@ -184,6 +197,7 @@ class TestWorkflowRPCServer:
 
     def test_list_methods(self, grpc_server):
         """Test listing registered methods."""
+
         async def handler1(**kwargs):
             return {"result": "success1"}
 
@@ -206,6 +220,7 @@ class TestWorkflowRPCServer:
 
     def test_list_methods_order(self, grpc_server):
         """Test that list_methods returns methods in registration order."""
+
         async def handler(**kwargs):
             return {"result": "success"}
 
@@ -257,6 +272,7 @@ class TestWorkflowRPCClient:
     @pytest.mark.asyncio
     async def test_call_with_server(self, grpc_server):
         """Test calling through client with server instance."""
+
         async def test_handler(**kwargs):
             return {"result": "success", "input": kwargs}
 
@@ -313,6 +329,7 @@ class TestWorkflowRPCClient:
     @pytest.mark.asyncio
     async def test_call_with_server_after_close(self, grpc_server):
         """Test calling through server client after close."""
+
         async def test_handler(**kwargs):
             return {"result": "success"}
 
@@ -355,6 +372,7 @@ class TestWorkflowRPCClient:
     @pytest.mark.asyncio
     async def test_call_with_special_characters_in_method_name(self, grpc_server):
         """Test calling method with special characters in name."""
+
         async def test_handler(**kwargs):
             return {"result": "success"}
 
@@ -368,6 +386,7 @@ class TestWorkflowRPCClient:
     @pytest.mark.asyncio
     async def test_call_with_unicode_method_name(self, grpc_server):
         """Test calling method with unicode characters in name."""
+
         async def test_handler(**kwargs):
             return {"result": "success"}
 
@@ -381,6 +400,7 @@ class TestWorkflowRPCClient:
     @pytest.mark.asyncio
     async def test_server_client_integration(self, grpc_server):
         """Test full integration between server and client."""
+
         # Register a handler
         async def complex_handler(**kwargs):
             return {
@@ -409,6 +429,7 @@ class TestWorkflowRPCClient:
     @pytest.mark.asyncio
     async def test_multiple_clients_same_server(self, grpc_server):
         """Test multiple clients using the same server."""
+
         async def counter_handler(**kwargs):
             return {"count": kwargs.get("count", 0)}
 

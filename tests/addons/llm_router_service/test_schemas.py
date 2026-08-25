@@ -1,25 +1,27 @@
 # -*- coding: utf-8 -*-
 """Unit tests for schemas.py - Pydantic schemas for LLM router service."""
 
-import pytest
 from datetime import datetime
+
+import pytest
+
 from extensions.addons.ai_plus.llm_router_service.schemas import (
-    ProviderType,
-    TaskType,
-    ModelConfig,
-    RouteRequest,
-    RouteResponse,
-    GenerateRequest,
-    GenerateResponse,
-    ModelStatsSchema,
     CircuitStateSchema,
     CostReport,
-    PerformanceReport,
-    ServiceHealth,
-    LiteLLMRequest,
+    GenerateRequest,
+    GenerateResponse,
     LiteLLMChoice,
-    LiteLLMUsage,
+    LiteLLMRequest,
     LiteLLMResponse,
+    LiteLLMUsage,
+    ModelConfig,
+    ModelStatsSchema,
+    PerformanceReport,
+    ProviderType,
+    RouteRequest,
+    RouteResponse,
+    ServiceHealth,
+    TaskType,
 )
 
 
@@ -406,12 +408,8 @@ class TestPerformanceReport:
                 avg_latency=150.0,
             )
         ]
-        circuit_states = [
-            CircuitStateSchema(model_name="gpt-4", state="closed")
-        ]
-        cost_report = CostReport(
-            hourly_cost=2.0, request_count=20, avg_cost_per_request=0.1
-        )
+        circuit_states = [CircuitStateSchema(model_name="gpt-4", state="closed")]
+        cost_report = CostReport(hourly_cost=2.0, request_count=20, avg_cost_per_request=0.1)
 
         report = PerformanceReport(
             model_stats=model_stats,

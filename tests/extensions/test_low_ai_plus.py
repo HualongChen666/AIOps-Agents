@@ -575,9 +575,7 @@ def _exercise_kg_main_app(mod):
 
         # Test build_graph exception (lines 101-102)
         try:
-            await mod.build_graph(
-                mod.GraphBuildRequest(graph_name=None, nodes=None, edges=None)
-            )
+            await mod.build_graph(mod.GraphBuildRequest(graph_name=None, nodes=None, edges=None))
         except Exception:
             pass  # Expected to raise HTTPException
 
@@ -600,9 +598,7 @@ def _exercise_kg_main_app(mod):
         # Test reason_graph KeyError (lines 115-116)
         try:
             await mod.reason_graph(
-                mod.GraphReasonRequest(
-                    graph_id="nonexistent", node_id="y", reason_type="neighbors"
-                )
+                mod.GraphReasonRequest(graph_id="nonexistent", node_id="y", reason_type="neighbors")
             )
         except Exception:
             pass  # Expected to raise HTTPException with 404
@@ -610,26 +606,20 @@ def _exercise_kg_main_app(mod):
         # Test reason_graph general exception (lines 117-118)
         try:
             await mod.reason_graph(
-                mod.GraphReasonRequest(
-                    graph_id=build.graph_id, node_id=None, reason_type="invalid"
-                )
+                mod.GraphReasonRequest(graph_id=build.graph_id, node_id=None, reason_type="invalid")
             )
         except Exception:
             pass  # Expected to raise HTTPException
 
         # Test visualize_graph KeyError (lines 125-126)
         try:
-            await mod.visualize_graph(
-                mod.GraphVisualizationRequest(graph_id="nonexistent")
-            )
+            await mod.visualize_graph(mod.GraphVisualizationRequest(graph_id="nonexistent"))
         except Exception:
             pass  # Expected to raise HTTPException with 404
 
         # Test visualize_graph general exception (lines 127-128)
         try:
-            await mod.visualize_graph(
-                mod.GraphVisualizationRequest(graph_id=None)
-            )
+            await mod.visualize_graph(mod.GraphVisualizationRequest(graph_id=None))
         except Exception:
             pass  # Expected to raise HTTPException
 
@@ -763,7 +753,7 @@ def _exercise_llm_main_app(mod):
         rpc_methods = await mod.rpc("list_models")
         assert isinstance(rpc_methods, list)
 
-    
+
 def _exercise_llm_main(mod):
     """Test the main.py LLM router service with full branch coverage."""
     # Test _estimate_cost function (lines 106-109)
@@ -821,9 +811,7 @@ def _exercise_llm_main(mod):
     assert selected_latency["id"] in [m["id"] for m in mod.MODELS]
 
     # Test with no candidates (line 120-121) - should raise HTTPException
-    route_req_impossible = mod.RouteRequest(
-        prompt="test", max_cost_usd=0.0000001, max_latency_ms=1
-    )
+    route_req_impossible = mod.RouteRequest(prompt="test", max_cost_usd=0.0000001, max_latency_ms=1)
     try:
         mod._select(route_req_impossible)
         assert False, "Should have raised HTTPException"
@@ -912,7 +900,6 @@ def _exercise_llm_main(mod):
     _run(test_models())
 
 
-
 def _exercise_rag_orchestrator(mod):
     schemas = _schemas(mod)
     orch = mod.RAGOrchestrator(embedding_model="fallback", vector_dimension=8)
@@ -997,7 +984,7 @@ def _exercise_rag_orchestrator(mod):
         delete = await orch.delete_document(mod.DeleteRequest(document_id="doc_002"))
         assert delete.status == "deleted"
 
-    
+
 def _exercise_rag_retry(mod):
     engine = mod.RAGRetryEngine()
     assert "exponential" in engine.list_policies()
@@ -1052,7 +1039,6 @@ def _exercise_rag_main_app(mod):
         assert isinstance(rpc, list)
 
     _run(_exercise())
-
 
 
 _EXERCISES = {
@@ -1141,9 +1127,7 @@ def test_low_ai_plus_module(rel_path):
     assert selected_latency["id"] in [m["id"] for m in mod.MODELS]
 
     # Test with no candidates (line 120-121) - should raise HTTPException
-    route_req_impossible = mod.RouteRequest(
-        prompt="test", max_cost_usd=0.0000001, max_latency_ms=1
-    )
+    route_req_impossible = mod.RouteRequest(prompt="test", max_cost_usd=0.0000001, max_latency_ms=1)
     try:
         mod._select(route_req_impossible)
         assert False, "Should have raised HTTPException"

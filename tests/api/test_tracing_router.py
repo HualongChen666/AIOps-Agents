@@ -3,8 +3,9 @@
 
 import os
 import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 # Set environment variables before importing the module
 os.environ["ALLOWED_LOCAL_IPS"] = "127.0.0.1,::1,localhost,testserver"
@@ -25,10 +26,10 @@ os.environ["PERFORMANCE_OPTIMIZER_DISABLED"] = "true"
 os.environ["USE_SYNC_SQLITE"] = "true"
 
 from api.tracing_router import (
-    _parse_duration_ms,
-    _services,
     _generate_synthetic_trace,
+    _parse_duration_ms,
     _recent_synthetic_traces,
+    _services,
     _try_real_backend,
 )
 
@@ -103,7 +104,9 @@ class TestServices:
 
     def test_services_with_many_linux_hosts(self):
         """Test _services limits to 5 hosts when LINUX_HOSTS has more."""
-        with patch("config.LINUX_HOSTS", ["host1", "host2", "host3", "host4", "host5", "host6", "host7"]):
+        with patch(
+            "config.LINUX_HOSTS", ["host1", "host2", "host3", "host4", "host5", "host6", "host7"]
+        ):
             services = _services()
             assert len(services) == 5
 
@@ -260,10 +263,7 @@ class TestTracingDashboard:
         os.environ["JAEGER_QUERY_URL"] = "http://localhost:16686"
 
         with patch("api.tracing_router._try_real_backend") as mock_backend:
-            mock_backend.return_value = {
-                "data": ["service1", "service2"],
-                "total": 100
-            }
+            mock_backend.return_value = {"data": ["service1", "service2"], "total": 100}
 
             resp = client.get("/api/tracing/dashboard")
             assert resp.status_code == 200
@@ -339,7 +339,7 @@ class TestListTraces:
         with patch("api.tracing_router._try_real_backend") as mock_backend:
             mock_backend.return_value = {
                 "data": [{"trace_id": "trace1"}, {"trace_id": "trace2"}],
-                "total": 2
+                "total": 2,
             }
 
             resp = client.get("/api/tracing/traces")
@@ -376,10 +376,7 @@ class TestGetTraceDetails:
         os.environ["JAEGER_QUERY_URL"] = "http://localhost:16686"
 
         with patch("api.tracing_router._try_real_backend") as mock_backend:
-            mock_backend.return_value = {
-                "trace_id": "test-trace",
-                "spans": []
-            }
+            mock_backend.return_value = {"trace_id": "test-trace", "spans": []}
 
             resp = client.get("/api/tracing/traces/test-trace")
             assert resp.status_code == 200

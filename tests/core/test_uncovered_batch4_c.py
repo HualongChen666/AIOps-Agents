@@ -556,7 +556,9 @@ async def test_get_current_user(monkeypatch):
     monkeypatch.setattr(auth, "is_token_revoked", AsyncMock(return_value=False))
     user = auth.UserInDB(username="admin", hashed_password="x", disabled=False, role="admin")
     monkeypatch.setattr(auth, "get_user", AsyncMock(return_value=user))
-    result = await auth.get_current_user(token=token)  # noqa: F841  # Variable for test verification
+    result = await auth.get_current_user(
+        token=token
+    )  # noqa: F841  # Variable for test verification
     assert result.username == "admin"
 
     monkeypatch.setattr(auth, "is_token_revoked", AsyncMock(return_value=True))
@@ -574,7 +576,9 @@ async def test_get_current_user(monkeypatch):
 
 async def test_get_current_active_user(monkeypatch):
     active = auth.User(username="u", role="user", disabled=False)
-    result = await auth.get_current_active_user(current_user=active)  # noqa: F841  # Variable for test verification
+    result = await auth.get_current_active_user(
+        current_user=active
+    )  # noqa: F841  # Variable for test verification
     assert result.username == "u"
 
     disabled = auth.User(username="u", role="user", disabled=True)
@@ -587,7 +591,9 @@ async def test_get_current_active_user(monkeypatch):
         "get_user_by_username",
         MagicMock(return_value={"is_active": True, "hashed_password": "x"}),
     )
-    result = await auth.get_current_active_user(current_user=None, token="tok")  # noqa: F841  # Variable for test verification
+    result = await auth.get_current_active_user(
+        current_user=None, token="tok"
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
 
     monkeypatch.setattr(auth, "get_user_by_username", MagicMock(return_value=None))
@@ -634,7 +640,9 @@ async def test_jwt_auth_service(monkeypatch):
 async def test_login_and_revoke_endpoints(monkeypatch):
     user = auth.UserInDB(username="admin", hashed_password="x", disabled=False, role="admin")
     monkeypatch.setattr(auth, "authenticate_user", MagicMock(return_value=user))
-    result = await auth.login_for_access_token(username="admin", password="pass")  # noqa: F841  # Variable for test verification
+    result = await auth.login_for_access_token(
+        username="admin", password="pass"
+    )  # noqa: F841  # Variable for test verification
     assert "access_token" in result
 
     monkeypatch.setattr(auth, "authenticate_user", MagicMock(return_value=None))
@@ -642,7 +650,9 @@ async def test_login_and_revoke_endpoints(monkeypatch):
         await auth.login_for_access_token(username="admin", password="pass")
 
     monkeypatch.setattr(auth, "revoke_token", AsyncMock())
-    revoke_result = await auth.revoke_current_token(current_user=user, token="tok")  # noqa: F841  # Variable for test verification
+    revoke_result = await auth.revoke_current_token(
+        current_user=user, token="tok"
+    )  # noqa: F841  # Variable for test verification
     assert revoke_result["detail"] == "Token revoked successfully"
 
 
@@ -717,7 +727,9 @@ async def test_get_current_active_user_branches(monkeypatch):
     monkeypatch.setattr(
         auth, "get_user_by_username", MagicMock(return_value={"hashed_password": "x"})
     )
-    result = await auth.get_current_active_user(current_user=None, token="tok")  # noqa: F841  # Variable for test verification
+    result = await auth.get_current_active_user(
+        current_user=None, token="tok"
+    )  # noqa: F841  # Variable for test verification
     assert result == {"hashed_password": "x"}  # noqa: F841  # Variable for test verification
 
     monkeypatch.setattr(auth, "verify_token", MagicMock(return_value=None))

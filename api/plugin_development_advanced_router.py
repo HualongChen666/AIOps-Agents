@@ -6,17 +6,15 @@ Provides comprehensive API endpoints for plugin development workflow
 
 import os
 import shutil
-import subprocess
 import tempfile
 import zipfile
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from pydantic import BaseModel, Field, field_validator
+from fastapi import APIRouter, HTTPException
 from loguru import logger
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/plugin/development", tags=["Plugin Development Advanced"])
 
@@ -24,6 +22,7 @@ router = APIRouter(prefix="/api/v1/plugin/development", tags=["Plugin Developmen
 # Pydantic Models
 class ScaffoldRequest(BaseModel):
     """Plugin scaffold request model"""
+
     plugin_name: str = Field(..., description="Plugin name")
     plugin_type: str = Field(..., description="Plugin type (collector, analyzer, notifier, action)")
     author: str = Field(default="Unknown", description="Plugin author")
@@ -42,12 +41,14 @@ class ScaffoldRequest(BaseModel):
 
 class ValidateRequest(BaseModel):
     """Plugin validation request model"""
+
     plugin_code: str = Field(..., description="Plugin code to validate")
     plugin_config: Dict[str, Any] = Field(default_factory=dict, description="Plugin configuration")
 
 
 class TestRequest(BaseModel):
     """Plugin test request model"""
+
     plugin_code: str = Field(..., description="Plugin code to test")
     test_config: Dict[str, Any] = Field(default_factory=dict, description="Test configuration")
     test_data: Dict[str, Any] = Field(default_factory=dict, description="Test data")
@@ -55,20 +56,25 @@ class TestRequest(BaseModel):
 
 class BuildRequest(BaseModel):
     """Plugin build request model"""
+
     plugin_path: str = Field(..., description="Plugin directory path")
     build_config: Dict[str, Any] = Field(default_factory=dict, description="Build configuration")
 
 
 class PackageRequest(BaseModel):
     """Plugin package request model"""
+
     plugin_path: str = Field(..., description="Plugin directory path")
-    package_name: Optional[str] = Field(None, description="Package name (auto-generated if not provided)")
+    package_name: Optional[str] = Field(
+        None, description="Package name (auto-generated if not provided)"
+    )
     version: Optional[str] = Field(None, description="Package version")
     include_dependencies: bool = Field(default=True, description="Include dependencies")
 
 
 class ScaffoldResponse(BaseModel):
     """Scaffold response model"""
+
     success: bool
     plugin_id: str
     plugin_path: str
@@ -78,6 +84,7 @@ class ScaffoldResponse(BaseModel):
 
 class ValidateResponse(BaseModel):
     """Validation response model"""
+
     success: bool
     valid: bool
     errors: List[str]
@@ -87,6 +94,7 @@ class ValidateResponse(BaseModel):
 
 class TestResponse(BaseModel):
     """Test response model"""
+
     success: bool
     passed: bool
     test_results: List[Dict[str, Any]]
@@ -96,6 +104,7 @@ class TestResponse(BaseModel):
 
 class BuildResponse(BaseModel):
     """Build response model"""
+
     success: bool
     build_path: str
     build_log: str
@@ -104,6 +113,7 @@ class BuildResponse(BaseModel):
 
 class PackageResponse(BaseModel):
     """Package response model"""
+
     success: bool
     package_path: str
     package_name: str
@@ -453,39 +463,43 @@ class {class_name}:
 def _sanitize_class_name(name: str) -> str:
     """Convert plugin name to valid class name"""
     # Remove spaces and special characters, capitalize words
-    sanitized = "".join(word.capitalize() for word in name.replace("-", " ").replace("_", " ").split())
+    sanitized = "".join(
+        word.capitalize() for word in name.replace("-", " ").replace("_", " ").split()
+    )
     return sanitized + "Plugin"
 
 
 # Scaffold Endpoint
 @router.post("/scaffolds", response_model=ScaffoldResponse, summary="Create plugin scaffold")
-async def create_scaffold(request: ScaffoldRequest):
+async def create_scaffold(request: ScaffoldRequest) -> ScaffoldResponse:
     """
     Create a new plugin scaffold from template
-    
+
     Args:
         request: Scaffold request data
-        
+
     Returns:
         Scaffold creation result
     """
     try:
         # Generate plugin ID
         plugin_id = str(uuid4())
-        
+
         # Create plugin directory
         base_dir = Path("plugins")
         base_dir.mkdir(exist_ok=True)
-        
+
         plugin_dir = base_dir / request.plugin_name
         if plugin_dir.exists():
-            raise HTTPException(status_code=400, detail=f"Plugin directory '{request.plugin_name}' already exists")
-        
+            raise HTTPException(
+                status_code=400, detail=f"Plugin directory '{request.plugin_name}' already exists"
+            )
+
         plugin_dir.mkdir(exist_ok=True)
-        
+
         # Generate class name
         class_name = _sanitize_class_name(request.plugin_name)
-        
+
         # Get template
         template = PLUGIN_TEMPLATES.get(request.plugin_type, PLUGIN_TEMPLATES["collector"])
         plugin_code = template.format(
@@ -494,11 +508,11 @@ async def create_scaffold(request: ScaffoldRequest):
             version=request.version,
             author=request.author,
         )
-        
+
         # Write plugin file
         plugin_file = plugin_dir / f"{request.plugin_name}.py"
         plugin_file.write_text(plugin_code, encoding="utf-8")
-        
+
         # Create config file
         config = {
             "plugin_id": plugin_id,
@@ -510,11 +524,12 @@ async def create_scaffold(request: ScaffoldRequest):
             "class_name": class_name,
             "enabled": True,
         }
-        
+
         config_file = plugin_dir / "config.json"
         import json
+
         config_file.write_text(json.dumps(config, indent=2), encoding="utf-8")
-        
+
         # Create README
         readme_content = f"""# {request.plugin_name}
 
@@ -538,7 +553,7 @@ The plugin will be automatically loaded by the plugin system.
 """
         readme_file = plugin_dir / "README.md"
         readme_file.write_text(readme_content, encoding="utf-8")
-        
+
         # Create __init__.py
         init_content = f'''# -*- coding: utf-8 -*-
 """
@@ -551,16 +566,16 @@ __all__ = ["{class_name}"]
 '''
         init_file = plugin_dir / "__init__.py"
         init_file.write_text(init_content, encoding="utf-8")
-        
+
         created_files = [
             str(plugin_file),
             str(config_file),
             str(readme_file),
             str(init_file),
         ]
-        
+
         logger.info(f"Created plugin scaffold: {request.plugin_name}")
-        
+
         return ScaffoldResponse(
             success=True,
             plugin_id=plugin_id,
@@ -577,51 +592,54 @@ __all__ = ["{class_name}"]
 
 # Validate Endpoint
 @router.post("/validate", response_model=ValidateResponse, summary="Validate plugin code")
-async def validate_plugin(request: ValidateRequest):
+async def validate_plugin(request: ValidateRequest) -> ValidateResponse:
     """
     Validate plugin code for syntax and structure
-    
+
     Args:
         request: Validation request data
-        
+
     Returns:
         Validation result
     """
     try:
         errors = []
         warnings = []
-        
+
         # Syntax check
         try:
-            compile(request.plugin_code, '<string>', 'exec')
+            compile(request.plugin_code, "<string>", "exec")
         except SyntaxError as e:
             errors.append(f"Syntax error: {e}")
-        
+
         # Check for required methods
         required_methods = ["__init__", "initialize"]
         for method in required_methods:
             if f"def {method}" not in request.plugin_code:
                 errors.append(f"Missing required method: {method}")
-        
+
         # Check for cleanup method (warning)
         if "def cleanup" not in request.plugin_code:
             warnings.append("Missing cleanup method (recommended)")
-        
+
         # Check for docstring
         if '"""' not in request.plugin_code:
             warnings.append("Missing docstring (recommended)")
-        
+
         # Validate config structure
         if request.plugin_config:
             if "plugin_name" not in request.plugin_config:
                 errors.append("Config missing required field: plugin_name")
             if "plugin_type" not in request.plugin_config:
                 errors.append("Config missing required field: plugin_type")
-        
+
         is_valid = len(errors) == 0
-        
-        logger.info(f"Plugin validation completed: valid={is_valid}, errors={len(errors)}, warnings={len(warnings)}")
-        
+
+        logger.info(
+            f"Plugin validation completed: valid={is_valid}, "
+            f"errors={len(errors)}, warnings={len(warnings)}"
+        )
+
         return ValidateResponse(
             success=True,
             valid=is_valid,
@@ -636,35 +654,37 @@ async def validate_plugin(request: ValidateRequest):
 
 # Test Endpoint
 @router.post("/test", response_model=TestResponse, summary="Test plugin code")
-async def test_plugin(request: TestRequest):
+async def test_plugin(request: TestRequest) -> TestResponse:
     """
     Test plugin code with test data
-    
+
     Args:
         request: Test request data
-        
+
     Returns:
         Test result
     """
     try:
         test_results = []
-        
+
         # Create a temporary file for the plugin
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as f:
             f.write(request.plugin_code)
             temp_file = f.name
-        
+
         try:
             # Try to import and instantiate the plugin
-            import sys
             import importlib.util
-            
+            import sys
+
             spec = importlib.util.spec_from_file_location("test_plugin", temp_file)
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
                 sys.modules["test_plugin"] = module
                 spec.loader.exec_module(module)
-                
+
                 # Find the plugin class
                 plugin_class = None
                 for attr_name in dir(module):
@@ -672,57 +692,78 @@ async def test_plugin(request: TestRequest):
                     if isinstance(attr, type) and attr_name.endswith("Plugin"):
                         plugin_class = attr
                         break
-                
+
                 if plugin_class:
                     # Test initialization
-                    test_results.append({
-                        "test": "initialization",
-                        "status": "passed",
-                        "message": "Plugin class found and can be instantiated",
-                    })
-                    
+                    test_results.append(
+                        {
+                            "test": "initialization",
+                            "status": "passed",
+                            "message": "Plugin class found and can be instantiated",
+                        }
+                    )
+
                     # Test instantiation
                     try:
-                        instance = plugin_class(request.test_config)
-                        test_results.append({
-                            "test": "instantiation",
-                            "status": "passed",
-                            "message": "Plugin instantiated successfully",
-                        })
+                        instance = plugin_class(
+                            request.test_config
+                        )  # noqa: F841 - Reserved for future use
+                        test_results.append(
+                            {
+                                "test": "instantiation",
+                                "status": "passed",
+                                "message": "Plugin instantiated successfully",
+                            }
+                        )
                     except Exception as e:
-                        test_results.append({
-                            "test": "instantiation",
-                            "status": "failed",
-                            "message": f"Failed to instantiate: {str(e)}",
-                        })
+                        test_results.append(
+                            {
+                                "test": "instantiation",
+                                "status": "failed",
+                                "message": f"Failed to instantiate: {str(e)}",
+                            }
+                        )
                 else:
-                    test_results.append({
-                        "test": "class_detection",
-                        "status": "failed",
-                        "message": "No plugin class found (class name should end with 'Plugin')",
-                    })
+                    test_results.append(
+                        {
+                            "test": "class_detection",
+                            "status": "failed",
+                            "message": (
+                                "No plugin class found " "(class name should end with 'Plugin')"
+                            ),
+                        }
+                    )
             else:
-                test_results.append({
-                    "test": "module_load",
-                    "status": "failed",
-                    "message": "Failed to load plugin module",
-                })
+                test_results.append(
+                    {
+                        "test": "module_load",
+                        "status": "failed",
+                        "message": "Failed to load plugin module",
+                    }
+                )
         finally:
             # Clean up
-            os.unlink(temp_file)
+            try:
+                if os.path.exists(temp_file):
+                    os.unlink(temp_file)
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_file}: {e}")
             if "test_plugin" in sys.modules:
                 del sys.modules["test_plugin"]
-        
+
         passed = all(result["status"] == "passed" for result in test_results)
-        
+
         logger.info(f"Plugin test completed: passed={passed}, tests={len(test_results)}")
-        
+
         return TestResponse(
             success=True,
             passed=passed,
             test_results=test_results,
             coverage=None,
-            message=f"Test completed: {len(test_results)} tests, {sum(1 for r in test_results if r['status'] == 'passed')} passed",
+            message=(
+                f"Test completed: {len(test_results)} tests, "
+                f"{sum(1 for r in test_results if r['status'] == 'passed')} passed"
+            ),
         )
     except Exception as e:
         logger.error(f"Error testing plugin: {e}")
@@ -731,48 +772,60 @@ async def test_plugin(request: TestRequest):
 
 # Build Endpoint
 @router.post("/build", response_model=BuildResponse, summary="Build plugin")
-async def build_plugin(request: BuildRequest):
+async def build_plugin(request: BuildRequest) -> BuildResponse:
     """
     Build plugin from source
-    
+
     Args:
         request: Build request data
-        
+
     Returns:
         Build result
     """
     try:
         plugin_path = Path(request.plugin_path)
-        
+
         if not plugin_path.exists():
-            raise HTTPException(status_code=404, detail=f"Plugin path not found: {request.plugin_path}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Plugin path not found: {request.plugin_path}"
+            )
+
         # Create build directory
         build_dir = plugin_path / "build"
         build_dir.mkdir(exist_ok=True)
-        
+
         # Copy source files to build directory
         src_files = list(plugin_path.glob("*.py"))
         for src_file in src_files:
             if src_file.name != "__pycache__":
-                shutil.copy2(src_file, build_dir / src_file.name)
-        
+                try:
+                    shutil.copy2(src_file, build_dir / src_file.name)
+                except (OSError, shutil.Error) as exc:
+                    logger.error(f"Failed to copy source file {src_file}: {exc}")
+                    raise HTTPException(
+                        status_code=500, detail=f"Failed to copy source file: {exc}"
+                    )
+
         # Copy config file
         config_file = plugin_path / "config.json"
         if config_file.exists():
-            shutil.copy2(config_file, build_dir / config_file.name)
-        
+            try:
+                shutil.copy2(config_file, build_dir / config_file.name)
+            except (OSError, shutil.Error) as exc:
+                logger.error(f"Failed to copy config file {config_file}: {exc}")
+                raise HTTPException(status_code=500, detail=f"Failed to copy config file: {exc}")
+
         # Try to compile Python files
         build_log = []
         for py_file in build_dir.glob("*.py"):
             try:
-                compile(py_file.read_text(encoding='utf-8'), str(py_file), 'exec')
+                compile(py_file.read_text(encoding="utf-8"), str(py_file), "exec")
                 build_log.append(f"Compiled: {py_file.name}")
             except SyntaxError as e:
                 build_log.append(f"Compilation error in {py_file.name}: {e}")
-        
+
         logger.info(f"Plugin build completed: {plugin_path}")
-        
+
         return BuildResponse(
             success=True,
             build_path=str(build_dir),
@@ -788,48 +841,51 @@ async def build_plugin(request: BuildRequest):
 
 # Package Endpoint
 @router.post("/package", response_model=PackageResponse, summary="Package plugin")
-async def package_plugin(request: PackageRequest):
+async def package_plugin(request: PackageRequest) -> PackageResponse:
     """
     Package plugin for distribution
-    
+
     Args:
         request: Package request data
-        
+
     Returns:
         Package result
     """
     try:
         plugin_path = Path(request.plugin_path)
-        
+
         if not plugin_path.exists():
-            raise HTTPException(status_code=404, detail=f"Plugin path not found: {request.plugin_path}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Plugin path not found: {request.plugin_path}"
+            )
+
         # Load config to get plugin name and version
         config_file = plugin_path / "config.json"
         if config_file.exists():
             import json
-            config = json.loads(config_file.read_text(encoding='utf-8'))
+
+            config = json.loads(config_file.read_text(encoding="utf-8"))
             plugin_name = config.get("plugin_name", plugin_path.name)
             version = request.version or config.get("version", "1.0.0")
         else:
             plugin_name = plugin_path.name
             version = request.version or "1.0.0"
-        
+
         # Generate package name
         package_name = request.package_name or f"{plugin_name}-{version}"
         package_file = plugin_path / f"{package_name}.zip"
-        
+
         # Create zip package
-        with zipfile.ZipFile(package_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(package_file, "w", zipfile.ZIP_DEFLATED) as zipf:
             for file_path in plugin_path.rglob("*"):
                 if file_path.is_file() and not file_path.name.endswith(".zip"):
                     arcname = file_path.relative_to(plugin_path)
                     zipf.write(file_path, arcname)
-        
+
         package_size = package_file.stat().st_size
-        
+
         logger.info(f"Plugin packaged: {package_file} ({package_size} bytes)")
-        
+
         return PackageResponse(
             success=True,
             package_path=str(package_file),

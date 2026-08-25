@@ -278,7 +278,9 @@ async def test_collect_linux_host(monkeypatch):
         "username": "u",
         "password": "p",
     }
-    result = await linux_collector.collect_linux_host(host_config, metrics=["cpu_usage", "memory"])  # noqa: F841  # Variable for test verification
+    result = await linux_collector.collect_linux_host(
+        host_config, metrics=["cpu_usage", "memory"]
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result["name"] == "h1"
     assert result["status"] in {"ok", "degraded"}
@@ -342,7 +344,9 @@ def test_query_prometheus(monkeypatch):
 
 def test_query_prometheus_range(monkeypatch):
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (PROM_DATA, None))
-    result = oc.query_prometheus_range("up", 0.0, 100.0)  # noqa: F841  # Variable for test verification
+    result = oc.query_prometheus_range(
+        "up", 0.0, 100.0
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "data" in result
 
@@ -406,7 +410,9 @@ def test_query_kubernetes_pod(monkeypatch):
         "spec": {"nodeName": "node1"},
     }
     monkeypatch.setattr(oc, "_http_get_json", lambda url, **kwargs: (pod_data, None))
-    result = oc.query_kubernetes_pod("pod1", "default")  # noqa: F841  # Variable for test verification
+    result = oc.query_kubernetes_pod(
+        "pod1", "default"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("available") is True
     assert result.get("pod_name") == "pod1"

@@ -222,7 +222,9 @@ async def test_predict_timeseries_exception_handling():
     try:
         cap = ai.EnhancedAICapabilities()
         historical = [(datetime.now(), float(i)) for i in range(30)]
-        result = await cap.predict_timeseries("broken_metric", historical)  # noqa: F841  # Variable for test verification
+        result = await cap.predict_timeseries(
+            "broken_metric", historical
+        )  # noqa: F841  # Variable for test verification
         assert result is None
     finally:
         _restore_flags(saved)
@@ -239,7 +241,9 @@ async def test_predict_anomalies_not_anomalous():
     try:
         cap.min_samples_for_training = 10
         historical = [(datetime.now(), 50.0 + (i % 5) * 0.1) for i in range(50)]
-        result = await cap.predict_anomalies("cpu_usage", 50.0, historical)  # noqa: F841  # Variable for test verification
+        result = await cap.predict_anomalies(
+            "cpu_usage", 50.0, historical
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert not result.is_anomalous
         assert "within normal range" in result.explanation
@@ -251,7 +255,9 @@ async def test_predict_anomalies_exception_handling():
     cap = ai.EnhancedAICapabilities()
     cap.min_samples_for_training = 10
     historical = [(datetime.now(), "bad_value") for _ in range(50)]
-    result = await cap.predict_anomalies("bad_metric", 1.0, historical)  # noqa: F841  # Variable for test verification
+    result = await cap.predict_anomalies(
+        "bad_metric", 1.0, historical
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -288,7 +294,9 @@ async def test_adaptive_learn_exception_handling():
         n_estimators=5, max_depth=3, random_state=42, n_jobs=1
     )
     samples = [({"f1": 1}, 0)]
-    result = await cap.adaptive_learn(["unhashable"], samples)  # noqa: F841  # Variable for test verification
+    result = await cap.adaptive_learn(
+        ["unhashable"], samples
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -400,7 +408,9 @@ async def test_predict_anomalies_remaining_branches():
     # clear anomalous value -> 424-428
     cap.min_samples_for_training = 10
     historical = [(datetime.now(), float(i)) for i in range(50)]
-    result = await cap.predict_anomalies("cpu", 9999.0, historical)  # noqa: F841  # Variable for test verification
+    result = await cap.predict_anomalies(
+        "cpu", 9999.0, historical
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result.is_anomalous
 

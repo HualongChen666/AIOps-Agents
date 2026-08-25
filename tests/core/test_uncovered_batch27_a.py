@@ -549,11 +549,15 @@ async def test_data_lifecycle_retention_and_archive():
     assert manager.get_retention_days("unknown_policy") == 30  # default
 
     # Archive disabled
-    result = await manager.archive_old_data(DataCategory.TEMPORARY)  # noqa: F841  # Variable for test verification
+    result = await manager.archive_old_data(
+        DataCategory.TEMPORARY
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "skipped"
 
     # No rule
-    result = await manager.archive_old_data("unknown")  # noqa: F841  # Variable for test verification
+    result = await manager.archive_old_data(
+        "unknown"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
 
     # Permanent retention while enabled -> skipped at retention check
@@ -564,11 +568,15 @@ async def test_data_lifecycle_retention_and_archive():
             archive_enabled=True,
         )
     )
-    result = await manager.archive_old_data(DataCategory.BACKUP)  # noqa: F841  # Variable for test verification
+    result = await manager.archive_old_data(
+        DataCategory.BACKUP
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "skipped"
 
     # Normal archive
-    result = await manager.archive_old_data(DataCategory.ALERTS)  # noqa: F841  # Variable for test verification
+    result = await manager.archive_old_data(
+        DataCategory.ALERTS
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
 
@@ -581,11 +589,15 @@ async def test_data_lifecycle_cleanup_and_delete():
     result = await manager.cleanup_temp_data()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
-    result = await manager._delete_expired_data(DataCategory.METRICS, 30)  # noqa: F841  # Variable for test verification
+    result = await manager._delete_expired_data(
+        DataCategory.METRICS, 30
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert "deleted_count" in result
 
-    result = await manager._simulate_delete(DataCategory.METRICS, datetime.now(timezone.utc))  # noqa: F841  # Variable for test verification
+    result = await manager._simulate_delete(
+        DataCategory.METRICS, datetime.now(timezone.utc)
+    )  # noqa: F841  # Variable for test verification
     assert result == 0  # noqa: F841  # Variable for test verification
 
 
@@ -606,13 +618,19 @@ async def test_data_lifecycle_apply_and_rules(monkeypatch):
     assert cache_ok is True
 
     # Apply known and unknown categories
-    result = await manager.apply_retention_policy(DataCategory.METRICS)  # noqa: F841  # Variable for test verification
+    result = await manager.apply_retention_policy(
+        DataCategory.METRICS
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
-    result = await manager.apply_retention_policy(DataCategory.CONFIGURATION)  # noqa: F841  # Variable for test verification
+    result = await manager.apply_retention_policy(
+        DataCategory.CONFIGURATION
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
-    result = await manager.apply_retention_policy("unknown")  # noqa: F841  # Variable for test verification
+    result = await manager.apply_retention_policy(
+        "unknown"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
 
     rules = manager.get_rules()

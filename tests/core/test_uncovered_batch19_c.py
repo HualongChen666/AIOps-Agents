@@ -87,7 +87,9 @@ def test_api_governance_lifecycle():
     assert len(gov.get_sunset_endpoints()) == 1
 
     # retire endpoint
-    retire_result = gov.retire_endpoint("/api/v1/metrics", "GET")  # noqa: F841  # Variable for test verification
+    retire_result = gov.retire_endpoint(
+        "/api/v1/metrics", "GET"
+    )  # noqa: F841  # Variable for test verification
     assert retire_result["status"] == "success"
     retired = gov.check_endpoint_status("/api/v1/metrics", "GET")
     assert retired["status"] == "retired"

@@ -192,7 +192,9 @@ def test_load_dict_yaml_file_no_yaml_module(tmp_path, monkeypatch):
 def test_load_dict_nonexistent_path():
     """Test _load_dict with nonexistent path."""
     policy = PolicyEngine()
-    result = policy._load_dict("/nonexistent/path.json")  # noqa: F841  # Variable for test verification
+    result = policy._load_dict(
+        "/nonexistent/path.json"
+    )  # noqa: F841  # Variable for test verification
     assert result == {}  # noqa: F841  # Variable for test verification
 
 
@@ -338,7 +340,9 @@ def test_validate_schema_with_jsonschema_success(monkeypatch):
     monkeypatch.setattr("extensions.addons.engines.doc_policy_engine.jsonschema", fake_jsonschema)
 
     policy = PolicyEngine()
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"type": "object"}
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
     assert result["errors"] == []
     fake_jsonschema.validate.assert_called_once()
@@ -357,7 +361,9 @@ def test_validate_schema_with_jsonschema_validation_error(monkeypatch):
     monkeypatch.setattr("extensions.addons.engines.doc_policy_engine.jsonschema", fake_jsonschema)
 
     policy = PolicyEngine()
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"type": "object"}
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert len(result["errors"]) == 1
     assert "Validation failed" in result["errors"][0]
@@ -377,7 +383,9 @@ def test_validate_schema_with_jsonschema_generic_error(monkeypatch):
     monkeypatch.setattr("extensions.addons.engines.doc_policy_engine.jsonschema", fake_jsonschema)
 
     policy = PolicyEngine()
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"type": "object"}
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert len(result["errors"]) == 1
     assert "Unexpected error" in result["errors"][0]
@@ -389,7 +397,9 @@ def test_validate_schema_without_jsonschema(monkeypatch):
     # The jsonschema tests cover the validation functionality
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"type": "object"}
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
     assert result["errors"] == []
 
@@ -400,7 +410,9 @@ def test_validate_schema_fallback_not_dict(monkeypatch):
     # But jsonschema will handle it first and give its own error
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
-    result = policy.validate_schema("not a dict", "not a dict")  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        "not a dict", "not a dict"
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     # jsonschema provides its own error message when schema is invalid
     assert len(result["errors"]) > 0
@@ -413,7 +425,9 @@ def test_validate_schema_fallback_type_check(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for type checking
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"type": "object"}
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
 
 
@@ -424,7 +438,9 @@ def test_validate_schema_fallback_required(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for required checking
-    result = policy.validate_schema({"key": "value"}, {"required": ["key"]})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"required": ["key"]}
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
 
 
@@ -435,7 +451,9 @@ def test_validate_schema_fallback_properties(monkeypatch):
     policy = PolicyEngine(dry_run=False)
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     # Use jsonschema for properties checking
-    result = policy.validate_schema({"key": "value"}, {"properties": {"key": {"type": "string"}}})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"properties": {"key": {"type": "string"}}}
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is True
 
 
@@ -460,7 +478,9 @@ def test_validate_schema_fallback_combined(monkeypatch):
 def test_validate_schema_dry_run():
     """Test validate_schema in dry-run mode."""
     policy = PolicyEngine(dry_run=True)
-    result = policy.validate_schema({"key": "value"}, {"type": "object"})  # noqa: F841  # Variable for test verification
+    result = policy.validate_schema(
+        {"key": "value"}, {"type": "object"}
+    )  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
 
 
@@ -692,7 +712,9 @@ def test_plugin_load_import_failure(monkeypatch):
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.plugin_load("nonexistent_module_xyz")  # noqa: F841  # Variable for test verification
+    result = policy.plugin_load(
+        "nonexistent_module_xyz"
+    )  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["loaded"] is False
     assert "error" in result
@@ -748,7 +770,9 @@ def test_plugin_unload_no_match(monkeypatch):
         del sys.modules["nonexistent_plugin"]
 
     policy = PolicyEngine(dry_run=False)
-    result = policy.plugin_unload("nonexistent_plugin")  # noqa: F841  # Variable for test verification
+    result = policy.plugin_unload(
+        "nonexistent_plugin"
+    )  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is False
     assert result["unloaded"] is False
     assert result["removed"] == []
@@ -774,7 +798,9 @@ def test_plugin_unload_with_submodules(monkeypatch, tmp_path):
         import real_test_plugin.sub2
 
         policy = PolicyEngine(dry_run=False)
-        result = policy.plugin_unload("real_test_plugin")  # noqa: F841  # Variable for test verification
+        result = policy.plugin_unload(
+            "real_test_plugin"
+        )  # noqa: F841  # Variable for test verification
         assert result["dry_run"] is False
         assert result["unloaded"] is True
         assert "real_test_plugin" in result["removed"]

@@ -477,7 +477,7 @@ class DatabaseQueryOptimizer:
             combined = normalized
 
         # Generate hash
-        hash_value = hashlib.md5(combined.encode(), usedforsecurity=False).hexdigest()
+        hash_value = hashlib.sha256(combined.encode()).hexdigest()
         return f"db_query:{hash_value}"
 
     def record_query_execution(
@@ -985,9 +985,34 @@ class DatabaseQueryOptimizer:
             selected = match.group(2)
             table = match.group(3)
             condition = match.group(4)
+
+            # Security Fix: Validate SQL identifiers to prevent injection
+            import re
+
+            identifier_pattern = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+            if not identifier_pattern.match(column):
+                raise ValueError(f"Invalid column identifier: {column}")
+            if not identifier_pattern.match(selected):
+                raise ValueError(f"Invalid selected identifier: {selected}")
+            if not identifier_pattern.match(table):
+                raise ValueError(f"Invalid table identifier: {table}")
+
+            # Security Fix: Use parameterized query construction with validated identifiers
+            # Since identifiers cannot be parameterized, we use strict validation
             where_parts = [f"{table}.{selected} = {column}"]
             if condition:
+                # Basic validation for condition - only allow simple comparisons
+                # This is a simplified check; in production, use a full SQL parser
+                if ";" in condition or "--" in condition or "/*" in condition:
+                    raise ValueError(f"Invalid condition: {condition}")
+                # Additional security: check for SQL keywords in condition
+                sql_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE"]
+                for keyword in sql_keywords:
+                    if keyword in condition.upper():
+                        raise ValueError(f"Invalid condition: SQL keyword '{keyword}' not allowed")
                 where_parts.append(condition.strip())
+            # Security: All identifiers are validated before use in f-string
             return f"EXISTS (SELECT 1 FROM {table} WHERE {' AND '.join(where_parts)})"
 
         return pattern.sub(_replace_in, query_text)

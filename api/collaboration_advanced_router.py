@@ -38,6 +38,7 @@ ACTIVITIES_FILE = DATA_DIR / "collaboration_activities.json"
 # Pydantic Models
 class TeamStatusEnum(str, Enum):
     """团队状态枚举"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     ARCHIVED = "archived"
@@ -45,6 +46,7 @@ class TeamStatusEnum(str, Enum):
 
 class MemberRoleEnum(str, Enum):
     """成员角色枚举"""
+
     OWNER = "owner"
     ADMIN = "admin"
     MEMBER = "member"
@@ -53,6 +55,7 @@ class MemberRoleEnum(str, Enum):
 
 class PermissionLevelEnum(str, Enum):
     """权限级别枚举"""
+
     READ = "read"
     WRITE = "write"
     ADMIN = "admin"
@@ -61,6 +64,7 @@ class PermissionLevelEnum(str, Enum):
 
 class ActivityTypeEnum(str, Enum):
     """活动类型枚举"""
+
     TEAM_CREATED = "team_created"
     MEMBER_ADDED = "member_added"
     MEMBER_REMOVED = "member_removed"
@@ -74,6 +78,7 @@ class ActivityTypeEnum(str, Enum):
 
 class CreateTeamRequest(BaseModel):
     """创建团队请求"""
+
     name: str = Field(..., min_length=1, max_length=200, description="团队名称")
     description: Optional[str] = Field(None, max_length=1000, description="团队描述")
     owner_id: str = Field(..., min_length=1, max_length=100, description="所有者ID")
@@ -95,6 +100,7 @@ class CreateTeamRequest(BaseModel):
 
 class UpdateTeamRequest(BaseModel):
     """更新团队请求"""
+
     name: Optional[str] = Field(None, max_length=200, description="团队名称")
     description: Optional[str] = Field(None, max_length=1000, description="团队描述")
     status: Optional[TeamStatusEnum] = Field(None, description="团队状态")
@@ -113,6 +119,7 @@ class UpdateTeamRequest(BaseModel):
 
 class CreateMemberRequest(BaseModel):
     """创建成员请求"""
+
     user_id: str = Field(..., min_length=1, max_length=100, description="用户ID")
     user_name: str = Field(..., min_length=1, max_length=200, description="用户名称")
     email: Optional[str] = Field(None, max_length=255, description="邮箱")
@@ -134,6 +141,7 @@ class CreateMemberRequest(BaseModel):
 
 class UpdateMemberRequest(BaseModel):
     """更新成员请求"""
+
     role: Optional[MemberRoleEnum] = Field(None, description="角色")
     email: Optional[str] = Field(None, max_length=255, description="邮箱")
 
@@ -149,6 +157,7 @@ class UpdateMemberRequest(BaseModel):
 
 class CreatePermissionRequest(BaseModel):
     """创建权限请求"""
+
     team_id: str = Field(..., min_length=1, max_length=100, description="团队ID")
     member_id: str = Field(..., min_length=1, max_length=100, description="成员ID")
     resource_type: str = Field(..., description="资源类型")
@@ -170,6 +179,7 @@ class CreatePermissionRequest(BaseModel):
 
 class CreateActivityRequest(BaseModel):
     """创建活动请求"""
+
     team_id: str = Field(..., min_length=1, max_length=100, description="团队ID")
     activity_type: ActivityTypeEnum = Field(..., description="活动类型")
     actor_id: str = Field(..., min_length=1, max_length=100, description="执行者ID")
@@ -200,15 +210,28 @@ def _load_json_file(file_path: Path) -> List[Dict[str, Any]]:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, list) else []
-    except Exception as e:
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning(f"Failed to load JSON file {file_path}: {exc}")
+        return []
+    except Exception as e:  # noqa: F841 - Exception intentionally unused
         return []
 
 
 def _save_json_file(file_path: Path, data: List[Dict[str, Any]]) -> None:
     """保存JSON文件"""
+    import os
+    import stat
+
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+        # Set restrictive permissions for collaboration data file (600 - owner read/write only)
+        try:
+            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+        except (OSError, AttributeError):
+            # chmod may fail on Windows or non-Unix systems
+            pass
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}")
 
@@ -246,7 +269,7 @@ def _log_activity(
         }
         activities.append(activity)
         _save_json_file(ACTIVITIES_FILE, activities)
-    except Exception as e:
+    except Exception as e:  # noqa: F841 - Exception intentionally unused
         # 记录失败不影响主流程
         pass
 
@@ -565,7 +588,10 @@ async def create_member(request: CreateMemberRequest) -> Dict[str, Any]:
 
         # 检查用户是否已在团队中
         for member in members:
-            if member.get("user_id") == request.user_id and member.get("team_id") == request.team_id:
+            if (
+                member.get("user_id") == request.user_id
+                and member.get("team_id") == request.team_id
+            ):
                 return create_error_response(
                     error="User already in team",
                     error_code=ErrorCode.BAD_REQUEST,

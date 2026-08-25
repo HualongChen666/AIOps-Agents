@@ -23,10 +23,10 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from core.cost_monitor import collect_costs, forecast_costs, budget_status
+from core.cost_monitor import budget_status, collect_costs, forecast_costs
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/cost", tags=["成本管理高级功能"])
@@ -155,6 +155,7 @@ _reports: Dict[str, Dict] = {}
 
 class BudgetCreate(BaseModel):
     """Model for creating a new budget"""
+
     name: str = Field(..., description="Budget name")
     service: str = Field(..., description="Service name")
     amount: float = Field(..., gt=0, description="Budget amount")
@@ -164,6 +165,7 @@ class BudgetCreate(BaseModel):
 
 class BudgetUpdate(BaseModel):
     """Model for updating a budget"""
+
     name: Optional[str] = Field(None, description="Budget name")
     amount: Optional[float] = Field(None, gt=0, description="Budget amount")
     period: Optional[str] = Field(None, description="Budget period")
@@ -172,6 +174,7 @@ class BudgetUpdate(BaseModel):
 
 class AnalyticsRequest(BaseModel):
     """Model for analytics request"""
+
     start_date: Optional[str] = Field(None, description="Start date (ISO format)")
     end_date: Optional[str] = Field(None, description="End date (ISO format)")
     group_by: Optional[str] = Field(default="service", description="Group by field")
@@ -180,12 +183,14 @@ class AnalyticsRequest(BaseModel):
 
 class OptimizationRequest(BaseModel):
     """Model for optimization request"""
+
     resource_id: Optional[str] = Field(None, description="Resource ID")
     action: str = Field(..., description="Action: apply or dismiss")
 
 
 class ReportRequest(BaseModel):
     """Model for report generation request"""
+
     period: str = Field(default="30d", description="Report period (e.g., 30d, 90d)")
     format: str = Field(default="json", description="Report format")
     include_forecast: bool = Field(default=False, description="Include forecast data")
@@ -193,15 +198,19 @@ class ReportRequest(BaseModel):
 
 class AlertCreate(BaseModel):
     """Model for creating an alert"""
+
     name: str = Field(..., description="Alert name")
     type: str = Field(..., description="Alert type")
     threshold: float = Field(..., gt=0, description="Alert threshold")
     severity: str = Field(default="medium", description="Alert severity")
-    notification_channels: List[str] = Field(default_factory=list, description="Notification channels")
+    notification_channels: List[str] = Field(
+        default_factory=list, description="Notification channels"
+    )
 
 
 class AlertUpdate(BaseModel):
     """Model for updating an alert"""
+
     name: Optional[str] = Field(None, description="Alert name")
     threshold: Optional[float] = Field(None, gt=0, description="Alert threshold")
     severity: Optional[str] = Field(None, description="Alert severity")
@@ -231,36 +240,46 @@ async def get_cost_overview() -> Dict[str, Any]:
     try:
         # Collect cost data
         cost_data = collect_costs()
-        
+
         # Get budget status
         budget_info = budget_status()
-        
+
         # Calculate totals
         total_cost = sum(record.get("cost", 0) for record in cost_data)
-        
+
         # Get forecast
         forecast_data = forecast_costs(30)
         total_forecast = sum(record.get("forecasted_cost", 0) for record in forecast_data)
-        
+
         # Calculate trends
         if len(cost_data) >= 2:
             recent_cost = cost_data[-1].get("cost", 0)
             previous_cost = cost_data[-2].get("cost", 0)
-            trend = "up" if recent_cost > previous_cost else "down" if recent_cost < previous_cost else "stable"
-            trend_percent = ((recent_cost - previous_cost) / previous_cost * 100) if previous_cost > 0 else 0
+            trend = (
+                "up"
+                if recent_cost > previous_cost
+                else "down" if recent_cost < previous_cost else "stable"
+            )
+            trend_percent = (
+                ((recent_cost - previous_cost) / previous_cost * 100) if previous_cost > 0 else 0
+            )
         else:
             trend = "stable"
             trend_percent = 0
-        
+
         # Count active budgets
         active_budgets = len([b for b in _budgets.values() if b.get("alerts_enabled", False)])
-        
+
         # Count pending optimizations
-        pending_optimizations = len([o for o in _optimization_suggestions.values() if o.get("status") == "pending"])
-        
+        pending_optimizations = len(
+            [o for o in _optimization_suggestions.values() if o.get("status") == "pending"]
+        )
+
         # Count open anomalies
-        open_anomalies = len([a for a in _anomalies if a.get("status") in ["open", "investigating"]])
-        
+        open_anomalies = len(
+            [a for a in _anomalies if a.get("status") in ["open", "investigating"]]
+        )
+
         return {
             "total_cost": total_cost,
             "budget_status": budget_info,
@@ -308,7 +327,7 @@ async def get_cost_analytics(
     try:
         # Collect cost data
         cost_data = collect_costs()
-        
+
         # Filter by date range if provided
         if start_date or end_date:
             filtered_data = []
@@ -320,7 +339,7 @@ async def get_cost_analytics(
                     continue
                 filtered_data.append(record)
             cost_data = filtered_data
-        
+
         # Group costs
         if group_by == "service":
             grouped = _group_costs_by_service(cost_data)
@@ -330,11 +349,11 @@ async def get_cost_analytics(
             grouped = _group_costs_by_category(cost_data)
         else:
             grouped = _group_costs_by_service(cost_data)
-        
+
         # Calculate statistics
         total_cost = sum(record.get("cost", 0) for record in cost_data)
         avg_cost = total_cost / len(cost_data) if cost_data else 0
-        
+
         # Find max and min
         if cost_data:
             max_cost = max(record.get("cost", 0) for record in cost_data)
@@ -342,10 +361,10 @@ async def get_cost_analytics(
         else:
             max_cost = 0
             min_cost = 0
-        
+
         # Calculate cost trends over time
         time_series = _calculate_cost_trends(cost_data, granularity)
-        
+
         return {
             "summary": {
                 "total_cost": total_cost,
@@ -410,14 +429,12 @@ async def get_optimization_suggestions() -> Dict[str, Any]:
     """
     try:
         suggestions = list(_optimization_suggestions.values())
-        
+
         # Calculate total potential savings
         total_savings = sum(
-            s.get("projected_savings", 0) 
-            for s in suggestions 
-            if s.get("status") == "pending"
+            s.get("projected_savings", 0) for s in suggestions if s.get("status") == "pending"
         )
-        
+
         # Group by type
         by_type = {}
         for suggestion in suggestions:
@@ -425,13 +442,13 @@ async def get_optimization_suggestions() -> Dict[str, Any]:
             if opt_type not in by_type:
                 by_type[opt_type] = []
             by_type[opt_type].append(suggestion)
-        
+
         # Group by effort
         by_effort = {"low": [], "medium": [], "high": []}
         for suggestion in suggestions:
             effort = suggestion.get("effort", "medium")
             by_effort[effort].append(suggestion)
-        
+
         return {
             "suggestions": suggestions,
             "summary": {
@@ -447,7 +464,9 @@ async def get_optimization_suggestions() -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Error getting optimization suggestions: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get optimization suggestions: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get optimization suggestions: {str(e)}"
+        )
 
 
 @router.post(
@@ -467,12 +486,12 @@ async def handle_optimization(request: OptimizationRequest) -> Dict[str, Any]:
     try:
         if not request.resource_id:
             raise HTTPException(status_code=400, detail="resource_id is required")
-        
+
         if request.resource_id not in _optimization_suggestions:
             raise HTTPException(status_code=404, detail="Optimization suggestion not found")
-        
+
         suggestion = _optimization_suggestions[request.resource_id]
-        
+
         if request.action == "apply":
             suggestion["status"] = "applied"
             suggestion["updated_at"] = datetime.now().isoformat()
@@ -482,8 +501,10 @@ async def handle_optimization(request: OptimizationRequest) -> Dict[str, Any]:
             suggestion["updated_at"] = datetime.now().isoformat()
             message = f"Successfully dismissed optimization for {suggestion.get('resource')}"
         else:
-            raise HTTPException(status_code=400, detail="Invalid action. Must be 'apply' or 'dismiss'")
-        
+            raise HTTPException(
+                status_code=400, detail="Invalid action. Must be 'apply' or 'dismiss'"
+            )
+
         return {
             "success": True,
             "message": message,
@@ -511,19 +532,19 @@ async def get_budgets() -> Dict[str, Any]:
     """
     try:
         budgets = list(_budgets.values())
-        
+
         # Calculate summary
         total_budget = sum(b.get("amount", 0) for b in budgets)
         total_spent = sum(b.get("spent", 0) for b in budgets)
         total_remaining = sum(b.get("remaining", 0) for b in budgets)
-        
+
         # Count by status
         status_counts = {
             "on_track": len([b for b in budgets if b.get("status") == "on_track"]),
             "warning": len([b for b in budgets if b.get("status") == "warning"]),
             "exceeded": len([b for b in budgets if b.get("status") == "exceeded"]),
         }
-        
+
         return {
             "budgets": budgets,
             "summary": {
@@ -531,7 +552,9 @@ async def get_budgets() -> Dict[str, Any]:
                 "total_budget_amount": total_budget,
                 "total_spent": total_spent,
                 "total_remaining": total_remaining,
-                "utilization_percent": round((total_spent / total_budget * 100) if total_budget > 0 else 0, 2),
+                "utilization_percent": round(
+                    (total_spent / total_budget * 100) if total_budget > 0 else 0, 2
+                ),
                 "status_counts": status_counts,
             },
             "retrieved_at": datetime.now().isoformat(),
@@ -557,7 +580,7 @@ async def create_budget(budget: BudgetCreate) -> Dict[str, Any]:
     """
     try:
         budget_id = f"budget-{uuid.uuid4().hex[:8]}"
-        
+
         new_budget = {
             "id": budget_id,
             "name": budget.name,
@@ -571,9 +594,9 @@ async def create_budget(budget: BudgetCreate) -> Dict[str, Any]:
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
-        
+
         _budgets[budget_id] = new_budget
-        
+
         return {
             "success": True,
             "message": "Budget created successfully",
@@ -601,9 +624,9 @@ async def update_budget(budget_id: str, budget: BudgetUpdate) -> Dict[str, Any]:
     try:
         if budget_id not in _budgets:
             raise HTTPException(status_code=404, detail="Budget not found")
-        
+
         existing_budget = _budgets[budget_id]
-        
+
         # Update fields if provided
         if budget.name is not None:
             existing_budget["name"] = budget.name
@@ -614,7 +637,7 @@ async def update_budget(budget_id: str, budget: BudgetUpdate) -> Dict[str, Any]:
             existing_budget["period"] = budget.period
         if budget.alerts_enabled is not None:
             existing_budget["alerts_enabled"] = budget.alerts_enabled
-        
+
         # Recalculate status
         utilization = existing_budget.get("spent", 0) / existing_budget.get("amount", 1)
         if utilization >= 0.9:
@@ -623,9 +646,9 @@ async def update_budget(budget_id: str, budget: BudgetUpdate) -> Dict[str, Any]:
             existing_budget["status"] = "warning"
         else:
             existing_budget["status"] = "on_track"
-        
+
         existing_budget["updated_at"] = datetime.now().isoformat()
-        
+
         return {
             "success": True,
             "message": "Budget updated successfully",
@@ -655,9 +678,9 @@ async def delete_budget(budget_id: str) -> Dict[str, Any]:
     try:
         if budget_id not in _budgets:
             raise HTTPException(status_code=404, detail="Budget not found")
-        
+
         deleted_budget = _budgets.pop(budget_id)
-        
+
         return {
             "success": True,
             "message": "Budget deleted successfully",
@@ -689,25 +712,29 @@ async def get_forecasts(
     try:
         # Get forecast data
         forecast_data = forecast_costs(days)
-        
+
         # Filter by service if specified
         if service:
             # In a real implementation, this would filter by service
             # For now, we'll just return all data
             pass
-        
+
         # Calculate totals
         total_forecast = sum(record.get("forecasted_cost", 0) for record in forecast_data)
         avg_daily_forecast = total_forecast / days if days > 0 else 0
-        
+
         # Get historical data for comparison
         historical_costs = collect_costs()
         total_historical = sum(record.get("cost", 0) for record in historical_costs)
         avg_historical = total_historical / len(historical_costs) if historical_costs else 0
-        
+
         # Calculate growth rate
-        growth_rate = ((avg_daily_forecast - avg_historical) / avg_historical * 100) if avg_historical > 0 else 0
-        
+        growth_rate = (
+            ((avg_daily_forecast - avg_historical) / avg_historical * 100)
+            if avg_historical > 0
+            else 0
+        )
+
         return {
             "forecast_period": {
                 "days": days,
@@ -744,7 +771,7 @@ async def get_reports() -> Dict[str, Any]:
     """
     try:
         reports = list(_reports.values())
-        
+
         return {
             "reports": reports,
             "total_count": len(reports),
@@ -771,38 +798,39 @@ async def generate_report(request: ReportRequest) -> Dict[str, Any]:
     try:
         # Parse period
         period_days = int(request.period.rstrip("d")) if request.period.endswith("d") else 30
-        
+
         # Collect cost data
         cost_data = collect_costs()
-        
+
         # Filter by period
         end_date = datetime.now()
         start_date = end_date - timedelta(days=period_days)
-        
+
         period_costs = [
-            record for record in cost_data
+            record
+            for record in cost_data
             if datetime.fromisoformat(record.get("timestamp", "")) >= start_date
         ]
-        
+
         # Calculate totals
         total_cost = sum(record.get("cost", 0) for record in period_costs)
-        
+
         # Get budget info
         budget_info = budget_status()
         budget_amount = budget_info.get("budget", {}).get("monthly_budget", 0)
-        
+
         # Calculate variance
         variance = total_cost - budget_amount
-        
+
         # Group by service
         by_service = _group_costs_by_service(period_costs)
-        
+
         # Group by category
         by_category = _group_costs_by_category(period_costs)
-        
+
         # Calculate trends
         trends = _calculate_cost_trends(period_costs, "daily")
-        
+
         # Create report
         report_id = f"report-{uuid.uuid4().hex[:8]}"
         report = {
@@ -813,7 +841,9 @@ async def generate_report(request: ReportRequest) -> Dict[str, Any]:
             "total_cost": round(total_cost, 2),
             "budget": budget_amount,
             "variance": round(variance, 2),
-            "variance_percent": round((variance / budget_amount * 100) if budget_amount > 0 else 0, 2),
+            "variance_percent": round(
+                (variance / budget_amount * 100) if budget_amount > 0 else 0, 2
+            ),
             "by_service": by_service,
             "by_category": by_category,
             "trends": trends,
@@ -821,7 +851,7 @@ async def generate_report(request: ReportRequest) -> Dict[str, Any]:
             "include_forecast": request.include_forecast,
             "created_at": datetime.now().isoformat(),
         }
-        
+
         # Add forecast if requested
         if request.include_forecast:
             forecast_data = forecast_costs(30)
@@ -830,10 +860,10 @@ async def generate_report(request: ReportRequest) -> Dict[str, Any]:
                 "total_forecast": sum(r.get("forecasted_cost", 0) for r in forecast_data),
                 "forecast_data": forecast_data,
             }
-        
+
         # Store report
         _reports[report_id] = report
-        
+
         return {
             "success": True,
             "message": "Report generated successfully",
@@ -862,35 +892,32 @@ async def get_anomalies(
     """
     try:
         anomalies = _anomalies.copy()
-        
+
         # Filter by severity
         if severity:
             anomalies = [a for a in anomalies if a.get("severity") == severity]
-        
+
         # Filter by status
         if status:
             anomalies = [a for a in anomalies if a.get("status") == status]
-        
+
         # Count by severity
         severity_counts = {
             "high": len([a for a in _anomalies if a.get("severity") == "high"]),
             "medium": len([a for a in _anomalies if a.get("severity") == "medium"]),
             "low": len([a for a in _anomalies if a.get("severity") == "low"]),
         }
-        
+
         # Count by status
         status_counts = {
             "open": len([a for a in _anomalies if a.get("status") == "open"]),
             "investigating": len([a for a in _anomalies if a.get("status") == "investigating"]),
             "resolved": len([a for a in _anomalies if a.get("status") == "resolved"]),
         }
-        
+
         # Calculate total impact
-        total_impact = sum(
-            a.get("actual_cost", 0) - a.get("expected_cost", 0)
-            for a in anomalies
-        )
-        
+        total_impact = sum(a.get("actual_cost", 0) - a.get("expected_cost", 0) for a in anomalies)
+
         return {
             "anomalies": anomalies,
             "summary": {
@@ -928,11 +955,11 @@ async def get_alerts(
     """
     try:
         alerts = list(_alerts.values())
-        
+
         # Filter by enabled status
         if enabled is not None:
             alerts = [a for a in alerts if a.get("enabled") == enabled]
-        
+
         # Count by severity
         severity_counts = {
             "critical": len([a for a in alerts if a.get("severity") == "critical"]),
@@ -940,13 +967,13 @@ async def get_alerts(
             "medium": len([a for a in alerts if a.get("severity") == "medium"]),
             "low": len([a for a in alerts if a.get("severity") == "low"]),
         }
-        
+
         # Count by type
         type_counts = {}
         for alert in alerts:
             alert_type = alert.get("type", "unknown")
             type_counts[alert_type] = type_counts.get(alert_type, 0) + 1
-        
+
         return {
             "alerts": alerts,
             "summary": {
@@ -982,7 +1009,7 @@ async def create_alert(alert: AlertCreate) -> Dict[str, Any]:
     """
     try:
         alert_id = f"alert-{uuid.uuid4().hex[:8]}"
-        
+
         new_alert = {
             "id": alert_id,
             "name": alert.name,
@@ -995,9 +1022,9 @@ async def create_alert(alert: AlertCreate) -> Dict[str, Any]:
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
-        
+
         _alerts[alert_id] = new_alert
-        
+
         return {
             "success": True,
             "message": "Alert created successfully",
@@ -1046,44 +1073,50 @@ def _group_costs_by_category(cost_data: List[Dict]) -> Dict[str, float]:
 def _calculate_cost_trends(cost_data: List[Dict], granularity: str) -> List[Dict]:
     """Calculate cost trends over time"""
     trends = []
-    
+
     if not cost_data:
         return trends
-    
+
     # Sort by timestamp
     sorted_data = sorted(cost_data, key=lambda x: x.get("timestamp", ""))
-    
+
     for record in sorted_data:
-        trends.append({
-            "date": record.get("timestamp", ""),
-            "cost": record.get("cost", 0),
-        })
-    
+        trends.append(
+            {
+                "date": record.get("timestamp", ""),
+                "cost": record.get("cost", 0),
+            }
+        )
+
     return trends
 
 
 def _generate_cost_insights(cost_data: List[Dict], grouped_data: Dict) -> List[str]:
     """Generate insights from cost data"""
     insights = []
-    
+
     if not cost_data:
         insights.append("No cost data available for analysis")
         return insights
-    
+
     # Find highest cost service
     if grouped_data:
         top_service = max(grouped_data.items(), key=lambda x: x[1])
         insights.append(f"Highest cost service: {top_service[0]} (${top_service[1]:.2f})")
-    
+
     # Calculate trend
     if len(cost_data) >= 2:
         recent = cost_data[-1].get("cost", 0)
         previous = cost_data[-2].get("cost", 0)
         if recent > previous:
-            insights.append(f"Costs are trending up ({((recent - previous) / previous * 100):.1f}%)")
+            insights.append(
+                f"Costs are trending up ({((recent - previous) / previous * 100):.1f}%)"
+            )
         elif recent < previous:
-            insights.append(f"Costs are trending down ({((previous - recent) / previous * 100):.1f}%)")
+            insights.append(
+                f"Costs are trending down ({((previous - recent) / previous * 100):.1f}%)"
+            )
         else:
             insights.append("Costs are stable")
-    
+
     return insights

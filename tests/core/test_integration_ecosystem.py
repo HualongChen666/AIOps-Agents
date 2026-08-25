@@ -86,7 +86,9 @@ async def test_webhook_signature_and_trigger(ecosystem):
     raw = json.dumps(payload, sort_keys=True)
     expected = hmac.new("s3cret".encode(), raw.encode(), hashlib.sha256).hexdigest()
 
-    result = await ecosystem.trigger_webhook(webhook.id, {**payload, "signature": expected})  # noqa: F841  # Variable for test verification
+    result = await ecosystem.trigger_webhook(
+        webhook.id, {**payload, "signature": expected}
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
     missing = await ecosystem.trigger_webhook(webhook.id, payload)
@@ -103,7 +105,9 @@ async def test_publish_and_process_event(ecosystem):
         called.append(event.event_type)
 
     ecosystem.register_event_handler("test", handler)
-    result = await ecosystem.publish_event("test", {"x": 1})  # noqa: F841  # Variable for test verification
+    result = await ecosystem.publish_event(
+        "test", {"x": 1}
+    )  # noqa: F841  # Variable for test verification
     assert result is True
     assert len(ecosystem.event_queue) == 1
 
@@ -120,7 +124,9 @@ async def test_query_and_trigger_methods(ecosystem):
         provider="prometheus",
         configuration={"url": "http://prom", "port": 9090},
     )
-    result = await ecosystem.query_prometheus_metrics("up", integration.id, time_range="1h")  # noqa: F841  # Variable for test verification
+    result = await ecosystem.query_prometheus_metrics(
+        "up", integration.id, time_range="1h"
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
     jenkins = await ecosystem.register_integration(
@@ -220,7 +226,9 @@ async def test_plugin_sdk():
     )
     assert reg["success"] is True
 
-    result = await sdk.execute_plugin("p1", {"x": 1})  # noqa: F841  # Variable for test verification
+    result = await sdk.execute_plugin(
+        "p1", {"x": 1}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
     hooks = []

@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/v1/service-mesh", tags=["Service Mesh Advanced"]
 # Pydantic Models
 class MeshConfigurationCreate(BaseModel):
     """Mesh configuration creation model"""
+
     name: str = Field(..., description="Configuration name")
     mesh_type: str = Field(default="istio", description="Mesh type (istio, linkerd, consul)")
     namespace: str = Field(default="istio-system", description="Kubernetes namespace")
@@ -30,6 +31,7 @@ class MeshConfigurationCreate(BaseModel):
 
 class MeshConfigurationUpdate(BaseModel):
     """Mesh configuration update model"""
+
     name: Optional[str] = Field(None, description="Configuration name")
     namespace: Optional[str] = Field(None, description="Kubernetes namespace")
     profile: Optional[str] = Field(None, description="Mesh profile")
@@ -41,6 +43,7 @@ class MeshConfigurationUpdate(BaseModel):
 
 class TrafficRuleCreate(BaseModel):
     """Traffic rule creation model"""
+
     name: str = Field(..., description="Rule name")
     service_name: str = Field(..., description="Target service name")
     match_conditions: Dict[str, Any] = Field(..., description="Match conditions")
@@ -54,8 +57,11 @@ class TrafficRuleCreate(BaseModel):
 
 class SecurityPolicyCreate(BaseModel):
     """Security policy creation model"""
+
     name: str = Field(..., description="Policy name")
-    policy_type: str = Field(..., description="Policy type (authentication, authorization, security)")
+    policy_type: str = Field(
+        ..., description="Policy type (authentication, authorization, security)"
+    )
     target_service: str = Field(..., description="Target service")
     mtls_mode: str = Field(default="STRICT", description="mTLS mode (STRICT, PERMISSIVE, DISABLE)")
     allowed_principals: List[str] = Field(default_factory=list, description="Allowed principals")
@@ -66,6 +72,7 @@ class SecurityPolicyCreate(BaseModel):
 
 class ObservabilityConfigCreate(BaseModel):
     """Observability configuration creation model"""
+
     name: str = Field(..., description="Configuration name")
     tracing_enabled: bool = Field(default=True, description="Enable tracing")
     metrics_enabled: bool = Field(default=True, description="Enable metrics")
@@ -78,6 +85,7 @@ class ObservabilityConfigCreate(BaseModel):
 
 class PolicyCreate(BaseModel):
     """Policy creation model"""
+
     name: str = Field(..., description="Policy name")
     policy_type: str = Field(..., description="Policy type")
     target_service: str = Field(..., description="Target service")

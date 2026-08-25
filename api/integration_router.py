@@ -129,7 +129,11 @@ class JenkinsJobRequest(BaseModel):
     model_config = {
         "extra": "ignore",
         "json_schema_extra": {
-            "example": {"integration_id": "example", "job_name": "example", "parameters": "example"}
+            "example": {
+                "integration_id": "example",
+                "job_name": "example",
+                "parameters": "example",
+            }
         },
     }
 
@@ -224,7 +228,9 @@ async def register_integration(request: IntegrationRegistrationRequest) -> dict[
             "name": integration.name,
             "enabled": integration.enabled,
             "status": integration.status.value,
-            "last_tested": integration.last_tested.isoformat() if integration.last_tested else None,
+            "last_tested": (
+                integration.last_tested.isoformat() if integration.last_tested else None
+            ),
         },
     }
 

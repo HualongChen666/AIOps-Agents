@@ -414,7 +414,10 @@ async def test_analyze_gating_escalate_low_confidence():
 
 async def test_analyze_max_candidates_break():
     engine = rci.RootCauseIntelligenceEngine()
-    base = {"alerts": [{"alert_type": "x", "host": "web"}], "metrics": {}}  # noqa: F841  # Variable for test verification
+    base = {
+        "alerts": [{"alert_type": "x", "host": "web"}],
+        "metrics": {},
+    }  # noqa: F841  # Variable for test verification
     for i, name in enumerate(["pat1", "pat2", "pat3"], 1):
         engine.learn_historical_pattern({**base, "metrics": {f"m{i}": 95.0}}, name, 10.0, 0.8)
 

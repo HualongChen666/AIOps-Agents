@@ -299,15 +299,15 @@ class ServiceDiscovery:
 
 
 # 全局实例
-consul_config_center = ConsulConfigCenter()
-service_discovery = ServiceDiscovery(consul_config_center)
+CONSUL_CONFIG_CENTER = ConsulConfigCenter()
+SERVICE_DISCOVERY = ServiceDiscovery(CONSUL_CONFIG_CENTER)
 
 
 def get_config_center() -> ConsulConfigCenter:
     """获取配置中心实例"""
-    return consul_config_center
+    return CONSUL_CONFIG_CENTER
 
 
 def get_service_discovery() -> ServiceDiscovery:
     """获取服务发现实例"""
-    return service_discovery
+    return SERVICE_DISCOVERY

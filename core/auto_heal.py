@@ -69,7 +69,14 @@ _FAILURE_ESCALATION_THRESHOLD = int(os.getenv("HEAL_FAILURE_ESCALATION_THRESHOLD
 
 
 def _get_resource_key(alert: Dict[str, Any]) -> str:
-    """Derive a stable key for failure tracking and locking."""
+    """Derive a stable key for failure tracking and locking.
+
+    Args:
+        alert: Alert dictionary containing resource information
+
+    Returns:
+        Stable string key derived from resource_id, id, host, or alert_id
+    """
     return str(
         alert.get("resource_id")
         or alert.get("id")
@@ -80,7 +87,12 @@ def _get_resource_key(alert: Dict[str, Any]) -> str:
 
 
 def _is_in_maintenance_window() -> tuple[bool, Optional[str]]:
-    """Check whether auto-heal is currently disabled by a maintenance window."""
+    """Check whether auto-heal is currently disabled by a maintenance window.
+
+    Returns:
+        Tuple of (in_window, reason) where in_window is True if in maintenance,
+        and reason is a string explaining why or None if not in maintenance
+    """
     mode = os.getenv("HEAL_MAINTENANCE_MODE", "false").lower()
     if mode in ("1", "true", "yes"):
         return True, "HEAL_MAINTENANCE_MODE enabled"
@@ -104,7 +116,15 @@ def _is_in_maintenance_window() -> tuple[bool, Optional[str]]:
 
 
 def _should_escalate(alert: Dict[str, Any]) -> tuple[bool, Dict[str, Any]]:
-    """Return (escalated, failure_record) when repeated heal failures exceed the threshold."""
+    """Return (escalated, failure_record) when repeated heal failures exceed the threshold.
+
+    Args:
+        alert: Alert dictionary to check for escalation
+
+    Returns:
+        Tuple of (should_escalate, failure_record) where should_escalate is True
+        if failure count exceeds threshold, and failure_record contains the tracking data
+    """
     key = _get_resource_key(alert)
     record = _HEAL_FAILURE_TRACKER.get(key, {"count": 0, "first_seen": None, "last_seen": None})
     if record["count"] >= _FAILURE_ESCALATION_THRESHOLD:
@@ -113,7 +133,11 @@ def _should_escalate(alert: Dict[str, Any]) -> tuple[bool, Dict[str, Any]]:
 
 
 def _record_heal_failure(alert: Dict[str, Any]) -> None:
-    """Increment the failure counter for a given resource/alert."""
+    """Increment the failure counter for a given resource/alert.
+
+    Args:
+        alert: Alert dictionary to record failure for
+    """
     key = _get_resource_key(alert)
     now = datetime.now(timezone.utc).isoformat()
     record = _HEAL_FAILURE_TRACKER.setdefault(
@@ -124,13 +148,24 @@ def _record_heal_failure(alert: Dict[str, Any]) -> None:
 
 
 def _record_heal_success(alert: Dict[str, Any]) -> None:
-    """Clear failure history on a successful heal."""
+    """Clear failure history on a successful heal.
+
+    Args:
+        alert: Alert dictionary to clear failure history for
+    """
     key = _get_resource_key(alert)
     _HEAL_FAILURE_TRACKER.pop(key, None)
 
 
 def _is_pending_approval_error(final_state: Any) -> bool:
-    """Heuristic: a run that stopped at approval is not a true heal failure."""
+    """Heuristic: a run that stopped at approval is not a true heal failure.
+
+    Args:
+        final_state: Final state object from a heal attempt
+
+    Returns:
+        True if the error is related to pending approval (not a real failure)
+    """
     if not hasattr(final_state, "error") or not hasattr(final_state, "approval_status"):
         return False
     error = (final_state.error or "").lower()
@@ -140,7 +175,14 @@ def _is_pending_approval_error(final_state: Any) -> bool:
 
 
 async def _acquire_heal_lock(resource_key: str) -> asyncio.Lock:
-    """Return an asyncio.Lock for the given resource (per-process distributed lock)."""
+    """Return an asyncio.Lock for the given resource (per-process distributed lock).
+
+    Args:
+        resource_key: Resource key to acquire lock for
+
+    Returns:
+        Asyncio lock object for the resource
+    """
     if resource_key not in _HEAL_LOCKS:
         _HEAL_LOCKS[resource_key] = asyncio.Lock()
     return _HEAL_LOCKS[resource_key]
@@ -150,7 +192,15 @@ async def _acquire_heal_lock(resource_key: str) -> asyncio.Lock:
 # P2 Enhancement: Platform Support
 # ============================================================
 class PlatformType(Enum):
-    """Supported platforms for repair scripts"""
+    """Supported platforms for repair scripts.
+
+    Attributes:
+        WINDOWS: Windows platform
+        LINUX: Linux platform
+        MACOS: macOS platform
+        DOCKER: Docker container platform
+        KUBERNETES: Kubernetes platform
+    """
 
     WINDOWS = "windows"
     LINUX = "linux"
@@ -607,9 +657,9 @@ class CrossPlatformScriptExecutor:
 # ============================================================
 # P2 Enhancement: Global instances
 # ============================================================
-repair_script_library = RepairScriptLibrary()
-risk_assessment_engine = RiskAssessmentEngine()
-cross_platform_executor = CrossPlatformScriptExecutor()
+REPAIR_SCRIPT_LIBRARY = RepairScriptLibrary()
+RISK_ASSESSMENT_ENGINE = RiskAssessmentEngine()
+CROSS_PLATFORM_EXECUTOR = CrossPlatformScriptExecutor()
 
 
 # ----------------------------------------------------------------------
@@ -683,7 +733,7 @@ def _resolve_script_key(rule_name: str, alert_payload: Dict[str, Any]) -> str:
       3. The generic ``service_restart_script`` as a safe default.
     """
     script_key = alert_payload.get("script_key")
-    if script_key and repair_script_library.get_script(script_key):
+    if script_key and REPAIR_SCRIPT_LIBRARY.get_script(script_key):
         return script_key
 
     rule_lower = (rule_name or "").lower()
@@ -842,7 +892,7 @@ def simulate_repair(alert: Dict[str, Any], script_key: str) -> Dict[str, Any]:
     Returns a normalized dict compatible with ``handle_alert``.
     """
     _logger.debug("Executing repair for script_key=%s", script_key)
-    result = cross_platform_executor.execute_script(script_key, alert)
+    result = CROSS_PLATFORM_EXECUTOR.execute_script(script_key, alert)
     if not result.get("success"):
         result.setdefault("duration", 0.0)
         result.setdefault("output", result.get("error", "Repair failed"))

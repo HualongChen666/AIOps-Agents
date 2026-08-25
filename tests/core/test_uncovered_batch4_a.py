@@ -336,13 +336,17 @@ async def test_query_prometheus_metrics(ecosystem, monkeypatch):
     ecosystem.http_session.get.return_value = MagicMock(
         status_code=200, json=lambda: {"data": {"result": [1]}}
     )
-    result = await ecosystem.query_prometheus_metrics("up", prom.id, time_range="1h")  # noqa: F841  # Variable for test verification
+    result = await ecosystem.query_prometheus_metrics(
+        "up", prom.id, time_range="1h"
+    )  # noqa: F841  # Variable for test verification
     assert result == {"data": {"result": [1]}}  # noqa: F841  # Variable for test verification
 
     # error response (clear cache to avoid cached success)
     ecosystem._observability_cache.clear()
     ecosystem.http_session.get.return_value = MagicMock(status_code=500)
-    result = await ecosystem.query_prometheus_metrics("up", prom.id, time_range="1h")  # noqa: F841  # Variable for test verification
+    result = await ecosystem.query_prometheus_metrics(
+        "up", prom.id, time_range="1h"
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
 
     # invalid promql
@@ -717,7 +721,9 @@ async def test_langgraph_collect_metrics_and_logs(monkeypatch):
     vm = MagicMock()
     vm.query_range = AsyncMock(return_value=[1, 2, 3])
     monkeypatch.setattr(l2e, "validate_promql", lambda q: None)
-    result = await engine._collect_metrics(vm, "latency", start, end)  # noqa: F841  # Variable for test verification
+    result = await engine._collect_metrics(
+        vm, "latency", start, end
+    )  # noqa: F841  # Variable for test verification
     assert result["count"] == 3
 
     # validation failure falls back to 'up' still succeeds
@@ -726,24 +732,32 @@ async def test_langgraph_collect_metrics_and_logs(monkeypatch):
             raise ValueError("bad")
 
     monkeypatch.setattr(l2e, "validate_promql", raise_bad)
-    result = await engine._collect_metrics(vm, "latency", start, end)  # noqa: F841  # Variable for test verification
+    result = await engine._collect_metrics(
+        vm, "latency", start, end
+    )  # noqa: F841  # Variable for test verification
     assert result["query"] == "up"
 
     # query_range returns non-list
     vm.query_range = AsyncMock(return_value={"x": 1})
-    result = await engine._collect_metrics(vm, "cpu", start, end)  # noqa: F841  # Variable for test verification
+    result = await engine._collect_metrics(
+        vm, "cpu", start, end
+    )  # noqa: F841  # Variable for test verification
     assert result["count"] == 0
 
     # query_range raises
     vm.query_range = AsyncMock(side_effect=Exception("vm"))
-    result = await engine._collect_metrics(vm, "cpu", start, end)  # noqa: F841  # Variable for test verification
+    result = await engine._collect_metrics(
+        vm, "cpu", start, end
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
 
     # logs success
     loki = MagicMock()
     loki.query_range = AsyncMock(return_value=[{"line": "x"}])
     monkeypatch.setattr(l2e, "validate_logql", lambda q: None)
-    result = await engine._collect_logs(loki, "error timeout", start, end)  # noqa: F841  # Variable for test verification
+    result = await engine._collect_logs(
+        loki, "error timeout", start, end
+    )  # noqa: F841  # Variable for test verification
     assert result["count"] == 1
 
     # logql validation fallback
@@ -752,12 +766,16 @@ async def test_langgraph_collect_metrics_and_logs(monkeypatch):
             raise ValueError("bad")
 
     monkeypatch.setattr(l2e, "validate_logql", raise_log)
-    result = await engine._collect_logs(loki, "error timeout", start, end)  # noqa: F841  # Variable for test verification
+    result = await engine._collect_logs(
+        loki, "error timeout", start, end
+    )  # noqa: F841  # Variable for test verification
     assert '{level=~"error|warn|warning"}' in result["query"]
 
     # loki raises
     loki.query_range = AsyncMock(side_effect=Exception("loki"))
-    result = await engine._collect_logs(loki, "error", start, end)  # noqa: F841  # Variable for test verification
+    result = await engine._collect_logs(
+        loki, "error", start, end
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
 
 

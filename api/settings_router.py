@@ -38,10 +38,19 @@ def _load_settings() -> Dict[str, Any]:
 
 
 def _save_settings(settings: Dict[str, Any]) -> None:
+    import stat
+
     try:
         os.makedirs(_DATA_DIR, exist_ok=True)
         with open(_SETTINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
+
+        # Set restrictive permissions for settings file (600 - owner read/write only)
+        try:
+            os.chmod(_SETTINGS_FILE, stat.S_IRUSR | stat.S_IWUSR)
+        except (OSError, AttributeError):
+            # chmod may fail on Windows or non-Unix systems
+            pass
     except Exception as e:
         logger.error(f"Failed to save settings: {e}")
         raise HTTPException(status_code=500, detail="保存设置失败")

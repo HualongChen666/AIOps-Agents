@@ -167,7 +167,9 @@ def test_audit_graphql():
     gql = graphql_api.AuditGraphQL(repo)
 
     async def run():
-        result = await gql.query(["event_id", "action"], tenant_id="t1", limit=10)  # noqa: F841  # Variable for test verification
+        result = await gql.query(
+            ["event_id", "action"], tenant_id="t1", limit=10
+        )  # noqa: F841  # Variable for test verification
         assert result["total"] == 2
         assert list(result["data"][0].keys()) == ["event_id", "action"]
 

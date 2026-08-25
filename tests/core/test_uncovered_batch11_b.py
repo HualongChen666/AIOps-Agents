@@ -529,19 +529,25 @@ def external_deps(monkeypatch):
 
 def test_dr_check_database(external_deps):
     scenario = dr_scenarios.DRScenario("db", "", [{"type": "check_database"}])
-    result = asyncio.run(scenario._execute_step({"type": "check_database"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        scenario._execute_step({"type": "check_database"})
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "healthy"
 
 
 def test_dr_check_redis(external_deps):
     scenario = dr_scenarios.DRScenario("redis", "", [])
-    result = asyncio.run(scenario._execute_step({"type": "check_redis"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        scenario._execute_step({"type": "check_redis"})
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "healthy"
 
 
 def test_dr_check_api(external_deps):
     scenario = dr_scenarios.DRScenario("api", "", [])
-    result = asyncio.run(scenario._execute_step({"type": "check_api", "endpoint": "/health"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        scenario._execute_step({"type": "check_api", "endpoint": "/health"})
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "healthy"
     assert result["status_code"] == 200
 
@@ -563,20 +569,26 @@ def test_dr_simulate_failure():
 
 def test_dr_simulate_failure_missing_type():
     scenario = dr_scenarios.DRScenario("fail", "", [])
-    result = asyncio.run(scenario._execute_step({"type": "simulate_failure"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        scenario._execute_step({"type": "simulate_failure"})
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert "failure_type is required" in result["error"]
 
 
 def test_dr_restore_backup():
     scenario = dr_scenarios.DRScenario("restore", "", [])
-    result = asyncio.run(scenario._execute_step({"type": "restore_backup"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        scenario._execute_step({"type": "restore_backup"})
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "restored"
 
 
 def test_dr_unknown_step():
     scenario = dr_scenarios.DRScenario("unknown", "", [])
-    result = asyncio.run(scenario._execute_step({"type": "weird"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        scenario._execute_step({"type": "weird"})
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -602,7 +614,9 @@ def test_dr_scenario_execute_failure():
     scenario = dr_scenarios.DRScenario(
         "dr-fail", "fail", [{"type": "check_database", "description": "db check"}]
     )
-    scenario._check_database = AsyncMock(side_effect=RuntimeError("DB down"))  # noqa: F841  # Variable for test verification
+    scenario._check_database = AsyncMock(
+        side_effect=RuntimeError("DB down")
+    )  # noqa: F841  # Variable for test verification
     report = asyncio.run(scenario.execute())
     assert report["status"] == "failed"
     assert report["results"][0]["status"] == "failed"
@@ -610,12 +624,16 @@ def test_dr_scenario_execute_failure():
 
 
 def test_run_dr_scenario_found(external_deps):
-    result = asyncio.run(dr_scenarios.run_dr_scenario("redis_cache_failure"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        dr_scenarios.run_dr_scenario("redis_cache_failure")
+    )  # noqa: F841  # Variable for test verification
     assert result["scenario"] == "Redis Cache Failure"
 
 
 def test_run_dr_scenario_not_found():
-    result = asyncio.run(dr_scenarios.run_dr_scenario("does_not_exist"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        dr_scenarios.run_dr_scenario("does_not_exist")
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert "not found" in result["message"]
 
@@ -641,7 +659,9 @@ def test_security_exception_default():
 
 def test_security_exception_with_context_and_original():
     original = ValueError("bad")
-    ex = SecurityException("x", context={"ip": "1.1.1.1"}, original_exception=original)  # noqa: F841  # Variable for test verification
+    ex = SecurityException(
+        "x", context={"ip": "1.1.1.1"}, original_exception=original
+    )  # noqa: F841  # Variable for test verification
     assert ex.context["ip"] == "1.1.1.1"
     assert ex.original_exception is original
     assert ex.stack_trace is not None

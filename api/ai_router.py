@@ -12,7 +12,7 @@ from core.ai_engine import (
     _fallback_schema_error_json,
     analyze,
 )
-from core.ai_service import ai_context_service
+from core.ai_service import AI_CONTEXT_SERVICE as ai_context_service
 from core.collector import collect_all, get_cached_snapshot
 
 logger = logging.getLogger(__name__)
@@ -69,11 +69,16 @@ class AnalyzeRequest(BaseModel):
 
 
 def _safe_alert_value(val: Any) -> Any:
-    """
-    🔧 AIRV5:统一处理 alert.value 字段
-    - 数字 / bool / None:原样保留
-    - 字符串:尝试转 float,失败保留原值
-    - 其他类型:str() 转换后截断
+    """统一处理 alert.value 字段，确保类型安全。
+
+    Args:
+        val: 原始值，可以是任意类型
+
+    Returns:
+        处理后的值：
+        - 数字/bool/None: 原样保留
+        - 字符串: 尝试转 float，失败保留原值并截断到64字符
+        - 其他类型: str() 转换后截断到64字符
     """
     if val is None or isinstance(val, (int, float, bool)):
         return val
@@ -88,10 +93,16 @@ def _safe_alert_value(val: Any) -> Any:
 def _safe_get_metric(
     snapshot: dict[str, Any], section: str, field: str, default: Any = "N/A"
 ) -> Any:
-    """
-    🔧 AIRV7:从 snapshot 中安全提取嵌套字段
-    - snapshot[section] 不存在或非 dict → 返回 default
-    - snapshot[section][field] 不存在 → 返回 default
+    """从 snapshot 中安全提取嵌套字段。
+
+    Args:
+        snapshot: 系统快照字典
+        section: 快照中的顶级键名（如：cpu, memory等）
+        field: section中的字段名
+        default: 默认值，当字段不存在时返回
+
+    Returns:
+        字段值或默认值
     """
     if not isinstance(snapshot, dict):
         return default
@@ -212,7 +223,14 @@ def _get_recent_repairs() -> list[dict[str, Any]]:
 
 
 def _extract_disk_usage(snapshot: dict[str, Any]) -> str:
-    """从快照中提取磁盘使用率"""
+    """从快照中提取磁盘使用率。
+
+    Args:
+        snapshot: 系统快照字典
+
+    Returns:
+        磁盘使用率字符串，如果无法提取则返回"N/A"
+    """
     disk_usage = "N/A"
     disk_data = snapshot.get("disk")
     if isinstance(disk_data, list) and len(disk_data) > 0:
@@ -229,7 +247,14 @@ def _extract_disk_usage(snapshot: dict[str, Any]) -> str:
 
 
 def _build_metrics_context(snapshot: dict[str, Any]) -> str:
-    """构造指标上下文字符串"""
+    """构造指标上下文字符串。
+
+    Args:
+        snapshot: 系统快照字典
+
+    Returns:
+        格式化的指标上下文字符串，包含CPU、内存、磁盘使用率
+    """
     cpu_usage = _safe_get_metric(snapshot, "cpu", "usage_percent")
     mem_usage = _safe_get_metric(snapshot, "memory", "usage_percent")
     disk_usage = _extract_disk_usage(snapshot)
@@ -240,7 +265,11 @@ def _build_metrics_context(snapshot: dict[str, Any]) -> str:
 
 
 async def _collect_snapshot_with_cache() -> Optional[dict[str, Any]]:
-    """采集快照（优先使用缓存）"""
+    """采集快照（优先使用缓存）。
+
+    Returns:
+        系统快照字典，如果采集失败则返回None
+    """
     snapshot = get_cached_snapshot()
     if snapshot is None:
         snapshot = await asyncio.to_thread(collect_all) or {}
@@ -250,7 +279,14 @@ async def _collect_snapshot_with_cache() -> Optional[dict[str, Any]]:
 
 
 def _build_context_summary(rich_context: Optional[dict[str, Any]]) -> dict[str, Any]:
-    """构造上下文摘要"""
+    """构造上下文摘要。
+
+    Args:
+        rich_context: 富上下文字典，包含进程、告警、修复等信息
+
+    Returns:
+        包含上下文摘要的字典，包括是否启用富上下文、各类型数据的数量
+    """
     return {
         "rich_enabled": rich_context is not None,
         "process_count": len(rich_context.get("top_processes", [])) if rich_context else 0,
@@ -261,7 +297,11 @@ def _build_context_summary(rich_context: Optional[dict[str, Any]]) -> dict[str, 
 
 @router.get("/test", summary="AI服务测试")
 async def ai_test() -> dict[str, str]:
-    """测试AI服务是否正常工作"""
+    """测试AI服务是否正常工作。
+
+    Returns:
+        包含状态和消息的字典
+    """
     return {"status": "ok", "message": "AI服务运行正常"}
 
 
@@ -332,6 +372,179 @@ async def ai_test() -> dict[str, str]:
         },
     },
 )
+def _log_ai_analyze_request(req: AnalyzeRequest, request: Request) -> str:
+    """
+    记录AI分析请求日志
+
+    Args:
+        req: 分析请求对象
+        request: FastAPI请求对象
+
+    Returns:
+        操作员IP地址
+    """
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(
+        f"收到 AI 分析请求 | operator={operator_ip} | query='{req.query[:50]}' |"
+        f" include_metrics={req.include_metrics} | platform={req.platform} |"
+        f" rich_context={req.include_rich_context}"
+    )
+    return operator_ip
+
+
+async def _collect_metrics_context(req: AnalyzeRequest) -> tuple[Optional[dict], str]:
+    """
+    采集指标上下文
+
+    Args:
+        req: 分析请求对象
+
+    Returns:
+        tuple: (快照数据, 指标上下文字符串)
+    """
+    snapshot: Optional[dict] = None
+    metrics_ctx = ""
+    need_collect = req.include_metrics or req.include_rich_context
+
+    if need_collect:
+        try:
+            snapshot = await _collect_snapshot_with_cache()
+            if req.include_metrics and isinstance(snapshot, dict):
+                metrics_ctx = _build_metrics_context(snapshot)
+                logger.debug(f"系统指标快照采集成功: {metrics_ctx}")
+        except asyncio.CancelledError:
+            logger.info("AI 分析的指标采集被取消")
+            raise
+        except Exception as e:
+            logger.warning(f"系统指标采集失败,降级为无指标分析模式: {e}")
+
+    return snapshot, metrics_ctx
+
+
+async def _collect_rich_context_if_needed(
+    req: AnalyzeRequest, snapshot: Optional[dict]
+) -> Optional[dict[str, Any]]:
+    """
+    根据需要采集富上下文
+
+    Args:
+        req: 分析请求对象
+        snapshot: 系统快照数据
+
+    Returns:
+        富上下文数据或None
+    """
+    if not req.include_rich_context:
+        return None
+
+    try:
+        rich_context = await _collect_rich_context(snapshot)
+        logger.debug(
+            f"N3 富上下文采集完成 | 进程={len(rich_context.get('top_processes', []))} |"
+            f" 告警={len(rich_context.get('recent_alerts', []))} |"
+            f" 修复={len(rich_context.get('recent_repairs', []))}"
+        )
+        return rich_context
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.warning(f"N3 富上下文采集失败,降级到简易模式: {e}")
+        return None
+
+
+async def _call_ai_analysis(
+    req: AnalyzeRequest, metrics_ctx: str, rich_context: Optional[dict[str, Any]]
+) -> Any:
+    """
+    调用AI分析引擎
+
+    Args:
+        req: 分析请求对象
+        metrics_ctx: 指标上下文
+        rich_context: 富上下文
+
+    Returns:
+        AI分析结果
+
+    Raises:
+        HTTPException: AI引擎调用失败
+    """
+    try:
+        result = await analyze(
+            query=req.query,
+            metrics_snapshot=metrics_ctx,
+            platform=req.platform,
+            rich_context=rich_context,
+            validate_json=True,
+        )
+        return result
+    except asyncio.CancelledError:
+        raise
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"AI 引擎调用异常: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"AI 引擎调用失败: {str(e)[:200]}")
+
+
+def _validate_analysis_result(result: Any) -> dict[str, Any]:
+    """
+    验证AI分析结果并转换为标准格式
+
+    Args:
+        result: AI引擎返回的原始结果
+
+    Returns:
+        验证后的分析载荷
+    """
+    if isinstance(result, str):
+        try:
+            parsed = json.loads(result)
+            RootCauseAnalysisResponse.model_validate(parsed)
+            return parsed
+        except Exception as exc:
+            logger.error(f"AI 返回结果不符合 RootCauseAnalysisResponse schema: {exc}")
+            return json.loads(_fallback_schema_error_json())
+    return result
+
+
+def _build_ai_analyze_response(
+    analysis_payload: dict[str, Any],
+    metrics_ctx: str,
+    platform: str,
+    rich_context: Optional[dict[str, Any]],
+    operator_ip: str,
+    result: Any,
+) -> dict[str, Any]:
+    """
+    构造AI分析响应
+
+    Args:
+        analysis_payload: 分析载荷
+        metrics_ctx: 指标上下文
+        platform: 平台
+        rich_context: 富上下文
+        operator_ip: 操作员IP
+        result: 原始结果
+
+    Returns:
+        标准响应字典
+    """
+    result_length = len(result) if isinstance(result, str) else 0
+    logger.info(
+        f"AI 分析完成 | operator={operator_ip} | platform={platform} |"
+        f" 结果长度={result_length} 字符"
+    )
+
+    return {
+        "status": "ok",
+        "analysis": analysis_payload,
+        "metrics_context": metrics_ctx,
+        "platform": platform,
+        "context_summary": _build_context_summary(rich_context),
+    }
+
+
 async def ai_analyze(req: AnalyzeRequest, request: Request) -> dict[str, Any]:
     """
     接收自然语言问题,结合当前系统快照 + 富上下文,返回 AI 根因分析结果
@@ -381,77 +594,22 @@ async def ai_analyze(req: AnalyzeRequest, request: Request) -> dict[str, Any]:
         - 500: AI analysis service unavailable
         - 503: Service temporarily unavailable
     """
-    operator_ip = request.client.host if request.client else "unknown"
-    logger.info(
-        f"收到 AI 分析请求 | operator={operator_ip} | query='{req.query[:50]}' |"
-        f" include_metrics={req.include_metrics} | platform={req.platform} |"
-        f" rich_context={req.include_rich_context}"
-    )
-    metrics_ctx = ""
-    rich_context: Optional[dict[str, Any]] = None
-    snapshot: Optional[dict] = None
-    need_collect = req.include_metrics or req.include_rich_context
-    if need_collect:
-        try:
-            snapshot = await _collect_snapshot_with_cache()
-            if req.include_metrics and isinstance(snapshot, dict):
-                metrics_ctx = _build_metrics_context(snapshot)
-                logger.debug(f"系统指标快照采集成功: {metrics_ctx}")
-        except asyncio.CancelledError:
-            logger.info("AI 分析的指标采集被取消")
-            raise
-        except Exception as e:
-            logger.warning(f"系统指标采集失败,降级为无指标分析模式: {e}")
-    if req.include_rich_context:
-        try:
-            rich_context = await _collect_rich_context(snapshot)
-            logger.debug(
-                f"N3 富上下文采集完成 | 进程={len(rich_context.get('top_processes', []))} |"
-                f" 告警={len(rich_context.get('recent_alerts', []))} |"
-                f" 修复={len(rich_context.get('recent_repairs', []))}"
-            )
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.warning(f"N3 富上下文采集失败,降级到简易模式: {e}")
-            rich_context = None
-    try:
-        result = await analyze(
-            query=req.query,
-            metrics_snapshot=metrics_ctx,
-            platform=req.platform,
-            rich_context=rich_context,
-            validate_json=True,
-        )
-    except asyncio.CancelledError:
-        raise
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"AI 引擎调用异常: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"AI 引擎调用失败: {str(e)[:200]}")
+    # 记录请求日志
+    operator_ip = _log_ai_analyze_request(req, request)
 
-    # Schema 校验：使用 Pydantic RootCauseAnalysisResponse 校验 analyze 输出
-    if isinstance(result, str):
-        try:
-            parsed = json.loads(result)
-            RootCauseAnalysisResponse.model_validate(parsed)
-            analysis_payload = parsed
-        except Exception as exc:
-            logger.error(f"AI 返回结果不符合 RootCauseAnalysisResponse schema: {exc}")
-            analysis_payload = json.loads(_fallback_schema_error_json())
-    else:
-        analysis_payload = result
+    # 采集指标上下文
+    snapshot, metrics_ctx = await _collect_metrics_context(req)
 
-    result_length = len(result) if isinstance(result, str) else 0
-    logger.info(
-        f"AI 分析完成 | operator={operator_ip} | platform={req.platform} |"
-        f" 结果长度={result_length} 字符"
+    # 采集富上下文
+    rich_context = await _collect_rich_context_if_needed(req, snapshot)
+
+    # 调用AI分析
+    result = await _call_ai_analysis(req, metrics_ctx, rich_context)
+
+    # 验证分析结果
+    analysis_payload = _validate_analysis_result(result)
+
+    # 构造响应
+    return _build_ai_analyze_response(
+        analysis_payload, metrics_ctx, req.platform, rich_context, operator_ip, result
     )
-    return {
-        "status": "ok",
-        "analysis": analysis_payload,
-        "metrics_context": metrics_ctx,
-        "platform": req.platform,
-        "context_summary": _build_context_summary(rich_context),
-    }

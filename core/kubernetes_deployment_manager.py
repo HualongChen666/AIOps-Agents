@@ -221,19 +221,31 @@ class KubernetesDeploymentManager:
 
         # Generate deployment manifest
         deployment_manifest = self._generate_deployment_manifest(config)
-        with open(manifest_dir / "deployment.yaml", "w") as f:
-            f.write(deployment_manifest)
+        try:
+            with open(manifest_dir / "deployment.yaml", "w") as f:
+                f.write(deployment_manifest)
+        except OSError as exc:
+            logger.error(f"Failed to write deployment manifest: {exc}")
+            raise
 
         # Generate service manifest
         service_manifest = self._generate_service_manifest(config)
-        with open(manifest_dir / "service.yaml", "w") as f:
-            f.write(service_manifest)
+        try:
+            with open(manifest_dir / "service.yaml", "w") as f:
+                f.write(service_manifest)
+        except OSError as exc:
+            logger.error(f"Failed to write service manifest: {exc}")
+            raise
 
         # Generate HPA manifest if auto-scaling enabled
         if config.auto_scaling:
             hpa_manifest = self._generate_hpa_manifest(config)
-            with open(manifest_dir / "hpa.yaml", "w") as f:
-                f.write(hpa_manifest)
+            try:
+                with open(manifest_dir / "hpa.yaml", "w") as f:
+                    f.write(hpa_manifest)
+            except OSError as exc:
+                logger.error(f"Failed to write HPA manifest: {exc}")
+                raise
 
         logger.info(f"Manifests generated for deployment: {config.deployment_id}")
 

@@ -174,7 +174,9 @@ def test_collect_with_post_processing_collect_exception():
     def fail(_):
         raise RuntimeError("collect failed")
 
-    result = collect_with_post_processing(fail, {"host": "h1"}, "p", max_failures=1, cooldown_sec=1)  # noqa: F841  # Variable for test verification
+    result = collect_with_post_processing(
+        fail, {"host": "h1"}, "p", max_failures=1, cooldown_sec=1
+    )  # noqa: F841  # Variable for test verification
     assert result == {}  # noqa: F841  # Variable for test verification
 
 

@@ -7,7 +7,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -62,6 +62,7 @@ def get_client_ip(request: Request) -> str:
 # ============ Enums ============
 class TestSuiteStatus(str, Enum):
     """测试套件状态"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     ARCHIVED = "archived"
@@ -69,6 +70,7 @@ class TestSuiteStatus(str, Enum):
 
 class ExecutionStatus(str, Enum):
     """执行状态"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -196,7 +198,11 @@ def _init_test_executions():
                 suite_name=suite.name,
                 status=ExecutionStatus.COMPLETED,
                 started_at=suite.last_execution or datetime.now() - timedelta(hours=2),
-                completed_at=suite.last_execution + timedelta(minutes=15) if suite.last_execution else datetime.now(),
+                completed_at=(
+                    suite.last_execution + timedelta(minutes=15)
+                    if suite.last_execution
+                    else datetime.now()
+                ),
                 duration=15.0,
                 total_tests=suite.test_count,
                 passed_tests=suite.test_count - 2,
@@ -337,7 +343,8 @@ async def update_test_suite(
     _test_suites[id] = suite
 
     logger.info(
-        f"Test suite updated | suite_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Test suite updated | suite_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return suite
@@ -365,12 +372,13 @@ async def delete_test_suite(
     del _test_suites[id]
 
     # 同时删除相关的执行记录
-    _test_executions = {
+    _test_executions = {  # noqa: F841 - Intentionally filtering to maintain data consistency
         k: v for k, v in _test_executions.items() if v.suite_id != id
     }
 
     logger.info(
-        f"Test suite deleted | suite_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Test suite deleted | suite_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
 
@@ -448,8 +456,9 @@ async def create_test_execution(
     _test_suites[execution_create.suite_id] = suite
 
     logger.info(
-        f"Test execution created | execution_id={execution_id} | suite_id={execution_create.suite_id} | "
-        f"user={current_user.username} | ip={get_client_ip(request)}"
+        f"Test execution created | execution_id={execution_id} "
+        f"| suite_id={execution_create.suite_id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return execution
@@ -506,7 +515,8 @@ async def cancel_test_execution(
     _test_executions[id] = execution
 
     logger.info(
-        f"Test execution cancelled | execution_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Test execution cancelled | execution_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return execution

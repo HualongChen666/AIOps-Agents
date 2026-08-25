@@ -112,6 +112,12 @@ from typing import Any, Optional  # 🔧 MRV5 [P1]:补全 Optional 导入
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
+from api.common import (
+    check_feature_availability,
+    handle_service_error,
+    log_request_error,
+    log_request_success,
+)
 from core.cache_helpers import ParametricTTLCache, TTLCache
 from core.collector import collect_all, get_top_processes
 from core.kpi_config import (
@@ -121,12 +127,13 @@ from core.kpi_config import (
     resolve_field,
     update_kpi_config,
 )
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.stats_engine import get_decision_accuracy, get_real_summary
 
 # Prometheus metrics exporter integration
 try:
     from core.metrics_exporter import get_metrics_exporter
+
     METRICS_EXPORTER_AVAILABLE = True
 except ImportError:
     METRICS_EXPORTER_AVAILABLE = False
@@ -173,12 +180,15 @@ router = APIRouter(prefix="/api/v1/metrics", tags=["指标采集"])
     },
 )
 async def get_dashboard_metrics() -> dict[str, Any]:
-    """
-    返回仪表盘指标卡片数据
-    对应前端:DashboardCards 组件
+    """返回仪表盘指标卡片数据。
+
+    对应前端：DashboardCards 组件。
 
     Returns:
-        dict with "metrics" key containing array of MetricItem
+        包含metrics键的字典，其中metrics是指标项数组
+
+    Raises:
+        HTTPException: 如果获取摘要数据失败（500）
     """
     logger.debug("请求仪表盘指标卡片数据")
     try:
@@ -219,8 +229,7 @@ async def get_dashboard_metrics() -> dict[str, Any]:
 
         return {"metrics": metrics}
     except Exception as e:
-        logger.error(f"仪表盘指标获取失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"仪表盘指标获取失败: {str(e)[:200]}")
+        handle_service_error(e, "仪表盘指标获取", detail_prefix="仪表盘指标获取失败")
 
 
 # ============================================================
@@ -268,12 +277,12 @@ _processes_cache = ParametricTTLCache(ttl_sec=_PROCESSES_CACHE_TTL_SEC)
 
 
 def _try_get_snapshot_from_cache() -> Optional[dict[str, Any]]:
-    """尝试从缓存获取快照（快速路径）
+    """尝试从缓存获取快照（快速路径）。
 
-    🔧 重构:使用 TTLCache.get()
+    使用 TTLCache.get() 进行缓存查询。
 
     Returns:
-        缓存数据或None
+        缓存的快照数据或None（如果缓存未命中）
     """
     cached = _snapshot_cache.get()
     if cached:
@@ -282,12 +291,12 @@ def _try_get_snapshot_from_cache() -> Optional[dict[str, Any]]:
 
 
 async def _collect_system_snapshot() -> dict[str, Any]:
-    """采集系统指标快照
+    """采集系统指标快照。
 
-    Phase 1 集成: 使用双写策略同时写入 SQLite 和 VictoriaMetrics
+    Phase 1 集成：使用双写策略同时写入 SQLite 和 VictoriaMetrics。
 
     Returns:
-        系统快照数据
+        系统快照数据字典，包含CPU、内存、磁盘等指标
     """
     system_snapshot = await asyncio.to_thread(collect_all)
     summary = await get_real_summary()
@@ -310,12 +319,12 @@ async def _collect_system_snapshot() -> dict[str, Any]:
 
 
 def _update_snapshot_cache(data: dict[str, Any]) -> None:
-    """更新快照缓存
+    """更新快照缓存。
 
-    🔧 重构:使用 TTLCache.set()
+    使用 TTLCache.set() 进行缓存更新。
 
     Args:
-        data: 要缓存的数据
+        data: 要缓存的数据字典
     """
     _snapshot_cache.set(data)
 
@@ -346,13 +355,13 @@ def _update_snapshot_cache(data: dict[str, Any]) -> None:
     },
 )
 async def get_snapshot() -> dict[str, Any]:
-    """
-    一次性返回所有系统指标 + 真实统计摘要
+    """一次性返回所有系统指标 + 真实统计摘要。
 
-    🔧 BUG-FIX-10:30 秒 TTL 缓存,避免前端首次加载延迟
-    🔧 MR1 [P1]:asyncio.Lock 替代 threading.Lock(不阻塞事件循环)
-    🔧 MR2 [P1]:并发请求去重(防止缓存击穿)
-    🔧 MRV2 [P0]:命中缓存返回浅拷贝(对照 [18] approval_store R3 决策)
+    30秒TTL缓存，避免前端首次加载延迟。使用asyncio.Lock避免阻塞事件循环，
+    并发请求去重防止缓存击穿。
+
+    Returns:
+        包含CPU、内存、磁盘等系统指标的字典
     """
     logger.debug("请求系统指标全量快照")
 
@@ -401,23 +410,20 @@ async def get_snapshot() -> dict[str, Any]:
     },
 )
 async def get_history() -> dict[str, Any]:
-    """
-    返回 CPU / 内存 / 网络 的历史序列数据
-    对应前端:实时折线图初始化数据加载
+    """返回 CPU / 内存 / 网络的历史序列数据。
 
-    🔧 MR6 [P2]:返回 size 字段,前端可判断数据是否完整
-    🆕 N3-A [P1]:类型扩展防御
-    ──────────────────────────────────────────────
-    修复前:metrics_history.to_dict() 严格返回 dict[str, list],
-            直接 history["_meta"] = {...} 赋值 dict 类型,
-            Pylance 报 reportArgumentType:
-            "dict[str, int | Any] is not assignable to list[Unknown]"
-    修复后:① 把 history 显式装入新的 dict[str, Any] 容器
-            ② 新容器接受 list/dict 混合 value,符合实际业务语义
-    设计原则:不改动 metrics_history.py 的严格类型签名,
-             在 API 层做"类型适配",保持 core 层 metrics_history
-             的纯粹性(对照 ADR-019 类型严格化原则)
-    ──────────────────────────────────────────────
+    对应前端：实时折线图初始化数据加载。
+
+    Returns:
+        包含历史指标数据的字典，格式为dict[str, Any]以支持list和dict混合值
+        - cpu: CPU使用率历史数组
+        - memory: 内存使用率历史数组
+        - net_in: 网络入流量历史数组
+        - net_out: 网络出流量历史数组
+        - _meta: 元信息，包含size（当前数据点数）和maxlen（最大容量）
+
+    Raises:
+        HTTPException: 如果获取历史数据失败（500）
     """
     logger.debug("请求指标历史序列数据")
     try:
@@ -436,8 +442,7 @@ async def get_history() -> dict[str, Any]:
         logger.debug(f"历史数据查询成功,当前共 {point_count} 个数据点")
         return response
     except Exception as e:
-        logger.error(f"历史指标数据获取失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"历史数据获取失败: {str(e)[:200]}")
+        handle_service_error(e, "历史指标数据获取", detail_prefix="历史数据获取失败")
 
 
 def _to_floats(values: Any) -> list[float]:
@@ -454,7 +459,14 @@ def _to_floats(values: Any) -> list[float]:
 
 
 def _linear_slope(values: list[float]) -> float:
-    """Return the slope of a simple linear regression over the series."""
+    """Return the slope of a simple linear regression over the series.
+
+    Args:
+        values: List of numeric values
+
+    Returns:
+        Slope of the linear regression line
+    """
     n = len(values)
     if n < 2:
         return 0.0
@@ -470,7 +482,14 @@ def _linear_slope(values: list[float]) -> float:
 
 
 def _build_predictions(history: dict[str, Any]) -> list[dict[str, Any]]:
-    """Generate predictive maintenance recommendations from metric history."""
+    """Generate predictive maintenance recommendations from metric history.
+
+    Args:
+        history: Historical metrics data dictionary
+
+    Returns:
+        List of prediction dictionaries with trend analysis
+    """
     predictions: list[dict[str, Any]] = []
     metric_meta = [
         ("cpu", "CPU", "%"),
@@ -550,8 +569,7 @@ async def get_predictions() -> dict[str, Any]:
         predictions = _build_predictions(raw_history)
         return {"data": predictions}
     except Exception as e:
-        logger.error(f"预测性维护建议生成失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"预测性维护建议生成失败: {str(e)[:200]}")
+        handle_service_error(e, "预测性维护建议生成", detail_prefix="预测性维护建议生成失败")
 
 
 def _try_get_processes_from_cache(limit: int) -> Optional[dict[str, Any]]:
@@ -607,7 +625,12 @@ def _update_processes_cache(data: dict[str, Any], limit: int) -> None:
                 "application/json": {
                     "example": {
                         "processes": [
-                            {"name": "python3", "pid": 1234, "cpu_percent": 85.2, "memory_mb": 512},
+                            {
+                                "name": "python3",
+                                "pid": 1234,
+                                "cpu_percent": 85.2,
+                                "memory_mb": 512,
+                            },
                             {"name": "node", "pid": 5678, "cpu_percent": 12.5, "memory_mb": 256},
                         ]
                     }
@@ -665,8 +688,7 @@ async def get_processes(
     except asyncio.CancelledError:
         raise
     except Exception as e:
-        logger.error(f"进程列表采集失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"进程列表获取失败: {str(e)[:200]}")
+        handle_service_error(e, "进程列表采集", detail_prefix="进程列表获取失败")
 
 
 # ============================================================
@@ -710,8 +732,7 @@ async def get_summary() -> dict[str, Any]:
         )
         return summary
     except Exception as e:
-        logger.error(f"摘要数据获取失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"摘要数据获取失败: {str(e)[:200]}")
+        handle_service_error(e, "摘要数据获取", detail_prefix="摘要数据获取失败")
 
 
 # ============================================================
@@ -814,13 +835,12 @@ async def clear_snapshot_cache() -> dict[str, Any]:
 async def prometheus_metrics():
     """
     Export metrics in Prometheus format for scraping by Prometheus server.
-    
+
     This endpoint integrates with the metrics_exporter module to provide
     comprehensive Prometheus metrics for the AIOps Agent platform.
     """
-    if not METRICS_EXPORTER_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Prometheus metrics exporter not available")
-    
+    check_feature_availability(METRICS_EXPORTER_AVAILABLE, "Prometheus metrics exporter")
+
     exporter = get_metrics_exporter()
     return exporter.get_metrics_response()
 

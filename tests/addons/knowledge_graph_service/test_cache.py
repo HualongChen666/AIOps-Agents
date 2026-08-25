@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for CacheManager module."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from extensions.addons.ai_plus.knowledge_graph_service.cache import CacheManager
 

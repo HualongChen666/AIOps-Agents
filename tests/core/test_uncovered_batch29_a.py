@@ -164,7 +164,9 @@ def test_redact_and_prepare_branches(monkeypatch):
     # prepare_for_llm forced to shrink 10 times without early break
     monkeypatch.setattr(oq, "approx_token_count", lambda x: 100000)
     huge = {"items": ["x" * 1000 for _ in range(100)]}
-    result = oq.prepare_for_llm(huge, max_tokens=1, max_items=1)  # noqa: F841  # Variable for test verification
+    result = oq.prepare_for_llm(
+        huge, max_tokens=1, max_items=1
+    )  # noqa: F841  # Variable for test verification
     assert result["_llm_meta"]["truncated"] is True
 
     # dict truncation marker
@@ -519,11 +521,15 @@ def test_default_tool_fallback_branches(monkeypatch):
     executor = ToolExecutor(reg, default_timeout=5)
 
     # collect_metrics falls back to placeholders
-    result = executor.execute_tool("collect_metrics", target="host")  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "collect_metrics", target="host"
+    )  # noqa: F841  # Variable for test verification
     assert "note" in result
 
     # collect_service_metrics falls through no-prom/no-manager
-    result = executor.execute_tool("collect_service_metrics", service_name="svc")  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "collect_service_metrics", service_name="svc"
+    )  # noqa: F841  # Variable for test verification
     assert result.get("note") or result.get("metrics") is not None
 
     # check_health socket path with connection failure
@@ -531,11 +537,17 @@ def test_default_tool_fallback_branches(monkeypatch):
         raise OSError("down")
 
     monkeypatch.setattr(socket, "create_connection", bad_conn)
-    result = executor.execute_tool("check_health", target="host:8080")  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "check_health", target="host:8080"
+    )  # noqa: F841  # Variable for test verification
     assert result["healthy"] is False
 
     # restart_service and scale_service simulated because kubectl/systemctl not found
-    result = executor.execute_tool("restart_service", service_name="nginx")  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "restart_service", service_name="nginx"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "simulated"
-    result = executor.execute_tool("scale_service", service_name="api", replicas=2)  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "scale_service", service_name="api", replicas=2
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "simulated"

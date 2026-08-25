@@ -12,6 +12,7 @@ Provides enterprise-grade capabilities:
 - Data encryption and privacy protection
 """
 
+import os
 import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -554,8 +555,8 @@ class EnterpriseFeatures:
                         "preferred_username": payload.get("preferred_username"),
                     }
                 )
-            except Exception as exc:
-                logger.warning(f"Failed to parse id_token: {exc}")
+            except Exception as exc:  # noqa: F841 - Exception intentionally unused
+                logger.warning("Failed to parse id_token")
 
         # 如果配置了 userinfo_endpoint，尝试调用
         userinfo_url = provider.configuration.get("userinfo_endpoint")
@@ -563,7 +564,15 @@ class EnterpriseFeatures:
             try:
                 import httpx
 
-                async with httpx.AsyncClient() as client:
+                # Use environment variable to control SSL verification (default: True for security)
+                ssl_verify = (
+                    os.environ.get("ENTERPRISE_FEATURES_SSL_VERIFY", "true").lower() == "true"
+                )
+                if not ssl_verify:
+                    logger.warning(
+                        "SSL verification is disabled in enterprise_features - this is a security risk!"
+                    )
+                async with httpx.AsyncClient(verify=ssl_verify) as client:
                     resp = await client.get(
                         userinfo_url,
                         headers={"Authorization": f"Bearer {access_token}"},

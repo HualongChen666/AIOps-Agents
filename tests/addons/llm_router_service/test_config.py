@@ -3,6 +3,7 @@
 
 import pytest
 from pydantic import ValidationError
+
 from extensions.addons.ai_plus.llm_router_service.config import (
     LLMRouterSettings,
     settings,

@@ -303,7 +303,7 @@ class TestSystemResourceRouterCoverage:
             "get_system_resource_optimizer",
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
-        
+
         # Test all GET endpoints
         get_endpoints = [
             "/api/system-resources/status",
@@ -312,12 +312,12 @@ class TestSystemResourceRouterCoverage:
             "/api/system-resources/cpu",
             "/api/system-resources/network",
         ]
-        
+
         for endpoint in get_endpoints:
             resp = client.get(endpoint)
             assert resp.status_code == 200, f"GET {endpoint} failed"
             assert resp.json()["status"] == "success"
-        
+
         # Test all POST endpoints
         post_endpoints = [
             "/api/system-resources/memory/optimize",
@@ -325,7 +325,7 @@ class TestSystemResourceRouterCoverage:
             "/api/system-resources/network/optimize",
             "/api/system-resources/optimize",
         ]
-        
+
         for endpoint in post_endpoints:
             resp = client.post(endpoint)
             assert resp.status_code == 200, f"POST {endpoint} failed"
@@ -341,7 +341,7 @@ class TestSystemResourceRouterCoverage:
     def test_router_endpoints_registered(self):
         """Test that all expected endpoints are registered on the router."""
         routes = [route.path for route in sysres_router.router.routes]
-        
+
         expected_routes = [
             "/api/system-resources/status",
             "/api/system-resources/summary",
@@ -353,7 +353,7 @@ class TestSystemResourceRouterCoverage:
             "/api/system-resources/network/optimize",
             "/api/system-resources/optimize",
         ]
-        
+
         for route in expected_routes:
             assert route in routes, f"Route {route} not found in router"
 
@@ -366,42 +366,40 @@ class TestSystemResourceRouterCoverage:
             "get_system_resource_optimizer",
             MagicMock(return_value=fake_optimizer),
         )
-        
+
         # Call each function directly to ensure coverage
         import asyncio
-        
+
         async def test_calls():
             # Test all GET functions
             result1 = await sysres_router.get_optimization_status()
             assert result1["status"] == "success"
-            
+
             result2 = await sysres_router.get_resource_summary()
             assert result2["status"] == "success"
-            
+
             result3 = await sysres_router.analyze_memory_usage()
             assert result3["status"] == "success"
-            
+
             result4 = await sysres_router.analyze_cpu_usage()
             assert result4["status"] == "success"
-            
+
             result5 = await sysres_router.analyze_network_usage()
             assert result5["status"] == "success"
-            
+
             # Test all POST functions
             result6 = await sysres_router.optimize_memory()
             assert result6["status"] == "success"
-            
+
             result7 = await sysres_router.optimize_cpu()
             assert result7["status"] == "success"
-            
+
             result8 = await sysres_router.optimize_network()
             assert result8["status"] == "success"
-            
+
             result9 = await sysres_router.run_comprehensive_optimization(
-                memory_optimization=True,
-                cpu_optimization=True,
-                network_optimization=True
+                memory_optimization=True, cpu_optimization=True, network_optimization=True
             )
             assert result9["status"] == "success"
-        
+
         asyncio.run(test_calls())

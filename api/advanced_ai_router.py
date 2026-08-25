@@ -21,7 +21,11 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/ai-advanced", tags=["高级AI能力"])
 try:
-    from core.advanced_ai_capabilities import LearningMode, PredictionType, advanced_ai_capabilities
+    from core.advanced_ai_capabilities import (
+        LearningMode,
+        PredictionType,
+        advanced_ai_capabilities,
+    )
 
     ADVANCED_AI_AVAILABLE = True
 except ImportError:
@@ -85,7 +89,11 @@ class NaturalLanguageRequest(BaseModel):
     model_config = {
         "extra": "ignore",
         "json_schema_extra": {
-            "example": {"user_input": "example", "conversation_id": "example", "user_id": "example"}
+            "example": {
+                "user_input": "example",
+                "conversation_id": "example",
+                "user_id": "example",
+            }
         },
     }
 

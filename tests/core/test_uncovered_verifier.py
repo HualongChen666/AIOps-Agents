@@ -116,7 +116,9 @@ async def test_verify_service_status_invalid_name(guard_ok, short_wait):
 
 
 async def test_verify_service_status_missing_name():
-    result = await verifier._verify_service_status({"platform": "linux"}, {}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_service_status(
+        {"platform": "linux"}, {}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -136,14 +138,18 @@ async def test_verify_service_status_execute_exception(guard_ok, short_wait, mon
 
 async def test_verify_process_check_linux_killed(guard_ok, monkeypatch):
     monkeypatch.setattr(verifier, "_execute_linux_verify_command", AsyncMock(return_value="0"))
-    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_process_check(
+        {"platform": "linux"}, {"pid": "12345"}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is True
     assert result["evidence"]["pid"] == 12345
 
 
 async def test_verify_process_check_linux_alive(guard_ok, monkeypatch):
     monkeypatch.setattr(verifier, "_execute_linux_verify_command", AsyncMock(return_value="1"))
-    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "12345"}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_process_check(
+        {"platform": "linux"}, {"pid": "12345"}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is False
 
 
@@ -160,12 +166,16 @@ async def test_verify_process_check_windows_alive(guard_ok, monkeypatch):
     monkeypatch.setattr(
         verifier, "_execute_windows_verify_command", AsyncMock(return_value="ALIVE")
     )
-    result = await verifier._verify_process_check({"platform": "windows"}, {"pid": "42"}, "windows")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_process_check(
+        {"platform": "windows"}, {"pid": "42"}, "windows"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is False
 
 
 async def test_verify_process_check_invalid_pid():
-    result = await verifier._verify_process_check({"platform": "linux"}, {"pid": "abc"}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_process_check(
+        {"platform": "linux"}, {"pid": "abc"}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -185,7 +195,9 @@ async def test_verify_metric_threshold_success(monkeypatch):
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": [4.0, 4.0, 4.0]}})(),
     )
-    result = await verifier._verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_metric_threshold(
+        "free_cache", {"memory": [10.0, 10.0, 10.0]}
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is True
     assert result["strategy"] == "metric_threshold"
     assert result["evidence"]["delta_percent"] == 60.0
@@ -198,13 +210,17 @@ async def test_verify_metric_threshold_insufficient_samples(monkeypatch):
         "core.metrics_history.metrics_history",
         type("M", (), {"to_dict": lambda self: {"memory": [10.0]}})(),
     )
-    result = await verifier._verify_metric_threshold("free_cache", {"memory": [10.0]})  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_metric_threshold(
+        "free_cache", {"memory": [10.0]}
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert "数据点不足" in result["recommendation"]
 
 
 async def test_verify_metric_threshold_no_snapshot():
-    result = await verifier._verify_metric_threshold("free_cache", None)  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_metric_threshold(
+        "free_cache", None
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -220,7 +236,9 @@ async def test_verify_disk_usage_linux(guard_ok, monkeypatch):
             )
         ),
     )
-    result = await verifier._verify_disk_usage({"platform": "linux"}, {"mount_point": "/"}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_disk_usage(
+        {"platform": "linux"}, {"mount_point": "/"}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is True
     assert result["evidence"]["usage_percent"] == 50.0
 
@@ -300,7 +318,9 @@ async def test_verify_network_check_windows_up(guard_ok, monkeypatch):
 
 
 async def test_verify_network_check_missing_target():
-    result = await verifier._verify_network_check({"platform": "linux"}, {}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_network_check(
+        {"platform": "linux"}, {}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -345,7 +365,9 @@ async def test_verify_k8s_status_plain_text(guard_ok, short_wait, monkeypatch):
     monkeypatch.setattr(
         verifier, "_execute_linux_verify_command", AsyncMock(return_value="running")
     )
-    result = await verifier._verify_k8s_status({"platform": "linux"}, {"name": "web-0"}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_k8s_status(
+        {"platform": "linux"}, {"name": "web-0"}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is True
 
 
@@ -359,7 +381,9 @@ async def test_verify_k8s_status_windows_skipped():
 
 
 async def test_verify_k8s_status_missing_name():
-    result = await verifier._verify_k8s_status({"platform": "linux"}, {}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_k8s_status(
+        {"platform": "linux"}, {}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
@@ -367,14 +391,18 @@ async def test_verify_k8s_status_missing_name():
 async def test_verify_custom_command_disabled():
     monkeypatch = pytest.MonkeyPatch()
     # kept explicit to avoid scope issues; default VERIFY_CONFIG has llm_for_custom=False
-    result = await verifier._verify_custom_command({}, {}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_custom_command(
+        {}, {}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert result["strategy"] == "skipped"
 
 
 async def test_verify_custom_command_enabled_still_skipped(monkeypatch):
     monkeypatch.setattr(verifier, "VERIFY_CONFIG", {"llm_for_custom": True})
-    result = await verifier._verify_custom_command({}, {}, "linux")  # noqa: F841  # Variable for test verification
+    result = await verifier._verify_custom_command(
+        {}, {}, "linux"
+    )  # noqa: F841  # Variable for test verification
     assert result["verified"] is None
     assert "LLM 验证逻辑预留" in result["recommendation"]
 

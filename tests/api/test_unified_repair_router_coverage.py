@@ -13,7 +13,7 @@ Missing lines to cover:
 """
 
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest  # noqa: F401  # Imported for test setup
 
@@ -45,7 +45,7 @@ def _async_raise(exc):
 
 def test_validate_host_name_requirement_missing():
     """Test line 95: host_name required but not provided."""
-    from api.unified_repair_router import _validate_host_name_requirement, HTTPException
+    from api.unified_repair_router import HTTPException, _validate_host_name_requirement
 
     with patch("api.unified_repair_router.get_platform_strategy") as mock_get:
         mock_strategy = MagicMock()
@@ -73,7 +73,7 @@ def test_validate_host_name_requirement_satisfied():
 
 def test_validate_repair_result_none():
     """Test lines 117-119: execute_repair returns None."""
-    from api.unified_repair_router import _validate_repair_result, HTTPException
+    from api.unified_repair_router import HTTPException, _validate_repair_result
 
     with pytest.raises(HTTPException) as exc_info:
         _validate_repair_result(None)
@@ -83,7 +83,7 @@ def test_validate_repair_result_none():
 
 def test_validate_repair_result_non_dict():
     """Test lines 121-123: execute_repair returns non-dict type."""
-    from api.unified_repair_router import _validate_repair_result, HTTPException
+    from api.unified_repair_router import HTTPException, _validate_repair_result
 
     with pytest.raises(HTTPException) as exc_info:
         _validate_repair_result("string")
@@ -93,7 +93,7 @@ def test_validate_repair_result_non_dict():
 
 def test_validate_repair_result_list():
     """Test lines 121-123: execute_repair returns a list."""
-    from api.unified_repair_router import _validate_repair_result, HTTPException
+    from api.unified_repair_router import HTTPException, _validate_repair_result
 
     with pytest.raises(HTTPException) as exc_info:
         _validate_repair_result([{"item": 1}])
@@ -128,7 +128,7 @@ def test_map_error_to_http_status_no_error():
 
 def test_map_error_to_http_status_blocked_with_alternative():
     """Test lines 147-149: blocked with safe_alternative concatenation."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -144,7 +144,7 @@ def test_map_error_to_http_status_blocked_with_alternative():
 
 def test_map_error_to_http_status_blocked_without_alternative():
     """Test line 147: blocked without safe_alternative (empty string)."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -161,7 +161,7 @@ def test_map_error_to_http_status_blocked_without_alternative():
 
 def test_map_error_to_http_status_blocked_no_alternative_key():
     """Test blocked when safe_alternative key is missing."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -177,7 +177,7 @@ def test_map_error_to_http_status_blocked_no_alternative_key():
 
 def test_map_error_to_http_status_not_found():
     """Test lines 156-158: script not found."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -188,7 +188,7 @@ def test_map_error_to_http_status_not_found():
 
 def test_map_error_to_http_status_not_found_english():
     """Test lines 156-158: script not found with English error."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -199,7 +199,7 @@ def test_map_error_to_http_status_not_found_english():
 
 def test_map_error_to_http_status_param_error_pid():
     """Test lines 161-166: parameter validation error with 'pid'."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -210,7 +210,7 @@ def test_map_error_to_http_status_param_error_pid():
 
 def test_map_error_to_http_status_param_error_service_name():
     """Test lines 161-166: parameter validation error with 'service_name'."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -221,7 +221,7 @@ def test_map_error_to_http_status_param_error_service_name():
 
 def test_map_error_to_http_status_param_error_missing():
     """Test lines 161-166: parameter validation error with '缺少必要参数'."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -232,7 +232,7 @@ def test_map_error_to_http_status_param_error_missing():
 
 def test_map_error_to_http_status_param_error_must_be():
     """Test lines 161-166: parameter validation error with '必须为'."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -243,7 +243,7 @@ def test_map_error_to_http_status_param_error_must_be():
 
 def test_map_error_to_http_status_param_error_forbidden():
     """Test lines 161-166: parameter validation error with '禁止操作'."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -254,7 +254,7 @@ def test_map_error_to_http_status_param_error_forbidden():
 
 def test_map_error_to_http_status_param_error_not_allowed():
     """Test lines 161-166: parameter validation error with '不允许'."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -265,7 +265,7 @@ def test_map_error_to_http_status_param_error_not_allowed():
 
 def test_map_error_to_http_status_general_error():
     """Test lines 169-173: general execution failure raises 500."""
-    from api.unified_repair_router import _map_error_to_http_status, HTTPException
+    from api.unified_repair_router import HTTPException, _map_error_to_http_status
 
     with pytest.raises(HTTPException) as exc_info:
         _map_error_to_http_status(
@@ -481,10 +481,14 @@ def test_execute_platform_repair_with_host_name():
         mock_strategy.execute_repair = AsyncMock(return_value={"success": True, "output": "ok"})
         mock_get.return_value = mock_strategy
 
-        result = asyncio.run(_execute_platform_repair("linux", "test", "server-01", {"param": "value"}))
+        result = asyncio.run(
+            _execute_platform_repair("linux", "test", "server-01", {"param": "value"})
+        )
         assert result is not None
         assert result.get("success") is True
-        mock_strategy.execute_repair.assert_called_once_with("test", "server-01", {"param": "value"})
+        mock_strategy.execute_repair.assert_called_once_with(
+            "test", "server-01", {"param": "value"}
+        )
 
 
 # =============================================================================

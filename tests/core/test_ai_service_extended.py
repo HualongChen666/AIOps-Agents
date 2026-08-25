@@ -2,21 +2,23 @@
 AI Service 附加测试用例
 为提升 core/ai_service.py 的覆盖率
 """
+
 import asyncio
-import pytest
-import sys
 import os
-from unittest.mock import Mock, patch, MagicMock
+import sys
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.ai_service import (
+    AIContextService,
+    _extract_gather_result,
     _safe_alert_value,
     _safe_get_metric,
-    _extract_gather_result,
-    AIContextService,
-    ai_context_service
+    ai_context_service,
 )
 
 
@@ -77,15 +79,7 @@ class TestSafeGetMetricExtended:
 
     def test_safe_get_metric_nested_deep(self):
         """测试深层嵌套"""
-        snapshot = {
-            "level1": {
-                "level2": {
-                    "level3": {
-                        "target": "value"
-                    }
-                }
-            }
-        }
+        snapshot = {"level1": {"level2": {"level3": {"target": "value"}}}}
         result = _safe_get_metric(snapshot, "level1", "level2")
         assert isinstance(result, dict)
         assert "level3" in result

@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """Unit tests for auth_router functions that require isolated database state."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from api.auth_router import _UserOut, _user_dict, register_admin
+from api.auth_router import _user_dict, _UserOut, register_admin
 from core.auth_db import Base, User
 from core.auth_service import hash_password
 
@@ -65,6 +66,7 @@ def test_register_admin_fails_when_users_exist(unit_test_db):
 
     # Call the register_admin function and expect an exception
     from fastapi import HTTPException
+
     with pytest.raises(HTTPException) as exc_info:
         register_admin(MockRequest(), unit_test_db)
 

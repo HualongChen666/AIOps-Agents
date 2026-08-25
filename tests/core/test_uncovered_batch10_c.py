@@ -94,7 +94,9 @@ async def test_visualizer_render_mermaid_to_file(visualizer_module, sample_workf
 
 @pytest.mark.asyncio
 async def test_visualizer_render_mermaid_without_path(visualizer_module, sample_workflow):
-    result = await visualizer_module.WorkflowVisualizer.render_mermaid(sample_workflow)  # noqa: F841  # Variable for test verification
+    result = await visualizer_module.WorkflowVisualizer.render_mermaid(
+        sample_workflow
+    )  # noqa: F841  # Variable for test verification
     assert "graph TD" in result
 
 
@@ -116,7 +118,9 @@ async def test_visualizer_render_graphviz_to_file(
 
 @pytest.mark.asyncio
 async def test_visualizer_render_graphviz_without_path(visualizer_module, sample_workflow):
-    result = await visualizer_module.WorkflowVisualizer.render_graphviz(sample_workflow)  # noqa: F841  # Variable for test verification
+    result = await visualizer_module.WorkflowVisualizer.render_graphviz(
+        sample_workflow
+    )  # noqa: F841  # Variable for test verification
     assert "digraph workflow {" in result
 
 
@@ -431,18 +435,24 @@ def test_repair_get_scripts_and_history(repair_module):
 
 @pytest.mark.asyncio
 async def test_repair_execute_unknown_and_missing_params(repair_module):
-    result = await repair_module.execute_repair("nonexistent")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "nonexistent"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert result["return_code"] == -1
 
-    result = await repair_module.execute_repair("kill_high_cpu", {})  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "kill_high_cpu", {}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "缺少必要参数" in result["error"]
 
 
 @pytest.mark.asyncio
 async def test_repair_execute_invalid_pid(repair_module):
-    result = await repair_module.execute_repair("kill_high_cpu", {"pid": 2})  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "kill_high_cpu", {"pid": 2}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "PID" in result["error"]
 
@@ -460,7 +470,9 @@ async def test_repair_execute_blocked_by_guard(repair_module, monkeypatch):
         }
 
     monkeypatch.setattr(cg, "analyze_command", blocked)
-    result = await repair_module.execute_repair("flush_dns")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "flush_dns"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert result["blocked"] is True
     assert "safe_alternative" in result
@@ -468,7 +480,9 @@ async def test_repair_execute_blocked_by_guard(repair_module, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_repair_execute_success_and_history(repair_module):
-    result = await repair_module.execute_repair("clear_temp")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "clear_temp"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["return_code"] == 0
     assert result["sqlite_persisted"] is True
@@ -484,7 +498,9 @@ async def test_repair_execute_failure(repair_module):
     repair_module.subprocess_runner = _FakeSubprocessRunner(
         returncode=1, stdout="", stderr="failed"
     )
-    result = await repair_module.execute_repair("free_memory")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "free_memory"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert result["return_code"] == 1
 
@@ -492,7 +508,9 @@ async def test_repair_execute_failure(repair_module):
 @pytest.mark.asyncio
 async def test_repair_execute_powershell_timeout(repair_module):
     repair_module.subprocess_runner = _FakeSubprocessRunner(behaviour="timeout")
-    result = await repair_module.execute_repair("check_disk")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "check_disk"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "超时" in result["error"]
 
@@ -500,7 +518,9 @@ async def test_repair_execute_powershell_timeout(repair_module):
 @pytest.mark.asyncio
 async def test_repair_execute_powershell_not_found(repair_module):
     repair_module.subprocess_runner = _FakeSubprocessRunner(behaviour="not_found")
-    result = await repair_module.execute_repair("flush_dns")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "flush_dns"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "PowerShell" in result["error"]
 
@@ -513,7 +533,9 @@ async def test_repair_execute_sqlite_record_failure(repair_module, monkeypatch):
         raise RuntimeError("sqlite closed")
 
     monkeypatch.setattr(stats, "record_repair", broken_record)
-    result = await repair_module.execute_repair("free_memory")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "free_memory"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["sqlite_persisted"] is False
 
@@ -521,7 +543,9 @@ async def test_repair_execute_sqlite_record_failure(repair_module, monkeypatch):
 @pytest.mark.asyncio
 async def test_repair_execute_pop_exception(repair_module):
     repair_module.subprocess_runner = _FakeSubprocessRunner(behaviour="pop_exception")
-    result = await repair_module.execute_repair("sfc_scan")  # noqa: F841  # Variable for test verification
+    result = await repair_module.execute_repair(
+        "sfc_scan"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert result["return_code"] == -1
 
@@ -670,13 +694,17 @@ def test_slo_evaluate_empty_and_aggregations(slo_engine):
     rule2 = slo_engine.create_slo(
         name="latency", service="api", metric="latency", target=0.1, window=1, aggregation="p99_lt"
     )
-    p99_result = slo_engine.evaluate_slo(rule2, [_make_point(0.05), _make_point(0.2)])  # noqa: F841  # Variable for test verification
+    p99_result = slo_engine.evaluate_slo(
+        rule2, [_make_point(0.05), _make_point(0.2)]
+    )  # noqa: F841  # Variable for test verification
     assert p99_result["current"] in {0.0, 1.0}
 
     rule3 = slo_engine.create_slo(
         name="cpu-mean", service="db", metric="cpu", target=0.6, window=1, aggregation="mean_lt"
     )
-    mean_result = slo_engine.evaluate_slo(rule3, [_make_point(80), _make_point(60)])  # noqa: F841  # Variable for test verification
+    mean_result = slo_engine.evaluate_slo(
+        rule3, [_make_point(80), _make_point(60)]
+    )  # noqa: F841  # Variable for test verification
     assert "status" in mean_result
 
     rule4 = slo_engine.create_slo(
@@ -726,7 +754,9 @@ def test_slo_generate_sla_report(slo_engine, monkeypatch):
         window=24,
         aggregation="uptime",
     )
-    base = datetime.datetime.utcnow() - datetime.timedelta(hours=2)  # noqa: F841  # Variable for test verification
+    base = datetime.datetime.utcnow() - datetime.timedelta(
+        hours=2
+    )  # noqa: F841  # Variable for test verification
     up_points = [
         _make_point(1.0, base),
         _make_point(1.0, base + datetime.timedelta(hours=1)),
@@ -849,7 +879,9 @@ async def test_cpo_create_optimized_engine_failure(cpo_module, monkeypatch):
 @pytest.mark.asyncio
 async def test_cpo_optimize_existing_engine(cpo_module):
     cpo, engine, _, _ = cpo_module
-    result = await cpo.optimize_existing_engine(engine)  # noqa: F841  # Variable for test verification
+    result = await cpo.optimize_existing_engine(
+        engine
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "analysis_completed"
     assert result["current_config"]["pool_size"] == 20
 
@@ -858,7 +890,9 @@ async def test_cpo_optimize_existing_engine(cpo_module):
 async def test_cpo_optimize_existing_engine_failure(cpo_module):
     cpo, engine, _, _ = cpo_module
     del engine.pool
-    result = await cpo.optimize_existing_engine(engine)  # noqa: F841  # Variable for test verification
+    result = await cpo.optimize_existing_engine(
+        engine
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
 
 

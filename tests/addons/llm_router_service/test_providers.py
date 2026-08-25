@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """Unit tests for providers.py - LLM provider adapters."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from extensions.addons.ai_plus.llm_router_service.providers import (
-    BaseLLMProvider,
-    OpenAIProvider,
     AnthropicProvider,
-    OpenSourceProvider,
+    BaseLLMProvider,
     LocalProvider,
+    OpenAIProvider,
+    OpenSourceProvider,
     ProviderFactory,
 )
 from extensions.addons.ai_plus.llm_router_service.schemas import ProviderType
@@ -28,11 +30,13 @@ class TestBaseLLMProvider:
 
     def test_base_provider_subclass_initialization(self):
         """Test base provider subclass initialization."""
+
         class TestProvider(BaseLLMProvider):
             provider_type = ProviderType.OPENAI
 
             async def call(self, prompt, model=None, max_tokens=1024, temperature=0.7):
                 from extensions.addons.ai_plus.llm_router_service.schemas import GenerateResponse
+
                 return GenerateResponse(
                     content="test",
                     model=model or self.model_id,
@@ -62,11 +66,13 @@ class TestBaseLLMProvider:
 
     def test_base_provider_default_values(self):
         """Test base provider with default values."""
+
         class TestProvider(BaseLLMProvider):
             provider_type = ProviderType.OPENAI
 
             async def call(self, prompt, model=None, max_tokens=1024, temperature=0.7):
                 from extensions.addons.ai_plus.llm_router_service.schemas import GenerateResponse
+
                 return GenerateResponse(
                     content="test",
                     model=model or self.model_id,
@@ -86,11 +92,13 @@ class TestBaseLLMProvider:
 
     def test_build_messages(self):
         """Test _build_messages method."""
+
         class TestProvider(BaseLLMProvider):
             provider_type = ProviderType.OPENAI
 
             async def call(self, prompt, model=None, max_tokens=1024, temperature=0.7):
                 from extensions.addons.ai_plus.llm_router_service.schemas import GenerateResponse
+
                 return GenerateResponse(
                     content="test",
                     model=model or self.model_id,
@@ -107,11 +115,13 @@ class TestBaseLLMProvider:
 
     def test_estimate_cost(self):
         """Test _estimate_cost method."""
+
         class TestProvider(BaseLLMProvider):
             provider_type = ProviderType.OPENAI
 
             async def call(self, prompt, model=None, max_tokens=1024, temperature=0.7):
                 from extensions.addons.ai_plus.llm_router_service.schemas import GenerateResponse
+
                 return GenerateResponse(
                     content="test",
                     model=model or self.model_id,
@@ -186,7 +196,10 @@ class TestOpenAIProvider:
         mock_client.post.return_value = mock_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = OpenAIProvider(name="test", model_id="gpt-4", api_key="sk-test")
             result = await provider.call("Hello, world!")
 
@@ -211,7 +224,10 @@ class TestOpenAIProvider:
         mock_client.post.return_value = mock_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = OpenAIProvider(name="test", model_id="gpt-4", api_key="sk-test")
             result = await provider.call("Hello", model="gpt-3.5-turbo")
 
@@ -233,7 +249,10 @@ class TestOpenAIProvider:
         mock_client.post.return_value = mock_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = OpenAIProvider(name="test", model_id="gpt-4", api_key="sk-test")
             result = await provider.call("Hello", max_tokens=2048, temperature=0.5)
 
@@ -247,7 +266,10 @@ class TestOpenAIProvider:
         mock_client.__aexit__.return_value = None
         mock_client.post.side_effect = Exception("API error")
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = OpenAIProvider(name="test", model_id="gpt-4", api_key="sk-test")
 
             with pytest.raises(Exception, match="API error"):
@@ -268,7 +290,10 @@ class TestOpenAIProvider:
         mock_client.__aexit__.return_value = None
         mock_client.post.return_value = mock_response
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = OpenAIProvider(name="test", model_id="gpt-4", api_key="sk-test")
 
             with pytest.raises(httpx.HTTPStatusError):
@@ -289,7 +314,10 @@ class TestOpenAIProvider:
         mock_client.post.return_value = mock_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = OpenAIProvider(name="test", model_id="gpt-4", api_key="sk-test")
             result = await provider.call("Hello")
 
@@ -342,7 +370,10 @@ class TestAnthropicProvider:
         mock_client.post.return_value = mock_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = AnthropicProvider(name="test", model_id="claude-3", api_key="sk-ant-test")
             result = await provider.call("Hello, world!")
 
@@ -367,7 +398,10 @@ class TestAnthropicProvider:
         mock_client.post.return_value = mock_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = AnthropicProvider(name="test", model_id="claude-3", api_key="sk-ant-test")
             result = await provider.call("Hello", model="claude-3-sonnet")
 
@@ -381,7 +415,10 @@ class TestAnthropicProvider:
         mock_client.__aexit__.return_value = None
         mock_client.post.side_effect = Exception("API error")
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = AnthropicProvider(name="test", model_id="claude-3", api_key="sk-ant-test")
 
             with pytest.raises(Exception, match="API error"):
@@ -402,7 +439,10 @@ class TestAnthropicProvider:
         mock_client.post.return_value = mock_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("extensions.addons.ai_plus.llm_router_service.providers.AsyncClient", return_value=mock_client):
+        with patch(
+            "extensions.addons.ai_plus.llm_router_service.providers.AsyncClient",
+            return_value=mock_client,
+        ):
             provider = AnthropicProvider(name="test", model_id="claude-3", api_key="sk-ant-test")
             result = await provider.call("Hello")
 

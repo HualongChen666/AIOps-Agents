@@ -2,6 +2,7 @@
 """Comprehensive tests for workflow service saga orchestrator to achieve 85%+ branch coverage."""
 
 import asyncio
+
 import pytest
 
 from extensions.addons.operations.workflow_service.saga import WorkflowSagaOrchestrator
@@ -265,6 +266,7 @@ class TestWorkflowSagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_execute():
             raise ValueError("Execution failed")
+
         actions["execute"] = failing_execute
         result = await orchestrator.execute("saga_comp_sync")
 
@@ -302,6 +304,7 @@ class TestWorkflowSagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_execute():
             raise ValueError("Execution failed")
+
         actions["execute"] = failing_execute
         result = await orchestrator.execute("saga_comp_async")
 
@@ -336,6 +339,7 @@ class TestWorkflowSagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_execute():
             raise ValueError("Execution failed")
+
         actions["execute"] = failing_execute
         result = await orchestrator.execute("saga_missing_comp")
 
@@ -374,6 +378,7 @@ class TestWorkflowSagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_execute():
             raise ValueError("Execution failed")
+
         actions["execute"] = failing_execute
         result = await orchestrator.execute("saga_comp_exception")
 
@@ -467,6 +472,7 @@ class TestWorkflowSagaOrchestrator:
         # Force compensation by making the action fail
         def failing_validate():
             raise ValueError("Validation failed")
+
         actions["validate"] = failing_validate
         result = await orchestrator.execute("saga_missing_step")
 

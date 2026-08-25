@@ -411,9 +411,7 @@ class FeatureFlagManager:
         percentage = flag.fallback_value if isinstance(flag.fallback_value, (int, float)) else 0
 
         # Hash user ID to get consistent assignment
-        hash_value = int(
-            hashlib.md5(f"{flag.key}:{user_id}".encode(), usedforsecurity=False).hexdigest(), 16
-        )
+        hash_value = int(hashlib.sha256(f"{flag.key}:{user_id}".encode()).hexdigest(), 16)
         hash_percentage = (hash_value % 100) / 100.0
 
         return hash_percentage < percentage
@@ -434,9 +432,7 @@ class FeatureFlagManager:
             return flag.fallback_value
 
         # Hash user ID to get consistent variant assignment
-        hash_value = int(
-            hashlib.md5(f"{flag.key}:{user_id}".encode(), usedforsecurity=False).hexdigest(), 16
-        )
+        hash_value = int(hashlib.sha256(f"{flag.key}:{user_id}".encode()).hexdigest(), 16)
         hash_percentage = (hash_value % 100) / 100.0
 
         # Calculate cumulative percentages

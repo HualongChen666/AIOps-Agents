@@ -17,22 +17,25 @@ Comprehensive performance testing for knowledge graph operations including:
 
 import asyncio
 import statistics
+import threading
 import time
 import uuid
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor
-import threading
 
 import pytest
 
+from extensions.addons.ai_plus.knowledge_graph_service.builder import GraphBuilder
+
 # Import knowledge graph modules
 from extensions.addons.ai_plus.knowledge_graph_service.cache import CacheManager
-from extensions.addons.ai_plus.knowledge_graph_service.builder import GraphBuilder
-from extensions.addons.ai_plus.knowledge_graph_service.query import GraphQueryEngine
 from extensions.addons.ai_plus.knowledge_graph_service.graph_store import GraphStore
-from extensions.addons.ai_plus.knowledge_graph_service.orchestrator import KnowledgeGraphOrchestrator
+from extensions.addons.ai_plus.knowledge_graph_service.orchestrator import (
+    KnowledgeGraphOrchestrator,
+)
+from extensions.addons.ai_plus.knowledge_graph_service.query import GraphQueryEngine
 from extensions.addons.ai_plus.knowledge_graph_service.schemas import (
     Graph,
     GraphBuildRequest,
@@ -42,11 +45,10 @@ from extensions.addons.ai_plus.knowledge_graph_service.schemas import (
     GraphQueryResponse,
 )
 
-
 # Performance thresholds (in milliseconds)
 PERFORMANCE_THRESHOLDS = {
-    "simple_query": 50,      # Simple query < 50ms
-    "complex_query": 100,    # Complex query < 100ms
+    "simple_query": 50,  # Simple query < 50ms
+    "complex_query": 100,  # Complex query < 100ms
     "graph_traversal": 200,  # Graph traversal < 200ms
     "cache_hit_rate": 0.80,  # Cache hit rate > 80%
 }
@@ -99,7 +101,9 @@ class PerformanceMetrics:
                 "max": max(self.response_times) if self.response_times else 0,
                 "mean": statistics.mean(self.response_times) if self.response_times else 0,
                 "median": statistics.median(self.response_times) if self.response_times else 0,
-                "stdev": statistics.stdev(self.response_times) if len(self.response_times) > 1 else 0,
+                "stdev": (
+                    statistics.stdev(self.response_times) if len(self.response_times) > 1 else 0
+                ),
                 "p95": self._percentile(95) if self.response_times else 0,
                 "p99": self._percentile(99) if self.response_times else 0,
             },
@@ -147,22 +151,26 @@ class GraphPerformanceMonitor:
             self.metrics.add_cache_miss()
         self.metrics.record_query_pattern(query_type)
 
-        self.query_history.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "query_type": query_type,
-            "response_time_ms": response_time_ms,
-            "cache_hit": cache_hit,
-            "node_count": node_count,
-            "edge_count": edge_count,
-            "error": error,
-        })
-
-        if error:
-            self.metrics.add_error({
+        self.query_history.append(
+            {
                 "timestamp": datetime.utcnow().isoformat(),
                 "query_type": query_type,
+                "response_time_ms": response_time_ms,
+                "cache_hit": cache_hit,
+                "node_count": node_count,
+                "edge_count": edge_count,
                 "error": error,
-            })
+            }
+        )
+
+        if error:
+            self.metrics.add_error(
+                {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "query_type": query_type,
+                    "error": error,
+                }
+            )
 
     def analyze_query_patterns(self) -> Dict[str, Any]:
         """Analyze query patterns and identify trends."""
@@ -188,10 +196,12 @@ class GraphPerformanceMonitor:
         hot_nodes = []
         for node_id, count in self.metrics.node_access_counts.items():
             if count >= threshold:
-                hot_nodes.append({
-                    "node_id": node_id,
-                    "access_count": count,
-                })
+                hot_nodes.append(
+                    {
+                        "node_id": node_id,
+                        "access_count": count,
+                    }
+                )
         return sorted(hot_nodes, key=lambda x: x["access_count"], reverse=True)
 
     def detect_bottlenecks(self) -> List[Dict[str, Any]]:
@@ -201,38 +211,44 @@ class GraphPerformanceMonitor:
 
         # Check response time thresholds
         if stats["response_times"]["p95"] > PERFORMANCE_THRESHOLDS["complex_query"]:
-            bottlenecks.append({
-                "type": "response_time",
-                "severity": "high",
-                "metric": "p95",
-                "value": stats["response_times"]["p95"],
-                "threshold": PERFORMANCE_THRESHOLDS["complex_query"],
-                "recommendation": "Consider adding indexes or optimizing query patterns",
-            })
+            bottlenecks.append(
+                {
+                    "type": "response_time",
+                    "severity": "high",
+                    "metric": "p95",
+                    "value": stats["response_times"]["p95"],
+                    "threshold": PERFORMANCE_THRESHOLDS["complex_query"],
+                    "recommendation": "Consider adding indexes or optimizing query patterns",
+                }
+            )
 
         # Check cache hit rate
         if stats["cache"]["hit_rate"] < PERFORMANCE_THRESHOLDS["cache_hit_rate"]:
-            bottlenecks.append({
-                "type": "cache_efficiency",
-                "severity": "medium",
-                "metric": "hit_rate",
-                "value": stats["cache"]["hit_rate"],
-                "threshold": PERFORMANCE_THRESHOLDS["cache_hit_rate"],
-                "recommendation": "Increase cache size or adjust TTL settings",
-            })
+            bottlenecks.append(
+                {
+                    "type": "cache_efficiency",
+                    "severity": "medium",
+                    "metric": "hit_rate",
+                    "value": stats["cache"]["hit_rate"],
+                    "threshold": PERFORMANCE_THRESHOLDS["cache_hit_rate"],
+                    "recommendation": "Increase cache size or adjust TTL settings",
+                }
+            )
 
         # Check error rate
         if stats["errors"] > 0:
             error_rate = stats["errors"] / max(len(self.metrics.response_times), 1)
             if error_rate > 0.05:  # 5% error rate threshold
-                bottlenecks.append({
-                    "type": "error_rate",
-                    "severity": "high",
-                    "metric": "error_rate",
-                    "value": error_rate,
-                    "threshold": 0.05,
-                    "recommendation": "Investigate and fix error conditions",
-                })
+                bottlenecks.append(
+                    {
+                        "type": "error_rate",
+                        "severity": "high",
+                        "metric": "error_rate",
+                        "value": error_rate,
+                        "threshold": 0.05,
+                        "recommendation": "Investigate and fix error conditions",
+                    }
+                )
 
         self.bottlenecks = bottlenecks
         return bottlenecks
@@ -256,11 +272,11 @@ class GraphPerformanceMonitor:
 
         # Based on query patterns
         if patterns.get("total_queries", 0) > 0:
-            top_pattern = list(patterns.get("patterns", {}).keys())[0] if patterns.get("patterns") else None
+            top_pattern = (
+                list(patterns.get("patterns", {}).keys())[0] if patterns.get("patterns") else None
+            )
             if top_pattern:
-                recommendations.append(
-                    f"Optimize for most common query pattern: {top_pattern}"
-                )
+                recommendations.append(f"Optimize for most common query pattern: {top_pattern}")
 
         return recommendations
 
@@ -347,34 +363,38 @@ async def large_graph(graph_store):
     # Create 1000 nodes and 5000 edges
     nodes = []
     edges = []
-    
+
     for i in range(1000):
-        nodes.append(GraphNode(
-            node_id=f"node_{i}",
-            label=f"Node {i}",
-            node_type="service" if i % 2 == 0 else "infrastructure",
-        ))
-    
+        nodes.append(
+            GraphNode(
+                node_id=f"node_{i}",
+                label=f"Node {i}",
+                node_type="service" if i % 2 == 0 else "infrastructure",
+            )
+        )
+
     edge_id = 0
     for i in range(1000):
         # Each node connects to 5 other nodes
         for j in range(5):
             target = (i + j + 1) % 1000
-            edges.append(GraphEdge(
-                edge_id=f"edge_{edge_id}",
-                source_id=f"node_{i}",
-                target_id=f"node_{target}",
-                relation="CONNECTS_TO",
-            ))
+            edges.append(
+                GraphEdge(
+                    edge_id=f"edge_{edge_id}",
+                    source_id=f"node_{i}",
+                    target_id=f"node_{target}",
+                    relation="CONNECTS_TO",
+                )
+            )
             edge_id += 1
-    
+
     graph = Graph(
         graph_id="large-graph",
         name="Large Test Graph",
         nodes=nodes,
         edges=edges,
     )
-    
+
     await graph_store.load_graph(graph)
     return graph
 
@@ -417,9 +437,10 @@ class TestGraphQueryResponseTime:
         )
 
         # Assert response time meets threshold
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["simple_query"], \
-            f"Simple query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['simple_query']}ms"
-        
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["simple_query"]
+        ), f"Simple query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['simple_query']}ms"
+
         # Assert response is valid
         assert response.graph_id == sample_graph.graph_id
         assert len(response.nodes) > 0
@@ -455,9 +476,10 @@ class TestGraphQueryResponseTime:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["simple_query"], \
-            f"Relation query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['simple_query']}ms"
-        
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["simple_query"]
+        ), f"Relation query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['simple_query']}ms"
+
         assert len(response.edges) > 0
 
     @pytest.mark.asyncio
@@ -502,10 +524,12 @@ class TestGraphQueryResponseTime:
         mean_time = statistics.mean(response_times)
         p95_time = sorted(response_times)[int(len(response_times) * 0.95)]
 
-        assert mean_time < PERFORMANCE_THRESHOLDS["simple_query"], \
-            f"Mean simple query time {mean_time:.2f}ms exceeds threshold"
-        assert p95_time < PERFORMANCE_THRESHOLDS["simple_query"], \
-            f"P95 simple query time {p95_time:.2f}ms exceeds threshold"
+        assert (
+            mean_time < PERFORMANCE_THRESHOLDS["simple_query"]
+        ), f"Mean simple query time {mean_time:.2f}ms exceeds threshold"
+        assert (
+            p95_time < PERFORMANCE_THRESHOLDS["simple_query"]
+        ), f"P95 simple query time {p95_time:.2f}ms exceeds threshold"
 
 
 class TestComplexQueryPerformance:
@@ -544,8 +568,9 @@ class TestComplexQueryPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"], \
-            f"Deep traversal query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"]
+        ), f"Deep traversal query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
 
     @pytest.mark.asyncio
     async def test_large_result_set_query_performance(
@@ -580,8 +605,9 @@ class TestComplexQueryPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"], \
-            f"Large result set query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"]
+        ), f"Large result set query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
 
     @pytest.mark.asyncio
     async def test_shortest_path_query_performance(
@@ -610,9 +636,10 @@ class TestComplexQueryPerformance:
             edge_count=0,
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"], \
-            f"Shortest path query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
-        
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"]
+        ), f"Shortest path query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
+
         assert path is not None, "Should find a path between n1 and n4"
 
 
@@ -652,8 +679,9 @@ class TestGraphTraversalPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"], \
-            f"BFS traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"]
+        ), f"BFS traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
 
     @pytest.mark.asyncio
     async def test_multi_hop_traversal_performance(
@@ -688,8 +716,9 @@ class TestGraphTraversalPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"], \
-            f"Multi-hop traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"]
+        ), f"Multi-hop traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
 
     @pytest.mark.asyncio
     async def test_full_graph_traversal_performance(
@@ -724,8 +753,9 @@ class TestGraphTraversalPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"], \
-            f"Full graph traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"]
+        ), f"Full graph traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
 
 
 class TestCacheEffectiveness:
@@ -835,8 +865,9 @@ class TestCacheEffectiveness:
                     performance_monitor.metrics.add_cache_miss()
 
         hit_rate = performance_monitor.metrics.get_cache_hit_rate()
-        assert hit_rate >= PERFORMANCE_THRESHOLDS["cache_hit_rate"], \
-            f"Cache hit rate {hit_rate:.2%} below threshold {PERFORMANCE_THRESHOLDS['cache_hit_rate']:.2%}"
+        assert (
+            hit_rate >= PERFORMANCE_THRESHOLDS["cache_hit_rate"]
+        ), f"Cache hit rate {hit_rate:.2%} below threshold {PERFORMANCE_THRESHOLDS['cache_hit_rate']:.2%}"
 
     @pytest.mark.asyncio
     async def test_cache_performance_improvement(
@@ -887,13 +918,14 @@ class TestCacheEffectiveness:
 
         mean_uncached = statistics.mean(uncached_times)
         mean_cached = statistics.mean(cached_times)
-        
+
         # For very fast operations, the difference may be negligible
         # Just verify that caching doesn't significantly degrade performance
         # and that the cache mechanism works correctly
-        assert mean_cached < mean_uncached * 2.0, \
-            f"Cached queries should not be significantly slower: cached={mean_cached:.2f}ms, uncached={mean_uncached:.2f}ms"
-        
+        assert (
+            mean_cached < mean_uncached * 2.0
+        ), f"Cached queries should not be significantly slower: cached={mean_cached:.2f}ms, uncached={mean_uncached:.2f}ms"
+
         # Verify cache is working by checking we got cached data
         assert cached_data is not None, "Cache should return data"
 
@@ -926,8 +958,9 @@ class TestCacheEffectiveness:
             edge_count=0,
         )
 
-        assert response_time_ms < 100, \
-            f"Cache clearing took {response_time_ms:.2f}ms, expected < 100ms"
+        assert (
+            response_time_ms < 100
+        ), f"Cache clearing took {response_time_ms:.2f}ms, expected < 100ms"
 
 
 class TestConcurrentQueryPerformance:
@@ -941,6 +974,7 @@ class TestConcurrentQueryPerformance:
         performance_monitor,
     ):
         """Test concurrent entity queries."""
+
         async def run_query(entity_id: str) -> Tuple[float, int, int]:
             request = GraphQueryRequest(
                 graph_id=sample_graph.graph_id,
@@ -959,10 +993,7 @@ class TestConcurrentQueryPerformance:
             return (end_time - start_time) * 1000, len(response.nodes), len(response.edges)
 
         # Run 50 concurrent queries
-        tasks = [
-            run_query(f"n{(i % 6) + 1}")
-            for i in range(50)
-        ]
+        tasks = [run_query(f"n{(i % 6) + 1}") for i in range(50)]
 
         start_time = time.perf_counter()
         results = await asyncio.gather(*tasks)
@@ -982,8 +1013,9 @@ class TestConcurrentQueryPerformance:
 
         # Individual queries should still meet threshold
         mean_time = statistics.mean(individual_times)
-        assert mean_time < PERFORMANCE_THRESHOLDS["simple_query"] * 2, \
-            f"Concurrent queries mean time {mean_time:.2f}ms exceeds threshold"
+        assert (
+            mean_time < PERFORMANCE_THRESHOLDS["simple_query"] * 2
+        ), f"Concurrent queries mean time {mean_time:.2f}ms exceeds threshold"
 
     @pytest.mark.asyncio
     async def test_concurrent_mixed_queries(
@@ -993,6 +1025,7 @@ class TestConcurrentQueryPerformance:
         performance_monitor,
     ):
         """Test concurrent mixed query types."""
+
         async def run_entity_query() -> Tuple[float, str, int, int]:
             request = GraphQueryRequest(
                 graph_id=sample_graph.graph_id,
@@ -1008,7 +1041,12 @@ class TestConcurrentQueryPerformance:
                 request,
             )
             end_time = time.perf_counter()
-            return (end_time - start_time) * 1000, "entity", len(response.nodes), len(response.edges)
+            return (
+                (end_time - start_time) * 1000,
+                "entity",
+                len(response.nodes),
+                len(response.edges),
+            )
 
         async def run_relation_query() -> Tuple[float, str, int, int]:
             request = GraphQueryRequest(
@@ -1023,7 +1061,12 @@ class TestConcurrentQueryPerformance:
                 request,
             )
             end_time = time.perf_counter()
-            return (end_time - start_time) * 1000, "relation", len(response.nodes), len(response.edges)
+            return (
+                (end_time - start_time) * 1000,
+                "relation",
+                len(response.nodes),
+                len(response.edges),
+            )
 
         # Run mixed concurrent queries
         tasks = []
@@ -1055,6 +1098,7 @@ class TestConcurrentQueryPerformance:
         performance_monitor,
     ):
         """Test concurrent queries on large graph."""
+
         async def run_query(node_id: str) -> Tuple[float, int, int]:
             request = GraphQueryRequest(
                 graph_id=large_graph.graph_id,
@@ -1073,10 +1117,7 @@ class TestConcurrentQueryPerformance:
             return (end_time - start_time) * 1000, len(response.nodes), len(response.edges)
 
         # Run 20 concurrent queries on large graph
-        tasks = [
-            run_query(f"node_{i * 50}")
-            for i in range(20)
-        ]
+        tasks = [run_query(f"node_{i * 50}") for i in range(20)]
 
         start_time = time.perf_counter()
         results = await asyncio.gather(*tasks)
@@ -1095,8 +1136,9 @@ class TestConcurrentQueryPerformance:
             )
 
         # Concurrent queries should complete in reasonable time
-        assert total_time_ms < 5000, \
-            f"20 concurrent queries took {total_time_ms:.2f}ms, expected < 5000ms"
+        assert (
+            total_time_ms < 5000
+        ), f"20 concurrent queries took {total_time_ms:.2f}ms, expected < 5000ms"
 
 
 class TestLargeScaleDatasetPerformance:
@@ -1135,8 +1177,9 @@ class TestLargeScaleDatasetPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"], \
-            f"Large graph query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"]
+        ), f"Large graph query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
 
     @pytest.mark.asyncio
     async def test_large_graph_traversal_performance(
@@ -1171,8 +1214,9 @@ class TestLargeScaleDatasetPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"], \
-            f"Large graph traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["graph_traversal"]
+        ), f"Large graph traversal took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['graph_traversal']}ms"
 
     @pytest.mark.asyncio
     async def test_large_graph_multiple_queries_performance(
@@ -1214,10 +1258,12 @@ class TestLargeScaleDatasetPerformance:
         mean_time = statistics.mean(response_times)
         p95_time = sorted(response_times)[int(len(response_times) * 0.95)]
 
-        assert mean_time < PERFORMANCE_THRESHOLDS["complex_query"], \
-            f"Mean large graph query time {mean_time:.2f}ms exceeds threshold"
-        assert p95_time < PERFORMANCE_THRESHOLDS["complex_query"] * 1.5, \
-            f"P95 large graph query time {p95_time:.2f}ms exceeds threshold"
+        assert (
+            mean_time < PERFORMANCE_THRESHOLDS["complex_query"]
+        ), f"Mean large graph query time {mean_time:.2f}ms exceeds threshold"
+        assert (
+            p95_time < PERFORMANCE_THRESHOLDS["complex_query"] * 1.5
+        ), f"P95 large graph query time {p95_time:.2f}ms exceeds threshold"
 
 
 class TestQueryPatternAnalysis:
@@ -1387,10 +1433,12 @@ class TestPerformanceBottleneckDetection:
         for _ in range(10):
             performance_monitor.metrics.add_response_time(50)
         for _ in range(2):
-            performance_monitor.metrics.add_error({
-                "query_type": "test_query",
-                "error": "Test error",
-            })
+            performance_monitor.metrics.add_error(
+                {
+                    "query_type": "test_query",
+                    "error": "Test error",
+                }
+            )
 
         bottlenecks = performance_monitor.detect_bottlenecks()
         # May or may not detect error rate depending on threshold
@@ -1452,8 +1500,7 @@ class TestIntegratedOrchestratorPerformance:
     ):
         """Test orchestrator graph building performance."""
         nodes = [
-            GraphNode(node_id=f"n{i}", label=f"Node {i}", node_type="service")
-            for i in range(100)
+            GraphNode(node_id=f"n{i}", label=f"Node {i}", node_type="service") for i in range(100)
         ]
         edges = [
             GraphEdge(
@@ -1485,8 +1532,9 @@ class TestIntegratedOrchestratorPerformance:
         )
 
         assert response.built is True
-        assert response_time_ms < 1000, \
-            f"Graph building took {response_time_ms:.2f}ms, expected < 1000ms"
+        assert (
+            response_time_ms < 1000
+        ), f"Graph building took {response_time_ms:.2f}ms, expected < 1000ms"
 
     @pytest.mark.asyncio
     async def test_orchestrator_query_graph_performance(
@@ -1498,8 +1546,7 @@ class TestIntegratedOrchestratorPerformance:
         """Test orchestrator graph querying performance."""
         # Build a test graph
         nodes = [
-            GraphNode(node_id=f"n{i}", label=f"Node {i}", node_type="service")
-            for i in range(50)
+            GraphNode(node_id=f"n{i}", label=f"Node {i}", node_type="service") for i in range(50)
         ]
         edges = [
             GraphEdge(
@@ -1540,8 +1587,9 @@ class TestIntegratedOrchestratorPerformance:
             edge_count=len(response.edges),
         )
 
-        assert response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"], \
-            f"Orchestrator query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
+        assert (
+            response_time_ms < PERFORMANCE_THRESHOLDS["complex_query"]
+        ), f"Orchestrator query took {response_time_ms:.2f}ms, expected < {PERFORMANCE_THRESHOLDS['complex_query']}ms"
 
 
 class TestPerformanceReportGeneration:
@@ -1613,10 +1661,10 @@ class TestPerformanceReportGeneration:
 async def test_full_performance_suite():
     """Run full performance test suite and generate report."""
     monitor = GraphPerformanceMonitor()
-    
+
     # This would run all the above tests and collect metrics
     # For now, we'll create a summary
-    
+
     report = {
         "test_suite": "Knowledge Graph Query Performance",
         "timestamp": datetime.utcnow().isoformat(),
@@ -1627,5 +1675,5 @@ async def test_full_performance_suite():
         "bottlenecks": monitor.detect_bottlenecks(),
         "recommendations": monitor.generate_optimization_recommendations(),
     }
-    
+
     return report

@@ -35,6 +35,7 @@ class SecurityScanner:
             encoding="utf-8",
             errors="replace",
             check=False,
+            shell=False,  # Explicitly set shell=False for security
         )
         return result.stdout or result.stderr or ""
 

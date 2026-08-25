@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Optional
 
 import httpx
@@ -22,7 +23,12 @@ class LLMRouterRPCClient:
         self.base_url = base_url
         self._http: Optional[httpx.AsyncClient] = None
         if base_url:
-            self._http = httpx.AsyncClient(base_url=base_url, timeout=30.0)
+            # Use environment variable to control SSL verification (default: True for security)
+            ssl_verify = os.environ.get("LLM_ROUTER_SERVICE_SSL_VERIFY", "true").lower() == "true"
+            if not ssl_verify:
+                import logging
+                logging.warning("SSL verification is disabled in llm_router_service client - this is a security risk!")
+            self._http = httpx.AsyncClient(base_url=base_url, timeout=30.0, verify=ssl_verify)
 
     async def call(self, method: str, **kwargs: Any) -> Any:
         if self.server:

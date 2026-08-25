@@ -32,7 +32,9 @@ def _reset_engine_state():
 # core.exceptions.third_party
 # ---------------------------------------------------------------------------
 def test_third_party_exceptions():
-    base = ThirdPartyException("third party error", context={"x": 1})  # noqa: F841  # Variable for test verification
+    base = ThirdPartyException(
+        "third party error", context={"x": 1}
+    )  # noqa: F841  # Variable for test verification
     assert base.message == "third party error"
     assert base.error_code == "15_06_0001"
     assert base.context == {"x": 1}
@@ -254,7 +256,9 @@ def test_causal_predictor():
     )
     predictor.fit(data, ["cpu", "memory", "latency"])
 
-    result = predictor.predict("latency", {"cpu": 45.0, "memory": 36.0})  # noqa: F841  # Variable for test verification
+    result = predictor.predict(
+        "latency", {"cpu": 45.0, "memory": 36.0}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, PredictionResult)
     assert result.target_node == "latency"
     assert 0 <= result.confidence <= 1

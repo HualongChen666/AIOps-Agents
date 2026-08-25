@@ -39,8 +39,10 @@ router = APIRouter(
 # Request/Response Models
 # ============================================================
 
+
 class LogAnalysisRequest(BaseModel):
     """Request model for log analysis"""
+
     log_content: str = Field(
         ...,
         min_length=1,
@@ -81,6 +83,7 @@ class LogAnalysisRequest(BaseModel):
 
 class RepairTriggerRequest(BaseModel):
     """Request model for triggering repair based on analysis"""
+
     analysis_id: str = Field(
         ...,
         description="Analysis result identifier",
@@ -119,6 +122,7 @@ class RepairTriggerRequest(BaseModel):
 
 class ComponentIssueResponse(BaseModel):
     """Response model for component issue"""
+
     component: str
     severity: str
     issue_type: str
@@ -132,6 +136,7 @@ class ComponentIssueResponse(BaseModel):
 
 class AnalysisResponse(BaseModel):
     """Response model for log analysis"""
+
     vendor: str
     total_entries: int
     issues: list[ComponentIssueResponse]
@@ -143,6 +148,7 @@ class AnalysisResponse(BaseModel):
 # ============================================================
 # Helper Functions
 # ============================================================
+
 
 def _get_tenant_id(request: Request) -> str:
     """Extract tenant_id from request"""
@@ -275,9 +281,121 @@ def _execute_repair_direct(
         }
 
 
+def _perform_hardware_log_analysis(
+    log_content: str, vendor_enum: Optional[HardwareVendor], analyzer
+) -> tuple[AnalysisResult, dict[str, Any]]:
+    """
+    执行硬件日志分析
+
+    Args:
+        log_content: 日志内容
+        vendor_enum: 厂商枚举
+        analyzer: 分析器实例
+
+    Returns:
+        tuple: (分析结果, 修复计划)
+    """
+    # 执行分析
+    analysis_result: AnalysisResult = analyzer.analyze_log(
+        log_content=log_content,
+        vendor=vendor_enum,
+    )
+
+    # 生成修复计划
+    repair_plan = analyzer.generate_repair_plan(analysis_result)
+
+    return analysis_result, repair_plan
+
+
+def _build_analysis_response(
+    analysis_result: AnalysisResult, repair_plan: dict[str, Any], tenant_id: str
+) -> dict[str, Any]:
+    """
+    构造分析响应
+
+    Args:
+        analysis_result: 分析结果
+        repair_plan: 修复计划
+        tenant_id: 租户ID
+
+    Returns:
+        响应字典
+    """
+    # 转换问题为响应格式
+    issues_response = [_convert_issue_to_response(issue) for issue in analysis_result.issues]
+
+    return {
+        "vendor": analysis_result.vendor.value,
+        "total_entries": analysis_result.total_entries,
+        "issues": issues_response,
+        "summary": analysis_result.summary,
+        "analysis_timestamp": analysis_result.analysis_timestamp,
+        "repair_plan": repair_plan,
+        "tenant_id": tenant_id,
+    }
+
+
+def _trigger_auto_repair_for_critical_issues(
+    analysis_result: AnalysisResult, tenant_id: str, operator_ip: str, response: dict[str, Any]
+) -> None:
+    """
+    为关键问题触发自动修复
+
+    Args:
+        analysis_result: 分析结果
+        tenant_id: 租户ID
+        operator_ip: 操作员IP
+        response: 响应字典（会被修改）
+    """
+    critical_issues = [i for i in analysis_result.issues if i.severity == SeverityLevel.CRITICAL]
+
+    if not critical_issues:
+        return
+
+    logger.warning(f"Auto-triggering repair for {len(critical_issues)} critical issues")
+
+    for idx, issue in enumerate(critical_issues):
+        try:
+            alert = {
+                "id": f"hw-{analysis_result.vendor.value}-{issue.component.value}-{idx}",
+                "title": issue.description,
+                "platform": "linux",
+                "host": "hardware-node",
+                "severity": issue.severity.value,
+                "component": issue.component.value,
+                "script_key": issue.script_keys[0] if issue.script_keys else None,
+                "params": {},
+                "tenant_id": tenant_id,
+            }
+            heal_result = _trigger_auto_heal_alert(
+                alert=alert,
+                tenant_id=tenant_id,
+                operator_ip=operator_ip,
+            )
+            response["auto_repair_results"] = response.get("auto_repair_results", [])
+            response["auto_repair_results"].append(
+                {
+                    "issue_index": idx,
+                    "success": heal_result.get("success", False),
+                    "result": heal_result,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Auto-repair failed for issue {idx}: {e}")
+            response["auto_repair_results"] = response.get("auto_repair_results", [])
+            response["auto_repair_results"].append(
+                {
+                    "issue_index": idx,
+                    "success": False,
+                    "error": str(e),
+                }
+            )
+
+
 # ============================================================
 # API Endpoints
 # ============================================================
+
 
 @router.post(
     "/analyze",
@@ -367,72 +485,18 @@ async def analyze_hardware_log(
         vendor_enum = _map_vendor_string(request.vendor)
 
         # Perform analysis
-        analysis_result: AnalysisResult = analyzer.analyze_log(
-            log_content=request.log_content,
-            vendor=vendor_enum,
+        analysis_result, repair_plan = _perform_hardware_log_analysis(
+            request.log_content, vendor_enum, analyzer
         )
 
-        # Generate repair plan
-        repair_plan = analyzer.generate_repair_plan(analysis_result)
-
-        # Convert issues to response format
-        issues_response = [
-            _convert_issue_to_response(issue) for issue in analysis_result.issues
-        ]
-
         # Build response
-        response = {
-            "vendor": analysis_result.vendor.value,
-            "total_entries": analysis_result.total_entries,
-            "issues": issues_response,
-            "summary": analysis_result.summary,
-            "analysis_timestamp": analysis_result.analysis_timestamp,
-            "repair_plan": repair_plan,
-            "tenant_id": tenant_id,
-        }
+        response = _build_analysis_response(analysis_result, repair_plan, tenant_id)
 
-        # Auto-trigger repair if requested and critical issues found
+        # Auto-trigger repair if requested
         if request.auto_trigger_repair:
-            critical_issues = [
-                i for i in analysis_result.issues
-                if i.severity == SeverityLevel.CRITICAL
-            ]
-            if critical_issues:
-                logger.warning(
-                    f"Auto-triggering repair for {len(critical_issues)} critical issues"
-                )
-                for idx, issue in enumerate(critical_issues):
-                    try:
-                        alert = {
-                            "id": f"hw-{analysis_result.vendor.value}-{issue.component.value}-{idx}",
-                            "title": issue.description,
-                            "platform": "linux",
-                            "host": "hardware-node",
-                            "severity": issue.severity.value,
-                            "component": issue.component.value,
-                            "script_key": issue.script_keys[0] if issue.script_keys else None,
-                            "params": {},
-                            "tenant_id": tenant_id,
-                        }
-                        heal_result = _trigger_auto_heal_alert(
-                            alert=alert,
-                            tenant_id=tenant_id,
-                            operator_ip=operator_ip,
-                        )
-                        response["auto_repair_results"] = response.get("auto_repair_results", [])
-                        response["auto_repair_results"].append({
-                            "issue_index": idx,
-                            "success": heal_result.get("success", False),
-                            "result": heal_result,
-                        })
-                    except Exception as e:
-                        logger.error(f"Auto-repair failed for issue {idx}: {e}")
-                        response["auto_repair_results"] = response.get("auto_repair_results", [])
-                        response["auto_repair_results"].append({
-                            "issue_index": idx,
-                            "success": False,
-                            "error": str(e),
-                        })
+            _trigger_auto_repair_for_critical_issues(
+                analysis_result, tenant_id, operator_ip, response
+            )
 
         logger.info(
             f"Hardware log analysis completed | tenant={tenant_id} | "
@@ -446,10 +510,7 @@ async def analyze_hardware_log(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Hardware log analysis failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Analysis failed: {str(e)[:200]}"
-        )
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)[:200]}")
 
 
 @router.post(
@@ -489,12 +550,12 @@ async def upload_and_analyze_log(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
+            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB",
         )
 
     # Decode content
     try:
-        log_content = content.decode('utf-8', errors='replace')
+        log_content = content.decode("utf-8", errors="replace")
     except Exception as e:
         logger.error(f"Failed to decode file content: {e}")
         raise HTTPException(status_code=400, detail="Failed to decode file content")
@@ -520,6 +581,92 @@ async def upload_and_analyze_log(
         500: {"description": "服务器内部错误"},
     },
 )
+def _build_repair_alert(request: RepairTriggerRequest, tenant_id: str) -> dict[str, Any]:
+    """
+    构造修复告警对象
+
+    Args:
+        request: 修复触发请求
+        tenant_id: 租户ID
+
+    Returns:
+        告警字典
+    """
+    script_key = request.script_key or "ipmi_power_cycle"
+
+    return {
+        "id": f"hw-repair-{request.analysis_id}-{request.issue_index}",
+        "title": f"Hardware repair for issue {request.issue_index}",
+        "platform": "linux",
+        "host": "hardware-node",
+        "severity": "high",
+        "component": "hardware",
+        "script_key": script_key,
+        "params": request.params,
+        "tenant_id": tenant_id,
+        "force": request.force,
+    }
+
+
+def _check_approval_requirement(script_key: str) -> bool:
+    """
+    检查脚本是否需要审批
+
+    Args:
+        script_key: 脚本键
+
+    Returns:
+        是否需要审批
+    """
+    from core.auto_heal import repair_script_library
+
+    script = repair_script_library.get_script(script_key)
+    return script.requires_approval if script else True
+
+
+def _submit_for_approval(
+    alert: dict[str, Any], script_key: str, tenant_id: str, operator_ip: str
+) -> dict[str, Any]:
+    """
+    提交审批请求
+
+    Args:
+        alert: 告警对象
+        script_key: 脚本键
+        tenant_id: 租户ID
+        operator_ip: 操作员IP
+
+    Returns:
+        审批提交结果
+
+    Raises:
+        HTTPException: 提交失败
+    """
+    try:
+        from core.auto_heal import upsert_pending_approval
+
+        approval_data = {
+            "alert_id": alert["id"],
+            "proposal": f"Execute repair script: {script_key}",
+            "risk_level": "high",
+            "script_key": script_key,
+            "params": alert.get("params", {}),
+            "tenant_id": tenant_id,
+            "operator": operator_ip,
+        }
+        upsert_pending_approval(alert["id"], approval_data)
+
+        return {
+            "success": True,
+            "status": "pending_approval",
+            "message": "Repair requires approval. Submitted to approval queue.",
+            "alert_id": alert["id"],
+        }
+    except Exception as e:
+        logger.error(f"Failed to submit for approval: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit for approval: {str(e)}")
+
+
 async def trigger_hardware_repair(
     request: RepairTriggerRequest,
     req: Request,
@@ -545,59 +692,16 @@ async def trigger_hardware_repair(
     )
 
     try:
-        # Note: In a real implementation, you would store analysis results
-        # and retrieve them by analysis_id. For now, we'll create a mock alert.
-
-        # Validate script through command_guard
-        script_key = request.script_key or "ipmi_power_cycle"
-
         # Build alert for auto_heal workflow
-        alert = {
-            "id": f"hw-repair-{request.analysis_id}-{request.issue_index}",
-            "title": f"Hardware repair for issue {request.issue_index}",
-            "platform": "linux",
-            "host": "hardware-node",
-            "severity": "high",
-            "component": "hardware",
-            "script_key": script_key,
-            "params": request.params,
-            "tenant_id": tenant_id,
-            "force": request.force,
-        }
+        alert = _build_repair_alert(request, tenant_id)
+        script_key = alert["script_key"]
 
         # Check if approval is required
-        from core.auto_heal import repair_script_library
-        script = repair_script_library.get_script(script_key)
-        requires_approval = script.requires_approval if script else True
+        requires_approval = _check_approval_requirement(script_key)
 
         if requires_approval and not request.force:
             # Submit for approval
-            try:
-                from core.auto_heal import upsert_pending_approval
-
-                approval_data = {
-                    "alert_id": alert["id"],
-                    "proposal": f"Execute repair script: {script_key}",
-                    "risk_level": "high",
-                    "script_key": script_key,
-                    "params": request.params,
-                    "tenant_id": tenant_id,
-                    "operator": operator_ip,
-                }
-                upsert_pending_approval(alert["id"], approval_data)
-
-                return {
-                    "success": True,
-                    "status": "pending_approval",
-                    "message": "Repair requires approval. Submitted to approval queue.",
-                    "alert_id": alert["id"],
-                }
-            except Exception as e:
-                logger.error(f"Failed to submit for approval: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to submit for approval: {str(e)}"
-                )
+            return _submit_for_approval(alert, script_key, tenant_id, operator_ip)
 
         # Execute repair directly (or with force)
         result = _trigger_auto_heal_alert(
@@ -617,10 +721,7 @@ async def trigger_hardware_repair(
         raise
     except Exception as e:
         logger.error(f"Hardware repair trigger failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Repair trigger failed: {str(e)[:200]}"
-        )
+        raise HTTPException(status_code=500, detail=f"Repair trigger failed: {str(e)[:200]}")
 
 
 @router.get(
@@ -739,14 +840,16 @@ async def list_hardware_repair_scripts() -> dict[str, Any]:
         category = metadata.get("category", "")
 
         if any(cat in category.lower() for cat in hardware_categories):
-            hardware_scripts.append({
-                "script_key": script.script_key,
-                "name": script.name,
-                "description": script.description,
-                "risk_level": script.risk_level.value,
-                "requires_approval": script.requires_approval,
-                "platforms": [p.value for p in script.platforms],
-                "category": category,
-            })
+            hardware_scripts.append(
+                {
+                    "script_key": script.script_key,
+                    "name": script.name,
+                    "description": script.description,
+                    "risk_level": script.risk_level.value,
+                    "requires_approval": script.requires_approval,
+                    "platforms": [p.value for p in script.platforms],
+                    "category": category,
+                }
+            )
 
     return {"scripts": hardware_scripts}

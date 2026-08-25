@@ -1059,22 +1059,23 @@ class TestCausalGraphBuilder:
         for n in c_graph.nodes:
             merged.add_node(n)
         merged.add_edge("s1", "s2", weight=0.5)
-        result = integrator.merge_graphs(merged, c_graph)  # noqa: F841  # Variable for test verification
+        result = integrator.merge_graphs(
+            merged, c_graph
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
 
-    def test_persistence_pickle(self, tmp_cwd_file: Path):
-        import pickle
-
+    def test_persistence_json(self, tmp_cwd_file: Path):
+        """Test JSON persistence (secure format)"""
         cg = CausalGraph()
         cg.add_edge("a", "b", 0.5)
-        p = str(tmp_cwd_file.with_suffix(".pkl"))
-        CausalGraphPersistence.save(cg, p, format="pickle")
-        assert "a" in CausalGraphPersistence.load(p, format="pickle").nodes
-        # Wrong pickle type
-        bad = tmp_cwd_file.with_suffix(".bad.pkl")
-        bad.write_bytes(pickle.dumps("not a graph"))
-        with pytest.raises(TypeError):
-            CausalGraphPersistence.load(str(bad), format="pickle")
+        p = str(tmp_cwd_file.with_suffix(".json"))
+        CausalGraphPersistence.save(cg, p, format="json")
+        assert "a" in CausalGraphPersistence.load(p, format="json").nodes
+        # Test unsupported format
+        with pytest.raises(ValueError, match="Unsupported format"):
+            CausalGraphPersistence.save(cg, p, format="pickle")
+        with pytest.raises(ValueError, match="Unsupported format"):
+            CausalGraphPersistence.load(p, format="pickle")
 
     def test_persistence_invalid_path(self, tmp_path: Path):
         cg = CausalGraph()

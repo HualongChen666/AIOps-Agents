@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Comprehensive tests for workflow_visualization_router.py to achieve 90%+ coverage."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestWorkflowVisualizationPage:
@@ -74,7 +75,7 @@ class TestGetWorkflowStructure:
                         {"key": "step1", "title": "Step 1", "desc": "First step"},
                         {"key": "step2", "title": "Step 2", "desc": "Second step"},
                         {"key": "step3", "title": "Step 3", "desc": "Third step"},
-                    ]
+                    ],
                 }
             }
 
@@ -93,14 +94,8 @@ class TestGetWorkflowStructure:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             mock_get.return_value = {
-                "workflow1": {
-                    "name": "Workflow 1",
-                    "steps": [{"key": "step1", "title": "Step 1"}]
-                },
-                "workflow2": {
-                    "name": "Workflow 2",
-                    "steps": [{"key": "step2", "title": "Step 2"}]
-                }
+                "workflow1": {"name": "Workflow 1", "steps": [{"key": "step1", "title": "Step 1"}]},
+                "workflow2": {"name": "Workflow 2", "steps": [{"key": "step2", "title": "Step 2"}]},
             }
 
             resp = client.get("/workflow/structure?key=workflow2")
@@ -114,10 +109,7 @@ class TestGetWorkflowStructure:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             mock_get.return_value = {
-                "workflow1": {
-                    "name": "Workflow 1",
-                    "steps": [{"key": "step1", "title": "Step 1"}]
-                }
+                "workflow1": {"name": "Workflow 1", "steps": [{"key": "step1", "title": "Step 1"}]}
             }
 
             resp = client.get("/workflow/structure?key=nonexistent")
@@ -151,12 +143,7 @@ class TestGetWorkflowStructure:
         from core.workflow_engine import get_workflow_definitions
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
-            mock_get.return_value = {
-                "test_workflow": {
-                    "name": "Test",
-                    "steps": "not a list"
-                }
-            }
+            mock_get.return_value = {"test_workflow": {"name": "Test", "steps": "not a list"}}
 
             resp = client.get("/workflow/structure")
             assert resp.status_code == 500
@@ -167,12 +154,7 @@ class TestGetWorkflowStructure:
         from core.workflow_engine import get_workflow_definitions
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
-            mock_get.return_value = {
-                "test_workflow": {
-                    "name": "Test",
-                    "steps": []
-                }
-            }
+            mock_get.return_value = {"test_workflow": {"name": "Test", "steps": []}}
 
             resp = client.get("/workflow/structure")
             assert resp.status_code == 500
@@ -186,9 +168,7 @@ class TestGetWorkflowStructure:
             mock_get.return_value = {
                 "test_workflow": {
                     "name": "Test",
-                    "steps": [
-                        {"title": "Step 1", "desc": "First step"}
-                    ]
+                    "steps": [{"title": "Step 1", "desc": "First step"}],
                 }
             }
 
@@ -204,12 +184,7 @@ class TestGetWorkflowStructure:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             mock_get.return_value = {
-                "test_workflow": {
-                    "name": "Test",
-                    "steps": [
-                        {"key": "step1", "desc": "First step"}
-                    ]
-                }
+                "test_workflow": {"name": "Test", "steps": [{"key": "step1", "desc": "First step"}]}
             }
 
             resp = client.get("/workflow/structure")
@@ -224,12 +199,7 @@ class TestGetWorkflowStructure:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             mock_get.return_value = {
-                "test_workflow": {
-                    "name": "Test",
-                    "steps": [
-                        {"key": "step1", "title": "Step 1"}
-                    ]
-                }
+                "test_workflow": {"name": "Test", "steps": [{"key": "step1", "title": "Step 1"}]}
             }
 
             resp = client.get("/workflow/structure")
@@ -244,10 +214,7 @@ class TestGetWorkflowStructure:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             mock_get.return_value = {
-                "test_workflow": {
-                    "name": "Test",
-                    "steps": ["step1", "step2", "step3"]
-                }
+                "test_workflow": {"name": "Test", "steps": ["step1", "step2", "step3"]}
             }
 
             resp = client.get("/workflow/structure")
@@ -268,8 +235,8 @@ class TestGetWorkflowStructure:
                     "steps": [
                         {"key": "start", "title": "Start"},
                         {"key": "process", "title": "Process"},
-                        {"key": "end", "title": "End"}
-                    ]
+                        {"key": "end", "title": "End"},
+                    ],
                 }
             }
 
@@ -288,9 +255,7 @@ class TestGetWorkflowStructure:
             mock_get.return_value = {
                 "test_workflow": {
                     "name": "Test",
-                    "steps": [
-                        {"key": "only_step", "title": "Only Step"}
-                    ]
+                    "steps": [{"key": "only_step", "title": "Only Step"}],
                 }
             }
 
@@ -311,8 +276,8 @@ class TestGetWorkflowStructure:
                     "steps": [
                         {"key": "step1", "title": "Step 1"},
                         {"key": "step2", "title": "Step 2"},
-                        {"key": "step3", "title": "Step 3"}
-                    ]
+                        {"key": "step3", "title": "Step 3"},
+                    ],
                 }
             }
 
@@ -335,7 +300,7 @@ class TestGetWorkflowStructure:
                 "test_workflow": {
                     "name": "Test Workflow",
                     "description": "Test Description",
-                    "steps": [{"key": "step1", "title": "Step 1"}]
+                    "steps": [{"key": "step1", "title": "Step 1"}],
                 }
             }
 
@@ -354,7 +319,7 @@ class TestGetWorkflowStructure:
             mock_get.return_value = {
                 "test_workflow": {
                     "name": "Test Workflow",
-                    "steps": [{"key": "step1", "title": "Step 1"}]
+                    "steps": [{"key": "step1", "title": "Step 1"}],
                 }
             }
 
@@ -370,10 +335,7 @@ class TestGetWorkflowStructure:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             mock_get.return_value = {
-                "workflow1": {
-                    "name": "Workflow 1",
-                    "steps": [{"key": "step1", "title": "Step 1"}]
-                }
+                "workflow1": {"name": "Workflow 1", "steps": [{"key": "step1", "title": "Step 1"}]}
             }
 
             resp = client.get("/workflow/structure?key=")
@@ -388,14 +350,8 @@ class TestGetWorkflowStructure:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             mock_get.return_value = {
-                "workflow1": {
-                    "name": "Workflow 1",
-                    "steps": [{"key": "step1", "title": "Step 1"}]
-                },
-                "workflow2": {
-                    "name": "Workflow 2",
-                    "steps": [{"key": "step2", "title": "Step 2"}]
-                }
+                "workflow1": {"name": "Workflow 1", "steps": [{"key": "step1", "title": "Step 1"}]},
+                "workflow2": {"name": "Workflow 2", "steps": [{"key": "step2", "title": "Step 2"}]},
             }
 
             resp = client.get("/workflow/structure")
@@ -414,12 +370,7 @@ class TestWorkflowVisualizationEdgeCases:
 
         with patch("core.workflow_engine.get_workflow_definitions") as mock_get:
             steps = [{"key": f"step{i}", "title": f"Step {i}"} for i in range(100)]
-            mock_get.return_value = {
-                "test_workflow": {
-                    "name": "Test",
-                    "steps": steps
-                }
-            }
+            mock_get.return_value = {"test_workflow": {"name": "Test", "steps": steps}}
 
             resp = client.get("/workflow/structure")
             assert resp.status_code == 200
@@ -438,8 +389,8 @@ class TestWorkflowVisualizationEdgeCases:
                     "steps": [
                         {"key": "step-1", "title": "Step 1"},
                         {"key": "step_2", "title": "Step 2"},
-                        {"key": "step.3", "title": "Step 3"}
-                    ]
+                        {"key": "step.3", "title": "Step 3"},
+                    ],
                 }
             }
 

@@ -4,10 +4,11 @@ Comprehensive coverage tests for api/notify_router.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from fastapi import HTTPException
 import datetime
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi import HTTPException
 
 
 # ============================================================
@@ -34,7 +35,9 @@ def test_safe_get_notify_config_exception(client, approval_headers):
     """Test _safe_get_notify_config when getattr raises exception (lines 29-31)."""
     with patch("api.notify_router._notify_engine") as mock_engine:
         # Simulate an exception when accessing NOTIFY_CONFIG
-        type(mock_engine).NOTIFY_CONFIG = property(lambda self: (_ for _ in ()).throw(RuntimeError("Test error")))
+        type(mock_engine).NOTIFY_CONFIG = property(
+            lambda self: (_ for _ in ()).throw(RuntimeError("Test error"))
+        )
         response = client.get("/api/notify/config", headers=approval_headers)
         # The exception is caught and returns empty config, so 200 is expected
         # The important thing is that the exception was logged
@@ -778,9 +781,11 @@ def test_send_manual_notify_whitespace_desc(client, approval_headers):
 def test_send_manual_notify_non_dict_direct():
     """Direct unit test for send_manual_notify with non-dict to cover line 209."""
     import asyncio
-    from api.notify_router import send_manual_notify
-    from fastapi import Request, HTTPException
     from unittest.mock import MagicMock
+
+    from fastapi import HTTPException, Request
+
+    from api.notify_router import send_manual_notify
 
     # Create a mock request
     mock_request = MagicMock(spec=Request)

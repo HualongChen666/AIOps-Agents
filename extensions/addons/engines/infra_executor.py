@@ -80,6 +80,7 @@ class CliExecutor:
                 capture_output=True,
                 text=True,
                 check=check,
+                shell=False,  # Explicitly set shell=False for security
             )
         except subprocess.CalledProcessError as exc:
             return {

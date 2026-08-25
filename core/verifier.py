@@ -242,6 +242,210 @@ class VerifyResult(TypedDict):
 # ============================================================
 # 主入口:verify_repair
 # ============================================================
+
+
+def _validate_verify_inputs(
+    alert: dict[str, Any],
+    script_key: str,
+    params: dict[str, Any],
+    pre_snapshot: Optional[dict[str, Any]],
+    repair_output: str,
+) -> tuple[bool, str, dict, str, Optional[dict], str]:
+    """
+    验证并标准化输入参数
+
+    Args:
+        alert: 告警字典
+        script_key: 脚本键
+        params: 参数字典
+        pre_snapshot: 修复前快照
+        repair_output: 修复输出
+
+    Returns:
+        tuple: (是否有效, 错误信息, 安全参数, 安全平台, 安全快照, 安全修复输出)
+    """
+    if not isinstance(alert, dict):
+        return False, f"alert 必须为 dict,收到 {type(alert).__name__}", {}, "", None, ""
+
+    if not script_key or not isinstance(script_key, str):
+        return False, "script_key 不能为空", {}, "", None, ""
+
+    safe_params = params if isinstance(params, dict) else {}
+    safe_platform = (alert.get("platform") or "windows").strip().lower()
+    if safe_platform not in _VALID_PLATFORMS:
+        safe_platform = "windows"
+
+    # [FIX] V3 [P0]:pre_snapshot 深拷贝
+    safe_pre_snapshot = copy.deepcopy(pre_snapshot) if isinstance(pre_snapshot, dict) else None
+
+    # [FIX] VFB6 [P1]:repair_output 摘要(供 evidence 审计)
+    safe_repair_output = str(repair_output)[:_EVIDENCE_REPAIR_OUTPUT_MAX] if repair_output else ""
+
+    return True, "", safe_params, safe_platform, safe_pre_snapshot, safe_repair_output
+
+
+def _check_metric_threshold_compatibility(timeout_sec: float, repair_id: int) -> tuple[bool, str]:
+    """
+    检查metric_threshold策略的配置兼容性
+
+    Args:
+        timeout_sec: 超时时间
+        repair_id: 修复ID
+
+    Returns:
+        tuple: (是否兼容, 推荐信息)
+    """
+    metric_wait = float(VERIFY_CONFIG.get("metric_wait_sec", 5))
+    metric_wait = max(2.0, min(30.0, metric_wait))
+
+    if metric_wait + _METRIC_WAIT_SAFETY_BUFFER_SEC > timeout_sec:
+        logger.warning(
+            f"VFB3: metric_wait_sec({metric_wait}s) + 缓冲({_METRIC_WAIT_SAFETY_BUFFER_SEC}s) "
+            f"超过 timeout_sec({timeout_sec}s),跳过 metric_threshold 验证 | "
+            f"repair_id={repair_id}"
+        )
+        return False, (
+            f"配置冲突:metric_wait_sec({metric_wait}s) 与 "
+            f"timeout_sec({timeout_sec}s) 不兼容,请增大 VERIFY_TIMEOUT_SEC"
+        )
+
+    return True, ""
+
+
+async def _execute_verification_with_timeout(
+    strategy: str,
+    alert: dict[str, Any],
+    script_key: str,
+    safe_params: dict,
+    safe_platform: str,
+    safe_pre_snapshot: Optional[dict],
+    safe_repair_output: str,
+    ai_runbook: Optional[dict[str, Any]],
+    timeout_sec: float,
+    repair_id: int,
+    start_time: float,
+) -> tuple[bool, str, Optional[VerifyResult]]:
+    """
+    执行带超时的验证
+
+    Args:
+        strategy: 验证策略
+        alert: 告警字典
+        script_key: 脚本键
+        safe_params: 安全参数
+        safe_platform: 安全平台
+        safe_pre_snapshot: 安全快照
+        safe_repair_output: 安全修复输出
+        ai_runbook: AI runbook
+        timeout_sec: 超时时间
+        repair_id: 修复ID
+        start_time: 开始时间
+
+    Returns:
+        tuple: (是否成功, 错误信息, 验证结果)
+    """
+    try:
+        result = await asyncio.wait_for(
+            _dispatch_verification(
+                strategy=strategy,
+                alert=alert,
+                script_key=script_key,
+                params=safe_params,
+                platform=safe_platform,
+                pre_snapshot=safe_pre_snapshot,
+                repair_output=safe_repair_output,
+                ai_runbook=ai_runbook,
+            ),
+            timeout=timeout_sec,
+        )
+        return True, "", result
+
+    except asyncio.TimeoutError:
+        # [FIX] V2:超时不抛异常,记录后返回 None
+        duration = time.monotonic() - start_time
+        logger.warning(
+            f"N+2 验证超时(>{timeout_sec}s) | repair_id={repair_id} | strategy={strategy}"
+        )
+        return False, f"验证超时(>{timeout_sec}s)", None
+
+    except asyncio.CancelledError:
+        # [FIX] V8:CancelledError 必须 reraise
+        logger.info(f"N+2 验证被取消 | repair_id={repair_id}")
+        raise
+
+    except Exception as e:
+        # [FIX] V9 + VFB10:统一异常路径 + exc_info
+        duration = time.monotonic() - start_time
+        logger.error(
+            f"N+2 验证异常 | repair_id={repair_id} | strategy={strategy} | {type(e).__name__}: {e}",
+            exc_info=True,
+        )
+        return False, f"{type(e).__name__}: {str(e)[:200]}", None
+
+
+def _finalize_verification_result(
+    result: VerifyResult, start_time: float, safe_repair_output: str, repair_id: int
+) -> VerifyResult:
+    """
+    完成验证结果的后处理
+
+    Args:
+        result: 验证结果
+        start_time: 开始时间
+        safe_repair_output: 安全修复输出
+        repair_id: 修复ID
+
+    Returns:
+        完成后的验证结果
+    """
+    # ── 5. [FIX] VFB12 [P2]:仅当策略函数未填充 duration_sec 时才覆盖 ──
+    duration = time.monotonic() - start_time
+    if not result.get("duration_sec"):
+        result["duration_sec"] = round(duration, 3)
+
+    # [FIX] VFB6:在 evidence 中追加 repair_output 摘要(若策略未填充)
+    if isinstance(result.get("evidence"), dict):
+        if "repair_output_preview" not in result["evidence"]:
+            result["evidence"]["repair_output_preview"] = safe_repair_output
+
+    logger.info(
+        f"N+2 验证完成 | repair_id={repair_id} | "
+        f"verified={result['verified']} | confidence={result['confidence']} | "
+        f"duration={duration:.2f}s"
+    )
+
+    return result
+
+
+def _write_verification_to_vector_db(
+    repair_id: int, alert: dict[str, Any], script_key: str, safe_params: dict, result: VerifyResult
+) -> None:
+    """
+    将验证结果写入向量数据库
+
+    Args:
+        repair_id: 修复ID
+        alert: 告警字典
+        script_key: 脚本键
+        safe_params: 安全参数
+        result: 验证结果
+    """
+    try:
+        payload = {
+            "repair_id": repair_id,
+            "alert_id": alert.get("id"),
+            "script_key": script_key,
+            "params": safe_params,
+            "verification": result,
+        }
+        upsert_verify_record(repair_id, payload)
+    except Exception as e:
+        logger.error(
+            f"V13: 写入向量库失败 | repair_id={repair_id} | {type(e).__name__}: {e}",
+            exc_info=True,
+        )
+
+
 @observe(name="n2_verify_repair")
 async def verify_repair(
     alert: dict[str, Any],
@@ -287,27 +491,11 @@ async def verify_repair(
         )
 
     # ── 1. 输入参数防御 ──
-    if not isinstance(alert, dict):
-        return _build_error_result(
-            strategy="error",
-            error_msg=f"alert 必须为 dict,收到 {type(alert).__name__}",
-        )
-    if not script_key or not isinstance(script_key, str):
-        return _build_error_result(
-            strategy="error",
-            error_msg="script_key 不能为空",
-        )
-
-    safe_params = params if isinstance(params, dict) else {}
-    safe_platform = (alert.get("platform") or "windows").strip().lower()
-    if safe_platform not in _VALID_PLATFORMS:
-        safe_platform = "windows"
-
-    # [FIX] V3 [P0]:pre_snapshot 深拷贝
-    safe_pre_snapshot = copy.deepcopy(pre_snapshot) if isinstance(pre_snapshot, dict) else None
-
-    # [FIX] VFB6 [P1]:repair_output 摘要(供 evidence 审计)
-    safe_repair_output = str(repair_output)[:_EVIDENCE_REPAIR_OUTPUT_MAX] if repair_output else ""
+    is_valid, err_msg, safe_params, safe_platform, safe_pre_snapshot, safe_repair_output = (
+        _validate_verify_inputs(alert, script_key, params, pre_snapshot, repair_output)
+    )
+    if not is_valid:
+        return _build_error_result(strategy="error", error_msg=err_msg)
 
     # ── 2. 策略选择 ──
     strategy = _select_strategy(script_key, ai_runbook)
@@ -329,100 +517,41 @@ async def verify_repair(
 
     # [FIX] VFB3 [P0]:metric_threshold 策略需检查 metric_wait_sec 与 timeout_sec 兼容性
     if strategy == "metric_threshold":
-        metric_wait = float(VERIFY_CONFIG.get("metric_wait_sec", 5))
-        metric_wait = max(2.0, min(30.0, metric_wait))
-        if metric_wait + _METRIC_WAIT_SAFETY_BUFFER_SEC > timeout_sec:
-            logger.warning(
-                f"VFB3: metric_wait_sec({metric_wait}s) + 缓冲({_METRIC_WAIT_SAFETY_BUFFER_SEC}s) "
-                f"超过 timeout_sec({timeout_sec}s),跳过 metric_threshold 验证 | "
-                f"repair_id={repair_id}"
-            )
-            return _build_skipped_result(
-                strategy="skipped",
-                recommendation=(
-                    f"配置冲突:metric_wait_sec({metric_wait}s) 与 "
-                    f"timeout_sec({timeout_sec}s) 不兼容,请增大 VERIFY_TIMEOUT_SEC"
-                ),
-            )
+        is_compatible, recommendation = _check_metric_threshold_compatibility(
+            timeout_sec, repair_id
+        )
+        if not is_compatible:
+            return _build_skipped_result(strategy="skipped", recommendation=recommendation)
 
     start_time = time.monotonic()
 
-    try:
-        result = await asyncio.wait_for(
-            _dispatch_verification(
-                strategy=strategy,
-                alert=alert,
-                script_key=script_key,
-                params=safe_params,
-                platform=safe_platform,
-                pre_snapshot=safe_pre_snapshot,
-                repair_output=safe_repair_output,
-                ai_runbook=ai_runbook,
-            ),
-            timeout=timeout_sec,
-        )
-
-    except asyncio.TimeoutError:
-        # [FIX] V2:超时不抛异常,记录后返回 None
-        duration = time.monotonic() - start_time
-        logger.warning(
-            f"N+2 验证超时(>{timeout_sec}s) | repair_id={repair_id} | strategy={strategy}"
-        )
-        return _build_error_result(
-            strategy="timeout",
-            error_msg=f"验证超时(>{timeout_sec}s)",
-            duration_sec=duration,
-        )
-
-    except asyncio.CancelledError:
-        # [FIX] V8:CancelledError 必须 reraise
-        logger.info(f"N+2 验证被取消 | repair_id={repair_id}")
-        raise
-
-    except Exception as e:
-        # [FIX] V9 + VFB10:统一异常路径 + exc_info
-        duration = time.monotonic() - start_time
-        logger.error(
-            f"N+2 验证异常 | repair_id={repair_id} | strategy={strategy} | {type(e).__name__}: {e}",
-            exc_info=True,
-        )
-        return _build_error_result(
-            strategy="error",
-            error_msg=f"{type(e).__name__}: {str(e)[:200]}",
-            duration_sec=duration,
-        )
-
-    # ── 5. [FIX] VFB12 [P2]:仅当策略函数未填充 duration_sec 时才覆盖 ──
-    duration = time.monotonic() - start_time
-    if not result.get("duration_sec"):
-        result["duration_sec"] = round(duration, 3)
-
-    # [FIX] VFB6:在 evidence 中追加 repair_output 摘要(若策略未填充)
-    if isinstance(result.get("evidence"), dict):
-        if "repair_output_preview" not in result["evidence"]:
-            result["evidence"]["repair_output_preview"] = safe_repair_output
-
-    logger.info(
-        f"N+2 验证完成 | repair_id={repair_id} | "
-        f"verified={result['verified']} | confidence={result['confidence']} | "
-        f"duration={duration:.2f}s"
+    # ── 5. 执行验证 ──
+    success, err_msg, result = await _execute_verification_with_timeout(
+        strategy,
+        alert,
+        script_key,
+        safe_params,
+        safe_platform,
+        safe_pre_snapshot,
+        safe_repair_output,
+        ai_runbook,
+        timeout_sec,
+        repair_id,
+        start_time,
     )
 
-    # [FIX] V13: 将验证结果写入向量库 (自学习闭环)
-    try:
-        payload = {
-            "repair_id": repair_id,
-            "alert_id": alert.get("id"),
-            "script_key": script_key,
-            "params": safe_params,
-            "verification": result,
-        }
-        upsert_verify_record(repair_id, payload)
-    except Exception as e:
-        logger.error(
-            f"V13: 写入向量库失败 | repair_id={repair_id} | {type(e).__name__}: {e}",
-            exc_info=True,
+    if not success:
+        return _build_error_result(
+            strategy="error",
+            error_msg=err_msg,
+            duration_sec=time.monotonic() - start_time,
         )
+
+    # ── 6. 完成验证结果 ──
+    result = _finalize_verification_result(result, start_time, safe_repair_output, repair_id)
+
+    # ── 7. 写入向量库 ──
+    _write_verification_to_vector_db(repair_id, alert, script_key, safe_params, result)
 
     return result
 
@@ -1263,7 +1392,7 @@ async def _verify_metric_threshold(
 
     # 获取 post_snapshot
     try:
-        from core.metrics_history import metrics_history
+        from core.metrics_history import METRICS_HISTORY as metrics_history
 
         post_snapshot = metrics_history.to_dict()
     except Exception as e:

@@ -62,6 +62,7 @@ def get_client_ip(request: Request) -> str:
 # ============ Enums ============
 class CoverageLevel(str, Enum):
     """覆盖率等级"""
+
     EXCELLENT = "excellent"
     GOOD = "good"
     ADEQUATE = "adequate"
@@ -162,9 +163,13 @@ def _init_coverage_reports():
                 "total_lines": sum(m.total_lines for m in modules),
                 "covered_lines": sum(m.covered_lines for m in modules),
                 "uncovered_lines": sum(m.total_lines - m.covered_lines for m in modules),
-                "excellent_count": len([m for m in modules if m.coverage_level == CoverageLevel.EXCELLENT]),
+                "excellent_count": len(
+                    [m for m in modules if m.coverage_level == CoverageLevel.EXCELLENT]
+                ),
                 "good_count": len([m for m in modules if m.coverage_level == CoverageLevel.GOOD]),
-                "adequate_count": len([m for m in modules if m.coverage_level == CoverageLevel.ADEQUATE]),
+                "adequate_count": len(
+                    [m for m in modules if m.coverage_level == CoverageLevel.ADEQUATE]
+                ),
                 "poor_count": len([m for m in modules if m.coverage_level == CoverageLevel.POOR]),
             },
             trends={
@@ -244,7 +249,9 @@ async def create_coverage_report(
                 module_id=m.module_id,
                 module_name=m.module_name,
                 total_lines=m.total_lines,
-                covered_lines=int(m.covered_lines * (1 + (hash(m.module_id) % 10) / 100)),  # 模拟变化
+                covered_lines=int(
+                    m.covered_lines * (1 + (hash(m.module_id) % 10) / 100)
+                ),  # 模拟变化
                 coverage_percentage=0,
                 coverage_level=CoverageLevel.GOOD,
                 last_updated=datetime.now(),
@@ -254,9 +261,7 @@ async def create_coverage_report(
 
         # 重新计算覆盖率
         for module in modules:
-            module.coverage_percentage = round(
-                (module.covered_lines / module.total_lines) * 100, 2
-            )
+            module.coverage_percentage = round((module.covered_lines / module.total_lines) * 100, 2)
             module.coverage_level = _calculate_coverage_level(module.coverage_percentage)
 
         overall_coverage = sum(m.coverage_percentage for m in modules) / len(modules)
@@ -279,16 +284,29 @@ async def create_coverage_report(
             "total_lines": sum(m.total_lines for m in modules),
             "covered_lines": sum(m.covered_lines for m in modules),
             "uncovered_lines": sum(m.total_lines - m.covered_lines for m in modules),
-            "excellent_count": len([m for m in modules if m.coverage_level == CoverageLevel.EXCELLENT]),
+            "excellent_count": len(
+                [m for m in modules if m.coverage_level == CoverageLevel.EXCELLENT]
+            ),
             "good_count": len([m for m in modules if m.coverage_level == CoverageLevel.GOOD]),
-            "adequate_count": len([m for m in modules if m.coverage_level == CoverageLevel.ADEQUATE]),
+            "adequate_count": len(
+                [m for m in modules if m.coverage_level == CoverageLevel.ADEQUATE]
+            ),
             "poor_count": len([m for m in modules if m.coverage_level == CoverageLevel.POOR]),
         },
-        trends={
-            "previous_coverage": latest_report.overall_coverage if latest_report else 0,
-            "change": overall_coverage - (latest_report.overall_coverage if latest_report else 0),
-            "trend": "up" if overall_coverage > (latest_report.overall_coverage if latest_report else 0) else "down",
-        } if report_create.include_trends and latest_report else None,
+        trends=(
+            {
+                "previous_coverage": latest_report.overall_coverage if latest_report else 0,
+                "change": overall_coverage
+                - (latest_report.overall_coverage if latest_report else 0),
+                "trend": (
+                    "up"
+                    if overall_coverage > (latest_report.overall_coverage if latest_report else 0)
+                    else "down"
+                ),
+            }
+            if report_create.include_trends and latest_report
+            else None
+        ),
     )
 
     _coverage_reports[report_id] = report
@@ -343,7 +361,8 @@ async def delete_coverage_report(
     del _coverage_reports[id]
 
     logger.info(
-        f"Coverage report deleted | report_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Coverage report deleted | report_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
 

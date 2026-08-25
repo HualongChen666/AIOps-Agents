@@ -29,6 +29,15 @@ from . import observability_client
 
 logger = logging.getLogger(__name__)
 
+# Import security validator for URL validation
+try:
+    from core.security_input_validator import get_security_validator
+
+    SECURITY_VALIDATOR_AVAILABLE = True
+except ImportError:
+    SECURITY_VALIDATOR_AVAILABLE = False
+    logger.warning("Security validator not available, URL validation will be skipped")
+
 try:
     from core.command_guard import RiskLevel
     from core.command_guard import analyze_command as _analyze_command
@@ -1095,28 +1104,50 @@ class ToolRegistry:
             result["note"] = "systemctl not available; restart simulated"
             return result
 
-        active = subprocess.run(
-            ["systemctl", "is-active", safe_service],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-        result["is_active"] = active.returncode == 0
-
-        # By default we do not execute destructive commands unless explicitly forced.
-        if self._env_safe_bool("FORCE_REPAIR_COMMANDS"):
-            proc = subprocess.run(
-                ["systemctl", "restart", safe_service],
+        try:
+            active = subprocess.run(
+                ["systemctl", "is-active", safe_service],
                 capture_output=True,
                 text=True,
                 timeout=timeout,
                 check=False,
+                shell=False,  # Explicitly set shell=False for security
             )
-            result["executed"] = True
-            result["status"] = "restarted" if proc.returncode == 0 else "failed"
-            result["returncode"] = proc.returncode
-            result["stderr"] = proc.stderr[:500]
+            result["is_active"] = active.returncode == 0
+        except subprocess.TimeoutExpired as exc:
+            logger.error(f"Timeout checking service status for {safe_service}: {exc}")
+            result["is_active"] = False
+            result["error"] = f"Timeout: {exc}"
+        except Exception as exc:
+            logger.error(f"Failed to check service status for {safe_service}: {exc}")
+            result["is_active"] = False
+            result["error"] = str(exc)
+
+        # By default we do not execute destructive commands unless explicitly forced.
+        if self._env_safe_bool("FORCE_REPAIR_COMMANDS"):
+            try:
+                proc = subprocess.run(
+                    ["systemctl", "restart", safe_service],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    check=False,
+                    shell=False,  # Explicitly set shell=False for security
+                )
+                result["executed"] = True
+                result["status"] = "restarted" if proc.returncode == 0 else "failed"
+                result["returncode"] = proc.returncode
+                result["stderr"] = proc.stderr[:500]
+            except subprocess.TimeoutExpired as exc:
+                logger.error(f"Timeout restarting service {safe_service}: {exc}")
+                result["executed"] = True
+                result["status"] = "timeout"
+                result["error"] = f"Timeout: {exc}"
+            except Exception as exc:
+                logger.error(f"Failed to restart service {safe_service}: {exc}")
+                result["executed"] = True
+                result["status"] = "failed"
+                result["error"] = str(exc)
         else:
             result["note"] = "Set FORCE_REPAIR_COMMANDS=1 to execute real restart"
 
@@ -1147,17 +1178,36 @@ class ToolRegistry:
             return result
 
         if self._env_safe_bool("FORCE_REPAIR_COMMANDS"):
-            proc = subprocess.run(
-                ["kubectl", "scale", f"deployment/{safe_service}", f"--replicas={replicas}"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                check=False,
-            )
-            result["executed"] = True
-            result["status"] = "scaled" if proc.returncode == 0 else "failed"
-            result["returncode"] = proc.returncode
-            result["stderr"] = proc.stderr[:500]
+            try:
+                # Security Fix: Avoid string interpolation in command arguments
+                # Use separate arguments instead of f-strings
+                proc = subprocess.run(
+                    [
+                        "kubectl",
+                        "scale",
+                        "deployment/" + safe_service,
+                        "--replicas=" + str(replicas),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    check=False,
+                    shell=False,  # Explicitly set shell=False for security
+                )
+                result["executed"] = True
+                result["status"] = "scaled" if proc.returncode == 0 else "failed"
+                result["returncode"] = proc.returncode
+                result["stderr"] = proc.stderr[:500]
+            except subprocess.TimeoutExpired as exc:
+                logger.error(f"Timeout scaling service {safe_service}: {exc}")
+                result["executed"] = True
+                result["status"] = "timeout"
+                result["error"] = f"Timeout: {exc}"
+            except Exception as exc:
+                logger.error(f"Failed to scale service {safe_service}: {exc}")
+                result["executed"] = True
+                result["status"] = "failed"
+                result["error"] = str(exc)
         else:
             result["note"] = "Set FORCE_REPAIR_COMMANDS=1 to execute real scale"
 
@@ -1174,6 +1224,19 @@ class ToolRegistry:
 
         # If target looks like an HTTP endpoint, try a GET.
         if target.startswith("http://") or target.startswith("https://"):
+            # Validate URL to prevent SSRF attacks
+            if SECURITY_VALIDATOR_AVAILABLE:
+                validator = get_security_validator()
+                is_valid, error = validator.validate_url(target)
+                if not is_valid:
+                    logger.warning(f"URL validation failed for {target}: {error}")
+                    return {
+                        "target": target,
+                        "healthy": False,
+                        "status": "error",
+                        "error": f"URL validation failed: {error}",
+                    }
+
             try:
                 import httpx
 

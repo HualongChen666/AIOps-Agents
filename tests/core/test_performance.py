@@ -54,5 +54,7 @@ async def test_with_semaphore():
     async def work():
         return 42
 
-    result = await opt.with_semaphore("api_requests", work)  # noqa: F841  # Variable for test verification
+    result = await opt.with_semaphore(
+        "api_requests", work
+    )  # noqa: F841  # Variable for test verification
     assert result == 42  # noqa: F841  # Variable for test verification

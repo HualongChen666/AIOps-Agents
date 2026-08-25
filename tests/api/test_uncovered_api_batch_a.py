@@ -849,7 +849,9 @@ def test_localization_resource_router_error_paths(client, admin_headers):
         assert resp.status_code == 500
         resp_json = resp.json()
         error_msg = str(resp_json)
-        assert "Test error getting missing translations" in error_msg or "error" in error_msg.lower()
+        assert (
+            "Test error getting missing translations" in error_msg or "error" in error_msg.lower()
+        )
     finally:
         lrm_module.get_resource_manager = original_get
 
@@ -921,7 +923,12 @@ def test_localization_resource_router_success_paths_detailed(client, admin_heade
         resp = client.post(
             "/api/localization/translation/add",
             headers=admin_headers,
-            params={"language": "en-US", "namespace": "common", "key": "new_key", "value": "new_value"},
+            params={
+                "language": "en-US",
+                "namespace": "common",
+                "key": "new_key",
+                "value": "new_value",
+            },
         )
         assert resp.status_code == 200
         data = resp.json()

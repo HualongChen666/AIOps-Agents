@@ -352,6 +352,186 @@ def _record_to_sqlite_sync(
 # ============================================================
 # 异步修复执行主函数
 # ============================================================
+
+
+def _validate_script_exists(script_key: str) -> tuple[bool, Optional[Dict]]:
+    """
+    验证脚本是否存在
+
+    Args:
+        script_key: 脚本键
+
+    Returns:
+        tuple: (是否存在, 脚本字典或None)
+    """
+    if script_key not in _REPAIR_SCRIPTS_RAW:
+        return False, None
+    return True, _REPAIR_SCRIPTS_RAW[script_key]
+
+
+def _sanitize_and_validate_params(
+    params: Optional[Dict[str, Any]], script: Dict
+) -> tuple[bool, str, Dict[str, str]]:
+    """
+    清理和验证参数
+
+    Args:
+        params: 原始参数
+        script: 脚本字典
+
+    Returns:
+        tuple: (是否有效, 错误信息, 安全参数字典)
+    """
+    params = params or {}
+    safe_params: Dict[str, str] = {}
+
+    try:
+        for k, v in params.items():
+            safe_params[k] = _sanitize_param(k, v)
+    except ValueError as e:
+        return False, str(e), {}
+
+    # 验证必填参数
+    for req_param in script.get("params", []):
+        if req_param not in safe_params:
+            return False, f"缺少必要参数: '{req_param}'", {}
+
+    return True, "", safe_params
+
+
+def _render_and_log_command(script: Dict, safe_params: Dict[str, str]) -> tuple[str, str]:
+    """
+    渲染命令并记录日志
+
+    Args:
+        script: 脚本字典
+        safe_params: 安全参数
+
+    Returns:
+        tuple: (完整命令, 风险等级)
+    """
+    commands = script["command"]
+    rendered = [_render_command(cmd, safe_params) for cmd in commands]
+    full_command = "; ".join(rendered)
+
+    # 🔧 Review 修复 6:日志级别根据风险动态调整
+    risk = script.get("risk", "low")
+    if risk in ("high", "critical"):
+        log_method = logger.warning
+    else:
+        log_method = logger.info
+
+    log_method(f"准备执行修复脚本: {script['name']} | 风险等级: {risk} | 参数: {safe_params}")
+
+    return full_command, risk
+
+
+def _guard_review_command(full_command: str, script_key: str) -> tuple[bool, str, Optional[Dict]]:
+    """
+    护栏审查命令
+
+    Args:
+        full_command: 完整命令
+        script_key: 脚本键
+
+    Returns:
+        tuple: (是否通过, 错误信息, 审查结果或None)
+    """
+    try:
+        from core.command_guard import RiskLevel, analyze_command
+
+        guard_result = analyze_command(full_command)
+
+        if guard_result["risk_level"] == RiskLevel.BLOCKED:
+            risk_name = guard_result.get("risk_name", "未知规则")
+            reason = guard_result.get("reason", "命令被护栏拦截")
+            logger.error(
+                "🛡️ Windows 修复被护栏拦截 | "
+                f"script={script_key} | rule={risk_name} | reason={reason}"
+            )
+            _safe_audit(
+                command=full_command,
+                risk_level="blocked",
+                result="blocked_by_guard",
+            )
+            return False, f"指令被护栏拦截: {risk_name} - {reason}", guard_result
+
+        # 非 BLOCKED 等级也写审计(便于追溯)
+        _safe_audit(
+            command=full_command,
+            risk_level=guard_result["risk_level"].value,
+            result=f"approved_{guard_result['risk_level'].value}",
+        )
+
+        return True, "", guard_result
+
+    except ImportError:
+        logger.warning("command_guard 模块不可用,跳过审查(不推荐)")
+        return True, "", None
+    except Exception as guard_err:
+        logger.error(
+            f"command_guard 审查异常,降级为不审查: {guard_err}",
+            exc_info=True,
+        )
+        return True, "", None
+
+
+def _create_repair_record(
+    script_key: str, script: Dict, risk: str, result: Dict, safe_params: Dict[str, str]
+) -> Dict[str, Any]:
+    """
+    创建修复记录
+
+    Args:
+        script_key: 脚本键
+        script: 脚本字典
+        risk: 风险等级
+        result: 执行结果
+        safe_params: 安全参数
+
+    Returns:
+        修复记录字典
+    """
+    return {
+        "id": f"REPAIR-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "script_key": script_key,
+        "script_name": script["name"],
+        "risk": risk,
+        "success": result.get("success", False),
+        "output": result.get("output", ""),
+        "error": result.get("error", ""),
+        "return_code": result.get("return_code", -1),
+        "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "params": safe_params,
+    }
+
+
+def _persist_repair_record(record: Dict[str, Any], script: Dict, script_key: str) -> None:
+    """
+    持久化修复记录
+
+    Args:
+        record: 修复记录
+        script: 脚本字典
+        script_key: 脚本键
+    """
+    # ── 7. 🔧 RE5:线程安全写入 deque(自动 LRU)──
+    with _history_lock:
+        repair_history.appendleft(record)
+
+    # ── 8. 🔧 BUG-FIX-23 + RE7:同步写入 SQLite ──
+    sqlite_ok = asyncio.to_thread(
+        _record_to_sqlite_sync,
+        record["success"],
+        f"Windows 手动修复: {script['name']}",
+        script_key,
+        str(record["output"]),
+    )
+
+    # 🔧 RE7:在记录中标记 SQLite 写入状态(供调用方感知)
+    record["sqlite_persisted"] = sqlite_ok
+
+
 async def execute_repair(
     script_key: str,
     params: Optional[Dict[str, Any]] = None,
@@ -372,8 +552,8 @@ async def execute_repair(
     🔧 RE4 [P1]:渲染后再次审查(纵深防御)
     """
     # ── 1. 校验脚本存在性 ──
-    if script_key not in _REPAIR_SCRIPTS_RAW:
-        # 🔧 Review 修复 1:补全 return_code,保持返回结构一致
+    is_valid, script = _validate_script_exists(script_key)
+    if not is_valid:
         return {
             "success": False,
             "error": f"未知修复脚本: {script_key},可用值: {list(_REPAIR_SCRIPTS_RAW.keys())}",
@@ -381,130 +561,39 @@ async def execute_repair(
             "return_code": -1,
         }
 
-    script = _REPAIR_SCRIPTS_RAW[script_key]
-    commands = script["command"]
-    params = params or {}
-
     # ── 2. 专项参数校验 ──
-    safe_params: Dict[str, str] = {}
-    try:
-        for k, v in params.items():
-            safe_params[k] = _sanitize_param(k, v)
-    except ValueError as e:
-        logger.warning(f"参数校验失败: {e}")
-        # 🔧 Review 修复 1:补全字段
+    is_valid, err_msg, safe_params = _sanitize_and_validate_params(params, script)
+    if not is_valid:
         return {
             "success": False,
-            "error": str(e),
+            "error": err_msg,
             "output": "",
             "return_code": -1,
         }
 
-    # ── 3. 验证必填参数是否齐全 ──
-    for req_param in script.get("params", []):
-        if req_param not in safe_params:
-            return {
-                "success": False,
-                "error": f"缺少必要参数: '{req_param}'",
-                "output": "",
-                "return_code": -1,
-            }
+    # ── 3. 渲染命令 ──
+    full_command, risk = _render_and_log_command(script, safe_params)
 
-    # ── 4. 渲染命令 ──
-    rendered = [_render_command(cmd, safe_params) for cmd in commands]
-    full_command = "; ".join(rendered)
+    # ── 4. command_guard 审查(纵深防御核心)──
+    is_approved, err_msg, guard_result = _guard_review_command(full_command, script_key)
+    if not is_approved:
+        return {
+            "success": False,
+            "blocked": True,
+            "error": err_msg,
+            "output": "",
+            "return_code": -1,
+            "safe_alternative": guard_result.get("safe_alternative", "") if guard_result else "",
+        }
 
-    # 🔧 Review 修复 6:日志级别根据风险动态调整
-    risk = script.get("risk", "low")
-    if risk in ("high", "critical"):
-        log_method = logger.warning
-    else:
-        log_method = logger.info
-
-    log_method(f"准备执行修复脚本: {script['name']} | 风险等级: {risk} | 参数: {safe_params}")
-
-    # ── 5. 🔧 RE3 + RE4 [P0]:command_guard 审查(纵深防御核心)──
-    # ──────────────────────────────────────────────────────
-    # 修复前:Windows 修复完全没有走护栏审查,与 linux_repair 不对称
-    #         AI_DYNAMIC 路径下 LLM 生成的命令可能直接执行
-    # 修复后:渲染后的完整命令必须通过护栏审查
-    #         BLOCKED → 直接拒绝(对应 linux_repair 的同名分支)
-    #         其他 → 放行(HIGH 不再走审批,因为 execute_repair 通常
-    #                由 auto_heal 调用,审批已在上层完成)
-    # ──────────────────────────────────────────────────────
-    try:
-        from core.command_guard import RiskLevel, analyze_command
-
-        guard_result = analyze_command(full_command)
-
-        if guard_result["risk_level"] == RiskLevel.BLOCKED:
-            risk_name = guard_result.get("risk_name", "未知规则")
-            reason = guard_result.get("reason", "命令被护栏拦截")
-            logger.error(
-                "🛡️ Windows 修复被护栏拦截 | "
-                f"script={script_key} | rule={risk_name} | reason={reason}"
-            )
-            _safe_audit(
-                command=full_command,
-                risk_level="blocked",
-                result="blocked_by_guard",
-            )
-            return {
-                "success": False,
-                "blocked": True,
-                "error": f"指令被护栏拦截: {risk_name} - {reason}",
-                "output": "",
-                "return_code": -1,
-                "safe_alternative": guard_result.get("safe_alternative", ""),
-            }
-
-        # 非 BLOCKED 等级也写审计(便于追溯)
-        _safe_audit(
-            command=full_command,
-            risk_level=guard_result["risk_level"].value,
-            result=f"approved_{guard_result['risk_level'].value}",
-        )
-
-    except ImportError:
-        logger.warning("command_guard 模块不可用,跳过审查(不推荐)")
-    except Exception as guard_err:
-        logger.error(
-            f"command_guard 审查异常,降级为不审查: {guard_err}",
-            exc_info=True,
-        )
-
-    # ── 6. 异步执行 PowerShell ──
+    # ── 5. 异步执行 PowerShell ──
     try:
         result = await asyncio.to_thread(_run_powershell, full_command)
 
-        record = {
-            "id": f"REPAIR-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "script_key": script_key,
-            "script_name": script["name"],
-            "risk": risk,
-            "success": result.get("success", False),
-            "output": result.get("output", ""),
-            "error": result.get("error", ""),
-            "return_code": result.get("return_code", -1),
-            "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "params": safe_params,
-        }
+        record = _create_repair_record(script_key, script, risk, result, safe_params)
 
-        # ── 7. 🔧 RE5:线程安全写入 deque(自动 LRU)──
-        with _history_lock:
-            repair_history.appendleft(record)
-
-        # ── 8. 🔧 BUG-FIX-23 + RE7:同步写入 SQLite ──
-        sqlite_ok = await asyncio.to_thread(
-            _record_to_sqlite_sync,
-            record["success"],
-            f"Windows 手动修复: {script['name']}",
-            script_key,
-            str(record["output"]),
-        )
-
-        # 🔧 RE7:在记录中标记 SQLite 写入状态(供调用方感知)
-        record["sqlite_persisted"] = sqlite_ok
+        # 持久化记录
+        await _persist_repair_record(record, script, script_key)
 
         # 写审计(执行结果)
         _safe_audit(

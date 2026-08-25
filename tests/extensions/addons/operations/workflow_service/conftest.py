@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Set environment variable to prevent main.py initialization
-os.environ['PYTEST_CURRENT_TEST'] = '1'
+os.environ["PYTEST_CURRENT_TEST"] = "1"
 
 # Add the workflow_service directory to Python path
 sys.path.insert(0, "C:/aiops-sre-agent/extensions/addons/operations/workflow_service")
@@ -19,6 +19,7 @@ sys.path.insert(0, "C:/aiops-sre-agent/extensions/addons/operations/workflow_ser
 # Clear prometheus metrics registry to avoid duplicate registration errors
 # This must be done before importing any workflow_service modules
 from prometheus_client import REGISTRY
+
 try:
     # Clear all collectors from the registry
     collectors = list(REGISTRY._collector_to_names.keys())
@@ -32,16 +33,21 @@ try:
 except Exception:
     # If clearing fails, create a new registry
     from prometheus_client import CollectorRegistry
+
     new_registry = CollectorRegistry()
     import prometheus_client.metrics as metrics_module
+
     metrics_module.REGISTRY = new_registry
     import sys
-    sys.modules['prometheus_client'].REGISTRY = new_registry
+
+    sys.modules["prometheus_client"].REGISTRY = new_registry
+
 
 @pytest.fixture(autouse=True)
 def clear_prometheus_registry():
     """Automatically clear prometheus registry before each test."""
     from prometheus_client import REGISTRY
+
     try:
         collectors = list(REGISTRY._collector_to_names.keys())
         for collector in collectors:
@@ -54,6 +60,7 @@ def clear_prometheus_registry():
     except Exception:
         pass
 
+
 from extensions.addons.operations.workflow_service.config import WorkflowServiceSettings
 from extensions.addons.operations.workflow_service.grpc.client import WorkflowRPCClient
 from extensions.addons.operations.workflow_service.grpc.server import WorkflowRPCServer
@@ -65,6 +72,7 @@ from extensions.addons.operations.workflow_service.repository import (
 )
 from extensions.addons.operations.workflow_service.retry import RetryEngine
 from extensions.addons.operations.workflow_service.saga import WorkflowSagaOrchestrator
+from extensions.addons.operations.workflow_service.scheduler import WorkflowScheduler
 from extensions.addons.operations.workflow_service.schemas import (
     RetryPolicy,
     SagaStep,
@@ -77,7 +85,6 @@ from extensions.addons.operations.workflow_service.schemas import (
     WorkflowTask,
     WorkflowTemplate,
 )
-from extensions.addons.operations.workflow_service.scheduler import WorkflowScheduler
 from extensions.addons.operations.workflow_service.state_machine import WorkflowStateMachine
 from extensions.addons.operations.workflow_service.templates import TemplateManager
 from extensions.addons.operations.workflow_service.versioning import WorkflowVersionManager
@@ -434,6 +441,7 @@ def retry_policies() -> list[RetryPolicy]:
 @pytest.fixture
 def async_action():
     """Provide an async action function for saga testing."""
+
     async def action():
         await asyncio.sleep(0.01)
         return {"success": True}
@@ -444,6 +452,7 @@ def async_action():
 @pytest.fixture
 def async_compensation():
     """Provide an async compensation function for saga testing."""
+
     async def compensation():
         await asyncio.sleep(0.01)
         return {"compensated": True}
@@ -454,6 +463,7 @@ def async_compensation():
 @pytest.fixture
 def failing_action():
     """Provide a failing action function for saga testing."""
+
     async def action():
         await asyncio.sleep(0.01)
         raise ValueError("Action failed")
@@ -464,6 +474,7 @@ def failing_action():
 @pytest.fixture
 def sync_action():
     """Provide a sync action function for saga testing."""
+
     def action():
         return {"success": True}
 
@@ -473,6 +484,7 @@ def sync_action():
 @pytest.fixture
 def sync_compensation():
     """Provide a sync compensation function for saga testing."""
+
     def compensation():
         return {"compensated": True}
 

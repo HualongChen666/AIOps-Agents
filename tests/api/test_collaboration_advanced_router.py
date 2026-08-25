@@ -5,31 +5,32 @@ Test suite for Collaboration Advanced Router
 """
 
 import json
-import pytest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
-from datetime import datetime, timezone
+
+import pytest
 from fastapi.testclient import TestClient
 
 from api.collaboration_advanced_router import (
-    router,
-    CreateTeamRequest,
-    UpdateTeamRequest,
-    CreateMemberRequest,
-    UpdateMemberRequest,
-    CreatePermissionRequest,
+    ActivityTypeEnum,
     CreateActivityRequest,
-    TeamStatusEnum,
+    CreateMemberRequest,
+    CreatePermissionRequest,
+    CreateTeamRequest,
     MemberRoleEnum,
     PermissionLevelEnum,
-    ActivityTypeEnum,
-    _load_json_file,
-    _save_json_file,
+    TeamStatusEnum,
+    UpdateMemberRequest,
+    UpdateTeamRequest,
     _generate_id,
-    _now,
+    _load_json_file,
     _log_activity,
+    _now,
+    _save_json_file,
+    router,
 )
-from core.api_response_standard import ErrorCode, create_success_response, create_error_response
+from core.api_response_standard import ErrorCode, create_error_response, create_success_response
 
 
 # Test fixtures
@@ -37,6 +38,7 @@ from core.api_response_standard import ErrorCode, create_success_response, creat
 def client():
     """Create a test client for the router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -165,7 +167,7 @@ class TestHelperFunctions:
     def test_log_activity(self, tmp_path):
         """Test activity logging"""
         activities_file = tmp_path / "activities.json"
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             _log_activity(
                 team_id="TM-001",
                 activity_type=ActivityTypeEnum.MEMBER_ADDED,
@@ -186,8 +188,8 @@ class TestTeamEndpoints:
 
     def test_get_teams_empty(self, client, tmp_path):
         """Test getting teams when none exist"""
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', tmp_path / "teams.json"):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', tmp_path / "members.json"):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", tmp_path / "teams.json"):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", tmp_path / "members.json"):
                 response = client.get("/api/v1/collaboration/teams")
                 assert response.status_code == 200
                 data = response.json()
@@ -204,8 +206,8 @@ class TestTeamEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.get("/api/v1/collaboration/teams")
                 assert response.status_code == 200
                 data = response.json()
@@ -223,8 +225,8 @@ class TestTeamEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.get("/api/v1/collaboration/teams?status=active")
                 assert response.status_code == 200
                 data = response.json()
@@ -241,8 +243,8 @@ class TestTeamEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.get("/api/v1/collaboration/teams?owner_id=user-001")
                 assert response.status_code == 200
                 data = response.json()
@@ -253,12 +255,14 @@ class TestTeamEndpoints:
         """Test getting teams with pagination"""
         teams = []
         for i in range(25):
-            teams.append({
-                "id": f"TM-{i:08d}",
-                "name": f"Team {i}",
-                "status": "active",
-                "owner_id": f"user-{i}",
-            })
+            teams.append(
+                {
+                    "id": f"TM-{i:08d}",
+                    "name": f"Team {i}",
+                    "status": "active",
+                    "owner_id": f"user-{i}",
+                }
+            )
         teams_file = tmp_path / "teams.json"
         members_file = tmp_path / "members.json"
         with open(teams_file, "w", encoding="utf-8") as f:
@@ -266,8 +270,8 @@ class TestTeamEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.get("/api/v1/collaboration/teams?limit=10&offset=0")
                 assert response.status_code == 200
                 data = response.json()
@@ -284,8 +288,8 @@ class TestTeamEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.get("/api/v1/collaboration/teams")
                 assert response.status_code == 200
                 data = response.json()
@@ -298,8 +302,8 @@ class TestTeamEndpoints:
         teams_file = tmp_path / "teams.json"
         activities_file = tmp_path / "activities.json"
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
                 response = client.post(
                     "/api/v1/collaboration/teams",
                     json={
@@ -308,7 +312,7 @@ class TestTeamEndpoints:
                         "owner_id": "user-001",
                         "status": "active",
                         "tags": ["test"],
-                    }
+                    },
                 )
                 assert response.status_code == 201
                 data = response.json()
@@ -321,14 +325,14 @@ class TestTeamEndpoints:
         teams_file = tmp_path / "teams.json"
         activities_file = tmp_path / "activities.json"
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
                 response = client.post(
                     "/api/v1/collaboration/teams",
                     json={
                         "name": "Default Team",
                         "owner_id": "user-001",
-                    }
+                    },
                 )
                 assert response.status_code == 201
                 data = response.json()
@@ -339,13 +343,13 @@ class TestTeamEndpoints:
     def test_create_team_validation_error(self, client, tmp_path):
         """Test creating a team with validation error"""
         teams_file = tmp_path / "teams.json"
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
             response = client.post(
                 "/api/v1/collaboration/teams",
                 json={
                     "name": "",  # Empty name
                     "owner_id": "",  # Empty owner_id
-                }
+                },
             )
             assert response.status_code == 422  # Validation error
 
@@ -358,8 +362,8 @@ class TestTeamEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.get(f"/api/v1/collaboration/teams/{sample_team['id']}")
                 assert response.status_code == 200
                 data = response.json()
@@ -377,8 +381,8 @@ class TestTeamEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.get("/api/v1/collaboration/teams/TM-NONEXIST")
                 assert response.status_code == 200
                 data = response.json()
@@ -391,14 +395,14 @@ class TestTeamEndpoints:
         with open(teams_file, "w", encoding="utf-8") as f:
             json.dump([sample_team], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
             response = client.patch(
                 f"/api/v1/collaboration/teams/{sample_team['id']}",
                 json={
                     "name": "Updated Team Name",
                     "description": "Updated description",
                     "status": "inactive",
-                }
+                },
             )
             assert response.status_code == 200
             data = response.json()
@@ -412,12 +416,12 @@ class TestTeamEndpoints:
         with open(teams_file, "w", encoding="utf-8") as f:
             json.dump([sample_team], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
             response = client.patch(
                 f"/api/v1/collaboration/teams/{sample_team['id']}",
                 json={
                     "name": "Only Update Name",
-                }
+                },
             )
             assert response.status_code == 200
             data = response.json()
@@ -432,17 +436,18 @@ class TestTeamEndpoints:
         with open(teams_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
             response = client.patch(
-                "/api/v1/collaboration/teams/TM-NONEXIST",
-                json={"name": "Updated Name"}
+                "/api/v1/collaboration/teams/TM-NONEXIST", json={"name": "Updated Name"}
             )
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is False
             assert "团队不存在" in data["message"]
 
-    def test_delete_team_success(self, client, tmp_path, sample_team, sample_member, sample_permission):
+    def test_delete_team_success(
+        self, client, tmp_path, sample_team, sample_member, sample_permission
+    ):
         """Test deleting a team successfully"""
         teams_file = tmp_path / "teams.json"
         members_file = tmp_path / "members.json"
@@ -454,9 +459,9 @@ class TestTeamEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
                     response = client.delete(f"/api/v1/collaboration/teams/{sample_team['id']}")
                     assert response.status_code == 200
                     data = response.json()
@@ -474,7 +479,7 @@ class TestTeamEndpoints:
         with open(teams_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
             response = client.delete("/api/v1/collaboration/teams/TM-NONEXIST")
             assert response.status_code == 200
             data = response.json()
@@ -488,7 +493,7 @@ class TestMemberEndpoints:
 
     def test_get_members_empty(self, client, tmp_path):
         """Test getting members when none exist"""
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', tmp_path / "members.json"):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", tmp_path / "members.json"):
             response = client.get("/api/v1/collaboration/members")
             assert response.status_code == 200
             data = response.json()
@@ -501,7 +506,7 @@ class TestMemberEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.get("/api/v1/collaboration/members")
             assert response.status_code == 200
             data = response.json()
@@ -515,7 +520,7 @@ class TestMemberEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.get("/api/v1/collaboration/members?team_id=TM-001")
             assert response.status_code == 200
             data = response.json()
@@ -529,7 +534,7 @@ class TestMemberEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.get("/api/v1/collaboration/members?role=admin")
             assert response.status_code == 200
             data = response.json()
@@ -540,18 +545,20 @@ class TestMemberEndpoints:
         """Test getting members with pagination"""
         members = []
         for i in range(25):
-            members.append({
-                "id": f"MBR-{i:08d}",
-                "user_id": f"user-{i}",
-                "user_name": f"User {i}",
-                "team_id": "TM-001",
-                "role": "member",
-            })
+            members.append(
+                {
+                    "id": f"MBR-{i:08d}",
+                    "user_id": f"user-{i}",
+                    "user_name": f"User {i}",
+                    "team_id": "TM-001",
+                    "role": "member",
+                }
+            )
         members_file = tmp_path / "members.json"
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump(members, f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.get("/api/v1/collaboration/members?limit=10&offset=0")
             assert response.status_code == 200
             data = response.json()
@@ -567,9 +574,9 @@ class TestMemberEndpoints:
         with open(teams_file, "w", encoding="utf-8") as f:
             json.dump([sample_team], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
                     response = client.post(
                         "/api/v1/collaboration/members",
                         json={
@@ -578,7 +585,7 @@ class TestMemberEndpoints:
                             "email": "zhangsan@example.com",
                             "team_id": sample_team["id"],
                             "role": "member",
-                        }
+                        },
                     )
                     assert response.status_code == 201
                     data = response.json()
@@ -594,16 +601,16 @@ class TestMemberEndpoints:
         with open(teams_file, "w", encoding="utf-8") as f:
             json.dump([sample_team], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
                     response = client.post(
                         "/api/v1/collaboration/members",
                         json={
                             "user_id": "user-002",
                             "user_name": "李四",
                             "team_id": sample_team["id"],
-                        }
+                        },
                     )
                     assert response.status_code == 201
                     data = response.json()
@@ -618,15 +625,15 @@ class TestMemberEndpoints:
         with open(teams_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.post(
                     "/api/v1/collaboration/members",
                     json={
                         "user_id": "user-002",
                         "user_name": "张三",
                         "team_id": "TM-NONEXIST",
-                    }
+                    },
                 )
                 # API returns 201 even for error responses
                 assert response.status_code == 201
@@ -643,15 +650,15 @@ class TestMemberEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 response = client.post(
                     "/api/v1/collaboration/members",
                     json={
                         "user_id": sample_member["user_id"],
                         "user_name": "Duplicate User",
                         "team_id": sample_member["team_id"],
-                    }
+                    },
                 )
                 # API returns 201 even for error responses
                 assert response.status_code == 201
@@ -662,14 +669,14 @@ class TestMemberEndpoints:
     def test_create_member_validation_error(self, client, tmp_path):
         """Test creating a member with validation error"""
         members_file = tmp_path / "members.json"
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.post(
                 "/api/v1/collaboration/members",
                 json={
                     "user_id": "",  # Empty user_id
                     "user_name": "",  # Empty user_name
                     "team_id": "",  # Empty team_id
-                }
+                },
             )
             assert response.status_code == 422  # Validation error
 
@@ -679,13 +686,13 @@ class TestMemberEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.patch(
                 f"/api/v1/collaboration/members/{sample_member['id']}",
                 json={
                     "role": "admin",
                     "email": "newemail@example.com",
-                }
+                },
             )
             assert response.status_code == 200
             data = response.json()
@@ -699,10 +706,9 @@ class TestMemberEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.patch(
-                "/api/v1/collaboration/members/MBR-NONEXIST",
-                json={"role": "admin"}
+                "/api/v1/collaboration/members/MBR-NONEXIST", json={"role": "admin"}
             )
             assert response.status_code == 200
             data = response.json()
@@ -719,9 +725,9 @@ class TestMemberEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-            with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
-                with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+            with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
+                with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
                     response = client.delete(f"/api/v1/collaboration/members/{sample_member['id']}")
                     assert response.status_code == 200
                     data = response.json()
@@ -737,7 +743,7 @@ class TestMemberEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
             response = client.delete("/api/v1/collaboration/members/MBR-NONEXIST")
             assert response.status_code == 200
             data = response.json()
@@ -751,7 +757,9 @@ class TestPermissionEndpoints:
 
     def test_get_permissions_empty(self, client, tmp_path):
         """Test getting permissions when none exist"""
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', tmp_path / "permissions.json"):
+        with patch(
+            "api.collaboration_advanced_router.PERMISSIONS_FILE", tmp_path / "permissions.json"
+        ):
             response = client.get("/api/v1/collaboration/permissions")
             assert response.status_code == 200
             data = response.json()
@@ -764,7 +772,7 @@ class TestPermissionEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
             response = client.get("/api/v1/collaboration/permissions")
             assert response.status_code == 200
             data = response.json()
@@ -778,7 +786,7 @@ class TestPermissionEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
             response = client.get("/api/v1/collaboration/permissions?team_id=TM-001")
             assert response.status_code == 200
             data = response.json()
@@ -792,7 +800,7 @@ class TestPermissionEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
             response = client.get("/api/v1/collaboration/permissions?member_id=MBR-001")
             assert response.status_code == 200
             data = response.json()
@@ -806,7 +814,7 @@ class TestPermissionEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
             response = client.get("/api/v1/collaboration/permissions?resource_type=workspace")
             assert response.status_code == 200
             data = response.json()
@@ -824,10 +832,12 @@ class TestPermissionEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
-                    with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
+                    with patch(
+                        "api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file
+                    ):
                         response = client.post(
                             "/api/v1/collaboration/permissions",
                             json={
@@ -836,7 +846,7 @@ class TestPermissionEndpoints:
                                 "resource_type": "workspace",
                                 "resource_id": "WS-001",
                                 "permission_level": "write",
-                            }
+                            },
                         )
                         assert response.status_code == 201
                         data = response.json()
@@ -853,9 +863,9 @@ class TestPermissionEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
                     response = client.post(
                         "/api/v1/collaboration/permissions",
                         json={
@@ -864,7 +874,7 @@ class TestPermissionEndpoints:
                             "resource_type": "workspace",
                             "resource_id": "WS-001",
                             "permission_level": "write",
-                        }
+                        },
                     )
                     # API returns 201 even for error responses
                     assert response.status_code == 201
@@ -882,9 +892,9 @@ class TestPermissionEndpoints:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
                     response = client.post(
                         "/api/v1/collaboration/permissions",
                         json={
@@ -893,7 +903,7 @@ class TestPermissionEndpoints:
                             "resource_type": "workspace",
                             "resource_id": "WS-001",
                             "permission_level": "write",
-                        }
+                        },
                     )
                     # API returns 201 even for error responses
                     assert response.status_code == 201
@@ -901,7 +911,9 @@ class TestPermissionEndpoints:
                     assert data["success"] is False
                     assert "成员不存在" in data["message"]
 
-    def test_create_permission_duplicate(self, client, tmp_path, sample_team, sample_member, sample_permission):
+    def test_create_permission_duplicate(
+        self, client, tmp_path, sample_team, sample_member, sample_permission
+    ):
         """Test creating a duplicate permission"""
         teams_file = tmp_path / "teams.json"
         members_file = tmp_path / "members.json"
@@ -913,9 +925,9 @@ class TestPermissionEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
                     response = client.post(
                         "/api/v1/collaboration/permissions",
                         json={
@@ -924,7 +936,7 @@ class TestPermissionEndpoints:
                             "resource_type": sample_permission["resource_type"],
                             "resource_id": sample_permission["resource_id"],
                             "permission_level": "admin",
-                        }
+                        },
                     )
                     # API returns 201 even for error responses
                     assert response.status_code == 201
@@ -935,7 +947,7 @@ class TestPermissionEndpoints:
     def test_create_permission_validation_error(self, client, tmp_path):
         """Test creating a permission with validation error"""
         permissions_file = tmp_path / "permissions.json"
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
             response = client.post(
                 "/api/v1/collaboration/permissions",
                 json={
@@ -943,7 +955,7 @@ class TestPermissionEndpoints:
                     "member_id": "",  # Empty member_id
                     "resource_type": "",  # Empty resource_type
                     "resource_id": "",  # Empty resource_id
-                }
+                },
             )
             assert response.status_code == 422  # Validation error
 
@@ -954,9 +966,11 @@ class TestPermissionEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
-            with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
-                response = client.delete(f"/api/v1/collaboration/permissions/{sample_permission['id']}")
+        with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
+            with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
+                response = client.delete(
+                    f"/api/v1/collaboration/permissions/{sample_permission['id']}"
+                )
                 assert response.status_code == 200
                 data = response.json()
                 assert data["success"] is True
@@ -967,7 +981,7 @@ class TestPermissionEndpoints:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-        with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
             response = client.delete("/api/v1/collaboration/permissions/PRM-NONEXIST")
             assert response.status_code == 200
             data = response.json()
@@ -981,7 +995,9 @@ class TestActivityEndpoints:
 
     def test_get_activities_empty(self, client, tmp_path):
         """Test getting activities when none exist"""
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', tmp_path / "activities.json"):
+        with patch(
+            "api.collaboration_advanced_router.ACTIVITIES_FILE", tmp_path / "activities.json"
+        ):
             response = client.get("/api/v1/collaboration/activities")
             assert response.status_code == 200
             data = response.json()
@@ -994,7 +1010,7 @@ class TestActivityEndpoints:
         with open(activities_file, "w", encoding="utf-8") as f:
             json.dump([sample_activity], f)
 
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             response = client.get("/api/v1/collaboration/activities")
             assert response.status_code == 200
             data = response.json()
@@ -1008,7 +1024,7 @@ class TestActivityEndpoints:
         with open(activities_file, "w", encoding="utf-8") as f:
             json.dump([sample_activity], f)
 
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             response = client.get("/api/v1/collaboration/activities?team_id=TM-001")
             assert response.status_code == 200
             data = response.json()
@@ -1022,7 +1038,7 @@ class TestActivityEndpoints:
         with open(activities_file, "w", encoding="utf-8") as f:
             json.dump([sample_activity], f)
 
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             response = client.get("/api/v1/collaboration/activities?activity_type=member_added")
             assert response.status_code == 200
             data = response.json()
@@ -1033,20 +1049,22 @@ class TestActivityEndpoints:
         """Test that activities are sorted by time descending"""
         activities = []
         for i in range(5):
-            activities.append({
-                "id": f"ACT-{i:08d}",
-                "team_id": "TM-001",
-                "activity_type": "test",
-                "actor_id": "user-001",
-                "actor_name": "Test User",
-                "description": f"Activity {i}",
-                "created_at": (datetime.now(timezone.utc).isoformat()),
-            })
+            activities.append(
+                {
+                    "id": f"ACT-{i:08d}",
+                    "team_id": "TM-001",
+                    "activity_type": "test",
+                    "actor_id": "user-001",
+                    "actor_name": "Test User",
+                    "description": f"Activity {i}",
+                    "created_at": (datetime.now(timezone.utc).isoformat()),
+                }
+            )
         activities_file = tmp_path / "activities.json"
         with open(activities_file, "w", encoding="utf-8") as f:
             json.dump(activities, f)
 
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             response = client.get("/api/v1/collaboration/activities")
             assert response.status_code == 200
             data = response.json()
@@ -1057,20 +1075,22 @@ class TestActivityEndpoints:
         """Test getting activities with pagination"""
         activities = []
         for i in range(25):
-            activities.append({
-                "id": f"ACT-{i:08d}",
-                "team_id": "TM-001",
-                "activity_type": "test",
-                "actor_id": "user-001",
-                "actor_name": "Test User",
-                "description": f"Activity {i}",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
+            activities.append(
+                {
+                    "id": f"ACT-{i:08d}",
+                    "team_id": "TM-001",
+                    "activity_type": "test",
+                    "actor_id": "user-001",
+                    "actor_name": "Test User",
+                    "description": f"Activity {i}",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
         activities_file = tmp_path / "activities.json"
         with open(activities_file, "w", encoding="utf-8") as f:
             json.dump(activities, f)
 
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             response = client.get("/api/v1/collaboration/activities?limit=10&offset=0")
             assert response.status_code == 200
             data = response.json()
@@ -1190,9 +1210,12 @@ class TestErrorHandling:
 
     def test_exception_handling_in_get_teams(self, client, tmp_path):
         """Test exception handling in get_teams"""
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', tmp_path / "teams.json"):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', tmp_path / "members.json"):
-                with patch('api.collaboration_advanced_router._load_json_file', side_effect=Exception("Test error")):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", tmp_path / "teams.json"):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", tmp_path / "members.json"):
+                with patch(
+                    "api.collaboration_advanced_router._load_json_file",
+                    side_effect=Exception("Test error"),
+                ):
                     response = client.get("/api/v1/collaboration/teams")
                     assert response.status_code == 200
                     data = response.json()
@@ -1201,14 +1224,17 @@ class TestErrorHandling:
     def test_exception_handling_in_create_team(self, client, tmp_path):
         """Test exception handling in create_team"""
         teams_file = tmp_path / "teams.json"
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router._save_json_file', side_effect=Exception("Save error")):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch(
+                "api.collaboration_advanced_router._save_json_file",
+                side_effect=Exception("Save error"),
+            ):
                 response = client.post(
                     "/api/v1/collaboration/teams",
                     json={
                         "name": "Test Team",
                         "owner_id": "user-001",
-                    }
+                    },
                 )
                 # API returns 201 even for error responses
                 assert response.status_code == 201
@@ -1222,7 +1248,7 @@ class TestErrorHandling:
         activities_file.touch()
         activities_file.chmod(0o444)
 
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             # This should not raise an exception
             _log_activity(
                 team_id="TM-001",
@@ -1256,38 +1282,40 @@ class TestIntegration:
         activities_file = tmp_path / "activities.json"
 
         # Create team
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
                 team_response = client.post(
                     "/api/v1/collaboration/teams",
                     json={
                         "name": "Integration Test Team",
                         "owner_id": "user-001",
-                    }
+                    },
                 )
                 assert team_response.status_code == 201
                 team_id = team_response.json()["data"]["id"]
 
         # Add member
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
                     member_response = client.post(
                         "/api/v1/collaboration/members",
                         json={
                             "user_id": "user-002",
                             "user_name": "Test User",
                             "team_id": team_id,
-                        }
+                        },
                     )
                     assert member_response.status_code == 201
                     member_id = member_response.json()["data"]["id"]
 
         # Add permission
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
-                    with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
+                    with patch(
+                        "api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file
+                    ):
                         perm_response = client.post(
                             "/api/v1/collaboration/permissions",
                             json={
@@ -1296,12 +1324,12 @@ class TestIntegration:
                                 "resource_type": "workspace",
                                 "resource_id": "WS-001",
                                 "permission_level": "write",
-                            }
+                            },
                         )
                         assert perm_response.status_code == 201
 
         # Check activities
-        with patch('api.collaboration_advanced_router.ACTIVITIES_FILE', activities_file):
+        with patch("api.collaboration_advanced_router.ACTIVITIES_FILE", activities_file):
             activities_response = client.get("/api/v1/collaboration/activities")
             assert activities_response.status_code == 200
             activities = activities_response.json()["data"]["items"]
@@ -1309,9 +1337,9 @@ class TestIntegration:
             assert len(activities) >= 2
 
         # Delete team (should cascade delete members and permissions)
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
                     delete_response = client.delete(f"/api/v1/collaboration/teams/{team_id}")
                     assert delete_response.status_code == 200
 
@@ -1324,17 +1352,18 @@ class TestIntegration:
         with open(members_file, "w", encoding="utf-8") as f:
             json.dump([sample_member], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
                 # Update role to admin
                 update_response = client.patch(
-                    f"/api/v1/collaboration/members/{sample_member['id']}",
-                    json={"role": "admin"}
+                    f"/api/v1/collaboration/members/{sample_member['id']}", json={"role": "admin"}
                 )
                 assert update_response.status_code == 200
                 assert update_response.json()["data"]["role"] == "admin"
 
-    def test_permission_level_change(self, client, tmp_path, sample_team, sample_member, sample_permission):
+    def test_permission_level_change(
+        self, client, tmp_path, sample_team, sample_member, sample_permission
+    ):
         """Test changing permission level"""
         teams_file = tmp_path / "teams.json"
         members_file = tmp_path / "members.json"
@@ -1346,11 +1375,13 @@ class TestIntegration:
         with open(permissions_file, "w", encoding="utf-8") as f:
             json.dump([sample_permission], f)
 
-        with patch('api.collaboration_advanced_router.TEAMS_FILE', teams_file):
-            with patch('api.collaboration_advanced_router.MEMBERS_FILE', members_file):
-                with patch('api.collaboration_advanced_router.PERMISSIONS_FILE', permissions_file):
+        with patch("api.collaboration_advanced_router.TEAMS_FILE", teams_file):
+            with patch("api.collaboration_advanced_router.MEMBERS_FILE", members_file):
+                with patch("api.collaboration_advanced_router.PERMISSIONS_FILE", permissions_file):
                     # Delete old permission
-                    delete_response = client.delete(f"/api/v1/collaboration/permissions/{sample_permission['id']}")
+                    delete_response = client.delete(
+                        f"/api/v1/collaboration/permissions/{sample_permission['id']}"
+                    )
                     assert delete_response.status_code == 200
 
                     # Create new permission with higher level
@@ -1362,7 +1393,7 @@ class TestIntegration:
                             "resource_type": sample_permission["resource_type"],
                             "resource_id": sample_permission["resource_id"],
                             "permission_level": "admin",
-                        }
+                        },
                     )
                     assert create_response.status_code == 201
                     assert create_response.json()["data"]["permission_level"] == "admin"

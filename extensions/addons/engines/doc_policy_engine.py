@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -20,6 +21,15 @@ try:
     import yaml
 except Exception:  # pragma: no cover
     yaml = None
+
+# Import security validator for file path validation
+try:
+    from core.security_input_validator import get_security_validator
+    SECURITY_VALIDATOR_AVAILABLE = True
+except ImportError:
+    SECURITY_VALIDATOR_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
 class _DryRunMixin:
@@ -64,6 +74,7 @@ class DocEngine(_DryRunMixin):
             capture_output=True,
             text=True,
             check=False,
+            shell=False,  # Explicitly set shell=False for security
         )
         output_text = (proc.stdout or "") + (proc.stderr or "")
         warnings = output_text.count("WARNING:") + output_text.lower().count("warning:")
@@ -94,6 +105,23 @@ class PolicyEngine(_DryRunMixin):
             return spec
         if isinstance(spec, (str, os.PathLike)):
             path = Path(spec)
+            
+            # Validate file path to prevent path traversal attacks
+            if SECURITY_VALIDATOR_AVAILABLE:
+                validator = get_security_validator()
+                # Allow files from current directory and common config directories
+                allowed_base_dirs = [os.getcwd(), os.path.expanduser("~"), "/etc"]
+                is_valid, error, resolved_path = validator.validate_file_path(
+                    str(path), 
+                    allowed_base_dirs=allowed_base_dirs,
+                    allowed_extensions=[".yaml", ".yml", ".json"]
+                )
+                if not is_valid:
+                    logger.warning(f"File path validation failed for {path}: {error}")
+                    return {}
+                
+                path = resolved_path
+            
             if path.exists() and path.is_file():
                 with open(path, "r", encoding="utf-8") as f:
                     content = f.read()
@@ -210,6 +238,27 @@ class PolicyEngine(_DryRunMixin):
                 pass
 
         path = Path(key)
+        
+        # Validate file path to prevent path traversal attacks
+        if SECURITY_VALIDATOR_AVAILABLE:
+            validator = get_security_validator()
+            # Allow files from current directory and common config directories
+            allowed_base_dirs = [os.getcwd(), os.path.expanduser("~"), "/etc"]
+            is_valid, error, resolved_path = validator.validate_file_path(
+                str(path), 
+                allowed_base_dirs=allowed_base_dirs,
+                allowed_extensions=[".yaml", ".yml", ".json"]
+            )
+            if not is_valid:
+                logger.warning(f"File path validation failed for {path}: {error}")
+                return {
+                    "dry_run": not self._should_run(),
+                    "source": str(path),
+                    "value": None,
+                    "error": f"File path validation failed: {error}",
+                }
+            path = resolved_path
+        
         if path.exists() and path.is_file():
             try:
                 with open(path, "r", encoding="utf-8") as f:

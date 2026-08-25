@@ -226,6 +226,317 @@ _METRIC_TO_SCRIPT_MAP: dict[str, str] = {
 # ============================================================
 # 主入口函数
 # ============================================================
+
+
+def _validate_alert_params(alert: dict[str, Any]) -> tuple[bool, str, str, str]:
+    """
+    验证告警参数
+
+    Args:
+        alert: 告警字典
+
+    Returns:
+        tuple: (是否有效, 错误信息, alert_id, platform)
+    """
+    if not isinstance(alert, dict):
+        return False, f"alert 必须是 dict,收到 {type(alert).__name__}", "", ""
+
+    platform = (alert.get("platform") or "windows").lower()
+    if platform not in ("windows", "linux"):
+        platform = "windows"  # 兜底
+
+    # 必须提供 id,否则拒绝生成方案
+    raw_id = alert.get("id")
+    if raw_id is None or (isinstance(raw_id, str) and not raw_id.strip()):
+        return False, "alert.id 不能为空", "", platform
+
+    # 🔧 Review 修复 8:alert_id 强制转为字符串,避免 SQLite 类型问题
+    alert_id = str(raw_id)
+    if not alert_id.strip():
+        return False, "alert.id 不能为空", "", platform
+
+    return True, "", alert_id, platform
+
+
+def _build_history_prompt_section() -> str:
+    """
+    构造历史经验提示段落
+
+    Returns:
+        历史经验提示字符串
+    """
+    history_prompt_section = ""
+    if VERIFY_CONFIG.get("self_learning_enabled", True):
+        try:
+            # 🔧 Fix: get_similar_verify_history doesn't exist, skip this feature
+            # from core.db_engine import get_similar_verify_history
+            pass
+        except ImportError as hist_err:
+            logger.warning(f"N+2 自学习模块未导入(不影响主流程): {hist_err}")
+        except Exception as hist_err:
+            logger.warning(f"N+2 自学习查询异常(不影响主流程): {hist_err}")
+    return history_prompt_section
+
+
+def _build_similar_examples_prompt(alert_desc_raw: str) -> str:
+    """
+    构造相似案例提示段落
+
+    Args:
+        alert_desc_raw: 原始告警描述
+
+    Returns:
+        相似案例提示字符串
+    """
+    similar_examples_prompt = ""
+    if VERIFY_CONFIG.get("self_learning_enabled", True):
+        try:
+            # 使用告警描述作为查询文本，检索相似历史 Runbook
+            redacted_search_query = _redact_text(alert_desc_raw)
+            similar_results = search_similar(redacted_search_query, top_k=3)
+            if similar_results:
+                examples = []
+                for res in similar_results:
+                    payload = _redact_value(res.get("payload", {}))
+                    summary = payload.get("summary", "")
+                    cmds = payload.get("commands", [])
+                    cmd_str = ", ".join(cmds) if isinstance(cmds, list) else str(cmds)
+                    examples.append(f"- {summary}: {cmd_str}")
+                if examples:
+                    similar_examples_prompt = f"\n【相似历史案例】\n{'\n'.join(examples)}\n"
+        except Exception as e:
+            logger.warning(f"RAG 相似案例查询异常(不影响主流程): {e}")
+    return similar_examples_prompt
+
+
+def _build_runbook_prompt(
+    alert: dict[str, Any],
+    rich_context: dict[str, Any] | None,
+    platform: str,
+    history_prompt_section: str,
+) -> tuple[str, str]:
+    """
+    构造runbook生成prompt
+
+    Args:
+        alert: 告警字典
+        rich_context: 富上下文
+        platform: 平台
+        history_prompt_section: 历史经验提示
+
+    Returns:
+        tuple: (prompt, metrics_snapshot)
+    """
+    alert_desc_raw = (
+        f"【级别】{alert.get('level', 'info')}\n"
+        f"【标题】{alert.get('title', '')}\n"
+        f"【详情】{alert.get('desc', '')}\n"
+        f"【指标】{alert.get('metric', '')}={alert.get('value', 0)}"
+    )
+    # 🔧 S5: 对即将进入 prompt / 审计 / 数据库的告警描述做 PII 脱敏
+    alert_desc = _redact_text(alert_desc_raw)
+    metrics_snapshot = _redact_value(_build_metrics_snapshot(rich_context))
+
+    # 🔧 REV4 [P1]:用 "\n" 显式分隔模板与历史经验段,防粘连
+    # ---------- RAG 相似案例增强 ----------
+    similar_examples_prompt = _build_similar_examples_prompt(alert_desc_raw)
+
+    prompt = (
+        RUNBOOK_PROMPT_TEMPLATE.format(
+            alert_desc=alert_desc,
+            metrics_snapshot=metrics_snapshot,
+            platform=platform.upper(),
+        )
+        + "\n"
+        + _redact_text(similar_examples_prompt)
+        + _redact_text(history_prompt_section)
+    )
+
+    return prompt, metrics_snapshot
+
+
+def _moderate_prompt_content(prompt: str) -> tuple[bool, str]:
+    """
+    审查prompt内容安全性
+
+    Args:
+        prompt: 待审查的prompt
+
+    Returns:
+        tuple: (是否允许, 拒绝原因)
+    """
+    if MODERATION_AVAILABLE and callable(moderate_content):
+        allowed, reasons = moderate_content(prompt)
+        if not allowed:
+            return False, f"Prompt content violation: {reasons}"
+    return True, ""
+
+
+async def _call_llm_for_runbook(
+    prompt: str,
+    metrics_snapshot: str,
+    platform: str,
+    rich_context: dict[str, Any] | None,
+    alert_id: str,
+) -> tuple[bool, str, str]:
+    """
+    调用LLM生成runbook
+
+    Args:
+        prompt: 输入prompt
+        metrics_snapshot: 指标快照
+        platform: 平台
+        rich_context: 富上下文
+        alert_id: 告警ID
+
+    Returns:
+        tuple: (是否成功, 错误信息, 原始输出)
+    """
+    try:
+        raw_output = await analyze(
+            query=prompt,
+            metrics_snapshot=metrics_snapshot,
+            platform=platform,
+            rich_context=rich_context,
+            system_prompt=RUNBOOK_SYSTEM_PROMPT,
+            validate_json=False,
+        )
+    except Exception as e:
+        logger.error(f"AI Runbook 生成异常: {e}", exc_info=True)
+        return False, f"AI 引擎调用失败: {str(e)[:200]}", ""
+
+    if not raw_output or not isinstance(raw_output, str):
+        logger.error(f"AI 输出为空或非字符串 | alert_id={alert_id}")
+        return False, "AI 引擎返回空结果", ""
+
+    return True, "", raw_output
+
+
+def _guard_review_commands(
+    commands: list[str], alert_id: str
+) -> tuple[bool, str, list[dict[str, Any]], RiskLevel]:
+    """
+    护栏审查命令
+
+    Args:
+        commands: 命令列表
+        alert_id: 告警ID
+
+    Returns:
+        tuple: (是否成功, 错误信息, 审查结果列表, 最高风险等级)
+    """
+    guard_results: list[dict[str, Any]] = []
+    worst_risk: RiskLevel = RiskLevel.SAFE
+
+    for cmd in commands:
+        try:
+            result = analyze_command(cmd)
+        except Exception as e:
+            logger.error(f"护栏审查异常: {e} | cmd={cmd[:80]}")
+            return False, f"护栏审查异常: {str(e)[:100]}", [], worst_risk
+
+        # 🔧 Review 修复 7:RiskLevel 是 Enum,统一序列化为字符串供前端使用
+        rl = result.get("risk_level", RiskLevel.LOW)
+        if not isinstance(rl, RiskLevel):
+            # command_guard 应该返回 RiskLevel,但兜底处理
+            rl = RiskLevel.LOW
+
+        guard_results.append(
+            {
+                "command": str(result.get("command", cmd))[:200],
+                "risk_level": rl.value,
+                "risk_name": str(result.get("risk_name", "")),
+                "reason": str(result.get("reason", "")),
+                "safe_alternative": str(result.get("safe_alternative", "")),
+                "is_chained": bool(result.get("is_chained", False)),
+                "chain_count": int(result.get("chain_count", 1)),
+            }
+        )
+
+        # 取最高风险
+        if _RISK_WEIGHT.get(rl, 0) > _RISK_WEIGHT.get(worst_risk, 0):
+            worst_risk = rl
+
+    return True, "", guard_results, worst_risk
+
+
+def _write_to_approval_queue(
+    alert_id: str, runbook: dict[str, Any], alert: dict[str, Any], prompt: str
+) -> tuple[bool, str, str]:
+    """
+    写入审批队列
+
+    Args:
+        alert_id: 告警ID
+        runbook: runbook字典
+        alert: 告警字典
+        prompt: prompt字符串
+
+    Returns:
+        tuple: (是否成功, 错误信息, prompt_hash)
+    """
+    # 🔧 S5: 持久化前对原始告警与方案做 PII 脱敏,避免把敏感信息写入 SQLite
+    proposal_text = json.dumps(_redact_value(runbook), ensure_ascii=False, indent=2)
+    alert_json = json.dumps(_redact_value(alert), ensure_ascii=False)
+    prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
+    try:
+        upsert_pending_approval(
+            alert_id=alert_id,
+            rule_name="AI 动态生成方案",
+            script_key="AI_DYNAMIC",  # 🔧 关键标记,供 auto_heal 识别
+            proposal=proposal_text,
+            alert_json=alert_json,
+        )
+    except Exception as e:
+        logger.error(
+            f"AI 方案写入审批队列失败: {e} | alert_id={alert_id}",
+            exc_info=True,
+        )
+        return False, f"审批队列写入失败: {str(e)[:200]}", ""
+
+    return True, "", prompt_hash
+
+
+def _log_audit_event_for_runbook(
+    alert_id: str,
+    prompt_hash: str,
+    worst_risk: RiskLevel,
+    needs_approval: bool,
+    command_count: int,
+    runbook: dict[str, Any],
+) -> None:
+    """
+    记录runbook生成审计事件
+
+    Args:
+        alert_id: 告警ID
+        prompt_hash: prompt哈希
+        worst_risk: 最高风险等级
+        needs_approval: 是否需要审批
+        command_count: 命令数量
+        runbook: runbook字典
+    """
+    if AUDIT_AVAILABLE and callable(log_audit_event):
+        try:
+            log_audit_event(
+                event_type="RUNBOOK_GENERATED",
+                user="system",
+                resource=alert_id,
+                action="generate_repair_runbook",
+                status="success",
+                details={
+                    "prompt_hash": prompt_hash[:16],
+                    "worst_risk": worst_risk.value,
+                    "needs_approval": needs_approval,
+                    "command_count": command_count,
+                    "runbook_summary": _redact_text(runbook.get("summary", "")),
+                },
+            )
+        except Exception as audit_err:
+            logger.warning(f"Runbook audit log failed: {audit_err}")
+
+
 @observe(name="runbook_generator")
 async def generate_repair_runbook(
     alert: dict[str, Any],
@@ -273,128 +584,42 @@ async def generate_repair_runbook(
         }
     """
     # ── 0. 防御性参数提取 ──
-    if not isinstance(alert, dict):
-        return {
-            "success": False,
-            "error": f"alert 必须是 dict,收到 {type(alert).__name__}",
-        }
-
-    platform = (alert.get("platform") or "windows").lower()
-    if platform not in ("windows", "linux"):
-        platform = "windows"  # 兜底
-
-    # 必须提供 id,否则拒绝生成方案
-    raw_id = alert.get("id")
-    if raw_id is None or (isinstance(raw_id, str) and not raw_id.strip()):
-        return {
-            "success": False,
-            "error": "alert.id 不能为空",
-        }
-
-    # 🔧 Review 修复 8:alert_id 强制转为字符串,避免 SQLite 类型问题
-    alert_id = str(raw_id)
-    if not alert_id.strip():
-        return {
-            "success": False,
-            "error": "alert.id 不能为空",
-        }
+    is_valid, err_msg, alert_id, platform = _validate_alert_params(alert)
+    if not is_valid:
+        return {"success": False, "error": err_msg}
 
     # ════════════════════════════════════════════════════════
     # 🌟 N+2 自学自成长:查询历史验证经验(决策 D3+)
     # ════════════════════════════════════════════════════════
-    history_prompt_section = ""
-    if VERIFY_CONFIG.get("self_learning_enabled", True):
-        try:
-            # 🔧 Fix: get_similar_verify_history doesn't exist, skip this feature
-            # from core.db_engine import get_similar_verify_history
-            pass
-        except ImportError as hist_err:
-            logger.warning(f"N+2 自学习模块未导入(不影响主流程): {hist_err}")
-        except Exception as hist_err:
-            logger.warning(f"N+2 自学习查询异常(不影响主流程): {hist_err}")
-    # ════════════════════════════════════════════════════════
+    history_prompt_section = _build_history_prompt_section()
 
     # ── 1. 构造 prompt ──
-    alert_desc_raw = (
-        f"【级别】{alert.get('level', 'info')}\n"
-        f"【标题】{alert.get('title', '')}\n"
-        f"【详情】{alert.get('desc', '')}\n"
-        f"【指标】{alert.get('metric', '')}={alert.get('value', 0)}"
-    )
-    # 🔧 S5: 对即将进入 prompt / 审计 / 数据库的告警描述做 PII 脱敏
-    alert_desc = _redact_text(alert_desc_raw)
-    metrics_snapshot = _redact_value(_build_metrics_snapshot(rich_context))
-
-    # 🔧 REV4 [P1]:用 "\n" 显式分隔模板与历史经验段,防粘连
-    # ---------- RAG 相似案例增强 ----------
-    similar_examples_prompt = ""
-    if VERIFY_CONFIG.get("self_learning_enabled", True):
-        try:
-            # 使用告警描述作为查询文本，检索相似历史 Runbook
-            redacted_search_query = _redact_text(alert_desc_raw)
-            similar_results = search_similar(redacted_search_query, top_k=3)
-            if similar_results:
-                examples = []
-                for res in similar_results:
-                    payload = _redact_value(res.get("payload", {}))
-                    summary = payload.get("summary", "")
-                    cmds = payload.get("commands", [])
-                    cmd_str = ", ".join(cmds) if isinstance(cmds, list) else str(cmds)
-                    examples.append(f"- {summary}: {cmd_str}")
-                if examples:
-                    similar_examples_prompt = f"\n【相似历史案例】\n{'\n'.join(examples)}\n"
-        except Exception as e:
-            logger.warning(f"RAG 相似案例查询异常(不影响主流程): {e}")
-
-    prompt = (
-        RUNBOOK_PROMPT_TEMPLATE.format(
-            alert_desc=alert_desc,
-            metrics_snapshot=metrics_snapshot,
-            platform=platform.upper(),
-        )
-        + "\n"
-        + _redact_text(similar_examples_prompt)
-        + _redact_text(history_prompt_section)
+    prompt, metrics_snapshot = _build_runbook_prompt(
+        alert, rich_context, platform, history_prompt_section
     )
 
     # 🔧 S4: 在把 prompt 交给 LLM 前再做一层本地提示注入/违规内容检测
-    if MODERATION_AVAILABLE and callable(moderate_content):
-        allowed, reasons = moderate_content(prompt)
-        if not allowed:
-            logger.warning(f"Runbook prompt 内容安全拦截: {reasons}")
-            return {
-                "success": False,
-                "alert_id": alert_id,
-                "error": f"Prompt content violation: {reasons}",
-            }
+    allowed, moderation_err = _moderate_prompt_content(prompt)
+    if not allowed:
+        logger.warning(f"Runbook prompt 内容安全拦截: {moderation_err}")
+        return {
+            "success": False,
+            "alert_id": alert_id,
+            "error": moderation_err,
+        }
 
     logger.info(f"AI Runbook 生成开始 | alert_id={alert_id} | platform={platform}")
 
     # ── 2. 调用 LLM(走 ai_engine,自动享受规则降级)──
     # 使用 RUNBOOK_SYSTEM_PROMPT 覆盖默认 SYSTEM_PROMPT,并跳过根因 JSON schema 校验
-    try:
-        raw_output = await analyze(
-            query=prompt,
-            metrics_snapshot=metrics_snapshot,
-            platform=platform,
-            rich_context=rich_context,
-            system_prompt=RUNBOOK_SYSTEM_PROMPT,
-            validate_json=False,
-        )
-    except Exception as e:
-        logger.error(f"AI Runbook 生成异常: {e}", exc_info=True)
+    success, err_msg, raw_output = await _call_llm_for_runbook(
+        prompt, metrics_snapshot, platform, rich_context, alert_id
+    )
+    if not success:
         return {
             "success": False,
             "alert_id": alert_id,
-            "error": f"AI 引擎调用失败: {str(e)[:200]}",
-        }
-
-    if not raw_output or not isinstance(raw_output, str):
-        logger.error(f"AI 输出为空或非字符串 | alert_id={alert_id}")
-        return {
-            "success": False,
-            "alert_id": alert_id,
-            "error": "AI 引擎返回空结果",
+            "error": err_msg,
         }
 
     # ── 3. 解析 JSON(多策略容错)──
@@ -421,41 +646,13 @@ async def generate_repair_runbook(
 
     # ── 5. 护栏逐条审查每条命令(以 command_guard 为准)──
     commands = runbook["commands"]
-    guard_results: list[dict[str, Any]] = []
-    worst_risk: RiskLevel = RiskLevel.SAFE
-
-    for cmd in commands:
-        try:
-            result = analyze_command(cmd)
-        except Exception as e:
-            logger.error(f"护栏审查异常: {e} | cmd={cmd[:80]}")
-            return {
-                "success": False,
-                "alert_id": alert_id,
-                "error": f"护栏审查异常: {str(e)[:100]}",
-            }
-
-        # 🔧 Review 修复 7:RiskLevel 是 Enum,统一序列化为字符串供前端使用
-        rl = result.get("risk_level", RiskLevel.LOW)
-        if not isinstance(rl, RiskLevel):
-            # command_guard 应该返回 RiskLevel,但兜底处理
-            rl = RiskLevel.LOW
-
-        guard_results.append(
-            {
-                "command": str(result.get("command", cmd))[:200],
-                "risk_level": rl.value,
-                "risk_name": str(result.get("risk_name", "")),
-                "reason": str(result.get("reason", "")),
-                "safe_alternative": str(result.get("safe_alternative", "")),
-                "is_chained": bool(result.get("is_chained", False)),
-                "chain_count": int(result.get("chain_count", 1)),
-            }
-        )
-
-        # 取最高风险
-        if _RISK_WEIGHT.get(rl, 0) > _RISK_WEIGHT.get(worst_risk, 0):
-            worst_risk = rl
+    success, err_msg, guard_results, worst_risk = _guard_review_commands(commands, alert_id)
+    if not success:
+        return {
+            "success": False,
+            "alert_id": alert_id,
+            "error": err_msg,
+        }
 
     # ── 6. BLOCKED 直接拒绝(护栏强制,不进入审批队列)──
     if worst_risk == RiskLevel.BLOCKED:
@@ -474,27 +671,12 @@ async def generate_repair_runbook(
         }
 
     # ── 7. 写入审批队列(db_engine 持久化)──
-    # 🔧 S5: 持久化前对原始告警与方案做 PII 脱敏,避免把敏感信息写入 SQLite
-    proposal_text = json.dumps(_redact_value(runbook), ensure_ascii=False, indent=2)
-    alert_json = json.dumps(_redact_value(alert), ensure_ascii=False)
-    prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
-    try:
-        upsert_pending_approval(
-            alert_id=alert_id,
-            rule_name="AI 动态生成方案",
-            script_key="AI_DYNAMIC",  # 🔧 关键标记,供 auto_heal 识别
-            proposal=proposal_text,
-            alert_json=alert_json,
-        )
-    except Exception as e:
-        logger.error(
-            f"AI 方案写入审批队列失败: {e} | alert_id={alert_id}",
-            exc_info=True,
-        )
+    success, err_msg, prompt_hash = _write_to_approval_queue(alert_id, runbook, alert, prompt)
+    if not success:
         return {
             "success": False,
             "alert_id": alert_id,
-            "error": f"审批队列写入失败: {str(e)[:200]}",
+            "error": err_msg,
         }
 
     # ── 8. 决策结果 ──
@@ -511,24 +693,9 @@ async def generate_repair_runbook(
     )
 
     # 🔧 O11: 记录 Runbook 生成/审批审计事件
-    if AUDIT_AVAILABLE and callable(log_audit_event):
-        try:
-            log_audit_event(
-                event_type="RUNBOOK_GENERATED",
-                user="system",
-                resource=alert_id,
-                action="generate_repair_runbook",
-                status="success",
-                details={
-                    "prompt_hash": prompt_hash[:16],
-                    "worst_risk": worst_risk.value,
-                    "needs_approval": needs_approval,
-                    "command_count": len(commands),
-                    "runbook_summary": _redact_text(runbook.get("summary", "")),
-                },
-            )
-        except Exception as audit_err:
-            logger.warning(f"Runbook audit log failed: {audit_err}")
+    _log_audit_event_for_runbook(
+        alert_id, prompt_hash, worst_risk, needs_approval, len(commands), runbook
+    )
 
     return {
         "success": True,

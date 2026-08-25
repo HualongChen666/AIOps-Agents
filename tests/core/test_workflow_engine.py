@@ -36,7 +36,9 @@ async def test_execute_simple_workflow():
 
     wf = Workflow("calc").add_step(WorkflowStep("double", handler=step_handler, params={"x": 5}))
     engine.register_workflow(wf)
-    result = await engine.execute_workflow("calc", {})  # noqa: F841  # Variable for test verification
+    result = await engine.execute_workflow(
+        "calc", {}
+    )  # noqa: F841  # Variable for test verification
     assert result["context"]["double"]["value"] == 10
 
 

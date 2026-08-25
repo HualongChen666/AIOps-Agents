@@ -3,13 +3,14 @@
 
 import logging
 import os
+
+# Import the main module
+import sys
 from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
 
-# Import the main module
-import sys
 sys.path.insert(0, "C:/aiops-sre-agent/extensions/addons/operations/workflow_service")
 import main as workflow_main
 
@@ -30,6 +31,7 @@ class TestMainModule:
         monkeypatch.setenv("PORT", "9000")
         # Reload to pick up environment variable
         import importlib
+
         importlib.reload(workflow_main)
         assert workflow_main.PORT == 9000
 

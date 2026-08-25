@@ -122,15 +122,17 @@ def missing_azure(monkeypatch):
     ],
 )
 async def test_aws_repair_actions(fresh_repair_history, stub_boto3, action, expected_call):
-    result = await cloud_repair.execute_cloud_repair(  # noqa: F841  # Variable for test verification
-        {
-            "provider": "aws",
-            "access_key": "ak",
-            "secret_key": "sk",
-            "region": "us-east-1",
-        },
-        action,
-        instance_id="i-0123456789abcdef0",
+    result = (
+        await cloud_repair.execute_cloud_repair(  # noqa: F841  # Variable for test verification
+            {
+                "provider": "aws",
+                "access_key": "ak",
+                "secret_key": "sk",
+                "region": "us-east-1",
+            },
+            action,
+            instance_id="i-0123456789abcdef0",
+        )
     )
     assert result["success"] is True
     assert result["provider"] == "aws"
@@ -188,17 +190,19 @@ async def test_aws_repair_missing_boto3(fresh_repair_history, missing_boto3):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("action", ["restart_vm", "start_vm", "stop_vm"])
 async def test_azure_repair_actions(fresh_repair_history, stub_azure, action):
-    result = await cloud_repair.execute_cloud_repair(  # noqa: F841  # Variable for test verification
-        {
-            "provider": "azure",
-            "tenant_id": "t",
-            "client_id": "c",
-            "client_secret": "s",
-            "subscription_id": "sub-1",
-        },
-        action,
-        resource_group_name="rg-prod",
-        vm_name="web-01",
+    result = (
+        await cloud_repair.execute_cloud_repair(  # noqa: F841  # Variable for test verification
+            {
+                "provider": "azure",
+                "tenant_id": "t",
+                "client_id": "c",
+                "client_secret": "s",
+                "subscription_id": "sub-1",
+            },
+            action,
+            resource_group_name="rg-prod",
+            vm_name="web-01",
+        )
     )
     assert result["success"] is True
     assert result["provider"] == "azure"
@@ -691,7 +695,9 @@ def test_docker_raw_zero_cpu_and_skip_broken_container(monkeypatch):
         "DockerClient",
         lambda *a, **k: FakeDockerClient([ok, broken]),
     )
-    result = docker_collector._collect_docker_raw({"host": "10.0.0.5", "port": 2375})  # noqa: F841  # Variable for test verification
+    result = docker_collector._collect_docker_raw(
+        {"host": "10.0.0.5", "port": 2375}
+    )  # noqa: F841  # Variable for test verification
     assert len(result["containers"]) == 1
     c = result["containers"][0]
     assert c["name"] == "ok_app"
@@ -706,7 +712,9 @@ def test_docker_raw_connection_failure(monkeypatch):
         raise DockerException("connection refused")
 
     monkeypatch.setattr(docker_collector.docker, "DockerClient", fail)
-    result = docker_collector._collect_docker_raw({"host": "192.0.2.1", "port": 2375})  # noqa: F841  # Variable for test verification
+    result = docker_collector._collect_docker_raw(
+        {"host": "192.0.2.1", "port": 2375}
+    )  # noqa: F841  # Variable for test verification
     assert result == {}  # noqa: F841  # Variable for test verification
 
 

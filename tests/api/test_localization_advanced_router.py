@@ -4,25 +4,26 @@ Test cases for Localization Advanced Router
 Comprehensive test coverage for localization management API
 """
 
-import pytest
 from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
-from unittest.mock import Mock, patch, MagicMock
+
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.localization_advanced_router import (
-    router,
+    AdapterCreate,
     LanguageCreate,
     LanguageUpdate,
     ResourceCreate,
     ResourceUpdate,
     TranslationCreate,
-    AdapterCreate,
+    _adapters,
     _languages,
     _resources,
     _translations,
-    _adapters,
+    router,
 )
 
 
@@ -30,6 +31,7 @@ from api.localization_advanced_router import (
 def client():
     """Create a test client for the router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -118,6 +120,7 @@ def sample_adapter():
 # Language Endpoints Tests
 # ============================================================================
 
+
 class TestLanguageEndpoints:
     """Test cases for language endpoints"""
 
@@ -140,13 +143,13 @@ class TestLanguageEndpoints:
         """Test getting languages filtered by enabled status"""
         sample_language["enabled"] = True
         _languages[sample_language["id"]] = sample_language
-        
+
         disabled_lang = sample_language.copy()
         disabled_lang["id"] = str(uuid4())
         disabled_lang["code"] = "en-US"
         disabled_lang["enabled"] = False
         _languages[disabled_lang["id"]] = disabled_lang
-        
+
         response = client.get("/api/v1/localization/languages?enabled=true")
         assert response.status_code == 200
         data = response.json()
@@ -156,7 +159,7 @@ class TestLanguageEndpoints:
     def test_get_languages_search(self, client, sample_language):
         """Test getting languages with search parameter"""
         _languages[sample_language["id"]] = sample_language
-        
+
         response = client.get("/api/v1/localization/languages?search=chinese")
         assert response.status_code == 200
         data = response.json()
@@ -170,7 +173,7 @@ class TestLanguageEndpoints:
             "native_name": "Français",
             "enabled": True,
             "is_default": False,
-            "metadata": {"region": "FR"}
+            "metadata": {"region": "FR"},
         }
         response = client.post("/api/v1/localization/languages", json=language_data)
         assert response.status_code == 200
@@ -182,13 +185,13 @@ class TestLanguageEndpoints:
     def test_create_language_duplicate_code(self, client, sample_language):
         """Test creating a language with duplicate code"""
         _languages[sample_language["id"]] = sample_language
-        
+
         language_data = {
             "code": "zh-CN",
             "name": "Chinese Duplicate",
             "native_name": "简体中文",
             "enabled": True,
-            "is_default": False
+            "is_default": False,
         }
         response = client.post("/api/v1/localization/languages", json=language_data)
         assert response.status_code == 400
@@ -196,12 +199,7 @@ class TestLanguageEndpoints:
 
     def test_create_language_invalid_code(self, client):
         """Test creating a language with invalid code"""
-        language_data = {
-            "code": "x",
-            "name": "Invalid",
-            "native_name": "Invalid",
-            "enabled": True
-        }
+        language_data = {"code": "x", "name": "Invalid", "native_name": "Invalid", "enabled": True}
         response = client.post("/api/v1/localization/languages", json=language_data)
         assert response.status_code == 422  # Validation error
 
@@ -209,13 +207,13 @@ class TestLanguageEndpoints:
         """Test creating a language and setting it as default"""
         sample_language["is_default"] = True
         _languages[sample_language["id"]] = sample_language
-        
+
         language_data = {
             "code": "en-US",
             "name": "English",
             "native_name": "English",
             "enabled": True,
-            "is_default": True
+            "is_default": True,
         }
         response = client.post("/api/v1/localization/languages", json=language_data)
         assert response.status_code == 200
@@ -240,12 +238,11 @@ class TestLanguageEndpoints:
     def test_update_language_success(self, client, sample_language):
         """Test updating a language successfully"""
         _languages[sample_language["id"]] = sample_language
-        
-        update_data = {
-            "name": "Chinese (Simplified) Updated",
-            "enabled": False
-        }
-        response = client.patch(f"/api/v1/localization/languages/{sample_language['id']}", json=update_data)
+
+        update_data = {"name": "Chinese (Simplified) Updated", "enabled": False}
+        response = client.patch(
+            f"/api/v1/localization/languages/{sample_language['id']}", json=update_data
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Chinese (Simplified) Updated"
@@ -262,15 +259,17 @@ class TestLanguageEndpoints:
         """Test updating a language to set it as default"""
         sample_language["is_default"] = True
         _languages[sample_language["id"]] = sample_language
-        
+
         new_lang = sample_language.copy()
         new_lang["id"] = str(uuid4())
         new_lang["code"] = "en-US"
         new_lang["is_default"] = False
         _languages[new_lang["id"]] = new_lang
-        
+
         update_data = {"is_default": True}
-        response = client.patch(f"/api/v1/localization/languages/{new_lang['id']}", json=update_data)
+        response = client.patch(
+            f"/api/v1/localization/languages/{new_lang['id']}", json=update_data
+        )
         assert response.status_code == 200
         assert _languages[sample_language["id"]]["is_default"] == False
 
@@ -278,7 +277,7 @@ class TestLanguageEndpoints:
         """Test deleting a language successfully"""
         sample_language["is_default"] = False
         _languages[sample_language["id"]] = sample_language
-        
+
         response = client.delete(f"/api/v1/localization/languages/{sample_language['id']}")
         assert response.status_code == 200
         assert sample_language["id"] not in _languages
@@ -293,7 +292,7 @@ class TestLanguageEndpoints:
         """Test deleting a default language (should fail)"""
         sample_language["is_default"] = True
         _languages[sample_language["id"]] = sample_language
-        
+
         response = client.delete(f"/api/v1/localization/languages/{sample_language['id']}")
         assert response.status_code == 400
         assert "Cannot delete default language" in response.json()["detail"]
@@ -302,6 +301,7 @@ class TestLanguageEndpoints:
 # ============================================================================
 # Resource Endpoints Tests
 # ============================================================================
+
 
 class TestResourceEndpoints:
     """Test cases for resource endpoints"""
@@ -323,7 +323,7 @@ class TestResourceEndpoints:
     def test_get_resources_filter_language_code(self, client, sample_resource):
         """Test getting resources filtered by language code"""
         _resources[sample_resource["id"]] = sample_resource
-        
+
         response = client.get("/api/v1/localization/resources?language_code=zh-CN")
         assert response.status_code == 200
         data = response.json()
@@ -332,7 +332,7 @@ class TestResourceEndpoints:
     def test_get_resources_filter_namespace(self, client, sample_resource):
         """Test getting resources filtered by namespace"""
         _resources[sample_resource["id"]] = sample_resource
-        
+
         response = client.get("/api/v1/localization/resources?namespace=common")
         assert response.status_code == 200
         data = response.json()
@@ -346,7 +346,7 @@ class TestResourceEndpoints:
             "key": "greeting",
             "value": "你好",
             "context": "Greeting",
-            "metadata": {}
+            "metadata": {},
         }
         response = client.post("/api/v1/localization/resources", json=resource_data)
         assert response.status_code == 200
@@ -357,12 +357,12 @@ class TestResourceEndpoints:
     def test_create_resource_duplicate_key(self, client, sample_resource):
         """Test creating a resource with duplicate key"""
         _resources[sample_resource["id"]] = sample_resource
-        
+
         resource_data = {
             "language_code": "zh-CN",
             "namespace": "common",
             "key": "welcome",
-            "value": "欢迎2"
+            "value": "欢迎2",
         }
         response = client.post("/api/v1/localization/resources", json=resource_data)
         assert response.status_code == 400
@@ -385,12 +385,11 @@ class TestResourceEndpoints:
     def test_update_resource_success(self, client, sample_resource):
         """Test updating a resource successfully"""
         _resources[sample_resource["id"]] = sample_resource
-        
-        update_data = {
-            "value": "欢迎 (Updated)",
-            "context": "Updated context"
-        }
-        response = client.patch(f"/api/v1/localization/resources/{sample_resource['id']}", json=update_data)
+
+        update_data = {"value": "欢迎 (Updated)", "context": "Updated context"}
+        response = client.patch(
+            f"/api/v1/localization/resources/{sample_resource['id']}", json=update_data
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["value"] == "欢迎 (Updated)"
@@ -405,7 +404,7 @@ class TestResourceEndpoints:
     def test_delete_resource_success(self, client, sample_resource):
         """Test deleting a resource successfully"""
         _resources[sample_resource["id"]] = sample_resource
-        
+
         response = client.delete(f"/api/v1/localization/resources/{sample_resource['id']}")
         assert response.status_code == 200
         assert sample_resource["id"] not in _resources
@@ -420,6 +419,7 @@ class TestResourceEndpoints:
 # ============================================================================
 # Translation Endpoints Tests
 # ============================================================================
+
 
 class TestTranslationEndpoints:
     """Test cases for translation endpoints"""
@@ -441,7 +441,7 @@ class TestTranslationEndpoints:
     def test_get_translations_filter_source_language(self, client, sample_translation):
         """Test getting translations filtered by source language"""
         _translations[sample_translation["id"]] = sample_translation
-        
+
         response = client.get("/api/v1/localization/translations?source_language=en-US")
         assert response.status_code == 200
         data = response.json()
@@ -450,7 +450,7 @@ class TestTranslationEndpoints:
     def test_get_translations_filter_target_language(self, client, sample_translation):
         """Test getting translations filtered by target language"""
         _translations[sample_translation["id"]] = sample_translation
-        
+
         response = client.get("/api/v1/localization/translations?target_language=zh-CN")
         assert response.status_code == 200
         data = response.json()
@@ -459,7 +459,7 @@ class TestTranslationEndpoints:
     def test_get_translations_filter_status(self, client, sample_translation):
         """Test getting translations filtered by status"""
         _translations[sample_translation["id"]] = sample_translation
-        
+
         response = client.get("/api/v1/localization/translations?status=published")
         assert response.status_code == 200
         data = response.json()
@@ -475,7 +475,7 @@ class TestTranslationEndpoints:
             "source_value": "Hello",
             "target_value": "Bonjour",
             "status": "draft",
-            "metadata": {}
+            "metadata": {},
         }
         response = client.post("/api/v1/localization/translations", json=translation_data)
         assert response.status_code == 200
@@ -487,6 +487,7 @@ class TestTranslationEndpoints:
 # ============================================================================
 # Adapter Endpoints Tests
 # ============================================================================
+
 
 class TestAdapterEndpoints:
     """Test cases for adapter endpoints"""
@@ -509,12 +510,12 @@ class TestAdapterEndpoints:
         """Test getting adapters filtered by enabled status"""
         sample_adapter["enabled"] = True
         _adapters[sample_adapter["id"]] = sample_adapter
-        
+
         disabled_adapter = sample_adapter.copy()
         disabled_adapter["id"] = str(uuid4())
         disabled_adapter["enabled"] = False
         _adapters[disabled_adapter["id"]] = disabled_adapter
-        
+
         response = client.get("/api/v1/localization/adapters?enabled=true")
         assert response.status_code == 200
         data = response.json()
@@ -524,7 +525,7 @@ class TestAdapterEndpoints:
     def test_get_adapters_filter_type(self, client, sample_adapter):
         """Test getting adapters filtered by type"""
         _adapters[sample_adapter["id"]] = sample_adapter
-        
+
         response = client.get("/api/v1/localization/adapters?type=date")
         assert response.status_code == 200
         data = response.json()
@@ -537,7 +538,7 @@ class TestAdapterEndpoints:
             "type": "number",
             "config": {"decimal_separator": ".", "thousands_separator": ","},
             "enabled": True,
-            "priority": 5
+            "priority": 5,
         }
         response = client.post("/api/v1/localization/adapters", json=adapter_data)
         assert response.status_code == 200
@@ -550,13 +551,16 @@ class TestAdapterEndpoints:
 # Error Handling Tests
 # ============================================================================
 
+
 class TestErrorHandling:
     """Test cases for error handling"""
 
-    @patch('api.localization_advanced_router.logger')
+    @patch("api.localization_advanced_router.logger")
     def test_get_languages_exception_handling(self, mock_logger, client):
         """Test exception handling in get_languages"""
-        with patch('api.localization_advanced_router.LanguageResponse', side_effect=Exception("Test error")):
+        with patch(
+            "api.localization_advanced_router.LanguageResponse", side_effect=Exception("Test error")
+        ):
             sample_language = {
                 "id": str(uuid4()),
                 "code": "zh-CN",
@@ -572,22 +576,22 @@ class TestErrorHandling:
             response = client.get("/api/v1/localization/languages")
             assert response.status_code == 500
 
-    @patch('api.localization_advanced_router.logger')
+    @patch("api.localization_advanced_router.logger")
     def test_create_language_exception_handling(self, mock_logger, client):
         """Test exception handling in create_language"""
-        with patch('api.localization_advanced_router.LanguageResponse', side_effect=Exception("Test error")):
-            language_data = {
-                "code": "fr-FR",
-                "name": "French",
-                "native_name": "Français"
-            }
+        with patch(
+            "api.localization_advanced_router.LanguageResponse", side_effect=Exception("Test error")
+        ):
+            language_data = {"code": "fr-FR", "name": "French", "native_name": "Français"}
             response = client.post("/api/v1/localization/languages", json=language_data)
             assert response.status_code == 500
 
-    @patch('api.localization_advanced_router.logger')
+    @patch("api.localization_advanced_router.logger")
     def test_get_language_exception_handling(self, mock_logger, client):
         """Test exception handling in get_language"""
-        with patch('api.localization_advanced_router.LanguageResponse', side_effect=Exception("Test error")):
+        with patch(
+            "api.localization_advanced_router.LanguageResponse", side_effect=Exception("Test error")
+        ):
             sample_language = {
                 "id": str(uuid4()),
                 "code": "zh-CN",
@@ -608,6 +612,7 @@ class TestErrorHandling:
 # Data Validation Tests
 # ============================================================================
 
+
 class TestDataValidation:
     """Test cases for data validation"""
 
@@ -626,7 +631,7 @@ class TestDataValidation:
             "code": "fr-FR",
             "name": "French",
             "native_name": "Français",
-            "enabled": "not_a_boolean"  # Invalid type
+            "enabled": "not_a_boolean",  # Invalid type
         }
         response = client.post("/api/v1/localization/languages", json=language_data)
         assert response.status_code == 422
@@ -654,32 +659,25 @@ class TestDataValidation:
 # Mock Tests
 # ============================================================================
 
+
 class TestMockDependencies:
     """Test cases with mocked dependencies"""
 
-    @patch('api.localization_advanced_router.datetime')
+    @patch("api.localization_advanced_router.datetime")
     def test_create_language_with_mocked_datetime(self, mock_datetime, client):
         """Test language creation with mocked datetime"""
         mock_datetime.utcnow.return_value = datetime(2024, 1, 1, 12, 0, 0)
-        
-        language_data = {
-            "code": "fr-FR",
-            "name": "French",
-            "native_name": "Français"
-        }
+
+        language_data = {"code": "fr-FR", "name": "French", "native_name": "Français"}
         response = client.post("/api/v1/localization/languages", json=language_data)
         assert response.status_code == 200
 
-    @patch('api.localization_advanced_router.uuid4')
+    @patch("api.localization_advanced_router.uuid4")
     def test_create_language_with_mocked_uuid(self, mock_uuid, client):
         """Test language creation with mocked UUID"""
         mock_uuid.return_value = "test-uuid-123"
-        
-        language_data = {
-            "code": "fr-FR",
-            "name": "French",
-            "native_name": "Français"
-        }
+
+        language_data = {"code": "fr-FR", "name": "French", "native_name": "Français"}
         response = client.post("/api/v1/localization/languages", json=language_data)
         assert response.status_code == 200
         data = response.json()
@@ -689,6 +687,7 @@ class TestMockDependencies:
 # ============================================================================
 # Integration Tests
 # ============================================================================
+
 
 class TestIntegration:
     """Integration test cases"""
@@ -701,22 +700,24 @@ class TestIntegration:
             "name": "German",
             "native_name": "Deutsch",
             "enabled": True,
-            "is_default": False
+            "is_default": False,
         }
         create_response = client.post("/api/v1/localization/languages", json=language_data)
         assert create_response.status_code == 200
         language_id = create_response.json()["id"]
-        
+
         # Read
         get_response = client.get(f"/api/v1/localization/languages/{language_id}")
         assert get_response.status_code == 200
-        
+
         # Update
         update_data = {"name": "German (Germany)"}
-        update_response = client.patch(f"/api/v1/localization/languages/{language_id}", json=update_data)
+        update_response = client.patch(
+            f"/api/v1/localization/languages/{language_id}", json=update_data
+        )
         assert update_response.status_code == 200
         assert update_response.json()["name"] == "German (Germany)"
-        
+
         # Delete
         delete_response = client.delete(f"/api/v1/localization/languages/{language_id}")
         assert delete_response.status_code == 200
@@ -728,21 +729,23 @@ class TestIntegration:
             "language_code": "en-US",
             "namespace": "test",
             "key": "test_key",
-            "value": "Test Value"
+            "value": "Test Value",
         }
         create_response = client.post("/api/v1/localization/resources", json=resource_data)
         assert create_response.status_code == 200
         resource_id = create_response.json()["id"]
-        
+
         # Read
         get_response = client.get(f"/api/v1/localization/resources/{resource_id}")
         assert get_response.status_code == 200
-        
+
         # Update
         update_data = {"value": "Updated Value"}
-        update_response = client.patch(f"/api/v1/localization/resources/{resource_id}", json=update_data)
+        update_response = client.patch(
+            f"/api/v1/localization/resources/{resource_id}", json=update_data
+        )
         assert update_response.status_code == 200
-        
+
         # Delete
         delete_response = client.delete(f"/api/v1/localization/resources/{resource_id}")
         assert delete_response.status_code == 200

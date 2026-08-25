@@ -87,9 +87,7 @@ def test_slack_message_generic_exception(client, admin_headers, monkeypatch):
     import api.slack_router as _slackr
 
     # Simulate generic exception from post_message
-    monkeypatch.setattr(
-        _slackr, "post_message", _async_raise(ValueError("Invalid channel format"))
-    )
+    monkeypatch.setattr(_slackr, "post_message", _async_raise(ValueError("Invalid channel format")))
 
     resp = client.post(
         "/api/slack/message",

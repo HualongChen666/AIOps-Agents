@@ -2,8 +2,9 @@
 """Comprehensive tests for itsm_router.py to achieve 90%+ coverage."""
 
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi import HTTPException
 
 
@@ -34,7 +35,7 @@ class TestCreateIncident:
             resp = client.post(
                 "/api/itsm/incident",
                 json={"summary": "Test incident", "description": "Test description"},
-                params={"provider": "servicenow"}
+                params={"provider": "servicenow"},
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -49,7 +50,7 @@ class TestCreateIncident:
         resp = client.post(
             "/api/itsm/incident",
             json={"summary": "Test incident"},
-            params={"provider": "servicenow"}
+            params={"provider": "servicenow"},
         )
         assert resp.status_code == 500
         assert "ServiceNow 配置未完成" in resp.json()["detail"]
@@ -72,9 +73,9 @@ class TestCreateIncident:
                     "summary": "Test incident",
                     "description": "Test description",
                     "project_key": "TEST",
-                    "issue_type": "Bug"
+                    "issue_type": "Bug",
                 },
-                params={"provider": "jira"}
+                params={"provider": "jira"},
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -87,9 +88,7 @@ class TestCreateIncident:
         monkeypatch.delenv("JIRA_TOKEN", raising=False)
 
         resp = client.post(
-            "/api/itsm/incident",
-            json={"summary": "Test incident"},
-            params={"provider": "jira"}
+            "/api/itsm/incident", json={"summary": "Test incident"}, params={"provider": "jira"}
         )
         assert resp.status_code == 500
         assert "Jira 配置未完成" in resp.json()["detail"]
@@ -99,7 +98,7 @@ class TestCreateIncident:
         resp = client.post(
             "/api/itsm/incident",
             json={"summary": "Test incident"},
-            params={"provider": "unsupported"}
+            params={"provider": "unsupported"},
         )
         assert resp.status_code == 400
         assert "Unsupported ITSM provider" in resp.json()["detail"]
@@ -110,7 +109,7 @@ class TestCreateIncident:
         resp = client.post(
             "/api/itsm/incident",
             json={"summary": "Test incident"},
-            params={"provider": "SERVICENOW"}
+            params={"provider": "SERVICENOW"},
         )
         # Should not raise 400 for unsupported provider
         assert resp.status_code in (200, 500)
@@ -119,9 +118,7 @@ class TestCreateIncident:
         """Test when httpx is not installed (lines 58-60)."""
         with patch("api.itsm_router.httpx", None):
             resp = client.post(
-                "/api/itsm/incident",
-                json={"summary": "Test incident"},
-                params={"provider": "jira"}
+                "/api/itsm/incident", json={"summary": "Test incident"}, params={"provider": "jira"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -140,9 +137,7 @@ class TestCreateIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.post(
-                "/api/itsm/incident",
-                json={"summary": "Test incident"},
-                params={"provider": "jira"}
+                "/api/itsm/incident", json={"summary": "Test incident"}, params={"provider": "jira"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -163,7 +158,7 @@ class TestCreateIncident:
             resp = client.post(
                 "/api/itsm/incident",
                 json={"summary": "Test incident"},
-                params={"provider": "servicenow"}
+                params={"provider": "servicenow"},
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -178,9 +173,7 @@ class TestCreateIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.post(
-                "/api/itsm/incident",
-                json={"summary": "Test incident"},
-                params={"provider": "jira"}
+                "/api/itsm/incident", json={"summary": "Test incident"}, params={"provider": "jira"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -201,7 +194,7 @@ class TestCreateIncident:
             resp = client.post(
                 "/api/itsm/incident",
                 json={},  # Empty data, should use defaults
-                params={"provider": "jira"}
+                params={"provider": "jira"},
             )
             assert resp.status_code == 200
 
@@ -218,9 +211,7 @@ class TestCreateIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.post(
-                "/api/itsm/incident",
-                json={},  # Empty data
-                params={"provider": "servicenow"}
+                "/api/itsm/incident", json={}, params={"provider": "servicenow"}  # Empty data
             )
             assert resp.status_code == 200
 
@@ -239,10 +230,7 @@ class TestResolveIncident:
             mock_client.put = AsyncMock(return_value=mock_response)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            resp = client.patch(
-                "/api/itsm/incident/test-id",
-                params={"provider": "servicenow"}
-            )
+            resp = client.patch("/api/itsm/incident/test-id", params={"provider": "servicenow"})
             assert resp.status_code == 200
             data = resp.json()
             assert data["status"] == "resolved"
@@ -253,10 +241,7 @@ class TestResolveIncident:
         monkeypatch.delenv("SERVICENOW_URL", raising=False)
         monkeypatch.delenv("SERVICENOW_TOKEN", raising=False)
 
-        resp = client.patch(
-            "/api/itsm/incident/test-id",
-            params={"provider": "servicenow"}
-        )
+        resp = client.patch("/api/itsm/incident/test-id", params={"provider": "servicenow"})
         assert resp.status_code == 500
         assert "ServiceNow 配置未完成" in resp.json()["detail"]
 
@@ -271,10 +256,7 @@ class TestResolveIncident:
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            resp = client.patch(
-                "/api/itsm/incident/TEST-123",
-                params={"provider": "jira"}
-            )
+            resp = client.patch("/api/itsm/incident/TEST-123", params={"provider": "jira"})
             assert resp.status_code == 200
             data = resp.json()
             assert data["status"] == "resolved"
@@ -285,37 +267,25 @@ class TestResolveIncident:
         monkeypatch.delenv("JIRA_URL", raising=False)
         monkeypatch.delenv("JIRA_TOKEN", raising=False)
 
-        resp = client.patch(
-            "/api/itsm/incident/TEST-123",
-            params={"provider": "jira"}
-        )
+        resp = client.patch("/api/itsm/incident/TEST-123", params={"provider": "jira"})
         assert resp.status_code == 500
         assert "Jira 配置未完成" in resp.json()["detail"]
 
     def test_resolve_incident_unsupported_provider(self, client):
         """Test resolution with unsupported provider (lines 161-162)."""
-        resp = client.patch(
-            "/api/itsm/incident/test-id",
-            params={"provider": "unsupported"}
-        )
+        resp = client.patch("/api/itsm/incident/test-id", params={"provider": "unsupported"})
         assert resp.status_code == 400
         assert "Unsupported ITSM provider" in resp.json()["detail"]
 
     def test_resolve_incident_provider_case_insensitive(self, client):
         """Test that provider is case-insensitive (lines 155, 158)."""
-        resp = client.patch(
-            "/api/itsm/incident/test-id",
-            params={"provider": "SERVICENOW"}
-        )
+        resp = client.patch("/api/itsm/incident/test-id", params={"provider": "SERVICENOW"})
         assert resp.status_code in (200, 500)
 
     def test_resolve_incident_httpx_not_installed(self, client):
         """Test when httpx is not installed (lines 165-167)."""
         with patch("api.itsm_router.httpx", None):
-            resp = client.patch(
-                "/api/itsm/incident/test-id",
-                params={"provider": "jira"}
-            )
+            resp = client.patch("/api/itsm/incident/test-id", params={"provider": "jira"})
             assert resp.status_code == 200
             data = resp.json()
             assert "本地记录" in data["message"]
@@ -332,10 +302,7 @@ class TestResolveIncident:
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            resp = client.patch(
-                "/api/itsm/incident/TEST-123",
-                params={"provider": "jira"}
-            )
+            resp = client.patch("/api/itsm/incident/TEST-123", params={"provider": "jira"})
             assert resp.status_code == 200
             data = resp.json()
             assert "本地记录" in data["message"]
@@ -352,10 +319,7 @@ class TestResolveIncident:
             mock_client.put = AsyncMock(return_value=mock_response)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            resp = client.patch(
-                "/api/itsm/incident/test-id",
-                params={"provider": "servicenow"}
-            )
+            resp = client.patch("/api/itsm/incident/test-id", params={"provider": "servicenow"})
             assert resp.status_code == 200
             data = resp.json()
             assert "本地记录" in data["message"]
@@ -368,10 +332,7 @@ class TestResolveIncident:
             mock_client.__aexit__.return_value = None
             mock_httpx.AsyncClient.return_value = mock_client
 
-            resp = client.patch(
-                "/api/itsm/incident/test-id",
-                params={"provider": "jira"}
-            )
+            resp = client.patch("/api/itsm/incident/test-id", params={"provider": "jira"})
             assert resp.status_code == 200
             data = resp.json()
             assert "本地记录" in data["message"]
@@ -387,10 +348,7 @@ class TestResolveIncident:
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            resp = client.patch(
-                "/api/itsm/incident/TEST-123",
-                params={"provider": "jira"}
-            )
+            resp = client.patch("/api/itsm/incident/TEST-123", params={"provider": "jira"})
             assert resp.status_code == 200
 
     def test_resolve_incident_servicenow_204_status(self, client):
@@ -404,10 +362,7 @@ class TestResolveIncident:
             mock_client.put = AsyncMock(return_value=mock_response)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            resp = client.patch(
-                "/api/itsm/incident/test-id",
-                params={"provider": "servicenow"}
-            )
+            resp = client.patch("/api/itsm/incident/test-id", params={"provider": "servicenow"})
             assert resp.status_code == 200
 
 
@@ -418,15 +373,14 @@ class TestIncidentIdGeneration:
         """Test that incident_id is a UUID string."""
         with patch("api.itsm_router.httpx", None):
             resp = client.post(
-                "/api/itsm/incident",
-                json={"summary": "Test"},
-                params={"provider": "jira"}
+                "/api/itsm/incident", json={"summary": "Test"}, params={"provider": "jira"}
             )
             data = resp.json()
             assert "incident_id" in data
             # UUID format: 8-4-4-4-12 hex digits
             import re
-            uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+            uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
             assert re.match(uuid_pattern, data["incident_id"]) is not None
 
 
@@ -446,9 +400,7 @@ class TestUrlTrailingSlash:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.post(
-                "/api/itsm/incident",
-                json={"summary": "Test"},
-                params={"provider": "jira"}
+                "/api/itsm/incident", json={"summary": "Test"}, params={"provider": "jira"}
             )
             assert resp.status_code == 200
 
@@ -465,8 +417,6 @@ class TestUrlTrailingSlash:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.post(
-                "/api/itsm/incident",
-                json={"summary": "Test"},
-                params={"provider": "servicenow"}
+                "/api/itsm/incident", json={"summary": "Test"}, params={"provider": "servicenow"}
             )
             assert resp.status_code == 200

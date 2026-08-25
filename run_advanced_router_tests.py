@@ -51,7 +51,7 @@ def run_tests(test_file=None, coverage=False, verbose=False):
     print(f"运行命令: {' '.join(cmd)}")
     print("=" * 80)
     
-    result = subprocess.run(cmd, cwd=Path(__file__).parent)
+    result = subprocess.run(cmd, cwd=Path(__file__).parent, shell=False)
     
     if result.returncode == 0:
         print("\n" + "=" * 80)

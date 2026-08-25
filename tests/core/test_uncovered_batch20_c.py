@@ -513,7 +513,9 @@ def test_workflow_engine_lifecycle():
 
 def test_execute_workflow_not_found():
     engine = WorkflowEngine()
-    result = asyncio.run(engine.execute_workflow("missing"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        engine.execute_workflow("missing")
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
 
 
@@ -522,7 +524,9 @@ def test_execute_workflow_success():
     wf = Workflow("wf1")
     wf.add_step(WorkflowStep("s1", AsyncMock(return_value={"ok": True})))
     engine.register_workflow(wf)
-    result = asyncio.run(engine.execute_workflow("wf1", {"x": 1}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        engine.execute_workflow("wf1", {"x": 1})
+    )  # noqa: F841  # Variable for test verification
     assert result["state"] == "completed"
     assert result["steps_executed"] == 1
     assert wf.context["s1"]["ok"] is True
@@ -533,7 +537,9 @@ def test_execute_workflow_failing_step():
     wf = Workflow("wf1")
     wf.add_step(WorkflowStep("s1", AsyncMock(side_effect=RuntimeError("fail"))))
     engine.register_workflow(wf)
-    result = asyncio.run(engine.execute_workflow("wf1"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        engine.execute_workflow("wf1")
+    )  # noqa: F841  # Variable for test verification
     assert result["state"] == "failed"
     assert result["failed_step"] == "s1"
 

@@ -6,14 +6,23 @@ Workflow Performance Report Generator
 Generates comprehensive performance reports for workflow execution benchmarks.
 """
 
-import sys
-from pathlib import Path
-from datetime import datetime, timezone
-import subprocess
 import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 # Add workflow_service to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "extensions" / "addons" / "operations" / "workflow_service"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).parent.parent.parent
+        / "extensions"
+        / "addons"
+        / "operations"
+        / "workflow_service"
+    ),
+)
 
 
 def run_benchmark_tests():
@@ -26,18 +35,22 @@ def run_benchmark_tests():
     # Run tests with verbose output
     result = subprocess.run(
         [
-            sys.executable, "-m", "pytest",
+            sys.executable,
+            "-m",
+            "pytest",
             "tests/benchmarks/test_workflow_execution_time.py",
             "-v",
             "--tb=short",
-            "-m", "benchmark",
+            "-m",
+            "benchmark",
             "--cov=extensions/addons/operations/workflow_service",
             "--cov-report=term",
-            "--cov-report=html:htmlcov_benchmarks"
+            "--cov-report=html:htmlcov_benchmarks",
         ],
         cwd=Path(__file__).parent.parent.parent,
         capture_output=True,
-        text=True
+        text=True,
+        shell=False,
     )
 
     print(result.stdout)
@@ -215,7 +228,7 @@ def main():
 
     # Save summary to file
     report_path = Path(__file__).parent / "workflow_performance_report.txt"
-    report_path.write_text(summary, encoding='utf-8')
+    report_path.write_text(summary, encoding="utf-8")
 
     print("\n" + summary)
     print(f"\nReport saved to: {report_path}")

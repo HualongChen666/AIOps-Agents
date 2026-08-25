@@ -3,7 +3,7 @@
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import bcrypt as _bcrypt_mod
 import jwt
@@ -37,14 +37,43 @@ oauth2_scheme = OAuth2PasswordBearer(
 
 
 def hash_password(password: str) -> str:
+    """Hash a password using bcrypt.
+
+    Args:
+        password: Plain text password
+
+    Returns:
+        Hashed password string
+    """
     return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    """Verify a plain text password against a hashed password.
+
+    Args:
+        plain: Plain text password to verify
+        hashed: Hashed password to compare against
+
+    Returns:
+        True if password matches, False otherwise
+    """
     return pwd_context.verify(plain, hashed)
 
 
 def create_access_token(data: dict) -> str:
+    """Create a JWT access token with standard claims.
+
+    Args:
+        data: Dictionary containing custom claims (e.g., sub, role)
+
+    Returns:
+        Encoded JWT token string
+
+    Note:
+        Automatically adds jti (JWT ID), exp (expiration), iat (issued at),
+        iss (issuer), aud (audience), and tenant_id claims.
+    """
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=config.JWT_ACCESS_EXPIRE_MINUTES)
@@ -68,6 +97,18 @@ def create_access_token(data: dict) -> str:
 
 
 def decode_token(token: str) -> dict[str, Any]:
+    """Decode and validate a JWT access token.
+
+    Args:
+        token: JWT token string to decode
+
+    Returns:
+        Decoded token payload as dictionary
+
+    Raises:
+        HTTPException: If token is invalid or expired (401)
+        HTTPException: If token has been revoked/blacklisted (401)
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -94,6 +135,17 @@ def decode_token(token: str) -> dict[str, Any]:
 
 
 def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
+    """Get current authenticated user from JWT token.
+
+    Args:
+        token: Bearer token from authorization header (optional)
+
+    Returns:
+        User: Current authenticated user with tenant_id attached
+
+    Raises:
+        HTTPException: If token is missing, invalid, or user not found (401)
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -119,11 +171,30 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
 
 
 def has_role(user: User, *roles: str) -> bool:
+    """Check if user has any of the specified roles.
+
+    Args:
+        user: User object to check
+        *roles: One or more role names to check against
+
+    Returns:
+        True if user is active and has at least one of the specified roles
+    """
     return bool(user.is_active and user.role in roles)
 
 
-def require_roles(*roles: str):
-    """FastAPI dependency that rejects requests from users without one of the allowed roles."""
+def require_roles(*roles: str) -> Callable[[User], User]:
+    """FastAPI dependency that rejects requests from users without one of the allowed roles.
+
+    Args:
+        *roles: One or more role names that are allowed to access the endpoint
+
+    Returns:
+        Dependency function that returns the user if authorized
+
+    Raises:
+        HTTPException: If user lacks required roles (403)
+    """
 
     def checker(user: User = Depends(get_current_user)) -> User:
         if not has_role(user, *roles):
@@ -136,8 +207,19 @@ def require_roles(*roles: str):
     return checker
 
 
-def require_permission(permission: str, resource_type: str = "asset"):
-    """FastAPI dependency that checks a user's ABAC permission for a resource type."""
+def require_permission(permission: str, resource_type: str = "asset") -> Callable[[User], User]:
+    """FastAPI dependency that checks a user's ABAC permission for a resource type.
+
+    Args:
+        permission: Permission name to check (e.g., "read", "write", "delete")
+        resource_type: Type of resource (default: "asset")
+
+    Returns:
+        Dependency function that returns the user if authorized
+
+    Raises:
+        HTTPException: If user lacks required permission (403)
+    """
 
     def checker(user: User = Depends(get_current_user)) -> User:
         if has_role(user, "admin"):
@@ -167,10 +249,26 @@ def require_permission(permission: str, resource_type: str = "asset"):
 
 
 def admin_count(db: Session) -> int:
+    """Count the number of admin users in the database.
+
+    Args:
+        db: Database session
+
+    Returns:
+        Number of users with role "admin"
+    """
     return db.query(User).filter(User.role == "admin").count()
 
 
 def max_admin_check(db: Session) -> None:
+    """Check if maximum admin limit has been reached.
+
+    Args:
+        db: Database session
+
+    Raises:
+        HTTPException: If there are already 3 or more admin users (400)
+    """
     if admin_count(db) >= 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -184,6 +282,17 @@ def _asset_permission_check(
     permissions: tuple,
     db: Optional[Session] = None,
 ) -> bool:
+    """Check if user has specified permissions for an asset.
+
+    Args:
+        user: User object to check
+        asset_id: Asset ID to check permissions for
+        permissions: Tuple of permission names to check
+        db: Optional database session (creates local session if None)
+
+    Returns:
+        True if user has any of the specified permissions for the asset
+    """
     if user.role in ("admin", "operator"):
         return True
     if user.role == "business":
@@ -208,14 +317,42 @@ def _asset_permission_check(
 
 
 def can_edit_asset(user: User, asset_id: int, db: Optional[Session] = None) -> bool:
+    """Check if user can edit an asset.
+
+    Args:
+        user: User object to check
+        asset_id: Asset ID to check
+        db: Optional database session
+
+    Returns:
+        True if user has edit permission for the asset
+    """
     return _asset_permission_check(user, asset_id, ("edit",), db)
 
 
 def can_view_asset(user: User, asset_id: int, db: Optional[Session] = None) -> bool:
+    """Check if user can view an asset.
+
+    Args:
+        user: User object to check
+        asset_id: Asset ID to check
+        db: Optional database session
+
+    Returns:
+        True if user has view or edit permission for the asset
+    """
     if user.role == "viewer":
         return True
     return _asset_permission_check(user, asset_id, ("view", "edit"), db)
 
 
 def is_internal_key(request: Request) -> bool:
+    """Check if request contains valid internal API key.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        True if X-Internal-Key header matches configured internal key
+    """
     return request.headers.get("X-Internal-Key") == config.INTERNAL_API_KEY

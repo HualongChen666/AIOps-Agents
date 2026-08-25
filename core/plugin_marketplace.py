@@ -7,6 +7,7 @@ Provides a secure plugin marketplace with digital signatures for plugin verifica
 import hashlib
 import hmac
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -119,14 +120,19 @@ class PluginMarketplace:
         Args:
             storage: Storage backend for persistence
             config: Configuration dictionary containing:
-                - private_key: Private key for signing
-                - public_key: Public key for verification
+                - private_key: Private key for signing (can be omitted if using env var)
+                - public_key: Public key for verification (can be omitted if using env var)
                 - signature_algorithm: Signature algorithm (default: SHA256)
         """
         self.storage = storage
         self.config = config or {}
-        self.private_key = self.config.get("private_key", "")
-        self.public_key = self.config.get("public_key", "")
+        # Read from config dict or environment variables
+        self.private_key = self.config.get("private_key") or os.getenv(
+            "PLUGIN_MARKETPLACE_PRIVATE_KEY", ""
+        )
+        self.public_key = self.config.get("public_key") or os.getenv(
+            "PLUGIN_MARKETPLACE_PUBLIC_KEY", ""
+        )
         self.signature_algorithm = self.config.get("signature_algorithm", "SHA256")
 
         self._plugins: Dict[str, PluginPackage] = {}
@@ -294,6 +300,12 @@ class PluginMarketplace:
         Returns:
             PluginSignature object
         """
+        if not self.private_key:
+            raise ValueError(
+                "Private key not configured. Set PLUGIN_MARKETPLACE_PRIVATE_KEY environment variable "
+                "or provide private_key in config"
+            )
+
         # Create signature using HMAC
         message = f"{plugin_id}:{version}:{self._calculate_checksum(data)}".encode()
         signature = hmac.new(self.private_key.encode(), message, hashlib.sha256).hexdigest()
@@ -354,6 +366,10 @@ class PluginMarketplace:
 
         if not plugin.signature:
             logger.error(f"Plugin has no signature: {plugin_id}")
+            return False
+
+        if not self.private_key:
+            logger.error("Private key not configured for signature verification")
             return False
 
         # Recalculate checksum

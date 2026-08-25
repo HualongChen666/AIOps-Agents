@@ -20,6 +20,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
 
+from api.common import handle_service_error
 from api.schemas.repair import DockerRepairRequest
 from core.config import DOCKER_HOSTS
 from core.docker_collector import collect_docker
@@ -110,6 +111,5 @@ async def post_docker_repair(payload: DockerRepairRequest) -> Dict[str, Any]:
     try:
         result = await execute_repair_sync(payload.host, payload.script_name, payload.args)
     except Exception as exc:
-        _logger.error(f"Docker 修复执行异常: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        handle_service_error(exc, "Docker 修复执行")
     return result

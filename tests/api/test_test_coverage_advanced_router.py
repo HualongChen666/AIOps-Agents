@@ -9,28 +9,29 @@ Tests all endpoints with comprehensive coverage including:
 - Mock dependencies
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.test_coverage_advanced_router import (
-    router,
+    FAKE_ADMIN,
+    CoverageLevel,
     CoverageReport,
     CoverageReportCreate,
     ModuleCoverage,
-    CoverageLevel,
-    FAKE_ADMIN,
-    get_current_user,
+    _calculate_coverage_level,
     _coverage_reports,
     _init_coverage_reports,
-    _calculate_coverage_level,
+    get_current_user,
+    router,
 )
 from core.authentication import UserInDB
 
-
 # ============ Fixtures ============
+
 
 @pytest.fixture
 def mock_user():
@@ -64,6 +65,7 @@ def mock_regular_user():
 def client():
     """Create a test client"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -86,6 +88,7 @@ def sample_report(clear_data):
 
 # ============ Report Endpoints Tests ============
 
+
 class TestCoverageReportEndpoints:
     """Test coverage report endpoints"""
 
@@ -94,7 +97,7 @@ class TestCoverageReportEndpoints:
         """Test successful coverage reports retrieval"""
         _init_coverage_reports()
         result = await router.get_coverage_reports(current_user=mock_user)
-        
+
         assert isinstance(result, list)
         assert len(result) >= 1
 
@@ -102,7 +105,7 @@ class TestCoverageReportEndpoints:
     async def test_get_coverage_reports_empty(self, mock_user, clear_data):
         """Test coverage reports retrieval when empty"""
         result = await router.get_coverage_reports(current_user=mock_user)
-        
+
         assert isinstance(result, list)
         assert len(result) == 0
 
@@ -110,19 +113,17 @@ class TestCoverageReportEndpoints:
     async def test_get_coverage_reports_with_pagination(self, mock_user, clear_data):
         """Test coverage reports retrieval with pagination"""
         _init_coverage_reports()
-        
+
         # Create multiple reports
         for i in range(5):
-            report_create = CoverageReportCreate(
-                report_name=f"Report-{i}",
-                include_trends=False
-            )
+            report_create = CoverageReportCreate(report_name=f"Report-{i}", include_trends=False)
             from fastapi import Request
+
             request = Mock(spec=Request)
             request.headers = {}
             request.client = Mock(host="127.0.0.1")
             await router.create_coverage_report(report_create, request, current_user=mock_user)
-        
+
         result = await router.get_coverage_reports(limit=3, offset=0, current_user=mock_user)
         assert len(result) == 3
 
@@ -130,18 +131,16 @@ class TestCoverageReportEndpoints:
     async def test_create_coverage_report_success(self, mock_user, clear_data):
         """Test successful coverage report creation"""
         _init_coverage_reports()
-        report_create = CoverageReportCreate(
-            report_name="New Coverage Report",
-            include_trends=True
-        )
-        
+        report_create = CoverageReportCreate(report_name="New Coverage Report", include_trends=True)
+
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         result = await router.create_coverage_report(report_create, request, current_user=mock_user)
-        
+
         assert isinstance(result, CoverageReport)
         assert result.report_name == "New Coverage Report"
         assert result.trends is not None
@@ -151,17 +150,17 @@ class TestCoverageReportEndpoints:
         """Test coverage report creation without trends"""
         _init_coverage_reports()
         report_create = CoverageReportCreate(
-            report_name="Report Without Trends",
-            include_trends=False
+            report_name="Report Without Trends", include_trends=False
         )
-        
+
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         result = await router.create_coverage_report(report_create, request, current_user=mock_user)
-        
+
         assert isinstance(result, CoverageReport)
         assert result.trends is None
 
@@ -181,7 +180,7 @@ class TestCoverageReportEndpoints:
     async def test_get_coverage_report_success(self, mock_user, sample_report, clear_data):
         """Test successful coverage report retrieval"""
         result = await router.get_coverage_report(sample_report.id, current_user=mock_user)
-        
+
         assert isinstance(result, CoverageReport)
         assert result.id == sample_report.id
 
@@ -190,7 +189,7 @@ class TestCoverageReportEndpoints:
         """Test coverage report retrieval when not found"""
         with pytest.raises(HTTPException) as exc_info:
             await router.get_coverage_report("nonexistent", current_user=mock_user)
-        
+
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Report not found"
 
@@ -198,28 +197,31 @@ class TestCoverageReportEndpoints:
     async def test_delete_coverage_report_success(self, mock_user, sample_report, clear_data):
         """Test successful coverage report deletion"""
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         await router.delete_coverage_report(sample_report.id, request, current_user=mock_user)
-        
+
         assert sample_report.id not in _coverage_reports
 
     @pytest.mark.asyncio
     async def test_delete_coverage_report_not_found(self, mock_user, clear_data):
         """Test coverage report deletion when not found"""
         from fastapi import Request
+
         request = Mock(spec=Request)
-        
+
         with pytest.raises(HTTPException) as exc_info:
             await router.delete_coverage_report("nonexistent", request, current_user=mock_user)
-        
+
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Report not found"
 
 
 # ============ Summary Endpoints Tests ============
+
 
 class TestCoverageSummaryEndpoints:
     """Test coverage summary endpoints"""
@@ -229,7 +231,7 @@ class TestCoverageSummaryEndpoints:
         """Test successful coverage summary retrieval"""
         _init_coverage_reports()
         result = await router.get_coverage_summary(current_user=mock_user)
-        
+
         assert isinstance(result, dict)
         assert "overall_coverage" in result
         assert "overall_level" in result
@@ -240,7 +242,7 @@ class TestCoverageSummaryEndpoints:
     async def test_get_coverage_summary_empty(self, mock_user, clear_data):
         """Test coverage summary retrieval when no reports exist"""
         result = await router.get_coverage_summary(current_user=mock_user)
-        
+
         assert isinstance(result, dict)
         assert result["overall_coverage"] == 0.0
         assert result["overall_level"] == "poor"
@@ -251,13 +253,14 @@ class TestCoverageSummaryEndpoints:
         """Test coverage summary retrieval with report data"""
         _init_coverage_reports()
         result = await router.get_coverage_summary(current_user=mock_user)
-        
+
         assert result["overall_coverage"] > 0
         assert result["total_modules"] > 0
         assert "generated_at" in result
 
 
 # ============ Authentication Tests ============
+
 
 class TestAuthentication:
     """Test authentication and authorization"""
@@ -266,20 +269,21 @@ class TestAuthentication:
     async def test_get_current_user_no_token(self):
         """Test get_current_user with no token returns fake admin"""
         result = await get_current_user(token=None)
-        
+
         assert result.username == "dev-admin"
         assert result.role == "admin"
 
     @pytest.mark.asyncio
     async def test_get_current_user_invalid_token(self):
         """Test get_current_user with invalid token returns fake admin"""
-        with patch('api.test_coverage_advanced_router.verify_token', return_value=None):
+        with patch("api.test_coverage_advanced_router.verify_token", return_value=None):
             result = await get_current_user(token="invalid")
-            
+
             assert result.username == "dev-admin"
 
 
 # ============ Data Validation Tests ============
+
 
 class TestDataValidation:
     """Test data validation for models"""
@@ -296,6 +300,7 @@ class TestDataValidation:
 
 
 # ============ Helper Function Tests ============
+
 
 class TestHelperFunctions:
     """Test helper functions"""
@@ -338,7 +343,7 @@ class TestHelperFunctions:
     def test_init_coverage_reports(self, clear_data):
         """Test _init_coverage_reports creates default report"""
         _init_coverage_reports()
-        
+
         assert len(_coverage_reports) >= 1
         report = list(_coverage_reports.values())[0]
         assert isinstance(report, CoverageReport)
@@ -346,6 +351,7 @@ class TestHelperFunctions:
 
 
 # ============ Module Coverage Tests ============
+
 
 class TestModuleCoverage:
     """Test module coverage calculations"""
@@ -355,7 +361,7 @@ class TestModuleCoverage:
         """Test module coverage percentage calculation"""
         _init_coverage_reports()
         report = await router.get_coverage_reports(current_user=mock_user)[0]
-        
+
         for module in report.modules:
             expected_percentage = (module.covered_lines / module.total_lines) * 100
             assert abs(module.coverage_percentage - expected_percentage) < 0.01
@@ -365,7 +371,7 @@ class TestModuleCoverage:
         """Test module coverage level assignment"""
         _init_coverage_reports()
         report = await router.get_coverage_reports(current_user=mock_user)[0]
-        
+
         for module in report.modules:
             if module.coverage_percentage >= 90:
                 assert module.coverage_level == CoverageLevel.EXCELLENT
@@ -379,6 +385,7 @@ class TestModuleCoverage:
 
 # ============ Summary Calculation Tests ============
 
+
 class TestSummaryCalculation:
     """Test summary calculations"""
 
@@ -387,7 +394,7 @@ class TestSummaryCalculation:
         """Test overall coverage calculation"""
         _init_coverage_reports()
         report = await router.get_coverage_reports(current_user=mock_user)[0]
-        
+
         expected_overall = sum(m.coverage_percentage for m in report.modules) / len(report.modules)
         assert abs(report.overall_coverage - expected_overall) < 0.01
 
@@ -396,7 +403,7 @@ class TestSummaryCalculation:
         """Test summary statistics calculation"""
         _init_coverage_reports()
         report = await router.get_coverage_reports(current_user=mock_user)[0]
-        
+
         assert "total_lines" in report.summary
         assert "covered_lines" in report.summary
         assert "uncovered_lines" in report.summary
@@ -410,12 +417,16 @@ class TestSummaryCalculation:
         """Test summary counts match module levels"""
         _init_coverage_reports()
         report = await router.get_coverage_reports(current_user=mock_user)[0]
-        
-        excellent_count = len([m for m in report.modules if m.coverage_level == CoverageLevel.EXCELLENT])
+
+        excellent_count = len(
+            [m for m in report.modules if m.coverage_level == CoverageLevel.EXCELLENT]
+        )
         good_count = len([m for m in report.modules if m.coverage_level == CoverageLevel.GOOD])
-        adequate_count = len([m for m in report.modules if m.coverage_level == CoverageLevel.ADEQUATE])
+        adequate_count = len(
+            [m for m in report.modules if m.coverage_level == CoverageLevel.ADEQUATE]
+        )
         poor_count = len([m for m in report.modules if m.coverage_level == CoverageLevel.POOR])
-        
+
         assert report.summary["excellent_count"] == excellent_count
         assert report.summary["good_count"] == good_count
         assert report.summary["adequate_count"] == adequate_count
@@ -424,6 +435,7 @@ class TestSummaryCalculation:
 
 # ============ Trend Calculation Tests ============
 
+
 class TestTrendCalculation:
     """Test trend calculations"""
 
@@ -431,18 +443,16 @@ class TestTrendCalculation:
     async def test_trend_calculation_up(self, mock_user, clear_data):
         """Test trend calculation when coverage increased"""
         _init_coverage_reports()
-        report_create = CoverageReportCreate(
-            report_name="Trend Test",
-            include_trends=True
-        )
-        
+        report_create = CoverageReportCreate(report_name="Trend Test", include_trends=True)
+
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         result = await router.create_coverage_report(report_create, request, current_user=mock_user)
-        
+
         if result.trends:
             assert "previous_coverage" in result.trends
             assert "change" in result.trends
@@ -452,23 +462,22 @@ class TestTrendCalculation:
     async def test_trend_calculation_down(self, mock_user, clear_data):
         """Test trend calculation when coverage decreased"""
         _init_coverage_reports()
-        report_create = CoverageReportCreate(
-            report_name="Trend Test Down",
-            include_trends=True
-        )
-        
+        report_create = CoverageReportCreate(report_name="Trend Test Down", include_trends=True)
+
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         result = await router.create_coverage_report(report_create, request, current_user=mock_user)
-        
+
         if result.trends:
             assert result.trends["trend"] in ["up", "down"]
 
 
 # ============ Enum Tests ============
+
 
 class TestEnums:
     """Test enum values"""
@@ -483,6 +492,7 @@ class TestEnums:
 
 # ============ Integration Tests ============
 
+
 class TestIntegration:
     """Integration tests for coverage operations"""
 
@@ -490,26 +500,24 @@ class TestIntegration:
     async def test_full_report_workflow(self, mock_user, clear_data):
         """Test complete report workflow"""
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         # Create report
-        report_create = CoverageReportCreate(
-            report_name="Workflow Report",
-            include_trends=True
-        )
+        report_create = CoverageReportCreate(report_name="Workflow Report", include_trends=True)
         report = await router.create_coverage_report(report_create, request, current_user=mock_user)
         assert report.report_name == "Workflow Report"
-        
+
         # Get report
         retrieved = await router.get_coverage_report(report.id, current_user=mock_user)
         assert retrieved.id == report.id
-        
+
         # Get summary
         summary = await router.get_coverage_summary(current_user=mock_user)
         assert summary["overall_coverage"] > 0
-        
+
         # Delete report
         await router.delete_coverage_report(report.id, request, current_user=mock_user)
         assert report.id not in _coverage_reports
@@ -518,30 +526,31 @@ class TestIntegration:
     async def test_multiple_reports_workflow(self, mock_user, clear_data):
         """Test workflow with multiple reports"""
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         # Create multiple reports
         report_ids = []
         for i in range(3):
-            report_create = CoverageReportCreate(
-                report_name=f"Report-{i}",
-                include_trends=False
+            report_create = CoverageReportCreate(report_name=f"Report-{i}", include_trends=False)
+            report = await router.create_coverage_report(
+                report_create, request, current_user=mock_user
             )
-            report = await router.create_coverage_report(report_create, request, current_user=mock_user)
             report_ids.append(report.id)
-        
+
         # Get all reports
         reports = await router.get_coverage_reports(current_user=mock_user)
         assert len(reports) >= 3
-        
+
         # Delete all reports
         for report_id in report_ids:
             await router.delete_coverage_report(report_id, request, current_user=mock_user)
 
 
 # ============ Error Handling Tests ============
+
 
 class TestErrorHandling:
     """Test error handling"""
@@ -550,22 +559,22 @@ class TestErrorHandling:
     async def test_concurrent_report_creation(self, mock_user, clear_data):
         """Test concurrent report creation"""
         import asyncio
-        
+
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         async def create_report():
             report_create = CoverageReportCreate(
-                report_name=f"Report-{asyncio.current_task().get_name()}",
-                include_trends=False
+                report_name=f"Report-{asyncio.current_task().get_name()}", include_trends=False
             )
             await router.create_coverage_report(report_create, request, current_user=mock_user)
-        
+
         # Run multiple concurrent creations
         await asyncio.gather(*[create_report() for _ in range(5)])
-        
+
         # Should not raise errors
         reports = await router.get_coverage_reports(current_user=mock_user)
         assert len(reports) >= 5
@@ -574,18 +583,16 @@ class TestErrorHandling:
     async def test_large_dataset_handling(self, mock_user, clear_data):
         """Test handling of large datasets"""
         from fastapi import Request
+
         request = Mock(spec=Request)
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
-        
+
         # Create many reports
         for i in range(30):
-            report_create = CoverageReportCreate(
-                report_name=f"Report-{i}",
-                include_trends=False
-            )
+            report_create = CoverageReportCreate(report_name=f"Report-{i}", include_trends=False)
             await router.create_coverage_report(report_create, request, current_user=mock_user)
-        
+
         # Should handle pagination correctly
         result = await router.get_coverage_reports(limit=10, current_user=mock_user)
         assert len(result) == 10

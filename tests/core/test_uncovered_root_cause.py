@@ -169,7 +169,9 @@ async def test_root_cause_topology_discovery(rci_engine):
         "service": "svc1",
         "affected_services": ["app1"],
     }
-    result = await rci_engine.discover_topology_realtime(metrics_data, alert)  # noqa: F841  # Variable for test verification
+    result = await rci_engine.discover_topology_realtime(
+        metrics_data, alert
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "discovered_nodes" in result
     assert "total_nodes" in result
@@ -261,7 +263,9 @@ async def test_root_cause_verify(rci_engine):
     verification_data = {
         "active_components": ["api", "svc"],
     }
-    result = await rci_engine.verify_root_cause(hypothesis, verification_data)  # noqa: F841  # Variable for test verification
+    result = await rci_engine.verify_root_cause(
+        hypothesis, verification_data
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "verification_status" in result
     assert "verification_score" in result

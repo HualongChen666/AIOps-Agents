@@ -5,7 +5,7 @@ Provides advanced API endpoints for service discovery with full CRUD operations
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/v1/service-discovery", tags=["Service Discovery 
 # Pydantic Models
 class ServiceCreate(BaseModel):
     """Service creation model"""
+
     name: str = Field(..., description="Service name")
     host: str = Field(..., description="Service host address")
     port: int = Field(..., ge=1, le=65535, description="Service port")
@@ -28,6 +29,7 @@ class ServiceCreate(BaseModel):
 
 class ServiceUpdate(BaseModel):
     """Service update model"""
+
     name: Optional[str] = Field(None, description="Service name")
     host: Optional[str] = Field(None, description="Service host address")
     port: Optional[int] = Field(None, ge=1, le=65535, description="Service port")
@@ -38,6 +40,7 @@ class ServiceUpdate(BaseModel):
 
 class HealthCheckCreate(BaseModel):
     """Health check creation model"""
+
     service_id: str = Field(..., description="Service ID")
     check_type: str = Field(default="http", description="Health check type")
     endpoint: str = Field(default="/health", description="Health check endpoint")
@@ -49,6 +52,7 @@ class HealthCheckCreate(BaseModel):
 
 class ServiceRegistration(BaseModel):
     """Service registration model"""
+
     service_name: str = Field(..., description="Service name")
     instance_id: str = Field(..., description="Instance ID")
     host: str = Field(..., description="Host address")
@@ -59,6 +63,7 @@ class ServiceRegistration(BaseModel):
 
 class ServiceDeregistration(BaseModel):
     """Service deregistration model"""
+
     service_name: str = Field(..., description="Service name")
     instance_id: str = Field(..., description="Instance ID")
 
@@ -669,11 +674,15 @@ async def deregister_service(deregistration: ServiceDeregistration):
         if not success:
             raise HTTPException(
                 status_code=404,
-                detail=f"Service instance {deregistration.service_name}/{deregistration.instance_id} not found",
+                detail=(
+                    f"Service instance {deregistration.service_name}/"
+                    f"{deregistration.instance_id} not found"
+                ),
             )
 
         logger.info(
-            f"Deregistered service instance: {deregistration.service_name}/{deregistration.instance_id}"
+            f"Deregistered service instance: {deregistration.service_name}/"
+            f"{deregistration.instance_id}"
         )
 
         return {

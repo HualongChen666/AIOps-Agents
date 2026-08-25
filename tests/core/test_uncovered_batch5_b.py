@@ -287,7 +287,9 @@ class TestCodingToolsFunctions:
 
     def test_write_to_file_success(self, monkeypatch, tmp_path):
         monkeypatch.setenv("AIOPS_AGENT_WORKSPACE", str(tmp_path))
-        result = coding_tools._write_to_file("sub/new.txt", "hello")  # noqa: F841  # Variable for test verification
+        result = coding_tools._write_to_file(
+            "sub/new.txt", "hello"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "success"
         assert (tmp_path / "sub" / "new.txt").read_text() == "hello"
 
@@ -307,7 +309,9 @@ class TestCodingToolsFunctions:
     def test_edit_success(self, monkeypatch, tmp_path):
         monkeypatch.setenv("AIOPS_AGENT_WORKSPACE", str(tmp_path))
         (tmp_path / "f.txt").write_text("hello world", encoding="utf-8")
-        result = coding_tools._edit("f.txt", "world", "earth")  # noqa: F841  # Variable for test verification
+        result = coding_tools._edit(
+            "f.txt", "world", "earth"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "success"
         assert (tmp_path / "f.txt").read_text() == "hello earth"
 
@@ -480,7 +484,9 @@ class TestSubAgentDispatcher:
                 agent_id="a1", task_id="t1", status="completed", result={"ok": True}
             )
             dispatcher._executor.submit.return_value = future
-            result = dispatcher.dispatch("goal", {}, ["tool"], wait=True)  # noqa: F841  # Variable for test verification
+            result = dispatcher.dispatch(
+                "goal", {}, ["tool"], wait=True
+            )  # noqa: F841  # Variable for test verification
             assert result.status == "completed"
         finally:
             dispatcher.shutdown(wait=False)
@@ -492,7 +498,9 @@ class TestSubAgentDispatcher:
             future = MagicMock()
             future.result.side_effect = Exception("timeout")
             dispatcher._executor.submit.return_value = future
-            result = dispatcher.dispatch("goal", {}, ["tool"], wait=True)  # noqa: F841  # Variable for test verification
+            result = dispatcher.dispatch(
+                "goal", {}, ["tool"], wait=True
+            )  # noqa: F841  # Variable for test verification
             assert result.status == "failed"
             assert "timeout" in result.error
         finally:
@@ -504,7 +512,9 @@ class TestSubAgentDispatcher:
             dispatcher._executor = MagicMock()
             future = MagicMock()
             dispatcher._executor.submit.return_value = future
-            result = dispatcher.dispatch("goal", {}, ["tool"], wait=False)  # noqa: F841  # Variable for test verification
+            result = dispatcher.dispatch(
+                "goal", {}, ["tool"], wait=False
+            )  # noqa: F841  # Variable for test verification
             assert result is future
         finally:
             dispatcher.shutdown(wait=False)
@@ -609,7 +619,9 @@ class TestSubAgentDispatcher:
         d.shutdown(wait=False)
 
     def test_dispatch_task(self, fake_executor, monkeypatch):
-        result = subagent.SubAgentResult(agent_id="a1", task_id="t1", status="completed")  # noqa: F841  # Variable for test verification
+        result = subagent.SubAgentResult(
+            agent_id="a1", task_id="t1", status="completed"
+        )  # noqa: F841  # Variable for test verification
         d = MagicMock()
         d.dispatch.return_value = result
         d.shutdown = MagicMock()
@@ -774,7 +786,9 @@ class TestLinuxRepairHelpers:
 
     def test_render_command(self):
         script = linux_repair._LINUX_REPAIR_SCRIPTS_RAW["restart_service"]
-        result = linux_repair._render_command(script, {"service_name": "nginx"})  # noqa: F841  # Variable for test verification
+        result = linux_repair._render_command(
+            script, {"service_name": "nginx"}
+        )  # noqa: F841  # Variable for test verification
         assert "nginx" in result
 
 
@@ -782,7 +796,9 @@ class TestLinuxRepairRiskHandlers:
     async def test_handle_blocked_risk(self, monkeypatch):
         record = AsyncMock()
         monkeypatch.setattr(linux_repair, "_safe_record_audit", record)
-        result = await linux_repair._handle_blocked_risk("h", "cmd", "blocked", "bad")  # noqa: F841  # Variable for test verification
+        result = await linux_repair._handle_blocked_risk(
+            "h", "cmd", "blocked", "bad"
+        )  # noqa: F841  # Variable for test verification
         assert result["blocked"] is True
         assert "bad" in result["error"]
 
@@ -812,7 +828,9 @@ class TestLinuxRepairRiskHandlers:
 class TestLinuxRepairSSH:
     async def test_run_ssh_command_success_with_password(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(return_value=MagicMock(stdout="ok", stderr="", exit_status=0))
-        result = await linux_repair._run_ssh_command("h", "cmd", username="root", password="p")  # noqa: F841  # Variable for test verification
+        result = await linux_repair._run_ssh_command(
+            "h", "cmd", username="root", password="p"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert result["output"] == "ok"
 
@@ -820,31 +838,41 @@ class TestLinuxRepairSSH:
         fake_asyncssh.run = AsyncMock(
             return_value=MagicMock(stdout="out", stderr="err", exit_status=1)
         )
-        result = await linux_repair._run_ssh_command("h", "cmd")  # noqa: F841  # Variable for test verification
+        result = await linux_repair._run_ssh_command(
+            "h", "cmd"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "err" in result["error"]
 
     async def test_run_ssh_command_timeout(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(side_effect=asyncio.TimeoutError())
-        result = await linux_repair._run_ssh_command("h", "cmd")  # noqa: F841  # Variable for test verification
+        result = await linux_repair._run_ssh_command(
+            "h", "cmd"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "timeout" in result["error"].lower()
 
     async def test_run_ssh_command_connection_error(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(side_effect=ConnectionError("down"))
-        result = await linux_repair._run_ssh_command("h", "cmd")  # noqa: F841  # Variable for test verification
+        result = await linux_repair._run_ssh_command(
+            "h", "cmd"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "Connection error" in result["error"]
 
     async def test_run_ssh_command_generic_exception(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(side_effect=RuntimeError("boom"))
-        result = await linux_repair._run_ssh_command("h", "cmd")  # noqa: F841  # Variable for test verification
+        result = await linux_repair._run_ssh_command(
+            "h", "cmd"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
 
     async def test_run_ssh_command_close_exception(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(return_value=MagicMock(stdout="ok", stderr="", exit_status=0))
         fake_asyncssh.close = AsyncMock(side_effect=RuntimeError("close"))
-        result = await linux_repair._run_ssh_command("h", "cmd")  # noqa: F841  # Variable for test verification
+        result = await linux_repair._run_ssh_command(
+            "h", "cmd"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
 
     def test_normalize_ssh_output(self):
@@ -958,7 +986,9 @@ class TestLinuxRepairExecute:
         assert result["success"] is False
 
     async def test_execute_linux_repair_validation_error(self):
-        result = await linux_repair.execute_linux_repair("h", "missing")  # noqa: F841  # Variable for test verification
+        result = await linux_repair.execute_linux_repair(
+            "h", "missing"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "Script not found" in result["error"]
 
@@ -973,7 +1003,9 @@ class TestLinuxRepairExecute:
             "_execute_repair_with_risk_check",
             AsyncMock(return_value={"success": True}),
         )
-        result = await linux_repair.execute_linux_repair("h", "clear_tmp", {})  # noqa: F841  # Variable for test verification
+        result = await linux_repair.execute_linux_repair(
+            "h", "clear_tmp", {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
 
     async def test_execute_linux_repair_exception(self, monkeypatch):
@@ -985,7 +1017,9 @@ class TestLinuxRepairExecute:
             "_execute_repair_with_risk_check",
             AsyncMock(side_effect=Exception("boom")),
         )
-        result = await linux_repair.execute_linux_repair("h", "clear_tmp", {})  # noqa: F841  # Variable for test verification
+        result = await linux_repair.execute_linux_repair(
+            "h", "clear_tmp", {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "boom" in result["error"]
 

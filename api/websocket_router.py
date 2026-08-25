@@ -74,9 +74,12 @@ async def websocket_metrics(websocket: WebSocket):
                 )
                 break
 
-            await manager.send_personal_message(
-                {"type": "metrics", "data": metrics, "timestamp": str(datetime.utcnow())}, websocket
-            )
+            message = {
+                "type": "metrics",
+                "data": metrics,
+                "timestamp": str(datetime.utcnow()),
+            }
+            await manager.send_personal_message(message, websocket)
 
             await asyncio.sleep(5)
     except WebSocketDisconnect:
@@ -84,4 +87,4 @@ async def websocket_metrics(websocket: WebSocket):
         logger.info("Metrics WebSocket disconnected")
     except Exception:
         manager.disconnect(websocket, "metrics")
-        logger.exception("Metrics WebSocket error")
+        logger.error("Metrics WebSocket error")

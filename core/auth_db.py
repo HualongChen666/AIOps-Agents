@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """SQLAlchemy database layer for RBAC and asset permission management."""
 
+import logging
 import os
 from datetime import datetime
 
@@ -22,7 +23,11 @@ except ImportError:  # pragma: no cover
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
-os.makedirs(_DATA_DIR, exist_ok=True)
+try:
+    os.makedirs(_DATA_DIR, exist_ok=True)
+except OSError as exc:
+    logging.error(f"Failed to create data directory {_DATA_DIR}: {exc}")
+    raise
 _DB_PATH = os.environ.get(
     "AIOPS_TEST_DB_PATH", os.path.join(_DATA_DIR, "aiops.db").replace(os.sep, "/")
 )
@@ -89,11 +94,11 @@ class UserAssetPermission(Base):
     asset = relationship("Asset", back_populates="permissions")
 
 
-def get_session():
+def get_session() -> Session:
     return SessionLocal()
 
 
-def init_db():
+def init_db() -> None:
     """Create tables and seed default admin if no users exist."""
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()

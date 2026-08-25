@@ -22,7 +22,14 @@ METRIC_LABELS = {
 
 
 def _make_timestamp(raw_ts: Any) -> str:
-    """Convert a raw history timestamp to an ISO8601 string."""
+    """Convert a raw history timestamp to an ISO8601 string.
+
+    Args:
+        raw_ts: Raw timestamp (datetime, string, or other)
+
+    Returns:
+        ISO8601 formatted timestamp string
+    """
     if isinstance(raw_ts, datetime.datetime):
         return raw_ts.isoformat()
     if isinstance(raw_ts, str) and raw_ts:

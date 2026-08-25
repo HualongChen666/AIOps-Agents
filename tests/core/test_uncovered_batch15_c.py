@@ -47,7 +47,9 @@ def test_validator_dataclasses():
     assert suite.parallel_execution is False
 
     execution = itv.ValidationExecution(execution_id="e1", test_id="t1")
-    assert execution.result == itv.ValidationResult.SKIPPED  # noqa: F841  # Variable for test verification
+    assert (
+        execution.result == itv.ValidationResult.SKIPPED
+    )  # noqa: F841  # Variable for test verification
 
 
 def test_validator_init_and_defaults(validator):
@@ -118,7 +120,9 @@ async def test_run_validation_success_and_status(validator, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_execute_validation_not_found(validator):
-    result = await validator._execute_validation("missing")  # noqa: F841  # Variable for test verification
+    result = await validator._execute_validation(
+        "missing"
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 
@@ -136,7 +140,9 @@ async def test_execute_validation_exception(validator, monkeypatch):
 
     await validator._execute_validation(exec_id)
     execution = validator.validation_executions[exec_id]
-    assert execution.result == itv.ValidationResult.ERROR  # noqa: F841  # Variable for test verification
+    assert (
+        execution.result == itv.ValidationResult.ERROR
+    )  # noqa: F841  # Variable for test verification
     assert "boom" in execution.error_message
     assert execution.completed_at is not None
     assert validator.total_failed == 1
@@ -697,7 +703,9 @@ def test_auth_interceptor_invalid(monkeypatch):
     interceptor = grpc_interceptor.AuthInterceptor("secret")
     cont = MagicMock()
     details = MagicMock(method="/Test/Method", invocation_metadata=[("api-key", "wrong")])
-    result = interceptor.intercept_service(cont, details)  # noqa: F841  # Variable for test verification
+    result = interceptor.intercept_service(
+        cont, details
+    )  # noqa: F841  # Variable for test verification
     assert result is fake_context
     fake_context.set_code.assert_called_once_with("UNAUTHENTICATED")
     fake_context.set_details.assert_called_once_with("Invalid API key")

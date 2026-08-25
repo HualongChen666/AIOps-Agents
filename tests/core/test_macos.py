@@ -25,12 +25,16 @@ async def fake_subprocess(cmd, **kwargs):
 
 async def test_run_command_local(monkeypatch):
     monkeypatch.setattr(asyncio, "create_subprocess_shell", fake_subprocess)
-    result = await core.macos_collector._run_command("localhost", "whoami")  # noqa: F841  # Variable for test verification
+    result = await core.macos_collector._run_command(
+        "localhost", "whoami"
+    )  # noqa: F841  # Variable for test verification
     assert result["stdout"] == "ok"
 
 
 async def test_run_command_remote_not_supported():
-    result = await core.macos_collector._run_command("remote", "whoami")  # noqa: F841  # Variable for test verification
+    result = await core.macos_collector._run_command(
+        "remote", "whoami"
+    )  # noqa: F841  # Variable for test verification
     assert "not supported" in result["stderr"]
 
 
@@ -52,7 +56,9 @@ async def test_collect_macos_metrics(monkeypatch):
 
 async def test_execute_macos_repair(monkeypatch):
     monkeypatch.setattr(asyncio, "create_subprocess_shell", fake_subprocess)
-    result = await core.macos_repair.execute_macos_repair("localhost", "cleanup")  # noqa: F841  # Variable for test verification
+    result = await core.macos_repair.execute_macos_repair(
+        "localhost", "cleanup"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert "output" in result
 

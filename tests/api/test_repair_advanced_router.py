@@ -3,12 +3,14 @@
 修复管理高级API路由测试用例
 测试20个修复管理相关的API端点
 """
+
+import uuid
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from datetime import datetime
-import uuid
 
 # 导入router
 from api.repair_advanced_router import router
@@ -18,6 +20,7 @@ from api.repair_advanced_router import router
 def client():
     """创建测试客户端"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -64,7 +67,7 @@ class TestRepairConfiguration:
             "key": "test_key",
             "value": "test_value",
             "category": "default",
-            "is_secret": False
+            "is_secret": False,
         }
         response = client.post("/api/v1/repair/configuration", json=payload)
         assert response.status_code == 200
@@ -74,30 +77,19 @@ class TestRepairConfiguration:
 
     def test_create_configuration_validation_error(self, client):
         """测试创建修复配置 - 验证错误"""
-        payload = {
-            "name": "",  # 空名称应该失败
-            "key": "test",
-            "value": "value"
-        }
+        payload = {"name": "", "key": "test", "value": "value"}  # 空名称应该失败
         response = client.post("/api/v1/repair/configuration", json=payload)
         assert response.status_code == 422
 
     def test_update_configuration_success(self, client):
         """测试更新修复配置 - 成功"""
         # 先创建一个配置
-        create_payload = {
-            "name": "Test Config",
-            "key": "test_key",
-            "value": "test_value"
-        }
+        create_payload = {"name": "Test Config", "key": "test_key", "value": "test_value"}
         create_response = client.post("/api/v1/repair/configuration", json=create_payload)
         config_id = create_response.json()["id"]
 
         # 更新配置
-        update_payload = {
-            "name": "Updated Config",
-            "value": "updated_value"
-        }
+        update_payload = {"name": "Updated Config", "value": "updated_value"}
         response = client.patch(f"/api/v1/repair/configuration/{config_id}", json=update_payload)
         assert response.status_code == 200
         data = response.json()
@@ -112,11 +104,7 @@ class TestRepairConfiguration:
 
     def test_delete_configuration_success(self, client):
         """测试删除修复配置 - 成功"""
-        create_payload = {
-            "name": "Test Config",
-            "key": "test_key",
-            "value": "test_value"
-        }
+        create_payload = {"name": "Test Config", "key": "test_key", "value": "test_value"}
         create_response = client.post("/api/v1/repair/configuration", json=create_payload)
         config_id = create_response.json()["id"]
 
@@ -163,7 +151,7 @@ class TestHITLApproval:
             "target_resource": "server-01",
             "description": "Auto-healing request",
             "risk_level": "low",
-            "requested_by": "admin"
+            "requested_by": "admin",
         }
         response = client.post("/api/v1/repair/hitl-approval", json=payload)
         assert response.status_code == 200
@@ -178,14 +166,16 @@ class TestHITLApproval:
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
             "target_resource": "server-01",
-            "description": "Test approval"
+            "description": "Test approval",
         }
         create_response = client.post("/api/v1/repair/hitl-approval", json=create_payload)
         approval_id = create_response.json()["id"]
 
         # 批准
         action_payload = {"comment": "Approved for testing"}
-        response = client.post(f"/api/v1/repair/hitl-approval/{approval_id}/approve", json=action_payload)
+        response = client.post(
+            f"/api/v1/repair/hitl-approval/{approval_id}/approve", json=action_payload
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "approved"
@@ -194,7 +184,9 @@ class TestHITLApproval:
         """测试批准HITL请求 - 请求不存在"""
         fake_id = str(uuid.uuid4())
         action_payload = {"comment": "Test"}
-        response = client.post(f"/api/v1/repair/hitl-approval/{fake_id}/approve", json=action_payload)
+        response = client.post(
+            f"/api/v1/repair/hitl-approval/{fake_id}/approve", json=action_payload
+        )
         assert response.status_code == 404
 
     def test_approve_hitl_request_invalid_state(self, client):
@@ -204,16 +196,20 @@ class TestHITLApproval:
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
             "target_resource": "server-01",
-            "description": "Test"
+            "description": "Test",
         }
         create_response = client.post("/api/v1/repair/hitl-approval", json=create_payload)
         approval_id = create_response.json()["id"]
 
         # 第一次批准
-        client.post(f"/api/v1/repair/hitl-approval/{approval_id}/approve", json={"comment": "First"})
+        client.post(
+            f"/api/v1/repair/hitl-approval/{approval_id}/approve", json={"comment": "First"}
+        )
 
         # 再次批准应该失败
-        response = client.post(f"/api/v1/repair/hitl-approval/{approval_id}/approve", json={"comment": "Second"})
+        response = client.post(
+            f"/api/v1/repair/hitl-approval/{approval_id}/approve", json={"comment": "Second"}
+        )
         assert response.status_code == 400
 
     def test_reject_hitl_request_success(self, client):
@@ -222,13 +218,15 @@ class TestHITLApproval:
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
             "target_resource": "server-01",
-            "description": "Test"
+            "description": "Test",
         }
         create_response = client.post("/api/v1/repair/hitl-approval", json=create_payload)
         approval_id = create_response.json()["id"]
 
         action_payload = {"reason": "Risk too high"}
-        response = client.post(f"/api/v1/repair/hitl-approval/{approval_id}/reject", json=action_payload)
+        response = client.post(
+            f"/api/v1/repair/hitl-approval/{approval_id}/reject", json=action_payload
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "rejected"
@@ -237,7 +235,9 @@ class TestHITLApproval:
         """测试拒绝HITL请求 - 请求不存在"""
         fake_id = str(uuid.uuid4())
         action_payload = {"reason": "Test"}
-        response = client.post(f"/api/v1/repair/hitl-approval/{fake_id}/reject", json=action_payload)
+        response = client.post(
+            f"/api/v1/repair/hitl-approval/{fake_id}/reject", json=action_payload
+        )
         assert response.status_code == 404
 
 
@@ -269,7 +269,7 @@ class TestRepairEffectiveness:
         payload = {
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
-            "target_resource": "server-01"
+            "target_resource": "server-01",
         }
         response = client.post("/api/v1/repair/effectiveness", json=payload)
         assert response.status_code == 200
@@ -283,7 +283,7 @@ class TestRepairEffectiveness:
         create_payload = {
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
-            "target_resource": "server-01"
+            "target_resource": "server-01",
         }
         create_response = client.post("/api/v1/repair/effectiveness", json=create_payload)
         effectiveness_id = create_response.json()["id"]
@@ -318,7 +318,9 @@ class TestRepairVerification:
 
     def test_get_verifications_with_filters(self, client):
         """测试获取验证记录 - 带过滤"""
-        response = client.get("/api/v1/repair/verification?status=pending&verification_type=health-check")
+        response = client.get(
+            "/api/v1/repair/verification?status=pending&verification_type=health-check"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
@@ -329,7 +331,7 @@ class TestRepairVerification:
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
             "target_resource": "server-01",
-            "verification_type": "health-check"
+            "verification_type": "health-check",
         }
         response = client.post("/api/v1/repair/verification", json=payload)
         assert response.status_code == 200
@@ -343,7 +345,7 @@ class TestRepairVerification:
         create_payload = {
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
-            "target_resource": "server-01"
+            "target_resource": "server-01",
         }
         create_response = client.post("/api/v1/repair/verification", json=create_payload)
         verification_id = create_response.json()["id"]
@@ -365,7 +367,7 @@ class TestRepairVerification:
         create_payload = {
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
-            "target_resource": "server-01"
+            "target_resource": "server-01",
         }
         create_response = client.post("/api/v1/repair/verification", json=create_payload)
         verification_id = create_response.json()["id"]
@@ -382,7 +384,7 @@ class TestRepairVerification:
         create_payload = {
             "repair_id": "repair-123",
             "repair_type": "auto_heal",
-            "target_resource": "server-01"
+            "target_resource": "server-01",
         }
         create_response = client.post("/api/v1/repair/verification", json=create_payload)
         verification_id = create_response.json()["id"]
@@ -407,10 +409,10 @@ class TestRepairVerification:
 class TestPlatformRepairs:
     """平台特定修复测试"""
 
-    @pytest.mark.parametrize("platform", [
-        "hardware", "cloud", "cluster", "pod", "k8s",
-        "docker", "macos", "windows", "linux"
-    ])
+    @pytest.mark.parametrize(
+        "platform",
+        ["hardware", "cloud", "cluster", "pod", "k8s", "docker", "macos", "windows", "linux"],
+    )
     def test_get_platform_repairs_success(self, client, platform):
         """测试获取平台修复 - 成功"""
         response = client.get(f"/api/v1/repair/{platform}")
@@ -419,10 +421,10 @@ class TestPlatformRepairs:
         assert "items" in data
         assert "total" in data
 
-    @pytest.mark.parametrize("platform", [
-        "hardware", "cloud", "cluster", "pod", "k8s",
-        "docker", "macos", "windows", "linux"
-    ])
+    @pytest.mark.parametrize(
+        "platform",
+        ["hardware", "cloud", "cluster", "pod", "k8s", "docker", "macos", "windows", "linux"],
+    )
     def test_get_platform_repairs_with_status_filter(self, client, platform):
         """测试获取平台修复 - 带状态过滤"""
         response = client.get(f"/api/v1/repair/{platform}?status=detected")
@@ -430,17 +432,17 @@ class TestPlatformRepairs:
         data = response.json()
         assert "items" in data
 
-    @pytest.mark.parametrize("platform", [
-        "hardware", "cloud", "cluster", "pod", "k8s",
-        "docker", "macos", "windows", "linux"
-    ])
+    @pytest.mark.parametrize(
+        "platform",
+        ["hardware", "cloud", "cluster", "pod", "k8s", "docker", "macos", "windows", "linux"],
+    )
     def test_create_platform_repair_success(self, client, platform):
         """测试创建平台修复 - 成功"""
         payload = {
             "target_resource": f"{platform}-01",
             "issue_type": "high_cpu",
             "severity": "medium",
-            "repair_action": "restart"
+            "repair_action": "restart",
         }
         response = client.post(f"/api/v1/repair/{platform}", json=payload)
         assert response.status_code == 200
@@ -448,10 +450,10 @@ class TestPlatformRepairs:
         assert data["target_resource"] == f"{platform}-01"
         assert data["status"] == "detected"
 
-    @pytest.mark.parametrize("platform", [
-        "hardware", "cloud", "cluster", "pod", "k8s",
-        "docker", "macos", "windows", "linux"
-    ])
+    @pytest.mark.parametrize(
+        "platform",
+        ["hardware", "cloud", "cluster", "pod", "k8s", "docker", "macos", "windows", "linux"],
+    )
     def test_execute_platform_repair_success(self, client, platform):
         """测试执行平台修复 - 成功"""
         # 先创建修复
@@ -459,7 +461,7 @@ class TestPlatformRepairs:
             "target_resource": f"{platform}-01",
             "issue_type": "high_cpu",
             "severity": "medium",
-            "repair_action": "restart"
+            "repair_action": "restart",
         }
         create_response = client.post(f"/api/v1/repair/{platform}", json=create_payload)
         repair_id = create_response.json()["id"]
@@ -469,10 +471,10 @@ class TestPlatformRepairs:
         data = response.json()
         assert data["status"] == "completed"
 
-    @pytest.mark.parametrize("platform", [
-        "hardware", "cloud", "cluster", "pod", "k8s",
-        "docker", "macos", "windows", "linux"
-    ])
+    @pytest.mark.parametrize(
+        "platform",
+        ["hardware", "cloud", "cluster", "pod", "k8s", "docker", "macos", "windows", "linux"],
+    )
     def test_execute_platform_repair_not_found(self, client, platform):
         """测试执行平台修复 - 修复不存在"""
         fake_id = str(uuid.uuid4())
@@ -488,7 +490,7 @@ class TestPlatformRepairs:
 class TestCrossPlatformRepair:
     """跨平台修复测试"""
 
-    @patch('api.repair_advanced_router._cross_platform_executor')
+    @patch("api.repair_advanced_router._cross_platform_executor")
     def test_get_cross_platform_repairs_success(self, mock_executor, client):
         """测试获取跨平台修复 - 成功"""
         response = client.get("/api/v1/repair/cross-platform")
@@ -497,7 +499,7 @@ class TestCrossPlatformRepair:
         assert "items" in data
         assert "total" in data
 
-    @patch('api.repair_advanced_router._cross_platform_executor')
+    @patch("api.repair_advanced_router._cross_platform_executor")
     def test_get_cross_platform_repairs_with_filter(self, mock_executor, client):
         """测试获取跨平台修复 - 带过滤"""
         response = client.get("/api/v1/repair/cross-platform?status=completed")
@@ -505,16 +507,16 @@ class TestCrossPlatformRepair:
         data = response.json()
         assert "items" in data
 
-    @patch('api.repair_advanced_router._cross_platform_executor.execute_script')
+    @patch("api.repair_advanced_router._cross_platform_executor.execute_script")
     def test_create_cross_platform_repair_success(self, mock_execute, client):
         """测试创建跨平台修复 - 成功"""
         mock_execute.return_value = {"success": True, "output": "Repair executed"}
-        
+
         payload = {
             "target_resource": "multi-platform-01",
             "issue_type": "network_issue",
             "severity": "high",
-            "repair_action": "reconfigure"
+            "repair_action": "reconfigure",
         }
         response = client.post("/api/v1/repair/cross-platform", json=payload)
         assert response.status_code == 200
@@ -551,7 +553,7 @@ class TestUnifiedRepair:
             "target_resource": "unified-01",
             "issue_type": "complex_failure",
             "severity": "critical",
-            "repair_action": "multi_strategy"
+            "repair_action": "multi_strategy",
         }
         response = client.post("/api/v1/repair/unified", json=payload)
         assert response.status_code == 200
@@ -568,7 +570,7 @@ class TestUnifiedRepair:
 class TestRepairHistory:
     """修复历史测试"""
 
-    @patch('api.repair_advanced_router.get_repair_history')
+    @patch("api.repair_advanced_router.get_repair_history")
     def test_get_repair_history_success(self, mock_get_history, client):
         """测试获取修复历史 - 成功"""
         mock_get_history.return_value = [
@@ -578,31 +580,31 @@ class TestRepairHistory:
                 "params": {"resource": "server-01"},
                 "output": "Service restarted successfully",
                 "success": True,
-                "time": "2024-01-01T00:00:00"
+                "time": "2024-01-01T00:00:00",
             }
         ]
-        
+
         response = client.get("/api/v1/repair/history")
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
         assert "total" in data
 
-    @patch('api.repair_advanced_router.get_repair_history')
+    @patch("api.repair_advanced_router.get_repair_history")
     def test_get_repair_history_with_limit(self, mock_get_history, client):
         """测试获取修复历史 - 带限制"""
         mock_get_history.return_value = []
-        
+
         response = client.get("/api/v1/repair/history?limit=10")
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
 
-    @patch('api.repair_advanced_router.get_repair_history')
+    @patch("api.repair_advanced_router.get_repair_history")
     def test_get_repair_history_with_date_filters(self, mock_get_history, client):
         """测试获取修复历史 - 带日期过滤"""
         mock_get_history.return_value = []
-        
+
         response = client.get("/api/v1/repair/history?date_from=2024-01-01&date_to=2024-12-31")
         assert response.status_code == 200
         data = response.json()
@@ -645,7 +647,7 @@ class TestRepairScripts:
             "language": "bash",
             "platform": "linux",
             "category": "service",
-            "content": "#!/bin/bash\nsystemctl restart $1"
+            "content": "#!/bin/bash\nsystemctl restart $1",
         }
         response = client.post("/api/v1/repair/scripts", json=payload)
         assert response.status_code == 200
@@ -655,10 +657,7 @@ class TestRepairScripts:
 
     def test_create_script_validation_error(self, client):
         """测试创建修复脚本 - 验证错误"""
-        payload = {
-            "name": "",  # 空名称
-            "content": "test"
-        }
+        payload = {"name": "", "content": "test"}  # 空名称
         response = client.post("/api/v1/repair/scripts", json=payload)
         assert response.status_code == 422
 
@@ -668,15 +667,12 @@ class TestRepairScripts:
             "name": "Test Script",
             "language": "bash",
             "platform": "linux",
-            "content": "echo test"
+            "content": "echo test",
         }
         create_response = client.post("/api/v1/repair/scripts", json=create_payload)
         script_id = create_response.json()["id"]
 
-        update_payload = {
-            "name": "Updated Script",
-            "description": "Updated description"
-        }
+        update_payload = {"name": "Updated Script", "description": "Updated description"}
         response = client.patch(f"/api/v1/repair/scripts/{script_id}", json=update_payload)
         assert response.status_code == 200
         data = response.json()
@@ -695,7 +691,7 @@ class TestRepairScripts:
             "name": "Test Script",
             "language": "bash",
             "platform": "linux",
-            "content": "echo test"
+            "content": "echo test",
         }
         create_response = client.post("/api/v1/repair/scripts", json=create_payload)
         script_id = create_response.json()["id"]
@@ -720,8 +716,8 @@ class TestRepairScripts:
 class TestIntelligentRepair:
     """智能修复测试"""
 
-    @patch('api.repair_advanced_router._script_library')
-    @patch('api.repair_advanced_router._risk_engine')
+    @patch("api.repair_advanced_router._script_library")
+    @patch("api.repair_advanced_router._risk_engine")
     def test_get_intelligent_repairs_success(self, mock_risk, mock_script, client):
         """测试获取智能修复 - 成功"""
         response = client.get("/api/v1/repair/intelligent")
@@ -730,8 +726,8 @@ class TestIntelligentRepair:
         assert "items" in data
         assert "total" in data
 
-    @patch('api.repair_advanced_router._script_library')
-    @patch('api.repair_advanced_router._risk_engine')
+    @patch("api.repair_advanced_router._script_library")
+    @patch("api.repair_advanced_router._risk_engine")
     def test_get_intelligent_repairs_with_filter(self, mock_risk, mock_script, client):
         """测试获取智能修复 - 带过滤"""
         response = client.get("/api/v1/repair/intelligent?status=ready")
@@ -739,18 +735,14 @@ class TestIntelligentRepair:
         data = response.json()
         assert "items" in data
 
-    @patch('api.repair_advanced_router._script_library.get_script')
-    @patch('api.repair_advanced_router._risk_engine.assess_repair_risk')
+    @patch("api.repair_advanced_router._script_library.get_script")
+    @patch("api.repair_advanced_router._risk_engine.assess_repair_risk")
     def test_create_intelligent_repair_success(self, mock_assess, mock_get_script, client):
         """测试创建智能修复 - 成功"""
         mock_get_script.return_value = MagicMock()
         mock_assess.return_value = MagicMock(__dict__={"risk_score": 0.5})
-        
-        payload = {
-            "issue_type": "cpu_high",
-            "severity": "medium",
-            "auto_apply": False
-        }
+
+        payload = {"issue_type": "cpu_high", "severity": "medium", "auto_apply": False}
         response = client.post("/api/v1/repair/intelligent", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -760,13 +752,11 @@ class TestIntelligentRepair:
     def test_analyze_intelligent_repair_success(self, client):
         """测试分析智能修复 - 成功"""
         # 先创建智能修复
-        payload = {
-            "issue_type": "cpu_high",
-            "severity": "medium",
-            "auto_apply": False
-        }
-        with patch('api.repair_advanced_router._script_library.get_script'), \
-             patch('api.repair_advanced_router._risk_engine.assess_repair_risk'):
+        payload = {"issue_type": "cpu_high", "severity": "medium", "auto_apply": False}
+        with (
+            patch("api.repair_advanced_router._script_library.get_script"),
+            patch("api.repair_advanced_router._risk_engine.assess_repair_risk"),
+        ):
             create_response = client.post("/api/v1/repair/intelligent", json=payload)
             repair_id = create_response.json()["id"]
 
@@ -784,13 +774,11 @@ class TestIntelligentRepair:
     def test_apply_intelligent_repair_success(self, client):
         """测试应用智能修复 - 成功"""
         # 先创建智能修复
-        payload = {
-            "issue_type": "cpu_high",
-            "severity": "medium",
-            "auto_apply": False
-        }
-        with patch('api.repair_advanced_router._script_library.get_script'), \
-             patch('api.repair_advanced_router._risk_engine.assess_repair_risk'):
+        payload = {"issue_type": "cpu_high", "severity": "medium", "auto_apply": False}
+        with (
+            patch("api.repair_advanced_router._script_library.get_script"),
+            patch("api.repair_advanced_router._risk_engine.assess_repair_risk"),
+        ):
             create_response = client.post("/api/v1/repair/intelligent", json=payload)
             repair_id = create_response.json()["id"]
 
@@ -814,41 +802,37 @@ class TestIntelligentRepair:
 class TestApprovalWorkflow:
     """审批工作流测试"""
 
-    @patch('api.repair_advanced_router._approval_workflow')
+    @patch("api.repair_advanced_router._approval_workflow")
     def test_get_pending_approvals_success(self, mock_workflow, client):
         """测试获取待审批 - 成功"""
         mock_workflow.active_requests = {}
-        
+
         response = client.get("/api/v1/repair/approvals/pending")
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
         assert "total" in data
 
-    @patch('api.repair_advanced_router._approval_workflow.get_request_status')
-    @patch('api.repair_advanced_router._approval_workflow.approve_step')
+    @patch("api.repair_advanced_router._approval_workflow.get_request_status")
+    @patch("api.repair_advanced_router._approval_workflow.approve_step")
     def test_update_approval_approve_success(self, mock_approve, mock_get_status, client):
         """测试更新审批 - 批准成功"""
-        mock_get_status.return_value = {
-            "steps": [{"step_id": "step-1", "status": "pending"}]
-        }
+        mock_get_status.return_value = {"steps": [{"step_id": "step-1", "status": "pending"}]}
         mock_approve.return_value = True
-        
+
         fake_id = str(uuid.uuid4())
         update_payload = {"status": "approved", "comment": "Approved"}
         response = client.patch(f"/api/v1/repair/approvals/{fake_id}", json=update_payload)
         # 由于没有真实的审批请求，可能返回404
         assert response.status_code in [200, 404]
 
-    @patch('api.repair_advanced_router._approval_workflow.get_request_status')
-    @patch('api.repair_advanced_router._approval_workflow.reject_step')
+    @patch("api.repair_advanced_router._approval_workflow.get_request_status")
+    @patch("api.repair_advanced_router._approval_workflow.reject_step")
     def test_update_approval_reject_success(self, mock_reject, mock_get_status, client):
         """测试更新审批 - 拒绝成功"""
-        mock_get_status.return_value = {
-            "steps": [{"step_id": "step-1", "status": "pending"}]
-        }
+        mock_get_status.return_value = {"steps": [{"step_id": "step-1", "status": "pending"}]}
         mock_reject.return_value = True
-        
+
         fake_id = str(uuid.uuid4())
         update_payload = {"status": "rejected", "comment": "Rejected"}
         response = client.patch(f"/api/v1/repair/approvals/{fake_id}", json=update_payload)
@@ -862,30 +846,32 @@ class TestApprovalWorkflow:
         response = client.patch(f"/api/v1/repair/approvals/{fake_id}", json=update_payload)
         assert response.status_code == 400
 
-    @patch('api.repair_advanced_router._approval_workflow.get_request_status')
-    @patch('api.repair_advanced_router._approval_workflow.reject_step')
+    @patch("api.repair_advanced_router._approval_workflow.get_request_status")
+    @patch("api.repair_advanced_router._approval_workflow.reject_step")
     def test_reject_approval_success(self, mock_reject, mock_get_status, client):
         """测试拒绝审批 - 成功"""
-        mock_get_status.return_value = {
-            "steps": [{"step_id": "step-1", "status": "pending"}]
-        }
+        mock_get_status.return_value = {"steps": [{"step_id": "step-1", "status": "pending"}]}
         mock_reject.return_value = True
-        
+
         fake_id = str(uuid.uuid4())
         reject_payload = {"reason": "Risk too high"}
-        response = client.post(f"/api/v1/repair/approvals/reject?approval_id={fake_id}", json=reject_payload)
+        response = client.post(
+            f"/api/v1/repair/approvals/reject?approval_id={fake_id}", json=reject_payload
+        )
         # 注意：这个endpoint可能有参数问题
         # 实际endpoint使用的是body中的approval_id
         # 这里测试可能需要调整
 
-    @patch('api.repair_advanced_router._approval_workflow.get_request_status')
+    @patch("api.repair_advanced_router._approval_workflow.get_request_status")
     def test_reject_approval_not_found(self, mock_get_status, client):
         """测试拒绝审批 - 请求不存在"""
         mock_get_status.return_value = None
-        
+
         fake_id = str(uuid.uuid4())
         reject_payload = {"reason": "Test"}
-        response = client.post(f"/api/v1/repair/approvals/reject?approval_id={fake_id}", json=reject_payload)
+        response = client.post(
+            f"/api/v1/repair/approvals/reject?approval_id={fake_id}", json=reject_payload
+        )
         # 可能返回404
         assert response.status_code in [404, 422]
 

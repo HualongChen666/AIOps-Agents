@@ -23,7 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 class AlertService:
-    """告警服务"""
+    """告警服务类.
+
+    提供告警查询、清空等业务逻辑，遵循分层架构原则：Controller → Service → Repository。
+    """
 
     def get_alerts(self, limit: int = 20, tenant_id: Optional[str] = None) -> dict[str, Any]:
         """
@@ -126,7 +129,15 @@ class AlertService:
         }
 
     async def update_alert_status(self, alert_id: str, status: str) -> bool:
-        """更新告警状态（内存 + 数据库）"""
+        """更新告警状态（内存 + 数据库）。
+
+        Args:
+            alert_id: 告警ID
+            status: 新状态（如：acknowledged, resolved等）
+
+        Returns:
+            True if alert was found and updated, False otherwise
+        """
         found = False
         for alert in alert_history:
             if alert.get("id") == alert_id:
@@ -173,4 +184,4 @@ class AlertService:
 
 
 # 默认服务实例
-alert_service = AlertService()
+ALERT_SERVICE = AlertService()

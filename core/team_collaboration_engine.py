@@ -120,9 +120,19 @@ def _read_data_file() -> dict[str, Any]:
 
 def _write_data_file(data: dict[str, Any]) -> None:
     """Persist the data structure to JSON."""
+    import os
+    import stat
+
     _ensure_data_dir()
     with TEAMS_FILE.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, ensure_ascii=False, indent=2)
+
+    # Set restrictive permissions for teams data file (600 - owner read/write only)
+    try:
+        os.chmod(TEAMS_FILE, stat.S_IRUSR | stat.S_IWUSR)
+    except (OSError, AttributeError):
+        # chmod may fail on Windows or non-Unix systems
+        pass
 
 
 async def _load_data() -> dict[str, Any]:

@@ -102,8 +102,12 @@ class ConfigManager:
         data: Dict[str, Any] = {}
 
         if suffix == ".json":
-            with open(config_file, encoding="utf-8") as f:
-                data = json.load(f)
+            try:
+                with open(config_file, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.error(f"Failed to load JSON config file {config_file}: {exc}")
+                data = {}
         elif suffix in (".yaml", ".yml"):
             try:
                 import yaml
@@ -112,6 +116,9 @@ class ConfigManager:
                     data = yaml.safe_load(f) or {}
             except ImportError as exc:  # pragma: no cover - optional dependency
                 logger.error(f"PyYAML not installed, cannot load YAML config: {exc}")
+            except (OSError, yaml.YAMLError) as exc:
+                logger.error(f"Failed to load YAML config file {config_file}: {exc}")
+                data = {}
         else:
             logger.warning(f"Unsupported config file extension: {suffix}")
 
@@ -285,6 +292,16 @@ class ConfigManager:
                     yaml.safe_dump(config_dict, f, default_flow_style=False, allow_unicode=True)
                 else:
                     raise ValueError(f"Unsupported config file extension: {suffix}")
+
+            # Set restrictive permissions for config file (644 - owner read/write, group/others read)
+            try:
+                import os
+                import stat
+
+                os.chmod(config_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
         except Exception as exc:
             logger.error(f"Failed to save config to {path}: {exc}")
             raise

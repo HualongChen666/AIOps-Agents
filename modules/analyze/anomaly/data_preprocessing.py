@@ -134,7 +134,7 @@ class TimeSeriesDataLoader:
         start_time: str,
         end_time: str,
         step: str = "1m",
-        url: str = "http://localhost:9090",
+        url: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         从 Prometheus 加载时序数据
@@ -157,7 +157,12 @@ class TimeSeriesDataLoader:
         pd.DataFrame
             加载的数据
         """
+        import os
+
         from prometheus_api_client import PrometheusConnect
+
+        if url is None:
+            url = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
 
         logger.info(f"Loading data from Prometheus: {query}")
         prom = PrometheusConnect(url=url, disable_ssl=True)

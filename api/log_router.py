@@ -16,6 +16,13 @@ from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
+from api.common import (
+    SimpleTTLCache,
+    generate_cache_key,
+    handle_service_error,
+    validate_string_not_empty,
+    with_cache_response,
+)
 from config import LINUX_HOSTS
 from core.api_helpers import VALID_HOSTNAME_PATTERN
 from core.es_logger import es_search_logs
@@ -56,29 +63,33 @@ _LOG_CACHE_TTL_SEC = 5
 # ──────────────────────────────────────────────────────
 # Windows 系统/应用错误日志在前端抽屉中可能被反复打开
 # 5 秒缓存可减少 PowerShell 子进程启动开销
+# 🔧 重构:使用公共 SimpleTTLCache 替代手动实现
 # ──────────────────────────────────────────────────────
-_log_cache: dict[str, dict[str, Any]] = {}
-_log_cache_lock = Lock()
+_log_cache = SimpleTTLCache(ttl_sec=_LOG_CACHE_TTL_SEC)
 
 
 def _get_cached_logs(cache_key: str) -> Optional[list]:
     """🔧 LG3:从缓存读取日志(命中返回数据,未命中返回 None)"""
-    now = time.monotonic()
-    with _log_cache_lock:
-        cached = _log_cache.get(cache_key)
-        if cached is not None and (now - cached["ts"]) < _LOG_CACHE_TTL_SEC:
-            # 浅拷贝防外部修改
-            return list(cached["data"])
+    cached = _log_cache.get(cache_key)
+    if cached is not None:
+        return cached
     return None
 
 
 def _set_cached_logs(cache_key: str, data: list) -> None:
     """🔧 LG3:写入缓存"""
-    with _log_cache_lock:
-        _log_cache[cache_key] = {
-            "data": list(data),
-            "ts": time.monotonic(),
-        }
+    _log_cache.set(cache_key, data)
+
+
+def clear_log_cache() -> dict[str, Any]:
+    """
+    清空日志缓存(维护用)
+
+    Returns:
+        缓存清空结果
+    """
+    _log_cache.clear()
+    return {"status": "ok", "message": "日志缓存已清空"}
 
 
 # ============================================================
@@ -125,15 +136,11 @@ def _validate_keyword(keyword: str) -> str:
     🔧 LG1:keyword 二次防御
         - Pydantic Query 已校验 max_length,但接收方可能传入超大字符串
         - 这里做最终长度截断 + 空白校验
+    🔧 重构:使用公共 validate_string_not_empty 函数
     """
-    if not keyword or not isinstance(keyword, str):
-        raise HTTPException(status_code=422, detail="keyword 不能为空")
-
-    cleaned = keyword.strip()[:_KEYWORD_MAX_LEN]
-    if not cleaned:
-        raise HTTPException(status_code=422, detail="keyword 不能为纯空白字符串")
-
-    return cleaned
+    return validate_string_not_empty(
+        keyword, "keyword", allow_whitespace=False, max_length=_KEYWORD_MAX_LEN
+    )
 
 
 # ============================================================
@@ -178,19 +185,20 @@ async def system_errors(
     logger.info(f"请求系统错误日志,newest={newest}")
 
     # 🔧 LG3:命中缓存
-    cache_key = f"system_errors_{newest}"
+    cache_key = generate_cache_key("system_errors", newest)
     cached = _get_cached_logs(cache_key)
     if cached is not None:
         logger.debug("系统错误日志命中缓存")
-        return {"total": len(cached), "logs": cached, "cached": True}
+        return with_cache_response({"total": len(cached), "logs": cached}, cached=True)
 
     try:
         data = await get_system_errors(newest)
         _set_cached_logs(cache_key, data)
-        return {"total": len(data), "logs": data, "cached": False}
+        return with_cache_response({"total": len(data), "logs": data}, cached=False)
     except Exception as e:
-        logger.error(f"系统错误日志采集失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to collect system error logs")
+        handle_service_error(
+            e, "系统错误日志采集", detail_prefix="Failed to collect system error logs"
+        )
 
 
 @router.get(
@@ -226,19 +234,20 @@ async def app_errors(
     """采集 Windows Application 事件日志中的错误记录"""
     logger.info(f"请求应用程序错误日志,newest={newest}")
 
-    cache_key = f"app_errors_{newest}"
+    cache_key = generate_cache_key("app_errors", newest)
     cached = _get_cached_logs(cache_key)
     if cached is not None:
         logger.debug("应用错误日志命中缓存")
-        return {"total": len(cached), "logs": cached, "cached": True}
+        return with_cache_response({"total": len(cached), "logs": cached}, cached=True)
 
     try:
         data = await get_application_errors(newest)
         _set_cached_logs(cache_key, data)
-        return {"total": len(data), "logs": data, "cached": False}
+        return with_cache_response({"total": len(data), "logs": data}, cached=False)
     except Exception as e:
-        logger.error(f"应用程序错误日志采集失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to collect application error logs")
+        handle_service_error(
+            e, "应用程序错误日志采集", detail_prefix="Failed to collect application error logs"
+        )
 
 
 @router.get(
@@ -278,8 +287,7 @@ async def query_logs(
         data = await get_event_logs(log_name, level, newest)
         return {"total": len(data), "logs": data}
     except Exception as e:
-        logger.error(f"事件日志查询失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        handle_service_error(e, "事件日志查询")
 
 
 @router.get(
@@ -331,8 +339,7 @@ async def search(
             "logs": data,
         }
     except Exception as e:
-        logger.error(f"日志搜索失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to search logs")
+        handle_service_error(e, "日志搜索", detail_prefix="Failed to search logs")
 
 
 # ============================================================
@@ -390,36 +397,38 @@ async def linux_errors(
     host_config = _get_linux_host(host_name)
 
     # 🔧 LG3:命中缓存
-    cache_key = f"linux_errors_{host_name}_{newest}"
+    cache_key = generate_cache_key("linux_errors", host_name, newest)
     cached = _get_cached_logs(cache_key)
     if cached is not None:
         logger.debug(f"Linux 错误日志命中缓存 | host={host_name}")
-        return {
-            "total": len(cached),
-            "host": host_name,
-            "source": "kern",
-            "logs": cached,
-            "cached": True,
-        }
+        return with_cache_response(
+            {
+                "total": len(cached),
+                "host": host_name,
+                "source": "kern",
+                "logs": cached,
+            },
+            cached=True,
+        )
 
     try:
         data = await get_linux_errors(host_config, newest)
         _set_cached_logs(cache_key, data)
-        return {
-            "total": len(data),
-            "host": host_name,
-            "source": "kern",
-            "logs": data,
-            "cached": False,
-        }
+        return with_cache_response(
+            {
+                "total": len(data),
+                "host": host_name,
+                "source": "kern",
+                "logs": data,
+            },
+            cached=False,
+        )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Linux 内核错误日志采集失败 | host={host_name}: {e}",
-            exc_info=True,
+        handle_service_error(
+            e, "Linux 内核错误日志采集", detail_prefix="Failed to collect Linux kernel error logs"
         )
-        raise HTTPException(status_code=500, detail="Failed to collect Linux kernel error logs")
 
 
 @router.get(
@@ -480,11 +489,7 @@ async def linux_query(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Linux 日志查询失败 | host={host_name} source={source}: {e}",
-            exc_info=True,
-        )
-        raise HTTPException(status_code=500, detail="Failed to query Linux logs")
+        handle_service_error(e, "Linux 日志查询", detail_prefix="Failed to query Linux logs")
 
 
 # Elasticsearch 统一日志搜索接口（跨平台）
@@ -600,8 +605,17 @@ async def linux_search(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Linux 日志搜索失败 | host={host_name}: {e}",
-            exc_info=True,
-        )
-        raise HTTPException(status_code=500, detail="Failed to search Linux logs")
+        handle_service_error(e, "Linux 日志搜索", detail_prefix="Failed to search Linux logs")
+
+
+@router.delete(
+    "/cache",
+    summary="清空日志缓存(维护用)",
+    include_in_schema=False,
+)
+async def clear_log_cache_endpoint() -> dict[str, Any]:
+    """
+    清空日志缓存
+    供测试或紧急维护使用,生产环境无需调用
+    """
+    return clear_log_cache()

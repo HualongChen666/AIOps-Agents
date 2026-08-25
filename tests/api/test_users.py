@@ -43,7 +43,7 @@ def test_create_user_with_invalid_permission(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     username = f"badperm_{uuid.uuid4().hex[:8]}"
     resp = client.post(
         "/api/v1/users/",
@@ -70,7 +70,7 @@ def test_create_user_with_valid_permissions(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     username = f"goodperm_{uuid.uuid4().hex[:8]}"
     resp = client.post(
         "/api/v1/users/",
@@ -79,7 +79,10 @@ def test_create_user_with_valid_permissions(client):
             "password": "testpass",
             "role": "viewer",
             "is_active": True,
-            "permissions": [{"asset_id": 1, "permission": "view"}, {"asset_id": 2, "permission": "edit"}],
+            "permissions": [
+                {"asset_id": 1, "permission": "view"},
+                {"asset_id": 2, "permission": "edit"},
+            ],
         },
         headers=admin_headers,
     )
@@ -100,7 +103,7 @@ def test_update_nonexistent_user(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.put(
         "/api/v1/users/99999",
         json={"role": "viewer"},
@@ -115,7 +118,7 @@ def test_update_password_as_non_admin_non_self(client):
     # Create two regular users using admin
     username1 = f"user1_{uuid.uuid4().hex[:8]}"
     username2 = f"user2_{uuid.uuid4().hex[:8]}"
-    
+
     # Login as admin first
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -124,7 +127,7 @@ def test_update_password_as_non_admin_non_self(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp1 = client.post(
         "/api/v1/users/",
         json={
@@ -138,7 +141,7 @@ def test_update_password_as_non_admin_non_self(client):
     )
     assert resp1.status_code == 201
     user1_id = resp1.json()["id"]
-    
+
     resp2 = client.post(
         "/api/v1/users/",
         json={
@@ -152,7 +155,7 @@ def test_update_password_as_non_admin_non_self(client):
     )
     assert resp2.status_code == 201
     user2 = resp2.json()
-    
+
     # Login as user1
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -161,7 +164,7 @@ def test_update_password_as_non_admin_non_self(client):
     assert login_resp.status_code == 200
     user1_token = login_resp.json()["access_token"]
     user1_headers = {"Authorization": f"Bearer {user1_token}"}
-    
+
     # Try to update user2's password as user1 (should fail)
     resp = client.put(
         f"/api/v1/users/{user2['id']}",
@@ -169,7 +172,7 @@ def test_update_password_as_non_admin_non_self(client):
         headers=user1_headers,
     )
     assert resp.status_code == 403
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user1_id}", headers=admin_headers)
     client.delete(f"/api/v1/users/{user2['id']}", headers=admin_headers)
@@ -185,7 +188,7 @@ def test_update_user_with_invalid_role(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     username = f"badrole_{uuid.uuid4().hex[:8]}"
     resp = client.post(
         "/api/v1/users/",
@@ -200,7 +203,7 @@ def test_update_user_with_invalid_role(client):
     )
     assert resp.status_code == 201
     user_id = resp.json()["id"]
-    
+
     resp = client.put(
         f"/api/v1/users/{user_id}",
         json={"role": "superuser"},
@@ -208,7 +211,7 @@ def test_update_user_with_invalid_role(client):
     )
     assert resp.status_code == 400
     assert "Invalid role" in resp.json()["error"]["message"]
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
 
@@ -224,7 +227,7 @@ def test_promote_user_to_admin(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     admin2_username = f"admin2_{uuid.uuid4().hex[:8]}"
     resp = client.post(
         "/api/v1/users/",
@@ -239,7 +242,7 @@ def test_promote_user_to_admin(client):
     )
     assert resp.status_code == 201
     admin2_id = resp.json()["id"]
-    
+
     # Create a regular user
     username = f"promote_{uuid.uuid4().hex[:8]}"
     resp = client.post(
@@ -255,7 +258,7 @@ def test_promote_user_to_admin(client):
     )
     assert resp.status_code == 201
     user_id = resp.json()["id"]
-    
+
     # Promote the user to admin
     resp = client.put(
         f"/api/v1/users/{user_id}",
@@ -264,7 +267,7 @@ def test_promote_user_to_admin(client):
     )
     assert resp.status_code == 200
     assert resp.json()["role"] == "admin"
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
     client.delete(f"/api/v1/users/{admin2_id}", headers=admin_headers)
@@ -280,7 +283,7 @@ def test_delete_nonexistent_user(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.delete("/api/v1/users/99999", headers=admin_headers)
     assert resp.status_code == 404
     assert "User not found" in resp.json()["error"]["message"]
@@ -296,11 +299,11 @@ def test_get_permissions_forbidden(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     # Create two regular users
     username1 = f"user1_{uuid.uuid4().hex[:8]}"
     username2 = f"user2_{uuid.uuid4().hex[:8]}"
-    
+
     resp1 = client.post(
         "/api/v1/users/",
         json={
@@ -314,7 +317,7 @@ def test_get_permissions_forbidden(client):
     )
     assert resp1.status_code == 201
     user1_id = resp1.json()["id"]
-    
+
     resp2 = client.post(
         "/api/v1/users/",
         json={
@@ -328,7 +331,7 @@ def test_get_permissions_forbidden(client):
     )
     assert resp2.status_code == 201
     user2 = resp2.json()
-    
+
     # Login as user1
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -337,14 +340,14 @@ def test_get_permissions_forbidden(client):
     assert login_resp.status_code == 200
     user1_token = login_resp.json()["access_token"]
     user1_headers = {"Authorization": f"Bearer {user1_token}"}
-    
+
     # Try to get user2's permissions as user1 (should fail)
     resp = client.get(
         f"/api/v1/users/{user2['id']}/permissions",
         headers=user1_headers,
     )
     assert resp.status_code == 403
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user1_id}", headers=admin_headers)
     client.delete(f"/api/v1/users/{user2['id']}", headers=admin_headers)
@@ -360,7 +363,7 @@ def test_set_permissions_nonexistent_user(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.put(
         "/api/v1/users/99999/permissions",
         json={"permissions": [{"asset_id": 1, "permission": "view"}]},
@@ -373,7 +376,7 @@ def test_set_permissions_nonexistent_user(client):
 def test_set_permissions_invalid_permission(client):
     """Setting permissions with an invalid permission returns 400."""
     username = f"badsetperm_{uuid.uuid4().hex[:8]}"
-    
+
     # Login as admin first
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -382,7 +385,7 @@ def test_set_permissions_invalid_permission(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.post(
         "/api/v1/users/",
         json={
@@ -396,7 +399,7 @@ def test_set_permissions_invalid_permission(client):
     )
     assert resp.status_code == 201
     user_id = resp.json()["id"]
-    
+
     resp = client.put(
         f"/api/v1/users/{user_id}/permissions",
         json={"permissions": [{"asset_id": 1, "permission": "invalid"}]},
@@ -404,7 +407,7 @@ def test_set_permissions_invalid_permission(client):
     )
     assert resp.status_code == 400
     assert "Invalid permission" in resp.json()["error"]["message"]
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
 
@@ -414,7 +417,7 @@ def test_get_user_forbidden(client):
     # Create two regular users
     username1 = f"user1_{uuid.uuid4().hex[:8]}"
     username2 = f"user2_{uuid.uuid4().hex[:8]}"
-    
+
     # Login as admin first
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -423,7 +426,7 @@ def test_get_user_forbidden(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp1 = client.post(
         "/api/v1/users/",
         json={
@@ -437,7 +440,7 @@ def test_get_user_forbidden(client):
     )
     assert resp1.status_code == 201
     user1_id = resp1.json()["id"]
-    
+
     resp2 = client.post(
         "/api/v1/users/",
         json={
@@ -451,7 +454,7 @@ def test_get_user_forbidden(client):
     )
     assert resp2.status_code == 201
     user2 = resp2.json()
-    
+
     # Login as user1
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -460,14 +463,14 @@ def test_get_user_forbidden(client):
     assert login_resp.status_code == 200
     user1_token = login_resp.json()["access_token"]
     user1_headers = {"Authorization": f"Bearer {user1_token}"}
-    
+
     # Try to get user2's info as user1 (should fail)
     resp = client.get(
         f"/api/v1/users/{user2['id']}",
         headers=user1_headers,
     )
     assert resp.status_code == 403
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user1_id}", headers=admin_headers)
     client.delete(f"/api/v1/users/{user2['id']}", headers=admin_headers)
@@ -483,7 +486,7 @@ def test_get_user_not_found(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.get("/api/v1/users/99999", headers=admin_headers)
     assert resp.status_code == 404
     assert "User not found" in resp.json()["error"]["message"]
@@ -493,7 +496,7 @@ def test_update_password_as_self(client):
     """A user can update their own password (covers lines 152-156)."""
     # Create a regular user
     username = f"selfpass_{uuid.uuid4().hex[:8]}"
-    
+
     # Login as admin first
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -502,7 +505,7 @@ def test_update_password_as_self(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.post(
         "/api/v1/users/",
         json={
@@ -516,7 +519,7 @@ def test_update_password_as_self(client):
     )
     assert resp.status_code == 201
     user_id = resp.json()["id"]
-    
+
     # Login as the user
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -525,7 +528,7 @@ def test_update_password_as_self(client):
     assert login_resp.status_code == 200
     user_token = login_resp.json()["access_token"]
     user_headers = {"Authorization": f"Bearer {user_token}"}
-    
+
     # Update own password
     resp = client.put(
         f"/api/v1/users/{user_id}",
@@ -533,14 +536,14 @@ def test_update_password_as_self(client):
         headers=user_headers,
     )
     assert resp.status_code == 200
-    
+
     # Verify password was changed by logging in with new password
     login_resp = client.post(
         "/api/v1/auth/login",
         json={"username": username, "password": "newpass123"},
     )
     assert login_resp.status_code == 200
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
 
@@ -549,7 +552,7 @@ def test_update_user_admin_only_fields(client):
     """Non-admin users cannot update admin-only fields (covers line 160)."""
     # Create a regular user
     username = f"adminfield_{uuid.uuid4().hex[:8]}"
-    
+
     # Login as admin first
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -558,7 +561,7 @@ def test_update_user_admin_only_fields(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.post(
         "/api/v1/users/",
         json={
@@ -572,7 +575,7 @@ def test_update_user_admin_only_fields(client):
     )
     assert resp.status_code == 201
     user_id = resp.json()["id"]
-    
+
     # Login as the user
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -581,7 +584,7 @@ def test_update_user_admin_only_fields(client):
     assert login_resp.status_code == 200
     user_token = login_resp.json()["access_token"]
     user_headers = {"Authorization": f"Bearer {user_token}"}
-    
+
     # Try to update role (admin-only field)
     resp = client.put(
         f"/api/v1/users/{user_id}",
@@ -590,7 +593,7 @@ def test_update_user_admin_only_fields(client):
     )
     assert resp.status_code == 403
     assert "Admin only" in resp.json()["error"]["message"]
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
 
@@ -599,7 +602,7 @@ def test_get_permissions_success(client):
     """Successfully get user permissions (covers lines 217-221)."""
     # Create a user with permissions
     username = f"getperm_{uuid.uuid4().hex[:8]}"
-    
+
     # Login as admin first
     login_resp = client.post(
         "/api/v1/auth/login",
@@ -608,7 +611,7 @@ def test_get_permissions_success(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.post(
         "/api/v1/users/",
         json={
@@ -616,13 +619,16 @@ def test_get_permissions_success(client):
             "password": "testpass",
             "role": "viewer",
             "is_active": True,
-            "permissions": [{"asset_id": 1, "permission": "view"}, {"asset_id": 2, "permission": "edit"}],
+            "permissions": [
+                {"asset_id": 1, "permission": "view"},
+                {"asset_id": 2, "permission": "edit"},
+            ],
         },
         headers=admin_headers,
     )
     assert resp.status_code == 201
     user_id = resp.json()["id"]
-    
+
     # Get permissions as admin
     resp = client.get(
         f"/api/v1/users/{user_id}/permissions",
@@ -631,7 +637,7 @@ def test_get_permissions_success(client):
     assert resp.status_code == 200
     perms = resp.json()
     assert len(perms) == 2
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
 
@@ -646,7 +652,7 @@ def test_set_permissions_success(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     # Create a user without permissions
     username = f"setperm_{uuid.uuid4().hex[:8]}"
     resp = client.post(
@@ -662,17 +668,22 @@ def test_set_permissions_success(client):
     )
     assert resp.status_code == 201
     user_id = resp.json()["id"]
-    
+
     # Set permissions
     resp = client.put(
         f"/api/v1/users/{user_id}/permissions",
-        json={"permissions": [{"asset_id": 1, "permission": "view"}, {"asset_id": 2, "permission": "edit"}]},
+        json={
+            "permissions": [
+                {"asset_id": 1, "permission": "view"},
+                {"asset_id": 2, "permission": "edit"},
+            ]
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 200
     perms = resp.json()
     assert len(perms) == 2
-    
+
     # Cleanup
     client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
 
@@ -687,7 +698,7 @@ def test_create_user_duplicate_username(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     username = f"dupuser_{uuid.uuid4().hex[:8]}"
     resp = client.post(
         "/api/v1/users/",
@@ -701,7 +712,7 @@ def test_create_user_duplicate_username(client):
         headers=admin_headers,
     )
     assert resp.status_code == 201
-    
+
     # Try to create the same user again
     resp = client.post(
         "/api/v1/users/",
@@ -716,7 +727,7 @@ def test_create_user_duplicate_username(client):
     )
     assert resp.status_code == 400
     assert "Username already taken" in resp.json()["error"]["message"]
-    
+
     # Cleanup
     user_id = resp.json()["id"] if "id" in resp.json() else None
     if user_id:
@@ -733,7 +744,7 @@ def test_get_me(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     resp = client.get("/api/v1/users/me", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["username"] == "admin"
@@ -749,7 +760,7 @@ def test_update_user_demote_last_admin(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     # Try to demote the only admin
     resp = client.put(
         "/api/v1/users/1",
@@ -770,7 +781,7 @@ def test_update_user_deactivate_last_admin(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     # Try to deactivate the only admin
     resp = client.put(
         "/api/v1/users/1",
@@ -791,7 +802,7 @@ def test_delete_last_admin(client):
     assert login_resp.status_code == 200
     admin_token = login_resp.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    
+
     # Try to delete the only admin
     resp = client.delete("/api/v1/users/1", headers=admin_headers)
     assert resp.status_code == 400

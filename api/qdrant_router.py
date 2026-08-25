@@ -119,7 +119,14 @@ class DeletePointsRequest(BaseModel):
     responses={
         (200): {
             "description": "健康状态",
-            "content": {"application/json": {"example": {"status": "healthy", "version": "1.7.0"}}},
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "healthy",
+                        "version": "1.7.0",
+                    }
+                }
+            },
         },
         (401): {"description": "未授权"},
         (503): {"description": "Qdrant服务不可用"},
@@ -221,7 +228,11 @@ async def delete_collection_endpoint(
             "description": "操作成功",
             "content": {
                 "application/json": {
-                    "example": {"status": "success", "operation_id": "op-123", "upserted_count": 10}
+                    "example": {
+                        "status": "success",
+                        "operation_id": "op-123",
+                        "upserted_count": 10,
+                    }
                 }
             },
         },

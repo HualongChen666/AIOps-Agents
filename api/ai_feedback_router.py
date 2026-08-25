@@ -92,9 +92,13 @@ def _fetch_feedback(
     sql = "SELECT * FROM ai_feedback WHERE 1=1"
     params: list[Any] = []
     if today_only:
-        sql += " AND created_at LIKE ?"
-        params.append(f"{today_str}%")
+        # Use parameterized query with date range instead of LIKE for better security
+        sql += " AND created_at >= ?"
+        params.append(today_str)
     if feedback_type:
+        # Validate feedback_type to prevent SQL injection
+        if feedback_type not in ("positive", "negative"):
+            raise ValueError(f"Invalid feedback_type: {feedback_type}")
         sql += " AND feedback_type = ?"
         params.append(feedback_type)
     sql += " ORDER BY created_at DESC"

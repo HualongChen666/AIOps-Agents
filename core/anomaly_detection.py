@@ -186,8 +186,12 @@ if __name__ == "__main__":  # pragma: no cover
         print("Usage: python anomaly_detection.py <path_to_json_data>")
         sys.exit(1)
     path = sys.argv[1]
-    with open(path, "r", encoding="utf-8") as f:
-        raw = json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"Error loading data from {path}: {exc}")
+        sys.exit(1)
     # raw 示例: [{"timestamp": "2024-01-01T00:00:00Z", "value": 12.3}, ...]
     df_input = pd.DataFrame(raw)
     detector = AnomalyDetector()

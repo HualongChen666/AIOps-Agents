@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -12,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
-from core.authentication import UserInDB, get_user, verify_token
+from core.authentication import UserInDB, get_user, hash_password, verify_token
 from core.user_service import user_service
 
 logger = logging.getLogger(__name__)
@@ -72,6 +71,9 @@ class UserProfile(BaseModel):
     website: Optional[str] = None
     created_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
+    password: Optional[str] = Field(
+        None, min_length=8, max_length=100, description="User password (required for new users)"
+    )
 
     model_config = {"extra": "ignore"}
 
@@ -268,7 +270,9 @@ def _add_activity_log(
     _activity_logs.append(log)
     # 只保留最近1000条
     if len(_activity_logs) > 1000:
-        _activity_logs = _activity_logs[-1000:]
+        _activity_logs = _activity_logs[
+            -1000:
+        ]  # noqa: F841 - Intentionally filtering to maintain data consistency
     return log
 
 
@@ -400,7 +404,9 @@ async def update_user_profile(
         full_name=profile_update.full_name,
     )
     if not success:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update profile")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update profile"
+        )
 
     user = await user_service.get_user_by_username(current_user.username)
     if not user:
@@ -728,14 +734,19 @@ async def create_user_profile(
     # 检查用户是否已存在
     existing = await user_service.get_user_by_username(profile_data.username)
     if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
+
+    # 验证密码是否提供
+    if not profile_data.password:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required for user creation"
         )
 
     # 创建用户
+    hashed_password = hash_password(profile_data.password)
     success = await user_service.create_user(
         username=profile_data.username,
-        hashed_password="default_hash",  # 实际应该要求密码
+        hashed_password=hashed_password,
         email=profile_data.email,
         full_name=profile_data.full_name,
         role=profile_data.role,

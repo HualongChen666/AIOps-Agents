@@ -287,7 +287,9 @@ async def test_rci_topology_update_existing_node(rci_engine):
     await rci_engine.discover_topology_realtime(metrics, None)
     first = rci_engine.topology_graph["host1"].last_updated
     await asyncio.sleep(0.01)
-    result = await rci_engine.discover_topology_realtime(metrics, None)  # noqa: F841  # Variable for test verification
+    result = await rci_engine.discover_topology_realtime(
+        metrics, None
+    )  # noqa: F841  # Variable for test verification
     assert result["total_nodes"] == 1
     assert rci_engine.topology_graph["host1"].last_updated > first
 
@@ -479,7 +481,9 @@ async def test_rci_verify_and_statistics(rci_engine):
         "avg_query_duration_ms": 1200,
         "actual_impact": {"latency": 105.0},
     }
-    result = await rci_engine.verify_root_cause(hyp, data)  # noqa: F841  # Variable for test verification
+    result = await rci_engine.verify_root_cause(
+        hyp, data
+    )  # noqa: F841  # Variable for test verification
     assert result["verification_status"] in ("verified", "partially_verified", "rejected")
     stats = rci_engine.get_analysis_statistics()
     assert isinstance(stats, dict)
@@ -1266,9 +1270,11 @@ async def test_audit_log_action_failure(audit_session, fake_session_factory, mon
         "AsyncSessionLocal",
         fake_session_factory(commit_exc=RuntimeError("db down")),
     )
-    result = await audit_session.AuditService.log_action(  # noqa: F841  # Variable for test verification
-        action="login",
-        resource_type="user",
+    result = (
+        await audit_session.AuditService.log_action(  # noqa: F841  # Variable for test verification
+            action="login",
+            resource_type="user",
+        )
     )
     assert result is None
 
@@ -1374,7 +1380,9 @@ async def test_audit_user_summary(audit_session, fake_session_factory, monkeypat
 
 
 async def test_audit_cleanup(audit_session, fake_session_factory, monkeypatch):
-    count_result = MagicMock(scalar=MagicMock(return_value=3))  # noqa: F841  # Variable for test verification
+    count_result = MagicMock(
+        scalar=MagicMock(return_value=3)
+    )  # noqa: F841  # Variable for test verification
     monkeypatch.setattr(
         audit_session,
         "AsyncSessionLocal",
@@ -1396,7 +1404,9 @@ async def test_audit_detect_suspicious(audit_session, fake_session_factory, monk
         SimpleNamespace(action="permission_denied", ip_address="6.6.6.6", created_at=now),
         SimpleNamespace(action="permission_denied", ip_address="7.7.7.7", created_at=now),
     ]
-    result = MagicMock(scalars=MagicMock(return_value=MagicMock(all=lambda: records)))  # noqa: F841  # Variable for test verification
+    result = MagicMock(
+        scalars=MagicMock(return_value=MagicMock(all=lambda: records))
+    )  # noqa: F841  # Variable for test verification
     monkeypatch.setattr(
         audit_session,
         "AsyncSessionLocal",
@@ -1426,7 +1436,9 @@ async def test_audit_verify_integrity_db(audit_session, fake_session_factory, mo
         changes={"_integrity_hash": stored_hash},
         created_at=now,
     )
-    result = MagicMock(scalar_one_or_none=MagicMock(return_value=log))  # noqa: F841  # Variable for test verification
+    result = MagicMock(
+        scalar_one_or_none=MagicMock(return_value=log)
+    )  # noqa: F841  # Variable for test verification
     monkeypatch.setattr(
         audit_session,
         "AsyncSessionLocal",

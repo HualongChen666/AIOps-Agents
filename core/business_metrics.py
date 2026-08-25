@@ -275,7 +275,7 @@ class BusinessMetricsCollector:
 
 
 # 全局业务指标收集器实例
-business_metrics_collector = BusinessMetricsCollector()
+BUSINESS_METRICS_COLLECTOR = BusinessMetricsCollector()
 
 
 async def setup_business_metrics() -> Any:

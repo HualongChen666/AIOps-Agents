@@ -269,7 +269,9 @@ async def test_cicd_stage_retry_and_artifact(tmp_path, monkeypatch):
         stage_type=cicd_module.PipelineStage.TEST,
         retry_count=2,
     )
-    result = await manager._execute_stage(exec_id, stage)  # noqa: F841  # Variable for test verification
+    result = await manager._execute_stage(
+        exec_id, stage
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert call_count == 3
     assert execution.metadata.get("retry_count") == 2

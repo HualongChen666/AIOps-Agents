@@ -227,7 +227,9 @@ async def test_get_summary_metrics(monkeypatch):
         "core.stats_engine.get_real_summary",
         AsyncMock(return_value=fake_summary),
     )
-    result = await alert_engine.get_summary_metrics()  # noqa: F841  # Variable for test verification
+    result = (
+        await alert_engine.get_summary_metrics()
+    )  # noqa: F841  # Variable for test verification
     assert result == fake_summary  # noqa: F841  # Variable for test verification
 
 
@@ -324,8 +326,10 @@ async def test_send_teams_notification(monkeypatch):
     session.post = AsyncMock(return_value=response)
     monkeypatch.setattr(notify_engine, "aiohttp", fake_aiohttp)
 
-    result = await notify_engine.send_teams_notification(  # noqa: F841  # Variable for test verification
-        "test message", "https://example.com/teams"
+    result = (
+        await notify_engine.send_teams_notification(  # noqa: F841  # Variable for test verification
+            "test message", "https://example.com/teams"
+        )
     )
     assert result["success"] is True
 
@@ -335,12 +339,16 @@ async def test_send_notification(monkeypatch):
     _stub_notify_channel_funcs(monkeypatch)
 
     alert = {"type": "test", "message": "boom", "severity": "critical"}
-    result = await notify_engine.send_notification(alert, channels=["slack", "teams"])  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_notification(
+        alert, channels=["slack", "teams"]
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["channels_sent"] == 2
 
     bad_alert = {"message": "no type"}
-    result = await notify_engine.send_notification(bad_alert)  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_notification(
+        bad_alert
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "invalid" in result["error"].lower()
 
@@ -377,7 +385,9 @@ async def test_send_alert_notification_ok(monkeypatch):
     notify_engine._notification_cooldowns.clear()
 
     alert = {"id": "A1", "level": "warning", "title": "t", "desc": "d"}
-    result = await notify_engine.send_alert_notification(alert)  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_alert_notification(
+        alert
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
     assert "wecom" in result["channels_sent"]
 
@@ -455,7 +465,9 @@ async def test_notification_history_and_read_status(monkeypatch):
     notify_engine._notification_history.clear()
 
     alert = {"id": "H1", "level": "warning", "title": "t", "desc": "d"}
-    result = await notify_engine.send_alert_notification(alert)  # noqa: F841  # Variable for test verification
+    result = await notify_engine.send_alert_notification(
+        alert
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
 
     history = await notify_engine.get_notification_history(limit=10)

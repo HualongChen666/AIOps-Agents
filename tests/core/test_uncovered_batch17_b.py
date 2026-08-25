@@ -113,7 +113,9 @@ def test_db_replication_check_replica_health_out_of_range():
         replicas_config=[{"host": "r0", "port": 5433}],
     )
     for idx in (-1, 5):
-        result = asyncio.run(db_replication.check_replica_health(idx))  # noqa: F841  # Variable for test verification
+        result = asyncio.run(
+            db_replication.check_replica_health(idx)
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "unhealthy"
         assert result["error"] == "Replica not configured"
 
@@ -190,7 +192,9 @@ def test_flink_stream_job_process_and_record_methods():
         config = flink_processor.FlinkJobConfig(job_name=f"job-{jt.value}", job_type=jt)
         job = flink_processor.FlinkStreamJob(config)
         assert job.process_stream([{"x": 1}]) == []
-        result = job._stub_process([{"value": 1200, "label": "x"}])  # noqa: F841  # Variable for test verification
+        result = job._stub_process(
+            [{"value": 1200, "label": "x"}]
+        )  # noqa: F841  # Variable for test verification
         assert len(result) == 1
         if jt == flink_processor.FlinkJobType.METRICS_AGGREGATION:
             assert result[0]["aggregated"] is True

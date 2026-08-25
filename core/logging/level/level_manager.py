@@ -295,6 +295,16 @@ class LogLevelManager:
             with open(file_path_obj, "w", encoding="utf-8") as f:
                 json.dump(config_data, f, indent=2)
 
+            # Set restrictive permissions for log level config file (644 - owner read/write, group/others read)
+            try:
+                import os
+                import stat
+
+                os.chmod(file_path_obj, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
+
             # Use print instead of logger to avoid loguru dependency issues
             print(f"Log level configuration saved to {file_path}")
 

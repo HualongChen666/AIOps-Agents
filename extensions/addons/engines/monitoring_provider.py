@@ -11,8 +11,11 @@ performing any network or CLI calls.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import ssl
 import subprocess
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -21,6 +24,15 @@ try:
     import requests
 except ImportError:  # pragma: no cover - minimal installs without requests
     requests = None  # type: ignore[assignment]
+
+# Import security validator for URL validation
+try:
+    from core.security_input_validator import get_security_validator
+    SECURITY_VALIDATOR_AVAILABLE = True
+except ImportError:
+    SECURITY_VALIDATOR_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -93,8 +105,24 @@ class MonitoringProvider:
 
     def _request(self, method: str, url: str, **kwargs: Any) -> Any:
         """Make an HTTP request using ``requests`` when available, urllib otherwise."""
+        # Validate URL to prevent SSRF attacks
+        if SECURITY_VALIDATOR_AVAILABLE:
+            validator = get_security_validator()
+            is_valid, error = validator.validate_url(url)
+            if not is_valid:
+                logger.warning(f"URL validation failed for {url}: {error}")
+                raise ValueError(f"URL validation failed: {error}")
+
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("MONITORING_PROVIDER_SSL_VERIFY", "true").lower() == "true"
+
         if requests is not None:
+            # Add SSL verification to requests
+            kwargs.setdefault("verify", ssl_verify)
+            if not ssl_verify:
+                logger.warning("SSL verification is disabled in monitoring_provider - this is a security risk!")
             return requests.request(method, url, **kwargs)
+
         data = kwargs.get("json")
         headers = kwargs.get("headers", {})
         req = urllib.request.Request(
@@ -112,10 +140,20 @@ class MonitoringProvider:
                 headers=headers,
                 method=method,
             )
-        with urllib.request.urlopen(req, timeout=kwargs.get("timeout", 30)) as resp:
+
+        # Create SSL context for urllib
+        ssl_context = ssl.create_default_context()
+        if not ssl_verify:
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            logger.warning("SSL verification is disabled in monitoring_provider (urllib) - this is a security risk!")
+
+        with urllib.request.urlopen(req, timeout=kwargs.get("timeout", 30), context=ssl_context) as resp:
             return _URLLibResponse(resp, resp.read())
 
     def _run_cli(self, cmd: List[str], **kwargs: Any) -> subprocess.CompletedProcess:
+        # Explicitly set shell=False for security unless overridden in kwargs
+        kwargs.setdefault('shell', False)
         return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
 
     def query(

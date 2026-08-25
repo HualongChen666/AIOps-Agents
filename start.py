@@ -88,11 +88,11 @@ def start_frontend():
     node_modules = frontend_dir / "node_modules"
     if not node_modules.exists():
         print("[INFO] Installing frontend dependencies...")
-        subprocess.run(["npm", "install"], cwd=frontend_dir, shell=True)
+        subprocess.run(["npm", "install"], cwd=frontend_dir, shell=False)
 
     # 启动前端
     try:
-        process = subprocess.Popen(["npm", "run", "dev"], cwd=frontend_dir, shell=True)
+        process = subprocess.Popen(["npm", "run", "dev"], cwd=frontend_dir, shell=False)
         print("[INFO] Frontend started on port 3000")
         return process
     except Exception as e:

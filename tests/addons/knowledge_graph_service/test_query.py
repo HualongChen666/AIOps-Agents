@@ -153,8 +153,7 @@ class TestGraphQueryEngine:
         """Test query by entity with top_k limit."""
         engine = GraphQueryEngine()
         nodes = [
-            GraphNode(node_id=f"node{i}", label=f"Node {i}", node_type="entity")
-            for i in range(10)
+            GraphNode(node_id=f"node{i}", label=f"Node {i}", node_type="entity") for i in range(10)
         ]
         edges = [
             GraphEdge(

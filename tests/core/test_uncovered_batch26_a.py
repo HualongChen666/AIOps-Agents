@@ -107,7 +107,9 @@ def test_rci_topology_discovery_and_tracking():
         "node_name": "host1",
     }
     alert = {"id": "a1", "service": "app1", "affected_services": ["svc1"]}
-    result = _run(engine.discover_topology_realtime(metrics, alert))  # noqa: F841  # Variable for test verification
+    result = _run(
+        engine.discover_topology_realtime(metrics, alert)
+    )  # noqa: F841  # Variable for test verification
     assert result["discovered_nodes"] > 0
     path = _run(engine.perform_cross_layer_tracking(alert))
     assert isinstance(path, list)
@@ -390,7 +392,7 @@ def test_erc_topology_helpers():
     assert set(analyzer._get_node_types({"n1", "n2"})) == {"service", "database"}
     features = analyzer._extract_features({"n1"}, {"extra": 1})
     assert "node_count" in features
-    h1 = hashlib.md5(b"{}").hexdigest()
+    h1 = hashlib.sha256(b"{}").hexdigest()
     assert analyzer._calculate_pattern_similarity(h1, h1) == 1.0
 
 
@@ -451,7 +453,9 @@ def test_advanced_anomaly_and_learning(monkeypatch):
     monkeypatch.setattr(adv, "ML_AVAILABLE", True)
     ai = adv.AdvancedAICapabilities()
     baseline = {"cpu": [40.0 + (i % 3) * 2 for i in range(15)], "mem": [50.0] * 15}
-    result = _run(ai.predict_anomalies({"cpu": 96.0}, baseline, threshold_std=1.0))  # noqa: F841  # Variable for test verification
+    result = _run(
+        ai.predict_anomalies({"cpu": 96.0}, baseline, threshold_std=1.0)
+    )  # noqa: F841  # Variable for test verification
     assert result.prediction_type == adv.PredictionType.ANOMALY
 
     update = _run(ai.adaptive_learning_update({"x": 1.0}, {"score": 0.9}, adv.LearningMode.ONLINE))
@@ -566,7 +570,9 @@ async def test_runbook_success(monkeypatch):
         "top_processes": [{"name": "chrome", "pid": 1234, "cpu_percent": 80, "memory_percent": 30}],
         "stats": {"current_anomalies": 1, "heal_rate": 90, "total_alerts": 5},
     }
-    result = await runbook.generate_repair_runbook(alert, rich)  # noqa: F841  # Variable for test verification
+    result = await runbook.generate_repair_runbook(
+        alert, rich
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert result["auto_executable"] is True
 

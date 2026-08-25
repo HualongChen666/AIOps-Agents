@@ -22,8 +22,7 @@ from .raid_storcli import register_raid_scripts  # noqa: E402  # Module level im
 from .node_lifecycle import register_node_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
 from .ipmi_actions import register_ipmi_scripts  # noqa: E402  # Module level import not at top (intentional for env var setup)
 from .hardware_log_analyzer import (  # noqa: E402  # Module level import not at top (intentional for env var setup)
-    get_hardware_log_analyzer,
-    HardwareLogAnalyzer,
+    register_hardware_log_scripts,
 )
 
 
@@ -35,6 +34,7 @@ def register_all_hardware_scripts() -> None:
     register_smart_scripts()
     register_node_scripts()
     register_ticket_scripts()
+    register_hardware_log_scripts()
     logger.info(
         "Hardware remediation scripts registered. HARDWARE_EXECUTE_ENABLED=%s",
         HARDWARE_EXECUTE_ENABLED,

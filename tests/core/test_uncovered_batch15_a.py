@@ -111,7 +111,9 @@ def test_coding_subagent_success_and_exception():
     tool_executor.execute_tool.return_value = {"ok": True}
 
     sub = CodingSubAgent(agent_id="c1", tool_executor=tool_executor)
-    result = sub.run("goal", {"tool": "bash", "params": {"command": "ls"}}, ["bash"])  # noqa: F841  # Variable for test verification
+    result = sub.run(
+        "goal", {"tool": "bash", "params": {"command": "ls"}}, ["bash"]
+    )  # noqa: F841  # Variable for test verification
     assert result.status == "completed"
     assert result.result == {"ok": True}  # noqa: F841  # Variable for test verification
     assert result.metadata["tool"] == "bash"
@@ -126,7 +128,9 @@ def test_coding_subagent_success_and_exception():
 def test_coding_subagent_terminated():
     sub = CodingSubAgent(agent_id="c3")
     sub._stop_event.set()
-    result = sub.run("goal", {"tool": "bash"}, ["bash"])  # noqa: F841  # Variable for test verification
+    result = sub.run(
+        "goal", {"tool": "bash"}, ["bash"]
+    )  # noqa: F841  # Variable for test verification
     assert result.status == "terminated"
 
 
@@ -415,7 +419,9 @@ async def test_l3l4_storage_integrator_operations(monkeypatch):
 
     monkeypatch.setattr(asyncio, "create_task", patched_create_task)
     try:
-        result = await integrator.store_data(request)  # noqa: F841  # Variable for test verification
+        result = await integrator.store_data(
+            request
+        )  # noqa: F841  # Variable for test verification
         assert result.success is True
         assert result.backend == StorageBackend.POSTGRESQL
         if created:

@@ -52,6 +52,13 @@ class WorkflowEngine:
         if params is not None:
             kwargs["params"] = params
 
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("WORKFLOW_ENGINE_SSL_VERIFY", "true").lower() == "true"
+        kwargs.setdefault("verify", ssl_verify)
+        if not ssl_verify:
+            import logging
+            logging.warning("SSL verification is disabled in workflow_engine - this is a security risk!")
+
         timeout = step.get("timeout", 30)
         resp = requests.request(method, url, timeout=timeout, **kwargs)
         return {
@@ -66,13 +73,24 @@ class WorkflowEngine:
 
         command = step["command"]
         shell = step.get("shell", False)
-        if isinstance(command, str) and not shell:
-            command = command.split()
+
+        # Security Fix: Reject shell=True to prevent command injection
+        if shell:
+            raise ValueError(
+                "shell=True is not allowed for security reasons. "
+                "Use list form for command arguments instead."
+            )
+
+        if isinstance(command, str):
+            # Safely split command string using shlex
+            import shlex
+            command = shlex.split(command)
+
         cp = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            shell=shell,
+            shell=False,  # Always use shell=False for security
         )
         return {
             "returncode": cp.returncode,
@@ -98,9 +116,13 @@ class WorkflowEngine:
             namespace = runpy.run_path(step["script"], run_name="__workflow__")
             result = namespace.get(step.get("return"), None)
         elif mode == "code":
-            local_vars = {"context": context, "inputs": context}
-            exec(step["code"], {"__builtins__": {}}, local_vars)
-            result = local_vars.get(step.get("output"), local_vars)
+            # Security Fix: Remove unsafe exec() usage
+            # Direct code execution is disabled for security reasons
+            # Use module or script mode instead
+            raise ValueError(
+                "Code execution mode is disabled for security reasons. "
+                "Use 'module' or 'script' mode instead."
+            )
         else:
             result = None
         return result
@@ -108,11 +130,72 @@ class WorkflowEngine:
     def _execute_decision(self, step: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         condition = step.get("condition", "False")
         try:
-            value = bool(eval(condition, {"__builtins__": {}}, context))
+            # Security Fix: Replace unsafe eval() with safe condition evaluation
+            # Only allow simple boolean comparisons and context variable access
+            value = self._safe_eval_condition(condition, context)
         except Exception:
             value = False
         branch = step.get("true" if value else "false", None)
         return {"decision": value, "branch": branch}
+
+    def _safe_eval_condition(self, condition: str, context: Dict[str, Any]) -> bool:
+        """
+        Safely evaluate a condition string without using eval().
+        Supports simple boolean operations and context variable access.
+        """
+        import ast
+        import operator
+
+        # Define allowed operators
+        operators = {
+            ast.Eq: operator.eq,
+            ast.NotEq: operator.ne,
+            ast.Lt: operator.lt,
+            ast.LtE: operator.le,
+            ast.Gt: operator.gt,
+            ast.GtE: operator.ge,
+            ast.And: lambda a, b: a and b,
+            ast.Or: lambda a, b: a or b,
+            ast.Not: lambda a: not a,
+        }
+
+        def _eval(node: ast.AST) -> Any:
+            if isinstance(node, ast.Constant):
+                return node.value
+            elif isinstance(node, ast.Name):
+                # Only allow access to context variables
+                if node.id in context:
+                    return context[node.id]
+                raise ValueError(f"Variable '{node.id}' not found in context")
+            elif isinstance(node, ast.Compare):
+                left = _eval(node.left)
+                for op, comparator in zip(node.ops, node.comparators):
+                    right = _eval(comparator)
+                    op_func = operators.get(type(op))
+                    if op_func is None:
+                        raise ValueError(f"Operator {type(op).__name__} not allowed")
+                    left = op_func(left, right)
+                return left
+            elif isinstance(node, ast.BoolOp):
+                values = [_eval(v) for v in node.values]
+                op_func = operators.get(type(node.op))
+                if op_func is None:
+                    raise ValueError(f"Operator {type(node.op).__name__} not allowed")
+                return op_func(*values)
+            elif isinstance(node, ast.UnaryOp):
+                operand = _eval(node.operand)
+                op_func = operators.get(type(node.op))
+                if op_func is None:
+                    raise ValueError(f"Operator {type(node.op).__name__} not allowed")
+                return op_func(operand)
+            else:
+                raise ValueError(f"Unsupported expression type: {type(node).__name__}")
+
+        try:
+            tree = ast.parse(condition, mode="eval")
+            return bool(_eval(tree.body))
+        except Exception as e:
+            raise ValueError(f"Failed to evaluate condition '{condition}': {e}")
 
     def _execute_memory(self, step: Dict[str, Any]) -> Any:
         return self.get_scenario_memory(step.get("query", ""))

@@ -266,7 +266,7 @@ class DatabaseCacheOptimizer:
             Cache key
         """
         key_string = f"{cache_name}:{query}:{json.dumps(params or {}, sort_keys=True)}"
-        return hashlib.md5(key_string.encode(), usedforsecurity=False).hexdigest()
+        return hashlib.sha256(key_string.encode()).hexdigest()
 
     def get(
         self, cache_name: str, query: str, params: Optional[Dict[str, Any]] = None

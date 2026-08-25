@@ -436,7 +436,7 @@ class CausalGraphPersistence:
         format: str = "json",
     ):
         """
-        保存因果图
+        保存因果图 (使用安全的 JSON 格式)
 
         Parameters
         ----------
@@ -445,7 +445,7 @@ class CausalGraphPersistence:
         path : Union[str, Path]
             保存路径
         format : str
-            格式：'json', 'pickle'（不推荐，存在安全风险）
+            格式：仅支持 'json' (移除了不安全的 pickle 格式)
         """
         path = Path(path)
 
@@ -463,14 +463,10 @@ class CausalGraphPersistence:
         if format == "json":
             json_str = CausalGraphVisualizer.to_json(causal_graph)
             path.write_text(json_str)
-        elif format == "pickle":
-            import pickle
-
-            logger.warning("Pickle format is not recommended due to security risks")
-            with open(path, "wb") as f:
-                pickle.dump(causal_graph, f)
         else:
-            raise ValueError(f"Unknown format: {format}")
+            raise ValueError(
+                f"Unsupported format: {format}. Only 'json' is supported for security reasons."
+            )
 
         logger.info(f"Causal graph saved to {path}")
 
@@ -480,14 +476,14 @@ class CausalGraphPersistence:
         format: str = "json",
     ) -> CausalGraph:
         """
-        加载因果图
+        加载因果图 (使用安全的 JSON 格式)
 
         Parameters
         ----------
         path : Union[str, Path]
             文件路径
         format : str
-            格式：'json', 'pickle'（不推荐，存在安全风险）
+            格式：仅支持 'json' (移除了不安全的 pickle 格式)
 
         Returns
         -------
@@ -509,17 +505,10 @@ class CausalGraphPersistence:
         if format == "json":
             json_str = path.read_text()
             return CausalGraphVisualizer.from_json(json_str)
-        elif format == "pickle":
-            import pickle
-
-            logger.warning("Pickle format is not recommended due to security risks")
-            with open(path, "rb") as f:
-                result = pickle.load(f)
-                if not isinstance(result, CausalGraph):
-                    raise TypeError(f"Expected CausalGraph, got {type(result)}")
-                return result
         else:
-            raise ValueError(f"Unknown format: {format}")
+            raise ValueError(
+                f"Unsupported format: {format}. Only 'json' is supported for security reasons."
+            )
 
 
 # ----------------------------------------------------------------------

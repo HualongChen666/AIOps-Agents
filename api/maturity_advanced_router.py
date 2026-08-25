@@ -14,7 +14,7 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from core.authentication import UserInDB, get_user, verify_token
-from core.maturity_engine import assess_maturity, get_dimension_metadata
+from core.maturity_engine import assess_maturity
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,7 @@ def get_client_ip(request: Request) -> str:
 # ============ Enums ============
 class AssessmentStatus(str, Enum):
     """评估状态"""
+
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -110,9 +111,24 @@ def _init_assessment_records():
                 "level": 3,
                 "level_name": "Intermediate",
                 "dimensions": [
-                    {"name": "可观测性", "score": 70, "maxScore": 100, "description": "系统监控覆盖度和实时性"},
-                    {"name": "自动化", "score": 60, "maxScore": 100, "description": "运维自动化程度"},
-                    {"name": "可靠性", "score": 65, "maxScore": 100, "description": "系统可靠性和稳定性"},
+                    {
+                        "name": "可观测性",
+                        "score": 70,
+                        "maxScore": 100,
+                        "description": "系统监控覆盖度和实时性",
+                    },
+                    {
+                        "name": "自动化",
+                        "score": 60,
+                        "maxScore": 100,
+                        "description": "运维自动化程度",
+                    },
+                    {
+                        "name": "可靠性",
+                        "score": 65,
+                        "maxScore": 100,
+                        "description": "系统可靠性和稳定性",
+                    },
                 ],
                 "recommendations": [
                     {
@@ -226,8 +242,9 @@ async def create_assessment(
     _assessment_records[assessment_id] = record
 
     logger.info(
-        f"Maturity assessment created | assessment_id={assessment_id} | name={assessment_create.assessment_name} | "
-        f"user={current_user.username} | ip={get_client_ip(request)}"
+        f"Maturity assessment created | assessment_id={assessment_id} "
+        f"| name={assessment_create.assessment_name} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
     return record
@@ -281,7 +298,8 @@ async def delete_assessment(
     del _assessment_records[id]
 
     logger.info(
-        f"Maturity assessment deleted | assessment_id={id} | user={current_user.username} | ip={get_client_ip(request)}"
+        f"Maturity assessment deleted | assessment_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
     )
 
 

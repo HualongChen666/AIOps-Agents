@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """Unit tests for cache.py - Cache manager with optional Redis backend."""
 
-import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from extensions.addons.ai_plus.llm_router_service.cache import CacheManager
 
 
@@ -34,7 +36,9 @@ class TestCacheManager:
 
             cache = CacheManager(redis_url="redis://localhost:6379")
             assert cache._redis == mock_redis
-            mock_aioredis.from_url.assert_called_once_with("redis://localhost:6379", decode_responses=True)
+            mock_aioredis.from_url.assert_called_once_with(
+                "redis://localhost:6379", decode_responses=True
+            )
 
     @pytest.mark.asyncio
     async def test_key_generation(self):

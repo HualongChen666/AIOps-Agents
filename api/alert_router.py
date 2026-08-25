@@ -21,7 +21,14 @@ from typing import Any, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from core.alert_service import alert_service
+from api.common import (
+    check_feature_availability,
+    create_list_response,
+    create_success_response,
+    get_client_ip,
+    handle_service_error,
+)
+from core.alert_service import ALERT_SERVICE as alert_service
 
 try:
     from core.alert_intelligence import alert_intelligence_engine
@@ -34,7 +41,16 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["告警管理"])
 
 
 class RoutingRule(BaseModel):
-    """告警路由规则"""
+    """告警路由规则模型.
+
+    定义告警如何根据条件路由到不同的目标系统或人员。
+
+    Attributes:
+        conditions: 路由条件字典，包含匹配规则
+        destination: 路由目标（如：oncall, slack, email等）
+        description: 规则描述（可选）
+        priority: 规则优先级，数字越大优先级越高
+    """
 
     conditions: dict[str, Any]
     destination: str
@@ -53,7 +69,16 @@ class RoutingRule(BaseModel):
 
 
 class SuppressionRule(BaseModel):
-    """告警抑制规则"""
+    """告警抑制规则模型.
+
+    定义如何抑制特定模式的告警，减少告警噪声。
+
+    Attributes:
+        pattern: 告警模式匹配字符串（支持正则表达式）
+        reason: 抑制原因说明
+        suppression_window: 抑制时间窗口（秒），默认300秒（5分钟）
+        enabled: 规则是否启用，默认True
+    """
 
     pattern: str
     reason: str
@@ -74,7 +99,14 @@ class SuppressionRule(BaseModel):
 
 
 class TrendPredictionRequest(BaseModel):
-    """趋势预测请求"""
+    """趋势预测请求模型.
+
+    用于请求基于历史数据的告警趋势预测。
+
+    Attributes:
+        metric_name: 要预测的指标名称（如：cpu_usage, memory_usage等）
+        horizon_hours: 预测时间范围（小时），默认24小时
+    """
 
     metric_name: str
     horizon_hours: int = 24
@@ -128,9 +160,16 @@ async def get_alerts(
     request: Request,
     limit: int = Query(default=20, ge=1, le=500, description="返回的告警最大条数,范围 1-500"),
 ) -> dict[str, Any]:
-    """
-    返回最新告警列表(时间倒序,最新在前)
-    对应前端:右侧"最新告警事件"面板
+    """返回最新告警列表（时间倒序，最新在前）。
+
+    对应前端：右侧"最新告警事件"面板。
+
+    Args:
+        request: FastAPI请求对象
+        limit: 返回的告警最大条数，范围1-500，默认20
+
+    Returns:
+        包含告警列表的字典，格式为{"alerts": [...]}
     """
     tenant_id = getattr(request.state, "tenant_id", None)
     return alert_service.get_alerts(limit, tenant_id=tenant_id)
@@ -140,8 +179,15 @@ async def get_alerts(
     "/{alert_id}/acknowledge",
     summary="确认告警",
 )
-async def acknowledge_alert(alert_id: str) -> dict[str, Any]:
-    """将告警标记为已确认"""
+async def acknowledge_alert(alert_id: str) -> dict[str, str]:
+    """将告警标记为已确认。
+
+    Args:
+        alert_id: 告警ID
+
+    Returns:
+        包含告警ID和状态的字典
+    """
     await alert_service.update_alert_status(alert_id, "acknowledged")
     return {"id": alert_id, "status": "acknowledged"}
 
@@ -150,8 +196,15 @@ async def acknowledge_alert(alert_id: str) -> dict[str, Any]:
     "/{alert_id}/resolve",
     summary="解决告警",
 )
-async def resolve_alert(alert_id: str) -> dict[str, Any]:
-    """将告警标记为已解决"""
+async def resolve_alert(alert_id: str) -> dict[str, str]:
+    """将告警标记为已解决。
+
+    Args:
+        alert_id: 告警ID
+
+    Returns:
+        包含告警ID和状态的字典
+    """
     await alert_service.update_alert_status(alert_id, "resolved")
     return {"id": alert_id, "status": "resolved"}
 
@@ -197,12 +250,17 @@ async def resolve_alert(alert_id: str) -> dict[str, Any]:
     },
 )
 async def clear_alerts_endpoint(request: Request) -> dict[str, Any]:
-    """
-    清空所有告警记录(内存 + SQLite 双清)
+    """清空所有告警记录（内存 + SQLite 双清）。
 
-    ⚠️ 高危操作:清空后数据不可恢复,操作将被完整记录到日志
+    ⚠️ 高危操作：清空后数据不可恢复，操作将被完整记录到日志。
+
+    Args:
+        request: FastAPI请求对象
+
+    Returns:
+        包含清空结果的字典，包括清除的告警数量
     """
-    operator_ip = request.client.host if request.client else "unknown"
+    operator_ip = get_client_ip(request)
     return alert_service.clear_alerts(operator_ip)
 
 
@@ -240,11 +298,17 @@ async def clear_alerts_endpoint(request: Request) -> dict[str, Any]:
     },
 )
 async def get_intelligence_statistics() -> dict[str, Any]:
+    """获取智能告警引擎的统计信息。
+
+    包括模式数量、噪声模式、集群数量等统计指标。
+
+    Returns:
+        包含统计信息的字典，包括total_patterns, noise_patterns, cluster_count等
+
+    Raises:
+        HTTPException: 如果智能告警引擎不可用（503）
     """
-    获取智能告警引擎的统计信息，包括模式数量、噪声模式、集群数量等
-    """
-    if not ALERT_INTELLIGENCE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="智能告警引擎不可用")
+    check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     return alert_intelligence_engine.get_alert_statistics()
 
 
@@ -291,11 +355,19 @@ async def get_intelligence_statistics() -> dict[str, Any]:
 async def get_alert_patterns(
     limit: int = Query(default=50, ge=1, le=200), include_noise: bool = Query(default=False)
 ) -> dict[str, Any]:
+    """获取历史告警模式，用于噪声分析和趋势识别。
+
+    Args:
+        limit: 返回的最大模式数量，范围1-200，默认50
+        include_noise: 是否包含噪声模式，默认False
+
+    Returns:
+        包含告警模式列表的字典，格式为{"total": N, "patterns": [...]}
+
+    Raises:
+        HTTPException: 如果智能告警引擎不可用（503）
     """
-    获取历史告警模式，用于噪声分析和趋势识别
-    """
-    if not ALERT_INTELLIGENCE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="智能告警引擎不可用")
+    check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     patterns = alert_intelligence_engine.patterns
     filtered_patterns: List[dict[str, Any]] = []
     for pattern_id, pattern in patterns.items():
@@ -351,12 +423,20 @@ async def get_alert_patterns(
     },
 )
 async def predict_alert_trend(request: TrendPredictionRequest) -> dict[str, Any]:
+    """基于历史数据预测告警趋势，使用Prophet或规则基算法。
+
+    Args:
+        request: 趋势预测请求，包含指标名称和预测时间范围
+
+    Returns:
+        包含预测结果的字典，包括预测值、异常点、置信度等
+
+    Raises:
+        HTTPException: 如果智能告警引擎不可用（503）
+        HTTPException: 如果历史数据不足或不完整（400）
     """
-    基于历史数据预测告警趋势，使用Prophet或规则基算法
-    """
-    if not ALERT_INTELLIGENCE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="智能告警引擎不可用")
-    from core.metrics_history import metrics_history
+    check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
+    from core.metrics_history import METRICS_HISTORY as metrics_history
 
     historical_data: List[Tuple[datetime, float]] = []
     history_dict = metrics_history.to_dict()
@@ -423,11 +503,15 @@ async def predict_alert_trend(request: TrendPredictionRequest) -> dict[str, Any]
     },
 )
 async def get_topology_context() -> dict[str, Any]:
+    """获取当前告警的拓扑上下文，包括节点关系和组件依赖。
+
+    Returns:
+        包含拓扑信息的字典，包括nodes（节点列表）和edges（边列表）
+
+    Raises:
+        HTTPException: 如果智能告警引擎不可用（503）
     """
-    获取当前告警的拓扑上下文，包括节点关系和组件依赖
-    """
-    if not ALERT_INTELLIGENCE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="智能告警引擎不可用")
+    check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     from core.alert_engine import alert_history
 
     alerts: List[Any] = list(alert_history)[:100]
@@ -473,13 +557,20 @@ async def get_topology_context() -> dict[str, Any]:
     },
 )
 async def add_routing_rule(rule: RoutingRule) -> dict[str, Any]:
+    """添加自定义告警路由规则，实现智能告警分发。
+
+    Args:
+        rule: 路由规则对象，包含条件、目标、描述等
+
+    Returns:
+        包含成功消息和规则数据的字典
+
+    Raises:
+        HTTPException: 如果智能告警引擎不可用（503）
     """
-    添加自定义告警路由规则，实现智能告警分发
-    """
-    if not ALERT_INTELLIGENCE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="智能告警引擎不可用")
+    check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     alert_intelligence_engine.add_routing_rule(rule.dict())
-    return {"status": "success", "message": "路由规则已添加", "rule": rule.dict()}
+    return create_success_response(data=rule.dict(), message="路由规则已添加")
 
 
 @router.post(
@@ -520,13 +611,20 @@ async def add_routing_rule(rule: RoutingRule) -> dict[str, Any]:
     },
 )
 async def add_suppression_rule(rule: SuppressionRule) -> dict[str, Any]:
+    """添加告警抑制规则，实现精细化噪声控制。
+
+    Args:
+        rule: 抑制规则对象，包含模式、原因、抑制窗口等
+
+    Returns:
+        包含成功消息和规则数据的字典
+
+    Raises:
+        HTTPException: 如果智能告警引擎不可用（503）
     """
-    添加告警抑制规则，实现精细化噪声控制
-    """
-    if not ALERT_INTELLIGENCE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="智能告警引擎不可用")
+    check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     alert_intelligence_engine.add_suppression_rule(rule.dict())
-    return {"status": "success", "message": "抑制规则已添加", "rule": rule.dict()}
+    return create_success_response(data=rule.dict(), message="抑制规则已添加")
 
 
 @router.post(
@@ -565,11 +663,15 @@ async def add_suppression_rule(rule: SuppressionRule) -> dict[str, Any]:
     },
 )
 async def route_alerts_intelligently() -> dict[str, Any]:
+    """对当前告警进行智能路由，基于拓扑和规则引擎。
+
+    Returns:
+        包含路由结果的字典，包括总告警数、各路由的告警数、详细路由信息
+
+    Raises:
+        HTTPException: 如果智能告警引擎不可用（503）
     """
-    对当前告警进行智能路由，基于拓扑和规则引擎
-    """
-    if not ALERT_INTELLIGENCE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="智能告警引擎不可用")
+    check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     from core.alert_engine import alert_history
 
     alerts: List[Any] = list(alert_history)[:50]

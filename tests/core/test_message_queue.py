@@ -16,7 +16,9 @@ def test_publish_and_consume_sync(queue):
 
 
 def test_batch_publish(queue):
-    result = queue.publish_batch("events", [{"i": i} for i in range(3)])  # noqa: F841  # Variable for test verification
+    result = queue.publish_batch(
+        "events", [{"i": i} for i in range(3)]
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] == 3
     assert queue.get_queue_stats("events")["queue_length"] == 3
 

@@ -15,25 +15,26 @@ Tests for the hardware log analysis API endpoints including:
 - Auto-heal integration
 """
 
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from datetime import datetime, timezone
 from io import BytesIO
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from fastapi.testclient import TestClient
 
 from api.hardware_log_router import (
-    LogAnalysisRequest,
-    RepairTriggerRequest,
     AnalysisResponse,
     ComponentIssueResponse,
+    LogAnalysisRequest,
+    RepairTriggerRequest,
 )
 from extensions.hardware_remediation.hardware_log_analyzer import (
     AnalysisResult,
     ComponentIssue,
     ComponentType,
     HardwareVendor,
-    SeverityLevel,
     RiskLevel,
+    SeverityLevel,
 )
 
 
@@ -41,6 +42,7 @@ from extensions.hardware_remediation.hardware_log_analyzer import (
 def hardware_log_client():
     """Create test client for hardware log router"""
     from main import app
+
     return TestClient(app)
 
 
@@ -57,7 +59,7 @@ def sample_analysis_result():
         script_keys=["ipmi_power_cycle"],
         log_entries=["Dell Inc. CPU 0 temperature critical"],
     )
-    
+
     return AnalysisResult(
         vendor=HardwareVendor.DELL,
         total_entries=1,
@@ -71,8 +73,9 @@ class TestHardwareLogRouterHelperFunctions:
 
     def test_get_tenant_id_from_request(self):
         """Test tenant ID extraction from request"""
-        from api.hardware_log_router import _get_tenant_id
         from unittest.mock import Mock
+
+        from api.hardware_log_router import _get_tenant_id
 
         # Test with tenant_id in state
         request = Mock()
@@ -95,9 +98,7 @@ class TestHardwareLogRouterHelperFunctions:
 
         # Test with vendor=None (should pass)
         request = LogAnalysisRequest(
-            log_content="Test log content",
-            vendor=None,
-            auto_trigger_repair=False
+            log_content="Test log content", vendor=None, auto_trigger_repair=False
         )
         assert request.vendor is None
 
@@ -107,47 +108,47 @@ class TestHardwareLogRouterHelperFunctions:
 
         # Test with valid vendor
         request = LogAnalysisRequest(
-            log_content="Test log content",
-            vendor="dell",
-            auto_trigger_repair=False
+            log_content="Test log content", vendor="dell", auto_trigger_repair=False
         )
         assert request.vendor == "dell"
 
     def test_vendor_validator_with_invalid_vendor(self):
         """Test vendor validator with invalid vendor"""
-        from api.hardware_log_router import LogAnalysisRequest
         import pytest
+
+        from api.hardware_log_router import LogAnalysisRequest
 
         # Test with invalid vendor (should raise ValueError)
         with pytest.raises(ValueError) as exc_info:
             LogAnalysisRequest(
-                log_content="Test log content",
-                vendor="invalid_vendor",
-                auto_trigger_repair=False
+                log_content="Test log content", vendor="invalid_vendor", auto_trigger_repair=False
             )
         assert "Invalid vendor" in str(exc_info.value)
 
     def test_verify_internal_key_without_config(self):
         """Test internal key verification when not configured"""
-        from api.hardware_log_router import _verify_internal_key
         from unittest.mock import Mock, patch
-        
+
+        from api.hardware_log_router import _verify_internal_key
+
         request = Mock()
         request.headers = {}
-        
-        with patch('config.INTERNAL_API_KEY', ""):
+
+        with patch("config.INTERNAL_API_KEY", ""):
             _verify_internal_key(request)  # Should not raise
 
     def test_verify_internal_key_with_missing_header(self):
         """Test internal key verification with missing header"""
-        from api.hardware_log_router import _verify_internal_key
-        from fastapi import HTTPException
         from unittest.mock import Mock, patch
-        
+
+        from fastapi import HTTPException
+
+        from api.hardware_log_router import _verify_internal_key
+
         request = Mock()
         request.headers = {}
-        
-        with patch('config.INTERNAL_API_KEY', "test-key"):
+
+        with patch("config.INTERNAL_API_KEY", "test-key"):
             with pytest.raises(HTTPException) as exc_info:
                 _verify_internal_key(request)
             assert exc_info.value.status_code == 403
@@ -155,14 +156,16 @@ class TestHardwareLogRouterHelperFunctions:
 
     def test_verify_internal_key_with_invalid_key(self):
         """Test internal key verification with invalid key"""
-        from api.hardware_log_router import _verify_internal_key
-        from fastapi import HTTPException
         from unittest.mock import Mock, patch
-        
+
+        from fastapi import HTTPException
+
+        from api.hardware_log_router import _verify_internal_key
+
         request = Mock()
         request.headers = {"X-Internal-Key": "wrong-key"}
-        
-        with patch('config.INTERNAL_API_KEY', "test-key"):
+
+        with patch("config.INTERNAL_API_KEY", "test-key"):
             with pytest.raises(HTTPException) as exc_info:
                 _verify_internal_key(request)
             assert exc_info.value.status_code == 403
@@ -170,19 +173,20 @@ class TestHardwareLogRouterHelperFunctions:
 
     def test_verify_internal_key_with_valid_key(self):
         """Test internal key verification with valid key"""
-        from api.hardware_log_router import _verify_internal_key
         from unittest.mock import Mock, patch
-        
+
+        from api.hardware_log_router import _verify_internal_key
+
         request = Mock()
         request.headers = {"X-Internal-Key": "test-key"}
-        
-        with patch('config.INTERNAL_API_KEY', "test-key"):
+
+        with patch("config.INTERNAL_API_KEY", "test-key"):
             _verify_internal_key(request)  # Should not raise
 
     def test_map_vendor_string(self):
         """Test vendor string mapping"""
         from api.hardware_log_router import _map_vendor_string
-        
+
         # Test valid vendors
         assert _map_vendor_string("dell") == HardwareVendor.DELL
         assert _map_vendor_string("hp") == HardwareVendor.HP
@@ -190,21 +194,21 @@ class TestHardwareLogRouterHelperFunctions:
         assert _map_vendor_string("cisco") == HardwareVendor.CISCO
         assert _map_vendor_string("huawei") == HardwareVendor.HUAWEI
         assert _map_vendor_string("generic") == HardwareVendor.GENERIC
-        
+
         # Test case insensitivity
         assert _map_vendor_string("DELL") == HardwareVendor.DELL
         assert _map_vendor_string("Hp") == HardwareVendor.HP
-        
+
         # Test None
         assert _map_vendor_string(None) is None
-        
+
         # Test invalid vendor
         assert _map_vendor_string("invalid") is None
 
     def test_convert_issue_to_response(self):
         """Test issue to response conversion"""
         from api.hardware_log_router import _convert_issue_to_response
-        
+
         issue = ComponentIssue(
             component=ComponentType.CPU,
             severity=SeverityLevel.CRITICAL,
@@ -215,9 +219,9 @@ class TestHardwareLogRouterHelperFunctions:
             script_keys=["ipmi_power_cycle"],
             log_entries=["CPU 0 temperature critical"],
         )
-        
+
         response = _convert_issue_to_response(issue)
-        
+
         assert response.component == "cpu"
         assert response.severity == "critical"
         assert response.issue_type == "thermal"
@@ -233,8 +237,9 @@ class TestHardwareLogRouterAutoHealFunctions:
 
     def test_trigger_auto_heal_alert_success(self):
         """Test successful auto-heal trigger"""
+        from unittest.mock import MagicMock, Mock, patch
+
         from api.hardware_log_router import _trigger_auto_heal_alert
-        from unittest.mock import Mock, patch, MagicMock
 
         alert = {
             "id": "test-alert",
@@ -246,8 +251,8 @@ class TestHardwareLogRouterAutoHealFunctions:
         mock_trigger = MagicMock()
         mock_trigger.return_value = {"success": True, "message": "Auto-heal triggered"}
 
-        with patch.dict('sys.modules', {'gateway.services_client': MagicMock()}):
-            with patch('gateway.services_client.trigger_auto_heal', mock_trigger):
+        with patch.dict("sys.modules", {"gateway.services_client": MagicMock()}):
+            with patch("gateway.services_client.trigger_auto_heal", mock_trigger):
                 result = _trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1")
 
                 assert result["success"] == True
@@ -255,9 +260,10 @@ class TestHardwareLogRouterAutoHealFunctions:
 
     def test_trigger_auto_heal_alert_import_error(self):
         """Test auto-heal trigger with import error (fallback)"""
-        from api.hardware_log_router import _trigger_auto_heal_alert
-        from unittest.mock import patch
         import builtins
+        from unittest.mock import patch
+
+        from api.hardware_log_router import _trigger_auto_heal_alert
 
         alert = {
             "id": "test-alert",
@@ -269,12 +275,12 @@ class TestHardwareLogRouterAutoHealFunctions:
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
-            if name == 'gateway.services_client':
+            if name == "gateway.services_client":
                 raise ImportError("gateway.services_client not available")
             return real_import(name, *args, **kwargs)
 
-        with patch('builtins.__import__', side_effect=mock_import):
-            with patch('api.hardware_log_router._execute_repair_direct') as mock_direct:
+        with patch("builtins.__import__", side_effect=mock_import):
+            with patch("api.hardware_log_router._execute_repair_direct") as mock_direct:
                 mock_direct.return_value = {"success": True, "message": "Direct repair executed"}
 
                 result = _trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1")
@@ -284,8 +290,9 @@ class TestHardwareLogRouterAutoHealFunctions:
 
     def test_trigger_auto_heal_alert_exception(self):
         """Test auto-heal trigger with exception"""
+        from unittest.mock import MagicMock, patch
+
         from api.hardware_log_router import _trigger_auto_heal_alert
-        from unittest.mock import patch, MagicMock
 
         alert = {
             "id": "test-alert",
@@ -296,8 +303,8 @@ class TestHardwareLogRouterAutoHealFunctions:
         mock_trigger = MagicMock()
         mock_trigger.side_effect = Exception("Gateway service error")
 
-        with patch.dict('sys.modules', {'gateway.services_client': MagicMock()}):
-            with patch('gateway.services_client.trigger_auto_heal', mock_trigger):
+        with patch.dict("sys.modules", {"gateway.services_client": MagicMock()}):
+            with patch("gateway.services_client.trigger_auto_heal", mock_trigger):
                 result = _trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1")
 
                 assert result["success"] == False
@@ -305,22 +312,23 @@ class TestHardwareLogRouterAutoHealFunctions:
 
     def test_execute_repair_direct_success(self):
         """Test direct repair execution success"""
-        from api.hardware_log_router import _execute_repair_direct
         from unittest.mock import patch
-        
+
+        from api.hardware_log_router import _execute_repair_direct
+
         alert = {
             "id": "test-alert",
             "script_key": "ipmi_power_cycle",
             "params": {"host": "192.168.1.1"},
         }
-        
+
         # Test with mock - skip if import fails
         try:
-            with patch('api.hardware_log_router.execute_repair') as mock_execute:
+            with patch("api.hardware_log_router.execute_repair") as mock_execute:
                 mock_execute.return_value = {"success": True}
-                
+
                 result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
-                
+
                 assert result["success"] == True
                 mock_execute.assert_called_once_with("ipmi_power_cycle", {"host": "192.168.1.1"})
         except (ImportError, AttributeError):
@@ -330,21 +338,22 @@ class TestHardwareLogRouterAutoHealFunctions:
     def test_execute_repair_direct_no_script_key(self):
         """Test direct repair execution without script key"""
         from api.hardware_log_router import _execute_repair_direct
-        
+
         alert = {
             "id": "test-alert",
             "params": {"host": "192.168.1.1"},
         }
-        
+
         result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
-        
+
         assert result["success"] == False
         assert "No script_key" in result["error"]
 
     def test_execute_repair_direct_exception(self):
         """Test direct repair execution with exception"""
-        from api.hardware_log_router import _execute_repair_direct
         from unittest.mock import patch
+
+        from api.hardware_log_router import _execute_repair_direct
 
         alert = {
             "id": "test-alert",
@@ -354,7 +363,9 @@ class TestHardwareLogRouterAutoHealFunctions:
 
         # Test with mock - skip if import fails
         try:
-            with patch('api.hardware_log_router.execute_repair', side_effect=Exception("Test error")):
+            with patch(
+                "api.hardware_log_router.execute_repair", side_effect=Exception("Test error")
+            ):
                 result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
 
                 assert result["success"] == False
@@ -365,9 +376,10 @@ class TestHardwareLogRouterAutoHealFunctions:
 
     def test_execute_repair_direct_with_core_import_error(self):
         """Test direct repair execution when core.repair_engine import fails"""
-        from api.hardware_log_router import _execute_repair_direct
-        from unittest.mock import patch
         import builtins
+        from unittest.mock import patch
+
+        from api.hardware_log_router import _execute_repair_direct
 
         alert = {
             "id": "test-alert",
@@ -379,11 +391,11 @@ class TestHardwareLogRouterAutoHealFunctions:
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
-            if name == 'core.repair_engine':
+            if name == "core.repair_engine":
                 raise ImportError("core.repair_engine not available")
             return real_import(name, *args, **kwargs)
 
-        with patch('builtins.__import__', side_effect=mock_import):
+        with patch("builtins.__import__", side_effect=mock_import):
             result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
 
             assert result["success"] == False
@@ -391,8 +403,9 @@ class TestHardwareLogRouterAutoHealFunctions:
 
     def test_execute_repair_direct_with_execute_exception(self):
         """Test direct repair execution when execute_repair raises exception"""
+        from unittest.mock import MagicMock, patch
+
         from api.hardware_log_router import _execute_repair_direct
-        from unittest.mock import patch, MagicMock
 
         alert = {
             "id": "test-alert",
@@ -404,8 +417,8 @@ class TestHardwareLogRouterAutoHealFunctions:
         mock_execute = MagicMock()
         mock_execute.side_effect = Exception("Repair execution failed")
 
-        with patch.dict('sys.modules', {'core.repair_engine': MagicMock()}):
-            with patch('core.repair_engine.execute_repair', mock_execute):
+        with patch.dict("sys.modules", {"core.repair_engine": MagicMock()}):
+            with patch("core.repair_engine.execute_repair", mock_execute):
                 result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
 
                 assert result["success"] == False
@@ -478,7 +491,7 @@ class TestHardwareLogRouterFileUpload:
     def test_upload_with_invalid_utf8(self, hardware_log_client):
         """Test file upload with invalid UTF-8 content"""
         # Create content with invalid UTF-8 sequences
-        invalid_utf8 = b'\xff\xfe\x00\x00'
+        invalid_utf8 = b"\xff\xfe\x00\x00"
 
         response = hardware_log_client.post(
             "/api/v1/hardware-logs/upload",
@@ -498,7 +511,7 @@ class TestHardwareLogRouterListingEndpoints:
         response = hardware_log_client.get("/api/v1/hardware-logs/vendors")
         # Should return vendor list
         assert response.status_code in [200, 401] or response.status_code != 404
-        
+
         if response.status_code == 200:
             data = response.json()
             assert "vendors" in data
@@ -509,7 +522,7 @@ class TestHardwareLogRouterListingEndpoints:
         response = hardware_log_client.get("/api/v1/hardware-logs/components")
         # Should return component list
         assert response.status_code in [200, 401] or response.status_code != 404
-        
+
         if response.status_code == 200:
             data = response.json()
             assert "components" in data
@@ -520,7 +533,7 @@ class TestHardwareLogRouterListingEndpoints:
         response = hardware_log_client.get("/api/v1/hardware-logs/scripts")
         # Should return script list
         assert response.status_code in [200, 401] or response.status_code != 404
-        
+
         if response.status_code == 200:
             data = response.json()
             assert "scripts" in data
@@ -537,7 +550,7 @@ class TestHardwareLogRouterAdvancedFunctionality:
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
                 "auto_trigger_repair": True,
-            }
+            },
         )
         # Should process auto-repair or require auth
         assert response.status_code in [200, 401] or response.status_code != 404
@@ -550,7 +563,7 @@ class TestHardwareLogRouterAdvancedFunctionality:
                 "log_content": "Dell Inc. Memory ECC warning",
                 "vendor": "dell",
                 "auto_trigger_repair": True,
-            }
+            },
         )
         # Should process without auto-repair or require auth
         assert response.status_code in [200, 401] or response.status_code != 404
@@ -567,7 +580,7 @@ class TestHardwareLogRouterBasicEndpoints:
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
                 "auto_trigger_repair": False,
-            }
+            },
         )
         # Should not return 404 (endpoint exists)
         assert response.status_code != 404
@@ -580,11 +593,11 @@ class TestHardwareLogRouterBasicEndpoints:
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
                 "auto_trigger_repair": False,
-            }
+            },
         )
         # Should return success or error (but not 404)
         assert response.status_code != 404
-        
+
         if response.status_code in [200, 201]:
             # Verify response structure
             data = response.json()
@@ -598,7 +611,7 @@ class TestHardwareLogRouterBasicEndpoints:
                 "log_content": "Some log content",
                 "vendor": "invalid_vendor",
                 "auto_trigger_repair": False,
-            }
+            },
         )
         # Should return validation error or authentication error or endpoint exists
         assert response.status_code in [422, 401] or response.status_code != 404
@@ -611,7 +624,7 @@ class TestHardwareLogRouterBasicEndpoints:
                 "log_content": "",
                 "vendor": "dell",
                 "auto_trigger_repair": False,
-            }
+            },
         )
         # Should return validation error or authentication error or endpoint exists
         assert response.status_code in [422, 401] or response.status_code != 404
@@ -625,7 +638,7 @@ class TestHardwareLogRouterBasicEndpoints:
                 "log_content": oversized_content,
                 "vendor": "dell",
                 "auto_trigger_repair": False,
-            }
+            },
         )
         # Should return validation error or authentication error or endpoint exists
         assert response.status_code in [422, 401] or response.status_code != 404
@@ -637,7 +650,7 @@ class TestHardwareLogRouterBasicEndpoints:
             json={
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "auto_trigger_repair": False,
-            }
+            },
         )
         # Should work (vendor is optional) or require auth or endpoint exists
         assert response.status_code in [200, 201, 401] or response.status_code != 404
@@ -669,15 +682,14 @@ class TestHardwareLogRouterErrorHandling:
     def test_handle_missing_required_fields(self, hardware_log_client):
         """Test handling of missing required fields"""
         response = hardware_log_client.post(
-            "/api/v1/hardware-logs/analyze",
-            json={"vendor": "dell"}  # Missing log_content
+            "/api/v1/hardware-logs/analyze", json={"vendor": "dell"}  # Missing log_content
         )
         # Should return validation error or auth error or endpoint exists
         assert response.status_code in [422, 401] or response.status_code != 404
 
     def test_handle_internal_server_error(self, hardware_log_client):
         """Test handling of internal server errors"""
-        with patch('api.hardware_log_router.get_hardware_log_analyzer') as mock_analyzer:
+        with patch("api.hardware_log_router.get_hardware_log_analyzer") as mock_analyzer:
             mock_analyzer.return_value.analyze_log.side_effect = Exception("Internal error")
 
             response = hardware_log_client.post(
@@ -685,14 +697,14 @@ class TestHardwareLogRouterErrorHandling:
                 json={
                     "log_content": "Dell Inc. CPU 0 temperature critical",
                     "vendor": "dell",
-                }
+                },
             )
             # Should return error or auth error or endpoint exists
             assert response.status_code in [500, 401] or response.status_code != 404
 
     def test_handle_value_error(self, hardware_log_client):
         """Test handling of ValueError from analyzer"""
-        with patch('api.hardware_log_router.get_hardware_log_analyzer') as mock_analyzer:
+        with patch("api.hardware_log_router.get_hardware_log_analyzer") as mock_analyzer:
             mock_analyzer.return_value.analyze_log.side_effect = ValueError("Invalid log format")
 
             response = hardware_log_client.post(
@@ -700,22 +712,22 @@ class TestHardwareLogRouterErrorHandling:
                 json={
                     "log_content": "Dell Inc. CPU 0 temperature critical",
                     "vendor": "dell",
-                }
+                },
             )
             # Should return 400 for ValueError or auth error
             assert response.status_code in [400, 401] or response.status_code != 404
 
     def test_handle_timeout(self, hardware_log_client):
         """Test handling of timeout scenarios"""
-        with patch('api.hardware_log_router.get_hardware_log_analyzer') as mock_analyzer:
+        with patch("api.hardware_log_router.get_hardware_log_analyzer") as mock_analyzer:
             mock_analyzer.return_value.analyze_log.side_effect = TimeoutError("Analysis timeout")
-            
+
             response = hardware_log_client.post(
                 "/api/v1/hardware-logs/analyze",
                 json={
                     "log_content": "Dell Inc. CPU 0 temperature critical",
                     "vendor": "dell",
-                }
+                },
             )
             # Should return timeout error or auth error or endpoint exists
             assert response.status_code in [408, 500, 401] or response.status_code != 404
@@ -744,7 +756,7 @@ class TestHardwareLogRouterMultiTenant:
             json={
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
-            }
+            },
         )
         # Should use default tenant or require auth
         assert response.status_code in [200, 201, 401] or response.status_code != 404
@@ -760,7 +772,7 @@ class TestHardwareLogRouterSecurity:
             json={
                 "analysis_id": "test-123",
                 "issue_index": 0,
-            }
+            },
         )
         # Should return forbidden if key is required
         # Note: This depends on INTERNAL_API_KEY configuration
@@ -787,7 +799,7 @@ class TestHardwareLogRouterSecurity:
             json={
                 "log_content": malicious_content,
                 "vendor": "dell",
-            }
+            },
         )
         # Should handle safely or require auth
         assert response.status_code in [200, 201, 422, 401] or response.status_code != 404
@@ -803,7 +815,7 @@ class TestHardwareLogRouterRepairTriggering:
             json={
                 "analysis_id": "test-123",
                 "issue_index": 0,
-            }
+            },
         )
         # Should not return 404
         assert response.status_code != 404
@@ -818,7 +830,7 @@ class TestHardwareLogRouterRepairTriggering:
                 "script_key": "ipmi_power_cycle",
                 "params": {"host": "192.168.1.100"},
                 "force": False,
-            }
+            },
         )
         # Should process (may fail auth, but endpoint exists)
         assert response.status_code != 404
@@ -830,7 +842,7 @@ class TestHardwareLogRouterRepairTriggering:
             json={
                 "analysis_id": "test-123",
                 "issue_index": -1,
-            }
+            },
         )
         # Should return validation error or endpoint exists
         assert response.status_code in [422, 401] or response.status_code != 404
@@ -841,14 +853,14 @@ class TestHardwareLogRouterRepairTriggering:
             "/api/v1/hardware-logs/repair/trigger",
             json={
                 "issue_index": 0,
-            }
+            },
         )
         # Should return validation error or endpoint exists
         assert response.status_code in [422, 401] or response.status_code != 404
 
     def test_trigger_repair_requires_approval(self, hardware_log_client):
         """Test repair triggering when approval is required"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         # Mock the repair script library - it's imported inside the function
         mock_script = MagicMock()
@@ -857,9 +869,9 @@ class TestHardwareLogRouterRepairTriggering:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('core.auto_heal.upsert_pending_approval') as mock_approval:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("core.auto_heal.upsert_pending_approval") as mock_approval:
                     mock_approval.return_value = None
 
                     response = hardware_log_client.post(
@@ -870,14 +882,14 @@ class TestHardwareLogRouterRepairTriggering:
                             "script_key": "ipmi_power_cycle",
                             "params": {"host": "192.168.1.100"},
                             "force": False,
-                        }
+                        },
                     )
                     # Should process or require auth
                     assert response.status_code in [200, 401] or response.status_code != 404
 
     def test_trigger_repair_approval_submission_error(self, hardware_log_client):
         """Test repair triggering when approval submission fails"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         # Mock the repair script library
         mock_script = MagicMock()
@@ -886,9 +898,11 @@ class TestHardwareLogRouterRepairTriggering:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('core.auto_heal.upsert_pending_approval', side_effect=Exception("DB error")):
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch(
+                    "core.auto_heal.upsert_pending_approval", side_effect=Exception("DB error")
+                ):
                     response = hardware_log_client.post(
                         "/api/v1/hardware-logs/repair/trigger",
                         json={
@@ -897,14 +911,14 @@ class TestHardwareLogRouterRepairTriggering:
                             "script_key": "ipmi_power_cycle",
                             "params": {"host": "192.168.1.100"},
                             "force": False,
-                        }
+                        },
                     )
                     # Should return 500 or auth error
                     assert response.status_code in [500, 401] or response.status_code != 404
 
     def test_trigger_repair_with_force_flag(self, hardware_log_client):
         """Test repair triggering with force flag (bypasses approval)"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         # Mock the repair script library
         mock_script = MagicMock()
@@ -913,9 +927,9 @@ class TestHardwareLogRouterRepairTriggering:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                     mock_heal.return_value = {"success": True}
 
                     response = hardware_log_client.post(
@@ -926,22 +940,22 @@ class TestHardwareLogRouterRepairTriggering:
                             "script_key": "ipmi_power_cycle",
                             "params": {"host": "192.168.1.100"},
                             "force": True,
-                        }
+                        },
                     )
                     # Should process or require auth
                     assert response.status_code in [200, 401] or response.status_code != 404
 
     def test_trigger_repair_script_not_found(self, hardware_log_client):
         """Test repair triggering when script is not found"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         # Mock the repair script library returning None
         mock_library = MagicMock()
         mock_library.get_script.return_value = None
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('core.auto_heal.upsert_pending_approval') as mock_approval:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("core.auto_heal.upsert_pending_approval") as mock_approval:
                     mock_approval.return_value = None
 
                     response = hardware_log_client.post(
@@ -952,14 +966,14 @@ class TestHardwareLogRouterRepairTriggering:
                             "script_key": "unknown_script",
                             "params": {"host": "192.168.1.100"},
                             "force": False,
-                        }
+                        },
                     )
                     # Should require approval (script=None means requires_approval=True)
                     assert response.status_code in [200, 401] or response.status_code != 404
 
     def test_trigger_repair_with_script_no_approval_required(self, hardware_log_client):
         """Test repair triggering when script doesn't require approval"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         # Mock the repair script library
         mock_script = MagicMock()
@@ -968,9 +982,9 @@ class TestHardwareLogRouterRepairTriggering:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                     mock_heal.return_value = {"success": True}
 
                     response = hardware_log_client.post(
@@ -981,15 +995,16 @@ class TestHardwareLogRouterRepairTriggering:
                             "script_key": "safe_script",
                             "params": {"host": "192.168.1.100"},
                             "force": False,
-                        }
+                        },
                     )
                     # Should execute directly or require auth
                     assert response.status_code in [200, 401] or response.status_code != 404
 
     def test_trigger_repair_http_exception_reraise(self, hardware_log_client):
         """Test that HTTPException is re-raised in repair trigger"""
+        from unittest.mock import MagicMock, patch
+
         from fastapi import HTTPException
-        from unittest.mock import patch, MagicMock
 
         # Mock the repair script library
         mock_script = MagicMock()
@@ -998,9 +1013,9 @@ class TestHardwareLogRouterRepairTriggering:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                     # Simulate HTTPException being raised
                     mock_heal.side_effect = HTTPException(status_code=403, detail="Forbidden")
 
@@ -1012,7 +1027,7 @@ class TestHardwareLogRouterRepairTriggering:
                             "script_key": "safe_script",
                             "params": {"host": "192.168.1.100"},
                             "force": False,
-                        }
+                        },
                     )
                     # Should re-raise HTTPException
                     assert response.status_code in [403, 401] or response.status_code != 404
@@ -1028,7 +1043,7 @@ class TestHardwareLogRouterVendorSupport:
             json={
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
-            }
+            },
         )
         # Endpoint should exist and handle request
         assert response.status_code != 404
@@ -1040,7 +1055,7 @@ class TestHardwareLogRouterVendorSupport:
             json={
                 "log_content": "HP ProLiant System Status Critical",
                 "vendor": "hp",
-            }
+            },
         )
         # Endpoint should exist and handle request
         assert response.status_code != 404
@@ -1052,7 +1067,7 @@ class TestHardwareLogRouterVendorSupport:
             json={
                 "log_content": "Lenovo ThinkSystem Drive State Failed",
                 "vendor": "lenovo",
-            }
+            },
         )
         # Endpoint should exist and handle request
         assert response.status_code != 404
@@ -1064,7 +1079,7 @@ class TestHardwareLogRouterVendorSupport:
             json={
                 "log_content": "Cisco UCS SMART overall-health self-assessment test result: FAILED",
                 "vendor": "cisco",
-            }
+            },
         )
         # Endpoint should exist and handle request
         assert response.status_code != 404
@@ -1076,7 +1091,7 @@ class TestHardwareLogRouterVendorSupport:
             json={
                 "log_content": "Huawei Server Power Supply Failure",
                 "vendor": "huawei",
-            }
+            },
         )
         # Endpoint should exist and handle request
         assert response.status_code != 404
@@ -1088,7 +1103,7 @@ class TestHardwareLogRouterVendorSupport:
             json={
                 "log_content": "Generic server hardware failure",
                 "vendor": "generic",
-            }
+            },
         )
         # Endpoint should exist and handle request
         assert response.status_code != 404
@@ -1104,7 +1119,7 @@ class TestHardwareLogRouterResponseFormats:
             json={
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
-            }
+            },
         )
         if response.status_code in [200, 201]:
             data = response.json()
@@ -1120,7 +1135,7 @@ class TestHardwareLogRouterResponseFormats:
             json={
                 "log_content": "",
                 "vendor": "dell",
-            }
+            },
         )
         if response.status_code == 422:
             data = response.json()
@@ -1139,7 +1154,7 @@ class TestHardwareLogRouterPerformance:
             json={
                 "log_content": large_log,
                 "vendor": "dell",
-            }
+            },
         )
         # Should handle large logs or require auth
         assert response.status_code in [200, 201, 422, 401] or response.status_code != 404
@@ -1147,25 +1162,25 @@ class TestHardwareLogRouterPerformance:
     def test_concurrent_requests(self, hardware_log_client):
         """Test handling of concurrent requests"""
         import threading
-        
+
         results = []
-        
+
         def make_request():
             response = hardware_log_client.post(
                 "/api/v1/hardware-logs/analyze",
                 json={
                     "log_content": "Dell Inc. CPU 0 temperature critical",
                     "vendor": "dell",
-                }
+                },
             )
             results.append(response.status_code)
-        
+
         threads = [threading.Thread(target=make_request) for _ in range(5)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        
+
         # All requests should complete
         assert len(results) == 5
 
@@ -1181,7 +1196,7 @@ class TestHardwareLogRouterEdgeCases:
             json={
                 "log_content": unicode_content,
                 "vendor": "dell",
-            }
+            },
         )
         # Should handle unicode or require auth
         assert response.status_code in [200, 201, 422, 401] or response.status_code != 404
@@ -1194,7 +1209,7 @@ class TestHardwareLogRouterEdgeCases:
             json={
                 "log_content": special_content,
                 "vendor": "dell",
-            }
+            },
         )
         # Should handle special characters or require auth
         assert response.status_code in [200, 201, 422, 401] or response.status_code != 404
@@ -1211,7 +1226,7 @@ class TestHardwareLogRouterEdgeCases:
             json={
                 "log_content": mixed_log,
                 "vendor": "dell",  # Specify primary vendor
-            }
+            },
         )
         # Should process mixed logs or require auth
         assert response.status_code in [200, 201, 401] or response.status_code != 404
@@ -1223,7 +1238,7 @@ class TestHardwareLogRouterEdgeCases:
             json={
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "DeLL",  # Mixed case
-            }
+            },
         )
         # Should handle mixed case or require auth
         assert response.status_code in [200, 201, 401] or response.status_code != 404
@@ -1235,7 +1250,7 @@ class TestHardwareLogRouterEdgeCases:
             json={
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": " dell ",  # With whitespace
-            }
+            },
         )
         # Should handle whitespace or require auth
         assert response.status_code in [200, 201, 401] or response.status_code != 404
@@ -1248,7 +1263,7 @@ class TestHardwareLogRouterEdgeCases:
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
                 "extra_field": "should_be_ignored",  # Extra field
-            }
+            },
         )
         # Should ignore extra fields or require auth
         assert response.status_code in [200, 201, 401] or response.status_code != 404
@@ -1286,13 +1301,16 @@ class TestHardwareLogRouterIntegration:
             json={
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
-            }
+            },
         )
         if response.status_code in [200, 201]:
             data = response.json()
             # Should include repair recommendations
             if "issues" in data and data["issues"]:
-                assert "repair_recommendations" in data["issues"][0] or "script_keys" in data["issues"][0]
+                assert (
+                    "repair_recommendations" in data["issues"][0]
+                    or "script_keys" in data["issues"][0]
+                )
 
     def test_integration_with_auto_heal(self, hardware_log_client):
         """Test integration with auto-heal workflow"""
@@ -1302,7 +1320,7 @@ class TestHardwareLogRouterIntegration:
                 "log_content": "Dell Inc. CPU 0 temperature critical",
                 "vendor": "dell",
                 "auto_trigger_repair": True,
-            }
+            },
         )
         # Should process auto-heal request or require auth
         assert response.status_code in [200, 201, 500, 401] or response.status_code != 404
@@ -1313,16 +1331,15 @@ class TestHardwareLogRouterUnitTests:
 
     def test_analyze_endpoint_value_error(self):
         """Test analyze endpoint with ValueError from analyzer"""
-        from api.hardware_log_router import analyze_hardware_log
-        from fastapi import Request
         from unittest.mock import Mock, patch
-        from fastapi import HTTPException
+
         import pytest
+        from fastapi import HTTPException, Request
+
+        from api.hardware_log_router import analyze_hardware_log
 
         request = LogAnalysisRequest(
-            log_content="Test log",
-            vendor="dell",
-            auto_trigger_repair=False
+            log_content="Test log", vendor="dell", auto_trigger_repair=False
         )
 
         req = Mock()
@@ -1330,25 +1347,33 @@ class TestHardwareLogRouterUnitTests:
         req.client.host = "127.0.0.1"
         req.state.tenant_id = "test-tenant"
 
-        with patch('api.hardware_log_router.get_hardware_log_analyzer') as mock_analyzer:
+        with patch("api.hardware_log_router.get_hardware_log_analyzer") as mock_analyzer:
             mock_analyzer.return_value.analyze_log.side_effect = ValueError("Invalid log format")
 
             with pytest.raises(HTTPException) as exc_info:
                 # Call the endpoint function directly
                 import asyncio
+
                 asyncio.run(analyze_hardware_log(request, req))
 
             assert exc_info.value.status_code == 400
 
     def test_analyze_endpoint_with_auto_trigger_repair(self):
         """Test analyze endpoint with auto-trigger repair enabled"""
+        import asyncio
+        from unittest.mock import Mock, patch
+
+        from fastapi import Request
+
         from api.hardware_log_router import analyze_hardware_log
         from extensions.hardware_remediation.hardware_log_analyzer import (
-            AnalysisResult, ComponentIssue, ComponentType, SeverityLevel, RiskLevel, HardwareVendor
+            AnalysisResult,
+            ComponentIssue,
+            ComponentType,
+            HardwareVendor,
+            RiskLevel,
+            SeverityLevel,
         )
-        from fastapi import Request
-        from unittest.mock import Mock, patch
-        import asyncio
 
         # Create analysis result with critical issue
         issue = ComponentIssue(
@@ -1370,9 +1395,7 @@ class TestHardwareLogRouterUnitTests:
         )
 
         request = LogAnalysisRequest(
-            log_content="Test log",
-            vendor="dell",
-            auto_trigger_repair=True
+            log_content="Test log", vendor="dell", auto_trigger_repair=True
         )
 
         req = Mock()
@@ -1380,11 +1403,11 @@ class TestHardwareLogRouterUnitTests:
         req.client.host = "127.0.0.1"
         req.state.tenant_id = "test-tenant"
 
-        with patch('api.hardware_log_router.get_hardware_log_analyzer') as mock_analyzer:
+        with patch("api.hardware_log_router.get_hardware_log_analyzer") as mock_analyzer:
             mock_analyzer.return_value.analyze_log.return_value = analysis_result
             mock_analyzer.return_value.generate_repair_plan.return_value = {}
 
-            with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+            with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                 mock_heal.return_value = {"success": True}
 
                 result = asyncio.run(analyze_hardware_log(request, req))
@@ -1394,13 +1417,20 @@ class TestHardwareLogRouterUnitTests:
 
     def test_analyze_endpoint_with_auto_trigger_repair_exception(self):
         """Test analyze endpoint with auto-trigger repair exception"""
+        import asyncio
+        from unittest.mock import Mock, patch
+
+        from fastapi import Request
+
         from api.hardware_log_router import analyze_hardware_log
         from extensions.hardware_remediation.hardware_log_analyzer import (
-            AnalysisResult, ComponentIssue, ComponentType, SeverityLevel, RiskLevel, HardwareVendor
+            AnalysisResult,
+            ComponentIssue,
+            ComponentType,
+            HardwareVendor,
+            RiskLevel,
+            SeverityLevel,
         )
-        from fastapi import Request
-        from unittest.mock import Mock, patch
-        import asyncio
 
         # Create analysis result with critical issue
         issue = ComponentIssue(
@@ -1422,9 +1452,7 @@ class TestHardwareLogRouterUnitTests:
         )
 
         request = LogAnalysisRequest(
-            log_content="Test log",
-            vendor="dell",
-            auto_trigger_repair=True
+            log_content="Test log", vendor="dell", auto_trigger_repair=True
         )
 
         req = Mock()
@@ -1432,11 +1460,11 @@ class TestHardwareLogRouterUnitTests:
         req.client.host = "127.0.0.1"
         req.state.tenant_id = "test-tenant"
 
-        with patch('api.hardware_log_router.get_hardware_log_analyzer') as mock_analyzer:
+        with patch("api.hardware_log_router.get_hardware_log_analyzer") as mock_analyzer:
             mock_analyzer.return_value.analyze_log.return_value = analysis_result
             mock_analyzer.return_value.generate_repair_plan.return_value = {}
 
-            with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+            with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                 mock_heal.side_effect = Exception("Auto-heal failed")
 
                 result = asyncio.run(analyze_hardware_log(request, req))
@@ -1446,11 +1474,12 @@ class TestHardwareLogRouterUnitTests:
 
     def test_upload_endpoint_decode_exception(self):
         """Test upload endpoint with decode exception"""
-        from api.hardware_log_router import upload_and_analyze_log
-        from fastapi import Request
-        from unittest.mock import Mock, patch, AsyncMock
-        from fastapi import HTTPException, UploadFile
+        from unittest.mock import AsyncMock, Mock, patch
+
         import pytest
+        from fastapi import HTTPException, Request, UploadFile
+
+        from api.hardware_log_router import upload_and_analyze_log
 
         req = Mock()
         req.client = Mock()
@@ -1463,26 +1492,29 @@ class TestHardwareLogRouterUnitTests:
 
         # Mock the read to return bytes that will fail decode
         async def mock_read():
-            return b'\xff\xfe\x00\x00'  # Invalid UTF-8
+            return b"\xff\xfe\x00\x00"  # Invalid UTF-8
 
         file.read = mock_read
 
-        with patch('api.hardware_log_router.analyze_hardware_log') as mock_analyze:
+        with patch("api.hardware_log_router.analyze_hardware_log") as mock_analyze:
             mock_analyze.return_value = {"success": True}
 
             # This should handle decode with errors='replace', so it won't raise
             import asyncio
+
             result = asyncio.run(upload_and_analyze_log(req, file, "dell", False))
             # Should succeed due to errors='replace'
             assert result is not None
 
     def test_upload_endpoint_file_too_large(self):
         """Test upload endpoint with file exceeding size limit"""
-        from api.hardware_log_router import upload_and_analyze_log
-        from fastapi import Request, HTTPException, UploadFile
-        from unittest.mock import Mock, AsyncMock
-        import pytest
         import asyncio
+        from unittest.mock import AsyncMock, Mock
+
+        import pytest
+        from fastapi import HTTPException, Request, UploadFile
+
+        from api.hardware_log_router import upload_and_analyze_log
 
         req = Mock()
         req.client = Mock()
@@ -1494,7 +1526,7 @@ class TestHardwareLogRouterUnitTests:
 
         # Mock the read to return 11MB (exceeds 10MB limit)
         async def mock_read():
-            return b'x' * (11 * 1024 * 1024)
+            return b"x" * (11 * 1024 * 1024)
 
         file.read = mock_read
 
@@ -1506,11 +1538,13 @@ class TestHardwareLogRouterUnitTests:
 
     def test_upload_endpoint_decode_actual_exception(self):
         """Test upload endpoint with actual decode exception"""
-        from api.hardware_log_router import upload_and_analyze_log
-        from fastapi import Request, HTTPException, UploadFile
-        from unittest.mock import Mock, AsyncMock
-        import pytest
         import asyncio
+        from unittest.mock import AsyncMock, Mock
+
+        import pytest
+        from fastapi import HTTPException, Request, UploadFile
+
+        from api.hardware_log_router import upload_and_analyze_log
 
         req = Mock()
         req.client = Mock()
@@ -1526,7 +1560,7 @@ class TestHardwareLogRouterUnitTests:
                 raise Exception("Decode failed")
 
         async def mock_read():
-            return BadBytes(b'test content')
+            return BadBytes(b"test content")
 
         file.read = mock_read
 
@@ -1538,17 +1572,19 @@ class TestHardwareLogRouterUnitTests:
 
     def test_trigger_repair_approval_flow_success(self):
         """Test repair trigger approval flow success path"""
-        from api.hardware_log_router import trigger_hardware_repair
-        from fastapi import Request
-        from unittest.mock import Mock, patch, MagicMock
         import asyncio
+        from unittest.mock import MagicMock, Mock, patch
+
+        from fastapi import Request
+
+        from api.hardware_log_router import trigger_hardware_repair
 
         request = RepairTriggerRequest(
             analysis_id="test-123",
             issue_index=0,
             script_key="ipmi_power_cycle",
             params={"host": "192.168.1.100"},
-            force=False
+            force=False,
         )
 
         req = Mock()
@@ -1563,9 +1599,9 @@ class TestHardwareLogRouterUnitTests:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('core.auto_heal.upsert_pending_approval') as mock_approval:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("core.auto_heal.upsert_pending_approval") as mock_approval:
                     mock_approval.return_value = None
 
                     result = asyncio.run(trigger_hardware_repair(request, req))
@@ -1576,18 +1612,20 @@ class TestHardwareLogRouterUnitTests:
 
     def test_trigger_repair_approval_flow_exception(self):
         """Test repair trigger approval flow with exception"""
-        from api.hardware_log_router import trigger_hardware_repair
-        from fastapi import Request, HTTPException
-        from unittest.mock import Mock, patch, MagicMock
-        import pytest
         import asyncio
+        from unittest.mock import MagicMock, Mock, patch
+
+        import pytest
+        from fastapi import HTTPException, Request
+
+        from api.hardware_log_router import trigger_hardware_repair
 
         request = RepairTriggerRequest(
             analysis_id="test-123",
             issue_index=0,
             script_key="ipmi_power_cycle",
             params={"host": "192.168.1.100"},
-            force=False
+            force=False,
         )
 
         req = Mock()
@@ -1602,9 +1640,11 @@ class TestHardwareLogRouterUnitTests:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('core.auto_heal.upsert_pending_approval', side_effect=Exception("DB error")):
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch(
+                    "core.auto_heal.upsert_pending_approval", side_effect=Exception("DB error")
+                ):
                     with pytest.raises(HTTPException) as exc_info:
                         asyncio.run(trigger_hardware_repair(request, req))
 
@@ -1613,17 +1653,19 @@ class TestHardwareLogRouterUnitTests:
 
     def test_trigger_repair_execute_directly(self):
         """Test repair trigger executing directly (no approval needed)"""
-        from api.hardware_log_router import trigger_hardware_repair
-        from fastapi import Request
-        from unittest.mock import Mock, patch, MagicMock
         import asyncio
+        from unittest.mock import MagicMock, Mock, patch
+
+        from fastapi import Request
+
+        from api.hardware_log_router import trigger_hardware_repair
 
         request = RepairTriggerRequest(
             analysis_id="test-123",
             issue_index=0,
             script_key="safe_script",
             params={"host": "192.168.1.100"},
-            force=False
+            force=False,
         )
 
         req = Mock()
@@ -1638,9 +1680,9 @@ class TestHardwareLogRouterUnitTests:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                     mock_heal.return_value = {"success": True, "message": "Repair executed"}
 
                     result = asyncio.run(trigger_hardware_repair(request, req))
@@ -1650,17 +1692,19 @@ class TestHardwareLogRouterUnitTests:
 
     def test_trigger_repair_with_force_bypass(self):
         """Test repair trigger with force flag bypassing approval"""
-        from api.hardware_log_router import trigger_hardware_repair
-        from fastapi import Request
-        from unittest.mock import Mock, patch, MagicMock
         import asyncio
+        from unittest.mock import MagicMock, Mock, patch
+
+        from fastapi import Request
+
+        from api.hardware_log_router import trigger_hardware_repair
 
         request = RepairTriggerRequest(
             analysis_id="test-123",
             issue_index=0,
             script_key="ipmi_power_cycle",
             params={"host": "192.168.1.100"},
-            force=True
+            force=True,
         )
 
         req = Mock()
@@ -1675,9 +1719,9 @@ class TestHardwareLogRouterUnitTests:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                     mock_heal.return_value = {"success": True, "message": "Repair executed"}
 
                     result = asyncio.run(trigger_hardware_repair(request, req))
@@ -1687,17 +1731,19 @@ class TestHardwareLogRouterUnitTests:
 
     def test_trigger_repair_script_not_found(self):
         """Test repair trigger when script is not found in library"""
-        from api.hardware_log_router import trigger_hardware_repair
-        from fastapi import Request
-        from unittest.mock import Mock, patch, MagicMock
         import asyncio
+        from unittest.mock import MagicMock, Mock, patch
+
+        from fastapi import Request
+
+        from api.hardware_log_router import trigger_hardware_repair
 
         request = RepairTriggerRequest(
             analysis_id="test-123",
             issue_index=0,
             script_key="unknown_script",
             params={"host": "192.168.1.100"},
-            force=False
+            force=False,
         )
 
         req = Mock()
@@ -1709,9 +1755,9 @@ class TestHardwareLogRouterUnitTests:
         mock_library = MagicMock()
         mock_library.get_script.return_value = None
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('core.auto_heal.upsert_pending_approval') as mock_approval:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("core.auto_heal.upsert_pending_approval") as mock_approval:
                     mock_approval.return_value = None
 
                     result = asyncio.run(trigger_hardware_repair(request, req))
@@ -1723,18 +1769,20 @@ class TestHardwareLogRouterUnitTests:
 
     def test_trigger_repair_http_exception_reraise(self):
         """Test that HTTPException is re-raised in repair trigger"""
-        from api.hardware_log_router import trigger_hardware_repair
-        from fastapi import Request, HTTPException
-        from unittest.mock import Mock, patch, MagicMock
-        import pytest
         import asyncio
+        from unittest.mock import MagicMock, Mock, patch
+
+        import pytest
+        from fastapi import HTTPException, Request
+
+        from api.hardware_log_router import trigger_hardware_repair
 
         request = RepairTriggerRequest(
             analysis_id="test-123",
             issue_index=0,
             script_key="safe_script",
             params={"host": "192.168.1.100"},
-            force=False
+            force=False,
         )
 
         req = Mock()
@@ -1749,9 +1797,9 @@ class TestHardwareLogRouterUnitTests:
         mock_library = MagicMock()
         mock_library.get_script.return_value = mock_script
 
-        with patch.dict('sys.modules', {'core.auto_heal': MagicMock()}):
-            with patch('core.auto_heal.repair_script_library', mock_library):
-                with patch('api.hardware_log_router._trigger_auto_heal_alert') as mock_heal:
+        with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
+            with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
+                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
                     # Simulate HTTPException being raised
                     mock_heal.side_effect = HTTPException(status_code=403, detail="Forbidden")
 

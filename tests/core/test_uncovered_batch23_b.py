@@ -308,7 +308,9 @@ def test_analyze_slow_queries_unavailable():
 
 def test_optimize_connection_pool(fake_optimizer_modules):
     manager = dom.DatabaseOptimizationManager()
-    result = manager.optimize_connection_pool(pool_name="payments")  # noqa: F841  # Variable for test verification
+    result = manager.optimize_connection_pool(
+        pool_name="payments"
+    )  # noqa: F841  # Variable for test verification
     assert result["optimization_applied"] is True
     assert result["current_metrics"]["pool"] == "payments"
     assert "increase-pool" in result["recommendations"]
@@ -322,7 +324,9 @@ def test_optimize_connection_pool_unavailable():
 
 def test_setup_query_cache(fake_optimizer_modules):
     manager = dom.DatabaseOptimizationManager()
-    result = manager.setup_query_cache(cache_ttl_seconds=120)  # noqa: F841  # Variable for test verification
+    result = manager.setup_query_cache(
+        cache_ttl_seconds=120
+    )  # noqa: F841  # Variable for test verification
     assert result["cache_enabled"] is True
     assert result["ttl_seconds"] == 120
     assert result["setup_successful"] is True
@@ -344,7 +348,9 @@ def test_get_optimization_recommendations(fake_optimizer_modules):
 
 def test_run_comprehensive_optimization(fake_optimizer_modules):
     manager = dom.DatabaseOptimizationManager()
-    result = manager.run_comprehensive_optimization()  # noqa: F841  # Variable for test verification
+    result = (
+        manager.run_comprehensive_optimization()
+    )  # noqa: F841  # Variable for test verification
     assert result["overall_status"] == "complete"
     assert "query_optimization" in result
     assert "connection_optimization" in result
@@ -388,7 +394,9 @@ def test_manager_load_failure_paths(monkeypatch):
     assert not manager.status.query_optimization_enabled
     assert not manager.status.connection_optimization_enabled
     assert not manager.status.cache_optimization_enabled
-    result = manager.run_comprehensive_optimization()  # noqa: F841  # Variable for test verification
+    result = (
+        manager.run_comprehensive_optimization()
+    )  # noqa: F841  # Variable for test verification
     assert result["overall_status"] == "failed"
 
 
@@ -456,7 +464,9 @@ def test_run_comprehensive_optimization_exception(monkeypatch):
     monkeypatch.setattr(cache_opt_mod, "DatabaseCacheOptimizer", _FakeCacheOptimizer)
     manager = dom.DatabaseOptimizationManager()
     manager.analyze_slow_queries = MagicMock(side_effect=RuntimeError("boom"))
-    result = manager.run_comprehensive_optimization()  # noqa: F841  # Variable for test verification
+    result = (
+        manager.run_comprehensive_optimization()
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result["query_optimization"]
     assert result["overall_status"] == "partial"
 
@@ -595,7 +605,9 @@ def test_setup_dependency_injection(monkeypatch):
             setattr(mod, k, v)
         monkeypatch.setitem(sys.modules, name, mod)
 
-    result = asyncio.run(di.setup_dependency_injection())  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        di.setup_dependency_injection()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["core_services"]["status"] == "success"
 

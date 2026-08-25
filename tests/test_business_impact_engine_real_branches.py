@@ -29,7 +29,7 @@ from core.business_impact_engine import (  # noqa: E402
     list_business_impact_services,
     list_business_impact_ux_metrics,
 )
-from core.metrics_history import metrics_history  # noqa: E402
+from core.metrics_history import METRICS_HISTORY as metrics_history  # noqa: E402
 from core.service_monitoring_manager import get_service_monitoring_manager  # noqa: E402
 
 bie.LINUX_HOSTS = _LINUX_HOSTS
@@ -175,7 +175,7 @@ async def _run():
     assert isinstance(ux_module, list) and len(ux_module) == 7
 
     # _service_id static helper
-    expected_id = "SVC-" + hashlib.md5("foo".encode("utf-8")).hexdigest()[:3].upper()
+    expected_id = "SVC-" + hashlib.sha256("foo".encode("utf-8")).hexdigest()[:3].upper()
     assert BusinessImpactEngine._service_id("foo") == expected_id
 
 

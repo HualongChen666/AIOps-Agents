@@ -42,7 +42,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ _prometheus_config = {"url": "", "enabled": False}
 
 class AlertConfig(BaseModel):
     """告警配置模型"""
+
     enabled: bool = True
     default_severity: str = "medium"
     auto_resolve_timeout: int = 3600
@@ -139,6 +140,7 @@ class AlertConfig(BaseModel):
 
 class NotificationChannel(BaseModel):
     """通知通道模型"""
+
     name: str
     type: str = Field(..., pattern="^(email|slack|pagerduty|sms|webhook|teams)$")
     enabled: bool = True
@@ -147,6 +149,7 @@ class NotificationChannel(BaseModel):
 
 class EscalationRule(BaseModel):
     """升级规则模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -157,6 +160,7 @@ class EscalationRule(BaseModel):
 
 class SuppressionRule(BaseModel):
     """抑制规则模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -167,6 +171,7 @@ class SuppressionRule(BaseModel):
 
 class ForwardingRule(BaseModel):
     """转发规则模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -179,6 +184,7 @@ class ForwardingRule(BaseModel):
 
 class WebhookConfig(BaseModel):
     """Webhook配置模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -194,6 +200,7 @@ class WebhookConfig(BaseModel):
 
 class DynamicThresholdRule(BaseModel):
     """动态阈值规则模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -209,6 +216,7 @@ class DynamicThresholdRule(BaseModel):
 
 class DeduplicationRule(BaseModel):
     """去重规则模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -219,6 +227,7 @@ class DeduplicationRule(BaseModel):
 
 class AggregationRule(BaseModel):
     """聚合规则模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -231,6 +240,7 @@ class AggregationRule(BaseModel):
 
 class AlertRoute(BaseModel):
     """告警路由模型"""
+
     name: str
     description: str = ""
     enabled: bool = True
@@ -242,6 +252,7 @@ class AlertRoute(BaseModel):
 
 class AlertRule(BaseModel):
     """告警规则模型"""
+
     name: str
     description: str = ""
     severity: str = "medium"
@@ -257,6 +268,7 @@ class AlertRule(BaseModel):
 
 class ThirdPartyConfig(BaseModel):
     """第三方集成配置模型"""
+
     url: Optional[str] = ""
     username: Optional[str] = ""
     password: Optional[str] = ""
@@ -296,16 +308,17 @@ async def get_dashboard(time_range: str = Query(default="24h")) -> Dict[str, Any
     """
     # 模拟数据生成
     now = datetime.utcnow()
-    hours = 24 if time_range == "24h" else 1 if time_range == "1h" else 168 if time_range == "7d" else 720
-    
+    hours = (
+        24
+        if time_range == "24h"
+        else 1 if time_range == "1h" else 168 if time_range == "7d" else 720
+    )
+
     trend_data = []
     for i in range(min(hours, 24)):
         hour = (now - timedelta(hours=hours - i)).hour
-        trend_data.append({
-            "hour": hour,
-            "count": max(0, 50 + (i % 10) * 5 - 20)
-        })
-    
+        trend_data.append({"hour": hour, "count": max(0, 50 + (i % 10) * 5 - 20)})
+
     return {
         "total_alerts": 1247,
         "open_alerts": 89,
@@ -374,11 +387,13 @@ async def create_notification_channel(channel: NotificationChannel) -> Dict[str,
 
 
 @router.put("/notification/channels/{channel_id}", summary="更新通知通道")
-async def update_notification_channel(channel_id: str, channel: NotificationChannel) -> Dict[str, Any]:
+async def update_notification_channel(
+    channel_id: str, channel: NotificationChannel
+) -> Dict[str, Any]:
     """更新通知通道"""
     if channel_id not in _notification_channels:
         raise HTTPException(status_code=404, detail="通知通道不存在")
-    
+
     channel_data = channel.dict()
     channel_data["id"] = channel_id
     channel_data["created_at"] = _notification_channels[channel_id]["created_at"]
@@ -392,7 +407,7 @@ async def delete_notification_channel(channel_id: str) -> Dict[str, Any]:
     """删除通知通道"""
     if channel_id not in _notification_channels:
         raise HTTPException(status_code=404, detail="通知通道不存在")
-    
+
     del _notification_channels[channel_id]
     return {"status": "success", "message": "通知通道已删除"}
 
@@ -402,16 +417,18 @@ async def get_prediction(time_range: str = Query(default="24h")) -> Dict[str, An
     """获取告警预测数据"""
     predictions = []
     for i in range(10):
-        predictions.append({
-            "id": generate_id(),
-            "metric": f"metric_{i}",
-            "predicted_value": 50 + (i % 5) * 10,
-            "confidence": 0.7 + (i % 3) * 0.1,
-            "predicted_at": get_timestamp(),
-            "severity": "critical" if i % 3 == 0 else "high" if i % 3 == 1 else "medium",
-            "model": "prophet",
-        })
-    
+        predictions.append(
+            {
+                "id": generate_id(),
+                "metric": f"metric_{i}",
+                "predicted_value": 50 + (i % 5) * 10,
+                "confidence": 0.7 + (i % 3) * 0.1,
+                "predicted_at": get_timestamp(),
+                "severity": "critical" if i % 3 == 0 else "high" if i % 3 == 1 else "medium",
+                "model": "prophet",
+            }
+        )
+
     return {
         "predictions": predictions,
         "stats": {
@@ -419,7 +436,7 @@ async def get_prediction(time_range: str = Query(default="24h")) -> Dict[str, An
             "accurate_predictions": int(len(predictions) * 0.85),
             "accuracy_rate": 0.85,
             "avg_confidence": 0.82,
-        }
+        },
     }
 
 
@@ -428,31 +445,39 @@ async def get_correlation() -> Dict[str, Any]:
     """获取告警关联数据"""
     correlations = []
     for i in range(5):
-        correlations.append({
-            "id": generate_id(),
-            "alert_id": generate_id(),
-            "alert_title": f"告警 {i+1}",
-            "related_alerts": [
-                {
-                    "alert_id": generate_id(),
-                    "alert_title": f"相关告警 {j}",
-                    "correlation_score": 0.8 - j * 0.1,
-                    "correlation_type": "temporal" if j % 2 == 0 else "causal",
-                }
-                for j in range(3)
-            ],
-            "correlation_group": f"group_{i}",
-            "created_at": get_timestamp(),
-        })
-    
+        correlations.append(
+            {
+                "id": generate_id(),
+                "alert_id": generate_id(),
+                "alert_title": f"告警 {i+1}",
+                "related_alerts": [
+                    {
+                        "alert_id": generate_id(),
+                        "alert_title": f"相关告警 {j}",
+                        "correlation_score": 0.8 - j * 0.1,
+                        "correlation_type": "temporal" if j % 2 == 0 else "causal",
+                    }
+                    for j in range(3)
+                ],
+                "correlation_group": f"group_{i}",
+                "created_at": get_timestamp(),
+            }
+        )
+
     return {
         "correlations": correlations,
         "stats": {
             "total_correlations": len(correlations),
             "correlation_groups": len(set(c["correlation_group"] for c in correlations)),
             "avg_correlation_score": 0.75,
-            "high_confidence_correlations": len([c for c in correlations if any(r["correlation_score"] > 0.8 for r in c["related_alerts"])]),
-        }
+            "high_confidence_correlations": len(
+                [
+                    c
+                    for c in correlations
+                    if any(r["correlation_score"] > 0.8 for r in c["related_alerts"])
+                ]
+            ),
+        },
     }
 
 
@@ -485,7 +510,7 @@ async def update_escalation_rule(rule_id: str, rule: EscalationRule) -> Dict[str
     """更新升级规则"""
     if rule_id not in _escalation_rules:
         raise HTTPException(status_code=404, detail="升级规则不存在")
-    
+
     rule_data = rule.dict()
     rule_data["id"] = rule_id
     rule_data["created_at"] = _escalation_rules[rule_id]["created_at"]
@@ -499,7 +524,7 @@ async def delete_escalation_rule(rule_id: str) -> Dict[str, Any]:
     """删除升级规则"""
     if rule_id not in _escalation_rules:
         raise HTTPException(status_code=404, detail="升级规则不存在")
-    
+
     del _escalation_rules[rule_id]
     return {"status": "success", "message": "升级规则已删除"}
 
@@ -528,7 +553,7 @@ async def update_suppression_rule(rule_id: str, rule: SuppressionRule) -> Dict[s
     """更新抑制规则"""
     if rule_id not in _suppression_rules:
         raise HTTPException(status_code=404, detail="抑制规则不存在")
-    
+
     rule_data = rule.dict()
     rule_data["id"] = rule_id
     rule_data["created_by"] = _suppression_rules[rule_id]["created_by"]
@@ -543,7 +568,7 @@ async def delete_suppression_rule(rule_id: str) -> Dict[str, Any]:
     """删除抑制规则"""
     if rule_id not in _suppression_rules:
         raise HTTPException(status_code=404, detail="抑制规则不存在")
-    
+
     del _suppression_rules[rule_id]
     return {"status": "success", "message": "抑制规则已删除"}
 
@@ -552,19 +577,21 @@ async def delete_suppression_rule(rule_id: str) -> Dict[str, Any]:
 async def get_trends(time_range: str = Query(default="7d")) -> Dict[str, Any]:
     """获取告警趋势数据"""
     days = 7 if time_range == "7d" else 30 if time_range == "30d" else 90
-    
+
     daily_trends = []
     for i in range(days):
         date = (datetime.utcnow() - timedelta(days=days - i)).strftime("%Y-%m-%d")
-        daily_trends.append({
-            "date": date,
-            "total": 50 + (i % 5) * 10,
-            "critical": 5 + (i % 3),
-            "high": 10 + (i % 4),
-            "medium": 15 + (i % 5),
-            "low": 20 + (i % 6),
-        })
-    
+        daily_trends.append(
+            {
+                "date": date,
+                "total": 50 + (i % 5) * 10,
+                "critical": 5 + (i % 3),
+                "high": 10 + (i % 4),
+                "medium": 15 + (i % 5),
+                "low": 20 + (i % 6),
+            }
+        )
+
     return {
         "daily_trends": daily_trends[-7:],
         "weekly_trends": daily_trends[::7],
@@ -614,23 +641,25 @@ async def get_history(
     """获取告警历史记录"""
     history = []
     for i in range(20):
-        history.append({
-            "id": generate_id(),
-            "alert_id": generate_id(),
-            "title": f"告警 {i+1}",
-            "severity": ["critical", "high", "medium", "low"][i % 4],
-            "status": ["open", "acknowledged", "resolved"][i % 3],
-            "source": ["Prometheus", "Zabbix", "CloudWatch"][i % 3],
-            "service": ["api-server", "database", "cache"][i % 3],
-            "labels": {"env": "prod", "region": "us-east-1"},
-            "created_at": get_timestamp(),
-            "acknowledged_at": get_timestamp() if i % 3 == 1 else None,
-            "resolved_at": get_timestamp() if i % 3 == 2 else None,
-            "acknowledged_by": "user1" if i % 3 == 1 else None,
-            "resolved_by": "user2" if i % 3 == 2 else None,
-            "duration": 3600 if i % 3 == 2 else None,
-        })
-    
+        history.append(
+            {
+                "id": generate_id(),
+                "alert_id": generate_id(),
+                "title": f"告警 {i+1}",
+                "severity": ["critical", "high", "medium", "low"][i % 4],
+                "status": ["open", "acknowledged", "resolved"][i % 3],
+                "source": ["Prometheus", "Zabbix", "CloudWatch"][i % 3],
+                "service": ["api-server", "database", "cache"][i % 3],
+                "labels": {"env": "prod", "region": "us-east-1"},
+                "created_at": get_timestamp(),
+                "acknowledged_at": get_timestamp() if i % 3 == 1 else None,
+                "resolved_at": get_timestamp() if i % 3 == 2 else None,
+                "acknowledged_by": "user1" if i % 3 == 1 else None,
+                "resolved_by": "user2" if i % 3 == 2 else None,
+                "duration": 3600 if i % 3 == 2 else None,
+            }
+        )
+
     return {"history": history}
 
 
@@ -657,7 +686,7 @@ async def update_forwarding_rule(rule_id: str, rule: ForwardingRule) -> Dict[str
     """更新转发规则"""
     if rule_id not in _forwarding_rules:
         raise HTTPException(status_code=404, detail="转发规则不存在")
-    
+
     rule_data = rule.dict()
     rule_data["id"] = rule_id
     rule_data["created_at"] = _forwarding_rules[rule_id]["created_at"]
@@ -671,7 +700,7 @@ async def delete_forwarding_rule(rule_id: str) -> Dict[str, Any]:
     """删除转发规则"""
     if rule_id not in _forwarding_rules:
         raise HTTPException(status_code=404, detail="转发规则不存在")
-    
+
     del _forwarding_rules[rule_id]
     return {"status": "success", "message": "转发规则已删除"}
 
@@ -699,7 +728,7 @@ async def update_webhook_config(config_id: str, config: WebhookConfig) -> Dict[s
     """更新Webhook配置"""
     if config_id not in _webhook_configs:
         raise HTTPException(status_code=404, detail="Webhook配置不存在")
-    
+
     config_data = config.dict()
     config_data["id"] = config_id
     config_data["created_at"] = _webhook_configs[config_id]["created_at"]
@@ -713,7 +742,7 @@ async def delete_webhook_config(config_id: str) -> Dict[str, Any]:
     """删除Webhook配置"""
     if config_id not in _webhook_configs:
         raise HTTPException(status_code=404, detail="Webhook配置不存在")
-    
+
     del _webhook_configs[config_id]
     return {"status": "success", "message": "Webhook配置已删除"}
 
@@ -725,12 +754,16 @@ async def get_intelligent_analysis() -> Dict[str, Any]:
         "analyses": list(_intelligent_analyses),
         "stats": {
             "total_analyses": len(_intelligent_analyses),
-            "successful_analyses": len([a for a in _intelligent_analyses if a.get("status") == "completed"]),
-            "failed_analyses": len([a for a in _intelligent_analyses if a.get("status") == "failed"]),
+            "successful_analyses": len(
+                [a for a in _intelligent_analyses if a.get("status") == "completed"]
+            ),
+            "failed_analyses": len(
+                [a for a in _intelligent_analyses if a.get("status") == "failed"]
+            ),
             "avg_confidence": 0.78,
             "pattern_count": 15,
             "root_cause_count": 8,
-        }
+        },
     }
 
 
@@ -778,7 +811,7 @@ async def update_dynamic_threshold_rule(rule_id: str, rule: DynamicThresholdRule
     """更新动态阈值规则"""
     if rule_id not in _dynamic_threshold_rules:
         raise HTTPException(status_code=404, detail="动态阈值规则不存在")
-    
+
     rule_data = rule.dict()
     rule_data["id"] = rule_id
     rule_data["created_at"] = _dynamic_threshold_rules[rule_id]["created_at"]
@@ -792,7 +825,7 @@ async def delete_dynamic_threshold_rule(rule_id: str) -> Dict[str, Any]:
     """删除动态阈值规则"""
     if rule_id not in _dynamic_threshold_rules:
         raise HTTPException(status_code=404, detail="动态阈值规则不存在")
-    
+
     del _dynamic_threshold_rules[rule_id]
     return {"status": "success", "message": "动态阈值规则已删除"}
 
@@ -820,7 +853,7 @@ async def update_deduplication_rule(rule_id: str, rule: DeduplicationRule) -> Di
     """更新去重规则"""
     if rule_id not in _deduplication_rules:
         raise HTTPException(status_code=404, detail="去重规则不存在")
-    
+
     rule_data = rule.dict()
     rule_data["id"] = rule_id
     rule_data["created_at"] = _deduplication_rules[rule_id]["created_at"]
@@ -834,7 +867,7 @@ async def delete_deduplication_rule(rule_id: str) -> Dict[str, Any]:
     """删除去重规则"""
     if rule_id not in _deduplication_rules:
         raise HTTPException(status_code=404, detail="去重规则不存在")
-    
+
     del _deduplication_rules[rule_id]
     return {"status": "success", "message": "去重规则已删除"}
 
@@ -862,7 +895,7 @@ async def update_aggregation_rule(rule_id: str, rule: AggregationRule) -> Dict[s
     """更新聚合规则"""
     if rule_id not in _aggregation_rules:
         raise HTTPException(status_code=404, detail="聚合规则不存在")
-    
+
     rule_data = rule.dict()
     rule_data["id"] = rule_id
     rule_data["created_at"] = _aggregation_rules[rule_id]["created_at"]
@@ -876,7 +909,7 @@ async def delete_aggregation_rule(rule_id: str) -> Dict[str, Any]:
     """删除聚合规则"""
     if rule_id not in _aggregation_rules:
         raise HTTPException(status_code=404, detail="聚合规则不存在")
-    
+
     del _aggregation_rules[rule_id]
     return {"status": "success", "message": "聚合规则已删除"}
 
@@ -904,7 +937,7 @@ async def update_routing(route_id: str, route: AlertRoute) -> Dict[str, Any]:
     """更新告警路由"""
     if route_id not in _alert_routes:
         raise HTTPException(status_code=404, detail="告警路由不存在")
-    
+
     route_data = route.dict()
     route_data["id"] = route_id
     route_data["created_at"] = _alert_routes[route_id]["created_at"]
@@ -918,7 +951,7 @@ async def delete_routing(route_id: str) -> Dict[str, Any]:
     """删除告警路由"""
     if route_id not in _alert_routes:
         raise HTTPException(status_code=404, detail="告警路由不存在")
-    
+
     del _alert_routes[route_id]
     return {"status": "success", "message": "告警路由已删除"}
 
@@ -946,7 +979,7 @@ async def update_rule(rule_id: str, rule: AlertRule) -> Dict[str, Any]:
     """更新告警规则"""
     if rule_id not in _alert_rules:
         raise HTTPException(status_code=404, detail="告警规则不存在")
-    
+
     rule_data = rule.dict()
     rule_data["id"] = rule_id
     rule_data["created_at"] = _alert_rules[rule_id]["created_at"]
@@ -960,7 +993,7 @@ async def delete_rule(rule_id: str) -> Dict[str, Any]:
     """删除告警规则"""
     if rule_id not in _alert_rules:
         raise HTTPException(status_code=404, detail="告警规则不存在")
-    
+
     del _alert_rules[rule_id]
     return {"status": "success", "message": "告警规则已删除"}
 
@@ -970,19 +1003,21 @@ async def get_zabbix() -> Dict[str, Any]:
     """获取Zabbix集成配置和触发器"""
     triggers = []
     for i in range(10):
-        triggers.append({
-            "triggerid": str(i),
-            "expression": f"last(/host/item{i}) > 80",
-            "description": f"触发器 {i+1}",
-            "status": "0",
-            "value": "1" if i % 3 == 0 else "0",
-            "priority": i % 6,
-            "lastchange": int((datetime.utcnow() - timedelta(hours=i)).timestamp()),
-            "state": "0",
-            "type": 0,
-            "flags": 0,
-        })
-    
+        triggers.append(
+            {
+                "triggerid": str(i),
+                "expression": f"last(/host/item{i}) > 80",
+                "description": f"触发器 {i+1}",
+                "status": "0",
+                "value": "1" if i % 3 == 0 else "0",
+                "priority": i % 6,
+                "lastchange": int((datetime.utcnow() - timedelta(hours=i)).timestamp()),
+                "state": "0",
+                "type": 0,
+                "flags": 0,
+            }
+        )
+
     return {
         "config": _zabbix_config.copy(),
         "triggers": triggers,

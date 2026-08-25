@@ -4,33 +4,34 @@ Comprehensive test suite for core/cache_helpers.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-import sys
-import os
-import time
 import json
+import os
+import sys
+import time
 from datetime import datetime
-from unittest.mock import patch, MagicMock, AsyncMock
 from threading import Lock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Disable database fixtures for this test file
 pytestmark = [pytest.mark.skip_db, pytest.mark.core]
 
 from core.cache_helpers import (
-    CacheStatistics,
     CacheEvictionPolicy,
     CacheInvalidationEvent,
+    CacheStatistics,
+    CacheWarmer,
+    IntelligentCacheWarmer,
     LRUCache,
     MultiLevelCache,
-    generate_cache_key,
-    CacheWarmer,
-    TTLCache,
     ParametricTTLCache,
     ThreeLevelCache,
-    IntelligentCacheWarmer,
+    TTLCache,
+    generate_cache_key,
 )
 
 
@@ -640,10 +641,7 @@ class TestThreeLevelCache:
     def test_initialization(self):
         """Test ThreeLevelCache initialization"""
         cache = ThreeLevelCache(
-            memory_ttl=60,
-            redis_ttl=3600,
-            db_ttl=86400,
-            eviction_policy=CacheEvictionPolicy.LRU
+            memory_ttl=60, redis_ttl=3600, db_ttl=86400, eviction_policy=CacheEvictionPolicy.LRU
         )
         assert cache._memory_cache is not None
         assert cache._redis_ttl == 3600
@@ -734,7 +732,9 @@ class TestThreeLevelCache:
 
         data = {"key": "value"}
         cache.set("test_key", data)
-        cache.invalidate("test_key", event=CacheInvalidationEvent.MANUAL, metadata={"reason": "test"})
+        cache.invalidate(
+            "test_key", event=CacheInvalidationEvent.MANUAL, metadata={"reason": "test"}
+        )
 
         assert len(callback_called) == 1
         assert callback_called[0] == ("test_key", {"reason": "test"})
@@ -838,7 +838,9 @@ class TestThreeLevelCache:
         cache._db_available = False
         cache._redis_client = MagicMock()
         cache._redis_client.delete.side_effect = Exception("Redis error")
-        cache._redis_client.get.return_value = None  # Memory cache should return None after invalidate
+        cache._redis_client.get.return_value = (
+            None  # Memory cache should return None after invalidate
+        )
 
         data = {"key": "value"}
         cache.set("test_key", data)
@@ -930,7 +932,7 @@ class TestMultiLevelCacheRedisErrors:
 
     def test_redis_initialization_failure(self):
         """Test MultiLevelCache handles Redis initialization failure"""
-        with patch('builtins.__import__', side_effect=ImportError("Redis not available")):
+        with patch("builtins.__import__", side_effect=ImportError("Redis not available")):
             cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
             assert cache._redis_available is False
             assert cache._redis_client is None
@@ -940,10 +942,10 @@ class TestMultiLevelCacheRedisErrors:
         cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
         cache._redis_available = True
         cache._redis_client = MagicMock()
-        
+
         # Mock Redis to return invalid JSON
         cache._redis_client.get.return_value = "invalid json"
-        
+
         result = cache.get("test_key")
         # Should return the string as-is when JSON decode fails
         assert result == "invalid json"
@@ -953,10 +955,10 @@ class TestMultiLevelCacheRedisErrors:
         cache = MultiLevelCache(memory_ttl=60, redis_ttl=3600)
         cache._redis_available = True
         cache._redis_client = MagicMock()
-        
+
         # Mock Redis to return non-string value
         cache._redis_client.get.return_value = 12345
-        
+
         result = cache.get("test_key")
         assert result == 12345
 
@@ -966,7 +968,7 @@ class TestMultiLevelCacheRedisErrors:
         cache._redis_available = True
         cache._redis_client = MagicMock()
         cache._redis_client.keys.side_effect = Exception("Redis error")
-        
+
         # Should not raise exception
         cache.clear()
 
@@ -976,7 +978,7 @@ class TestMultiLevelCacheRedisErrors:
         cache._redis_available = True
         cache._redis_client = MagicMock()
         cache._redis_client.delete.side_effect = Exception("Redis error")
-        
+
         # Should not raise exception
         cache.invalidate("test_key")
 
@@ -986,14 +988,14 @@ class TestThreeLevelCacheErrors:
 
     def test_redis_initialization_config_error(self):
         """Test ThreeLevelCache handles Redis config import error"""
-        with patch('builtins.__import__', side_effect=ImportError("Config not available")):
+        with patch("builtins.__import__", side_effect=ImportError("Config not available")):
             cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
             # Should still initialize, just without Redis
             assert cache._memory_cache is not None
 
     def test_db_initialization_error(self):
         """Test ThreeLevelCache handles database initialization error"""
-        with patch('builtins.__import__', side_effect=ImportError("Config not available")):
+        with patch("builtins.__import__", side_effect=ImportError("Config not available")):
             cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
             # Should still initialize, just without DB
             assert cache._memory_cache is not None
@@ -1002,9 +1004,9 @@ class TestThreeLevelCacheErrors:
         """Test ThreeLevelCache handles database cache set errors"""
         cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
         cache._db_available = True
-        
+
         # Mock _set_db_cache to raise error
-        with patch.object(cache, '_set_db_cache', side_effect=Exception("DB error")):
+        with patch.object(cache, "_set_db_cache", side_effect=Exception("DB error")):
             # Should not raise exception
             cache.set("test_key", {"data": "value"})
 
@@ -1012,9 +1014,9 @@ class TestThreeLevelCacheErrors:
         """Test ThreeLevelCache handles database cache get errors"""
         cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
         cache._db_available = True
-        
+
         # Mock _get_db_cache to raise error
-        with patch.object(cache, '_get_db_cache', side_effect=Exception("DB error")):
+        with patch.object(cache, "_get_db_cache", side_effect=Exception("DB error")):
             # Should not raise exception
             result = cache.get("test_key")
             assert result is None
@@ -1023,9 +1025,9 @@ class TestThreeLevelCacheErrors:
         """Test ThreeLevelCache handles database cache invalidate errors"""
         cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
         cache._db_available = True
-        
+
         # Mock _invalidate_db_cache to raise error
-        with patch.object(cache, '_invalidate_db_cache', side_effect=Exception("DB error")):
+        with patch.object(cache, "_invalidate_db_cache", side_effect=Exception("DB error")):
             # Should not raise exception
             cache.invalidate("test_key")
 
@@ -1033,9 +1035,9 @@ class TestThreeLevelCacheErrors:
         """Test ThreeLevelCache handles database cache clear errors"""
         cache = ThreeLevelCache(memory_ttl=60, redis_ttl=3600, db_ttl=86400)
         cache._db_available = True
-        
+
         # Mock _clear_db_cache to raise error
-        with patch.object(cache, '_clear_db_cache', side_effect=Exception("DB error")):
+        with patch.object(cache, "_clear_db_cache", side_effect=Exception("DB error")):
             # Should not raise exception
             cache.clear()
 
@@ -1045,7 +1047,7 @@ class TestThreeLevelCacheErrors:
         cache._redis_available = True
         cache._redis_client = MagicMock()
         cache._redis_client.keys.side_effect = Exception("Redis error")
-        
+
         # Should not raise exception
         stats = cache.get_stats()
         assert "memory_cache" in stats
@@ -1056,14 +1058,12 @@ class TestThreeLevelCacheErrors:
         cache._redis_available = True
         cache._redis_client = MagicMock()
         cache._redis_client.get.return_value = '{"data": "from_redis"}'
-        
+
         result = cache.get("test_key")
         assert result == {"data": "from_redis"}
         # Should be promoted to memory cache
         memory_result = cache._memory_cache.get("test_key")
         assert memory_result == {"data": "from_redis"}
-
-
 
 
 class TestIntelligentCacheWarmer:
@@ -1284,13 +1284,14 @@ class TestIntelligentCacheWarmer:
             return {"data": "warmed"}
 
         warmer.register("test_func", warm_func)
-        
+
         # Record some access pattern to enable prediction
         for _ in range(5):
             warmer.record_access("test_func")
             import asyncio
+
             await asyncio.sleep(0.01)
-        
+
         result = await warmer.warm_with_prediction("test_func")
         assert result == {"data": "warmed"}
 
@@ -1304,12 +1305,13 @@ class TestIntelligentCacheWarmer:
             return {"data": "warmed"}
 
         warmer.register("test_func", warm_func)
-        
+
         # Record access pattern with very short intervals
         for _ in range(5):
             warmer.record_access("test_func")
             import asyncio
+
             await asyncio.sleep(0.001)
-        
+
         result = await warmer.warm_with_prediction("test_func")
         assert result == {"data": "warmed"}

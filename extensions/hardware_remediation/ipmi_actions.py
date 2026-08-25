@@ -30,6 +30,7 @@ def _run_ipmi(host: str, username: str, password: str, action: str) -> Dict[str,
             text=True,
             timeout=120,
             check=False,
+            shell=False,
         )
         return {
             "success": result.returncode == 0,
@@ -38,7 +39,7 @@ def _run_ipmi(host: str, username: str, password: str, action: str) -> Dict[str,
             "stderr": result.stderr[:1000],
         }
     except Exception as exc:
-        logger.exception("IPMI action failed: %s on %s", action, host)
+        logger.error("IPMI action failed: %s on %s", action, host)
         return {"success": False, "error": str(exc)}
 
 

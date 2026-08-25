@@ -4,7 +4,6 @@
 from datetime import datetime
 
 import pytest
-
 from repository import (
     InMemoryWorkflowRepository,
     WorkflowRepository,
@@ -12,9 +11,9 @@ from repository import (
 )
 from schemas import (
     ScheduledTask,
+    TaskPriority,
     WorkflowDefinition,
     WorkflowNode,
-    TaskPriority,
     WorkflowRequest,
     WorkflowStatus,
     WorkflowTask,
@@ -54,9 +53,7 @@ class TestInMemoryWorkflowRepository:
     async def test_save_task_without_id(self):
         """Test saving a task without task_id raises ValueError."""
         repo = InMemoryWorkflowRepository()
-        task = WorkflowTask(
-            task_id="", workflow_id="test", status=WorkflowStatus.PENDING
-        )
+        task = WorkflowTask(task_id="", workflow_id="test", status=WorkflowStatus.PENDING)
         with pytest.raises(ValueError, match="task_id is required"):
             await repo.save_task(task)
 
@@ -119,6 +116,7 @@ class TestInMemoryWorkflowRepository:
         await repo.save_task(task1)
 
         import asyncio
+
         await asyncio.sleep(0.01)
 
         task2 = WorkflowTask(
@@ -138,9 +136,7 @@ class TestInMemoryWorkflowRepository:
         repo = InMemoryWorkflowRepository()
         await repo.save_task(workflow_task)
 
-        updated = await repo.update_task(
-            workflow_task.task_id, {"status": WorkflowStatus.RUNNING}
-        )
+        updated = await repo.update_task(workflow_task.task_id, {"status": WorkflowStatus.RUNNING})
         assert updated is True
 
         retrieved = await repo.get_task(workflow_task.task_id)
@@ -249,15 +245,9 @@ class TestInMemoryWorkflowRepository:
     async def test_list_definitions_sorted_by_workflow_id(self):
         """Test that definitions are sorted by workflow_id."""
         repo = InMemoryWorkflowRepository()
-        await repo.save_definition(
-            WorkflowDefinition(workflow_id="workflow-c", name="C")
-        )
-        await repo.save_definition(
-            WorkflowDefinition(workflow_id="workflow-a", name="A")
-        )
-        await repo.save_definition(
-            WorkflowDefinition(workflow_id="workflow-b", name="B")
-        )
+        await repo.save_definition(WorkflowDefinition(workflow_id="workflow-c", name="C"))
+        await repo.save_definition(WorkflowDefinition(workflow_id="workflow-a", name="A"))
+        await repo.save_definition(WorkflowDefinition(workflow_id="workflow-b", name="B"))
 
         definitions = await repo.list_definitions()
         assert definitions[0].workflow_id == "workflow-a"
@@ -466,9 +456,7 @@ class TestInMemoryWorkflowRepository:
         original_status = workflow_task.status
         original_params = workflow_task.params
 
-        await repo.update_task(
-            workflow_task.task_id, {"current_node": "node-1"}
-        )
+        await repo.update_task(workflow_task.task_id, {"current_node": "node-1"})
 
         retrieved = await repo.get_task(workflow_task.task_id)
         assert retrieved.status == original_status
@@ -493,9 +481,7 @@ class TestInMemoryWorkflowRepository:
     async def test_list_definitions_limit_zero(self):
         """Test listing definitions with limit=0 returns empty list."""
         repo = InMemoryWorkflowRepository()
-        definition = WorkflowDefinition(
-            workflow_id="workflow-1", name="Test"
-        )
+        definition = WorkflowDefinition(workflow_id="workflow-1", name="Test")
         await repo.save_definition(definition)
 
         definitions = await repo.list_definitions(limit=0)

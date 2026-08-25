@@ -376,7 +376,7 @@ def generate_sla_report(period: str = "30d") -> list[dict[str, Any]]:
     the requested time window, evaluates the SLO, and produces availability,
     target, compliance and incident counts.
     """
-    from core.metrics_history import metrics_history
+    from core.metrics_history import METRICS_HISTORY as metrics_history
 
     hours = parse_window(period)
     end_dt = datetime.datetime.utcnow()

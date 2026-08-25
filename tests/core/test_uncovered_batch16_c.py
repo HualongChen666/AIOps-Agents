@@ -66,7 +66,9 @@ async def test_workflow_executor_success():
     workflow.name = "success_wf"
     workflow.execute = AsyncMock(return_value={"status": "ok"})
 
-    result = await executor.execute(workflow, {"in": 1})  # noqa: F841  # Variable for test verification
+    result = await executor.execute(
+        workflow, {"in": 1}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"status": "ok"}  # noqa: F841  # Variable for test verification
     workflow.execute.assert_awaited_once_with({"in": 1})
 
@@ -122,7 +124,9 @@ async def test_workflow_orchestrator(monkeypatch):
     assert orch.get_workflow("orch_wf") is wf
     assert orch.list_workflows() == ["orch_wf"]
 
-    result = await orch.execute_workflow("orch_wf", {"in": 1})  # noqa: F841  # Variable for test verification
+    result = await orch.execute_workflow(
+        "orch_wf", {"in": 1}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "completed"
     assert result["context"]["executed"] is True
 

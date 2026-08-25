@@ -3,6 +3,7 @@ from typing import Dict, List
 
 from fastapi import APIRouter, HTTPException
 
+from api.common import handle_service_error
 from core.macos_collector import collect_macos_metrics
 from core.macos_repair import execute_macos_repair
 
@@ -40,7 +41,7 @@ async def get_macos_metrics(hosts: List[str] = None):
         data = await collect_macos_metrics(hosts)
         return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "macOS 指标采集")
 
 
 @router.post(
@@ -68,4 +69,4 @@ async def post_macos_repair(host: str, script_name: str, args: Dict = None):
         result = await execute_macos_repair(host, script_name, args or {})
         return {"host": host, "script": script_name, "result": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "macOS 修复执行")

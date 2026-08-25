@@ -210,7 +210,9 @@ def test_audit_event_router():
     assert _run(router.route(high)) == "priority"
     assert _run(router.route(read)) == "analytics"
     assert _run(router.route(std)) == "standard"
-    result = _run(router.batch_route([high, read, std, std]))  # noqa: F841  # Variable for test verification
+    result = _run(
+        router.batch_route([high, read, std, std])
+    )  # noqa: F841  # Variable for test verification
     assert result["priority"] == 1
     assert result["analytics"] == 1
     assert result["standard"] == 2
@@ -541,11 +543,15 @@ def test_health_check_success(monkeypatch):
     monkeypatch.setattr(asyncio, "create_subprocess_shell", AsyncMock(return_value=fake_proc))
 
     engine = HealthCheckEngine(timeout=1)
-    result = _run(engine.check_service_status("nginx"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        engine.check_service_status("nginx")
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     result = _run(engine.check_process_exists(1234))  # noqa: F841  # Variable for test verification
     assert result["success"] is True
-    result = _run(engine.check_metric_threshold("cpu", 100.0, 50.0, 10.0))  # noqa: F841  # Variable for test verification
+    result = _run(
+        engine.check_metric_threshold("cpu", 100.0, 50.0, 10.0)
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
 
@@ -554,14 +560,18 @@ def test_health_check_timeout_and_exception(monkeypatch):
     monkeypatch.setattr(
         asyncio, "create_subprocess_shell", AsyncMock(side_effect=asyncio.TimeoutError)
     )
-    result = _run(engine.check_service_status("nginx"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        engine.check_service_status("nginx")
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert result["stderr"] == "timeout"
 
     monkeypatch.setattr(
         asyncio, "create_subprocess_shell", AsyncMock(side_effect=Exception("boom"))
     )
-    result = _run(engine.check_service_status("nginx"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        engine.check_service_status("nginx")
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True  # fallback simulation
     assert result["stderr"] == "boom"
 
@@ -665,7 +675,9 @@ def test_orchestrator_error_handling():
 
 def test_langgraph_adapter_fallback():
     adapter = LangGraphAdapter()
-    result = _run(adapter.execute(object(), {"task": "x"}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        adapter.execute(object(), {"task": "x"})
+    )  # noqa: F841  # Variable for test verification
     assert "fallback result" in result["result"]
 
 
@@ -832,7 +844,9 @@ def test_alert_pipeline_route_and_publish_resolved(monkeypatch):
         fingerprint="fp",
     )
     monkeypatch.setattr(pipeline, "_is_resolved", AsyncMock(return_value=True))
-    result = _run(pipeline._route_and_publish(alert))  # noqa: F841  # Variable for test verification
+    result = _run(
+        pipeline._route_and_publish(alert)
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "resolved"
 
 
@@ -884,6 +898,8 @@ def test_alert_pipeline_saga_retry_and_compensation(monkeypatch):
         level=AlertSeverity.CRITICAL,
         category="security",
     )
-    result = _run(pipeline._saga_save_and_publish(alert))  # noqa: F841  # Variable for test verification
+    result = _run(
+        pipeline._saga_save_and_publish(alert)
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "failed"
     assert result["failed_step"] == "publish"

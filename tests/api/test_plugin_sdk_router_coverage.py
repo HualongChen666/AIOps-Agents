@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Test coverage for plugin_sdk_router.py to achieve 90%+ coverage."""
 
-import pytest
-from unittest.mock import patch, MagicMock, Mock
 from types import SimpleNamespace
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException
 
 # Import the module to ensure coverage tracking
@@ -21,7 +22,7 @@ class TestGetSystemStatus:
             mock_manager.get_system_summary.return_value = {
                 "total_plugins": 10,
                 "active_plugins": 8,
-                "total_interfaces": 5
+                "total_interfaces": 5,
             }
             mock.return_value = mock_manager
             result = await plugin_sdk_router.get_system_status()
@@ -54,7 +55,7 @@ class TestDefinePluginInterface:
                 interface_id="test-interface",
                 interface_name="Test Interface",
                 methods=[{"name": "test_method"}],
-                events=[{"name": "test_event"}]
+                events=[{"name": "test_event"}],
             )
             mock.return_value = mock_manager
             result = await plugin_sdk_router.define_plugin_interface(
@@ -62,7 +63,7 @@ class TestDefinePluginInterface:
                 interface_name="Test Interface",
                 methods=[{"name": "test_method"}],
                 events=[{"name": "test_event"}],
-                configuration={"key": "value"}
+                configuration={"key": "value"},
             )
             assert result["status"] == "success"
             assert result["data"]["interface_id"] == "test-interface"
@@ -80,7 +81,7 @@ class TestDefinePluginInterface:
                 interface_id="test-interface",
                 interface_name="Test Interface",
                 methods=[],
-                events=[]
+                events=[],
             )
             mock.return_value = mock_manager
             result = await plugin_sdk_router.define_plugin_interface(
@@ -88,7 +89,7 @@ class TestDefinePluginInterface:
                 interface_name="Test Interface",
                 methods=[],
                 events=[],
-                configuration=None
+                configuration=None,
             )
             assert result["status"] == "success"
             assert result["data"]["method_count"] == 0
@@ -101,8 +102,7 @@ class TestDefinePluginInterface:
             mock.side_effect = Exception("Define error")
             with pytest.raises(HTTPException) as exc_info:
                 await plugin_sdk_router.define_plugin_interface(
-                    interface_id="test",
-                    interface_name="Test"
+                    interface_id="test", interface_name="Test"
                 )
             assert exc_info.value.status_code == 500
             assert "Define error" in str(exc_info.value.detail)
@@ -119,7 +119,7 @@ class TestGetInterfaceSpec:
             mock_manager.generate_plugin_interface_spec.return_value = {
                 "interface_type": "data-collector",
                 "methods": [{"name": "collect", "params": []}],
-                "events": [{"name": "on_data_collected"}]
+                "events": [{"name": "on_data_collected"}],
             }
             mock.return_value = mock_manager
             result = await plugin_sdk_router.get_interface_spec("data-collector")
@@ -157,7 +157,7 @@ class TestRegisterPlugin:
                 description="A test plugin",
                 author="Test Author",
                 plugin_type="monitoring",
-                dependencies={"dependencies": ["dep1", "dep2"]}
+                dependencies={"dependencies": ["dep1", "dep2"]},
             )
             assert result["status"] == "success"
             assert result["data"]["plugin_id"] == "test-plugin"
@@ -179,7 +179,7 @@ class TestRegisterPlugin:
                 description="A test plugin without dependencies",
                 author="Test Author",
                 plugin_type="integration",
-                dependencies=None
+                dependencies=None,
             )
             assert result["status"] == "success"
             assert result["data"]["plugin_id"] == "test-plugin-2"
@@ -198,7 +198,7 @@ class TestRegisterPlugin:
                 description="A test plugin with empty dependencies dict",
                 author="Test Author",
                 plugin_type="integration",
-                dependencies={}
+                dependencies={},
             )
             assert result["status"] == "success"
             assert result["data"]["plugin_id"] == "test-plugin-3"
@@ -215,7 +215,7 @@ class TestRegisterPlugin:
                     version="1.0.0",
                     description="Test",
                     author="Test",
-                    plugin_type="monitoring"
+                    plugin_type="monitoring",
                 )
             assert exc_info.value.status_code == 500
             assert "Register error" in str(exc_info.value.detail)
@@ -306,8 +306,7 @@ class TestListPlugins:
             ]
             mock.return_value = mock_manager
             result = await plugin_sdk_router.list_plugins(
-                plugin_type="monitoring",
-                status="enabled"
+                plugin_type="monitoring", status="enabled"
             )
             assert result["status"] == "success"
             mock_manager.list_plugins.assert_called_once()
@@ -321,10 +320,7 @@ class TestListPlugins:
                 {"plugin_id": "p1", "name": "Plugin 1", "status": "enabled"}
             ]
             mock.return_value = mock_manager
-            result = await plugin_sdk_router.list_plugins(
-                plugin_type="monitoring",
-                status=None
-            )
+            result = await plugin_sdk_router.list_plugins(plugin_type="monitoring", status=None)
             assert result["status"] == "success"
             mock_manager.list_plugins.assert_called_once()
 
@@ -337,10 +333,7 @@ class TestListPlugins:
                 {"plugin_id": "p1", "name": "Plugin 1", "status": "enabled"}
             ]
             mock.return_value = mock_manager
-            result = await plugin_sdk_router.list_plugins(
-                plugin_type=None,
-                status="enabled"
-            )
+            result = await plugin_sdk_router.list_plugins(plugin_type=None, status="enabled")
             assert result["status"] == "success"
             mock_manager.list_plugins.assert_called_once()
 
@@ -366,7 +359,7 @@ class TestGetPluginInfo:
             mock_manager.get_plugin_info.return_value = {
                 "plugin_id": "p1",
                 "name": "Plugin 1",
-                "version": "1.0.0"
+                "version": "1.0.0",
             }
             mock.return_value = mock_manager
             result = await plugin_sdk_router.get_plugin_info("p1")

@@ -6,7 +6,6 @@ from enum import Enum
 
 import pytest
 from pydantic import ValidationError
-
 from schemas import (
     RetryPolicy,
     SagaStep,
@@ -190,9 +189,7 @@ class TestWorkflowNode:
         assert node_min.name == "b"
 
         # Maximum valid length
-        node_max = WorkflowNode(
-            node_id="a" * 128, name="b" * 128, command="test"
-        )
+        node_max = WorkflowNode(node_id="a" * 128, name="b" * 128, command="test")
         assert len(node_max.node_id) == 128
         assert len(node_max.name) == 128
 
@@ -240,24 +237,18 @@ class TestWorkflowDefinition:
             WorkflowNode(node_id="node-1", name="Node 1", command="test"),
             WorkflowNode(node_id="node-2", name="Node 2", command="test"),
         ]
-        definition = WorkflowDefinition(
-            workflow_id="workflow-2", name="Test", nodes=nodes
-        )
+        definition = WorkflowDefinition(workflow_id="workflow-2", name="Test", nodes=nodes)
         assert len(definition.nodes) == 2
 
     def test_workflow_definition_with_schedule(self):
         """Test WorkflowDefinition with schedule."""
-        definition = WorkflowDefinition(
-            workflow_id="workflow-3", name="Test", schedule="0 * * * *"
-        )
+        definition = WorkflowDefinition(workflow_id="workflow-3", name="Test", schedule="0 * * * *")
         assert definition.schedule == "0 * * * *"
 
     def test_workflow_definition_with_metadata(self):
         """Test WorkflowDefinition with metadata."""
         metadata = {"owner": "team", "environment": "prod"}
-        definition = WorkflowDefinition(
-            workflow_id="workflow-4", name="Test", metadata=metadata
-        )
+        definition = WorkflowDefinition(workflow_id="workflow-4", name="Test", metadata=metadata)
         assert definition.metadata == metadata
 
     def test_workflow_definition_min_length_validation(self):
@@ -280,9 +271,7 @@ class TestWorkflowDefinition:
 
     def test_workflow_definition_boundary_lengths(self):
         """Test WorkflowDefinition at boundary lengths."""
-        definition = WorkflowDefinition(
-            workflow_id="a" * 128, name="b" * 128
-        )
+        definition = WorkflowDefinition(workflow_id="a" * 128, name="b" * 128)
         assert len(definition.workflow_id) == 128
         assert len(definition.name) == 128
 
@@ -293,9 +282,7 @@ class TestWorkflowDefinition:
             "tags": ["important", "scheduled"],
             "settings": {"timeout": 300, "retries": 3},
         }
-        definition = WorkflowDefinition(
-            workflow_id="workflow-5", name="Test", metadata=metadata
-        )
+        definition = WorkflowDefinition(workflow_id="workflow-5", name="Test", metadata=metadata)
         assert definition.metadata == metadata
 
 
@@ -318,24 +305,18 @@ class TestWorkflowRequest:
 
     def test_workflow_request_with_requested_by(self):
         """Test WorkflowRequest with requested_by field."""
-        request = WorkflowRequest(
-            workflow_id="workflow-1", requested_by="user-123"
-        )
+        request = WorkflowRequest(workflow_id="workflow-1", requested_by="user-123")
         assert request.requested_by == "user-123"
 
     def test_workflow_request_with_priority(self):
         """Test WorkflowRequest with priority."""
-        request = WorkflowRequest(
-            workflow_id="workflow-1", priority=TaskPriority.HIGH
-        )
+        request = WorkflowRequest(workflow_id="workflow-1", priority=TaskPriority.HIGH)
         assert request.priority == TaskPriority.HIGH
 
     def test_workflow_request_all_priorities(self):
         """Test WorkflowRequest with all priority levels."""
         for priority in TaskPriority:
-            request = WorkflowRequest(
-                workflow_id="workflow-1", priority=priority
-            )
+            request = WorkflowRequest(workflow_id="workflow-1", priority=priority)
             assert request.priority == priority
 
     def test_workflow_request_complex_params(self):
@@ -417,32 +398,24 @@ class TestWorkflowTask:
     def test_workflow_task_with_params(self):
         """Test WorkflowTask with parameters."""
         params = {"key": "value"}
-        task = WorkflowTask(
-            task_id="task-1", workflow_id="workflow-1", params=params
-        )
+        task = WorkflowTask(task_id="task-1", workflow_id="workflow-1", params=params)
         assert task.params == params
 
     def test_workflow_task_with_result(self):
         """Test WorkflowTask with result."""
         result = {"output": "success"}
-        task = WorkflowTask(
-            task_id="task-1", workflow_id="workflow-1", result=result
-        )
+        task = WorkflowTask(task_id="task-1", workflow_id="workflow-1", result=result)
         assert task.result == result
 
     def test_workflow_task_with_retry_count(self):
         """Test WorkflowTask with retry count."""
-        task = WorkflowTask(
-            task_id="task-1", workflow_id="workflow-1", retry_count=5
-        )
+        task = WorkflowTask(task_id="task-1", workflow_id="workflow-1", retry_count=5)
         assert task.retry_count == 5
 
     def test_workflow_task_all_statuses(self):
         """Test WorkflowTask with all possible statuses."""
         for status in WorkflowStatus:
-            task = WorkflowTask(
-                task_id="task-1", workflow_id="workflow-1", status=status
-            )
+            task = WorkflowTask(task_id="task-1", workflow_id="workflow-1", status=status)
             assert task.status == status
 
     def test_workflow_task_datetime_defaults(self):
@@ -627,9 +600,7 @@ class TestWorkflowTemplate:
 
     def test_workflow_template_boundary_lengths(self):
         """Test WorkflowTemplate at boundary lengths."""
-        template = WorkflowTemplate(
-            template_id="a" * 128, name="b" * 128, source="test"
-        )
+        template = WorkflowTemplate(template_id="a" * 128, name="b" * 128, source="test")
         assert len(template.template_id) == 128
         assert len(template.name) == 128
 
@@ -807,17 +778,13 @@ class TestWorkflowMetric:
     def test_workflow_metric_with_labels(self):
         """Test WorkflowMetric with labels."""
         labels = {"workflow_id": "test", "status": "success"}
-        metric = WorkflowMetric(
-            metric_name="test_metric", value=42.5, labels=labels
-        )
+        metric = WorkflowMetric(metric_name="test_metric", value=42.5, labels=labels)
         assert metric.labels == labels
 
     def test_workflow_metric_with_timestamp(self):
         """Test WorkflowMetric with custom timestamp."""
         timestamp = datetime(2024, 1, 1, 12, 0, 0)
-        metric = WorkflowMetric(
-            metric_name="test_metric", value=42.5, timestamp=timestamp
-        )
+        metric = WorkflowMetric(metric_name="test_metric", value=42.5, timestamp=timestamp)
         assert metric.timestamp == timestamp
 
     def test_workflow_metric_zero_value(self):
@@ -849,16 +816,12 @@ class TestServiceHealth:
 
     def test_service_health_with_uptime(self):
         """Test ServiceHealth with uptime."""
-        health = ServiceHealth(
-            status="ok", service="test-service", uptime_seconds=3600
-        )
+        health = ServiceHealth(status="ok", service="test-service", uptime_seconds=3600)
         assert health.uptime_seconds == 3600
 
     def test_service_health_with_workflow_count(self):
         """Test ServiceHealth with workflow count."""
-        health = ServiceHealth(
-            status="ok", service="test-service", workflow_count=10
-        )
+        health = ServiceHealth(status="ok", service="test-service", workflow_count=10)
         assert health.workflow_count == 10
 
     def test_service_health_degraded_status(self):
@@ -954,16 +917,12 @@ class TestSagaTransaction:
                 compensation="delete",
             )
         ]
-        transaction = SagaTransaction(
-            saga_id="saga-1", task_id="task-1", steps=steps
-        )
+        transaction = SagaTransaction(saga_id="saga-1", task_id="task-1", steps=steps)
         assert len(transaction.steps) == 1
 
     def test_saga_transaction_with_status(self):
         """Test SagaTransaction with custom status."""
-        transaction = SagaTransaction(
-            saga_id="saga-1", task_id="task-1", status="executing"
-        )
+        transaction = SagaTransaction(saga_id="saga-1", task_id="task-1", status="executing")
         assert transaction.status == "executing"
 
     def test_saga_transaction_datetime_default(self):
@@ -975,7 +934,5 @@ class TestSagaTransaction:
         """Test SagaTransaction with various status values."""
         statuses = ["pending", "executing", "success", "failed", "compensating"]
         for status in statuses:
-            transaction = SagaTransaction(
-                saga_id="saga-1", task_id="task-1", status=status
-            )
+            transaction = SagaTransaction(saga_id="saga-1", task_id="task-1", status=status)
             assert transaction.status == status

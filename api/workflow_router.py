@@ -13,6 +13,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 import uuid
 from typing import Any
 
@@ -88,15 +89,28 @@ async def _task_handler(node: Any, context: Any) -> dict[str, Any]:
             raise ValueError("http_get action requires params.url")
         import httpx
 
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url)
-        return {
-            "status": "ok",
-            "node_id": node.id,
-            "action": action,
-            "url": url,
-            "status_code": resp.status_code,
-        }
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("WORKFLOW_ROUTER_SSL_VERIFY", "true").lower() == "true"
+        if not ssl_verify:
+            logging.warning(
+                "SSL verification is disabled in workflow_router - this is a security risk!"
+            )
+        try:
+            async with httpx.AsyncClient(timeout=10, verify=ssl_verify) as client:
+                resp = await client.get(url)
+            return {
+                "status": "ok",
+                "node_id": node.id,
+                "action": action,
+                "url": url,
+                "status_code": resp.status_code,
+            }
+        except httpx.TimeoutException as exc:
+            logger.error(f"HTTP request timeout for {url}: {exc}")
+            raise ValueError(f"HTTP request timeout: {exc}")
+        except httpx.HTTPError as exc:
+            logger.error(f"HTTP request failed for {url}: {exc}")
+            raise ValueError(f"HTTP request failed: {exc}")
 
     raise ValueError(f"Unsupported task action '{action}' for node {node.id}")
 
@@ -238,7 +252,8 @@ async def simulate_workflow(wf_key: str, request: Request):
 
             # 🔧 WR4:发送初始心跳,验证连接
             try:
-                yield (f"data: " f'{json.dumps({"type": "heartbeat", "msg": "connected"})}' f"\n\n")
+                heartbeat_data = json.dumps({"type": "heartbeat", "msg": "connected"})
+                yield f"data: {heartbeat_data}\n\n"
             except Exception as e:
                 logging.exception("Unexpected exception: %s", e)
 

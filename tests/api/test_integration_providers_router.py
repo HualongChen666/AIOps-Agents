@@ -22,33 +22,45 @@ Comprehensive tests for integration provider configurations including:
 - Prometheus
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
 import uuid
+from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
 
-from api.integration_providers_router import router
+import pytest
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
+
 from api.integration_providers_router import (
-    TeamsConfigRequest, KafkaConfigRequest, CloudConfigRequest,
-    GitOpsConfigRequest, CICDConfigRequest, ITSMConfigRequest,
-    OncallConfigRequest, SlackConfigRequest, JiraConfigRequest,
-    ServiceNowConfigRequest, MessageQueueConfigRequest, GitHubConfigRequest,
-    ELKConfigRequest, DatadogConfigRequest, GrafanaConfigRequest,
-    PrometheusConfigRequest
+    CICDConfigRequest,
+    CloudConfigRequest,
+    DatadogConfigRequest,
+    ELKConfigRequest,
+    GitHubConfigRequest,
+    GitOpsConfigRequest,
+    GrafanaConfigRequest,
+    ITSMConfigRequest,
+    JiraConfigRequest,
+    KafkaConfigRequest,
+    MessageQueueConfigRequest,
+    OncallConfigRequest,
+    PrometheusConfigRequest,
+    ServiceNowConfigRequest,
+    SlackConfigRequest,
+    TeamsConfigRequest,
+    router,
 )
-
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def client():
     """Create a test client for the integration providers router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     # Disable CORS for testing
@@ -70,7 +82,7 @@ def sample_teams_config():
         tenant_id="tenant-123",
         client_id="client-123",
         client_secret="secret-123",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -81,7 +93,7 @@ def sample_kafka_config():
         name="Test Kafka",
         bootstrap_servers="localhost:9092",
         security_protocol="PLAINTEXT",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -94,7 +106,7 @@ def sample_cloud_config():
         region="us-east-1",
         access_key="access-key",
         secret_key="secret-key",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -106,7 +118,7 @@ def sample_gitops_config():
         gitops_type="argocd",
         url="https://argocd.example.com",
         token="token-123",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -118,7 +130,7 @@ def sample_cicd_config():
         cicd_type="jenkins",
         url="https://jenkins.example.com",
         token="token-123",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -131,7 +143,7 @@ def sample_itsm_config():
         url="https://servicenow.example.com",
         username="user",
         password="pass",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -139,10 +151,7 @@ def sample_itsm_config():
 def sample_oncall_config():
     """Sample Oncall configuration"""
     return OncallConfigRequest(
-        name="Test Oncall",
-        provider="pagerduty",
-        api_key="api-key-123",
-        enabled=True
+        name="Test Oncall", provider="pagerduty", api_key="api-key-123", enabled=True
     )
 
 
@@ -154,7 +163,7 @@ def sample_slack_config():
         workspace="test-workspace",
         bot_token="xoxb-test",
         signing_secret="signing-secret",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -166,7 +175,7 @@ def sample_jira_config():
         url="https://jira.example.com",
         username="user",
         api_token="token-123",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -178,7 +187,7 @@ def sample_servicenow_config():
         instance_url="https://instance.service-now.com",
         username="user",
         password="pass",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -192,7 +201,7 @@ def sample_message_queue_config():
         port=5672,
         username="user",
         password="pass",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -200,11 +209,7 @@ def sample_message_queue_config():
 def sample_github_config():
     """Sample GitHub configuration"""
     return GitHubConfigRequest(
-        name="Test GitHub",
-        owner="test-owner",
-        repo="test-repo",
-        token="ghp-token",
-        enabled=True
+        name="Test GitHub", owner="test-owner", repo="test-repo", token="ghp-token", enabled=True
     )
 
 
@@ -217,7 +222,7 @@ def sample_elk_config():
         kibana_url="https://kibana.example.com",
         username="user",
         password="pass",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -229,7 +234,7 @@ def sample_datadog_config():
         api_key="dd-api-key",
         app_key="dd-app-key",
         site="datadoghq.com",
-        enabled=True
+        enabled=True,
     )
 
 
@@ -237,10 +242,7 @@ def sample_datadog_config():
 def sample_grafana_config():
     """Sample Grafana configuration"""
     return GrafanaConfigRequest(
-        name="Test Grafana",
-        url="https://grafana.example.com",
-        api_key="grafana-key",
-        enabled=True
+        name="Test Grafana", url="https://grafana.example.com", api_key="grafana-key", enabled=True
     )
 
 
@@ -252,13 +254,14 @@ def sample_prometheus_config():
         url="https://prometheus.example.com",
         username="user",
         password="pass",
-        enabled=True
+        enabled=True,
     )
 
 
 # ============================================================================
 # Microsoft Teams Tests
 # ============================================================================
+
 
 class TestTeamsIntegration:
     """Test suite for Microsoft Teams integration"""
@@ -274,10 +277,7 @@ class TestTeamsIntegration:
 
     def test_create_teams_config(self, client, sample_teams_config):
         """Test creating a Teams configuration"""
-        response = client.post(
-            "/api/v1/integration/teams/config",
-            json=sample_teams_config.dict()
-        )
+        response = client.post("/api/v1/integration/teams/config", json=sample_teams_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -286,14 +286,8 @@ class TestTeamsIntegration:
 
     def test_create_teams_config_missing_required_field(self, client):
         """Test creating Teams config without required field"""
-        invalid_config = {
-            "name": "Test Teams",
-            "enabled": True
-        }
-        response = client.post(
-            "/api/v1/integration/teams/config",
-            json=invalid_config
-        )
+        invalid_config = {"name": "Test Teams", "enabled": True}
+        response = client.post("/api/v1/integration/teams/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_create_teams_config_invalid_name_length(self, client):
@@ -302,20 +296,16 @@ class TestTeamsIntegration:
             "name": "",  # Too short
             "tenant_id": "tenant-123",
             "client_id": "client-123",
-            "client_secret": "secret-123"
+            "client_secret": "secret-123",
         }
-        response = client.post(
-            "/api/v1/integration/teams/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/teams/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_test_teams_connection(self, client, sample_teams_config):
         """Test testing Teams connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/teams/config",
-            json=sample_teams_config.dict()
+            "/api/v1/integration/teams/config", json=sample_teams_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -337,6 +327,7 @@ class TestTeamsIntegration:
 # Kafka Tests
 # ============================================================================
 
+
 class TestKafkaIntegration:
     """Test suite for Kafka integration"""
 
@@ -350,10 +341,7 @@ class TestKafkaIntegration:
 
     def test_create_kafka_config(self, client, sample_kafka_config):
         """Test creating a Kafka configuration"""
-        response = client.post(
-            "/api/v1/integration/kafka/config",
-            json=sample_kafka_config.dict()
-        )
+        response = client.post("/api/v1/integration/kafka/config", json=sample_kafka_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -368,20 +356,16 @@ class TestKafkaIntegration:
             "sasl_mechanism": "PLAIN",
             "username": "user",
             "password": "pass",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/kafka/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/kafka/config", json=config)
         assert response.status_code == 200
 
     def test_test_kafka_connection(self, client, sample_kafka_config):
         """Test testing Kafka connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/kafka/config",
-            json=sample_kafka_config.dict()
+            "/api/v1/integration/kafka/config", json=sample_kafka_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -402,6 +386,7 @@ class TestKafkaIntegration:
 # Cloud Platform Tests
 # ============================================================================
 
+
 class TestCloudIntegration:
     """Test suite for Cloud platform integration"""
 
@@ -415,10 +400,7 @@ class TestCloudIntegration:
 
     def test_create_cloud_config_aws(self, client, sample_cloud_config):
         """Test creating AWS cloud configuration"""
-        response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=sample_cloud_config.dict()
-        )
+        response = client.post("/api/v1/integration/cloud/config", json=sample_cloud_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -432,12 +414,9 @@ class TestCloudIntegration:
             "region": "eastus",
             "access_key": "access-key",
             "secret_key": "secret-key",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/cloud/config", json=config)
         assert response.status_code == 200
 
     def test_create_cloud_config_gcp(self, client):
@@ -448,12 +427,9 @@ class TestCloudIntegration:
             "region": "us-central1",
             "access_key": "access-key",
             "secret_key": "secret-key",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/cloud/config", json=config)
         assert response.status_code == 200
 
     def test_create_cloud_config_alibaba(self, client):
@@ -464,12 +440,9 @@ class TestCloudIntegration:
             "region": "cn-hangzhou",
             "access_key": "access-key",
             "secret_key": "secret-key",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/cloud/config", json=config)
         assert response.status_code == 200
 
     def test_create_cloud_config_invalid_provider(self, client):
@@ -479,12 +452,9 @@ class TestCloudIntegration:
             "provider": "invalid",
             "region": "us-east-1",
             "access_key": "access-key",
-            "secret_key": "secret-key"
+            "secret_key": "secret-key",
         }
-        response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/cloud/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_create_cloud_config_case_insensitive(self, client):
@@ -494,20 +464,16 @@ class TestCloudIntegration:
             "provider": "AWS",  # Uppercase
             "region": "us-east-1",
             "access_key": "access-key",
-            "secret_key": "secret-key"
+            "secret_key": "secret-key",
         }
-        response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/cloud/config", json=config)
         assert response.status_code == 200
 
     def test_test_cloud_connection(self, client, sample_cloud_config):
         """Test testing Cloud connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=sample_cloud_config.dict()
+            "/api/v1/integration/cloud/config", json=sample_cloud_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -528,6 +494,7 @@ class TestCloudIntegration:
 # GitOps Tests
 # ============================================================================
 
+
 class TestGitOpsIntegration:
     """Test suite for GitOps integration"""
 
@@ -542,8 +509,7 @@ class TestGitOpsIntegration:
     def test_create_gitops_config_argocd(self, client, sample_gitops_config):
         """Test creating ArgoCD configuration"""
         response = client.post(
-            "/api/v1/integration/gitops/config",
-            json=sample_gitops_config.dict()
+            "/api/v1/integration/gitops/config", json=sample_gitops_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -556,12 +522,9 @@ class TestGitOpsIntegration:
             "gitops_type": "flux",
             "url": "https://flux.example.com",
             "token": "token-123",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/gitops/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/gitops/config", json=config)
         assert response.status_code == 200
 
     def test_create_gitops_config_jenkins_x(self, client):
@@ -571,12 +534,9 @@ class TestGitOpsIntegration:
             "gitops_type": "jenkins-x",
             "url": "https://jenkinsx.example.com",
             "token": "token-123",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/gitops/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/gitops/config", json=config)
         assert response.status_code == 200
 
     def test_create_gitops_config_invalid_type(self, client):
@@ -585,20 +545,16 @@ class TestGitOpsIntegration:
             "name": "Test Invalid",
             "gitops_type": "invalid",
             "url": "https://example.com",
-            "token": "token-123"
+            "token": "token-123",
         }
-        response = client.post(
-            "/api/v1/integration/gitops/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/gitops/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_test_gitops_connection(self, client, sample_gitops_config):
         """Test testing GitOps connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/gitops/config",
-            json=sample_gitops_config.dict()
+            "/api/v1/integration/gitops/config", json=sample_gitops_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -619,6 +575,7 @@ class TestGitOpsIntegration:
 # CI/CD Tests
 # ============================================================================
 
+
 class TestCICDIntegration:
     """Test suite for CI/CD integration"""
 
@@ -632,10 +589,7 @@ class TestCICDIntegration:
 
     def test_create_cicd_config_jenkins(self, client, sample_cicd_config):
         """Test creating Jenkins configuration"""
-        response = client.post(
-            "/api/v1/integration/cicd/config",
-            json=sample_cicd_config.dict()
-        )
+        response = client.post("/api/v1/integration/cicd/config", json=sample_cicd_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -647,12 +601,9 @@ class TestCICDIntegration:
             "cicd_type": "gitlab",
             "url": "https://gitlab.example.com",
             "token": "token-123",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/cicd/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/cicd/config", json=config)
         assert response.status_code == 200
 
     def test_create_cicd_config_circleci(self, client):
@@ -662,12 +613,9 @@ class TestCICDIntegration:
             "cicd_type": "circleci",
             "url": "https://circleci.example.com",
             "token": "token-123",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/cicd/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/cicd/config", json=config)
         assert response.status_code == 200
 
     def test_create_cicd_config_github_actions(self, client):
@@ -677,12 +625,9 @@ class TestCICDIntegration:
             "cicd_type": "github-actions",
             "url": "https://github.com",
             "token": "token-123",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/cicd/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/cicd/config", json=config)
         assert response.status_code == 200
 
     def test_create_cicd_config_invalid_type(self, client):
@@ -691,20 +636,16 @@ class TestCICDIntegration:
             "name": "Test Invalid",
             "cicd_type": "invalid",
             "url": "https://example.com",
-            "token": "token-123"
+            "token": "token-123",
         }
-        response = client.post(
-            "/api/v1/integration/cicd/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/cicd/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_test_cicd_connection(self, client, sample_cicd_config):
         """Test testing CI/CD connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/cicd/config",
-            json=sample_cicd_config.dict()
+            "/api/v1/integration/cicd/config", json=sample_cicd_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -725,6 +666,7 @@ class TestCICDIntegration:
 # ITSM Tests
 # ============================================================================
 
+
 class TestITSMIntegration:
     """Test suite for ITSM integration"""
 
@@ -738,10 +680,7 @@ class TestITSMIntegration:
 
     def test_create_itsm_config_servicenow(self, client, sample_itsm_config):
         """Test creating ServiceNow configuration"""
-        response = client.post(
-            "/api/v1/integration/itsm/config",
-            json=sample_itsm_config.dict()
-        )
+        response = client.post("/api/v1/integration/itsm/config", json=sample_itsm_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -754,12 +693,9 @@ class TestITSMIntegration:
             "url": "https://bmc.example.com",
             "username": "user",
             "password": "pass",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/itsm/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/itsm/config", json=config)
         assert response.status_code == 200
 
     def test_create_itsm_config_cherwell(self, client):
@@ -770,12 +706,9 @@ class TestITSMIntegration:
             "url": "https://cherwell.example.com",
             "username": "user",
             "password": "pass",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/itsm/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/itsm/config", json=config)
         assert response.status_code == 200
 
     def test_create_itsm_config_invalid_type(self, client):
@@ -785,20 +718,16 @@ class TestITSMIntegration:
             "itsm_type": "invalid",
             "url": "https://example.com",
             "username": "user",
-            "password": "pass"
+            "password": "pass",
         }
-        response = client.post(
-            "/api/v1/integration/itsm/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/itsm/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_test_itsm_connection(self, client, sample_itsm_config):
         """Test testing ITSM connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/itsm/config",
-            json=sample_itsm_config.dict()
+            "/api/v1/integration/itsm/config", json=sample_itsm_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -819,6 +748,7 @@ class TestITSMIntegration:
 # Oncall Tests
 # ============================================================================
 
+
 class TestOncallIntegration:
     """Test suite for Oncall integration"""
 
@@ -833,8 +763,7 @@ class TestOncallIntegration:
     def test_create_oncall_config_pagerduty(self, client, sample_oncall_config):
         """Test creating PagerDuty configuration"""
         response = client.post(
-            "/api/v1/integration/oncall/config",
-            json=sample_oncall_config.dict()
+            "/api/v1/integration/oncall/config", json=sample_oncall_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -846,33 +775,22 @@ class TestOncallIntegration:
             "name": "Test OpsGenie",
             "provider": "opsgenie",
             "api_key": "api-key-123",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/oncall/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/oncall/config", json=config)
         assert response.status_code == 200
 
     def test_create_oncall_config_invalid_provider(self, client):
         """Test creating Oncall config with invalid provider"""
-        invalid_config = {
-            "name": "Test Invalid",
-            "provider": "invalid",
-            "api_key": "api-key-123"
-        }
-        response = client.post(
-            "/api/v1/integration/oncall/config",
-            json=invalid_config
-        )
+        invalid_config = {"name": "Test Invalid", "provider": "invalid", "api_key": "api-key-123"}
+        response = client.post("/api/v1/integration/oncall/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_test_oncall_connection(self, client, sample_oncall_config):
         """Test testing Oncall connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/oncall/config",
-            json=sample_oncall_config.dict()
+            "/api/v1/integration/oncall/config", json=sample_oncall_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -893,6 +811,7 @@ class TestOncallIntegration:
 # Slack Tests
 # ============================================================================
 
+
 class TestSlackIntegration:
     """Test suite for Slack integration"""
 
@@ -906,10 +825,7 @@ class TestSlackIntegration:
 
     def test_create_slack_config(self, client, sample_slack_config):
         """Test creating Slack configuration"""
-        response = client.post(
-            "/api/v1/integration/slack/config",
-            json=sample_slack_config.dict()
-        )
+        response = client.post("/api/v1/integration/slack/config", json=sample_slack_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -921,20 +837,16 @@ class TestSlackIntegration:
             "name": "Test Slack",
             "workspace": "test-workspace",
             "bot_token": "xoxb-test",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/slack/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/slack/config", json=config)
         assert response.status_code == 200
 
     def test_test_slack_connection(self, client, sample_slack_config):
         """Test testing Slack connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/slack/config",
-            json=sample_slack_config.dict()
+            "/api/v1/integration/slack/config", json=sample_slack_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -955,6 +867,7 @@ class TestSlackIntegration:
 # Jira Tests
 # ============================================================================
 
+
 class TestJiraIntegration:
     """Test suite for Jira integration"""
 
@@ -968,10 +881,7 @@ class TestJiraIntegration:
 
     def test_create_jira_config(self, client, sample_jira_config):
         """Test creating Jira configuration"""
-        response = client.post(
-            "/api/v1/integration/jira/config",
-            json=sample_jira_config.dict()
-        )
+        response = client.post("/api/v1/integration/jira/config", json=sample_jira_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -981,8 +891,7 @@ class TestJiraIntegration:
         """Test testing Jira connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/jira/config",
-            json=sample_jira_config.dict()
+            "/api/v1/integration/jira/config", json=sample_jira_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1003,6 +912,7 @@ class TestJiraIntegration:
 # ServiceNow Tests
 # ============================================================================
 
+
 class TestServiceNowIntegration:
     """Test suite for ServiceNow integration"""
 
@@ -1017,8 +927,7 @@ class TestServiceNowIntegration:
     def test_create_servicenow_config(self, client, sample_servicenow_config):
         """Test creating ServiceNow configuration"""
         response = client.post(
-            "/api/v1/integration/servicenow/config",
-            json=sample_servicenow_config.dict()
+            "/api/v1/integration/servicenow/config", json=sample_servicenow_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1029,8 +938,7 @@ class TestServiceNowIntegration:
         """Test testing ServiceNow connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/servicenow/config",
-            json=sample_servicenow_config.dict()
+            "/api/v1/integration/servicenow/config", json=sample_servicenow_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1051,6 +959,7 @@ class TestServiceNowIntegration:
 # Message Queue Tests
 # ============================================================================
 
+
 class TestMessageQueueIntegration:
     """Test suite for Message Queue integration"""
 
@@ -1065,8 +974,7 @@ class TestMessageQueueIntegration:
     def test_create_message_queue_config_rabbitmq(self, client, sample_message_queue_config):
         """Test creating RabbitMQ configuration"""
         response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=sample_message_queue_config.dict()
+            "/api/v1/integration/message-queue/config", json=sample_message_queue_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1079,12 +987,9 @@ class TestMessageQueueIntegration:
             "mq_type": "activemq",
             "host": "localhost",
             "port": 61616,
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/message-queue/config", json=config)
         assert response.status_code == 200
 
     def test_create_message_queue_config_redis(self, client):
@@ -1094,12 +999,9 @@ class TestMessageQueueIntegration:
             "mq_type": "redis",
             "host": "localhost",
             "port": 6379,
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/message-queue/config", json=config)
         assert response.status_code == 200
 
     def test_create_message_queue_config_sqs(self, client):
@@ -1109,12 +1011,9 @@ class TestMessageQueueIntegration:
             "mq_type": "sqs",
             "host": "sqs.us-east-1.amazonaws.com",
             "port": 443,
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/message-queue/config", json=config)
         assert response.status_code == 200
 
     def test_create_message_queue_config_invalid_type(self, client):
@@ -1123,12 +1022,9 @@ class TestMessageQueueIntegration:
             "name": "Test Invalid",
             "mq_type": "invalid",
             "host": "localhost",
-            "port": 5672
+            "port": 5672,
         }
-        response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/message-queue/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_create_message_queue_config_invalid_port(self, client):
@@ -1137,12 +1033,9 @@ class TestMessageQueueIntegration:
             "name": "Test Invalid Port",
             "mq_type": "rabbitmq",
             "host": "localhost",
-            "port": 70000  # Too high
+            "port": 70000,  # Too high
         }
-        response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/message-queue/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_create_message_queue_config_port_zero(self, client):
@@ -1151,20 +1044,16 @@ class TestMessageQueueIntegration:
             "name": "Test Port Zero",
             "mq_type": "rabbitmq",
             "host": "localhost",
-            "port": 0
+            "port": 0,
         }
-        response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/message-queue/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_test_message_queue_connection(self, client, sample_message_queue_config):
         """Test testing Message Queue connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/message-queue/config",
-            json=sample_message_queue_config.dict()
+            "/api/v1/integration/message-queue/config", json=sample_message_queue_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1185,6 +1074,7 @@ class TestMessageQueueIntegration:
 # GitHub Tests
 # ============================================================================
 
+
 class TestGitHubIntegration:
     """Test suite for GitHub integration"""
 
@@ -1199,8 +1089,7 @@ class TestGitHubIntegration:
     def test_create_github_config(self, client, sample_github_config):
         """Test creating GitHub configuration"""
         response = client.post(
-            "/api/v1/integration/github/config",
-            json=sample_github_config.dict()
+            "/api/v1/integration/github/config", json=sample_github_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1211,8 +1100,7 @@ class TestGitHubIntegration:
         """Test testing GitHub connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/github/config",
-            json=sample_github_config.dict()
+            "/api/v1/integration/github/config", json=sample_github_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1233,6 +1121,7 @@ class TestGitHubIntegration:
 # ELK Stack Tests
 # ============================================================================
 
+
 class TestELKIntegration:
     """Test suite for ELK Stack integration"""
 
@@ -1246,10 +1135,7 @@ class TestELKIntegration:
 
     def test_create_elk_config(self, client, sample_elk_config):
         """Test creating ELK Stack configuration"""
-        response = client.post(
-            "/api/v1/integration/elk/config",
-            json=sample_elk_config.dict()
-        )
+        response = client.post("/api/v1/integration/elk/config", json=sample_elk_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -1260,20 +1146,16 @@ class TestELKIntegration:
         config = {
             "name": "Test Elasticsearch",
             "elasticsearch_url": "https://elasticsearch.example.com",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/elk/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/elk/config", json=config)
         assert response.status_code == 200
 
     def test_test_elk_connection(self, client, sample_elk_config):
         """Test testing ELK connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/elk/config",
-            json=sample_elk_config.dict()
+            "/api/v1/integration/elk/config", json=sample_elk_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1294,6 +1176,7 @@ class TestELKIntegration:
 # Datadog Tests
 # ============================================================================
 
+
 class TestDatadogIntegration:
     """Test suite for Datadog integration"""
 
@@ -1308,8 +1191,7 @@ class TestDatadogIntegration:
     def test_create_datadog_config(self, client, sample_datadog_config):
         """Test creating Datadog configuration"""
         response = client.post(
-            "/api/v1/integration/datadog/config",
-            json=sample_datadog_config.dict()
+            "/api/v1/integration/datadog/config", json=sample_datadog_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1323,20 +1205,16 @@ class TestDatadogIntegration:
             "api_key": "dd-api-key",
             "app_key": "dd-app-key",
             "site": "datadoghq.eu",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/datadog/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/datadog/config", json=config)
         assert response.status_code == 200
 
     def test_test_datadog_connection(self, client, sample_datadog_config):
         """Test testing Datadog connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/datadog/config",
-            json=sample_datadog_config.dict()
+            "/api/v1/integration/datadog/config", json=sample_datadog_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1357,6 +1235,7 @@ class TestDatadogIntegration:
 # Grafana Tests
 # ============================================================================
 
+
 class TestGrafanaIntegration:
     """Test suite for Grafana integration"""
 
@@ -1371,8 +1250,7 @@ class TestGrafanaIntegration:
     def test_create_grafana_config(self, client, sample_grafana_config):
         """Test creating Grafana configuration"""
         response = client.post(
-            "/api/v1/integration/grafana/config",
-            json=sample_grafana_config.dict()
+            "/api/v1/integration/grafana/config", json=sample_grafana_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1383,8 +1261,7 @@ class TestGrafanaIntegration:
         """Test testing Grafana connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/grafana/config",
-            json=sample_grafana_config.dict()
+            "/api/v1/integration/grafana/config", json=sample_grafana_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1405,6 +1282,7 @@ class TestGrafanaIntegration:
 # Prometheus Tests
 # ============================================================================
 
+
 class TestPrometheusIntegration:
     """Test suite for Prometheus integration"""
 
@@ -1419,8 +1297,7 @@ class TestPrometheusIntegration:
     def test_create_prometheus_config(self, client, sample_prometheus_config):
         """Test creating Prometheus configuration"""
         response = client.post(
-            "/api/v1/integration/prometheus/config",
-            json=sample_prometheus_config.dict()
+            "/api/v1/integration/prometheus/config", json=sample_prometheus_config.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1432,20 +1309,16 @@ class TestPrometheusIntegration:
         config = {
             "name": "Test Prometheus",
             "url": "https://prometheus.example.com",
-            "enabled": True
+            "enabled": True,
         }
-        response = client.post(
-            "/api/v1/integration/prometheus/config",
-            json=config
-        )
+        response = client.post("/api/v1/integration/prometheus/config", json=config)
         assert response.status_code == 200
 
     def test_test_prometheus_connection(self, client, sample_prometheus_config):
         """Test testing Prometheus connection"""
         # First create a config
         create_response = client.post(
-            "/api/v1/integration/prometheus/config",
-            json=sample_prometheus_config.dict()
+            "/api/v1/integration/prometheus/config", json=sample_prometheus_config.dict()
         )
         config_id = create_response.json()["config_id"]
 
@@ -1466,6 +1339,7 @@ class TestPrometheusIntegration:
 # Data Validation Tests
 # ============================================================================
 
+
 class TestDataValidation:
     """Test suite for data validation across all integrations"""
 
@@ -1476,12 +1350,9 @@ class TestDataValidation:
             "name": "",  # Too short
             "tenant_id": "tenant-123",
             "client_id": "client-123",
-            "client_secret": "secret-123"
+            "client_secret": "secret-123",
         }
-        response = client.post(
-            "/api/v1/integration/teams/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/teams/config", json=invalid_config)
         assert response.status_code == 422
 
         # Test maximum length
@@ -1489,12 +1360,9 @@ class TestDataValidation:
             "name": "a" * 101,  # Too long
             "tenant_id": "tenant-123",
             "client_id": "client-123",
-            "client_secret": "secret-123"
+            "client_secret": "secret-123",
         }
-        response = client.post(
-            "/api/v1/integration/teams/config",
-            json=invalid_config
-        )
+        response = client.post("/api/v1/integration/teams/config", json=invalid_config)
         assert response.status_code == 422
 
     def test_provider_validation_case_insensitive(self, client):
@@ -1506,12 +1374,9 @@ class TestDataValidation:
                 "provider": provider,
                 "region": "us-east-1",
                 "access_key": "access-key",
-                "secret_key": "secret-key"
+                "secret_key": "secret-key",
             }
-            response = client.post(
-                "/api/v1/integration/cloud/config",
-                json=config
-            )
+            response = client.post("/api/v1/integration/cloud/config", json=config)
             assert response.status_code == 200
 
     def test_gitops_type_validation_case_insensitive(self, client):
@@ -1522,12 +1387,9 @@ class TestDataValidation:
                 "name": f"Test {gitops_type}",
                 "gitops_type": gitops_type,
                 "url": "https://example.com",
-                "token": "token-123"
+                "token": "token-123",
             }
-            response = client.post(
-                "/api/v1/integration/gitops/config",
-                json=config
-            )
+            response = client.post("/api/v1/integration/gitops/config", json=config)
             assert response.status_code == 200
 
     def test_cicd_type_validation_case_insensitive(self, client):
@@ -1538,12 +1400,9 @@ class TestDataValidation:
                 "name": f"Test {cicd_type}",
                 "cicd_type": cicd_type,
                 "url": "https://example.com",
-                "token": "token-123"
+                "token": "token-123",
             }
-            response = client.post(
-                "/api/v1/integration/cicd/config",
-                json=config
-            )
+            response = client.post("/api/v1/integration/cicd/config", json=config)
             assert response.status_code == 200
 
     def test_itsm_type_validation_case_insensitive(self, client):
@@ -1555,27 +1414,17 @@ class TestDataValidation:
                 "itsm_type": itsm_type,
                 "url": "https://example.com",
                 "username": "user",
-                "password": "pass"
+                "password": "pass",
             }
-            response = client.post(
-                "/api/v1/integration/itsm/config",
-                json=config
-            )
+            response = client.post("/api/v1/integration/itsm/config", json=config)
             assert response.status_code == 200
 
     def test_oncall_provider_validation_case_insensitive(self, client):
         """Test that Oncall provider validation is case insensitive"""
         providers = ["PagerDuty", "OpsGenie"]
         for provider in providers:
-            config = {
-                "name": f"Test {provider}",
-                "provider": provider,
-                "api_key": "api-key-123"
-            }
-            response = client.post(
-                "/api/v1/integration/oncall/config",
-                json=config
-            )
+            config = {"name": f"Test {provider}", "provider": provider, "api_key": "api-key-123"}
+            response = client.post("/api/v1/integration/oncall/config", json=config)
             assert response.status_code == 200
 
     def test_mq_type_validation_case_insensitive(self, client):
@@ -1586,18 +1435,16 @@ class TestDataValidation:
                 "name": f"Test {mq_type}",
                 "mq_type": mq_type,
                 "host": "localhost",
-                "port": 5672
+                "port": 5672,
             }
-            response = client.post(
-                "/api/v1/integration/message-queue/config",
-                json=config
-            )
+            response = client.post("/api/v1/integration/message-queue/config", json=config)
             assert response.status_code == 200
 
 
 # ============================================================================
 # Error Handling Tests
 # ============================================================================
+
 
 class TestErrorHandling:
     """Test suite for error handling across all integrations"""
@@ -1635,16 +1482,14 @@ class TestErrorHandling:
             {"name": "Test"},  # Missing provider, region, access_key, secret_key for Cloud
         ]
         for invalid_config in invalid_configs:
-            response = client.post(
-                "/api/v1/integration/teams/config",
-                json=invalid_config
-            )
+            response = client.post("/api/v1/integration/teams/config", json=invalid_config)
             assert response.status_code == 422
 
 
 # ============================================================================
 # Performance Tests
 # ============================================================================
+
 
 class TestPerformance:
     """Test suite for performance across all integrations"""
@@ -1654,10 +1499,7 @@ class TestPerformance:
         for i in range(10):
             config_data = sample_teams_config.dict()
             config_data["name"] = f"Test Teams {i}"
-            response = client.post(
-                "/api/v1/integration/teams/config",
-                json=config_data
-            )
+            response = client.post("/api/v1/integration/teams/config", json=config_data)
             assert response.status_code == 200
 
     def test_get_after_multiple_creates(self, client, sample_teams_config):
@@ -1666,10 +1508,7 @@ class TestPerformance:
         for i in range(5):
             config_data = sample_teams_config.dict()
             config_data["name"] = f"Test Teams {i}"
-            client.post(
-                "/api/v1/integration/teams/config",
-                json=config_data
-            )
+            client.post("/api/v1/integration/teams/config", json=config_data)
 
         # Get all configs
         response = client.get("/api/v1/integration/teams/config")
@@ -1684,10 +1523,7 @@ class TestPerformance:
         for i in range(3):
             config_data = sample_teams_config.dict()
             config_data["name"] = f"Test Teams {i}"
-            create_response = client.post(
-                "/api/v1/integration/teams/config",
-                json=config_data
-            )
+            create_response = client.post("/api/v1/integration/teams/config", json=config_data)
             config_ids.append(create_response.json()["config_id"])
 
         # Test connections
@@ -1700,6 +1536,7 @@ class TestPerformance:
 # Security Tests
 # ============================================================================
 
+
 class TestSecurity:
     """Test suite for security considerations"""
 
@@ -1707,8 +1544,7 @@ class TestSecurity:
         """Test that sensitive data is masked in responses"""
         # Create a config
         create_response = client.post(
-            "/api/v1/integration/cloud/config",
-            json=sample_cloud_config.dict()
+            "/api/v1/integration/cloud/config", json=sample_cloud_config.dict()
         )
 
         # Get configs
@@ -1717,16 +1553,16 @@ class TestSecurity:
         data = response.json()
         if len(data["configs"]) > 0:
             # Access key should be masked
-            assert "***" in data["configs"][0]["access_key"] or len(data["configs"][0]["access_key"]) < 10
+            assert (
+                "***" in data["configs"][0]["access_key"]
+                or len(data["configs"][0]["access_key"]) < 10
+            )
 
     def test_extra_fields_ignored(self, client, sample_teams_config):
         """Test that extra fields in request are ignored"""
         config_data = sample_teams_config.dict()
         config_data["extra_field"] = "should_be_ignored"
-        response = client.post(
-            "/api/v1/integration/teams/config",
-            json=config_data
-        )
+        response = client.post("/api/v1/integration/teams/config", json=config_data)
         assert response.status_code == 200
 
 

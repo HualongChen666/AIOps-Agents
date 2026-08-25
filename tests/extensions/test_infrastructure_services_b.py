@@ -86,21 +86,27 @@ def _assert_policy_result(result, operation):
 
 def test_fastapi_security_service_execute_operation():
     service = FastapiSecurityService(dry_run=True)
-    result = service.execute_operation("oauth2_password_auth", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "oauth2_password_auth", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_service_result(result, "oauth2_password_auth")
     assert "flow" in result["result"]
 
 
 def test_kubernetes_orchestration_service_execute_operation():
     service = KubernetesOrchestrationService(dry_run=True)
-    result = service.execute_operation("design_k8s_cluster_architecture", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "design_k8s_cluster_architecture", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_service_result(result, "design_k8s_cluster_architecture")
     assert result["result"].get("dry_run") is True
 
 
 def test_open_source_license_service_execute_operation():
     service = OpenSourceLicenseService(dry_run=True)
-    result = service.execute_operation("select_osi_license", {"license": "MIT"})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "select_osi_license", {"license": "MIT"}
+    )  # noqa: F841  # Variable for test verification
     _assert_service_result(result, "select_osi_license")
     assert result["result"].get("osi_approved") is True
 
@@ -117,76 +123,98 @@ def test_performance_monitoring_service_execute_operation():
 
 def test_pgbackrest_backup_service_execute_operation():
     service = PgbackrestBackupService(dry_run=True)
-    result = service.execute_operation("postgresql_full_backup", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "postgresql_full_backup", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_service_result(result, "postgresql_full_backup")
     assert "pgbackrest" in result["result"].get("command", "")
 
 
 def test_plugin_market_service_execute_operation():
     service = PluginMarketService(dry_run=True)
-    result = service.execute_operation("plugin_index", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "plugin_index", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_policy_result(result, "plugin_index")
     assert isinstance(result["result"], list)
 
 
 def test_plugin_system_service_execute_operation():
     service = PluginSystemService(dry_run=True)
-    result = service.execute_operation("plugin_load", {"plugin_id": "example"})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "plugin_load", {"plugin_id": "example"}
+    )  # noqa: F841  # Variable for test verification
     _assert_policy_result(result, "plugin_load")
     assert result["result"].get("plugin_id") == "example"
 
 
 def test_postgresql_shard_service_execute_operation():
     service = PostgresqlShardService(dry_run=True)
-    result = service.execute_operation("get_stats", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "get_stats", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_thin_result(result)
     assert "db_size" in result
 
 
 def test_qdrant_shard_service_execute_operation():
     service = QdrantShardService(dry_run=True)
-    result = service.execute_operation("get_stats", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "get_stats", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_thin_result(result)
     assert "vector_count" in result
 
 
 def test_redis_shard_service_execute_operation():
     service = RedisShardService(dry_run=True)
-    result = service.execute_operation("get_stats", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "get_stats", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_thin_result(result)
     assert "cache_hits" in result
 
 
 def test_service_mesh_service_execute_operation():
     service = ServiceMeshService(dry_run=True)
-    result = service.execute_operation("evaluate_service_mesh", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "evaluate_service_mesh", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_service_result(result, "evaluate_service_mesh")
     assert "istioctl" in result["result"].get("command", "")
 
 
 def test_terraform_iac_service_execute_operation():
     service = TerraformIacService(dry_run=True)
-    result = service.execute_operation("write_terraform_configs", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "write_terraform_configs", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_service_result(result, "write_terraform_configs")
     assert "terraform" in result["result"].get("command", "")
 
 
 def test_user_service_execute_operation():
     service = UserService(dry_run=True)
-    result = service.execute_operation("user_lookup", {"user_id": "user-1"})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "user_lookup", {"user_id": "user-1"}
+    )  # noqa: F841  # Variable for test verification
     _assert_policy_result(result, "user_lookup")
     assert result["result"].get("found") is True
 
 
 def test_vector_retrieval_service_execute_operation():
     service = VectorRetrievalService(dry_run=True)
-    result = service.execute_operation("get_stats", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "get_stats", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_thin_result(result)
     assert "vector_count" in result
 
 
 def test_velero_backup_service_execute_operation():
     service = VeleroBackupService(dry_run=True)
-    result = service.execute_operation("k8s_resource_backup", {})  # noqa: F841  # Variable for test verification
+    result = service.execute_operation(
+        "k8s_resource_backup", {}
+    )  # noqa: F841  # Variable for test verification
     _assert_service_result(result, "k8s_resource_backup")
     assert "velero" in result["result"].get("command", "")

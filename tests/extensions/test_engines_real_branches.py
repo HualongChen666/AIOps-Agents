@@ -295,7 +295,9 @@ def test_infra_executors_real_branches(monkeypatch, tmp_path):
     playbooks.mkdir()
     (playbooks / "site.yml").write_text("---\n- hosts: localhost\n  tasks: []\n")
     ansible = AnsibleExecutor(dry_run=False)
-    result = ansible.run(["site.yml", "--check"], cwd=str(playbooks))  # noqa: F841  # Variable for test verification
+    result = ansible.run(
+        ["site.yml", "--check"], cwd=str(playbooks)
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
 
 
@@ -406,7 +408,9 @@ def test_storage_driver_real_branches(monkeypatch, tmp_path):
     assert driver.cache_set("k", [1, 2]) == {"stored": True, "key": "k"}
     assert driver.cache_get("k") == "[1, 2]"
 
-    create_result = driver.vector_create_collection("c", 3)  # noqa: F841  # Variable for test verification
+    create_result = driver.vector_create_collection(
+        "c", 3
+    )  # noqa: F841  # Variable for test verification
     assert create_result is not None
 
     upsert_result = driver.vector_upsert(  # noqa: F841  # Variable for test verification

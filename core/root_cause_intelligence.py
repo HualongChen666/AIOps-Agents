@@ -739,23 +739,18 @@ class RootCauseIntelligenceEngine:
         self.historical_patterns[pattern_id] = new_pattern
         logger.info(f"Learned new historical pattern: {pattern_id}")
 
-    async def analyze_root_causes_enhanced(
-        self,
-        alert: Dict[str, Any],
-        metrics_data: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None,
-    ) -> List[RootCauseHypothesis]:
+    def _extract_analysis_context(
+        self, context: Optional[Dict[str, Any]], metrics_data: Dict[str, Any]
+    ) -> tuple[int, float, float, set, Optional[Dict], List, List]:
         """
-        Enhanced root cause analysis with hypothesis-verification loop,
-        confidence thresholds, excluded-hypothesis filtering, and multi-root support.
+        提取分析上下文参数
 
         Args:
-            alert: Alert to analyze
-            metrics_data: Current metrics data
-            context: Additional context (correlated_alerts, change_events, verification_data, etc.)
+            context: 上下文字典
+            metrics_data: 指标数据
 
         Returns:
-            List of root cause hypotheses ranked by confidence, with execution gating flags
+            tuple: (最大步数, 执行阈值, 升级阈值, 排除ID集合, 验证数据, 相关告警, 变更事件)
         """
         context = context or {}
         max_steps = context.get("max_steps", MAX_DIAGNOSIS_STEPS)
@@ -773,19 +768,43 @@ class RootCauseIntelligenceEngine:
         related_alerts = context.get("correlated_alerts", [])
         change_events = context.get("change_events", [])
 
-        logger.info(f"Performing enhanced root cause analysis for alert: {alert.get('id')}")
+        return (
+            max_steps,
+            execution_threshold,
+            escalation_threshold,
+            excluded_ids,
+            verification_data,
+            related_alerts,
+            change_events,
+        )
 
-        # Refresh topology from current metrics and alert data
-        if metrics_data:
-            try:
-                await self.discover_topology_realtime(metrics_data, alert)
-            except Exception as e:
-                logger.warning(f"Topology discovery failed during analysis: {e}")
+    async def _generate_hypothesis_candidates(
+        self,
+        alert: Dict[str, Any],
+        metrics_data: Dict[str, Any],
+        affected: List[str],
+        related_alerts: List,
+        change_events: List,
+        excluded_ids: set,
+        max_steps: int,
+        execution_threshold: float,
+    ) -> List[RootCauseHypothesis]:
+        """
+        生成假设候选者
 
-        affected = alert.get("affected_services", []) or alert.get("affected_components", [])
-        if isinstance(affected, str):
-            affected = [affected]
+        Args:
+            alert: 告警字典
+            metrics_data: 指标数据
+            affected: 受影响组件列表
+            related_alerts: 相关告警列表
+            change_events: 变更事件列表
+            excluded_ids: 排除的ID集合
+            max_steps: 最大步数
+            execution_threshold: 执行阈值
 
+        Returns:
+            假设候选者列表
+        """
         all_candidates: List[RootCauseHypothesis] = []
         seen_roots: Set[str] = set()
 
@@ -817,9 +836,27 @@ class RootCauseIntelligenceEngine:
             if len(all_candidates) >= MAX_ROOT_CAUSE_CANDIDATES:
                 break
 
-        # Verification loop
+        return all_candidates
+
+    async def _verify_hypotheses(
+        self,
+        candidates: List[RootCauseHypothesis],
+        verification_data: Optional[Dict],
+        excluded_ids: set,
+    ) -> List[RootCauseHypothesis]:
+        """
+        验证假设候选者
+
+        Args:
+            candidates: 候选者列表
+            verification_data: 验证数据
+            excluded_ids: 排除的ID集合
+
+        Returns:
+            验证通过的候选者列表
+        """
         verified_candidates: List[RootCauseHypothesis] = []
-        for hypothesis in all_candidates[:MAX_ROOT_CAUSE_CANDIDATES]:
+        for hypothesis in candidates[:MAX_ROOT_CAUSE_CANDIDATES]:
             try:
                 if verification_data:
                     await self.verify_root_cause(hypothesis, verification_data)
@@ -836,9 +873,23 @@ class RootCauseIntelligenceEngine:
 
         # Sort by confidence
         verified_candidates.sort(key=lambda h: h.confidence, reverse=True)
+        return verified_candidates
 
-        # Apply confidence-based gating
-        for hypothesis in verified_candidates:
+    def _apply_confidence_gating(
+        self,
+        candidates: List[RootCauseHypothesis],
+        execution_threshold: float,
+        escalation_threshold: float,
+    ) -> None:
+        """
+        应用基于置信度的门控
+
+        Args:
+            candidates: 候选者列表(会被修改)
+            execution_threshold: 执行阈值
+            escalation_threshold: 升级阈值
+        """
+        for hypothesis in candidates:
             if hypothesis.confidence >= execution_threshold:
                 hypothesis.recommended_action = "auto_heal"
                 hypothesis.requires_approval = False
@@ -849,11 +900,24 @@ class RootCauseIntelligenceEngine:
                 hypothesis.recommended_action = "escalate"
                 hypothesis.requires_approval = True
 
+    def _detect_multi_root_scenarios(
+        self, candidates: List[RootCauseHypothesis], escalation_threshold: float
+    ) -> List[RootCauseHypothesis]:
+        """
+        检测多根场景
+
+        Args:
+            candidates: 候选者列表
+            escalation_threshold: 升级阈值
+
+        Returns:
+            更新后的候选者列表
+        """
         # Multi-root detection: if multiple high-confidence roots exist, surface it.
         # Change-event candidates are triggers, not independent root components, so exclude them.
         # Also skip a candidate whose root string is already contained in a higher-confidence
         # scenario candidate (e.g. "orders" inside "slow_sql_after_release_orders").
-        sorted_by_conf = sorted(verified_candidates, key=lambda h: h.confidence, reverse=True)
+        sorted_by_conf = sorted(candidates, key=lambda h: h.confidence, reverse=True)
         high_conf_roots: List[RootCauseHypothesis] = []
         for h in sorted_by_conf:
             if (
@@ -869,6 +933,7 @@ class RootCauseIntelligenceEngine:
             ):
                 continue
             high_conf_roots.append(h)
+
         if len(high_conf_roots) >= 2:
             multi_conf = sum(h.confidence for h in high_conf_roots[:3]) / len(high_conf_roots[:3])
             multi_root = RootCauseHypothesis(
@@ -892,10 +957,25 @@ class RootCauseIntelligenceEngine:
                 recommended_action="escalate",
                 requires_approval=True,
             )
-            verified_candidates.insert(0, multi_root)
+            candidates.insert(0, multi_root)
 
+        return candidates
+
+    def _add_escalation_guard(
+        self, candidates: List[RootCauseHypothesis], escalation_threshold: float
+    ) -> List[RootCauseHypothesis]:
+        """
+        添加升级保护
+
+        Args:
+            candidates: 候选者列表
+            escalation_threshold: 升级阈值
+
+        Returns:
+            更新后的候选者列表
+        """
         # Escalation guard: if top candidate is too weak, recommend escalation
-        if not verified_candidates or verified_candidates[0].confidence < escalation_threshold:
+        if not candidates or candidates[0].confidence < escalation_threshold:
             escalation = RootCauseHypothesis(
                 hypothesis_id="escalate",
                 root_cause="unknown",
@@ -912,14 +992,97 @@ class RootCauseIntelligenceEngine:
                 recommended_action="escalate",
                 requires_approval=True,
             )
-            verified_candidates.append(escalation)
+            candidates.append(escalation)
 
-        final_candidates = verified_candidates[:MAX_ROOT_CAUSE_CANDIDATES]
+        return candidates
 
-        # Store active hypotheses and update history
+    def _store_hypotheses(self, final_candidates: List[RootCauseHypothesis]) -> None:
+        """
+        存储假设到历史记录
+
+        Args:
+            final_candidates: 最终候选者列表
+        """
         for hypothesis in final_candidates:
             self.active_hypotheses[hypothesis.hypothesis_id] = hypothesis
         self.hypothesis_history.extend(final_candidates)
+
+    async def analyze_root_causes_enhanced(
+        self,
+        alert: Dict[str, Any],
+        metrics_data: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[RootCauseHypothesis]:
+        """
+        Enhanced root cause analysis with hypothesis-verification loop,
+        confidence thresholds, excluded-hypothesis filtering, and multi-root support.
+
+        Args:
+            alert: Alert to analyze
+            metrics_data: Current metrics data
+            context: Additional context (correlated_alerts, change_events, verification_data, etc.)
+
+        Returns:
+            List of root cause hypotheses ranked by confidence, with execution gating flags
+        """
+        # 提取上下文参数
+        (
+            max_steps,
+            execution_threshold,
+            escalation_threshold,
+            excluded_ids,
+            verification_data,
+            related_alerts,
+            change_events,
+        ) = self._extract_analysis_context(context, metrics_data)
+
+        logger.info(f"Performing enhanced root cause analysis for alert: {alert.get('id')}")
+
+        # Refresh topology from current metrics and alert data
+        if metrics_data:
+            try:
+                await self.discover_topology_realtime(metrics_data, alert)
+            except Exception as e:
+                logger.warning(f"Topology discovery failed during analysis: {e}")
+
+        affected = alert.get("affected_services", []) or alert.get("affected_components", [])
+        if isinstance(affected, str):
+            affected = [affected]
+
+        # 生成假设候选者
+        all_candidates = await self._generate_hypothesis_candidates(
+            alert,
+            metrics_data,
+            affected,
+            related_alerts,
+            change_events,
+            excluded_ids,
+            max_steps,
+            execution_threshold,
+        )
+
+        # 验证假设
+        verified_candidates = await self._verify_hypotheses(
+            all_candidates, verification_data, excluded_ids
+        )
+
+        # 应用置信度门控
+        self._apply_confidence_gating(
+            verified_candidates, execution_threshold, escalation_threshold
+        )
+
+        # 检测多根场景
+        verified_candidates = self._detect_multi_root_scenarios(
+            verified_candidates, escalation_threshold
+        )
+
+        # 添加升级保护
+        verified_candidates = self._add_escalation_guard(verified_candidates, escalation_threshold)
+
+        final_candidates = verified_candidates[:MAX_ROOT_CAUSE_CANDIDATES]
+
+        # 存储假设
+        self._store_hypotheses(final_candidates)
 
         logger.info(f"Generated {len(final_candidates)} final root cause hypotheses")
         return final_candidates
@@ -1365,12 +1528,12 @@ class RootCauseIntelligenceEngine:
         if isinstance(value, str):
             try:
                 return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except Exception as e:
-                logger.exception("Unexpected exception: %s", e)
+            except Exception as e:  # noqa: F841 - Exception intentionally unused
+                logger.error("Failed to parse timestamp as ISO format")
                 try:
                     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
-                except Exception as e:
-                    logger.exception("Unexpected exception: %s", e)
+                except Exception as e:  # noqa: F841 - Exception intentionally unused
+                    logger.error("Failed to parse timestamp as string format")
                     return None
         return None
 

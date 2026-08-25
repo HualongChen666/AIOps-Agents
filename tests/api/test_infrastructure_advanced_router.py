@@ -4,28 +4,29 @@ Comprehensive test suite for Infrastructure Advanced API Router
 Tests all endpoints with various scenarios including success, error cases, validation, and mocking
 """
 
-import pytest
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.infrastructure_advanced_router import (
-    router,
+    CapacityMetrics,
+    HealthCheck,
+    InfrastructureCapacity,
+    InfrastructureHealth,
     InfrastructureResource,
     InfrastructureResourceCreate,
     InfrastructureResourceUpdate,
-    TopologyNode,
-    TopologyEdge,
     InfrastructureTopology,
-    HealthCheck,
-    InfrastructureHealth,
-    CapacityMetrics,
-    InfrastructureCapacity,
     ProvisioningRequest,
     ProvisioningResponse,
+    TopologyEdge,
+    TopologyNode,
+    _provisioning_tasks,
     _resources,
-    _provisioning_tasks
+    router,
 )
 
 
@@ -33,6 +34,7 @@ from api.infrastructure_advanced_router import (
 def client():
     """Create a test client for the infrastructure router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -64,7 +66,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {"environment": "production"},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/infrastructure/resources")
@@ -87,7 +89,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         _resources["res-2"] = {
             "resource_id": "res-2",
@@ -101,7 +103,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 500,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/infrastructure/resources?resource_type=virtual_machine")
@@ -123,7 +125,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         _resources["res-2"] = {
             "resource_id": "res-2",
@@ -137,7 +139,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/infrastructure/resources?provider=aws")
@@ -159,7 +161,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         _resources["res-2"] = {
             "resource_id": "res-2",
@@ -173,7 +175,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/infrastructure/resources?region=us-east-1")
@@ -195,7 +197,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         _resources["res-2"] = {
             "resource_id": "res-2",
@@ -209,7 +211,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/infrastructure/resources?status=running")
@@ -235,7 +237,7 @@ class TestInfrastructureResourceEndpoints:
             "cpu_cores": 4,
             "memory_gb": 16,
             "disk_gb": 200,
-            "tags": {"environment": "production", "team": "platform"}
+            "tags": {"environment": "production", "team": "platform"},
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -252,7 +254,7 @@ class TestInfrastructureResourceEndpoints:
             "name": "test-server",
             "resource_type": "virtual_machine",
             "provider": "aws",
-            "region": "us-east-1"
+            "region": "us-east-1",
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -272,7 +274,7 @@ class TestInfrastructureResourceEndpoints:
             "region": "us-east-1",
             "cpu_cores": 0,  # Below minimum
             "memory_gb": 0,  # Below minimum
-            "disk_gb": 5  # Below minimum
+            "disk_gb": 5,  # Below minimum
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -286,7 +288,7 @@ class TestInfrastructureResourceEndpoints:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "cpu_cores": 129  # Above maximum of 128
+            "cpu_cores": 129,  # Above maximum of 128
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -300,7 +302,7 @@ class TestInfrastructureResourceEndpoints:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "memory_gb": 513  # Above maximum of 512
+            "memory_gb": 513,  # Above maximum of 512
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -314,7 +316,7 @@ class TestInfrastructureResourceEndpoints:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "disk_gb": 10001  # Above maximum of 10000
+            "disk_gb": 10001,  # Above maximum of 10000
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -335,7 +337,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get(f"/api/v1/infrastructure/resources/{resource_id}")
@@ -363,14 +365,10 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
-        update_data = {
-            "name": "web-server-01-updated",
-            "cpu_cores": 8,
-            "memory_gb": 16
-        }
+        update_data = {"name": "web-server-01-updated", "cpu_cores": 8, "memory_gb": 16}
 
         response = client.patch(f"/api/v1/infrastructure/resources/{resource_id}", json=update_data)
         assert response.status_code == 200
@@ -383,7 +381,9 @@ class TestInfrastructureResourceEndpoints:
         """Test PATCH /resources/{resource_id} with non-existent ID"""
         update_data = {"name": "updated"}
 
-        response = client.patch("/api/v1/infrastructure/resources/non-existent-id", json=update_data)
+        response = client.patch(
+            "/api/v1/infrastructure/resources/non-existent-id", json=update_data
+        )
         assert response.status_code == 404
 
     def test_update_resource_validation_error(self, client):
@@ -401,12 +401,10 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
-        update_data = {
-            "cpu_cores": 0  # Below minimum
-        }
+        update_data = {"cpu_cores": 0}  # Below minimum
 
         response = client.patch(f"/api/v1/infrastructure/resources/{resource_id}", json=update_data)
         assert response.status_code == 422
@@ -426,12 +424,10 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
-        update_data = {
-            "status": "stopped"
-        }
+        update_data = {"status": "stopped"}
 
         response = client.patch(f"/api/v1/infrastructure/resources/{resource_id}", json=update_data)
         assert response.status_code == 200
@@ -454,7 +450,7 @@ class TestInfrastructureResourceEndpoints:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.delete(f"/api/v1/infrastructure/resources/{resource_id}")
@@ -472,8 +468,8 @@ class TestInfrastructureResourceEndpoints:
 class TestInfrastructureTopologyEndpoints:
     """Test infrastructure topology endpoints"""
 
-    @patch('core.service_discovery_manager.get_service_discovery_manager')
-    @patch('core.service_mesh_manager.get_service_mesh_manager')
+    @patch("core.service_discovery_manager.get_service_discovery_manager")
+    @patch("core.service_mesh_manager.get_service_mesh_manager")
     def test_get_topology_success(self, mock_get_mesh, mock_get_discovery, client):
         """Test GET /topology - successful retrieval"""
         mock_get_discovery.return_value = Mock()
@@ -488,8 +484,8 @@ class TestInfrastructureTopologyEndpoints:
         assert isinstance(data["nodes"], list)
         assert isinstance(data["edges"], list)
 
-    @patch('core.service_discovery_manager.get_service_discovery_manager')
-    @patch('core.service_mesh_manager.get_service_mesh_manager')
+    @patch("core.service_discovery_manager.get_service_discovery_manager")
+    @patch("core.service_mesh_manager.get_service_mesh_manager")
     def test_get_topology_manager_error(self, mock_get_mesh, mock_get_discovery, client):
         """Test GET /topology when managers raise an error"""
         mock_get_discovery.side_effect = Exception("Discovery error")
@@ -505,8 +501,8 @@ class TestInfrastructureTopologyEndpoints:
 class TestInfrastructureHealthEndpoints:
     """Test infrastructure health endpoints"""
 
-    @patch('core.monitoring_infrastructure.get_monitoring_infrastructure')
-    @patch('core.service_monitoring_manager.get_service_monitoring_manager')
+    @patch("core.monitoring_infrastructure.get_monitoring_infrastructure")
+    @patch("core.service_monitoring_manager.get_service_monitoring_manager")
     def test_get_health_success(self, mock_get_service, mock_get_monitoring, client):
         """Test GET /health - successful retrieval"""
         mock_monitoring = Mock()
@@ -523,8 +519,8 @@ class TestInfrastructureHealthEndpoints:
         assert "last_updated" in data
         assert isinstance(data["components"], list)
 
-    @patch('core.monitoring_infrastructure.get_monitoring_infrastructure')
-    @patch('core.service_monitoring_manager.get_service_monitoring_manager')
+    @patch("core.monitoring_infrastructure.get_monitoring_infrastructure")
+    @patch("core.service_monitoring_manager.get_service_monitoring_manager")
     def test_get_health_manager_error(self, mock_get_service, mock_get_monitoring, client):
         """Test GET /health when managers raise an error"""
         mock_get_monitoring.side_effect = Exception("Monitoring error")
@@ -540,7 +536,7 @@ class TestInfrastructureHealthEndpoints:
 class TestInfrastructureCapacityEndpoints:
     """Test infrastructure capacity endpoints"""
 
-    @patch('core.system_resource_optimizer.get_system_resource_optimizer')
+    @patch("core.system_resource_optimizer.get_system_resource_optimizer")
     def test_get_capacity_success(self, mock_get_optimizer, client):
         """Test GET /capacity - successful retrieval"""
         mock_get_optimizer.return_value = Mock()
@@ -555,7 +551,7 @@ class TestInfrastructureCapacityEndpoints:
         assert isinstance(data["capacity_metrics"], list)
         assert isinstance(data["recommendations"], list)
 
-    @patch('core.system_resource_optimizer.get_system_resource_optimizer')
+    @patch("core.system_resource_optimizer.get_system_resource_optimizer")
     def test_get_capacity_manager_error(self, mock_get_optimizer, client):
         """Test GET /capacity when manager raises an error"""
         mock_get_optimizer.side_effect = Exception("Optimizer error")
@@ -581,12 +577,9 @@ class TestInfrastructureProvisioningEndpoints:
                 "instance_type": "t3.large",
                 "cpu_cores": 2,
                 "memory_gb": 8,
-                "disk_gb": 50
+                "disk_gb": 50,
             },
-            "configuration": {
-                "security_groups": ["web-sg"],
-                "subnet": "public-subnet-1"
-            }
+            "configuration": {"security_groups": ["web-sg"], "subnet": "public-subnet-1"},
         }
 
         response = client.post("/api/v1/infrastructure/provisioning", json=request_data)
@@ -604,11 +597,7 @@ class TestInfrastructureProvisioningEndpoints:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "specification": {
-                "cpu_cores": 2,
-                "memory_gb": 4,
-                "disk_gb": 20
-            }
+            "specification": {"cpu_cores": 2, "memory_gb": 4, "disk_gb": 20},
         }
 
         response = client.post("/api/v1/infrastructure/provisioning", json=request_data)
@@ -632,11 +621,7 @@ class TestInfrastructureProvisioningEndpoints:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "specification": {
-                "cpu_cores": 4,
-                "memory_gb": 8,
-                "disk_gb": 100
-            }
+            "specification": {"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100},
         }
 
         response = client.post("/api/v1/infrastructure/provisioning", json=request_data)
@@ -667,7 +652,7 @@ class TestInfrastructureRouterErrorHandling:
         response = client.post(
             "/api/v1/infrastructure/resources",
             data="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 422
 
@@ -683,7 +668,7 @@ class TestInfrastructureRouterDataValidation:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "cpu_cores": "not_an_integer"  # Should be integer
+            "cpu_cores": "not_an_integer",  # Should be integer
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -704,13 +689,11 @@ class TestInfrastructureRouterDataValidation:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         # Test with invalid cpu_cores
-        update_data = {
-            "cpu_cores": 200  # Above maximum
-        }
+        update_data = {"cpu_cores": 200}  # Above maximum
 
         response = client.patch(f"/api/v1/infrastructure/resources/{resource_id}", json=update_data)
         assert response.status_code == 422
@@ -722,7 +705,7 @@ class TestInfrastructureRouterDataValidation:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "specification": "invalid"  # Should be a dict
+            "specification": "invalid",  # Should be a dict
         }
 
         response = client.post("/api/v1/infrastructure/provisioning", json=request_data)
@@ -747,7 +730,7 @@ class TestInfrastructureRouterResponseModels:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/infrastructure/resources")
@@ -755,17 +738,28 @@ class TestInfrastructureRouterResponseModels:
         data = response.json()
         if len(data) > 0:
             required_fields = [
-                "resource_id", "name", "resource_type", "provider", "region",
-                "status", "cpu_cores", "memory_gb", "disk_gb", "tags",
-                "created_at", "updated_at"
+                "resource_id",
+                "name",
+                "resource_type",
+                "provider",
+                "region",
+                "status",
+                "cpu_cores",
+                "memory_gb",
+                "disk_gb",
+                "tags",
+                "created_at",
+                "updated_at",
             ]
             for field in required_fields:
                 assert field in data[0]
 
     def test_topology_response_structure(self, client):
         """Test topology response has correct structure"""
-        with patch('core.service_discovery_manager.get_service_discovery_manager'), \
-             patch('core.service_mesh_manager.get_service_mesh_manager'):
+        with (
+            patch("core.service_discovery_manager.get_service_discovery_manager"),
+            patch("core.service_mesh_manager.get_service_mesh_manager"),
+        ):
             response = client.get("/api/v1/infrastructure/topology")
             assert response.status_code == 200
             data = response.json()
@@ -775,8 +769,12 @@ class TestInfrastructureRouterResponseModels:
 
     def test_health_response_structure(self, client):
         """Test health response has correct structure"""
-        with patch('core.monitoring_infrastructure.get_monitoring_infrastructure') as mock_get_monitoring, \
-             patch('core.service_monitoring_manager.get_service_monitoring_manager'):
+        with (
+            patch(
+                "core.monitoring_infrastructure.get_monitoring_infrastructure"
+            ) as mock_get_monitoring,
+            patch("core.service_monitoring_manager.get_service_monitoring_manager"),
+        ):
             mock_monitoring = Mock()
             mock_monitoring.get_monitoring_status.return_value = "healthy"
             mock_get_monitoring.return_value = mock_monitoring
@@ -784,17 +782,27 @@ class TestInfrastructureRouterResponseModels:
             response = client.get("/api/v1/infrastructure/health")
             assert response.status_code == 200
             data = response.json()
-            required_fields = ["overall_status", "overall_health_score", "components", "last_updated"]
+            required_fields = [
+                "overall_status",
+                "overall_health_score",
+                "components",
+                "last_updated",
+            ]
             for field in required_fields:
                 assert field in data
 
     def test_capacity_response_structure(self, client):
         """Test capacity response has correct structure"""
-        with patch('core.system_resource_optimizer.get_system_resource_optimizer'):
+        with patch("core.system_resource_optimizer.get_system_resource_optimizer"):
             response = client.get("/api/v1/infrastructure/capacity")
             assert response.status_code == 200
             data = response.json()
-            required_fields = ["total_resources", "capacity_metrics", "recommendations", "last_updated"]
+            required_fields = [
+                "total_resources",
+                "capacity_metrics",
+                "recommendations",
+                "last_updated",
+            ]
             for field in required_fields:
                 assert field in data
 
@@ -805,19 +813,19 @@ class TestInfrastructureRouterResponseModels:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "specification": {
-                "cpu_cores": 2,
-                "memory_gb": 4,
-                "disk_gb": 20
-            }
+            "specification": {"cpu_cores": 2, "memory_gb": 4, "disk_gb": 20},
         }
 
         response = client.post("/api/v1/infrastructure/provisioning", json=request_data)
         assert response.status_code == 200
         data = response.json()
         required_fields = [
-            "provisioning_id", "resource_id", "status",
-            "estimated_completion_time", "progress", "logs"
+            "provisioning_id",
+            "resource_id",
+            "status",
+            "estimated_completion_time",
+            "progress",
+            "logs",
         ]
         for field in required_fields:
             assert field in data
@@ -833,7 +841,7 @@ class TestInfrastructureRouterEdgeCases:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "cpu_cores": 128  # Maximum
+            "cpu_cores": 128,  # Maximum
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -848,7 +856,7 @@ class TestInfrastructureRouterEdgeCases:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "memory_gb": 512  # Maximum
+            "memory_gb": 512,  # Maximum
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -863,7 +871,7 @@ class TestInfrastructureRouterEdgeCases:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "disk_gb": 10000  # Maximum
+            "disk_gb": 10000,  # Maximum
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -878,7 +886,7 @@ class TestInfrastructureRouterEdgeCases:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "cpu_cores": 1  # Minimum
+            "cpu_cores": 1,  # Minimum
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -893,7 +901,7 @@ class TestInfrastructureRouterEdgeCases:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "memory_gb": 1  # Minimum
+            "memory_gb": 1,  # Minimum
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -908,7 +916,7 @@ class TestInfrastructureRouterEdgeCases:
             "resource_type": "virtual_machine",
             "provider": "aws",
             "region": "us-east-1",
-            "disk_gb": 10  # Minimum
+            "disk_gb": 10,  # Minimum
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
@@ -930,7 +938,7 @@ class TestInfrastructureRouterEdgeCases:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         _resources["res-2"] = {
             "resource_id": "res-2",
@@ -944,7 +952,7 @@ class TestInfrastructureRouterEdgeCases:
             "disk_gb": 100,
             "tags": {},
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get(

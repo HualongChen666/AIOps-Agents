@@ -20,15 +20,14 @@ All endpoints integrate with core business logic from:
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Path, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Query, Request
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from core.topology_engine import (
     get_full_link_topology,
-    get_topology_status,
     update_node_health,
 )
 
@@ -58,16 +57,22 @@ _visualization_configs: Dict[str, Dict[str, Any]] = {}
 
 class NodeCreate(BaseModel):
     """Model for creating a topology node"""
+
     id: str = Field(..., min_length=1, max_length=100, description="Node unique identifier")
     name: str = Field(..., min_length=1, max_length=100, description="Node display name")
-    type: str = Field(default="service", description="Node type: service, database, cache, queue, gateway")
+    type: str = Field(
+        default="service", description="Node type: service, database, cache, queue, gateway"
+    )
     status: str = Field(default="healthy", description="Node status: healthy, warning, critical")
-    layer: str = Field(default="application", description="Layer: application, infrastructure, network")
+    layer: str = Field(
+        default="application", description="Layer: application, infrastructure, network"
+    )
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional node metadata")
 
 
 class NodeUpdate(BaseModel):
     """Model for updating a topology node"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     type: Optional[str] = None
     status: Optional[str] = None
@@ -77,6 +82,7 @@ class NodeUpdate(BaseModel):
 
 class EdgeCreate(BaseModel):
     """Model for creating a topology edge"""
+
     id: str = Field(..., min_length=1, max_length=100, description="Edge unique identifier")
     source: str = Field(..., description="Source node ID")
     target: str = Field(..., description="Target node ID")
@@ -87,6 +93,7 @@ class EdgeCreate(BaseModel):
 
 class EdgeUpdate(BaseModel):
     """Model for updating a topology edge"""
+
     source: Optional[str] = None
     target: Optional[str] = None
     type: Optional[str] = None
@@ -96,6 +103,7 @@ class EdgeUpdate(BaseModel):
 
 class LayerCreate(BaseModel):
     """Model for creating a topology layer"""
+
     id: str = Field(..., min_length=1, max_length=100, description="Layer unique identifier")
     name: str = Field(..., min_length=1, max_length=100, description="Layer display name")
     level: int = Field(default=0, ge=0, description="Layer level/depth")
@@ -105,6 +113,7 @@ class LayerCreate(BaseModel):
 
 class DependencyCreate(BaseModel):
     """Model for creating a dependency relationship"""
+
     id: str = Field(..., min_length=1, max_length=100, description="Dependency unique identifier")
     source: str = Field(..., description="Source service/node")
     target: str = Field(..., description="Target service/node")
@@ -115,6 +124,7 @@ class DependencyCreate(BaseModel):
 
 class VisualizationConfigCreate(BaseModel):
     """Model for creating visualization configuration"""
+
     name: str = Field(..., min_length=1, max_length=100, description="Configuration name")
     node_color: str = Field(default="#3b82f6", description="Default node color")
     edge_color: str = Field(default="#94a3b8", description="Default edge color")
@@ -126,6 +136,7 @@ class VisualizationConfigCreate(BaseModel):
 
 class VisualizationConfigUpdate(BaseModel):
     """Model for updating visualization configuration"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     node_color: Optional[str] = None
     edge_color: Optional[str] = None
@@ -158,7 +169,7 @@ def _get_current_timestamp() -> str:
 @router.get("/graph", summary="Get topology graph")
 async def get_topology_graph(
     layer: Optional[str] = Query(None, description="Filter by layer"),
-    status: Optional[str] = Query(None, description="Filter by status")
+    status: Optional[str] = Query(None, description="Filter by status"),
 ) -> Dict[str, Any]:
     """
     Retrieve the complete topology graph with nodes and edges
@@ -170,17 +181,19 @@ async def get_topology_graph(
             real_topology = get_full_link_topology()
             nodes = real_topology.get("nodes", [])
             edges = real_topology.get("edges", [])
-            
+
             # Apply filters
             if layer:
                 nodes = [n for n in nodes if n.get("layer") == layer]
             if status:
                 nodes = [n for n in nodes if n.get("status") == status]
-            
+
             # Filter edges to only include filtered nodes
             node_ids = {n.get("id") for n in nodes}
-            edges = [e for e in edges if e.get("source") in node_ids and e.get("target") in node_ids]
-            
+            edges = [
+                e for e in edges if e.get("source") in node_ids and e.get("target") in node_ids
+            ]
+
             return {
                 "nodes": nodes,
                 "edges": edges,
@@ -193,7 +206,7 @@ async def get_topology_graph(
             }
         except Exception as e:
             logger.warning(f"Failed to get real topology, using in-memory store: {e}")
-            
+
             # Fallback to in-memory store
         items = list(_topology_graphs.values())
         if not items:
@@ -204,19 +217,19 @@ async def get_topology_graph(
                 "stats": {"total_nodes": 0, "total_edges": 0, "layers": []},
                 "updated_at": _get_current_timestamp(),
             }
-        
+
         graph = items[0] if items else {"nodes": [], "edges": []}
         nodes = graph.get("nodes", [])
         edges = graph.get("edges", [])
-        
+
         if layer:
             nodes = [n for n in nodes if n.get("layer") == layer]
         if status:
             nodes = [n for n in nodes if n.get("status") == status]
-        
+
         node_ids = {n.get("id") for n in nodes}
         edges = [e for e in edges if e.get("source") in node_ids and e.get("target") in node_ids]
-        
+
         return {
             "nodes": nodes,
             "edges": edges,
@@ -233,10 +246,7 @@ async def get_topology_graph(
 
 
 @router.post("/graph", summary="Create topology graph")
-async def create_topology_graph(
-    graph: Dict[str, Any],
-    request: Request
-) -> Dict[str, Any]:
+async def create_topology_graph(graph: Dict[str, Any], request: Request) -> Dict[str, Any]:
     """
     Create a new topology graph
     """
@@ -244,7 +254,7 @@ async def create_topology_graph(
     try:
         graph_id = _generate_id()
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_graph = {
             "id": graph_id,
             "nodes": graph.get("nodes", []),
@@ -253,7 +263,7 @@ async def create_topology_graph(
             "created_by": operator_ip,
             "updated_at": _get_current_timestamp(),
         }
-        
+
         _topology_graphs[graph_id] = new_graph
         logger.info(f"Topology graph created: {graph_id}")
         return new_graph
@@ -271,7 +281,7 @@ async def create_topology_graph(
 async def get_nodes(
     layer: Optional[str] = Query(None, description="Filter by layer"),
     status: Optional[str] = Query(None, description="Filter by status"),
-    type: Optional[str] = Query(None, description="Filter by type")
+    type: Optional[str] = Query(None, description="Filter by type"),
 ) -> Dict[str, Any]:
     """
     Retrieve all topology nodes with optional filtering
@@ -279,14 +289,14 @@ async def get_nodes(
     logger.info("Fetching topology nodes")
     try:
         items = list(_topology_nodes.values())
-        
+
         if layer:
             items = [item for item in items if item.get("layer") == layer]
         if status:
             items = [item for item in items if item.get("status") == status]
         if type:
             items = [item for item in items if item.get("type") == type]
-        
+
         return {"items": items, "total": len(items)}
     except Exception as e:
         logger.error(f"Failed to fetch nodes: {e}", exc_info=True)
@@ -294,10 +304,7 @@ async def get_nodes(
 
 
 @router.post("/nodes", summary="Create topology node")
-async def create_node(
-    node: NodeCreate,
-    request: Request
-) -> Dict[str, Any]:
+async def create_node(node: NodeCreate, request: Request) -> Dict[str, Any]:
     """
     Create a new topology node
     """
@@ -305,9 +312,9 @@ async def create_node(
     try:
         if node.id in _topology_nodes:
             raise HTTPException(status_code=409, detail="Node ID already exists")
-        
+
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_node = {
             "id": node.id,
             "name": node.name,
@@ -319,7 +326,7 @@ async def create_node(
             "created_by": operator_ip,
             "updated_at": _get_current_timestamp(),
         }
-        
+
         _topology_nodes[node.id] = new_node
         logger.info(f"Node created: {node.id}")
         return new_node
@@ -339,7 +346,7 @@ async def get_node(node_id: str = Path(..., description="Node ID")) -> Dict[str,
     try:
         if node_id not in _topology_nodes:
             raise HTTPException(status_code=404, detail="Node not found")
-        
+
         return _topology_nodes[node_id]
     except HTTPException:
         raise
@@ -349,11 +356,7 @@ async def get_node(node_id: str = Path(..., description="Node ID")) -> Dict[str,
 
 
 @router.patch("/nodes/{node_id}", summary="Update node")
-async def update_node(
-    node_id: str,
-    node_update: NodeUpdate,
-    request: Request
-) -> Dict[str, Any]:
+async def update_node(node_id: str, node_update: NodeUpdate, request: Request) -> Dict[str, Any]:
     """
     Update an existing node
     """
@@ -361,24 +364,24 @@ async def update_node(
     try:
         if node_id not in _topology_nodes:
             raise HTTPException(status_code=404, detail="Node not found")
-        
+
         operator_ip = request.client.host if request.client else "unknown"
         existing = _topology_nodes[node_id]
-        
+
         # Update fields
         update_data = node_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             existing[key] = value
-        
+
         existing["updated_at"] = _get_current_timestamp()
         existing["updated_by"] = operator_ip
-        
+
         # Sync with core topology engine
         try:
             update_node_health(node_id, existing.get("status", "healthy"))
         except Exception as e:
             logger.warning(f"Failed to sync node health with core engine: {e}")
-        
+
         logger.info(f"Node updated: {node_id}")
         return existing
     except HTTPException:
@@ -397,7 +400,7 @@ async def delete_node(node_id: str) -> Dict[str, Any]:
     try:
         if node_id not in _topology_nodes:
             raise HTTPException(status_code=404, detail="Node not found")
-        
+
         del _topology_nodes[node_id]
         logger.info(f"Node deleted: {node_id}")
         return {"message": "Node deleted successfully", "id": node_id}
@@ -417,7 +420,7 @@ async def delete_node(node_id: str) -> Dict[str, Any]:
 async def get_edges(
     source: Optional[str] = Query(None, description="Filter by source node"),
     target: Optional[str] = Query(None, description="Filter by target node"),
-    type: Optional[str] = Query(None, description="Filter by edge type")
+    type: Optional[str] = Query(None, description="Filter by edge type"),
 ) -> Dict[str, Any]:
     """
     Retrieve all topology edges with optional filtering
@@ -425,14 +428,14 @@ async def get_edges(
     logger.info("Fetching topology edges")
     try:
         items = list(_topology_edges.values())
-        
+
         if source:
             items = [item for item in items if item.get("source") == source]
         if target:
             items = [item for item in items if item.get("target") == target]
         if type:
             items = [item for item in items if item.get("type") == type]
-        
+
         return {"items": items, "total": len(items)}
     except Exception as e:
         logger.error(f"Failed to fetch edges: {e}", exc_info=True)
@@ -440,10 +443,7 @@ async def get_edges(
 
 
 @router.post("/edges", summary="Create topology edge")
-async def create_edge(
-    edge: EdgeCreate,
-    request: Request
-) -> Dict[str, Any]:
+async def create_edge(edge: EdgeCreate, request: Request) -> Dict[str, Any]:
     """
     Create a new topology edge
     """
@@ -451,15 +451,15 @@ async def create_edge(
     try:
         if edge.id in _topology_edges:
             raise HTTPException(status_code=409, detail="Edge ID already exists")
-        
+
         # Validate source and target nodes exist
         if edge.source not in _topology_nodes:
             raise HTTPException(status_code=422, detail=f"Source node {edge.source} not found")
         if edge.target not in _topology_nodes:
             raise HTTPException(status_code=422, detail=f"Target node {edge.target} not found")
-        
+
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_edge = {
             "id": edge.id,
             "source": edge.source,
@@ -471,7 +471,7 @@ async def create_edge(
             "created_by": operator_ip,
             "updated_at": _get_current_timestamp(),
         }
-        
+
         _topology_edges[edge.id] = new_edge
         logger.info(f"Edge created: {edge.id}")
         return new_edge
@@ -491,7 +491,7 @@ async def get_edge(edge_id: str = Path(..., description="Edge ID")) -> Dict[str,
     try:
         if edge_id not in _topology_edges:
             raise HTTPException(status_code=404, detail="Edge not found")
-        
+
         return _topology_edges[edge_id]
     except HTTPException:
         raise
@@ -501,11 +501,7 @@ async def get_edge(edge_id: str = Path(..., description="Edge ID")) -> Dict[str,
 
 
 @router.patch("/edges/{edge_id}", summary="Update edge")
-async def update_edge(
-    edge_id: str,
-    edge_update: EdgeUpdate,
-    request: Request
-) -> Dict[str, Any]:
+async def update_edge(edge_id: str, edge_update: EdgeUpdate, request: Request) -> Dict[str, Any]:
     """
     Update an existing edge
     """
@@ -513,18 +509,18 @@ async def update_edge(
     try:
         if edge_id not in _topology_edges:
             raise HTTPException(status_code=404, detail="Edge not found")
-        
+
         operator_ip = request.client.host if request.client else "unknown"
         existing = _topology_edges[edge_id]
-        
+
         # Update fields
         update_data = edge_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             existing[key] = value
-        
+
         existing["updated_at"] = _get_current_timestamp()
         existing["updated_by"] = operator_ip
-        
+
         logger.info(f"Edge updated: {edge_id}")
         return existing
     except HTTPException:
@@ -543,7 +539,7 @@ async def delete_edge(edge_id: str) -> Dict[str, Any]:
     try:
         if edge_id not in _topology_edges:
             raise HTTPException(status_code=404, detail="Edge not found")
-        
+
         del _topology_edges[edge_id]
         logger.info(f"Edge deleted: {edge_id}")
         return {"message": "Edge deleted successfully", "id": edge_id}
@@ -576,10 +572,7 @@ async def get_layers() -> Dict[str, Any]:
 
 
 @router.post("/layers", summary="Create topology layer")
-async def create_layer(
-    layer: LayerCreate,
-    request: Request
-) -> Dict[str, Any]:
+async def create_layer(layer: LayerCreate, request: Request) -> Dict[str, Any]:
     """
     Create a new topology layer
     """
@@ -587,9 +580,9 @@ async def create_layer(
     try:
         if layer.id in _topology_layers:
             raise HTTPException(status_code=409, detail="Layer ID already exists")
-        
+
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_layer = {
             "id": layer.id,
             "name": layer.name,
@@ -600,7 +593,7 @@ async def create_layer(
             "created_by": operator_ip,
             "updated_at": _get_current_timestamp(),
         }
-        
+
         _topology_layers[layer.id] = new_layer
         logger.info(f"Layer created: {layer.id}")
         return new_layer
@@ -620,7 +613,7 @@ async def get_layer(layer_id: str = Path(..., description="Layer ID")) -> Dict[s
     try:
         if layer_id not in _topology_layers:
             raise HTTPException(status_code=404, detail="Layer not found")
-        
+
         return _topology_layers[layer_id]
     except HTTPException:
         raise
@@ -638,7 +631,7 @@ async def delete_layer(layer_id: str) -> Dict[str, Any]:
     try:
         if layer_id not in _topology_layers:
             raise HTTPException(status_code=404, detail="Layer not found")
-        
+
         del _topology_layers[layer_id]
         logger.info(f"Layer deleted: {layer_id}")
         return {"message": "Layer deleted successfully", "id": layer_id}
@@ -658,7 +651,7 @@ async def delete_layer(layer_id: str) -> Dict[str, Any]:
 async def get_dependencies(
     source: Optional[str] = Query(None, description="Filter by source"),
     target: Optional[str] = Query(None, description="Filter by target"),
-    type: Optional[str] = Query(None, description="Filter by type")
+    type: Optional[str] = Query(None, description="Filter by type"),
 ) -> Dict[str, Any]:
     """
     Retrieve all dependency relationships with optional filtering
@@ -666,14 +659,14 @@ async def get_dependencies(
     logger.info("Fetching dependencies")
     try:
         items = list(_topology_dependencies.values())
-        
+
         if source:
             items = [item for item in items if item.get("source") == source]
         if target:
             items = [item for item in items if item.get("target") == target]
         if type:
             items = [item for item in items if item.get("type") == type]
-        
+
         return {"items": items, "total": len(items)}
     except Exception as e:
         logger.error(f"Failed to fetch dependencies: {e}", exc_info=True)
@@ -681,10 +674,7 @@ async def get_dependencies(
 
 
 @router.post("/dependencies", summary="Create dependency")
-async def create_dependency(
-    dependency: DependencyCreate,
-    request: Request
-) -> Dict[str, Any]:
+async def create_dependency(dependency: DependencyCreate, request: Request) -> Dict[str, Any]:
     """
     Create a new dependency relationship
     """
@@ -692,9 +682,9 @@ async def create_dependency(
     try:
         if dependency.id in _topology_dependencies:
             raise HTTPException(status_code=409, detail="Dependency ID already exists")
-        
+
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_dependency = {
             "id": dependency.id,
             "source": dependency.source,
@@ -706,7 +696,7 @@ async def create_dependency(
             "created_by": operator_ip,
             "updated_at": _get_current_timestamp(),
         }
-        
+
         _topology_dependencies[dependency.id] = new_dependency
         logger.info(f"Dependency created: {dependency.id}")
         return new_dependency
@@ -726,7 +716,7 @@ async def get_dependency(dep_id: str = Path(..., description="Dependency ID")) -
     try:
         if dep_id not in _topology_dependencies:
             raise HTTPException(status_code=404, detail="Dependency not found")
-        
+
         return _topology_dependencies[dep_id]
     except HTTPException:
         raise
@@ -744,7 +734,7 @@ async def delete_dependency(dep_id: str) -> Dict[str, Any]:
     try:
         if dep_id not in _topology_dependencies:
             raise HTTPException(status_code=404, detail="Dependency not found")
-        
+
         del _topology_dependencies[dep_id]
         logger.info(f"Dependency deleted: {dep_id}")
         return {"message": "Dependency deleted successfully", "id": dep_id}
@@ -771,7 +761,7 @@ async def get_visualization_config() -> Dict[str, Any]:
         if _visualization_configs:
             config_id = list(_visualization_configs.keys())[0]
             return _visualization_configs[config_id]
-        
+
         # Return default configuration
         return {
             "id": "default",
@@ -785,13 +775,14 @@ async def get_visualization_config() -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Failed to fetch visualization config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch visualization config: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch visualization config: {str(e)}"
+        )
 
 
 @router.post("/visualization", summary="Create visualization configuration")
 async def create_visualization_config(
-    config: VisualizationConfigCreate,
-    request: Request
+    config: VisualizationConfigCreate, request: Request
 ) -> Dict[str, Any]:
     """
     Create a new visualization configuration
@@ -800,7 +791,7 @@ async def create_visualization_config(
     try:
         config_id = _generate_id()
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_config = {
             "id": config_id,
             "name": config.name,
@@ -814,20 +805,20 @@ async def create_visualization_config(
             "created_by": operator_ip,
             "updated_at": _get_current_timestamp(),
         }
-        
+
         _visualization_configs[config_id] = new_config
         logger.info(f"Visualization config created: {config_id}")
         return new_config
     except Exception as e:
         logger.error(f"Failed to create visualization config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create visualization config: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create visualization config: {str(e)}"
+        )
 
 
 @router.put("/visualization/{config_id}", summary="Update visualization configuration")
 async def update_visualization_config(
-    config_id: str,
-    config_update: VisualizationConfigUpdate,
-    request: Request
+    config_id: str, config_update: VisualizationConfigUpdate, request: Request
 ) -> Dict[str, Any]:
     """
     Update an existing visualization configuration
@@ -836,25 +827,27 @@ async def update_visualization_config(
     try:
         if config_id not in _visualization_configs:
             raise HTTPException(status_code=404, detail="Configuration not found")
-        
+
         operator_ip = request.client.host if request.client else "unknown"
         existing = _visualization_configs[config_id]
-        
+
         # Update fields
         update_data = config_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             existing[key] = value
-        
+
         existing["updated_at"] = _get_current_timestamp()
         existing["updated_by"] = operator_ip
-        
+
         logger.info(f"Visualization config updated: {config_id}")
         return existing
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to update visualization config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to update visualization config: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update visualization config: {str(e)}"
+        )
 
 
 @router.delete("/visualization/{config_id}", summary="Delete visualization configuration")
@@ -866,7 +859,7 @@ async def delete_visualization_config(config_id: str) -> Dict[str, Any]:
     try:
         if config_id not in _visualization_configs:
             raise HTTPException(status_code=404, detail="Configuration not found")
-        
+
         del _visualization_configs[config_id]
         logger.info(f"Visualization config deleted: {config_id}")
         return {"message": "Configuration deleted successfully", "id": config_id}
@@ -874,7 +867,9 @@ async def delete_visualization_config(config_id: str) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Failed to delete visualization config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to delete visualization config: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete visualization config: {str(e)}"
+        )
 
 
 # ============================================================
@@ -890,8 +885,7 @@ async def get_visualization_config_alt() -> Dict[str, Any]:
 
 @router_alt.put("/visualization", summary="Update visualization configuration (alt)")
 async def update_visualization_config_alt(
-    config: VisualizationConfigUpdate,
-    request: Request
+    config: VisualizationConfigUpdate, request: Request
 ) -> Dict[str, Any]:
     """Alternative endpoint for frontend compatibility"""
     # Get or create default config
@@ -912,7 +906,7 @@ async def update_visualization_config_alt(
             "created_by": request.client.host if request.client else "unknown",
             "updated_at": _get_current_timestamp(),
         }
-    
+
     return await update_visualization_config(config_id, config, request)
 
 
@@ -929,15 +923,12 @@ async def get_dependencies_alt() -> Dict[str, Any]:
 
 
 @router_alt.post("/dependency-modeling", summary="Create dependency (alt)")
-async def create_dependency_alt(
-    dependency: DependencyCreate,
-    request: Request
-) -> Dict[str, Any]:
+async def create_dependency_alt(dependency: DependencyCreate, request: Request) -> Dict[str, Any]:
     """Alternative endpoint for frontend compatibility"""
     # Generate ID if not provided
-    if not hasattr(dependency, 'id') or not dependency.id:
+    if not hasattr(dependency, "id") or not dependency.id:
         dependency_dict = dependency.model_dump()
-        dependency_dict['id'] = _generate_id()
+        dependency_dict["id"] = _generate_id()
         dependency = DependencyCreate(**dependency_dict)
     return await create_dependency(dependency, request)
 
@@ -969,7 +960,9 @@ async def get_service_discovery_alt() -> Dict[str, Any]:
         return {"services": services}
     except Exception as e:
         logger.error(f"Failed to fetch discovered services: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch discovered services: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch discovered services: {str(e)}"
+        )
 
 
 @router_alt.post("/service-discovery/scan", summary="Scan for services (alt)")
@@ -979,8 +972,9 @@ async def scan_services_alt() -> Dict[str, Any]:
     try:
         # Simulate scan delay
         import asyncio
+
         await asyncio.sleep(1)
-        
+
         # Return success
         return {
             "message": "Service scan completed",
@@ -1010,20 +1004,19 @@ async def get_service_registration_alt() -> Dict[str, Any]:
         return {"services": services}
     except Exception as e:
         logger.error(f"Failed to fetch registered services: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch registered services: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch registered services: {str(e)}"
+        )
 
 
 @router_alt.post("/service-registration", summary="Register service (alt)")
-async def register_service_alt(
-    service: Dict[str, Any],
-    request: Request
-) -> Dict[str, Any]:
+async def register_service_alt(service: Dict[str, Any], request: Request) -> Dict[str, Any]:
     """Register a new service"""
     logger.info(f"Registering service: {service.get('name')}")
     try:
         service_id = _generate_id()
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_service = {
             "id": service_id,
             "name": service.get("name"),
@@ -1038,7 +1031,7 @@ async def register_service_alt(
             "created_by": operator_ip,
             "updated_at": _get_current_timestamp(),
         }
-        
+
         _topology_nodes[service_id] = new_service
         logger.info(f"Service registered: {service_id}")
         return new_service
@@ -1054,7 +1047,7 @@ async def deregister_service_alt(service_id: str) -> Dict[str, Any]:
     try:
         if service_id not in _topology_nodes:
             raise HTTPException(status_code=404, detail="Service not found")
-        
+
         del _topology_nodes[service_id]
         logger.info(f"Service deregistered: {service_id}")
         return {"message": "Service deregistered successfully", "id": service_id}
@@ -1079,7 +1072,7 @@ async def get_causal_graph_alt() -> Dict[str, Any]:
             }
             for node_id, node in _topology_nodes.items()
         ]
-        
+
         edges = [
             {
                 "source": dep.get("source"),
@@ -1089,14 +1082,15 @@ async def get_causal_graph_alt() -> Dict[str, Any]:
             }
             for dep in _topology_dependencies.values()
         ]
-        
+
         return {
             "nodes": nodes,
             "edges": edges,
             "metrics": {
                 "total_nodes": len(nodes),
                 "total_edges": len(edges),
-                "avg_causal_strength": sum(e.get("causal_strength", 1.0) for e in edges) / max(len(edges), 1),
+                "avg_causal_strength": sum(e.get("causal_strength", 1.0) for e in edges)
+                / max(len(edges), 1),
             },
         }
     except Exception as e:
@@ -1105,14 +1099,12 @@ async def get_causal_graph_alt() -> Dict[str, Any]:
 
 
 @router_alt.post("/causal-inference", summary="Perform causal inference (alt)")
-async def causal_inference_alt(
-    request_data: Dict[str, Any]
-) -> Dict[str, Any]:
+async def causal_inference_alt(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """Perform causal inference on an event"""
     logger.info(f"Performing causal inference for event: {request_data.get('event')}")
     try:
         event = request_data.get("event", "")
-        
+
         # Simulate causal inference
         results = [
             {
@@ -1123,7 +1115,7 @@ async def causal_inference_alt(
             }
             for dep in list(_topology_dependencies.values())[:5]
         ]
-        
+
         return {
             "event": event,
             "results": results,
@@ -1135,15 +1127,13 @@ async def causal_inference_alt(
 
 
 @router_alt.post("/causal-prediction", summary="Perform causal prediction (alt)")
-async def causal_prediction_alt(
-    request_data: Dict[str, Any]
-) -> Dict[str, Any]:
+async def causal_prediction_alt(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """Perform causal prediction"""
     logger.info(f"Performing causal prediction for event: {request_data.get('event')}")
     try:
         event = request_data.get("event", "")
         time_horizon = request_data.get("time_horizon", 24)
-        
+
         # Simulate prediction
         predictions = [
             {
@@ -1154,7 +1144,7 @@ async def causal_prediction_alt(
             }
             for node in list(_topology_nodes.values())[:5]
         ]
-        
+
         return {
             "event": event,
             "time_horizon": time_horizon,
@@ -1163,7 +1153,9 @@ async def causal_prediction_alt(
         }
     except Exception as e:
         logger.error(f"Failed to perform causal prediction: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to perform causal prediction: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to perform causal prediction: {str(e)}"
+        )
 
 
 @router_alt.get("/call-chain-analysis", summary="Get call chains (alt)")
@@ -1183,7 +1175,7 @@ async def get_call_chains_alt() -> Dict[str, Any]:
                 "success_rate": 0.9 + (hash(dep.get("source")) % 10) / 100.0,
             }
             chains.append(chain)
-        
+
         return {"chains": chains}
     except Exception as e:
         logger.error(f"Failed to fetch call chains: {e}", exc_info=True)
@@ -1191,14 +1183,12 @@ async def get_call_chains_alt() -> Dict[str, Any]:
 
 
 @router_alt.post("/call-chain-analysis/analyze", summary="Analyze call chain (alt)")
-async def analyze_call_chain_alt(
-    request_data: Dict[str, Any]
-) -> Dict[str, Any]:
+async def analyze_call_chain_alt(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """Analyze a specific call chain"""
     logger.info(f"Analyzing call chain for trace: {request_data.get('trace_id')}")
     try:
         trace_id = request_data.get("trace_id", "")
-        
+
         # Simulate analysis
         chain = {
             "id": trace_id,
@@ -1210,7 +1200,7 @@ async def analyze_call_chain_alt(
             "bottlenecks": ["service-c", "database"],
             "optimization_suggestions": ["Add caching", "Optimize query"],
         }
-        
+
         return chain
     except Exception as e:
         logger.error(f"Failed to analyze call chain: {e}", exc_info=True)
@@ -1218,15 +1208,13 @@ async def analyze_call_chain_alt(
 
 
 @router_alt.post("/call-chain-search", summary="Search call chains (alt)")
-async def search_call_chains_alt(
-    criteria: Dict[str, Any]
-) -> Dict[str, Any]:
+async def search_call_chains_alt(criteria: Dict[str, Any]) -> Dict[str, Any]:
     """Search call chains by criteria"""
     logger.info(f"Searching call chains with criteria: {criteria}")
     try:
         source = criteria.get("source")
         target = criteria.get("target")
-        
+
         # Filter dependencies
         results = [
             {
@@ -1239,7 +1227,7 @@ async def search_call_chains_alt(
             if (not source or dep.get("source") == source)
             and (not target or dep.get("target") == target)
         ]
-        
+
         return {"results": results}
     except Exception as e:
         logger.error(f"Failed to search call chains: {e}", exc_info=True)
@@ -1247,21 +1235,19 @@ async def search_call_chains_alt(
 
 
 @router_alt.post("/impact-analysis", summary="Perform impact analysis (alt)")
-async def impact_analysis_alt(
-    request_data: Dict[str, Any]
-) -> Dict[str, Any]:
+async def impact_analysis_alt(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """Perform impact analysis"""
     logger.info(f"Performing impact analysis for service: {request_data.get('service_id')}")
     try:
         service_id = request_data.get("service_id", "")
-        
+
         # Find downstream services
         downstream = [
             dep.get("target")
             for dep in _topology_dependencies.values()
             if dep.get("source") == service_id
         ]
-        
+
         # Calculate impact
         results = [
             {
@@ -1272,7 +1258,7 @@ async def impact_analysis_alt(
             }
             for service in downstream[:5]
         ]
-        
+
         return {
             "service_id": service_id,
             "results": results,
@@ -1291,7 +1277,7 @@ async def get_topology_view_alt(
     logger.info(f"Fetching topology view with layout: {layout}")
     try:
         graph_data = await get_topology_graph()
-        
+
         return {
             "layout": layout,
             "nodes": graph_data.get("nodes", []),
@@ -1313,7 +1299,7 @@ async def get_topology_status_alt() -> Dict[str, Any]:
     logger.info("Fetching topology status")
     try:
         graph_data = await get_topology_graph()
-        
+
         statuses = [
             {
                 "node_id": node.get("id"),
@@ -1324,7 +1310,7 @@ async def get_topology_status_alt() -> Dict[str, Any]:
             }
             for node in graph_data.get("nodes", [])
         ]
-        
+
         return {"statuses": statuses}
     except Exception as e:
         logger.error(f"Failed to fetch topology status: {e}", exc_info=True)
@@ -1367,20 +1353,19 @@ async def get_topology_management_alt() -> Dict[str, Any]:
         return {"topologies": topologies}
     except Exception as e:
         logger.error(f"Failed to fetch topology management: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch topology management: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch topology management: {str(e)}"
+        )
 
 
 @router_alt.post("/management", summary="Create topology (alt)")
-async def create_topology_alt(
-    topology: Dict[str, Any],
-    request: Request
-) -> Dict[str, Any]:
+async def create_topology_alt(topology: Dict[str, Any], request: Request) -> Dict[str, Any]:
     """Create a new topology"""
     logger.info(f"Creating topology: {topology.get('name')}")
     try:
         topology_id = _generate_id()
         operator_ip = request.client.host if request.client else "unknown"
-        
+
         new_topology = {
             "id": topology_id,
             "name": topology.get("name"),
@@ -1390,7 +1375,7 @@ async def create_topology_alt(
             "created_at": _get_current_timestamp(),
             "created_by": operator_ip,
         }
-        
+
         return new_topology
     except Exception as e:
         logger.error(f"Failed to create topology: {e}", exc_info=True)
@@ -1416,7 +1401,7 @@ async def delete_topology_alt(topology_id: str) -> Dict[str, Any]:
 @router_v1.get("/graph", summary="Get topology graph (V1)")
 async def get_topology_graph_v1(
     layer: Optional[str] = Query(None, description="Filter by layer"),
-    status: Optional[str] = Query(None, description="Filter by status")
+    status: Optional[str] = Query(None, description="Filter by status"),
 ) -> Dict[str, Any]:
     """Retrieve the complete topology graph with nodes and edges"""
     return await get_topology_graph(layer=layer, status=status)
@@ -1426,7 +1411,7 @@ async def get_topology_graph_v1(
 async def get_nodes_v1(
     layer: Optional[str] = Query(None, description="Filter by layer"),
     status: Optional[str] = Query(None, description="Filter by status"),
-    type: Optional[str] = Query(None, description="Filter by type")
+    type: Optional[str] = Query(None, description="Filter by type"),
 ) -> Dict[str, Any]:
     """Retrieve all topology nodes with optional filtering"""
     return await get_nodes(layer=layer, status=status, type=type)
@@ -1436,7 +1421,7 @@ async def get_nodes_v1(
 async def get_edges_v1(
     source: Optional[str] = Query(None, description="Filter by source node"),
     target: Optional[str] = Query(None, description="Filter by target node"),
-    type: Optional[str] = Query(None, description="Filter by edge type")
+    type: Optional[str] = Query(None, description="Filter by edge type"),
 ) -> Dict[str, Any]:
     """Retrieve all topology edges with optional filtering"""
     return await get_edges(source=source, target=target, type=type)
@@ -1452,7 +1437,7 @@ async def get_layers_v1() -> Dict[str, Any]:
 async def get_dependencies_v1(
     source: Optional[str] = Query(None, description="Filter by source"),
     target: Optional[str] = Query(None, description="Filter by target"),
-    type: Optional[str] = Query(None, description="Filter by type")
+    type: Optional[str] = Query(None, description="Filter by type"),
 ) -> Dict[str, Any]:
     """Retrieve all dependency relationships with optional filtering"""
     return await get_dependencies(source=source, target=target, type=type)

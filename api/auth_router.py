@@ -44,6 +44,14 @@ class _ChangePasswordRequest(BaseModel):
 
 
 def _user_dict(user: User) -> _UserOut:
+    """Convert User model to UserOut response model.
+
+    Args:
+        user: User database model instance
+
+    Returns:
+        UserOut: Pydantic model for API response
+    """
     return _UserOut.model_validate(user)
 
 
@@ -51,7 +59,19 @@ def _user_dict(user: User) -> _UserOut:
 def login(
     req: _LoginRequest,
     db: Session = Depends(get_session),
-):
+) -> dict[str, Any]:
+    """Authenticate user and return access token.
+
+    Args:
+        req: Login request containing username and password
+        db: Database session dependency
+
+    Returns:
+        Dictionary containing access token, token type, and user information
+
+    Raises:
+        HTTPException: If username or password is invalid (401)
+    """
     user = db.query(User).filter(User.username == req.username).first()
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(
@@ -70,7 +90,22 @@ def login(
 def register_admin(
     req: _LoginRequest,
     db: Session = Depends(get_session),
-):
+) -> _UserOut:
+    """Register the first admin user (bootstrap operation).
+
+    This endpoint is only allowed when no users exist in the database.
+    It creates an admin user with full system access.
+
+    Args:
+        req: Registration request containing username and password
+        db: Database session dependency
+
+    Returns:
+        UserOut: Created user information
+
+    Raises:
+        HTTPException: If users already exist (400)
+    """
     if db.query(User).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -90,7 +125,15 @@ def register_admin(
 
 
 @router.get("/me", response_model=_UserOut)
-def me(current_user: User = Depends(get_current_user)):
+def me(current_user: User = Depends(get_current_user)) -> _UserOut:
+    """Get current authenticated user information.
+
+    Args:
+        current_user: Current authenticated user dependency
+
+    Returns:
+        UserOut: Current user information
+    """
     return _user_dict(current_user)
 
 
@@ -99,7 +142,20 @@ def change_password(
     req: _ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-):
+) -> dict[str, str]:
+    """Change current user's password.
+
+    Args:
+        req: Password change request containing old and new passwords
+        current_user: Current authenticated user dependency
+        db: Database session dependency
+
+    Returns:
+        Dictionary with success message
+
+    Raises:
+        HTTPException: If old password is incorrect (401)
+    """
     if not verify_password(req.old_password, current_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,7 +172,18 @@ def change_password(
 def logout(
     current_user: User = Depends(get_current_user),
     token: str = Depends(oauth2_scheme),
-):
+) -> dict[str, str]:
+    """Logout current user and invalidate token.
+
+    Adds the token's JTI (JWT ID) to the blacklist to prevent reuse.
+
+    Args:
+        current_user: Current authenticated user dependency
+        token: Bearer token from authorization header
+
+    Returns:
+        Dictionary with success message
+    """
     payload = decode_token(token)
     jti = payload.get("jti")
     exp = payload.get("exp")

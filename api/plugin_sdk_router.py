@@ -217,7 +217,11 @@ async def register_plugin(
         Registration result
     """
     try:
-        from core.plugin_system_manager import PluginMetadata, PluginType, get_plugin_system_manager
+        from core.plugin_system_manager import (
+            PluginMetadata,
+            PluginType,
+            get_plugin_system_manager,
+        )
 
         manager = get_plugin_system_manager()
 

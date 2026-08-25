@@ -100,11 +100,16 @@ async def send_slack_interactive_message(
         result = await post_interactive_message(
             title=request.text, description="", actions=request.actions, channel=request.channel
         )
-        return {"success": True, "message": "Interactive message sent successfully", "data": result}
+        return {
+            "success": True,
+            "message": "Interactive message sent successfully",
+            "data": result,
+        }
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send interactive message: {str(e)}")
+        error_msg = f"Failed to send interactive message: {str(e)}"
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @router.post(

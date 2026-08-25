@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for GraphBuilder module."""
 
-import pytest
 from collections import OrderedDict
+
+import pytest
 
 from extensions.addons.ai_plus.knowledge_graph_service.builder import GraphBuilder
 from extensions.addons.ai_plus.knowledge_graph_service.graph_store import GraphStore
@@ -59,9 +60,7 @@ class TestGraphBuilder:
     @pytest.mark.asyncio
     async def test_build_graph_empty(self, graph_builder):
         """Test building an empty graph."""
-        request = GraphBuildRequest(
-            graph_name="empty-graph", nodes=[], edges=[], source="test"
-        )
+        request = GraphBuildRequest(graph_name="empty-graph", nodes=[], edges=[], source="test")
 
         graph = await graph_builder.build_graph(request)
 
@@ -94,9 +93,7 @@ class TestGraphBuilder:
             GraphNode(node_id="node2", label="Node 2", node_type="entity"),
             GraphNode(node_id="node1", label="Node 1 Duplicate", node_type="entity"),
         ]
-        request = GraphBuildRequest(
-            graph_name="test-graph", nodes=nodes, edges=[], source="test"
-        )
+        request = GraphBuildRequest(graph_name="test-graph", nodes=nodes, edges=[], source="test")
 
         graph = await graph_builder.build_graph(request)
 
@@ -212,8 +209,7 @@ class TestGraphBuilder:
     async def test_build_graph_large_dataset(self, graph_builder):
         """Test building graph with large dataset."""
         nodes = [
-            GraphNode(node_id=f"node{i}", label=f"Node {i}", node_type="entity")
-            for i in range(100)
+            GraphNode(node_id=f"node{i}", label=f"Node {i}", node_type="entity") for i in range(100)
         ]
         edges = [
             GraphEdge(
@@ -238,16 +234,12 @@ class TestGraphBuilder:
         """Test that build_graph clears the store before loading."""
         # First graph
         nodes1 = [GraphNode(node_id="node1", label="Node 1", node_type="entity")]
-        request1 = GraphBuildRequest(
-            graph_name="graph1", nodes=nodes1, edges=[], source="test"
-        )
+        request1 = GraphBuildRequest(graph_name="graph1", nodes=nodes1, edges=[], source="test")
         await graph_builder.build_graph(request1)
 
         # Second graph should clear the first
         nodes2 = [GraphNode(node_id="node2", label="Node 2", node_type="entity")]
-        request2 = GraphBuildRequest(
-            graph_name="graph2", nodes=nodes2, edges=[], source="test"
-        )
+        request2 = GraphBuildRequest(graph_name="graph2", nodes=nodes2, edges=[], source="test")
         await graph_builder.build_graph(request2)
 
         # Check store only has second graph

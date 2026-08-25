@@ -277,20 +277,20 @@ def _get_http_client() -> httpx.AsyncClient:
     """
     global _http_client
     if _http_client is None or _http_client.is_closed:
-        verify_ssl = os.environ.get("NOTIFY_ENGINE_SSL_VERIFY", "False").lower() not in (
-            "false",
-            "0",
-            "no",
-            "",
-        )
+        # Use environment variable to control SSL verification (default: True for security)
+        verify_ssl = os.environ.get("NOTIFY_ENGINE_SSL_VERIFY", "true").lower() == "true"
         _http_client = httpx.AsyncClient(
             timeout=10.0,
             limits=httpx.Limits(
                 max_keepalive_connections=10,
                 max_connections=20,
             ),
-            verify=verify_ssl,  # SSL verification configurable via env; defaults off for dev
+            verify=verify_ssl,  # SSL verification configurable via env; defaults on for security
         )
+        if not verify_ssl:
+            logger.warning(
+                "SSL verification is disabled in notify_engine - this is a security risk!"
+            )
         logger.debug("R4-1: notify_engine HTTP 客户端单例已创建")
     return _http_client
 

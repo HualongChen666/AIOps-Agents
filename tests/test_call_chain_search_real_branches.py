@@ -115,7 +115,9 @@ def test_criteria_search_branches():
     """Exercise search_by_criteria and all internal filter branches."""
     manager = _make_manager()
 
-    base = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)  # noqa: F841  # Variable for test verification
+    base = datetime(
+        2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc
+    )  # noqa: F841  # Variable for test verification
     manager.add_call_chain(
         {
             "trace_id": "t-ok",

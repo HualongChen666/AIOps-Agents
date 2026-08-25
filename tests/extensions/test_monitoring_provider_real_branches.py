@@ -110,7 +110,9 @@ class TestMonitoringProviderRequest:
 
         with patch("extensions.addons.engines.monitoring_provider.requests") as mock_requests:
             mock_requests.request.return_value = mock_response
-            result = provider._request("GET", "http://example.com")  # noqa: F841  # Variable for test verification
+            result = provider._request(
+                "GET", "http://example.com"
+            )  # noqa: F841  # Variable for test verification
             assert result.status_code == 200
             mock_requests.request.assert_called_once()
 
@@ -126,7 +128,9 @@ class TestMonitoringProviderRequest:
         with patch("extensions.addons.engines.monitoring_provider.requests", None):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_urlopen.return_value.__enter__.return_value = mock_response
-                result = provider._request("GET", "http://example.com")  # noqa: F841  # Variable for test verification
+                result = provider._request(
+                    "GET", "http://example.com"
+                )  # noqa: F841  # Variable for test verification
                 assert result.status_code == 200
                 assert result.json() == {"result": "ok"}
 
@@ -141,7 +145,9 @@ class TestMonitoringProviderRequest:
         with patch("extensions.addons.engines.monitoring_provider.requests", None):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_urlopen.return_value.__enter__.return_value = mock_response
-                result = provider._request("GET", "http://example.com", params={"key": "value"})  # noqa: F841  # Variable for test verification
+                result = provider._request(
+                    "GET", "http://example.com", params={"key": "value"}
+                )  # noqa: F841  # Variable for test verification
                 assert result.status_code == 200
                 assert result.json() == {"result": "ok"}
 
@@ -156,7 +162,9 @@ class TestMonitoringProviderRequest:
         with patch("extensions.addons.engines.monitoring_provider.requests", None):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_urlopen.return_value.__enter__.return_value = mock_response
-                result = provider._request("POST", "http://example.com", json={"data": "test"})  # noqa: F841  # Variable for test verification
+                result = provider._request(
+                    "POST", "http://example.com", json={"data": "test"}
+                )  # noqa: F841  # Variable for test verification
                 assert result.status_code == 201
                 assert result.json() == {"created": True}
 
@@ -171,7 +179,9 @@ class TestMonitoringProviderRequest:
         with patch("extensions.addons.engines.monitoring_provider.requests", None):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_urlopen.return_value.__enter__.return_value = mock_response
-                result = provider._request("GET", "http://example.com")  # noqa: F841  # Variable for test verification
+                result = provider._request(
+                    "GET", "http://example.com"
+                )  # noqa: F841  # Variable for test verification
                 assert result.status_code == 404
                 with pytest.raises(RuntimeError):
                     result.raise_for_status()
@@ -183,7 +193,9 @@ class TestMonitoringProviderQuery:
     def test_query_dry_run(self):
         """Test query in dry_run mode."""
         provider = MonitoringProvider(dry_run=True)
-        result = provider.query(target="http://prometheus:9090", metric="up")  # noqa: F841  # Variable for test verification
+        result = provider.query(
+            target="http://prometheus:9090", metric="up"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "ok"
         assert len(result["data"]) == 1
         assert result["data"][0]["value"] == 0.42
@@ -203,7 +215,9 @@ class TestMonitoringProviderQuery:
         mock_response.json.return_value = {"series": []}
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.query(target="https://api.datadoghq.com", metric="system.cpu.usage")  # noqa: F841  # Variable for test verification
+            result = provider.query(
+                target="https://api.datadoghq.com", metric="system.cpu.usage"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
 
     def test_query_elasticsearch_backend(self):
@@ -214,7 +228,9 @@ class TestMonitoringProviderQuery:
         mock_response.json.return_value = {"hits": {"hits": []}}
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.query(target="http://elasticsearch:9200", metric="*")  # noqa: F841  # Variable for test verification
+            result = provider.query(
+                target="http://elasticsearch:9200", metric="*"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
 
     def test_query_cloudwatch_backend(self):
@@ -225,7 +241,9 @@ class TestMonitoringProviderQuery:
         mock_result.stdout = json.dumps({"Datapoints": []})
 
         with patch.object(provider, "_run_cli", return_value=mock_result):
-            result = provider.query(target="cloudwatch", metric="CPUUtilization")  # noqa: F841  # Variable for test verification
+            result = provider.query(
+                target="cloudwatch", metric="CPUUtilization"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
 
     def test_query_prometheus_backend(self):
@@ -236,7 +254,9 @@ class TestMonitoringProviderQuery:
         mock_response.json.return_value = {"data": {"result": []}}
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.query(target="http://prometheus:9090", metric="up")  # noqa: F841  # Variable for test verification
+            result = provider.query(
+                target="http://prometheus:9090", metric="up"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
 
     def test_query_exception(self):
@@ -244,7 +264,9 @@ class TestMonitoringProviderQuery:
         provider = MonitoringProvider(dry_run=False)
 
         with patch.object(provider, "_request", side_effect=Exception("network error")):
-            result = provider.query(target="http://prometheus:9090", metric="up")  # noqa: F841  # Variable for test verification
+            result = provider.query(
+                target="http://prometheus:9090", metric="up"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert "network error" in result["message"]
 
@@ -512,7 +534,9 @@ class TestPushAlert:
     def test_push_alert_dry_run(self):
         """Test push_alert in dry_run mode."""
         provider = MonitoringProvider(dry_run=True)
-        result = provider.push_alert(rule_name="test_rule", expr="up == 0")  # noqa: F841  # Variable for test verification
+        result = provider.push_alert(
+            rule_name="test_rule", expr="up == 0"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "ok"
         assert result["data"]["fired"] is False
 
@@ -585,7 +609,9 @@ class TestPushAlert:
         mock_response.json.return_value = {"status": "success"}
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.push_alert(rule_name="test_rule", expr="up == 0")  # noqa: F841  # Variable for test verification
+            result = provider.push_alert(
+                rule_name="test_rule", expr="up == 0"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
         del os.environ["ALERTMANAGER_URL"]
 
@@ -599,7 +625,9 @@ class TestPushAlert:
         mock_response.json.return_value = {"status": "success"}
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.push_alert(rule_name="test_rule", expr="up == 0")  # noqa: F841  # Variable for test verification
+            result = provider.push_alert(
+                rule_name="test_rule", expr="up == 0"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
 
     def test_push_alert_post_exception(self):
@@ -607,7 +635,9 @@ class TestPushAlert:
         provider = MonitoringProvider(dry_run=False)
 
         with patch.object(provider, "_request", side_effect=Exception("post failed")):
-            result = provider.push_alert(rule_name="test_rule", expr="up == 0")  # noqa: F841  # Variable for test verification
+            result = provider.push_alert(
+                rule_name="test_rule", expr="up == 0"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert "post failed" in result["message"]
 
@@ -620,7 +650,9 @@ class TestPushAlert:
         mock_response.text = "success"
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.push_alert(rule_name="test_rule", expr="up == 0")  # noqa: F841  # Variable for test verification
+            result = provider.push_alert(
+                rule_name="test_rule", expr="up == 0"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
             assert result["data"]["posted"] == "success"
 
@@ -631,7 +663,9 @@ class TestGetTopology:
     def test_get_topology_dry_run(self):
         """Test get_topology in dry_run mode."""
         provider = MonitoringProvider(dry_run=True)
-        result = provider.get_topology(source="http://cmdb:8080")  # noqa: F841  # Variable for test verification
+        result = provider.get_topology(
+            source="http://cmdb:8080"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "ok"
         assert len(result["data"]["nodes"]) == 2
 
@@ -657,7 +691,9 @@ class TestGetTopology:
         }
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.get_topology(source="http://prometheus:9090")  # noqa: F841  # Variable for test verification
+            result = provider.get_topology(
+                source="http://prometheus:9090"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
             assert len(result["data"]["nodes"]) == 2
 
@@ -671,7 +707,9 @@ class TestGetTopology:
         ]
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.get_topology(source="http://prometheus:9090")  # noqa: F841  # Variable for test verification
+            result = provider.get_topology(
+                source="http://prometheus:9090"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
 
     def test_get_topology_http_source_exception(self):
@@ -679,7 +717,9 @@ class TestGetTopology:
         provider = MonitoringProvider(dry_run=False)
 
         with patch.object(provider, "_request", side_effect=Exception("http error")):
-            result = provider.get_topology(source="http://prometheus:9090")  # noqa: F841  # Variable for test verification
+            result = provider.get_topology(
+                source="http://prometheus:9090"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert "http error" in result["message"]
 
@@ -698,7 +738,9 @@ class TestGetTopology:
         )
 
         with patch.object(provider, "_run_cli", return_value=mock_result):
-            result = provider.get_topology(source="kubernetes")  # noqa: F841  # Variable for test verification
+            result = provider.get_topology(
+                source="kubernetes"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
             assert len(result["data"]["nodes"]) == 2
 
@@ -724,7 +766,9 @@ class TestGetTopology:
         mock_result.stderr = "kubectl: command not found"
 
         with patch.object(provider, "_run_cli", return_value=mock_result):
-            result = provider.get_topology(source="kubernetes")  # noqa: F841  # Variable for test verification
+            result = provider.get_topology(
+                source="kubernetes"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert "kubectl: command not found" in result["message"]
 
@@ -733,7 +777,9 @@ class TestGetTopology:
         provider = MonitoringProvider(dry_run=False)
 
         with patch.object(provider, "_run_cli", side_effect=Exception("kubectl error")):
-            result = provider.get_topology(source="kubernetes")  # noqa: F841  # Variable for test verification
+            result = provider.get_topology(
+                source="kubernetes"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert "kubectl error" in result["message"]
 
@@ -744,7 +790,9 @@ class TestLogs:
     def test_logs_dry_run(self):
         """Test logs in dry_run mode."""
         provider = MonitoringProvider(dry_run=True)
-        result = provider.logs(query="error", target="http://loki:3100")  # noqa: F841  # Variable for test verification
+        result = provider.logs(
+            query="error", target="http://loki:3100"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "ok"
         assert len(result["data"]) == 1
 
@@ -845,7 +893,9 @@ class TestTraces:
     def test_traces_dry_run(self):
         """Test traces in dry_run mode."""
         provider = MonitoringProvider(dry_run=True)
-        result = provider.traces(service="my-service", target="http://jaeger:16686")  # noqa: F841  # Variable for test verification
+        result = provider.traces(
+            service="my-service", target="http://jaeger:16686"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "ok"
         assert len(result["data"]) == 1
 
@@ -873,7 +923,9 @@ class TestTraces:
         mock_response.json.return_value = {"data": []}
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.traces(service="my-service")  # noqa: F841  # Variable for test verification
+            result = provider.traces(
+                service="my-service"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
         del os.environ["JAEGER_URL"]
 
@@ -952,7 +1004,9 @@ class TestHealth:
     def test_health_dry_run(self):
         """Test health in dry_run mode."""
         provider = MonitoringProvider(dry_run=True)
-        result = provider.health(target="http://example.com")  # noqa: F841  # Variable for test verification
+        result = provider.health(
+            target="http://example.com"
+        )  # noqa: F841  # Variable for test verification
         assert result["status"] == "ok"
         assert result["data"]["healthy"] is True
 
@@ -970,7 +1024,9 @@ class TestHealth:
         mock_response.status_code = 200
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.health(target="http://example.com")  # noqa: F841  # Variable for test verification
+            result = provider.health(
+                target="http://example.com"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
             assert result["data"]["status_code"] == 200
 
@@ -981,7 +1037,9 @@ class TestHealth:
         mock_response.status_code = 500
 
         with patch.object(provider, "_request", return_value=mock_response):
-            result = provider.health(target="http://example.com")  # noqa: F841  # Variable for test verification
+            result = provider.health(
+                target="http://example.com"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert result["data"]["status_code"] == 500
 
@@ -994,7 +1052,9 @@ class TestHealth:
 
         with patch("extensions.addons.engines.monitoring_provider.requests", None):
             with patch.object(provider, "_request", return_value=mock_response):
-                result = provider.health(target="http://example.com")  # noqa: F841  # Variable for test verification
+                result = provider.health(
+                    target="http://example.com"
+                )  # noqa: F841  # Variable for test verification
                 assert result["status"] == "ok"
 
     def test_health_http_exception(self):
@@ -1002,7 +1062,9 @@ class TestHealth:
         provider = MonitoringProvider(dry_run=False)
 
         with patch.object(provider, "_request", side_effect=Exception("http error")):
-            result = provider.health(target="http://example.com")  # noqa: F841  # Variable for test verification
+            result = provider.health(
+                target="http://example.com"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert "http error" in result["message"]
 
@@ -1014,7 +1076,9 @@ class TestHealth:
         mock_result.stderr = ""
 
         with patch.object(provider, "_run_cli", return_value=mock_result):
-            result = provider.health(target="kubectl version")  # noqa: F841  # Variable for test verification
+            result = provider.health(
+                target="kubectl version"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "ok"
             assert result["data"]["returncode"] == 0
 
@@ -1026,7 +1090,9 @@ class TestHealth:
         mock_result.stderr = "command failed"
 
         with patch.object(provider, "_run_cli", return_value=mock_result):
-            result = provider.health(target="kubectl version")  # noqa: F841  # Variable for test verification
+            result = provider.health(
+                target="kubectl version"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert result["data"]["returncode"] == 1
 
@@ -1035,7 +1101,9 @@ class TestHealth:
         provider = MonitoringProvider(dry_run=False)
 
         with patch.object(provider, "_run_cli", side_effect=Exception("cli error")):
-            result = provider.health(target="kubectl version")  # noqa: F841  # Variable for test verification
+            result = provider.health(
+                target="kubectl version"
+            )  # noqa: F841  # Variable for test verification
             assert result["status"] == "error"
             assert "cli error" in result["message"]
 
@@ -1069,42 +1137,56 @@ class TestBaseObservabilityService:
 
     def test_get_config_none(self):
         """Test _get_config with None."""
-        result = BaseObservabilityService._get_config(None)  # noqa: F841  # Variable for test verification
+        result = BaseObservabilityService._get_config(
+            None
+        )  # noqa: F841  # Variable for test verification
         assert result == {}  # noqa: F841  # Variable for test verification
 
     def test_get_config_model_dump(self):
         """Test _get_config with object having model_dump."""
         mock_request = MagicMock()
         mock_request.model_dump.return_value = {"config": {"key": "value"}}
-        result = BaseObservabilityService._get_config(mock_request)  # noqa: F841  # Variable for test verification
+        result = BaseObservabilityService._get_config(
+            mock_request
+        )  # noqa: F841  # Variable for test verification
         assert result == {"key": "value"}  # noqa: F841  # Variable for test verification
 
     def test_get_config_dict(self):
         """Test _get_config with dict."""
-        result = BaseObservabilityService._get_config({"key": "value"})  # noqa: F841  # Variable for test verification
+        result = BaseObservabilityService._get_config(
+            {"key": "value"}
+        )  # noqa: F841  # Variable for test verification
         assert result == {"key": "value"}  # noqa: F841  # Variable for test verification
 
     def test_get_config_dict_with_config_key(self):
         """Test _get_config with dict containing config key."""
-        result = BaseObservabilityService._get_config({"config": {"nested": "value"}})  # noqa: F841  # Variable for test verification
+        result = BaseObservabilityService._get_config(
+            {"config": {"nested": "value"}}
+        )  # noqa: F841  # Variable for test verification
         assert result == {"nested": "value"}  # noqa: F841  # Variable for test verification
 
     def test_get_config_non_dict_non_model_dump(self):
         """Test _get_config with non-dict, non-model_dump object."""
-        result = BaseObservabilityService._get_config("string")  # noqa: F841  # Variable for test verification
+        result = BaseObservabilityService._get_config(
+            "string"
+        )  # noqa: F841  # Variable for test verification
         assert result == {}  # noqa: F841  # Variable for test verification
 
     def test_get_config_dict_not_dict_after_extraction(self):
         """Test _get_config when extracted data is not a dict."""
         # When config key exists but value is not a dict, it returns the value
-        result = BaseObservabilityService._get_config({"config": "not_a_dict"})  # noqa: F841  # Variable for test verification
+        result = BaseObservabilityService._get_config(
+            {"config": "not_a_dict"}
+        )  # noqa: F841  # Variable for test verification
         assert result == "not_a_dict"  # noqa: F841  # Variable for test verification
 
     async def test_get_state_with_feature_found(self):
         """Test get_state with feature found in state."""
         service = BaseObservabilityService()
         service._state["test_feature"] = {"data": "value"}
-        result = await service.get_state({"feature": "test_feature"})  # noqa: F841  # Variable for test verification
+        result = await service.get_state(
+            {"feature": "test_feature"}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert result["status"] == "found"
         assert result["result"]["state"] == {"data": "value"}
@@ -1112,7 +1194,9 @@ class TestBaseObservabilityService:
     async def test_get_state_with_feature_not_found(self):
         """Test get_state with feature not in state."""
         service = BaseObservabilityService()
-        result = await service.get_state({"feature": "missing_feature"})  # noqa: F841  # Variable for test verification
+        result = await service.get_state(
+            {"feature": "missing_feature"}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert result["status"] == "not_found"
 
@@ -1143,14 +1227,18 @@ class TestBaseObservabilityService:
         """Test backup_state with custom name."""
         service = BaseObservabilityService()
         service._state = {"key": "value"}
-        result = await service.backup_state({"name": "custom_backup"})  # noqa: F841  # Variable for test verification
+        result = await service.backup_state(
+            {"name": "custom_backup"}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert "custom_backup" in service._backups
 
     async def test_backup_state_non_dict_config(self):
         """Test backup_state with non-dict config."""
         service = BaseObservabilityService()
-        result = await service.backup_state("string")  # noqa: F841  # Variable for test verification
+        result = await service.backup_state(
+            "string"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert result["config"]["name"] == "default"
 
@@ -1161,7 +1249,9 @@ class TestBaseObservabilityService:
             "timestamp": "2024-01-01T00:00:00Z",
             "state": {"restored": "data"},
         }
-        result = await service.restore_state({"name": "test_backup"})  # noqa: F841  # Variable for test verification
+        result = await service.restore_state(
+            {"name": "test_backup"}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert result["status"] == "restored"
         assert service._state == {"restored": "data"}
@@ -1169,7 +1259,9 @@ class TestBaseObservabilityService:
     async def test_restore_state_not_found(self):
         """Test restore_state with backup not found."""
         service = BaseObservabilityService()
-        result = await service.restore_state({"name": "missing_backup"})  # noqa: F841  # Variable for test verification
+        result = await service.restore_state(
+            {"name": "missing_backup"}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert result["status"] == "not_found"
 
@@ -1180,7 +1272,9 @@ class TestBaseObservabilityService:
             "timestamp": "2024-01-01T00:00:00Z",
             "state": {"data": "value"},
         }
-        result = await service.restore_state("string")  # noqa: F841  # Variable for test verification
+        result = await service.restore_state(
+            "string"
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert result["config"]["name"] == "default"
 
@@ -1215,7 +1309,9 @@ class TestBaseObservabilityService:
         """Test execute_operation."""
         service = BaseObservabilityService()
         service.OPERATIONS = ["query"]
-        result = service.execute_operation("query", {"metric": "up"})  # noqa: F841  # Variable for test verification
+        result = service.execute_operation(
+            "query", {"metric": "up"}
+        )  # noqa: F841  # Variable for test verification
         assert result["feature"] == "query"
         assert result["success"] is True
         assert service._operations["query"] == 1
@@ -1243,7 +1339,9 @@ class TestBaseObservabilityService:
         """Test call with operation."""
         service = BaseObservabilityService()
         service.OPERATIONS = ["query"]
-        result = await service.call("query", request={"metric": "up"})  # noqa: F841  # Variable for test verification
+        result = await service.call(
+            "query", request={"metric": "up"}
+        )  # noqa: F841  # Variable for test verification
         assert result["feature"] == "query"
 
     async def test_call_unknown_method(self):

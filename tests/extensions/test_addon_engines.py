@@ -317,7 +317,9 @@ def test_infra_executors_real(monkeypatch, tmp_path):
     playbook_dir.mkdir()
     (playbook_dir / "test.yml").write_text("---\n- hosts: localhost\n  tasks: []\n")
     ansible = AnsibleExecutor(dry_run=False)
-    result = ansible.run([str(playbook_dir / "test.yml"), "--check"], cwd=str(tmp_path))  # noqa: F841  # Variable for test verification
+    result = ansible.run(
+        [str(playbook_dir / "test.yml"), "--check"], cwd=str(tmp_path)
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "ok"
 
     infra = _DummyInfra(dry_run=False)
@@ -586,13 +588,13 @@ def test_connector_bus_unsupported_bus(monkeypatch):
     monkeypatch.setattr("subprocess.run", _fake_subprocess_factory(stdout="ok", returncode=0))
 
     bus = ConnectorBus(dry_run=False)
-    
+
     # Test unsupported bus in produce
     result = bus.produce("topic", {"x": 1}, bus="unsupported_bus")
     assert result["success"] is False
     assert result["status"] == "unsupported_bus"
     assert result["bus"] == "unsupported_bus"
-    
+
     # Test unsupported bus in consume
     result = bus.consume("topic", bus="unsupported_bus")
     assert result["success"] is False
@@ -603,22 +605,22 @@ def test_connector_bus_unsupported_bus(monkeypatch):
 def test_connector_bus_httpx_fallback(monkeypatch):
     """Test httpx fallback when requests is not available."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
-    
+
     httpx_calls: List[SimpleNamespace] = []
-    
+
     def fake_httpx_request(method, url, **kwargs):
         httpx_calls.append(SimpleNamespace(method=method, url=url))
         return _http_response(200, {"id": 1})
-    
+
     # Mock requests to None to force httpx fallback
     monkeypatch.setattr("extensions.addons.engines.connector_bus.requests", None)
     monkeypatch.setattr("extensions.addons.engines.connector_bus.httpx", MagicMock())
     monkeypatch.setattr("extensions.addons.engines.connector_bus.httpx.request", fake_httpx_request)
-    
+
     bus = ConnectorBus(dry_run=False)
     bus.webhook_send("http://x", {"a": 1})
     bus.github_request("owner", "repo", "issues")
-    
+
     assert len(httpx_calls) == 2
     assert httpx_calls[0].method == "POST"
     assert httpx_calls[1].method == "GET"
@@ -627,12 +629,12 @@ def test_connector_bus_httpx_fallback(monkeypatch):
 def test_connector_bus_webhook_error_response(monkeypatch):
     """Test webhook with error response status codes."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
-    
+
     def fake_request(method, url, **kwargs):
         return _http_response(404, {"error": "not found"})
-    
+
     monkeypatch.setattr("requests.request", fake_request)
-    
+
     bus = ConnectorBus(dry_run=False)
     result = bus.webhook_send("http://x", {"a": 1})
     assert result["success"] is False
@@ -642,12 +644,12 @@ def test_connector_bus_webhook_error_response(monkeypatch):
 def test_connector_bus_github_error_response(monkeypatch):
     """Test GitHub API request with error response status codes."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
-    
+
     def fake_request(method, url, **kwargs):
         return _http_response(403, {"message": "forbidden"})
-    
+
     monkeypatch.setattr("requests.request", fake_request)
-    
+
     bus = ConnectorBus(dry_run=False)
     result = bus.github_request("owner", "repo", "issues")
     assert result["success"] is False
@@ -658,18 +660,17 @@ def test_connector_bus_produce_consume_errors(monkeypatch):
     """Test produce and consume with subprocess errors."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     monkeypatch.setattr(
-        "subprocess.run",
-        _fake_subprocess_factory(stdout="", stderr="command failed", returncode=1)
+        "subprocess.run", _fake_subprocess_factory(stdout="", stderr="command failed", returncode=1)
     )
-    
+
     bus = ConnectorBus(dry_run=False)
-    
+
     # Test produce with error
     result = bus.produce("topic", {"x": 1}, bus="kafka")
     assert result["success"] is False
     assert result["status"] == "error"
     assert result["returncode"] == 1
-    
+
     # Test consume with error
     result = bus.consume("topic", bus="kafka")
     assert result["success"] is False
@@ -680,12 +681,12 @@ def test_connector_bus_produce_consume_errors(monkeypatch):
 def test_connector_bus_sqs_url_detection():
     """Test SQS URL detection heuristic."""
     from extensions.addons.engines.connector_bus import _sqs_url
-    
+
     # Test SQS URL patterns
     assert _sqs_url("https://sqs.us-east-1.amazonaws.com/123/queue") is True
     assert _sqs_url("https://sqs.eu-west-1.amazonaws.com/456/queue") is True
     assert _sqs_url("arn:aws:sqs:us-east-1:123456789012:queue-name") is True
-    
+
     # Test non-SQS URLs
     assert _sqs_url("https://example.com/queue") is False
     assert _sqs_url("rabbitmq://localhost/queue") is False
@@ -695,18 +696,18 @@ def test_connector_bus_sqs_url_detection():
 def test_connector_bus_serialize_message():
     """Test message serialization."""
     from extensions.addons.engines.connector_bus import _serialize_message
-    
+
     # Test string message
     assert _serialize_message("hello") == "hello"
-    
+
     # Test dict message
     result = _serialize_message({"key": "value"})
     assert result == '{"key": "value"}'
-    
+
     # Test list message
     result = _serialize_message([1, 2, 3])
     assert result == "[1, 2, 3]"
-    
+
     # Test nested message
     result = _serialize_message({"nested": {"key": "value"}})
     assert result == '{"nested": {"key": "value"}}'

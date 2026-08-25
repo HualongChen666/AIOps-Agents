@@ -15,39 +15,41 @@ Comprehensive tests for service monitoring advanced features including:
 - Permission control
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
-import uuid
-import sys
 import os
+import sys
+import uuid
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
 
 # Add the project root to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from api.service_monitoring_advanced_router import (
-    router,
     AlertCreate,
     AlertUpdate,
     DashboardCreate,
     DashboardUpdate,
+    _alert_history_db,
     _alerts_db,
     _dashboards_db,
-    _alert_history_db,
+    router,
 )
-
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def client():
     """Create a test client for the service monitoring router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     # Disable CORS for testing
@@ -86,7 +88,7 @@ def sample_alert_create():
         description="Test alert for CPU usage",
         enabled=True,
         notification_channels=["slack", "email"],
-        metadata={"team": "platform"}
+        metadata={"team": "platform"},
     )
 
 
@@ -101,7 +103,7 @@ def sample_alert_update():
         description="Updated alert description",
         enabled=False,
         notification_channels=["slack"],
-        metadata={"team": "ops"}
+        metadata={"team": "ops"},
     )
 
 
@@ -112,20 +114,12 @@ def sample_dashboard_create():
         name="test-dashboard",
         description="Test dashboard for monitoring",
         widgets=[
-            {
-                "type": "graph",
-                "title": "CPU Usage",
-                "query": "cpu_usage"
-            },
-            {
-                "type": "gauge",
-                "title": "Memory Usage",
-                "query": "memory_usage"
-            }
+            {"type": "graph", "title": "CPU Usage", "query": "cpu_usage"},
+            {"type": "gauge", "title": "Memory Usage", "query": "memory_usage"},
         ],
         refresh_interval_seconds=30,
         is_public=False,
-        metadata={"owner": "platform-team"}
+        metadata={"owner": "platform-team"},
     )
 
 
@@ -135,16 +129,10 @@ def sample_dashboard_update():
     return DashboardUpdate(
         name="updated-dashboard",
         description="Updated dashboard description",
-        widgets=[
-            {
-                "type": "graph",
-                "title": "Updated CPU Usage",
-                "query": "cpu_usage"
-            }
-        ],
+        widgets=[{"type": "graph", "title": "Updated CPU Usage", "query": "cpu_usage"}],
         refresh_interval_seconds=60,
         is_public=True,
-        metadata={"owner": "ops-team"}
+        metadata={"owner": "ops-team"},
     )
 
 
@@ -158,19 +146,13 @@ def mock_service_monitoring_manager():
         "total_alerts_generated": 50,
         "active_alerts": 10,
         "total_anomalies_detected": 5,
-        "services": ["service-1", "service-2", "service-3"]
+        "services": ["service-1", "service-2", "service-3"],
     }
     manager.service_metrics = {
-        "service-1": {
-            "total_metrics": 100,
-            "last_updated": datetime.utcnow().isoformat()
-        },
-        "service-2": {
-            "total_metrics": 200,
-            "last_updated": datetime.utcnow().isoformat()
-        }
+        "service-1": {"total_metrics": 100, "last_updated": datetime.utcnow().isoformat()},
+        "service-2": {"total_metrics": 200, "last_updated": datetime.utcnow().isoformat()},
     }
-    
+
     # Mock metric objects
     mock_metric = MagicMock()
     mock_metric.metric_name = "cpu_usage"
@@ -178,19 +160,16 @@ def mock_service_monitoring_manager():
     mock_metric.value = 75.5
     mock_metric.timestamp = datetime.utcnow()
     mock_metric.labels = {"host": "server1"}
-    
+
     manager.get_service_metrics.return_value = [mock_metric]
-    manager.analyze_service_performance.return_value = {
-        "performance_score": 85,
-        "issues": []
-    }
-    
+    manager.analyze_service_performance.return_value = {"performance_score": 85, "issues": []}
+
     # Mock alert severity enum
     mock_severity = MagicMock()
     manager.AlertSeverity = MagicMock()
     manager.AlertSeverity.return_value = mock_severity
     manager.create_alert_rule.return_value = True
-    
+
     return manager
 
 
@@ -198,14 +177,17 @@ def mock_service_monitoring_manager():
 # GET /services - List Monitored Services Tests
 # ============================================================================
 
+
 class TestListMonitoredServices:
     """Test cases for listing monitored services"""
 
     def test_list_monitored_services_success(self, client, mock_service_monitoring_manager):
         """Test successful listing of monitored services"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/services")
             assert response.status_code == 200
             data = response.json()
@@ -214,11 +196,15 @@ class TestListMonitoredServices:
             assert "total" in data["data"]
             assert "summary" in data["data"]
 
-    def test_list_monitored_services_with_status_filter(self, client, mock_service_monitoring_manager):
+    def test_list_monitored_services_with_status_filter(
+        self, client, mock_service_monitoring_manager
+    ):
         """Test listing monitored services with status filter"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/services?status=active")
             assert response.status_code == 200
             data = response.json()
@@ -227,9 +213,11 @@ class TestListMonitoredServices:
 
     def test_list_monitored_services_with_pagination(self, client, mock_service_monitoring_manager):
         """Test listing monitored services with pagination"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/services?limit=2&offset=0")
             assert response.status_code == 200
             data = response.json()
@@ -239,17 +227,21 @@ class TestListMonitoredServices:
 
     def test_list_monitored_services_invalid_limit(self, client, mock_service_monitoring_manager):
         """Test listing monitored services with invalid limit"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/services?limit=0")
             assert response.status_code == 422
 
     def test_list_monitored_services_manager_error(self, client):
         """Test listing monitored services when manager raises error"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.get("/api/v1/service-monitoring/services")
             assert response.status_code == 500
 
@@ -258,14 +250,17 @@ class TestListMonitoredServices:
 # GET /metrics - Get Metrics Tests
 # ============================================================================
 
+
 class TestGetMetrics:
     """Test cases for getting metrics"""
 
     def test_get_metrics_success(self, client, mock_service_monitoring_manager):
         """Test successful metrics retrieval"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics")
             assert response.status_code == 200
             data = response.json()
@@ -275,9 +270,11 @@ class TestGetMetrics:
 
     def test_get_metrics_with_service_filter(self, client, mock_service_monitoring_manager):
         """Test getting metrics with service name filter"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?service_name=service-1")
             assert response.status_code == 200
             data = response.json()
@@ -285,9 +282,11 @@ class TestGetMetrics:
 
     def test_get_metrics_with_metric_filter(self, client, mock_service_monitoring_manager):
         """Test getting metrics with metric name filter"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?metric_name=cpu_usage")
             assert response.status_code == 200
             data = response.json()
@@ -295,9 +294,11 @@ class TestGetMetrics:
 
     def test_get_metrics_with_time_range(self, client, mock_service_monitoring_manager):
         """Test getting metrics with time range"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?time_range_hours=24")
             assert response.status_code == 200
             data = response.json()
@@ -305,9 +306,11 @@ class TestGetMetrics:
 
     def test_get_metrics_with_aggregation_avg(self, client, mock_service_monitoring_manager):
         """Test getting metrics with average aggregation"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=avg")
             assert response.status_code == 200
             data = response.json()
@@ -317,9 +320,11 @@ class TestGetMetrics:
 
     def test_get_metrics_with_aggregation_min(self, client, mock_service_monitoring_manager):
         """Test getting metrics with minimum aggregation"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=min")
             assert response.status_code == 200
             data = response.json()
@@ -327,9 +332,11 @@ class TestGetMetrics:
 
     def test_get_metrics_with_aggregation_max(self, client, mock_service_monitoring_manager):
         """Test getting metrics with maximum aggregation"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=max")
             assert response.status_code == 200
             data = response.json()
@@ -337,9 +344,11 @@ class TestGetMetrics:
 
     def test_get_metrics_with_aggregation_sum(self, client, mock_service_monitoring_manager):
         """Test getting metrics with sum aggregation"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=sum")
             assert response.status_code == 200
             data = response.json()
@@ -347,17 +356,21 @@ class TestGetMetrics:
 
     def test_get_metrics_invalid_time_range(self, client, mock_service_monitoring_manager):
         """Test getting metrics with invalid time range"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/metrics?time_range_hours=200")
             assert response.status_code == 422
 
     def test_get_metrics_manager_error(self, client):
         """Test getting metrics when manager raises error"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.get("/api/v1/service-monitoring/metrics")
             assert response.status_code == 500
 
@@ -366,14 +379,17 @@ class TestGetMetrics:
 # GET /health - Get Health Status Tests
 # ============================================================================
 
+
 class TestGetHealthStatus:
     """Test cases for getting health status"""
 
     def test_get_health_status_success(self, client, mock_service_monitoring_manager):
         """Test successful health status retrieval"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/health")
             assert response.status_code == 200
             data = response.json()
@@ -382,9 +398,11 @@ class TestGetHealthStatus:
 
     def test_get_health_status_with_service_filter(self, client, mock_service_monitoring_manager):
         """Test getting health status with service name filter"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/health?service_name=service-1")
             assert response.status_code == 200
             data = response.json()
@@ -392,9 +410,11 @@ class TestGetHealthStatus:
 
     def test_get_health_status_with_details(self, client, mock_service_monitoring_manager):
         """Test getting health status with detailed information"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/health?include_details=true")
             assert response.status_code == 200
             data = response.json()
@@ -405,9 +425,11 @@ class TestGetHealthStatus:
 
     def test_get_health_status_manager_error(self, client):
         """Test getting health status when manager raises error"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.get("/api/v1/service-monitoring/health")
             assert response.status_code == 500
 
@@ -416,14 +438,17 @@ class TestGetHealthStatus:
 # GET /sla - Get SLA Metrics Tests
 # ============================================================================
 
+
 class TestGetSlaMetrics:
     """Test cases for getting SLA metrics"""
 
     def test_get_sla_metrics_success(self, client, mock_service_monitoring_manager):
         """Test successful SLA metrics retrieval"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/sla")
             assert response.status_code == 200
             data = response.json()
@@ -432,9 +457,11 @@ class TestGetSlaMetrics:
 
     def test_get_sla_metrics_with_service_filter(self, client, mock_service_monitoring_manager):
         """Test getting SLA metrics with service name filter"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/sla?service_name=service-1")
             assert response.status_code == 200
             data = response.json()
@@ -442,9 +469,11 @@ class TestGetSlaMetrics:
 
     def test_get_sla_metrics_with_time_range(self, client, mock_service_monitoring_manager):
         """Test getting SLA metrics with time range"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/sla?time_range_hours=48")
             assert response.status_code == 200
             data = response.json()
@@ -452,17 +481,21 @@ class TestGetSlaMetrics:
 
     def test_get_sla_metrics_invalid_time_range(self, client, mock_service_monitoring_manager):
         """Test getting SLA metrics with invalid time range"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/sla?time_range_hours=800")
             assert response.status_code == 422
 
     def test_get_sla_metrics_manager_error(self, client):
         """Test getting SLA metrics when manager raises error"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.get("/api/v1/service-monitoring/sla")
             assert response.status_code == 500
 
@@ -470,6 +503,7 @@ class TestGetSlaMetrics:
 # ============================================================================
 # GET /alerts - List Alerts Tests
 # ============================================================================
+
 
 class TestListAlerts:
     """Test cases for listing alerts"""
@@ -495,7 +529,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-monitoring/alerts")
         assert response.status_code == 200
         data = response.json()
@@ -524,7 +558,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         alert_id2 = str(uuid.uuid4())
         _alerts_db[alert_id2] = {
             "name": "alert-2",
@@ -543,7 +577,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-monitoring/alerts?service_name=service-1")
         assert response.status_code == 200
         data = response.json()
@@ -570,7 +604,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         alert_id2 = str(uuid.uuid4())
         _alerts_db[alert_id2] = {
             "name": "critical-alert",
@@ -589,7 +623,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-monitoring/alerts?severity=critical")
         assert response.status_code == 200
         data = response.json()
@@ -616,7 +650,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         alert_id2 = str(uuid.uuid4())
         _alerts_db[alert_id2] = {
             "name": "resolved-alert",
@@ -635,7 +669,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-monitoring/alerts?status=active")
         assert response.status_code == 200
         data = response.json()
@@ -662,7 +696,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         alert_id2 = str(uuid.uuid4())
         _alerts_db[alert_id2] = {
             "name": "disabled-alert",
@@ -681,7 +715,7 @@ class TestListAlerts:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-monitoring/alerts?enabled_only=true")
         assert response.status_code == 200
         data = response.json()
@@ -709,7 +743,7 @@ class TestListAlerts:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-        
+
         response = client.get("/api/v1/service-monitoring/alerts?limit=2&offset=0")
         assert response.status_code == 200
         data = response.json()
@@ -722,17 +756,21 @@ class TestListAlerts:
 # POST /alerts - Create Alert Tests
 # ============================================================================
 
+
 class TestCreateAlert:
     """Test cases for creating alerts"""
 
-    def test_create_alert_success(self, client, sample_alert_create, mock_service_monitoring_manager):
+    def test_create_alert_success(
+        self, client, sample_alert_create, mock_service_monitoring_manager
+    ):
         """Test successful alert creation"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.post(
-                "/api/v1/service-monitoring/alerts",
-                json=sample_alert_create.dict()
+                "/api/v1/service-monitoring/alerts", json=sample_alert_create.dict()
             )
             assert response.status_code == 201
             data = response.json()
@@ -744,18 +782,20 @@ class TestCreateAlert:
 
     def test_create_alert_with_notification_channels(self, client, mock_service_monitoring_manager):
         """Test alert creation with notification channels"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             alert_data = {
                 "name": "notification-alert",
                 "service_name": "test-service",
                 "metric_name": "cpu_usage",
                 "condition": "greater_than",
                 "threshold": 80.0,
-                "notification_channels": ["slack", "email", "pagerduty"]
+                "notification_channels": ["slack", "email", "pagerduty"],
             }
-            
+
             response = client.post("/api/v1/service-monitoring/alerts", json=alert_data)
             assert response.status_code == 201
             data = response.json()
@@ -763,18 +803,20 @@ class TestCreateAlert:
 
     def test_create_alert_disabled(self, client, mock_service_monitoring_manager):
         """Test alert creation with disabled status"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             alert_data = {
                 "name": "disabled-alert",
                 "service_name": "test-service",
                 "metric_name": "cpu_usage",
                 "condition": "greater_than",
                 "threshold": 80.0,
-                "enabled": False
+                "enabled": False,
             }
-            
+
             response = client.post("/api/v1/service-monitoring/alerts", json=alert_data)
             assert response.status_code == 201
             data = response.json()
@@ -786,7 +828,7 @@ class TestCreateAlert:
             "service_name": "test-service",
             "metric_name": "cpu_usage",
             "condition": "greater_than",
-            "threshold": 80.0
+            "threshold": 80.0,
             # Missing name
         }
         response = client.post("/api/v1/service-monitoring/alerts", json=invalid_data)
@@ -800,7 +842,7 @@ class TestCreateAlert:
             "metric_name": "cpu_usage",
             "condition": "greater_than",
             "threshold": 80.0,
-            "severity": "invalid-severity"
+            "severity": "invalid-severity",
         }
         # Invalid severity should cause 500 error due to enum validation
         response = client.post("/api/v1/service-monitoring/alerts", json=invalid_data)
@@ -808,12 +850,13 @@ class TestCreateAlert:
 
     def test_create_alert_manager_error(self, client, sample_alert_create):
         """Test alert creation when manager raises error"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.post(
-                "/api/v1/service-monitoring/alerts",
-                json=sample_alert_create.dict()
+                "/api/v1/service-monitoring/alerts", json=sample_alert_create.dict()
             )
             assert response.status_code == 500
 
@@ -821,6 +864,7 @@ class TestCreateAlert:
 # ============================================================================
 # GET /dashboards - List Dashboards Tests
 # ============================================================================
+
 
 class TestListDashboards:
     """Test cases for listing dashboards"""
@@ -839,7 +883,7 @@ class TestListDashboards:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-monitoring/dashboards")
         assert response.status_code == 200
         data = response.json()
@@ -861,7 +905,7 @@ class TestListDashboards:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         dashboard_id2 = str(uuid.uuid4())
         _dashboards_db[dashboard_id2] = {
             "name": "private-dashboard",
@@ -873,7 +917,7 @@ class TestListDashboards:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get("/api/v1/service-monitoring/dashboards?is_public=true")
         assert response.status_code == 200
         data = response.json()
@@ -894,7 +938,7 @@ class TestListDashboards:
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-        
+
         response = client.get("/api/v1/service-monitoring/dashboards?limit=2&offset=0")
         assert response.status_code == 200
         data = response.json()
@@ -907,14 +951,14 @@ class TestListDashboards:
 # POST /dashboards - Create Dashboard Tests
 # ============================================================================
 
+
 class TestCreateDashboard:
     """Test cases for creating dashboards"""
 
     def test_create_dashboard_success(self, client, sample_dashboard_create):
         """Test successful dashboard creation"""
         response = client.post(
-            "/api/v1/service-monitoring/dashboards",
-            json=sample_dashboard_create.dict()
+            "/api/v1/service-monitoring/dashboards", json=sample_dashboard_create.dict()
         )
         assert response.status_code == 201
         data = response.json()
@@ -925,12 +969,8 @@ class TestCreateDashboard:
 
     def test_create_dashboard_public(self, client):
         """Test dashboard creation with public access"""
-        dashboard_data = {
-            "name": "public-dashboard",
-            "widgets": [],
-            "is_public": True
-        }
-        
+        dashboard_data = {"name": "public-dashboard", "widgets": [], "is_public": True}
+
         response = client.post("/api/v1/service-monitoring/dashboards", json=dashboard_data)
         assert response.status_code == 201
         data = response.json()
@@ -941,7 +981,7 @@ class TestCreateDashboard:
         invalid_data = {
             "name": "test-dashboard",
             "widgets": [],
-            "refresh_interval_seconds": 2  # Less than minimum (5)
+            "refresh_interval_seconds": 2,  # Less than minimum (5)
         }
         response = client.post("/api/v1/service-monitoring/dashboards", json=invalid_data)
         assert response.status_code == 422
@@ -950,7 +990,7 @@ class TestCreateDashboard:
         """Test dashboard creation with missing required field"""
         invalid_data = {
             "description": "Test dashboard",
-            "widgets": []
+            "widgets": [],
             # Missing name
         }
         response = client.post("/api/v1/service-monitoring/dashboards", json=invalid_data)
@@ -958,11 +998,8 @@ class TestCreateDashboard:
 
     def test_create_dashboard_empty_widgets(self, client):
         """Test dashboard creation with empty widgets"""
-        dashboard_data = {
-            "name": "test-dashboard",
-            "widgets": []
-        }
-        
+        dashboard_data = {"name": "test-dashboard", "widgets": []}
+
         response = client.post("/api/v1/service-monitoring/dashboards", json=dashboard_data)
         assert response.status_code == 201
 
@@ -970,6 +1007,7 @@ class TestCreateDashboard:
 # ============================================================================
 # GET /dashboards/{dashboard_id} - Get Dashboard Tests
 # ============================================================================
+
 
 class TestGetDashboard:
     """Test cases for getting a specific dashboard"""
@@ -988,7 +1026,7 @@ class TestGetDashboard:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.get(f"/api/v1/service-monitoring/dashboards/{dashboard_id}")
         assert response.status_code == 200
         data = response.json()
@@ -1009,6 +1047,7 @@ class TestGetDashboard:
 # PATCH /dashboards/{dashboard_id} - Update Dashboard Tests
 # ============================================================================
 
+
 class TestUpdateDashboard:
     """Test cases for updating dashboards"""
 
@@ -1026,10 +1065,10 @@ class TestUpdateDashboard:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.patch(
             f"/api/v1/service-monitoring/dashboards/{dashboard_id}",
-            json=sample_dashboard_update.dict()
+            json=sample_dashboard_update.dict(),
         )
         assert response.status_code == 200
         data = response.json()
@@ -1051,11 +1090,10 @@ class TestUpdateDashboard:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         partial_update = {"name": "updated-name"}
         response = client.patch(
-            f"/api/v1/service-monitoring/dashboards/{dashboard_id}",
-            json=partial_update
+            f"/api/v1/service-monitoring/dashboards/{dashboard_id}", json=partial_update
         )
         assert response.status_code == 200
         data = response.json()
@@ -1066,8 +1104,7 @@ class TestUpdateDashboard:
         """Test updating a non-existent dashboard"""
         fake_id = str(uuid.uuid4())
         response = client.patch(
-            f"/api/v1/service-monitoring/dashboards/{fake_id}",
-            json=sample_dashboard_update.dict()
+            f"/api/v1/service-monitoring/dashboards/{fake_id}", json=sample_dashboard_update.dict()
         )
         assert response.status_code == 404
 
@@ -1085,11 +1122,10 @@ class TestUpdateDashboard:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         invalid_update = {"refresh_interval_seconds": 2}
         response = client.patch(
-            f"/api/v1/service-monitoring/dashboards/{dashboard_id}",
-            json=invalid_update
+            f"/api/v1/service-monitoring/dashboards/{dashboard_id}", json=invalid_update
         )
         assert response.status_code == 422
 
@@ -1097,6 +1133,7 @@ class TestUpdateDashboard:
 # ============================================================================
 # DELETE /dashboards/{dashboard_id} - Delete Dashboard Tests
 # ============================================================================
+
 
 class TestDeleteDashboard:
     """Test cases for deleting dashboards"""
@@ -1115,7 +1152,7 @@ class TestDeleteDashboard:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         response = client.delete(f"/api/v1/service-monitoring/dashboards/{dashboard_id}")
         assert response.status_code == 200
         data = response.json()
@@ -1133,14 +1170,17 @@ class TestDeleteDashboard:
 # GET /reports - Get Reports Tests
 # ============================================================================
 
+
 class TestGetReports:
     """Test cases for getting monitoring reports"""
 
     def test_get_reports_summary(self, client, mock_service_monitoring_manager):
         """Test getting summary report"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/reports?report_type=summary")
             assert response.status_code == 200
             data = response.json()
@@ -1150,9 +1190,11 @@ class TestGetReports:
 
     def test_get_reports_detailed(self, client, mock_service_monitoring_manager):
         """Test getting detailed report"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/reports?report_type=detailed")
             assert response.status_code == 200
             data = response.json()
@@ -1162,9 +1204,11 @@ class TestGetReports:
 
     def test_get_reports_sla(self, client, mock_service_monitoring_manager):
         """Test getting SLA report"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/reports?report_type=sla")
             assert response.status_code == 200
             data = response.json()
@@ -1174,9 +1218,11 @@ class TestGetReports:
 
     def test_get_reports_invalid_type(self, client, mock_service_monitoring_manager):
         """Test getting report with invalid type"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/reports?report_type=invalid")
             assert response.status_code == 400
             data = response.json()
@@ -1184,37 +1230,49 @@ class TestGetReports:
 
     def test_get_reports_with_service_filter(self, client, mock_service_monitoring_manager):
         """Test getting report with service filter"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
-            response = client.get("/api/v1/service-monitoring/reports?report_type=summary&service_name=service-1")
+
+            response = client.get(
+                "/api/v1/service-monitoring/reports?report_type=summary&service_name=service-1"
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
 
     def test_get_reports_with_time_range(self, client, mock_service_monitoring_manager):
         """Test getting report with time range"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
-            response = client.get("/api/v1/service-monitoring/reports?report_type=summary&time_range_hours=48")
+
+            response = client.get(
+                "/api/v1/service-monitoring/reports?report_type=summary&time_range_hours=48"
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["data"]["time_range_hours"] == 48
 
     def test_get_reports_invalid_time_range(self, client, mock_service_monitoring_manager):
         """Test getting report with invalid time range"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             response = client.get("/api/v1/service-monitoring/reports?time_range_hours=800")
             assert response.status_code == 422
 
     def test_get_reports_manager_error(self, client):
         """Test getting report when manager raises error"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.side_effect = Exception("Manager error")
-            
+
             response = client.get("/api/v1/service-monitoring/reports?report_type=summary")
             assert response.status_code == 500
 
@@ -1222,6 +1280,7 @@ class TestGetReports:
 # ============================================================================
 # Data Validation Tests
 # ============================================================================
+
 
 class TestDataValidation:
     """Test cases for data validation"""
@@ -1233,7 +1292,7 @@ class TestDataValidation:
             "service_name": "test-service",
             "metric_name": "cpu_usage",
             "condition": "greater_than",
-            "threshold": 80.0
+            "threshold": 80.0,
         }
         response = client.post("/api/v1/service-monitoring/alerts", json=invalid_data)
         # Pydantic may accept empty string, so we check if it's created or rejected
@@ -1246,7 +1305,7 @@ class TestDataValidation:
             "service_name": "",
             "metric_name": "cpu_usage",
             "condition": "greater_than",
-            "threshold": 80.0
+            "threshold": 80.0,
         }
         response = client.post("/api/v1/service-monitoring/alerts", json=invalid_data)
         # Pydantic may accept empty string, so we check if it's created or rejected
@@ -1254,21 +1313,14 @@ class TestDataValidation:
 
     def test_dashboard_create_with_empty_name(self, client):
         """Test dashboard creation with empty name"""
-        invalid_data = {
-            "name": "",
-            "widgets": []
-        }
+        invalid_data = {"name": "", "widgets": []}
         response = client.post("/api/v1/service-monitoring/dashboards", json=invalid_data)
         # Pydantic may accept empty string, so we check if it's created or rejected
         assert response.status_code in [201, 422]
 
     def test_dashboard_create_with_invalid_refresh_interval_negative(self, client):
         """Test dashboard creation with negative refresh interval"""
-        invalid_data = {
-            "name": "test-dashboard",
-            "widgets": [],
-            "refresh_interval_seconds": -10
-        }
+        invalid_data = {"name": "test-dashboard", "widgets": [], "refresh_interval_seconds": -10}
         response = client.post("/api/v1/service-monitoring/dashboards", json=invalid_data)
         assert response.status_code == 422
 
@@ -1276,6 +1328,7 @@ class TestDataValidation:
 # ============================================================================
 # Permission Control Tests
 # ============================================================================
+
 
 class TestPermissionControl:
     """Test cases for permission control"""
@@ -1300,94 +1353,103 @@ class TestPermissionControl:
 # Integration Tests
 # ============================================================================
 
+
 class TestIntegration:
     """Integration tests for service monitoring router"""
 
-    def test_full_alert_lifecycle(self, client, sample_alert_create, mock_service_monitoring_manager):
+    def test_full_alert_lifecycle(
+        self, client, sample_alert_create, mock_service_monitoring_manager
+    ):
         """Test complete alert lifecycle: create, read, update, delete"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             # Create
             create_response = client.post(
-                "/api/v1/service-monitoring/alerts",
-                json=sample_alert_create.dict()
+                "/api/v1/service-monitoring/alerts", json=sample_alert_create.dict()
             )
             assert create_response.status_code == 201
             alert_id = create_response.json()["data"]["id"]
-            
+
             # Read (list)
             list_response = client.get("/api/v1/service-monitoring/alerts")
             assert list_response.status_code == 200
             assert len(list_response.json()["data"]["alerts"]) >= 1
-            
+
             # Note: There's no individual GET endpoint for alerts in the router
             # So we skip the individual read test
-            
+
             # Delete (we need to manually delete from DB since no DELETE endpoint exists)
             del _alerts_db[alert_id]
-            
+
             # Verify deletion
             list_response_after = client.get("/api/v1/service-monitoring/alerts")
             assert alert_id not in [a["id"] for a in list_response_after.json()["data"]["alerts"]]
 
-    def test_full_dashboard_lifecycle(self, client, sample_dashboard_create, sample_dashboard_update):
+    def test_full_dashboard_lifecycle(
+        self, client, sample_dashboard_create, sample_dashboard_update
+    ):
         """Test complete dashboard lifecycle: create, read, update, delete"""
         # Create
         create_response = client.post(
-            "/api/v1/service-monitoring/dashboards",
-            json=sample_dashboard_create.dict()
+            "/api/v1/service-monitoring/dashboards", json=sample_dashboard_create.dict()
         )
         assert create_response.status_code == 201
         dashboard_id = create_response.json()["data"]["id"]
-        
+
         # Read
         get_response = client.get(f"/api/v1/service-monitoring/dashboards/{dashboard_id}")
         assert get_response.status_code == 200
-        
+
         # Update
         update_response = client.patch(
             f"/api/v1/service-monitoring/dashboards/{dashboard_id}",
-            json=sample_dashboard_update.dict()
+            json=sample_dashboard_update.dict(),
         )
         assert update_response.status_code == 200
-        
+
         # Delete
         delete_response = client.delete(f"/api/v1/service-monitoring/dashboards/{dashboard_id}")
         assert delete_response.status_code == 200
-        
+
         # Verify deletion
         verify_response = client.get(f"/api/v1/service-monitoring/dashboards/{dashboard_id}")
         assert verify_response.status_code == 404
 
-    def test_alert_and_dashboard_together(self, client, sample_alert_create, sample_dashboard_create, mock_service_monitoring_manager):
+    def test_alert_and_dashboard_together(
+        self, client, sample_alert_create, sample_dashboard_create, mock_service_monitoring_manager
+    ):
         """Test alert and dashboard creation together"""
-        with patch('core.service_monitoring_manager.get_service_monitoring_manager') as mock_get_manager:
+        with patch(
+            "core.service_monitoring_manager.get_service_monitoring_manager"
+        ) as mock_get_manager:
             mock_get_manager.return_value = mock_service_monitoring_manager
-            
+
             # Create alert
             alert_response = client.post(
-                "/api/v1/service-monitoring/alerts",
-                json=sample_alert_create.dict()
+                "/api/v1/service-monitoring/alerts", json=sample_alert_create.dict()
             )
             assert alert_response.status_code == 201
-            
+
             # Create dashboard
             dashboard_response = client.post(
-                "/api/v1/service-monitoring/dashboards",
-                json=sample_dashboard_create.dict()
+                "/api/v1/service-monitoring/dashboards", json=sample_dashboard_create.dict()
             )
             assert dashboard_response.status_code == 201
-            
+
             # List both
             alerts_list = client.get("/api/v1/service-monitoring/alerts")
             assert alerts_list.status_code == 200
             assert len(alerts_list.json()["data"]["alerts"]) >= 1
-            
+
             dashboards_list = client.get("/api/v1/service-monitoring/dashboards")
             assert dashboards_list.status_code == 200
             assert len(dashboards_list.json()["data"]["dashboards"]) >= 1
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--cov=api.service_monitoring_advanced_router", "--cov-report=html"])
+    pytest.main(
+        [__file__, "-v", "--cov=api.service_monitoring_advanced_router", "--cov-report=html"]
+    )

@@ -1,25 +1,22 @@
 # -*- coding: utf-8 -*-
 """Integration tests for workflow_service FastAPI applications."""
 
-import pytest
-from httpx import AsyncClient, ASGITransport
-
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+import sys
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from extensions.addons.operations.workflow_service.executor_app import (
     WorkflowExecutorApp,
-    app as executor_app,
 )
+from extensions.addons.operations.workflow_service.executor_app import app as executor_app
 from extensions.addons.operations.workflow_service.scheduler_app import (
     WorkflowSchedulerApp,
-    app as scheduler_app,
 )
-from extensions.addons.operations.workflow_service.workflow_orchestrator_app import (
-    WorkflowOrchestratorApp,
-    app as orchestrator_app,
-)
+from extensions.addons.operations.workflow_service.scheduler_app import app as scheduler_app
 from extensions.addons.operations.workflow_service.schemas import (
     ScheduledTask,
     ServiceHealth,
@@ -27,6 +24,12 @@ from extensions.addons.operations.workflow_service.schemas import (
     WorkflowNode,
     WorkflowRequest,
     WorkflowTemplate,
+)
+from extensions.addons.operations.workflow_service.workflow_orchestrator_app import (
+    WorkflowOrchestratorApp,
+)
+from extensions.addons.operations.workflow_service.workflow_orchestrator_app import (
+    app as orchestrator_app,
 )
 
 
@@ -371,9 +374,7 @@ class TestCrossServiceIntegration:
         await orchestrator.templates.register(template)
 
         # Render the template
-        rendered = await orchestrator.templates.render(
-            "test-template", {"message": "Hello"}
-        )
+        rendered = await orchestrator.templates.render("test-template", {"message": "Hello"})
 
         assert "Hello" in rendered
 
@@ -381,8 +382,8 @@ class TestCrossServiceIntegration:
     async def test_metrics_collection(self):
         """Test that metrics are collected across services."""
         from metrics import (
-            WORKFLOWS_CREATED,
             WORKFLOWS_COMPLETED,
+            WORKFLOWS_CREATED,
         )
 
         # Increment some metrics

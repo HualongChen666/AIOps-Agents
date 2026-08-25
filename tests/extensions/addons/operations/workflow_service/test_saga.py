@@ -2,7 +2,6 @@
 """Tests for workflow_service saga module."""
 
 import pytest
-
 from saga import WorkflowSagaOrchestrator
 from schemas import SagaStep
 
@@ -50,7 +49,9 @@ class TestWorkflowSagaOrchestrator:
         assert len(orchestrator._transactions) == 1
 
     @pytest.mark.asyncio
-    async def test_execute_saga_success(self, saga_orchestrator, saga_steps, async_action, async_compensation):
+    async def test_execute_saga_success(
+        self, saga_orchestrator, saga_steps, async_action, async_compensation
+    ):
         """Test executing a saga successfully."""
         actions = {"create": async_action}
         compensations = {"delete": async_compensation}
@@ -71,7 +72,9 @@ class TestWorkflowSagaOrchestrator:
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_saga_with_failure(self, saga_orchestrator, saga_steps, failing_action, async_compensation):
+    async def test_execute_saga_with_failure(
+        self, saga_orchestrator, saga_steps, failing_action, async_compensation
+    ):
         """Test executing a saga that fails."""
         actions = {"create": failing_action}
         compensations = {"delete": async_compensation}
@@ -84,7 +87,9 @@ class TestWorkflowSagaOrchestrator:
         assert "failed_step" in result
 
     @pytest.mark.asyncio
-    async def test_execute_saga_compensates_on_failure(self, saga_orchestrator, saga_steps, async_action, async_compensation):
+    async def test_execute_saga_compensates_on_failure(
+        self, saga_orchestrator, saga_steps, async_action, async_compensation
+    ):
         """Test that saga compensates on failure."""
         actions = {"create": async_action, "update": failing_action}
         compensations = {"delete": async_compensation, "rollback": async_compensation}
@@ -104,7 +109,9 @@ class TestWorkflowSagaOrchestrator:
         assert transaction.status == "compensating"
 
     @pytest.mark.asyncio
-    async def test_execute_saga_missing_action(self, saga_orchestrator, saga_steps, async_compensation):
+    async def test_execute_saga_missing_action(
+        self, saga_orchestrator, saga_steps, async_compensation
+    ):
         """Test executing a saga with missing action."""
         actions = {}  # No actions defined
         compensations = {"delete": async_compensation}
@@ -116,7 +123,9 @@ class TestWorkflowSagaOrchestrator:
         assert "No action for step" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_saga_with_sync_action(self, saga_orchestrator, saga_steps, sync_action, sync_compensation):
+    async def test_execute_saga_with_sync_action(
+        self, saga_orchestrator, saga_steps, sync_action, sync_compensation
+    ):
         """Test executing a saga with synchronous action."""
         actions = {"create": sync_action}
         compensations = {"delete": sync_compensation}
@@ -127,7 +136,9 @@ class TestWorkflowSagaOrchestrator:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_execute_saga_mixed_sync_async(self, saga_orchestrator, saga_steps, async_action, sync_compensation):
+    async def test_execute_saga_mixed_sync_async(
+        self, saga_orchestrator, saga_steps, async_action, sync_compensation
+    ):
         """Test executing a saga with mixed sync and async operations."""
         actions = {"create": async_action}
         compensations = {"delete": sync_compensation}
@@ -138,7 +149,9 @@ class TestWorkflowSagaOrchestrator:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_execute_saga_multiple_steps(self, saga_orchestrator, async_action, async_compensation):
+    async def test_execute_saga_multiple_steps(
+        self, saga_orchestrator, async_action, async_compensation
+    ):
         """Test executing a saga with multiple steps."""
         steps = [
             SagaStep(step_id="step1", service="service1", action="create", compensation="delete"),
@@ -175,7 +188,9 @@ class TestWorkflowSagaOrchestrator:
         assert result["steps"] == []
 
     @pytest.mark.asyncio
-    async def test_compensate_executes_in_reverse_order(self, saga_orchestrator, async_action, async_compensation):
+    async def test_compensate_executes_in_reverse_order(
+        self, saga_orchestrator, async_action, async_compensation
+    ):
         """Test that compensation executes in reverse order."""
         execution_order = []
 
@@ -235,6 +250,7 @@ class TestWorkflowSagaOrchestrator:
     @pytest.mark.asyncio
     async def test_compensate_with_compensation_error(self, saga_orchestrator, async_action):
         """Test compensation when compensation function raises an error."""
+
         async def failing_compensation():
             raise ValueError("Compensation failed")
 
@@ -277,7 +293,9 @@ class TestWorkflowSagaOrchestrator:
             orchestrator.get_transaction("non-existent")
 
     @pytest.mark.asyncio
-    async def test_saga_status_transitions(self, saga_orchestrator, saga_steps, async_action, async_compensation):
+    async def test_saga_status_transitions(
+        self, saga_orchestrator, saga_steps, async_action, async_compensation
+    ):
         """Test that saga status transitions correctly during execution."""
         actions = {"create": async_action}
         compensations = {"delete": async_compensation}
@@ -292,7 +310,9 @@ class TestWorkflowSagaOrchestrator:
         assert transaction.status == "success"
 
     @pytest.mark.asyncio
-    async def test_saga_status_on_failure(self, saga_orchestrator, saga_steps, failing_action, async_compensation):
+    async def test_saga_status_on_failure(
+        self, saga_orchestrator, saga_steps, failing_action, async_compensation
+    ):
         """Test that saga status is set correctly on failure."""
         actions = {"create": failing_action}
         compensations = {"delete": async_compensation}
@@ -304,7 +324,9 @@ class TestWorkflowSagaOrchestrator:
         assert transaction.status == "compensating"
 
     @pytest.mark.asyncio
-    async def test_saga_step_status_tracking(self, saga_orchestrator, saga_steps, async_action, async_compensation):
+    async def test_saga_step_status_tracking(
+        self, saga_orchestrator, saga_steps, async_action, async_compensation
+    ):
         """Test that step status is tracked correctly."""
         actions = {"create": async_action}
         compensations = {"delete": async_compensation}
@@ -317,7 +339,9 @@ class TestWorkflowSagaOrchestrator:
             assert step.status in ["success", "failed", "compensated"]
 
     @pytest.mark.asyncio
-    async def test_saga_step_result_tracking(self, saga_orchestrator, saga_steps, async_action, async_compensation):
+    async def test_saga_step_result_tracking(
+        self, saga_orchestrator, saga_steps, async_action, async_compensation
+    ):
         """Test that step results are tracked correctly."""
         actions = {"create": async_action}
         compensations = {"delete": async_compensation}
@@ -332,6 +356,7 @@ class TestWorkflowSagaOrchestrator:
     @pytest.mark.asyncio
     async def test_execute_saga_with_action_returning_none(self, saga_orchestrator, saga_steps):
         """Test executing saga when action returns None."""
+
         async def none_action():
             return None
 
@@ -346,6 +371,7 @@ class TestWorkflowSagaOrchestrator:
     @pytest.mark.asyncio
     async def test_execute_saga_with_action_returning_dict(self, saga_orchestrator, saga_steps):
         """Test executing saga when action returns a dict."""
+
         async def dict_action():
             return {"key": "value", "number": 42}
 
@@ -360,6 +386,7 @@ class TestWorkflowSagaOrchestrator:
     @pytest.mark.asyncio
     async def test_execute_saga_with_action_returning_string(self, saga_orchestrator, saga_steps):
         """Test executing saga when action returns a string."""
+
         async def string_action():
             return "success result"
 
@@ -377,7 +404,9 @@ class TestWorkflowSagaOrchestrator:
         orchestrator1 = WorkflowSagaOrchestrator()
         orchestrator2 = WorkflowSagaOrchestrator()
 
-        steps = [SagaStep(step_id="step1", service="service1", action="create", compensation="delete")]
+        steps = [
+            SagaStep(step_id="step1", service="service1", action="create", compensation="delete")
+        ]
         actions = {"create": lambda: {"success": True}}
         compensations = {"delete": lambda: {"compensated": True}}
 
@@ -403,7 +432,9 @@ class TestWorkflowSagaOrchestrator:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_compensate_with_sync_compensation(self, saga_orchestrator, async_action, sync_compensation):
+    async def test_compensate_with_sync_compensation(
+        self, saga_orchestrator, async_action, sync_compensation
+    ):
         """Test compensation with synchronous compensation function."""
         steps = [
             SagaStep(step_id="step1", service="service1", action="create", compensation="delete"),
@@ -423,7 +454,9 @@ class TestWorkflowSagaOrchestrator:
         assert transaction.steps[0].status == "compensated"
 
     @pytest.mark.asyncio
-    async def test_execute_saga_preserves_step_order(self, saga_orchestrator, async_action, async_compensation):
+    async def test_execute_saga_preserves_step_order(
+        self, saga_orchestrator, async_action, async_compensation
+    ):
         """Test that saga executes steps in order."""
         execution_order = []
 

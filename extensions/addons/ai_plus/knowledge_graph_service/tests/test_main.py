@@ -449,7 +449,8 @@ class TestMainModule:
                 timeout=5,
                 capture_output=True,
                 text=True,
-                cwd="C:\\aiops-sre-agent"
+                cwd="C:\\aiops-sre-agent",
+                shell=False
             )
             # Check that the import was successful
             assert "Import successful" in result.stdout or result.returncode == 0

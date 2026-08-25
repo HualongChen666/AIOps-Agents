@@ -12,28 +12,41 @@ Comprehensive tests for alert management advanced features including:
 - Alert routing, rules, third-party integrations
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
 import uuid
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, Mock, patch
 
-from api.alerts_advanced_router import router, AlertConfig, NotificationChannel, EscalationRule
-from api.alerts_advanced_router import SuppressionRule, ForwardingRule, WebhookConfig
-from api.alerts_advanced_router import DynamicThresholdRule, DeduplicationRule, AggregationRule
-from api.alerts_advanced_router import AlertRoute, AlertRule, ThirdPartyConfig
+import pytest
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
 
+from api.alerts_advanced_router import (
+    AggregationRule,
+    AlertConfig,
+    AlertRoute,
+    AlertRule,
+    DeduplicationRule,
+    DynamicThresholdRule,
+    EscalationRule,
+    ForwardingRule,
+    NotificationChannel,
+    SuppressionRule,
+    ThirdPartyConfig,
+    WebhookConfig,
+    router,
+)
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def client():
     """Create a test client for the alerts router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     # Disable CORS for testing
@@ -61,7 +74,7 @@ def sample_alert_config():
         retention_days=60,
         notification_cooldown=600,
         escalation_enabled=True,
-        suppression_enabled=True
+        suppression_enabled=True,
     )
 
 
@@ -72,7 +85,7 @@ def sample_notification_channel():
         name="Test Channel",
         type="slack",
         enabled=True,
-        config={"webhook_url": "https://hooks.slack.com/test"}
+        config={"webhook_url": "https://hooks.slack.com/test"},
     )
 
 
@@ -86,9 +99,9 @@ def sample_escalation_rule():
         match_conditions=[{"severity": "critical"}],
         escalation_levels=[
             {"level": 1, "notify": ["team-lead"]},
-            {"level": 2, "notify": ["manager"]}
+            {"level": 2, "notify": ["manager"]},
         ],
-        max_escalation_level=3
+        max_escalation_level=3,
     )
 
 
@@ -101,7 +114,7 @@ def sample_suppression_rule():
         enabled=True,
         match_conditions=[{"source": "maintenance"}],
         duration=3600,
-        reason="Maintenance window"
+        reason="Maintenance window",
     )
 
 
@@ -115,7 +128,7 @@ def sample_forwarding_rule():
         source_type="prometheus",
         target_type="pagerduty",
         target_config={"service_key": "test-key"},
-        filter_conditions=[{"severity": "critical"}]
+        filter_conditions=[{"severity": "critical"}],
     )
 
 
@@ -132,7 +145,7 @@ def sample_webhook_config():
         body_template='{"alert": "{{alert}}"}',
         timeout=30,
         retry_count=3,
-        retry_interval=5
+        retry_interval=5,
     )
 
 
@@ -149,7 +162,7 @@ def sample_dynamic_threshold_rule():
         sensitivity=0.5,
         min_threshold=0,
         max_threshold=100,
-        adaptation_rate=0.1
+        adaptation_rate=0.1,
     )
 
 
@@ -162,7 +175,7 @@ def sample_deduplication_rule():
         enabled=True,
         dedup_field="fingerprint",
         dedup_window=300,
-        match_conditions=[{"source": "prometheus"}]
+        match_conditions=[{"source": "prometheus"}],
     )
 
 
@@ -177,7 +190,7 @@ def sample_aggregation_rule():
         aggregation_type="count",
         window=300,
         threshold=5,
-        match_conditions=[{"severity": "high"}]
+        match_conditions=[{"severity": "high"}],
     )
 
 
@@ -191,7 +204,7 @@ def sample_alert_route():
         priority=1,
         match_conditions=[{"service": "api-server"}],
         target={"type": "slack", "channel": "#alerts"},
-        rate_limit={"max_per_minute": 10}
+        rate_limit={"max_per_minute": 10},
     )
 
 
@@ -209,7 +222,7 @@ def sample_alert_rule():
         metric="cpu_usage",
         labels={"service": "api-server"},
         duration=60,
-        notification_channels=["slack"]
+        notification_channels=["slack"],
     )
 
 
@@ -221,13 +234,14 @@ def sample_third_party_config():
         username="test_user",
         password="test_pass",
         api_key="test_api_key",
-        enabled=True
+        enabled=True,
     )
 
 
 # ============================================================================
 # Dashboard Tests
 # ============================================================================
+
 
 class TestDashboardEndpoint:
     """Test suite for dashboard endpoint"""
@@ -273,10 +287,18 @@ class TestDashboardEndpoint:
         assert response.status_code == 200
         data = response.json()
         required_fields = [
-            "total_alerts", "open_alerts", "resolved_alerts",
-            "critical_alerts", "high_alerts", "medium_alerts", "low_alerts",
-            "avg_resolution_time", "alerts_by_source", "alerts_by_service",
-            "recent_alerts", "trend_data"
+            "total_alerts",
+            "open_alerts",
+            "resolved_alerts",
+            "critical_alerts",
+            "high_alerts",
+            "medium_alerts",
+            "low_alerts",
+            "avg_resolution_time",
+            "alerts_by_source",
+            "alerts_by_service",
+            "recent_alerts",
+            "trend_data",
         ]
         for field in required_fields:
             assert field in data
@@ -285,6 +307,7 @@ class TestDashboardEndpoint:
 # ============================================================================
 # Configuration Tests
 # ============================================================================
+
 
 class TestConfigurationEndpoint:
     """Test suite for configuration endpoint"""
@@ -326,6 +349,7 @@ class TestConfigurationEndpoint:
 # Notification Channels Tests
 # ============================================================================
 
+
 class TestNotificationChannelsEndpoint:
     """Test suite for notification channels endpoint"""
 
@@ -340,8 +364,7 @@ class TestNotificationChannelsEndpoint:
     def test_create_notification_channel(self, client, sample_notification_channel):
         """Test creating a notification channel"""
         response = client.post(
-            "/api/v1/alerts/notification/channels",
-            json=sample_notification_channel.dict()
+            "/api/v1/alerts/notification/channels", json=sample_notification_channel.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -352,35 +375,21 @@ class TestNotificationChannelsEndpoint:
 
     def test_create_notification_channel_invalid_type(self, client):
         """Test creating notification channel with invalid type"""
-        invalid_channel = {
-            "name": "Invalid Channel",
-            "type": "invalid_type",
-            "enabled": True
-        }
-        response = client.post(
-            "/api/v1/alerts/notification/channels",
-            json=invalid_channel
-        )
+        invalid_channel = {"name": "Invalid Channel", "type": "invalid_type", "enabled": True}
+        response = client.post("/api/v1/alerts/notification/channels", json=invalid_channel)
         assert response.status_code == 422
 
     def test_create_notification_channel_missing_required_field(self, client):
         """Test creating notification channel without required field"""
-        invalid_channel = {
-            "type": "slack",
-            "enabled": True
-        }
-        response = client.post(
-            "/api/v1/alerts/notification/channels",
-            json=invalid_channel
-        )
+        invalid_channel = {"type": "slack", "enabled": True}
+        response = client.post("/api/v1/alerts/notification/channels", json=invalid_channel)
         assert response.status_code == 422
 
     def test_update_notification_channel(self, client, sample_notification_channel):
         """Test updating a notification channel"""
         # First create a channel
         create_response = client.post(
-            "/api/v1/alerts/notification/channels",
-            json=sample_notification_channel.dict()
+            "/api/v1/alerts/notification/channels", json=sample_notification_channel.dict()
         )
         channel_id = create_response.json()["channel"]["id"]
 
@@ -388,8 +397,7 @@ class TestNotificationChannelsEndpoint:
         update_data = sample_notification_channel.dict()
         update_data["name"] = "Updated Channel"
         response = client.put(
-            f"/api/v1/alerts/notification/channels/{channel_id}",
-            json=update_data
+            f"/api/v1/alerts/notification/channels/{channel_id}", json=update_data
         )
         assert response.status_code == 200
         data = response.json()
@@ -401,7 +409,7 @@ class TestNotificationChannelsEndpoint:
         fake_id = str(uuid.uuid4())
         response = client.put(
             f"/api/v1/alerts/notification/channels/{fake_id}",
-            json=sample_notification_channel.dict()
+            json=sample_notification_channel.dict(),
         )
         assert response.status_code == 404
 
@@ -409,8 +417,7 @@ class TestNotificationChannelsEndpoint:
         """Test deleting a notification channel"""
         # First create a channel
         create_response = client.post(
-            "/api/v1/alerts/notification/channels",
-            json=sample_notification_channel.dict()
+            "/api/v1/alerts/notification/channels", json=sample_notification_channel.dict()
         )
         channel_id = create_response.json()["channel"]["id"]
 
@@ -431,6 +438,7 @@ class TestNotificationChannelsEndpoint:
 # Prediction Tests
 # ============================================================================
 
+
 class TestPredictionEndpoint:
     """Test suite for prediction endpoint"""
 
@@ -449,7 +457,15 @@ class TestPredictionEndpoint:
         assert response.status_code == 200
         data = response.json()
         prediction = data["predictions"][0]
-        required_fields = ["id", "metric", "predicted_value", "confidence", "predicted_at", "severity", "model"]
+        required_fields = [
+            "id",
+            "metric",
+            "predicted_value",
+            "confidence",
+            "predicted_at",
+            "severity",
+            "model",
+        ]
         for field in required_fields:
             assert field in prediction
 
@@ -469,6 +485,7 @@ class TestPredictionEndpoint:
 # Correlation Tests
 # ============================================================================
 
+
 class TestCorrelationEndpoint:
     """Test suite for correlation endpoint"""
 
@@ -487,7 +504,14 @@ class TestCorrelationEndpoint:
         assert response.status_code == 200
         data = response.json()
         correlation = data["correlations"][0]
-        required_fields = ["id", "alert_id", "alert_title", "related_alerts", "correlation_group", "created_at"]
+        required_fields = [
+            "id",
+            "alert_id",
+            "alert_title",
+            "related_alerts",
+            "correlation_group",
+            "created_at",
+        ]
         for field in required_fields:
             assert field in correlation
 
@@ -495,6 +519,7 @@ class TestCorrelationEndpoint:
 # ============================================================================
 # Acknowledgements Tests
 # ============================================================================
+
 
 class TestAcknowledgementsEndpoint:
     """Test suite for acknowledgements endpoint"""
@@ -512,6 +537,7 @@ class TestAcknowledgementsEndpoint:
 # Escalation Rules Tests
 # ============================================================================
 
+
 class TestEscalationRulesEndpoint:
     """Test suite for escalation rules endpoint"""
 
@@ -526,8 +552,7 @@ class TestEscalationRulesEndpoint:
     def test_create_escalation_rule(self, client, sample_escalation_rule):
         """Test creating an escalation rule"""
         response = client.post(
-            "/api/v1/alerts/escalation/rules",
-            json=sample_escalation_rule.dict()
+            "/api/v1/alerts/escalation/rules", json=sample_escalation_rule.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -538,28 +563,21 @@ class TestEscalationRulesEndpoint:
 
     def test_create_escalation_rule_invalid_data(self, client):
         """Test creating escalation rule with invalid data"""
-        response = client.post(
-            "/api/v1/alerts/escalation/rules",
-            json={"invalid": "data"}
-        )
+        response = client.post("/api/v1/alerts/escalation/rules", json={"invalid": "data"})
         assert response.status_code == 422
 
     def test_update_escalation_rule(self, client, sample_escalation_rule):
         """Test updating an escalation rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/escalation/rules",
-            json=sample_escalation_rule.dict()
+            "/api/v1/alerts/escalation/rules", json=sample_escalation_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
         # Update the rule
         update_data = sample_escalation_rule.dict()
         update_data["name"] = "Updated Escalation"
-        response = client.put(
-            f"/api/v1/alerts/escalation/rules/{rule_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/escalation/rules/{rule_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -569,8 +587,7 @@ class TestEscalationRulesEndpoint:
         """Test updating non-existent escalation rule"""
         fake_id = str(uuid.uuid4())
         response = client.put(
-            f"/api/v1/alerts/escalation/rules/{fake_id}",
-            json=sample_escalation_rule.dict()
+            f"/api/v1/alerts/escalation/rules/{fake_id}", json=sample_escalation_rule.dict()
         )
         assert response.status_code == 404
 
@@ -578,8 +595,7 @@ class TestEscalationRulesEndpoint:
         """Test deleting an escalation rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/escalation/rules",
-            json=sample_escalation_rule.dict()
+            "/api/v1/alerts/escalation/rules", json=sample_escalation_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
@@ -600,6 +616,7 @@ class TestEscalationRulesEndpoint:
 # Suppression Rules Tests
 # ============================================================================
 
+
 class TestSuppressionRulesEndpoint:
     """Test suite for suppression rules endpoint"""
 
@@ -614,8 +631,7 @@ class TestSuppressionRulesEndpoint:
     def test_create_suppression_rule(self, client, sample_suppression_rule):
         """Test creating a suppression rule"""
         response = client.post(
-            "/api/v1/alerts/suppression/rules",
-            json=sample_suppression_rule.dict()
+            "/api/v1/alerts/suppression/rules", json=sample_suppression_rule.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -628,18 +644,14 @@ class TestSuppressionRulesEndpoint:
         """Test updating a suppression rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/suppression/rules",
-            json=sample_suppression_rule.dict()
+            "/api/v1/alerts/suppression/rules", json=sample_suppression_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
         # Update the rule
         update_data = sample_suppression_rule.dict()
         update_data["name"] = "Updated Suppression"
-        response = client.put(
-            f"/api/v1/alerts/suppression/rules/{rule_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/suppression/rules/{rule_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -649,8 +661,7 @@ class TestSuppressionRulesEndpoint:
         """Test deleting a suppression rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/suppression/rules",
-            json=sample_suppression_rule.dict()
+            "/api/v1/alerts/suppression/rules", json=sample_suppression_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
@@ -664,6 +675,7 @@ class TestSuppressionRulesEndpoint:
 # ============================================================================
 # Trends Tests
 # ============================================================================
+
 
 class TestTrendsEndpoint:
     """Test suite for trends endpoint"""
@@ -696,6 +708,7 @@ class TestTrendsEndpoint:
 # Statistics Tests
 # ============================================================================
 
+
 class TestStatisticsEndpoint:
     """Test suite for statistics endpoint"""
 
@@ -716,11 +729,20 @@ class TestStatisticsEndpoint:
         assert response.status_code == 200
         data = response.json()
         required_fields = [
-            "total_alerts", "open_alerts", "acknowledged_alerts",
-            "resolved_alerts", "critical_alerts", "high_alerts",
-            "medium_alerts", "low_alerts", "avg_resolution_time",
-            "avg_acknowledgement_time", "alerts_by_source",
-            "alerts_by_service", "alerts_by_hour", "alerts_by_day"
+            "total_alerts",
+            "open_alerts",
+            "acknowledged_alerts",
+            "resolved_alerts",
+            "critical_alerts",
+            "high_alerts",
+            "medium_alerts",
+            "low_alerts",
+            "avg_resolution_time",
+            "avg_acknowledgement_time",
+            "alerts_by_source",
+            "alerts_by_service",
+            "alerts_by_hour",
+            "alerts_by_day",
         ]
         for field in required_fields:
             assert field in data
@@ -729,6 +751,7 @@ class TestStatisticsEndpoint:
 # ============================================================================
 # History Tests
 # ============================================================================
+
 
 class TestHistoryEndpoint:
     """Test suite for history endpoint"""
@@ -757,7 +780,15 @@ class TestHistoryEndpoint:
         data = response.json()
         if len(data["history"]) > 0:
             history_item = data["history"][0]
-            required_fields = ["id", "alert_id", "title", "severity", "status", "source", "created_at"]
+            required_fields = [
+                "id",
+                "alert_id",
+                "title",
+                "severity",
+                "status",
+                "source",
+                "created_at",
+            ]
             for field in required_fields:
                 assert field in history_item
 
@@ -765,6 +796,7 @@ class TestHistoryEndpoint:
 # ============================================================================
 # Forwarding Rules Tests
 # ============================================================================
+
 
 class TestForwardingRulesEndpoint:
     """Test suite for forwarding rules endpoint"""
@@ -780,8 +812,7 @@ class TestForwardingRulesEndpoint:
     def test_create_forwarding_rule(self, client, sample_forwarding_rule):
         """Test creating a forwarding rule"""
         response = client.post(
-            "/api/v1/alerts/forwarding/rules",
-            json=sample_forwarding_rule.dict()
+            "/api/v1/alerts/forwarding/rules", json=sample_forwarding_rule.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -793,18 +824,14 @@ class TestForwardingRulesEndpoint:
         """Test updating a forwarding rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/forwarding/rules",
-            json=sample_forwarding_rule.dict()
+            "/api/v1/alerts/forwarding/rules", json=sample_forwarding_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
         # Update the rule
         update_data = sample_forwarding_rule.dict()
         update_data["name"] = "Updated Forwarding"
-        response = client.put(
-            f"/api/v1/alerts/forwarding/rules/{rule_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/forwarding/rules/{rule_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -813,8 +840,7 @@ class TestForwardingRulesEndpoint:
         """Test deleting a forwarding rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/forwarding/rules",
-            json=sample_forwarding_rule.dict()
+            "/api/v1/alerts/forwarding/rules", json=sample_forwarding_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
@@ -826,6 +852,7 @@ class TestForwardingRulesEndpoint:
 # ============================================================================
 # Webhook Configs Tests
 # ============================================================================
+
 
 class TestWebhookConfigsEndpoint:
     """Test suite for webhook configs endpoint"""
@@ -840,10 +867,7 @@ class TestWebhookConfigsEndpoint:
 
     def test_create_webhook_config(self, client, sample_webhook_config):
         """Test creating a webhook config"""
-        response = client.post(
-            "/api/v1/alerts/webhook/configs",
-            json=sample_webhook_config.dict()
-        )
+        response = client.post("/api/v1/alerts/webhook/configs", json=sample_webhook_config.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -852,15 +876,8 @@ class TestWebhookConfigsEndpoint:
 
     def test_create_webhook_config_invalid_url(self, client):
         """Test creating webhook config with invalid URL"""
-        invalid_config = {
-            "name": "Invalid Webhook",
-            "url": "not-a-valid-url",
-            "method": "POST"
-        }
-        response = client.post(
-            "/api/v1/alerts/webhook/configs",
-            json=invalid_config
-        )
+        invalid_config = {"name": "Invalid Webhook", "url": "not-a-valid-url", "method": "POST"}
+        response = client.post("/api/v1/alerts/webhook/configs", json=invalid_config)
         # Pydantic should validate URL
         assert response.status_code == 422
 
@@ -868,18 +885,14 @@ class TestWebhookConfigsEndpoint:
         """Test updating a webhook config"""
         # First create a config
         create_response = client.post(
-            "/api/v1/alerts/webhook/configs",
-            json=sample_webhook_config.dict()
+            "/api/v1/alerts/webhook/configs", json=sample_webhook_config.dict()
         )
         config_id = create_response.json()["webhook"]["id"]
 
         # Update the config
         update_data = sample_webhook_config.dict()
         update_data["name"] = "Updated Webhook"
-        response = client.put(
-            f"/api/v1/alerts/webhook/configs/{config_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/webhook/configs/{config_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -888,8 +901,7 @@ class TestWebhookConfigsEndpoint:
         """Test deleting a webhook config"""
         # First create a config
         create_response = client.post(
-            "/api/v1/alerts/webhook/configs",
-            json=sample_webhook_config.dict()
+            "/api/v1/alerts/webhook/configs", json=sample_webhook_config.dict()
         )
         config_id = create_response.json()["webhook"]["id"]
 
@@ -901,6 +913,7 @@ class TestWebhookConfigsEndpoint:
 # ============================================================================
 # Intelligent Analysis Tests
 # ============================================================================
+
 
 class TestIntelligentAnalysisEndpoint:
     """Test suite for intelligent analysis endpoint"""
@@ -927,6 +940,7 @@ class TestIntelligentAnalysisEndpoint:
 # Dynamic Threshold Rules Tests
 # ============================================================================
 
+
 class TestDynamicThresholdRulesEndpoint:
     """Test suite for dynamic threshold rules endpoint"""
 
@@ -941,8 +955,7 @@ class TestDynamicThresholdRulesEndpoint:
     def test_create_dynamic_threshold_rule(self, client, sample_dynamic_threshold_rule):
         """Test creating a dynamic threshold rule"""
         response = client.post(
-            "/api/v1/alerts/dynamic-threshold/rules",
-            json=sample_dynamic_threshold_rule.dict()
+            "/api/v1/alerts/dynamic-threshold/rules", json=sample_dynamic_threshold_rule.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -954,18 +967,14 @@ class TestDynamicThresholdRulesEndpoint:
         """Test updating a dynamic threshold rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/dynamic-threshold/rules",
-            json=sample_dynamic_threshold_rule.dict()
+            "/api/v1/alerts/dynamic-threshold/rules", json=sample_dynamic_threshold_rule.dict()
         )
         rule_id = create_response.json()["threshold"]["id"]
 
         # Update the rule
         update_data = sample_dynamic_threshold_rule.dict()
         update_data["name"] = "Updated Threshold"
-        response = client.put(
-            f"/api/v1/alerts/dynamic-threshold/rules/{rule_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/dynamic-threshold/rules/{rule_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -974,8 +983,7 @@ class TestDynamicThresholdRulesEndpoint:
         """Test deleting a dynamic threshold rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/dynamic-threshold/rules",
-            json=sample_dynamic_threshold_rule.dict()
+            "/api/v1/alerts/dynamic-threshold/rules", json=sample_dynamic_threshold_rule.dict()
         )
         rule_id = create_response.json()["threshold"]["id"]
 
@@ -987,6 +995,7 @@ class TestDynamicThresholdRulesEndpoint:
 # ============================================================================
 # Deduplication Rules Tests
 # ============================================================================
+
 
 class TestDeduplicationRulesEndpoint:
     """Test suite for deduplication rules endpoint"""
@@ -1002,8 +1011,7 @@ class TestDeduplicationRulesEndpoint:
     def test_create_deduplication_rule(self, client, sample_deduplication_rule):
         """Test creating a deduplication rule"""
         response = client.post(
-            "/api/v1/alerts/deduplication/rules",
-            json=sample_deduplication_rule.dict()
+            "/api/v1/alerts/deduplication/rules", json=sample_deduplication_rule.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1015,18 +1023,14 @@ class TestDeduplicationRulesEndpoint:
         """Test updating a deduplication rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/deduplication/rules",
-            json=sample_deduplication_rule.dict()
+            "/api/v1/alerts/deduplication/rules", json=sample_deduplication_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
         # Update the rule
         update_data = sample_deduplication_rule.dict()
         update_data["name"] = "Updated Deduplication"
-        response = client.put(
-            f"/api/v1/alerts/deduplication/rules/{rule_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/deduplication/rules/{rule_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -1035,8 +1039,7 @@ class TestDeduplicationRulesEndpoint:
         """Test deleting a deduplication rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/deduplication/rules",
-            json=sample_deduplication_rule.dict()
+            "/api/v1/alerts/deduplication/rules", json=sample_deduplication_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
@@ -1048,6 +1051,7 @@ class TestDeduplicationRulesEndpoint:
 # ============================================================================
 # Aggregation Rules Tests
 # ============================================================================
+
 
 class TestAggregationRulesEndpoint:
     """Test suite for aggregation rules endpoint"""
@@ -1063,8 +1067,7 @@ class TestAggregationRulesEndpoint:
     def test_create_aggregation_rule(self, client, sample_aggregation_rule):
         """Test creating an aggregation rule"""
         response = client.post(
-            "/api/v1/alerts/aggregation/rules",
-            json=sample_aggregation_rule.dict()
+            "/api/v1/alerts/aggregation/rules", json=sample_aggregation_rule.dict()
         )
         assert response.status_code == 200
         data = response.json()
@@ -1076,18 +1079,14 @@ class TestAggregationRulesEndpoint:
         """Test updating an aggregation rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/aggregation/rules",
-            json=sample_aggregation_rule.dict()
+            "/api/v1/alerts/aggregation/rules", json=sample_aggregation_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
         # Update the rule
         update_data = sample_aggregation_rule.dict()
         update_data["name"] = "Updated Aggregation"
-        response = client.put(
-            f"/api/v1/alerts/aggregation/rules/{rule_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/aggregation/rules/{rule_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -1096,8 +1095,7 @@ class TestAggregationRulesEndpoint:
         """Test deleting an aggregation rule"""
         # First create a rule
         create_response = client.post(
-            "/api/v1/alerts/aggregation/rules",
-            json=sample_aggregation_rule.dict()
+            "/api/v1/alerts/aggregation/rules", json=sample_aggregation_rule.dict()
         )
         rule_id = create_response.json()["rule"]["id"]
 
@@ -1109,6 +1107,7 @@ class TestAggregationRulesEndpoint:
 # ============================================================================
 # Alert Routing Tests
 # ============================================================================
+
 
 class TestAlertRoutingEndpoint:
     """Test suite for alert routing endpoint"""
@@ -1123,10 +1122,7 @@ class TestAlertRoutingEndpoint:
 
     def test_create_routing(self, client, sample_alert_route):
         """Test creating an alert route"""
-        response = client.post(
-            "/api/v1/alerts/routing",
-            json=sample_alert_route.dict()
-        )
+        response = client.post("/api/v1/alerts/routing", json=sample_alert_route.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -1136,19 +1132,13 @@ class TestAlertRoutingEndpoint:
     def test_update_routing(self, client, sample_alert_route):
         """Test updating an alert route"""
         # First create a route
-        create_response = client.post(
-            "/api/v1/alerts/routing",
-            json=sample_alert_route.dict()
-        )
+        create_response = client.post("/api/v1/alerts/routing", json=sample_alert_route.dict())
         route_id = create_response.json()["route"]["id"]
 
         # Update the route
         update_data = sample_alert_route.dict()
         update_data["name"] = "Updated Route"
-        response = client.put(
-            f"/api/v1/alerts/routing/{route_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/routing/{route_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -1156,10 +1146,7 @@ class TestAlertRoutingEndpoint:
     def test_delete_routing(self, client, sample_alert_route):
         """Test deleting an alert route"""
         # First create a route
-        create_response = client.post(
-            "/api/v1/alerts/routing",
-            json=sample_alert_route.dict()
-        )
+        create_response = client.post("/api/v1/alerts/routing", json=sample_alert_route.dict())
         route_id = create_response.json()["route"]["id"]
 
         # Delete the route
@@ -1170,6 +1157,7 @@ class TestAlertRoutingEndpoint:
 # ============================================================================
 # Alert Rules Tests
 # ============================================================================
+
 
 class TestAlertRulesEndpoint:
     """Test suite for alert rules endpoint"""
@@ -1184,10 +1172,7 @@ class TestAlertRulesEndpoint:
 
     def test_create_rule(self, client, sample_alert_rule):
         """Test creating an alert rule"""
-        response = client.post(
-            "/api/v1/alerts/rules",
-            json=sample_alert_rule.dict()
-        )
+        response = client.post("/api/v1/alerts/rules", json=sample_alert_rule.dict())
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -1196,34 +1181,21 @@ class TestAlertRulesEndpoint:
 
     def test_create_rule_invalid_severity(self, client):
         """Test creating alert rule with invalid severity"""
-        invalid_rule = {
-            "name": "Invalid Rule",
-            "severity": "invalid",
-            "metric": "cpu_usage"
-        }
-        response = client.post(
-            "/api/v1/alerts/rules",
-            json=invalid_rule
-        )
+        invalid_rule = {"name": "Invalid Rule", "severity": "invalid", "metric": "cpu_usage"}
+        response = client.post("/api/v1/alerts/rules", json=invalid_rule)
         # Pydantic should validate
         assert response.status_code == 422
 
     def test_update_rule(self, client, sample_alert_rule):
         """Test updating an alert rule"""
         # First create a rule
-        create_response = client.post(
-            "/api/v1/alerts/rules",
-            json=sample_alert_rule.dict()
-        )
+        create_response = client.post("/api/v1/alerts/rules", json=sample_alert_rule.dict())
         rule_id = create_response.json()["rule"]["id"]
 
         # Update the rule
         update_data = sample_alert_rule.dict()
         update_data["name"] = "Updated Rule"
-        response = client.put(
-            f"/api/v1/alerts/rules/{rule_id}",
-            json=update_data
-        )
+        response = client.put(f"/api/v1/alerts/rules/{rule_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -1231,10 +1203,7 @@ class TestAlertRulesEndpoint:
     def test_delete_rule(self, client, sample_alert_rule):
         """Test deleting an alert rule"""
         # First create a rule
-        create_response = client.post(
-            "/api/v1/alerts/rules",
-            json=sample_alert_rule.dict()
-        )
+        create_response = client.post("/api/v1/alerts/rules", json=sample_alert_rule.dict())
         rule_id = create_response.json()["rule"]["id"]
 
         # Delete the rule
@@ -1245,6 +1214,7 @@ class TestAlertRulesEndpoint:
 # ============================================================================
 # Third-party Integration Tests
 # ============================================================================
+
 
 class TestThirdPartyIntegrations:
     """Test suite for third-party integration endpoints"""
@@ -1298,7 +1268,7 @@ class TestThirdPartyIntegrations:
         alert_data = {
             "title": "Test Alert",
             "severity": "critical",
-            "description": "Test alert description"
+            "description": "Test alert description",
         }
         response = client.post("/api/v1/alerts/pagerduty", json=alert_data)
         assert response.status_code == 200
@@ -1352,6 +1322,7 @@ class TestThirdPartyIntegrations:
 # Data Validation Tests
 # ============================================================================
 
+
 class TestDataValidation:
     """Test suite for data validation"""
 
@@ -1359,28 +1330,14 @@ class TestDataValidation:
         """Test notification channel type validation"""
         valid_types = ["email", "slack", "pagerduty", "sms", "webhook", "teams"]
         for channel_type in valid_types:
-            channel_data = {
-                "name": f"Test {channel_type}",
-                "type": channel_type,
-                "enabled": True
-            }
-            response = client.post(
-                "/api/v1/alerts/notification/channels",
-                json=channel_data
-            )
+            channel_data = {"name": f"Test {channel_type}", "type": channel_type, "enabled": True}
+            response = client.post("/api/v1/alerts/notification/channels", json=channel_data)
             assert response.status_code == 200
 
     def test_notification_channel_invalid_type(self, client):
         """Test notification channel with invalid type"""
-        invalid_channel = {
-            "name": "Invalid",
-            "type": "invalid_type",
-            "enabled": True
-        }
-        response = client.post(
-            "/api/v1/alerts/notification/channels",
-            json=invalid_channel
-        )
+        invalid_channel = {"name": "Invalid", "type": "invalid_type", "enabled": True}
+        response = client.post("/api/v1/alerts/notification/channels", json=invalid_channel)
         assert response.status_code == 422
 
     def test_webhook_timeout_validation(self, client):
@@ -1388,18 +1345,16 @@ class TestDataValidation:
         webhook_data = {
             "name": "Test Webhook",
             "url": "https://example.com/webhook",
-            "timeout": 1000  # Should be within reasonable range
+            "timeout": 1000,  # Should be within reasonable range
         }
-        response = client.post(
-            "/api/v1/alerts/webhook/configs",
-            json=webhook_data
-        )
+        response = client.post("/api/v1/alerts/webhook/configs", json=webhook_data)
         assert response.status_code == 200
 
 
 # ============================================================================
 # Error Handling Tests
 # ============================================================================
+
 
 class TestErrorHandling:
     """Test suite for error handling"""
@@ -1425,16 +1380,14 @@ class TestErrorHandling:
 
     def test_validation_error_on_missing_required_fields(self, client):
         """Test validation error when required fields are missing"""
-        response = client.post(
-            "/api/v1/alerts/notification/channels",
-            json={"enabled": True}
-        )
+        response = client.post("/api/v1/alerts/notification/channels", json={"enabled": True})
         assert response.status_code == 422
 
 
 # ============================================================================
 # Performance Tests
 # ============================================================================
+
 
 class TestPerformance:
     """Test suite for performance"""
@@ -1444,10 +1397,7 @@ class TestPerformance:
         for i in range(10):
             channel_data = sample_notification_channel.dict()
             channel_data["name"] = f"Channel {i}"
-            response = client.post(
-                "/api/v1/alerts/notification/channels",
-                json=channel_data
-            )
+            response = client.post("/api/v1/alerts/notification/channels", json=channel_data)
             assert response.status_code == 200
 
     def test_get_after_multiple_creates(self, client, sample_notification_channel):
@@ -1456,10 +1406,7 @@ class TestPerformance:
         for i in range(5):
             channel_data = sample_notification_channel.dict()
             channel_data["name"] = f"Channel {i}"
-            client.post(
-                "/api/v1/alerts/notification/channels",
-                json=channel_data
-            )
+            client.post("/api/v1/alerts/notification/channels", json=channel_data)
 
         # Get all channels
         response = client.get("/api/v1/alerts/notification/channels")

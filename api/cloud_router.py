@@ -25,6 +25,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
+from api.common import handle_service_error
 from core.cloud_collector import (
     CLOUD_PROVIDERS,
     collect_all_cloud,
@@ -68,8 +69,7 @@ async def get_cloud_metrics():
     try:
         return collect_all_cloud()
     except Exception as e:
-        logger.error(f"Cloud collection failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Cloud collection failed")
+        handle_service_error(e, "Cloud collection", detail_prefix="Cloud collection failed")
 
 
 @router.post(
@@ -87,8 +87,9 @@ async def collect_one(provider_cfg: Dict[str, Any]):
     try:
         return collect_cloud(provider_cfg)
     except Exception as e:
-        logger.error(f"Cloud provider collection failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Cloud provider collection failed")
+        handle_service_error(
+            e, "Cloud provider collection", detail_prefix="Cloud provider collection failed"
+        )
 
 
 @router.get(
@@ -106,8 +107,9 @@ async def cloud_history(limit: int = Query(20, ge=1, le=100)):
     try:
         return get_cloud_collect_history(limit)
     except Exception as e:
-        logger.error(f"Failed to get cloud history: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retrieve cloud history")
+        handle_service_error(
+            e, "获取云平台采集历史", detail_prefix="Failed to retrieve cloud history"
+        )
 
 
 @router.get(
@@ -133,8 +135,9 @@ async def get_provider_metrics(
         result = collect_cloud(matched_cfg[0])
         return [result] if result else []
     except Exception as e:
-        logger.error(f"Provider metrics collection failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Provider metrics collection failed")
+        handle_service_error(
+            e, "Provider metrics collection", detail_prefix="Provider metrics collection failed"
+        )
 
 
 @router.post(
@@ -159,8 +162,7 @@ async def collect_provider(
     try:
         return collect_cloud(matched_cfg[0])
     except Exception as e:
-        logger.error(f"Provider collection failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Provider collection failed")
+        handle_service_error(e, "Provider collection", detail_prefix="Provider collection failed")
 
 
 @router.get(

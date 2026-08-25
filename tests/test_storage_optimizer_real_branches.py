@@ -300,7 +300,9 @@ class TestDataCompressorRealData:
             _make_object("c-1", "c-1.bin", 10 * 1024**3),
             _make_object("c-2", "c-2.bin", 5 * 1024**3),
         ]
-        result = compressor.estimate_compression_savings(objects, estimated_ratio=2.0)  # noqa: F841  # Variable for test verification
+        result = compressor.estimate_compression_savings(
+            objects, estimated_ratio=2.0
+        )  # noqa: F841  # Variable for test verification
         assert result["total_size"] == sum(o.size for o in objects)
         assert result["savings"] > 0
         assert result["compression_ratio"] == 2.0

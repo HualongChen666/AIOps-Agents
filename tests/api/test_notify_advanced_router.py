@@ -4,27 +4,28 @@ Test cases for Notification Advanced Router
 Comprehensive test coverage for notification management API
 """
 
-import pytest
 from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
-from unittest.mock import Mock, patch, MagicMock
+
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.notify_advanced_router import (
-    router,
     ChannelCreate,
     ChannelUpdate,
-    TemplateCreate,
-    TemplateUpdate,
+    NotificationSettings,
     RuleCreate,
     RuleUpdate,
-    NotificationSettings,
+    TemplateCreate,
+    TemplateUpdate,
     _channels,
-    _templates,
-    _rules,
     _history,
+    _rules,
     _settings,
+    _templates,
+    router,
 )
 
 
@@ -32,6 +33,7 @@ from api.notify_advanced_router import (
 def client():
     """Create a test client for the router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -44,15 +46,17 @@ def reset_storage():
     _templates.clear()
     _rules.clear()
     _history.clear()
-    _settings.update({
-        "enabled": True,
-        "min_level": "info",
-        "rate_limit_enabled": True,
-        "rate_limit_per_minute": 10,
-        "batch_enabled": False,
-        "batch_interval": 60,
-        "metadata": {},
-    })
+    _settings.update(
+        {
+            "enabled": True,
+            "min_level": "info",
+            "rate_limit_enabled": True,
+            "rate_limit_per_minute": 10,
+            "batch_enabled": False,
+            "batch_interval": 60,
+            "metadata": {},
+        }
+    )
     yield
     _channels.clear()
     _templates.clear()
@@ -135,6 +139,7 @@ def sample_history(sample_channel, sample_template):
 # Channel Endpoints Tests
 # ============================================================================
 
+
 class TestChannelEndpoints:
     """Test cases for channel endpoints"""
 
@@ -156,12 +161,12 @@ class TestChannelEndpoints:
         """Test getting channels filtered by enabled status"""
         sample_channel["enabled"] = True
         _channels[sample_channel["id"]] = sample_channel
-        
+
         disabled_channel = sample_channel.copy()
         disabled_channel["id"] = str(uuid4())
         disabled_channel["enabled"] = False
         _channels[disabled_channel["id"]] = disabled_channel
-        
+
         response = client.get("/api/v1/notify/channels?enabled=true")
         assert response.status_code == 200
         data = response.json()
@@ -171,7 +176,7 @@ class TestChannelEndpoints:
     def test_get_channels_filter_type(self, client, sample_channel):
         """Test getting channels filtered by type"""
         _channels[sample_channel["id"]] = sample_channel
-        
+
         response = client.get("/api/v1/notify/channels?type=email")
         assert response.status_code == 200
         data = response.json()
@@ -183,12 +188,12 @@ class TestChannelEndpoints:
         channel1["id"] = str(uuid4())
         channel1["priority"] = 5
         _channels[channel1["id"]] = channel1
-        
+
         channel2 = sample_channel.copy()
         channel2["id"] = str(uuid4())
         channel2["priority"] = 10
         _channels[channel2["id"]] = channel2
-        
+
         response = client.get("/api/v1/notify/channels")
         assert response.status_code == 200
         data = response.json()
@@ -200,13 +205,10 @@ class TestChannelEndpoints:
             "name": "Slack Channel",
             "type": "slack",
             "enabled": True,
-            "config": {
-                "webhook_url": "https://hooks.slack.com/services/xxx",
-                "channel": "#alerts"
-            },
+            "config": {"webhook_url": "https://hooks.slack.com/services/xxx", "channel": "#alerts"},
             "priority": 5,
             "retry_count": 3,
-            "timeout": 30
+            "timeout": 30,
         }
         response = client.post("/api/v1/notify/channels", json=channel_data)
         assert response.status_code == 200
@@ -217,11 +219,7 @@ class TestChannelEndpoints:
 
     def test_create_channel_invalid_type(self, client):
         """Test creating a channel with invalid type"""
-        channel_data = {
-            "name": "Invalid Channel",
-            "type": "invalid_type",
-            "enabled": True
-        }
+        channel_data = {"name": "Invalid Channel", "type": "invalid_type", "enabled": True}
         response = client.post("/api/v1/notify/channels", json=channel_data)
         assert response.status_code == 422  # Validation error
 
@@ -232,7 +230,7 @@ class TestChannelEndpoints:
             channel_data = {
                 "name": f"{channel_type.capitalize()} Channel",
                 "type": channel_type,
-                "enabled": True
+                "enabled": True,
             }
             response = client.post("/api/v1/notify/channels", json=channel_data)
             assert response.status_code == 200
@@ -255,12 +253,8 @@ class TestChannelEndpoints:
     def test_update_channel_success(self, client, sample_channel):
         """Test updating a channel successfully"""
         _channels[sample_channel["id"]] = sample_channel
-        
-        update_data = {
-            "name": "Email Channel Updated",
-            "enabled": False,
-            "priority": 15
-        }
+
+        update_data = {"name": "Email Channel Updated", "enabled": False, "priority": 15}
         response = client.patch(f"/api/v1/notify/channels/{sample_channel['id']}", json=update_data)
         assert response.status_code == 200
         data = response.json()
@@ -277,7 +271,7 @@ class TestChannelEndpoints:
     def test_delete_channel_success(self, client, sample_channel):
         """Test deleting a channel successfully"""
         _channels[sample_channel["id"]] = sample_channel
-        
+
         response = client.delete(f"/api/v1/notify/channels/{sample_channel['id']}")
         assert response.status_code == 200
         assert sample_channel["id"] not in _channels
@@ -292,7 +286,7 @@ class TestChannelEndpoints:
         """Test deleting a channel that is used by a rule (should fail)"""
         _channels[sample_channel["id"]] = sample_channel
         _rules[sample_rule["id"]] = sample_rule
-        
+
         response = client.delete(f"/api/v1/notify/channels/{sample_channel['id']}")
         assert response.status_code == 400
         assert "used by one or more notification rules" in response.json()["detail"]
@@ -301,6 +295,7 @@ class TestChannelEndpoints:
 # ============================================================================
 # Template Endpoints Tests
 # ============================================================================
+
 
 class TestTemplateEndpoints:
     """Test cases for template endpoints"""
@@ -323,12 +318,12 @@ class TestTemplateEndpoints:
         """Test getting templates filtered by enabled status"""
         sample_template["enabled"] = True
         _templates[sample_template["id"]] = sample_template
-        
+
         disabled_template = sample_template.copy()
         disabled_template["id"] = str(uuid4())
         disabled_template["enabled"] = False
         _templates[disabled_template["id"]] = disabled_template
-        
+
         response = client.get("/api/v1/notify/templates?enabled=true")
         assert response.status_code == 200
         data = response.json()
@@ -337,7 +332,7 @@ class TestTemplateEndpoints:
     def test_get_templates_filter_type(self, client, sample_template):
         """Test getting templates filtered by type"""
         _templates[sample_template["id"]] = sample_template
-        
+
         response = client.get("/api/v1/notify/templates?type=email")
         assert response.status_code == 200
         data = response.json()
@@ -352,7 +347,7 @@ class TestTemplateEndpoints:
             "type": "sms",
             "variables": ["alert_title", "alert_description"],
             "enabled": True,
-            "metadata": {}
+            "metadata": {},
         }
         response = client.post("/api/v1/notify/templates", json=template_data)
         assert response.status_code == 200
@@ -386,13 +381,15 @@ class TestTemplateEndpoints:
     def test_update_template_success(self, client, sample_template):
         """Test updating a template successfully"""
         _templates[sample_template["id"]] = sample_template
-        
+
         update_data = {
             "name": "Updated Template",
             "subject": "Updated: {{alert_title}}",
-            "enabled": False
+            "enabled": False,
         }
-        response = client.patch(f"/api/v1/notify/templates/{sample_template['id']}", json=update_data)
+        response = client.patch(
+            f"/api/v1/notify/templates/{sample_template['id']}", json=update_data
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Updated Template"
@@ -407,7 +404,7 @@ class TestTemplateEndpoints:
     def test_delete_template_success(self, client, sample_template):
         """Test deleting a template successfully"""
         _templates[sample_template["id"]] = sample_template
-        
+
         response = client.delete(f"/api/v1/notify/templates/{sample_template['id']}")
         assert response.status_code == 200
         assert sample_template["id"] not in _templates
@@ -422,7 +419,7 @@ class TestTemplateEndpoints:
         """Test deleting a template that is used by a rule (should fail)"""
         _templates[sample_template["id"]] = sample_template
         _rules[sample_rule["id"]] = sample_rule
-        
+
         response = client.delete(f"/api/v1/notify/templates/{sample_template['id']}")
         assert response.status_code == 400
         assert "used by one or more notification rules" in response.json()["detail"]
@@ -431,6 +428,7 @@ class TestTemplateEndpoints:
 # ============================================================================
 # Rule Endpoints Tests
 # ============================================================================
+
 
 class TestRuleEndpoints:
     """Test cases for rule endpoints"""
@@ -453,12 +451,12 @@ class TestRuleEndpoints:
         """Test getting rules filtered by enabled status"""
         sample_rule["enabled"] = True
         _rules[sample_rule["id"]] = sample_rule
-        
+
         disabled_rule = sample_rule.copy()
         disabled_rule["id"] = str(uuid4())
         disabled_rule["enabled"] = False
         _rules[disabled_rule["id"]] = disabled_rule
-        
+
         response = client.get("/api/v1/notify/rules?enabled=true")
         assert response.status_code == 200
         data = response.json()
@@ -470,12 +468,12 @@ class TestRuleEndpoints:
         rule1["id"] = str(uuid4())
         rule1["priority"] = 5
         _rules[rule1["id"]] = rule1
-        
+
         rule2 = sample_rule.copy()
         rule2["id"] = str(uuid4())
         rule2["priority"] = 10
         _rules[rule2["id"]] = rule2
-        
+
         response = client.get("/api/v1/notify/rules")
         assert response.status_code == 200
         data = response.json()
@@ -485,7 +483,7 @@ class TestRuleEndpoints:
         """Test creating a rule successfully"""
         _channels[sample_channel["id"]] = sample_channel
         _templates[sample_template["id"]] = sample_template
-        
+
         rule_data = {
             "name": "Warning Alert Rule",
             "condition": "alert_level == 'warning'",
@@ -493,7 +491,7 @@ class TestRuleEndpoints:
             "template_id": sample_template["id"],
             "enabled": True,
             "priority": 5,
-            "metadata": {}
+            "metadata": {},
         }
         response = client.post("/api/v1/notify/rules", json=rule_data)
         assert response.status_code == 200
@@ -503,13 +501,13 @@ class TestRuleEndpoints:
     def test_create_rule_template_not_found(self, client, sample_channel):
         """Test creating a rule with non-existent template"""
         _channels[sample_channel["id"]] = sample_channel
-        
+
         rule_data = {
             "name": "Test Rule",
             "condition": "alert_level == 'critical'",
             "channels": [sample_channel["id"]],
             "template_id": str(uuid4()),
-            "enabled": True
+            "enabled": True,
         }
         response = client.post("/api/v1/notify/rules", json=rule_data)
         assert response.status_code == 400
@@ -518,13 +516,13 @@ class TestRuleEndpoints:
     def test_create_rule_channel_not_found(self, client, sample_template):
         """Test creating a rule with non-existent channel"""
         _templates[sample_template["id"]] = sample_template
-        
+
         rule_data = {
             "name": "Test Rule",
             "condition": "alert_level == 'critical'",
             "channels": [str(uuid4())],
             "template_id": sample_template["id"],
-            "enabled": True
+            "enabled": True,
         }
         response = client.post("/api/v1/notify/rules", json=rule_data)
         assert response.status_code == 400
@@ -547,11 +545,11 @@ class TestRuleEndpoints:
     def test_update_rule_success(self, client, sample_rule):
         """Test updating a rule successfully"""
         _rules[sample_rule["id"]] = sample_rule
-        
+
         update_data = {
             "name": "Updated Rule",
             "condition": "alert_level == 'error'",
-            "enabled": False
+            "enabled": False,
         }
         response = client.patch(f"/api/v1/notify/rules/{sample_rule['id']}", json=update_data)
         assert response.status_code == 200
@@ -568,10 +566,8 @@ class TestRuleEndpoints:
     def test_update_rule_invalid_channel(self, client, sample_rule):
         """Test updating a rule with invalid channel"""
         _rules[sample_rule["id"]] = sample_rule
-        
-        update_data = {
-            "channels": [str(uuid4())]
-        }
+
+        update_data = {"channels": [str(uuid4())]}
         response = client.patch(f"/api/v1/notify/rules/{sample_rule['id']}", json=update_data)
         assert response.status_code == 400
         assert "not found" in response.json()["detail"]
@@ -579,10 +575,8 @@ class TestRuleEndpoints:
     def test_update_rule_invalid_template(self, client, sample_rule):
         """Test updating a rule with invalid template"""
         _rules[sample_rule["id"]] = sample_rule
-        
-        update_data = {
-            "template_id": str(uuid4())
-        }
+
+        update_data = {"template_id": str(uuid4())}
         response = client.patch(f"/api/v1/notify/rules/{sample_rule['id']}", json=update_data)
         assert response.status_code == 400
         assert "Template not found" in response.json()["detail"]
@@ -590,7 +584,7 @@ class TestRuleEndpoints:
     def test_delete_rule_success(self, client, sample_rule):
         """Test deleting a rule successfully"""
         _rules[sample_rule["id"]] = sample_rule
-        
+
         response = client.delete(f"/api/v1/notify/rules/{sample_rule['id']}")
         assert response.status_code == 200
         assert sample_rule["id"] not in _rules
@@ -605,6 +599,7 @@ class TestRuleEndpoints:
 # ============================================================================
 # History Endpoints Tests
 # ============================================================================
+
 
 class TestHistoryEndpoints:
     """Test cases for history endpoints"""
@@ -626,7 +621,7 @@ class TestHistoryEndpoints:
     def test_get_history_filter_channel_id(self, client, sample_history):
         """Test getting history filtered by channel ID"""
         _history.append(sample_history)
-        
+
         response = client.get(f"/api/v1/notify/history?channel_id={sample_history['channel_id']}")
         assert response.status_code == 200
         data = response.json()
@@ -635,7 +630,7 @@ class TestHistoryEndpoints:
     def test_get_history_filter_status(self, client, sample_history):
         """Test getting history filtered by status"""
         _history.append(sample_history)
-        
+
         response = client.get("/api/v1/notify/history?status=sent")
         assert response.status_code == 200
         data = response.json()
@@ -647,7 +642,7 @@ class TestHistoryEndpoints:
             history_item = sample_history.copy()
             history_item["id"] = str(uuid4())
             _history.append(history_item)
-        
+
         response = client.get("/api/v1/notify/history?limit=5")
         assert response.status_code == 200
         data = response.json()
@@ -668,6 +663,7 @@ class TestHistoryEndpoints:
 # Settings Endpoints Tests
 # ============================================================================
 
+
 class TestSettingsEndpoints:
     """Test cases for settings endpoints"""
 
@@ -686,7 +682,7 @@ class TestSettingsEndpoints:
             "enabled": False,
             "min_level": "warning",
             "rate_limit_per_minute": 20,
-            "batch_enabled": True
+            "batch_enabled": True,
         }
         response = client.patch("/api/v1/notify/settings", json=settings_data)
         assert response.status_code == 200
@@ -697,9 +693,7 @@ class TestSettingsEndpoints:
 
     def test_update_settings_partial(self, client):
         """Test updating notification settings partially"""
-        settings_data = {
-            "enabled": False
-        }
+        settings_data = {"enabled": False}
         response = client.patch("/api/v1/notify/settings", json=settings_data)
         assert response.status_code == 200
         data = response.json()
@@ -712,13 +706,16 @@ class TestSettingsEndpoints:
 # Error Handling Tests
 # ============================================================================
 
+
 class TestErrorHandling:
     """Test cases for error handling"""
 
-    @patch('api.notify_advanced_router.logger')
+    @patch("api.notify_advanced_router.logger")
     def test_get_channels_exception_handling(self, mock_logger, client):
         """Test exception handling in get_channels"""
-        with patch('api.notify_advanced_router.ChannelResponse', side_effect=Exception("Test error")):
+        with patch(
+            "api.notify_advanced_router.ChannelResponse", side_effect=Exception("Test error")
+        ):
             sample_channel = {
                 "id": str(uuid4()),
                 "name": "Test Channel",
@@ -735,21 +732,22 @@ class TestErrorHandling:
             response = client.get("/api/v1/notify/channels")
             assert response.status_code == 500
 
-    @patch('api.notify_advanced_router.logger')
+    @patch("api.notify_advanced_router.logger")
     def test_create_channel_exception_handling(self, mock_logger, client):
         """Test exception handling in create_channel"""
-        with patch('api.notify_advanced_router.ChannelResponse', side_effect=Exception("Test error")):
-            channel_data = {
-                "name": "Test Channel",
-                "type": "email"
-            }
+        with patch(
+            "api.notify_advanced_router.ChannelResponse", side_effect=Exception("Test error")
+        ):
+            channel_data = {"name": "Test Channel", "type": "email"}
             response = client.post("/api/v1/notify/channels", json=channel_data)
             assert response.status_code == 500
 
-    @patch('api.notify_advanced_router.logger')
+    @patch("api.notify_advanced_router.logger")
     def test_get_channel_exception_handling(self, mock_logger, client):
         """Test exception handling in get_channel"""
-        with patch('api.notify_advanced_router.ChannelResponse', side_effect=Exception("Test error")):
+        with patch(
+            "api.notify_advanced_router.ChannelResponse", side_effect=Exception("Test error")
+        ):
             sample_channel = {
                 "id": str(uuid4()),
                 "name": "Test Channel",
@@ -771,6 +769,7 @@ class TestErrorHandling:
 # Data Validation Tests
 # ============================================================================
 
+
 class TestDataValidation:
     """Test cases for data validation"""
 
@@ -785,10 +784,7 @@ class TestDataValidation:
 
     def test_channel_create_invalid_type(self, client):
         """Test channel creation with invalid type"""
-        channel_data = {
-            "name": "Test Channel",
-            "type": "invalid_type"
-        }
+        channel_data = {"name": "Test Channel", "type": "invalid_type"}
         response = client.post("/api/v1/notify/channels", json=channel_data)
         assert response.status_code == 422
 
@@ -820,30 +816,25 @@ class TestDataValidation:
 # Mock Tests
 # ============================================================================
 
+
 class TestMockDependencies:
     """Test cases with mocked dependencies"""
 
-    @patch('api.notify_advanced_router.datetime')
+    @patch("api.notify_advanced_router.datetime")
     def test_create_channel_with_mocked_datetime(self, mock_datetime, client):
         """Test channel creation with mocked datetime"""
         mock_datetime.utcnow.return_value = datetime(2024, 1, 1, 12, 0, 0)
-        
-        channel_data = {
-            "name": "Test Channel",
-            "type": "email"
-        }
+
+        channel_data = {"name": "Test Channel", "type": "email"}
         response = client.post("/api/v1/notify/channels", json=channel_data)
         assert response.status_code == 200
 
-    @patch('api.notify_advanced_router.uuid4')
+    @patch("api.notify_advanced_router.uuid4")
     def test_create_channel_with_mocked_uuid(self, mock_uuid, client):
         """Test channel creation with mocked UUID"""
         mock_uuid.return_value = "test-uuid-123"
-        
-        channel_data = {
-            "name": "Test Channel",
-            "type": "email"
-        }
+
+        channel_data = {"name": "Test Channel", "type": "email"}
         response = client.post("/api/v1/notify/channels", json=channel_data)
         assert response.status_code == 200
         data = response.json()
@@ -854,30 +845,27 @@ class TestMockDependencies:
 # Integration Tests
 # ============================================================================
 
+
 class TestIntegration:
     """Integration test cases"""
 
     def test_full_channel_workflow(self, client):
         """Test complete channel workflow: create, read, update, delete"""
         # Create
-        channel_data = {
-            "name": "Test Channel",
-            "type": "email",
-            "enabled": True
-        }
+        channel_data = {"name": "Test Channel", "type": "email", "enabled": True}
         create_response = client.post("/api/v1/notify/channels", json=channel_data)
         assert create_response.status_code == 200
         channel_id = create_response.json()["id"]
-        
+
         # Read
         get_response = client.get(f"/api/v1/notify/channels/{channel_id}")
         assert get_response.status_code == 200
-        
+
         # Update
         update_data = {"name": "Updated Channel"}
         update_response = client.patch(f"/api/v1/notify/channels/{channel_id}", json=update_data)
         assert update_response.status_code == 200
-        
+
         # Delete
         delete_response = client.delete(f"/api/v1/notify/channels/{channel_id}")
         assert delete_response.status_code == 200
@@ -889,21 +877,21 @@ class TestIntegration:
             "name": "Test Template",
             "subject": "Test Subject",
             "body": "Test Body",
-            "type": "email"
+            "type": "email",
         }
         create_response = client.post("/api/v1/notify/templates", json=template_data)
         assert create_response.status_code == 200
         template_id = create_response.json()["id"]
-        
+
         # Read
         get_response = client.get(f"/api/v1/notify/templates/{template_id}")
         assert get_response.status_code == 200
-        
+
         # Update
         update_data = {"name": "Updated Template"}
         update_response = client.patch(f"/api/v1/notify/templates/{template_id}", json=update_data)
         assert update_response.status_code == 200
-        
+
         # Delete
         delete_response = client.delete(f"/api/v1/notify/templates/{template_id}")
         assert delete_response.status_code == 200
@@ -912,28 +900,28 @@ class TestIntegration:
         """Test complete rule workflow: create, read, update, delete"""
         _channels[sample_channel["id"]] = sample_channel
         _templates[sample_template["id"]] = sample_template
-        
+
         # Create
         rule_data = {
             "name": "Test Rule",
             "condition": "alert_level == 'critical'",
             "channels": [sample_channel["id"]],
             "template_id": sample_template["id"],
-            "enabled": True
+            "enabled": True,
         }
         create_response = client.post("/api/v1/notify/rules", json=rule_data)
         assert create_response.status_code == 200
         rule_id = create_response.json()["id"]
-        
+
         # Read
         get_response = client.get(f"/api/v1/notify/rules/{rule_id}")
         assert get_response.status_code == 200
-        
+
         # Update
         update_data = {"name": "Updated Rule"}
         update_response = client.patch(f"/api/v1/notify/rules/{rule_id}", json=update_data)
         assert update_response.status_code == 200
-        
+
         # Delete
         delete_response = client.delete(f"/api/v1/notify/rules/{rule_id}")
         assert delete_response.status_code == 200
@@ -944,28 +932,28 @@ class TestIntegration:
         channel_data = {"name": "Test Channel", "type": "email"}
         channel_response = client.post("/api/v1/notify/channels", json=channel_data)
         channel_id = channel_response.json()["id"]
-        
+
         # Create template
         template_data = {
             "name": "Test Template",
             "subject": "Test",
             "body": "Test",
-            "type": "email"
+            "type": "email",
         }
         template_response = client.post("/api/v1/notify/templates", json=template_data)
         template_id = template_response.json()["id"]
-        
+
         # Create rule using channel and template
         rule_data = {
             "name": "Test Rule",
             "condition": "test",
             "channels": [channel_id],
             "template_id": template_id,
-            "enabled": True
+            "enabled": True,
         }
         rule_response = client.post("/api/v1/notify/rules", json=rule_data)
         assert rule_response.status_code == 200
-        
+
         # Verify rule references
         rule = rule_response.json()
         assert channel_id in rule["channels"]

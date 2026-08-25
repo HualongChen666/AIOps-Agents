@@ -152,7 +152,9 @@ def test_auto_discovery_basic_config_and_topology(tmp_path, monkeypatch):
             },
         ],
     }
-    result = engine.discover(methods=["config"], config_data=config_data)  # noqa: F841  # Variable for test verification
+    result = engine.discover(
+        methods=["config"], config_data=config_data
+    )  # noqa: F841  # Variable for test verification
     assert result["_truncated"] is False
     assert len(result["resources"]) == 2
     assert "topology" in result
@@ -177,7 +179,9 @@ def test_auto_discovery_basic_config_and_topology(tmp_path, monkeypatch):
 
     # missing config branch
     empty_engine = create_auto_discovery_engine()
-    empty_result = empty_engine.discover(methods=["config"])  # noqa: F841  # Variable for test verification
+    empty_result = empty_engine.discover(
+        methods=["config"]
+    )  # noqa: F841  # Variable for test verification
     assert empty_result["resources"] == []
 
     # port inference
@@ -423,7 +427,9 @@ def test_resource_optimizer_volatile_exception(monkeypatch):
         )
     monkeypatch.setattr(statistics, "stdev", lambda *a, **k: (_ for _ in ()).throw(ValueError("x")))
     optimizer = create_resource_optimizer(monitor)
-    result = optimizer.analyze_optimization_opportunities()  # noqa: F841  # Variable for test verification
+    result = (
+        optimizer.analyze_optimization_opportunities()
+    )  # noqa: F841  # Variable for test verification
     # CPU still yields a suggestion despite NETWORK branch crashing internally
     assert any(r.resource_type == ResResourceType.CPU for r in result)
     assert not any(r.resource_type == ResResourceType.NETWORK for r in result)
@@ -841,7 +847,9 @@ def test_database_participant():
     async def op(sess, ctx):
         return {"ok": True}
 
-    result = asyncio.run(participant.execute({"db_operation": op}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        participant.execute({"db_operation": op})
+    )  # noqa: F841  # Variable for test verification
     assert result["ok"] is True
 
     asyncio.run(participant.compensate({}))
@@ -855,7 +863,9 @@ def test_api_call_participant():
     client.post = AsyncMock(return_value=response)
 
     participant = APICallParticipant("api", "http://e", "http://c", client)
-    result = asyncio.run(participant.execute({"api_payload": {"x": 1}}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        participant.execute({"api_payload": {"x": 1}})
+    )  # noqa: F841  # Variable for test verification
     assert result["transaction_id"] == "t1"
     asyncio.run(participant.compensate({}))
     assert client.post.call_count == 2
@@ -865,7 +875,9 @@ def test_message_queue_participant():
     client = MagicMock()
     client.publish = AsyncMock(return_value="msg-1")
     participant = MessageQueueParticipant("mq", client, "orders")
-    result = asyncio.run(participant.execute({"mq_message": {"x": 1}}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        participant.execute({"mq_message": {"x": 1}})
+    )  # noqa: F841  # Variable for test verification
     assert result["message_id"] == "msg-1"
     asyncio.run(participant.compensate({}))
     assert client.publish.call_count == 2
@@ -876,7 +888,9 @@ def test_resource_allocation_participant():
     manager.allocate = AsyncMock(return_value=["r1", "r2"])
     manager.release = AsyncMock()
     participant = ResourceAllocationParticipant("res", manager)
-    result = asyncio.run(participant.execute({"res_spec": {"cpu": 1}}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        participant.execute({"res_spec": {"cpu": 1}})
+    )  # noqa: F841  # Variable for test verification
     assert result["allocated"] == ["r1", "r2"]
     asyncio.run(participant.compensate({}))
     assert manager.release.call_count == 2
@@ -888,7 +902,9 @@ def test_notification_participant():
     service.cancel = AsyncMock()
     participant = NotificationParticipant("notify", service)
     assert participant.should_compensate({}) is False
-    result = asyncio.run(participant.execute({"notify_notification": {"msg": "hi"}}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        participant.execute({"notify_notification": {"msg": "hi"}})
+    )  # noqa: F841  # Variable for test verification
     assert result["notification_id"] == "n1"
     asyncio.run(participant.compensate({}))
     assert service.cancel.called
@@ -972,7 +988,9 @@ def test_transformer_service_detect(tmp_path, monkeypatch):
     )
 
     service = TransformerAnomalyService(manager)
-    result = service.detect_single([1.0, 2.0, 3.0, 4.0, 5.0])  # noqa: F841  # Variable for test verification
+    result = service.detect_single(
+        [1.0, 2.0, 3.0, 4.0, 5.0]
+    )  # noqa: F841  # Variable for test verification
     assert "is_anomaly" in result
     assert isinstance(result["anomaly_count"], int)
 

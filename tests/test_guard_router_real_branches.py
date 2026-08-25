@@ -27,7 +27,9 @@ def _guard_setup():
 @pytest.fixture
 def restore_config():
     """Restore mutable config values that tests tweak for branch coverage."""
-    original_allowed = list(config.ALLOWED_LOCAL_IPS)  # noqa: F841  # Variable for test verification
+    original_allowed = list(
+        config.ALLOWED_LOCAL_IPS
+    )  # noqa: F841  # Variable for test verification
     original_key = config.INTERNAL_API_KEY  # noqa: F841  # Variable for test verification
     original_trust = config.TRUST_PROXY_HEADER  # noqa: F841  # Variable for test verification
     yield

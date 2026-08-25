@@ -111,7 +111,9 @@ def _stub_services_imports(monkeypatch, unique: str, path: Path):
             # Only handle relative imports from the unique package.
             base = unique  # noqa: F841  # Variable for test verification
             if node.level > 1:
-                base = unique.rsplit(".", node.level - 1)[0]  # noqa: F841  # Variable for test verification
+                base = unique.rsplit(".", node.level - 1)[
+                    0
+                ]  # noqa: F841  # Variable for test verification
             module_name = base if not node.module else f"{base}.{node.module}"
         mod = _magic_mod(monkeypatch, module_name)
         for alias in node.names:

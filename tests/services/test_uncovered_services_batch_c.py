@@ -687,7 +687,9 @@ async def test_repair_repository():
     await repo.save(t2)
 
     assert await repo.count() == 2
-    pending = await repo.list(status=RepairStatus.PENDING)  # noqa: F841  # Variable for test verification
+    pending = await repo.list(
+        status=RepairStatus.PENDING
+    )  # noqa: F841  # Variable for test verification
     assert len(pending) == 1
 
     ok = await repo.update("t2", {"status": RepairStatus.COMPLETED})
@@ -794,7 +796,7 @@ async def test_repair_verifier_select_strategy_all():
         host="h1",
         platform=PlatformType.LINUX,
     )
-    
+
     strategy_mappings = [
         ("service_restart", "service_status"),
         ("cpu_kill", "process_check"),
@@ -806,7 +808,7 @@ async def test_repair_verifier_select_strategy_all():
         ("http_check", "http_endpoint"),
         ("custom_cmd", "custom_command"),
     ]
-    
+
     for script_key, expected in strategy_mappings:
         task.strategy = RepairStrategy(
             name="s",
@@ -824,14 +826,14 @@ async def test_repair_verifier_select_strategy_all():
 async def test_repair_verifier_exception_handling():
     """Test verifier exception handling."""
     from services.repair_service import verifier as _verifier
-    
+
     class FakeHealth:
         async def check_service_status(self, *args, **kwargs):
             raise RuntimeError("health check failed")
-    
+
     verifier = RepairVerifier(timeout=1)
     verifier.health = FakeHealth()
-    
+
     task = RepairTask(
         task_id="t1",
         alert_id="a1",
@@ -845,7 +847,7 @@ async def test_repair_verifier_exception_handling():
             risk_level=RiskLevel.LOW,
         ),
     )
-    
+
     result = await verifier.verify(task)
     assert result.verified is False
     assert "health check failed" in result.evidence.get("error", "")
@@ -859,7 +861,7 @@ async def test_repair_verifier_exception_handling():
 def test_repair_strategy_manager_index():
     """Test strategy index building."""
     mgr = RepairStrategyManager()
-    
+
     # Add a wildcard strategy
     wildcard = RepairStrategy(
         name="wildcard",
@@ -868,10 +870,10 @@ def test_repair_strategy_manager_index():
         platform=PlatformType.LINUX,
     )
     mgr.add_strategy(wildcard)
-    
+
     # Rebuild index
     mgr._build_index()
-    
+
     # Check that wildcard is in wildcard list
     assert any(s.name == "wildcard" for s in mgr._wildcard_strategies)
 
@@ -879,7 +881,7 @@ def test_repair_strategy_manager_index():
 def test_repair_strategy_manager_priority():
     """Test strategy priority sorting."""
     mgr = RepairStrategyManager()
-    
+
     strategies = mgr.list_strategies()
     # Should be sorted by priority descending
     priorities = [s.priority for s in strategies]
@@ -894,7 +896,7 @@ def test_repair_strategy_manager_priority():
 async def test_repair_repository_updated_at():
     """Test that updated_at is set on update."""
     repo = InMemoryRepairRepository()
-    
+
     task = RepairTask(
         task_id="t1",
         alert_id="a1",
@@ -903,11 +905,11 @@ async def test_repair_repository_updated_at():
     )
     original_time = task.updated_at
     await repo.save(task)
-    
+
     # Wait a bit
     await asyncio.sleep(0.01)
-    
+
     await repo.update("t1", {"status": RepairStatus.APPROVED})
     updated = await repo.get("t1")
-    
+
     assert updated.updated_at > original_time

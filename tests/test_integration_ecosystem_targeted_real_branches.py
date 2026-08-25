@@ -195,7 +195,9 @@ async def test_prometheus_query_remaining_branches():
 
     # non-200 response (820)
     ecosystem.http_session = _InMemSession(500)
-    result = await ecosystem.query_prometheus_metrics("up", prom.id, "1h")  # noqa: F841  # Variable for test verification
+    result = await ecosystem.query_prometheus_metrics(
+        "up", prom.id, "1h"
+    )  # noqa: F841  # Variable for test verification
     assert result is not None and "error" in result
 
 
@@ -465,7 +467,9 @@ async def test_query_prometheus_200_and_jenkins_201(tmp_path):
         configuration={"url": "http://x", "port": 1},
     )
     ecosystem.http_session = _InMemSession(200, {"data": {"result": []}})
-    result = await ecosystem.query_prometheus_metrics("up", prom.id, "1h")  # noqa: F841  # Variable for test verification
+    result = await ecosystem.query_prometheus_metrics(
+        "up", prom.id, "1h"
+    )  # noqa: F841  # Variable for test verification
     assert result == {"data": {"result": []}}  # noqa: F841  # Variable for test verification
 
     jenkins = await ecosystem.register_integration(

@@ -10,6 +10,8 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from api.common import handle_service_error
+
 try:
     from core.k8s_collector import collect_all_k8s, get_k8s_collect_history
     from core.k8s_repair import execute_repair_sync, get_k8s_repair_history, repair_all_k8s
@@ -28,7 +30,13 @@ class K8sRepairRequest(BaseModel):
 
     model_config = {
         "extra": "ignore",
-        "json_schema_extra": {"example": {"host": "example", "script_name": "example", "args": {}}},
+        "json_schema_extra": {
+            "example": {
+                "host": "example",
+                "script_name": "example",
+                "args": {},
+            }
+        },
     }
 
 
@@ -52,7 +60,7 @@ async def get_k8s_metrics() -> List[Dict[str, Any]]:
     try:
         return collect_all_k8s()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "K8s 指标采集")
 
 
 @router.get(
@@ -92,7 +100,7 @@ async def post_k8s_repair(payload: K8sRepairRequest) -> Dict[str, Any]:
         result = execute_repair_sync(host_cfg, payload.script_name, payload.args)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "K8s 修复执行")
 
 
 @router.post(

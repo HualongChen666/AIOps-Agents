@@ -4,7 +4,6 @@
 from datetime import datetime, timedelta
 
 import pytest
-
 from scheduler import WorkflowScheduler
 from schemas import (
     ScheduledTask,
@@ -43,25 +42,21 @@ class TestWorkflowScheduler:
 
     def test_register_handler(self, scheduler):
         """Test registering a handler."""
+
         async def handler(request):
-            return WorkflowTask(
-                task_id="test", workflow_id="test", status=WorkflowStatus.PENDING
-            )
+            return WorkflowTask(task_id="test", workflow_id="test", status=WorkflowStatus.PENDING)
 
         scheduler.register_handler(handler)
         assert len(scheduler._handlers) == 1
 
     def test_register_multiple_handlers(self, scheduler):
         """Test registering multiple handlers."""
+
         async def handler1(request):
-            return WorkflowTask(
-                task_id="test1", workflow_id="test", status=WorkflowStatus.PENDING
-            )
+            return WorkflowTask(task_id="test1", workflow_id="test", status=WorkflowStatus.PENDING)
 
         async def handler2(request):
-            return WorkflowTask(
-                task_id="test2", workflow_id="test", status=WorkflowStatus.PENDING
-            )
+            return WorkflowTask(task_id="test2", workflow_id="test", status=WorkflowStatus.PENDING)
 
         scheduler.register_handler(handler1)
         scheduler.register_handler(handler2)
@@ -145,6 +140,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_with_queue(self, scheduler, workflow_request):
         """Test run_once with queued requests."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING
@@ -161,6 +157,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_with_schedule_due(self, scheduler, scheduled_task):
         """Test run_once with due scheduled tasks."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING
@@ -178,6 +175,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_with_schedule_not_due(self, scheduler, scheduled_task):
         """Test run_once with scheduled tasks that are not due."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING
@@ -195,6 +193,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_with_disabled_schedule(self, scheduler, scheduled_task):
         """Test run_once with disabled scheduled tasks."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING
@@ -212,6 +211,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_updates_next_run(self, scheduler, scheduled_task):
         """Test that run_once updates next_run for scheduled tasks."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING
@@ -262,6 +262,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_handler_error(self, scheduler, workflow_request):
         """Test run_once when handler raises an error."""
+
         async def failing_handler(request):
             raise ValueError("Handler failed")
 
@@ -275,8 +276,11 @@ class TestWorkflowScheduler:
         assert len(scheduler._queue) == 0  # Queue should still be emptied
 
     @pytest.mark.asyncio
-    async def test_run_once_with_queue_and_schedule(self, scheduler, workflow_request, scheduled_task):
+    async def test_run_once_with_queue_and_schedule(
+        self, scheduler, workflow_request, scheduled_task
+    ):
         """Test run_once with both queued and scheduled tasks."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING
@@ -295,10 +299,9 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_start_and_stop(self, scheduler):
         """Test start and stop methods."""
+
         async def handler(request):
-            return WorkflowTask(
-                task_id="test", workflow_id="test", status=WorkflowStatus.PENDING
-            )
+            return WorkflowTask(task_id="test", workflow_id="test", status=WorkflowStatus.PENDING)
 
         scheduler.register_handler(handler)
 
@@ -412,9 +415,7 @@ class TestWorkflowScheduler:
             )
 
         scheduler.register_handler(handler)
-        request = WorkflowRequest(
-            workflow_id="test", params={"key": "value", "number": 42}
-        )
+        request = WorkflowRequest(workflow_id="test", params={"key": "value", "number": 42})
         await scheduler.enqueue(request)
 
         await scheduler.run_once()
@@ -450,6 +451,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_empty_queue_with_schedule(self, scheduler, scheduled_task):
         """Test run_once with empty queue but due scheduled tasks."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING
@@ -511,6 +513,7 @@ class TestWorkflowScheduler:
     @pytest.mark.asyncio
     async def test_run_once_concurrent_schedules(self, scheduler):
         """Test run_once with multiple due scheduled tasks."""
+
         async def handler(request):
             return WorkflowTask(
                 task_id="test", workflow_id=request.workflow_id, status=WorkflowStatus.PENDING

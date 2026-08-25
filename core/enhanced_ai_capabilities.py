@@ -758,7 +758,7 @@ class EnhancedAICapabilities:
         """生成知识模式"""
         combined = symptoms + root_causes
         pattern_str = "|".join(sorted(combined))
-        return hashlib.md5(pattern_str.encode(), usedforsecurity=False).hexdigest()
+        return hashlib.sha256(pattern_str.encode()).hexdigest()
 
     async def get_knowledge_insights(self, pattern: str) -> Dict[str, Any]:
         """获取知识洞察"""

@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from config import LINUX_HOSTS
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.service_monitoring_manager import get_service_monitoring_manager
 from core.stats_engine import get_real_summary
 from core.topology_engine import get_full_link_topology
@@ -280,7 +280,7 @@ class BusinessImpactEngine:
     @staticmethod
     def _service_id(name: str) -> str:
         """Generate a stable short service ID from the service name."""
-        digest = hashlib.md5(name.encode("utf-8")).hexdigest()[:3]
+        digest = hashlib.sha256(name.encode("utf-8")).hexdigest()[:3]
         return f"SVC-{digest.upper()}"
 
     async def get_ux_metrics(self) -> List[Dict[str, Any]]:

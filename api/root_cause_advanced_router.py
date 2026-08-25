@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.models import (
-    RootCauseHypothesis,
-    RootCauseExperiment,
-    RootCauseEvidence,
     RootCauseConclusion,
+    RootCauseEvidence,
+    RootCauseExperiment,
+    RootCauseHypothesis,
 )
 
 logger = logging.getLogger(__name__)
@@ -349,7 +349,9 @@ async def analyze_root_cause(request: RootCauseAnalysisRequest) -> Dict[str, Any
         raise HTTPException(status_code=500, detail=f"根因分析失败: {str(e)}")
 
 
-@router.get("/hypotheses", response_model=List[RootCauseHypothesisResponse], summary="获取根因假设列表")
+@router.get(
+    "/hypotheses", response_model=List[RootCauseHypothesisResponse], summary="获取根因假设列表"
+)
 async def get_root_cause_hypotheses(
     alert_id: Optional[str] = Query(None, description="按告警ID过滤"),
     verification_status: Optional[str] = Query(None, description="按验证状态过滤"),
@@ -373,7 +375,9 @@ async def get_root_cause_hypotheses(
         if status is not None:
             query = query.filter(RootCauseHypothesis.status == status)
 
-        hypotheses = query.order_by(RootCauseHypothesis.created_at.desc()).offset(offset).limit(limit).all()
+        hypotheses = (
+            query.order_by(RootCauseHypothesis.created_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return [
             RootCauseHypothesisResponse(
@@ -463,7 +467,11 @@ async def create_root_cause_hypothesis(
         raise HTTPException(status_code=500, detail=f"创建根因假设失败: {str(e)}")
 
 
-@router.get("/hypotheses/{hypothesis_id}", response_model=RootCauseHypothesisResponse, summary="获取单个根因假设")
+@router.get(
+    "/hypotheses/{hypothesis_id}",
+    response_model=RootCauseHypothesisResponse,
+    summary="获取单个根因假设",
+)
 async def get_root_cause_hypothesis(hypothesis_id: str) -> RootCauseHypothesisResponse:
     """
     根据ID获取单个根因假设
@@ -504,7 +512,11 @@ async def get_root_cause_hypothesis(hypothesis_id: str) -> RootCauseHypothesisRe
         raise HTTPException(status_code=500, detail=f"获取根因假设失败: {str(e)}")
 
 
-@router.patch("/hypotheses/{hypothesis_id}", response_model=RootCauseHypothesisResponse, summary="更新根因假设")
+@router.patch(
+    "/hypotheses/{hypothesis_id}",
+    response_model=RootCauseHypothesisResponse,
+    summary="更新根因假设",
+)
 async def update_root_cause_hypothesis(
     hypothesis_id: str, hypothesis_update: RootCauseHypothesisUpdate
 ) -> RootCauseHypothesisResponse:
@@ -591,7 +603,9 @@ async def delete_root_cause_hypothesis(hypothesis_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"删除根因假设失败: {str(e)}")
 
 
-@router.get("/experiments", response_model=List[RootCauseExperimentResponse], summary="获取根因实验列表")
+@router.get(
+    "/experiments", response_model=List[RootCauseExperimentResponse], summary="获取根因实验列表"
+)
 async def get_root_cause_experiments(
     hypothesis_id: Optional[str] = Query(None, description="按假设ID过滤"),
     status: Optional[str] = Query(None, description="按状态过滤"),
@@ -612,7 +626,9 @@ async def get_root_cause_experiments(
         if status is not None:
             query = query.filter(RootCauseExperiment.status == status)
 
-        experiments = query.order_by(RootCauseExperiment.created_at.desc()).offset(offset).limit(limit).all()
+        experiments = (
+            query.order_by(RootCauseExperiment.created_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return [
             RootCauseExperimentResponse(
@@ -696,8 +712,12 @@ async def create_root_cause_experiment(
             success=new_experiment.success,
             conclusion=new_experiment.conclusion,
             status=new_experiment.status,
-            started_at=new_experiment.started_at.isoformat() if new_experiment.started_at else None,
-            completed_at=new_experiment.completed_at.isoformat() if new_experiment.completed_at else None,
+            started_at=(
+                new_experiment.started_at.isoformat() if new_experiment.started_at else None
+            ),
+            completed_at=(
+                new_experiment.completed_at.isoformat() if new_experiment.completed_at else None
+            ),
             created_at=new_experiment.created_at.isoformat() if new_experiment.created_at else "",
             updated_at=new_experiment.updated_at.isoformat() if new_experiment.updated_at else "",
             created_by=new_experiment.created_by,
@@ -711,7 +731,11 @@ async def create_root_cause_experiment(
         raise HTTPException(status_code=500, detail=f"创建根因实验失败: {str(e)}")
 
 
-@router.get("/experiments/{experiment_id}", response_model=RootCauseExperimentResponse, summary="获取单个根因实验")
+@router.get(
+    "/experiments/{experiment_id}",
+    response_model=RootCauseExperimentResponse,
+    summary="获取单个根因实验",
+)
 async def get_root_cause_experiment(experiment_id: str) -> RootCauseExperimentResponse:
     """
     根据ID获取单个根因实验
@@ -748,7 +772,11 @@ async def get_root_cause_experiment(experiment_id: str) -> RootCauseExperimentRe
         raise HTTPException(status_code=500, detail=f"获取根因实验失败: {str(e)}")
 
 
-@router.patch("/experiments/{experiment_id}", response_model=RootCauseExperimentResponse, summary="更新根因实验")
+@router.patch(
+    "/experiments/{experiment_id}",
+    response_model=RootCauseExperimentResponse,
+    summary="更新根因实验",
+)
 async def update_root_cause_experiment(
     experiment_id: str, experiment_update: RootCauseExperimentUpdate
 ) -> RootCauseExperimentResponse:
@@ -856,7 +884,9 @@ async def get_root_cause_evidence(
         if evidence_type is not None:
             query = query.filter(RootCauseEvidence.evidence_type == evidence_type)
 
-        evidence = query.order_by(RootCauseEvidence.collected_at.desc()).offset(offset).limit(limit).all()
+        evidence = (
+            query.order_by(RootCauseEvidence.collected_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return [
             RootCauseEvidenceResponse(
@@ -876,7 +906,9 @@ async def get_root_cause_evidence(
         raise HTTPException(status_code=500, detail=f"获取根因证据失败: {str(e)}")
 
 
-@router.get("/conclusions", response_model=List[RootCauseConclusionResponse], summary="获取根因结论列表")
+@router.get(
+    "/conclusions", response_model=List[RootCauseConclusionResponse], summary="获取根因结论列表"
+)
 async def get_root_cause_conclusions(
     alert_id: Optional[str] = Query(None, description="按告警ID过滤"),
     status: Optional[str] = Query(None, description="按状态过滤"),
@@ -897,7 +929,9 @@ async def get_root_cause_conclusions(
         if status is not None:
             query = query.filter(RootCauseConclusion.status == status)
 
-        conclusions = query.order_by(RootCauseConclusion.created_at.desc()).offset(offset).limit(limit).all()
+        conclusions = (
+            query.order_by(RootCauseConclusion.created_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return [
             RootCauseConclusionResponse(

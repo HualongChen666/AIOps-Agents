@@ -421,9 +421,7 @@ class APIResponseTimeOptimizer:
 
         # Generate cache key if not provided
         if not cache_key:
-            cache_key = hashlib.md5(
-                json.dumps(data, default=str).encode(), usedforsecurity=False
-            ).hexdigest()
+            cache_key = hashlib.sha256(json.dumps(data, default=str).encode()).hexdigest()
 
         # Check cache size
         if len(cache_data["responses"]) >= self.max_cache_size:

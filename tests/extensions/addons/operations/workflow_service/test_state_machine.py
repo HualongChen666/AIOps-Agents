@@ -2,14 +2,13 @@
 """Tests for workflow_service state_machine module."""
 
 import pytest
-
-from state_machine import (
-    StateTransition,
-    WorkflowStateMachine,
-)
 from schemas import (
     WorkflowStatus,
     WorkflowTask,
+)
+from state_machine import (
+    StateTransition,
+    WorkflowStateMachine,
 )
 
 
@@ -18,18 +17,14 @@ class TestStateTransition:
 
     def test_state_transition_creation(self):
         """Test creating a StateTransition."""
-        transition = StateTransition(
-            event="start", source="pending", target="running"
-        )
+        transition = StateTransition(event="start", source="pending", target="running")
         assert transition.event == "start"
         assert transition.source == "pending"
         assert transition.target == "running"
 
     def test_state_transition_attributes(self):
         """Test StateTransition attributes are set correctly."""
-        transition = StateTransition(
-            event="fail", source="running", target="failed"
-        )
+        transition = StateTransition(event="fail", source="running", target="failed")
         assert hasattr(transition, "event")
         assert hasattr(transition, "source")
         assert hasattr(transition, "target")
@@ -38,9 +33,7 @@ class TestStateTransition:
         """Test StateTransition with different events."""
         events = ["start", "pause", "resume", "succeed", "fail", "timeout"]
         for event in events:
-            transition = StateTransition(
-                event=event, source="pending", target="running"
-            )
+            transition = StateTransition(event=event, source="pending", target="running")
             assert transition.event == event
 
 
@@ -313,9 +306,7 @@ class TestWorkflowStateMachine:
     def test_state_machine_with_different_initial_statuses(self):
         """Test state machine initialization with different initial statuses."""
         for status in WorkflowStatus:
-            task = WorkflowTask(
-                task_id="test", workflow_id="test", status=status
-            )
+            task = WorkflowTask(task_id="test", workflow_id="test", status=status)
             machine = WorkflowStateMachine(task)
             assert machine.task.status == status
             assert machine.history[0]["state"] == status.value

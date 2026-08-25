@@ -229,7 +229,9 @@ def test_in_memory_shutdown_states():
     async def job():
         await asyncio.sleep(1000)
 
-    pending = loop.create_task(s2._run_interval("long", job, 1000))  # noqa: F841  # Variable for test verification
+    pending = loop.create_task(
+        s2._run_interval("long", job, 1000)
+    )  # noqa: F841  # Variable for test verification
     s2._tasks["long"] = pending
     s2._shutdown()  # open, not running, pending task
     atexit.unregister(s2._shutdown)

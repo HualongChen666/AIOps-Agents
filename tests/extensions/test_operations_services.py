@@ -38,9 +38,11 @@ class _FakeCache:
 def test_capacity_planning_service(monkeypatch):
     """Capacity planning analysis returns recommendations."""
     monkeypatch.setattr(CapacityPlanningService, "_engine", WorkflowEngine(dry_run=True))
-    result = CapacityPlanningService.execute_operation(  # noqa: F841  # Variable for test verification
-        "capacity_analysis",
-        {"metrics": {"cpu": 80}, "forecasts": {"cpu": 95}},
+    result = (
+        CapacityPlanningService.execute_operation(  # noqa: F841  # Variable for test verification
+            "capacity_analysis",
+            {"metrics": {"cpu": 80}, "forecasts": {"cpu": 95}},
+        )
     )
     assert isinstance(result, dict)
     assert result.get("success") is True
@@ -53,7 +55,9 @@ def test_incident_response_service(monkeypatch):
     service = IncidentResponseService(cache=_FakeCache())
     # This service exposes ``call`` as its dispatch method.
     service.execute_operation = service.call
-    result = asyncio.run(service.execute_operation("list_methods", request={}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        service.execute_operation("list_methods", request={})
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert result.get("success") is True
     assert result.get("status") == "ok"
@@ -71,18 +75,20 @@ def test_incident_runbook_service(monkeypatch):
         "results": {"results": [{"step": "decision", "result": {"decision": True}}]},
     }
     monkeypatch.setattr(IncidentRunbookService, "_engine", fake_engine)
-    result = IncidentRunbookService.execute_operation(  # noqa: F841  # Variable for test verification
-        "run_runbook",
-        {
-            "runbook": [
-                {
-                    "type": "decision",
-                    "condition": "severity == 'high'",
-                    "true": "escalate",
-                }
-            ],
-            "inputs": {"severity": "high"},
-        },
+    result = (
+        IncidentRunbookService.execute_operation(  # noqa: F841  # Variable for test verification
+            "run_runbook",
+            {
+                "runbook": [
+                    {
+                        "type": "decision",
+                        "condition": "severity == 'high'",
+                        "true": "escalate",
+                    }
+                ],
+                "inputs": {"severity": "high"},
+            },
+        )
     )
     assert isinstance(result, dict)
     assert result.get("success") is True
@@ -93,9 +99,11 @@ def test_incident_runbook_service(monkeypatch):
 def test_scenario_memory_service(monkeypatch):
     """Scenario Memory service returns synthetic memory matches."""
     monkeypatch.setattr(ScenarioMemoryService, "_engine", WorkflowEngine(dry_run=True))
-    result = ScenarioMemoryService.execute_operation(  # noqa: F841  # Variable for test verification
-        "get_scenario_memory",
-        {"query": "network outage"},
+    result = (
+        ScenarioMemoryService.execute_operation(  # noqa: F841  # Variable for test verification
+            "get_scenario_memory",
+            {"query": "network outage"},
+        )
     )
     assert isinstance(result, dict)
     assert result.get("query") == "network outage"
@@ -105,9 +113,11 @@ def test_scenario_memory_service(monkeypatch):
 def test_workflow_engine_service(monkeypatch):
     """Workflow Engine service executes a workflow definition."""
     monkeypatch.setattr(WorkflowEngineService, "_engine", WorkflowEngine(dry_run=True))
-    result = WorkflowEngineService.execute_operation(  # noqa: F841  # Variable for test verification
-        "execute_workflow",
-        {"workflow_def": [{"type": "http", "method": "GET", "url": "http://example.com"}]},
+    result = (
+        WorkflowEngineService.execute_operation(  # noqa: F841  # Variable for test verification
+            "execute_workflow",
+            {"workflow_def": [{"type": "http", "method": "GET", "url": "http://example.com"}]},
+        )
     )
     assert isinstance(result, dict)
     assert result.get("success") is True

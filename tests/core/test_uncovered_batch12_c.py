@@ -52,7 +52,9 @@ async def test_kb_add_document_uses_upsert_points(kb_module, vectorized_doc_fact
     store.upsert = MagicMock()
 
     kb = kb_module.KnowledgeBase("kb1", pipeline, store)
-    result = await kb.add_document("d1", "hello world")  # noqa: F841  # Variable for test verification
+    result = await kb.add_document(
+        "d1", "hello world"
+    )  # noqa: F841  # Variable for test verification
 
     assert result.id == "d1"
     assert "d1" in kb.documents
@@ -705,7 +707,9 @@ async def test_mm_setup_memory_monitoring(mm_module, monkeypatch):
     monkeypatch.setattr(mm_module, "memory_monitor", fresh_monitor)
     monkeypatch.setattr(mm_module, "memory_leak_detector", fresh_detector)
 
-    result = await mm_module.setup_memory_monitoring()  # noqa: F841  # Variable for test verification
+    result = (
+        await mm_module.setup_memory_monitoring()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["tracemalloc_enabled"] is True
     assert result["leak_detection_enabled"] is True

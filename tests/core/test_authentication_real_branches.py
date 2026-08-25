@@ -2,7 +2,7 @@
 """
 Test file for authentication.py covering missing branches.
 Uses real Authentication class and real env var manipulation.
-Only monkeypatches external I/O boundaries: redis.Redis, 
+Only monkeypatches external I/O boundaries: redis.Redis,
 requests.request, httpx.post, subprocess.run.
 """
 
@@ -93,7 +93,9 @@ class TestPasswordContext:
         pwd_ctx = _CompatPwdContext()
         password = "test_password_123"
         hashed = pwd_ctx.hash(password)
-        result = pwd_ctx.verify(b"test_password_123", hashed)  # noqa: F841  # Variable for test verification
+        result = pwd_ctx.verify(
+            b"test_password_123", hashed
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
     def test_verify_with_string_input(self):
@@ -101,7 +103,9 @@ class TestPasswordContext:
         pwd_ctx = _CompatPwdContext()
         password = "test_password_123"
         hashed = pwd_ctx.hash(password)
-        result = pwd_ctx.verify("test_password_123", hashed)  # noqa: F841  # Variable for test verification
+        result = pwd_ctx.verify(
+            "test_password_123", hashed
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
     def test_verify_truncation_long_password(self):
@@ -165,18 +169,24 @@ class TestIPWhitelist:
         """Test IP whitelist using ALLOWED_LOCAL_IPS."""
         from config import ALLOWED_LOCAL_IPS
 
-        original_whitelist = os.getenv("IP_WHITELIST")  # noqa: F841  # Variable for test verification
+        original_whitelist = os.getenv(
+            "IP_WHITELIST"
+        )  # noqa: F841  # Variable for test verification
         if original_whitelist:
             del os.environ["IP_WHITELIST"]
 
         # Test with exact match
         if ALLOWED_LOCAL_IPS:
-            result = is_ip_allowed(ALLOWED_LOCAL_IPS[0])  # noqa: F841  # Variable for test verification
+            result = is_ip_allowed(
+                ALLOWED_LOCAL_IPS[0]
+            )  # noqa: F841  # Variable for test verification
             assert result is True
 
         # Restore
         if original_whitelist:
-            os.environ["IP_WHITELIST"] = original_whitelist  # noqa: F841  # Variable for test verification
+            os.environ["IP_WHITELIST"] = (
+                original_whitelist  # noqa: F841  # Variable for test verification
+            )
 
     def test_ip_whitelist_exact_match(self):
         """Test IP whitelist with exact match."""
@@ -300,7 +310,9 @@ class TestTokenRevocation:
             mock_redis.return_value = mock_instance
 
             token = "test_token"
-            result = await is_token_revoked(token, redis_client=mock_instance)  # noqa: F841  # Variable for test verification
+            result = await is_token_revoked(
+                token, redis_client=mock_instance
+            )  # noqa: F841  # Variable for test verification
             assert result is True
 
     @pytest.mark.asyncio
@@ -314,7 +326,9 @@ class TestTokenRevocation:
 
         # Patch _get_redis_client to return None to force memory path
         with patch.object(authentication, "_get_redis_client", return_value=None):
-            result = await is_token_revoked("test_token")  # noqa: F841  # Variable for test verification
+            result = await is_token_revoked(
+                "test_token"
+            )  # noqa: F841  # Variable for test verification
             assert result is True
 
     @pytest.mark.asyncio
@@ -347,7 +361,9 @@ class TestTokenRevocation:
         authentication._token_blacklist.clear()
 
         with patch.object(authentication, "_get_redis_client", return_value=None):
-            result = await is_token_revoked("nonexistent_token")  # noqa: F841  # Variable for test verification
+            result = await is_token_revoked(
+                "nonexistent_token"
+            )  # noqa: F841  # Variable for test verification
             assert result is False
 
 
@@ -413,7 +429,9 @@ class TestAuthenticateUser:
             )
             mock_get_user.return_value = mock_user
 
-            result = authenticate_user("testuser", "password123")  # noqa: F841  # Variable for test verification
+            result = authenticate_user(
+                "testuser", "password123"
+            )  # noqa: F841  # Variable for test verification
             assert result is not None
 
     def test_authenticate_user_is_active_true(self):
@@ -427,7 +445,9 @@ class TestAuthenticateUser:
             }
             mock_get_user.return_value = mock_user
 
-            result = authenticate_user("testuser", "password123")  # noqa: F841  # Variable for test verification
+            result = authenticate_user(
+                "testuser", "password123"
+            )  # noqa: F841  # Variable for test verification
             assert result is not None
 
     def test_authenticate_user_disabled_false(self):
@@ -441,7 +461,9 @@ class TestAuthenticateUser:
             )
             mock_get_user.return_value = mock_user
 
-            result = authenticate_user("testuser", "password123")  # noqa: F841  # Variable for test verification
+            result = authenticate_user(
+                "testuser", "password123"
+            )  # noqa: F841  # Variable for test verification
             assert result is not None
 
     def test_authenticate_user_valid_password(self):
@@ -454,7 +476,9 @@ class TestAuthenticateUser:
             )
             mock_get_user.return_value = mock_user
 
-            result = authenticate_user("testuser", "password123")  # noqa: F841  # Variable for test verification
+            result = authenticate_user(
+                "testuser", "password123"
+            )  # noqa: F841  # Variable for test verification
             assert result is not None
 
 
@@ -739,7 +763,9 @@ class TestJWTAuthService:
         user = {"role": "admin"}
         from core.auth_interface import Permission
 
-        result = await service.verify_permission(user, Permission.READ)  # noqa: F841  # Variable for test verification
+        result = await service.verify_permission(
+            user, Permission.READ
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
     @pytest.mark.asyncio
@@ -747,7 +773,9 @@ class TestJWTAuthService:
         """Test JWTAuthService verify_role with matching role."""
         service = JWTAuthService()
         user = {"role": "admin"}
-        result = await service.verify_role(user, "admin")  # noqa: F841  # Variable for test verification
+        result = await service.verify_role(
+            user, "admin"
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
     def test_jwt_auth_service_no_expires_delta(self):
@@ -770,7 +798,9 @@ class TestJWTAuthService:
             )
             mock_auth.return_value = mock_user
 
-            result = await service.authenticate_user("testuser", "password")  # noqa: F841  # Variable for test verification
+            result = await service.authenticate_user(
+                "testuser", "password"
+            )  # noqa: F841  # Variable for test verification
             assert result is not None
 
 
@@ -791,7 +821,7 @@ class TestLoginEndpoint:
             from fastapi import FastAPI
             from fastapi.testclient import TestClient
 
-            from core.authentication import router
+            from core.authentication import ROUTER as router
 
             app = FastAPI()
             app.include_router(router)
@@ -812,7 +842,9 @@ class TestTenantContext:
         """Test TenantContext when tenant not in cache."""
         tenant_context = TenantContext()
         tenant_context.tenant_cache = {}
-        result = await tenant_context.get_tenant_config("tenant1")  # noqa: F841  # Variable for test verification
+        result = await tenant_context.get_tenant_config(
+            "tenant1"
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["tenant_id"] == "tenant1"
         assert "tenant1" in tenant_context.tenant_cache
@@ -826,7 +858,9 @@ class TestABACPolicy:
         """Test ABACPolicy with matching attributes."""
         policy = ABACPolicy()
         user_attrs = {"role": "admin"}
-        result = await policy.evaluate_access(user_attrs, "any_resource", "read")  # noqa: F841  # Variable for test verification
+        result = await policy.evaluate_access(
+            user_attrs, "any_resource", "read"
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
     @pytest.mark.asyncio
@@ -834,7 +868,9 @@ class TestABACPolicy:
         """Test ABACPolicy with matching resource."""
         policy = ABACPolicy()
         user_attrs = {"role": "viewer"}
-        result = await policy.evaluate_access(user_attrs, "alerts", "read")  # noqa: F841  # Variable for test verification
+        result = await policy.evaluate_access(
+            user_attrs, "alerts", "read"
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
     @pytest.mark.asyncio
@@ -842,7 +878,9 @@ class TestABACPolicy:
         """Test ABACPolicy with action in permissions."""
         policy = ABACPolicy()
         user_attrs = {"role": "operator"}
-        result = await policy.evaluate_access(user_attrs, "alerts", "execute")  # noqa: F841  # Variable for test verification
+        result = await policy.evaluate_access(
+            user_attrs, "alerts", "execute"
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
     @pytest.mark.asyncio
@@ -850,7 +888,9 @@ class TestABACPolicy:
         """Test ABACPolicy with all attributes matching."""
         policy = ABACPolicy()
         user_attrs = {"role": "admin"}
-        result = await policy.evaluate_access(user_attrs, "any_resource", "admin")  # noqa: F841  # Variable for test verification
+        result = await policy.evaluate_access(
+            user_attrs, "any_resource", "admin"
+        )  # noqa: F841  # Variable for test verification
         assert result is True
 
 
@@ -861,7 +901,9 @@ class TestSSOProvider:
     async def test_sso_provider_enabled_auth(self):
         """Test SSOProvider enabled for authentication."""
         provider = SSOProvider()
-        result = await provider.authenticate_with_sso("oidc", "test_token")  # noqa: F841  # Variable for test verification
+        result = await provider.authenticate_with_sso(
+            "oidc", "test_token"
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["provider"] == "oidc"
 
@@ -869,7 +911,9 @@ class TestSSOProvider:
     async def test_sso_provider_enabled_link_generation(self):
         """Test SSOProvider enabled for link generation."""
         provider = SSOProvider()
-        result = await provider.generate_sso_link("oidc", "http://localhost/callback")  # noqa: F841  # Variable for test verification
+        result = await provider.generate_sso_link(
+            "oidc", "http://localhost/callback"
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert "oidc.example.com" in result
 
@@ -881,7 +925,9 @@ class TestComplianceManager:
     async def test_compliance_manager_iso27001(self):
         """Test ComplianceManager with ISO27001 framework."""
         manager = ComplianceManager()
-        result = await manager.run_compliance_check(ComplianceFramework.ISO27001)  # noqa: F841  # Variable for test verification
+        result = await manager.run_compliance_check(
+            ComplianceFramework.ISO27001
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["framework"] == "iso27001"
         assert len(result["checks"]) > 0
@@ -890,7 +936,9 @@ class TestComplianceManager:
     async def test_compliance_manager_soc2(self):
         """Test ComplianceManager with SOC2 framework."""
         manager = ComplianceManager()
-        result = await manager.run_compliance_check(ComplianceFramework.SOC2)  # noqa: F841  # Variable for test verification
+        result = await manager.run_compliance_check(
+            ComplianceFramework.SOC2
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["framework"] == "soc2"
         assert len(result["checks"]) > 0
@@ -899,7 +947,9 @@ class TestComplianceManager:
     async def test_compliance_manager_gdpr(self):
         """Test ComplianceManager with GDPR framework."""
         manager = ComplianceManager()
-        result = await manager.run_compliance_check(ComplianceFramework.GDPR)  # noqa: F841  # Variable for test verification
+        result = await manager.run_compliance_check(
+            ComplianceFramework.GDPR
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["framework"] == "gdpr"
         assert len(result["checks"]) > 0
@@ -908,7 +958,9 @@ class TestComplianceManager:
     async def test_compliance_manager_unsupported_framework(self):
         """Test ComplianceManager with unsupported framework."""
         manager = ComplianceManager()
-        result = await manager.run_compliance_check(ComplianceFramework.HIPAA)  # noqa: F841  # Variable for test verification
+        result = await manager.run_compliance_check(
+            ComplianceFramework.HIPAA
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["framework"] == "hipaa"
         assert len(result["checks"]) == 1
@@ -919,7 +971,9 @@ class TestComplianceManager:
         """Test ComplianceManager audit report without start date."""
         manager = ComplianceManager()
         await manager.log_audit_event("login", "user1", "resource1", "read")
-        result = await manager.get_audit_report(start_date=None, end_date=None)  # noqa: F841  # Variable for test verification
+        result = await manager.get_audit_report(
+            start_date=None, end_date=None
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["period"]["start"] is None
         assert result["total_events"] == 1
@@ -929,7 +983,9 @@ class TestComplianceManager:
         """Test ComplianceManager audit report without end date."""
         manager = ComplianceManager()
         await manager.log_audit_event("login", "user1", "resource1", "read")
-        result = await manager.get_audit_report(end_date=None)  # noqa: F841  # Variable for test verification
+        result = await manager.get_audit_report(
+            end_date=None
+        )  # noqa: F841  # Variable for test verification
         assert result is not None
         assert result["period"]["end"] is None
 

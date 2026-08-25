@@ -5,6 +5,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from api.common import (
+    create_list_response,
+    get_client_ip,
+    handle_service_error,
+)
 from core.repair_engine import execute_repair, get_repair_history, get_repair_scripts
 
 logger = logging.getLogger(__name__)
@@ -60,8 +65,7 @@ async def list_scripts() -> dict[str, Any]:
         logger.debug(f"返回 {len(scripts)} 个可用修复脚本")
         return {"scripts": scripts}
     except Exception as e:
-        logger.error(f"获取修复脚本列表失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取修复脚本列表失败: {str(e)[:200]}")
+        handle_service_error(e, "获取修复脚本列表", detail_prefix="获取修复脚本列表失败")
 
 
 @router.post(
@@ -104,16 +108,16 @@ async def run_repair(req: RepairRequest, request: Request) -> dict[str, Any]:
         - 执行内部异常 → 500
 
     🔧 RR5 [P2]:记录操作人 IP
+    🔧 重构:使用公共 get_client_ip 函数
     """
-    operator_ip = request.client.host if request.client else "unknown"
+    operator_ip = get_client_ip(request)
     logger.warning(
         f"收到修复请求 | operator={operator_ip} | script_key='{req.script_key}' | 参数={req.params}"
     )
     try:
         result = await execute_repair(req.script_key, req.params)
     except Exception as e:
-        logger.error(f"执行修复脚本时发生未预期异常: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"修复引擎内部错误: {str(e)[:200]}")
+        handle_service_error(e, "执行修复脚本", detail_prefix="修复引擎内部错误")
     if result is None:
         logger.error("execute_repair 返回 None,修复引擎异常")
         raise HTTPException(status_code=500, detail="修复引擎未返回结果,请检查服务日志")
@@ -197,9 +201,8 @@ async def get_history(
     logger.info(f"请求修复历史记录,limit={safe_limit}")
     try:
         records = get_repair_history(safe_limit)
-        total = len(records)
-        logger.debug(f"修复历史查询成功 | 返回={total}条")
-        return {"total": total, "records": records}
+        logger.debug(f"修复历史查询成功 | 返回={len(records)}条")
+        # Keep original response format for compatibility
+        return {"total": len(records), "records": records}
     except Exception as e:
-        logger.error(f"获取修复历史记录失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取修复历史失败: {str(e)[:200]}")
+        handle_service_error(e, "获取修复历史记录", detail_prefix="获取修复历史失败")

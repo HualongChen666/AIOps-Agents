@@ -64,7 +64,7 @@ class AddOnServiceRegistry:
             except Exception as exc:  # pragma: no cover - network failure expected when offline
                 healthy = False
                 error = str(exc)
-                logger.debug("Add-on %s at %s is not reachable: %s", service_name, url, error)
+                logger.debug("Add-on %s at %s is not reachable", service_name, url)
 
             health = ServiceHealth(
                 name=service_name,

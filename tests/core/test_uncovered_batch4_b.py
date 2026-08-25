@@ -364,26 +364,36 @@ class TestAutonomousExecutor:
         executor.memory_bridge = MagicMock()
         executor.memory_bridge.retrieve_relevant_experiences.return_value = []
         executor.memory_bridge.save_experience.return_value = {"id": 1}
-        result = executor.execute_plan("goal", {"enable_memory": True}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan(
+            "goal", {"enable_memory": True}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         assert result["goal"] == "goal"
         assert result["results"][0]["status"] == "completed"
 
     def test_execute_plan_anomaly(self, executor):
         executor.behavior_monitor.check_anomaly.return_value = {"messages": "bad"}
-        result = executor.execute_plan("goal", {}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan(
+            "goal", {}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         assert "Behavior anomaly" in result["error"]
 
     def test_execute_plan_depth_limit(self, executor):
-        result = executor.execute_plan("goal", {}, ["tool"], _depth=5)  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan(
+            "goal", {}, ["tool"], _depth=5
+        )  # noqa: F841  # Variable for test verification
         assert "recursion depth" in result["error"]
 
     def test_execute_plan_repeated_goal(self, executor):
-        result = executor.execute_plan("goal", {"__visited_goals": {"goal"}}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan(
+            "goal", {"__visited_goals": {"goal"}}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         assert "Repeated goal" in result["error"]
 
     def test_execute_plan_too_many_tasks(self, executor):
         executor.planner.plan.return_value = [Task(id=str(i), description="t") for i in range(25)]
-        result = executor.execute_plan("goal", {}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan(
+            "goal", {}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         assert "exceed maximum" in result["error"]
 
     def test_execute_plan_max_iterations(self, executor):
@@ -393,7 +403,9 @@ class TestAutonomousExecutor:
             Task(id="b", description="check b"),
         ]
         executor.memory_bridge = None
-        result = executor.execute_plan("goal", {"enable_memory": False}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan(
+            "goal", {"enable_memory": False}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         statuses = [r["status"] for r in result["results"]]
         assert "failed" in statuses
 
@@ -414,7 +426,9 @@ class TestAutonomousExecutor:
         executor.memory_bridge.retrieve_relevant_experiences.side_effect = RuntimeError("boom")
         task = Task(id="t1", description="check", parameters={"target": "cpu"})
         executor.planner.plan.return_value = [task]
-        result = executor.execute_plan("goal", {"enable_memory": True}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan(
+            "goal", {"enable_memory": True}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         assert result["results"][0]["status"] == "completed"
 
     def test_create_autonomous_executor(self):
@@ -451,7 +465,9 @@ class TestAutonomousExecutor:
         monkeypatch.setattr(
             "core.agent.subagent.SubAgentDispatcher", MagicMock(return_value=dispatcher)
         )
-        result = executor.execute_plan_with_subagents("goal", {}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan_with_subagents(
+            "goal", {}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         assert result["subagent_results"]
 
     def test_execute_plan_parallel(self, executor, monkeypatch):
@@ -463,7 +479,9 @@ class TestAutonomousExecutor:
         def _adjust(task_id, status, result=None, error=None):
             if task_id in executor.planner.tasks:
                 executor.planner.tasks[task_id].status = status
-                executor.planner.tasks[task_id].result = result  # noqa: F841  # Variable for test verification
+                executor.planner.tasks[task_id].result = (
+                    result  # noqa: F841  # Variable for test verification
+                )
                 executor.planner.tasks[task_id].error = error
 
         executor.planner.adjust_plan.side_effect = _adjust
@@ -484,7 +502,9 @@ class TestAutonomousExecutor:
         monkeypatch.setattr(
             "core.agent.subagent.SubAgentDispatcher", MagicMock(return_value=dispatcher)
         )
-        result = executor.execute_plan_parallel("goal", {}, ["tool"])  # noqa: F841  # Variable for test verification
+        result = executor.execute_plan_parallel(
+            "goal", {}, ["tool"]
+        )  # noqa: F841  # Variable for test verification
         assert "results" in result
 
 
@@ -883,7 +903,7 @@ class TestBusinessImpactEngine:
     def test_service_id(self):
         assert (
             BusinessImpactEngine._service_id("foo")
-            == f"SVC-{hashlib.md5('foo'.encode()).hexdigest()[:3].upper()}"
+            == f"SVC-{hashlib.sha256('foo'.encode()).hexdigest()[:3].upper()}"
         )
 
     @pytest.mark.asyncio

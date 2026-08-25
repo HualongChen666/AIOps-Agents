@@ -21,28 +21,29 @@ from __future__ import annotations
 import datetime
 import json
 import os
+
+# Import the module to test
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-# Import the module to test
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.kpi_slo_manager import (
-    KPISLOManager,
-    KPIDefinition,
-    SLODefinition,
-    KPIDataPoint,
-    SLOEvaluationResult,
-    SLAComplianceReport,
-    TrendAnalysis,
-    Alert,
-    SeverityLevel,
     AggregationMethod,
+    Alert,
     ComplianceStatus,
-    KPITarget
+    KPIDataPoint,
+    KPIDefinition,
+    KPISLOManager,
+    KPITarget,
+    SeverityLevel,
+    SLAComplianceReport,
+    SLODefinition,
+    SLOEvaluationResult,
+    TrendAnalysis,
 )
 
 
@@ -51,12 +52,7 @@ class TestKPITarget(unittest.TestCase):
 
     def test_kpi_target_creation(self):
         """Test creating a KPI target."""
-        target = KPITarget(
-            target=100.0,
-            warning=150.0,
-            critical=200.0,
-            unit="milliseconds"
-        )
+        target = KPITarget(target=100.0, warning=150.0, critical=200.0, unit="milliseconds")
         self.assertEqual(target.target, 100.0)
         self.assertEqual(target.warning, 150.0)
         self.assertEqual(target.critical, 200.0)
@@ -70,14 +66,14 @@ class TestKPIDefinition(unittest.TestCase):
         """Test creating a KPI definition."""
         targets = {
             "p50": KPITarget(target=100.0, warning=150.0, critical=200.0, unit="ms"),
-            "p95": KPITarget(target=200.0, warning=300.0, critical=400.0, unit="ms")
+            "p95": KPITarget(target=200.0, warning=300.0, critical=400.0, unit="ms"),
         }
         kpi = KPIDefinition(
             name="API Response Time",
             description="API endpoint response time",
             enabled=True,
             unit="milliseconds",
-            targets=targets
+            targets=targets,
         )
         self.assertEqual(kpi.name, "API Response Time")
         self.assertEqual(kpi.enabled, True)
@@ -98,7 +94,7 @@ class TestSLODefinition(unittest.TestCase):
             alert_threshold=0.998,
             metric="availability",
             aggregation="uptime",
-            service="api"
+            service="api",
         )
         self.assertEqual(slo.name, "API Availability")
         self.assertEqual(slo.target, 0.999)
@@ -112,10 +108,7 @@ class TestKPIDataPoint(unittest.TestCase):
         """Test creating a KPI data point."""
         timestamp = datetime.datetime.utcnow()
         point = KPIDataPoint(
-            timestamp=timestamp,
-            value=100.0,
-            metric="response_time",
-            service="api"
+            timestamp=timestamp, value=100.0, metric="response_time", service="api"
         )
         self.assertEqual(point.value, 100.0)
         self.assertEqual(point.metric, "response_time")
@@ -185,7 +178,7 @@ historical_tracking:
 predictive_analysis:
   enabled: true
 """
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             f.write(config_content)
 
     def test_manager_init_with_config(self):
@@ -219,9 +212,7 @@ class TestKPIManagement(unittest.TestCase):
             description="Test KPI description",
             enabled=True,
             unit="ms",
-            targets={
-                "p50": KPITarget(target=100.0, warning=150.0, critical=200.0, unit="ms")
-            }
+            targets={"p50": KPITarget(target=100.0, warning=150.0, critical=200.0, unit="ms")},
         )
 
     def test_add_kpi(self):
@@ -296,7 +287,7 @@ class TestSLOManagement(unittest.TestCase):
             alert_threshold=0.95,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test_service"
+            service="test_service",
         )
 
     def test_add_slo(self):
@@ -400,13 +391,10 @@ class TestKPICalculation(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.manager = KPISLOManager()
-        self.manager.add_kpi("test_kpi", KPIDefinition(
-            name="Test KPI",
-            description="Test",
-            enabled=True,
-            unit="ms",
-            targets={}
-        ))
+        self.manager.add_kpi(
+            "test_kpi",
+            KPIDefinition(name="Test KPI", description="Test", enabled=True, unit="ms", targets={}),
+        )
 
     def test_calculate_kpi_no_data(self):
         """Test calculating KPI with no data."""
@@ -457,7 +445,7 @@ class TestSLOEvaluation(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test_service"
+            service="test_service",
         )
         self.manager.add_slo("test_slo", self.test_slo)
 
@@ -507,7 +495,7 @@ class TestSLOEvaluation(unittest.TestCase):
             alert_threshold=0.95,
             metric="uptime_metric",
             aggregation="uptime",
-            service="test_service"
+            service="test_service",
         )
         self.manager.add_slo("uptime_slo", slo)
 
@@ -585,7 +573,7 @@ class TestSLACompliance(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test_service"
+            service="test_service",
         )
         self.manager.add_slo("test_slo", self.test_slo)
 
@@ -621,9 +609,7 @@ class TestAlertManagement(unittest.TestCase):
             description="Test",
             enabled=True,
             unit="ms",
-            targets={
-                "p50": KPITarget(target=100.0, warning=150.0, critical=200.0, unit="ms")
-            }
+            targets={"p50": KPITarget(target=100.0, warning=150.0, critical=200.0, unit="ms")},
         )
         self.manager.add_kpi("test_kpi", self.test_kpi)
 
@@ -794,18 +780,23 @@ class TestReportGeneration(unittest.TestCase):
     def test_save_report(self):
         """Test saving report to file."""
         report = self.manager.generate_report("30d")
-        temp_file = tempfile.mktemp(suffix=".json")
-        result = self.manager.save_report(report, temp_file)
-        self.assertTrue(result)
-        self.assertTrue(os.path.exists(temp_file))
+        # Use NamedTemporaryFile with delete=False to safely create a temp file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            temp_file = f.name
 
-        # Verify file contents
-        with open(temp_file, 'r') as f:
-            loaded_report = json.load(f)
-        self.assertEqual(loaded_report["report_id"], report["report_id"])
+        try:
+            result = self.manager.save_report(report, temp_file)
+            self.assertTrue(result)
+            self.assertTrue(os.path.exists(temp_file))
 
-        # Clean up
-        os.remove(temp_file)
+            # Verify file contents
+            with open(temp_file, "r") as f:
+                loaded_report = json.load(f)
+            self.assertEqual(loaded_report["report_id"], report["report_id"])
+        finally:
+            # Clean up
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
     def test_save_report_invalid_path(self):
         """Test saving report to invalid path."""
@@ -829,7 +820,7 @@ class TestErrorBudgetTracking(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test_service"
+            service="test_service",
         )
         self.manager.add_slo("test_slo", self.test_slo)
 
@@ -888,7 +879,7 @@ class TestAggregationMethods(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test_service"
+            service="test_service",
         )
         self.manager.add_slo("test_slo", slo)
 
@@ -912,7 +903,7 @@ class TestAggregationMethods(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="p99_lt",
-            service="test_service"
+            service="test_service",
         )
         self.manager.add_slo("test_slo", slo)
 
@@ -936,7 +927,7 @@ class TestAggregationMethods(unittest.TestCase):
             alert_threshold=80.0,
             metric="test_metric",
             aggregation="mean_lt",
-            service="test_service"
+            service="test_service",
         )
         self.manager.add_slo("test_slo", slo)
 
@@ -1007,15 +998,19 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_config_file_corrupted(self):
         """Test handling of corrupted config file."""
-        temp_file = tempfile.mktemp(suffix=".yaml")
-        with open(temp_file, 'w') as f:
+        # Use NamedTemporaryFile with delete=False to safely create a temp file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            temp_file = f.name
             f.write("invalid: yaml: content: [unclosed")
 
-        manager = KPISLOManager(config_path=temp_file)
-        self.assertIsNotNone(manager)
-        self.assertIsInstance(manager.config, dict)
-
-        os.remove(temp_file)
+        try:
+            manager = KPISLOManager(config_path=temp_file)
+            self.assertIsNotNone(manager)
+            self.assertIsInstance(manager.config, dict)
+        finally:
+            # Clean up
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
 
 class TestThreadSafety(unittest.TestCase):
@@ -1046,13 +1041,10 @@ class TestThreadSafety(unittest.TestCase):
         """Test concurrent KPI access."""
         import threading
 
-        self.manager.add_kpi("test_kpi", KPIDefinition(
-            name="Test",
-            description="Test",
-            enabled=True,
-            unit="ms",
-            targets={}
-        ))
+        self.manager.add_kpi(
+            "test_kpi",
+            KPIDefinition(name="Test", description="Test", enabled=True, unit="ms", targets={}),
+        )
 
         def access_kpi():
             for _ in range(100):
@@ -1083,9 +1075,7 @@ class TestIntegration(unittest.TestCase):
             description="Test",
             enabled=True,
             unit="ms",
-            targets={
-                "p95": KPITarget(target=200.0, warning=300.0, critical=500.0, unit="ms")
-            }
+            targets={"p95": KPITarget(target=200.0, warning=300.0, critical=500.0, unit="ms")},
         )
         self.manager.add_kpi("api_response_time", kpi)
 
@@ -1099,7 +1089,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="api_response_time",
             aggregation="good_ratio",
-            service="api"
+            service="api",
         )
         self.manager.add_slo("api_slo", slo)
 
@@ -1132,7 +1122,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.95,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
 
@@ -1182,7 +1172,7 @@ class TestIntegration(unittest.TestCase):
                 alert_threshold=0.90,
                 metric="test_metric",
                 aggregation=agg,
-                service="test"
+                service="test",
             )
             slo_id = f"test_slo_{agg}"
             self.manager.add_slo(slo_id, slo)
@@ -1242,7 +1232,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=150.0,
             metric="test_metric",
             aggregation="p95_lt",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo_p95", slo)
 
@@ -1264,7 +1254,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=40.0,
             metric="test_metric",
             aggregation="p50_lt",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo_p50", slo)
 
@@ -1287,7 +1277,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="critical_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("critical_slo", slo_critical)
 
@@ -1324,7 +1314,7 @@ class TestIntegration(unittest.TestCase):
             status="healthy",
             alert=False,
             window="24h",
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.utcnow(),
         )
         time_str = self.manager._calculate_time_to_exhaustion(result)
         self.assertEqual(time_str, "Never")
@@ -1341,7 +1331,7 @@ class TestIntegration(unittest.TestCase):
             status="critical",
             alert=True,
             window="24h",
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.utcnow(),
         )
         time_str = self.manager._calculate_time_to_exhaustion(result)
         self.assertEqual(time_str, "Exhausted")
@@ -1356,11 +1346,7 @@ class TestIntegration(unittest.TestCase):
     def test_kpi_update_with_metadata(self):
         """Test updating KPI with metadata."""
         kpi = KPIDefinition(
-            name="Test KPI",
-            description="Test",
-            enabled=True,
-            unit="ms",
-            targets={}
+            name="Test KPI", description="Test", enabled=True, unit="ms", targets={}
         )
         self.manager.add_kpi("test_kpi", kpi)
         result = self.manager.update_kpi("test_kpi", metadata={"key": "value"})
@@ -1379,7 +1365,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
 
@@ -1391,7 +1377,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.95,
             metric="new_metric",
             aggregation="uptime",
-            service="new_service"
+            service="new_service",
         )
         self.assertTrue(result)
 
@@ -1412,10 +1398,7 @@ class TestIntegration(unittest.TestCase):
                 "description": "Test",
                 "enabled": True,
                 "unit": "ms",
-                "endpoints": {
-                    "endpoint1": {"p50": 100.0},
-                    "endpoint2": {"p95": 200.0}
-                }
+                "endpoints": {"endpoint1": {"p50": 100.0}, "endpoint2": {"p95": 200.0}},
             }
         }
         # Add to config and reinitialize
@@ -1434,7 +1417,7 @@ class TestIntegration(unittest.TestCase):
                 "name": "Test",
                 "description": "Test",
                 "enabled": True,
-                "targets": "invalid_string_instead_of_dict"
+                "targets": "invalid_string_instead_of_dict",
             }
         }
         # Add to config and reinitialize
@@ -1454,7 +1437,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.95,
             metric="uptime_metric",
             aggregation="uptime",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("uptime_slo", slo)
 
@@ -1477,7 +1460,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.95,
             metric="uptime_metric",
             aggregation="uptime",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("uptime_slo", slo)
 
@@ -1516,11 +1499,7 @@ class TestIntegration(unittest.TestCase):
     def test_kpi_update_nonexistent_field(self):
         """Test updating KPI with field that doesn't exist."""
         kpi = KPIDefinition(
-            name="Test KPI",
-            description="Test",
-            enabled=True,
-            unit="ms",
-            targets={}
+            name="Test KPI", description="Test", enabled=True, unit="ms", targets={}
         )
         self.manager.add_kpi("test_kpi", kpi)
         # Try to update a field that doesn't exist - should be ignored
@@ -1541,7 +1520,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
         # Try to update a field that doesn't exist - should be ignored
@@ -1586,7 +1565,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.999,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("high_target_slo", slo)
 
@@ -1609,7 +1588,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.00005,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("low_target_slo", slo)
 
@@ -1628,9 +1607,7 @@ class TestIntegration(unittest.TestCase):
             description="Test",
             enabled=True,
             unit="ms",
-            targets={
-                "p50": KPITarget(target=100.0, warning=150.0, critical=200.0, unit="ms")
-            }
+            targets={"p50": KPITarget(target=100.0, warning=150.0, critical=200.0, unit="ms")},
         )
         self.manager.add_kpi("test_kpi", kpi)
 
@@ -1667,7 +1644,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="unknown_method",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
 
@@ -1691,7 +1668,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="nonexistent_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
 
@@ -1704,11 +1681,7 @@ class TestIntegration(unittest.TestCase):
     def test_kpi_calculation_with_disabled_kpi(self):
         """Test KPI calculation with disabled KPI."""
         kpi = KPIDefinition(
-            name="Disabled KPI",
-            description="Test",
-            enabled=False,
-            unit="ms",
-            targets={}
+            name="Disabled KPI", description="Test", enabled=False, unit="ms", targets={}
         )
         self.manager.add_kpi("disabled_kpi", kpi)
 
@@ -1766,7 +1739,7 @@ class TestIntegration(unittest.TestCase):
                 "unit": "ms",
                 "percentiles": {
                     "p50": {"target": 100.0, "warning": 150.0, "critical": 200.0, "unit": "ms"}
-                }
+                },
             }
         }
         original_count = len(self.manager.kpis)
@@ -1788,9 +1761,9 @@ class TestIntegration(unittest.TestCase):
                         "window": "24h",
                         "alert_threshold": 0.90,
                         "metric": "test_metric",
-                        "aggregation": "good_ratio"
+                        "aggregation": "good_ratio",
                     }
-                }
+                },
             }
         }
         original_count = len(self.manager.slos)
@@ -1808,7 +1781,7 @@ class TestIntegration(unittest.TestCase):
                 "description": "Test",
                 "enabled": True,
                 "unit": "ms",
-                "percentiles": "invalid_string"
+                "percentiles": "invalid_string",
             }
         }
         self.manager.config["kpi"] = kpi_config
@@ -1829,9 +1802,9 @@ class TestIntegration(unittest.TestCase):
                         "window": "24h",
                         "alert_threshold": 0.90,
                         # Missing metric field
-                        "aggregation": "good_ratio"
+                        "aggregation": "good_ratio",
                     }
-                }
+                },
             }
         }
         self.manager.config["slo"] = slo_config
@@ -1841,15 +1814,9 @@ class TestIntegration(unittest.TestCase):
 
     def test_kpi_target_value_validation(self):
         """Test KPI target value validation."""
-        targets = {
-            "p50": KPITarget(target=-100.0, warning=150.0, critical=200.0, unit="ms")
-        }
+        targets = {"p50": KPITarget(target=-100.0, warning=150.0, critical=200.0, unit="ms")}
         kpi = KPIDefinition(
-            name="Test KPI",
-            description="Test",
-            enabled=True,
-            unit="ms",
-            targets=targets
+            name="Test KPI", description="Test", enabled=True, unit="ms", targets=targets
         )
         self.manager.add_kpi("test_kpi", kpi)
         # Should accept negative values (validation happens at calculation time)
@@ -1867,7 +1834,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
         # Target should be clamped to 1.0
@@ -1885,7 +1852,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=1.5,  # Above 1.0
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
         # Alert threshold should be clamped to 1.0
@@ -1903,7 +1870,7 @@ class TestIntegration(unittest.TestCase):
             alert_threshold=0.90,
             metric="test_metric",
             aggregation="good_ratio",
-            service="test"
+            service="test",
         )
         self.manager.add_slo("test_slo", slo)
         # Window should be clamped to minimum of 1

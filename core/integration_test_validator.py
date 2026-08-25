@@ -466,8 +466,12 @@ class IntegrationTestValidator:
 
         # Save report
         report_path = self.reports_dir / f"{report_id}.json"
-        with open(report_path, "w") as f:
-            json.dump(report, f, indent=2)
+        try:
+            with open(report_path, "w") as f:
+                json.dump(report, f, indent=2)
+        except OSError as exc:
+            logger.error(f"Failed to write validation report to {report_path}: {exc}")
+            raise
 
         logger.info(f"Generated validation report: {report_id}")
 

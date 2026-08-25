@@ -291,7 +291,9 @@ def test_engine_enable_disable():
 @pytest.mark.asyncio
 async def test_run_experiment_disabled():
     engine = ce.ChaosEngine()
-    result = await engine.run_experiment(ce.ChaosExperiment.LATENCY_INJECTION)  # noqa: F841  # Variable for test verification
+    result = await engine.run_experiment(
+        ce.ChaosExperiment.LATENCY_INJECTION
+    )  # noqa: F841  # Variable for test verification
     assert result.status == ce.ExperimentStatus.ABORTED
     assert result.success is False
     assert "disabled" in result.error_message
@@ -313,7 +315,9 @@ async def test_run_experiment_concurrent_error(chaos):
 async def test_run_latency_injection(chaos, monkeypatch):
     chaos.enable()
     monkeypatch.setattr(ce._random, "randint", lambda a, b: 200)
-    result = await chaos.run_experiment(ce.ChaosExperiment.LATENCY_INJECTION, {"delay_ms": 200})  # noqa: F841  # Variable for test verification
+    result = await chaos.run_experiment(
+        ce.ChaosExperiment.LATENCY_INJECTION, {"delay_ms": 200}
+    )  # noqa: F841  # Variable for test verification
     assert result.status == ce.ExperimentStatus.COMPLETED
     assert result.success is True
     assert result.metrics["injected_latency_ms"] == 200
@@ -378,7 +382,9 @@ async def test_run_unknown_experiment(chaos):
 async def test_run_experiment_failure(chaos, monkeypatch):
     chaos.enable()
     monkeypatch.setattr(chaos, "_inject_latency", AsyncMock(side_effect=RuntimeError("boom")))
-    result = await chaos.run_experiment(ce.ChaosExperiment.LATENCY_INJECTION)  # noqa: F841  # Variable for test verification
+    result = await chaos.run_experiment(
+        ce.ChaosExperiment.LATENCY_INJECTION
+    )  # noqa: F841  # Variable for test verification
     assert result.status == ce.ExperimentStatus.FAILED
     assert result.success is False
     assert "boom" in result.error_message
@@ -466,7 +472,9 @@ async def test_rag_pipeline_query():
         reranker=fake_reranker,
         fusion_strategy=fusion.RelevanceFusion(),
     )
-    result = await pipe.query("hello", top_k=2, rerank=True, max_context_length=500)  # noqa: F841  # Variable for test verification
+    result = await pipe.query(
+        "hello", top_k=2, rerank=True, max_context_length=500
+    )  # noqa: F841  # Variable for test verification
     assert result["query"] == "hello"
     assert "hello" in result["context"]
     assert len(result["sources"]) == 2
@@ -770,13 +778,17 @@ def test_bm25_retrieval_with_fake_rankbm25(monkeypatch):
     fake_mod.BM25Okapi = lambda docs: FakeIndex()
     monkeypatch.setitem(sys.modules, "rank_bm25", fake_mod)
 
-    result = asyncio.run(bm25.retrieve("hello", top_k=2))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        bm25.retrieve("hello", top_k=2)
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 2
     assert result[0].score == 5.0
     assert result[0].chunk.id == "c1"
 
     # with filters
-    result = asyncio.run(bm25.retrieve("hello", filters={"tag": "b"}))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        bm25.retrieve("hello", filters={"tag": "b"})
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0].chunk.id == "c2"
 

@@ -283,7 +283,7 @@ class EnhancedAuthIntegration:
             # password hashing)
             if not self._verify_password(user, password):
                 self.auth_stats["failed_authentications"] += 1  # noqa: E501
-                logger.warning(f"Authentication failed: invalid password: {username}")
+                logger.warning("Authentication failed: invalid password")
                 return None
 
             # Update last login
@@ -392,11 +392,11 @@ class EnhancedAuthIntegration:
         except jwt.ExpiredSignatureError:
             logger.warning("Token expired")
             return None
-        except jwt.InvalidTokenError as e:
-            logger.warning(f"Invalid token: {e}")
+        except jwt.InvalidTokenError:
+            logger.warning("Invalid token")
             return None
-        except Exception as e:
-            logger.error(f"Token verification error: {e}")
+        except Exception as e:  # noqa: F841 - Exception intentionally unused
+            logger.error("Token verification error")
             return None
 
     def refresh_token(self, refresh_token: str) -> Optional[AuthToken]:

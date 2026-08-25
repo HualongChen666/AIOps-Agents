@@ -101,13 +101,13 @@ def test_trim_function_triggered(client, monkeypatch):
     """Test the _trim function when samples exceed MAX_SAMPLES (branch coverage for lines 68-69)."""
     # Set MAX_SAMPLES to a small value to trigger trimming
     monkeypatch.setattr(main, "MAX_SAMPLES", 5)
-    
+
     # Add more samples than MAX_SAMPLES
     samples = [{"name": "test_metric", "value": float(i)} for i in range(10)]
     response = client.post("/collect", json={"samples": samples})
     assert response.status_code == 200
     assert response.json()["accepted"] == 10
-    
+
     # Verify that only MAX_SAMPLES are kept
     assert len(main.timeseries_db["test_metric"]) == 5
     # Verify that the last 5 samples are kept
@@ -136,7 +136,7 @@ def test_query_with_no_filters(client):
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage")
     assert response.status_code == 200
     data = response.json()
@@ -161,7 +161,7 @@ def test_query_with_start_filter(client):
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&start=2500")
     assert response.status_code == 200
     data = response.json()
@@ -182,7 +182,7 @@ def test_query_with_end_filter(client):
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&end=1500")
     assert response.status_code == 200
     data = response.json()
@@ -204,7 +204,7 @@ def test_query_with_both_time_filters(client):
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&start=1500&end=3500")
     assert response.status_code == 200
     data = response.json()
@@ -219,18 +219,30 @@ def test_query_with_label_filter(client):
         "/collect",
         json={
             "samples": [
-                {"name": "cpu_usage", "value": 75.5, "labels": {"host": "server1", "region": "us-east"}},
-                {"name": "cpu_usage", "value": 80.0, "labels": {"host": "server2", "region": "us-west"}},
-                {"name": "cpu_usage", "value": 70.0, "labels": {"host": "server1", "region": "us-west"}},
+                {
+                    "name": "cpu_usage",
+                    "value": 75.5,
+                    "labels": {"host": "server1", "region": "us-east"},
+                },
+                {
+                    "name": "cpu_usage",
+                    "value": 80.0,
+                    "labels": {"host": "server2", "region": "us-west"},
+                },
+                {
+                    "name": "cpu_usage",
+                    "value": 70.0,
+                    "labels": {"host": "server1", "region": "us-west"},
+                },
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&label_filter=host=server1")
     assert response.status_code == 200
     data = response.json()
     assert data["count"] == 2
-    
+
     response = client.get("/query?metric=cpu_usage&label_filter=region=us-west")
     assert response.status_code == 200
     data = response.json()
@@ -244,13 +256,25 @@ def test_query_with_multiple_label_filters(client):
         "/collect",
         json={
             "samples": [
-                {"name": "cpu_usage", "value": 75.5, "labels": {"host": "server1", "region": "us-east"}},
-                {"name": "cpu_usage", "value": 80.0, "labels": {"host": "server2", "region": "us-west"}},
-                {"name": "cpu_usage", "value": 70.0, "labels": {"host": "server1", "region": "us-west"}},
+                {
+                    "name": "cpu_usage",
+                    "value": 75.5,
+                    "labels": {"host": "server1", "region": "us-east"},
+                },
+                {
+                    "name": "cpu_usage",
+                    "value": 80.0,
+                    "labels": {"host": "server2", "region": "us-west"},
+                },
+                {
+                    "name": "cpu_usage",
+                    "value": 70.0,
+                    "labels": {"host": "server1", "region": "us-west"},
+                },
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&label_filter=host=server1,region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -270,7 +294,7 @@ def test_query_with_label_filter_no_match(client):
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&label_filter=host=server3")
     assert response.status_code == 200
     data = response.json()
@@ -293,7 +317,7 @@ def test_query_empty_filtered_results(client):
             ]
         },
     )
-    
+
     # Query with a time range that excludes all samples
     response = client.get("/query?metric=cpu_usage&start=5000")
     assert response.status_code == 200
@@ -309,9 +333,11 @@ def test_query_aggregation_avg(client):
     """Test query with avg aggregation (branch coverage for line 128-134)."""
     client.post(
         "/collect",
-        json={"samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]},
+        json={
+            "samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]
+        },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&agg=avg")
     assert response.status_code == 200
     data = response.json()
@@ -325,9 +351,11 @@ def test_query_aggregation_min(client):
     """Test query with min aggregation (branch coverage for line 135-136)."""
     client.post(
         "/collect",
-        json={"samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]},
+        json={
+            "samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]
+        },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&agg=min")
     assert response.status_code == 200
     data = response.json()
@@ -341,9 +369,11 @@ def test_query_aggregation_max(client):
     """Test query with max aggregation (branch coverage for line 137-138)."""
     client.post(
         "/collect",
-        json={"samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]},
+        json={
+            "samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]
+        },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&agg=max")
     assert response.status_code == 200
     data = response.json()
@@ -357,9 +387,11 @@ def test_query_aggregation_sum(client):
     """Test query with sum aggregation (branch coverage for line 139-140)."""
     client.post(
         "/collect",
-        json={"samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]},
+        json={
+            "samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]
+        },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&agg=sum")
     assert response.status_code == 200
     data = response.json()
@@ -373,9 +405,11 @@ def test_query_aggregation_count(client):
     """Test query with count aggregation (branch coverage for line 141-142)."""
     client.post(
         "/collect",
-        json={"samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]},
+        json={
+            "samples": [{"name": "cpu_usage", "value": 10.0}, {"name": "cpu_usage", "value": 20.0}]
+        },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&agg=count")
     assert response.status_code == 200
     data = response.json()
@@ -392,21 +426,41 @@ def test_query_combined_filters_and_aggregation(client):
         "/collect",
         json={
             "samples": [
-                {"name": "cpu_usage", "value": 10.0, "labels": {"host": "server1"}, "timestamp": 1000.0},
-                {"name": "cpu_usage", "value": 20.0, "labels": {"host": "server2"}, "timestamp": 2000.0},
-                {"name": "cpu_usage", "value": 30.0, "labels": {"host": "server1"}, "timestamp": 3000.0},
-                {"name": "cpu_usage", "value": 40.0, "labels": {"host": "server2"}, "timestamp": 4000.0},
+                {
+                    "name": "cpu_usage",
+                    "value": 10.0,
+                    "labels": {"host": "server1"},
+                    "timestamp": 1000.0,
+                },
+                {
+                    "name": "cpu_usage",
+                    "value": 20.0,
+                    "labels": {"host": "server2"},
+                    "timestamp": 2000.0,
+                },
+                {
+                    "name": "cpu_usage",
+                    "value": 30.0,
+                    "labels": {"host": "server1"},
+                    "timestamp": 3000.0,
+                },
+                {
+                    "name": "cpu_usage",
+                    "value": 40.0,
+                    "labels": {"host": "server2"},
+                    "timestamp": 4000.0,
+                },
             ]
         },
     )
-    
+
     # Test with label filter and min aggregation
     response = client.get("/query?metric=cpu_usage&label_filter=host=server1&agg=min")
     assert response.status_code == 200
     data = response.json()
     assert data["count"] == 2
     assert data["min"] == 10.0
-    
+
     # Test with time filter and max aggregation
     response = client.get("/query?metric=cpu_usage&start=2500&agg=max")
     assert response.status_code == 200
@@ -429,7 +483,7 @@ def test_metrics_endpoint_after_api_calls(client):
     client.post("/collect", json={"samples": [{"name": "test", "value": 1.0}]})
     client.get("/query?metric=test")
     client.get("/health")
-    
+
     # Check metrics
     response = client.get("/metrics")
     assert response.status_code == 200
@@ -456,7 +510,7 @@ def test_query_with_missing_label_value(client):
             ]
         },
     )
-    
+
     # Label filter without value should be ignored (due to "if '=' in part" check)
     response = client.get("/query?metric=cpu_usage&label_filter=host")
     assert response.status_code == 200
@@ -475,7 +529,7 @@ def test_query_with_malformed_label_filter(client):
             ]
         },
     )
-    
+
     # Mix of valid and invalid label filters
     response = client.get("/query?metric=cpu_usage&label_filter=host=server1,invalid")
     assert response.status_code == 200
@@ -492,7 +546,7 @@ def test_collect_with_custom_timestamp(client):
         json={"samples": [{"name": "cpu_usage", "value": 75.5, "timestamp": custom_time}]},
     )
     assert response.status_code == 200
-    
+
     # Verify the timestamp was stored correctly
     assert main.timeseries_db["cpu_usage"][0]["timestamp"] == custom_time
 
@@ -543,7 +597,7 @@ def test_query_returns_time_range(client):
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage&start=500&end=2000")
     assert response.status_code == 200
     data = response.json()
@@ -561,7 +615,7 @@ def test_query_with_none_time_range(client):
             ]
         },
     )
-    
+
     response = client.get("/query?metric=cpu_usage")
     assert response.status_code == 200
     data = response.json()

@@ -27,7 +27,6 @@ os.environ["USE_SYNC_SQLITE"] = "false"
 
 from services.audit_service.main import app
 
-
 # ============================================================================
 # Health Endpoint Tests
 # ============================================================================
@@ -38,7 +37,7 @@ def test_health_endpoint():
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["status"] == "healthy"
 
@@ -48,7 +47,7 @@ def test_health_endpoint_response_format():
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert isinstance(data, dict)
         assert "status" in data
@@ -71,11 +70,11 @@ def test_list_logs_default():
                 "details": {},
             }
         ]
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
             assert len(data) == 1
@@ -86,11 +85,11 @@ def test_list_logs_custom_limit():
     """Test /logs endpoint with custom limit."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             response = client.get("/logs?limit=50")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
             mock_get_log.assert_called_once_with(50)
@@ -100,11 +99,11 @@ def test_list_logs_limit_minimum():
     """Test /logs endpoint with minimum limit (1)."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             response = client.get("/logs?limit=1")
             assert response.status_code == 200
-            
+
             mock_get_log.assert_called_once_with(1)
 
 
@@ -112,11 +111,11 @@ def test_list_logs_limit_maximum():
     """Test /logs endpoint with maximum limit (5000)."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             response = client.get("/logs?limit=5000")
             assert response.status_code == 200
-            
+
             mock_get_log.assert_called_once_with(5000)
 
 
@@ -124,7 +123,7 @@ def test_list_logs_limit_below_minimum():
     """Test /logs endpoint with limit below minimum (should use 1)."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # FastAPI validation should reject this
             response = client.get("/logs?limit=0")
@@ -135,7 +134,7 @@ def test_list_logs_limit_above_maximum():
     """Test /logs endpoint with limit above maximum (should use 5000)."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # FastAPI validation should reject this
             response = client.get("/logs?limit=6000")
@@ -146,11 +145,11 @@ def test_list_logs_no_limit():
     """Test /logs endpoint without limit parameter."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             # Should default to 100
             mock_get_log.assert_called_once_with(100)
 
@@ -159,7 +158,7 @@ def test_list_logs_with_none_limit():
     """Test /logs endpoint with explicit None limit."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             response = client.get("/logs?limit=")
             # Should handle gracefully
@@ -170,11 +169,11 @@ def test_list_logs_empty_result():
     """Test /logs endpoint when no logs exist."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
             assert len(data) == 0
@@ -183,14 +182,12 @@ def test_list_logs_empty_result():
 def test_list_logs_multiple_results():
     """Test /logs endpoint with multiple results."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
-        mock_get_log.return_value = [
-            {"id": str(i), "action": f"action_{i}"} for i in range(10)
-        ]
-        
+        mock_get_log.return_value = [{"id": str(i), "action": f"action_{i}"} for i in range(10)]
+
         with TestClient(app) as client:
             response = client.get("/logs?limit=10")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
             assert len(data) == 10
@@ -200,11 +197,11 @@ def test_list_logs_non_list_result():
     """Test /logs endpoint when get_audit_log returns non-list."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = {"error": "unexpected format"}
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             # Should return empty list
             data = response.json()
             assert isinstance(data, list)
@@ -238,11 +235,11 @@ def test_list_logs_complex_data():
                 },
             }
         ]
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
             assert len(data) == 1
@@ -259,11 +256,11 @@ def test_list_logs_with_special_characters():
                 "user": "user & test",
             }
         ]
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
 
@@ -278,11 +275,11 @@ def test_list_logs_with_unicode():
                 "user": "用户",
             }
         ]
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
 
@@ -296,12 +293,12 @@ def test_full_workflow():
     """Test full workflow: health check, list logs."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # Health check
             health_response = client.get("/health")
             assert health_response.status_code == 200
-            
+
             # List logs
             logs_response = client.get("/logs")
             assert logs_response.status_code == 200
@@ -311,14 +308,14 @@ def test_concurrent_requests():
     """Test handling concurrent requests."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # Send multiple concurrent requests
             responses = []
             for i in range(5):
                 response = client.get("/logs?limit=10")
                 responses.append(response)
-            
+
             # All should succeed
             for response in responses:
                 assert response.status_code == 200
@@ -333,7 +330,7 @@ def test_list_logs_large_limit():
     """Test /logs endpoint with large limit value."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # Should be rejected by validation
             response = client.get("/logs?limit=10000")
@@ -344,7 +341,7 @@ def test_list_logs_negative_limit():
     """Test /logs endpoint with negative limit."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # Should be rejected by validation
             response = client.get("/logs?limit=-10")
@@ -355,7 +352,7 @@ def test_list_logs_string_limit():
     """Test /logs endpoint with string limit."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # Should be rejected by validation
             response = client.get("/logs?limit=abc")
@@ -366,7 +363,7 @@ def test_list_logs_float_limit():
     """Test /logs endpoint with float limit."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = []
-        
+
         with TestClient(app) as client:
             # Should be rejected by validation
             response = client.get("/logs?limit=10.5")
@@ -404,11 +401,11 @@ def test_list_logs_uses_asyncio_to_thread():
     """Test that list_logs uses asyncio.to_thread for blocking call."""
     with patch("services.audit_service.main.asyncio.to_thread") as mock_to_thread:
         mock_to_thread.return_value = []
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200
-            
+
             # Verify asyncio.to_thread was called
             mock_to_thread.assert_called_once()
 
@@ -430,7 +427,7 @@ def test_list_logs_non_list_response():
     """Test /logs endpoint when get_audit_log returns non-list (should return empty list)."""
     with patch("services.audit_service.main.get_audit_log") as mock_get_log:
         mock_get_log.return_value = "not a list"
-        
+
         with TestClient(app) as client:
             response = client.get("/logs")
             assert response.status_code == 200

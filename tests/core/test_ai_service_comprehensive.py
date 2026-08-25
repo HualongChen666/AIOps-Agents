@@ -4,22 +4,23 @@ Comprehensive test suite for core/ai_service.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
 import asyncio
-import sys
 import os
-from unittest.mock import AsyncMock, MagicMock, patch, call
+import sys
 from datetime import timedelta
+from unittest.mock import AsyncMock, MagicMock, call, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.ai_service import (
     AIContextService,
-    ai_context_service,
+    _extract_gather_result,
     _safe_alert_value,
     _safe_get_metric,
-    _extract_gather_result,
+    ai_context_service,
 )
 
 
@@ -73,11 +74,7 @@ class TestSafeGetMetric:
 
     def test_valid_nested_dict(self):
         """Test with valid nested dictionary"""
-        snapshot = {
-            "cpu": {
-                "usage": 75.5
-            }
-        }
+        snapshot = {"cpu": {"usage": 75.5}}
         result = _safe_get_metric(snapshot, "cpu", "usage")
         assert result == 75.5
 
@@ -156,20 +153,20 @@ class TestAIContextService:
     @pytest.mark.asyncio
     async def test_collect_rich_context_basic(self, service):
         """Test basic rich context collection"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {
                 "top_processes": [{"pid": 1, "name": "init"}],
                 "cpu": {"usage": 50.0},
-                "memory": {"total": 8000, "used": 4000}
+                "memory": {"total": 8000, "used": 4000},
             }
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert isinstance(result, dict)
                         assert "top_processes" in result
                         assert "recent_alerts" in result
@@ -187,55 +184,54 @@ class TestAIContextService:
     @pytest.mark.asyncio
     async def test_collect_rich_context_with_snapshot(self, service):
         """Test rich context collection with provided snapshot"""
-        snapshot = {
-            "top_processes": [{"pid": 1, "name": "init"}],
-            "cpu": {"usage": 50.0}
-        }
-        
-        with patch('core.ai_service.alert_history', []):
-            with patch('core.ai_service.repair_history', []):
-                with patch('core.ai_service.metrics_history') as mock_metrics:
+        snapshot = {"top_processes": [{"pid": 1, "name": "init"}], "cpu": {"usage": 50.0}}
+
+        with patch("core.ai_service.alert_history", []):
+            with patch("core.ai_service.repair_history", []):
+                with patch("core.ai_service.metrics_history") as mock_metrics:
                     mock_metrics.get_stats.return_value = {}
-                    
+
                     result = await service.collect_rich_context(snapshot=snapshot)
-                    
+
                     assert result["top_processes"] == [{"pid": 1, "name": "init"}]
 
     @pytest.mark.asyncio
     async def test_collect_rich_context_with_service_name(self, service):
         """Test rich context collection with service name"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
-                        with patch('core.ai_service.get_service_monitoring_manager') as mock_mgr:
+
+                        with patch("core.ai_service.get_service_monitoring_manager") as mock_mgr:
                             mock_mgr.return_value.get_service_metrics.return_value = []
-                            
-                            with patch('core.ai_service.get_full_link_topology') as mock_topo:
+
+                            with patch("core.ai_service.get_full_link_topology") as mock_topo:
                                 mock_topo.return_value = {"nodes": [], "edges": []}
-                                
-                                result = await service.collect_rich_context(service_name="test-service")
-                                
+
+                                result = await service.collect_rich_context(
+                                    service_name="test-service"
+                                )
+
                                 assert "service_metrics" in result
                                 assert "topology" in result
 
     @pytest.mark.asyncio
     async def test_collect_rich_context_snapshot_fetch_failure(self, service):
         """Test handling of snapshot fetch failure"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.side_effect = Exception("Fetch failed")
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         # Should still return result with empty data
                         assert isinstance(result, dict)
                         assert result["top_processes"] == []
@@ -247,57 +243,55 @@ class TestAIContextService:
             "top_processes": [
                 {"pid": 1, "name": "init"},
                 {"pid": 2, "name": "kthreadd"},
-                {"pid": 3, "name": "rcu_gp"}
+                {"pid": 3, "name": "rcu_gp"},
             ]
         }
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = snapshot
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["top_processes"]) == 3
                         assert result["top_processes"][0]["pid"] == 1
 
     @pytest.mark.asyncio
     async def test_fetch_processes_limit(self, service):
         """Test _fetch_processes limits to 5 processes"""
-        snapshot = {
-            "top_processes": [{"pid": i, "name": f"proc_{i}"} for i in range(10)]
-        }
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        snapshot = {"top_processes": [{"pid": i, "name": f"proc_{i}"} for i in range(10)]}
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = snapshot
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["top_processes"]) == 5
 
     @pytest.mark.asyncio
     async def test_fetch_processes_not_list(self, service):
         """Test _fetch_processes handles non-list data"""
         snapshot = {"top_processes": "not_a_list"}
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = snapshot
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert result["top_processes"] == []
 
     @pytest.mark.asyncio
@@ -312,20 +306,20 @@ class TestAIContextService:
                 "metric": "cpu_usage",
                 "value": 95.5,
                 "host": "server1",
-                "source": "prometheus"
+                "source": "prometheus",
             }
         ]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', alert_history):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", alert_history):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["recent_alerts"]) == 1
                         assert result["recent_alerts"][0]["level"] == "critical"
                         assert result["recent_alerts"][0]["value"] == 95.5
@@ -334,37 +328,58 @@ class TestAIContextService:
     async def test_fetch_alerts_limit(self, service):
         """Test _fetch_alerts limits to 10 alerts"""
         alert_history = [
-            {"level": "info", "title": f"Alert {i}", "desc": "", "raw_time": "", "metric": "", "value": 0, "host": "", "source": ""}
+            {
+                "level": "info",
+                "title": f"Alert {i}",
+                "desc": "",
+                "raw_time": "",
+                "metric": "",
+                "value": 0,
+                "host": "",
+                "source": "",
+            }
             for i in range(15)
         ]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', alert_history):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", alert_history):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["recent_alerts"]) == 10
 
     @pytest.mark.asyncio
     async def test_fetch_alerts_non_dict(self, service):
         """Test _fetch_alerts handles non-dict entries"""
-        alert_history = ["not_a_dict", {"level": "info", "title": "Valid", "desc": "", "raw_time": "", "metric": "", "value": 0, "host": "", "source": ""}]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        alert_history = [
+            "not_a_dict",
+            {
+                "level": "info",
+                "title": "Valid",
+                "desc": "",
+                "raw_time": "",
+                "metric": "",
+                "value": 0,
+                "host": "",
+                "source": "",
+            },
+        ]
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', alert_history):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", alert_history):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["recent_alerts"]) == 1
 
     @pytest.mark.asyncio
@@ -379,20 +394,20 @@ class TestAIContextService:
                 "metric": "a" * 80,
                 "value": 0,
                 "host": "b" * 80,
-                "source": "c" * 80
+                "source": "c" * 80,
             }
         ]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', alert_history):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", alert_history):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["recent_alerts"][0]["title"]) == 200
                         assert len(result["recent_alerts"][0]["desc"]) == 500
                         assert len(result["recent_alerts"][0]["raw_time"]) == 32
@@ -405,100 +420,100 @@ class TestAIContextService:
         """Test _fetch_repairs data source"""
         repair_history = [
             {"id": 1, "action": "restart", "status": "success"},
-            {"id": 2, "action": "kill", "status": "success"}
+            {"id": 2, "action": "kill", "status": "success"},
         ]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', repair_history):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", repair_history):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["recent_repairs"]) == 2
 
     @pytest.mark.asyncio
     async def test_fetch_repairs_limit(self, service):
         """Test _fetch_repairs limits to 5 repairs"""
         repair_history = [{"id": i} for i in range(10)]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', repair_history):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", repair_history):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["recent_repairs"]) == 5
 
     @pytest.mark.asyncio
     async def test_fetch_stats_with_get_stats(self, service):
         """Test _fetch_stats with get_stats method"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {"total": 100, "success": 95}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert result["stats"] == {"total": 100, "success": 95}
 
     @pytest.mark.asyncio
     async def test_fetch_stats_with_to_dict(self, service):
         """Test _fetch_stats with to_dict method"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         # Remove get_stats, add to_dict
                         del mock_metrics.get_stats
                         mock_metrics.to_dict.return_value = {"total": 50}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert result["stats"] == {"total": 50}
 
     @pytest.mark.asyncio
     async def test_fetch_stats_no_method(self, service):
         """Test _fetch_stats when no method available"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         # Remove both methods
                         del mock_metrics.get_stats
                         del mock_metrics.to_dict
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert result["stats"] == {}
 
     @pytest.mark.asyncio
     async def test_fetch_service_metrics_no_service_name(self, service):
         """Test _fetch_service_metrics when no service name provided"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert result["service_metrics"] == {}
 
     @pytest.mark.asyncio
@@ -509,112 +524,115 @@ class TestAIContextService:
             "memory": {"total": 8000, "used": 4000},
             "disk": [{"device": "/dev/sda1", "usage": 80}],
             "network": {"rx": 1000, "tx": 500},
-            "system": {"uptime": 3600}
+            "system": {"uptime": 3600},
         }
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = snapshot
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert result["infrastructure_metrics"]["cpu"] == {"usage": 50.0}
-                        assert result["infrastructure_metrics"]["memory"] == {"total": 8000, "used": 4000}
-                        assert result["infrastructure_metrics"]["disk"] == [{"device": "/dev/sda1", "usage": 80}]
+                        assert result["infrastructure_metrics"]["memory"] == {
+                            "total": 8000,
+                            "used": 4000,
+                        }
+                        assert result["infrastructure_metrics"]["disk"] == [
+                            {"device": "/dev/sda1", "usage": 80}
+                        ]
 
     @pytest.mark.asyncio
     async def test_fetch_topology(self, service):
         """Test _fetch_topology data source"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
-                        with patch('core.ai_service.get_full_link_topology') as mock_topo:
+
+                        with patch("core.ai_service.get_full_link_topology") as mock_topo:
                             mock_topo.return_value = {
                                 "nodes": ["service_a", "service_b"],
-                                "edges": [
-                                    {"source": "service_a", "target": "service_b"}
-                                ]
+                                "edges": [{"source": "service_a", "target": "service_b"}],
                             }
-                            
+
                             result = await service.collect_rich_context()
-                            
+
                             assert result["topology"]["nodes"] == ["service_a", "service_b"]
-                            assert result["topology"]["edges"] == [{"source": "service_a", "target": "service_b"}]
+                            assert result["topology"]["edges"] == [
+                                {"source": "service_a", "target": "service_b"}
+                            ]
                             assert result["dependencies"]["service_a"] == ["service_b"]
 
     @pytest.mark.asyncio
     async def test_fetch_topology_with_from_to(self, service):
         """Test _fetch_topology with 'from'/'to' edge format"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
-                        with patch('core.ai_service.get_full_link_topology') as mock_topo:
+
+                        with patch("core.ai_service.get_full_link_topology") as mock_topo:
                             mock_topo.return_value = {
                                 "nodes": [],
-                                "edges": [
-                                    {"from": "service_a", "to": "service_b"}
-                                ]
+                                "edges": [{"from": "service_a", "to": "service_b"}],
                             }
-                            
+
                             result = await service.collect_rich_context()
-                            
+
                             assert result["dependencies"]["service_a"] == ["service_b"]
 
     @pytest.mark.asyncio
     async def test_fetch_topology_non_dict(self, service):
         """Test _fetch_topology handles non-dict response"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
-                        with patch('core.ai_service.get_full_link_topology') as mock_topo:
+
+                        with patch("core.ai_service.get_full_link_topology") as mock_topo:
                             mock_topo.return_value = "not_a_dict"
-                            
+
                             result = await service.collect_rich_context()
-                            
+
                             assert result["topology"] == {}
 
     @pytest.mark.asyncio
     async def test_fetch_change_events(self, service):
         """Test _fetch_change_events data source"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
-                        with patch('core.ai_service.config_manager') as mock_config:
+
+                        with patch("core.ai_service.config_manager") as mock_config:
                             mock_config._audit_log = [
                                 {
                                     "timestamp": "2024-01-01T12:00:00",
                                     "change": "config_update",
-                                    "details": "Updated threshold"
+                                    "details": "Updated threshold",
                                 }
                             ]
                             mock_config._config_history = []
-                            
+
                             result = await service.collect_rich_context()
-                            
+
                             assert len(result["change_events"]) == 1
                             assert result["change_events"][0]["type"] == "config_change"
 
@@ -628,20 +646,20 @@ class TestAIContextService:
                 "desc": "Memory usage high",
                 "raw_time": "2024-01-01 12:00:00",
                 "source": "prometheus",
-                "host": "server1"
+                "host": "server1",
             }
         ]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', alert_history):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", alert_history):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context(service_name="test-service")
-                        
+
                         # Should include alert matching service name
                         assert len(result["correlated_alerts"]) == 1
 
@@ -655,20 +673,20 @@ class TestAIContextService:
                 "desc": "Test",
                 "raw_time": "2024-01-01 12:00:00",
                 "source": "prometheus",
-                "host": "server1"
+                "host": "server1",
             }
         ]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', alert_history):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", alert_history):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         # Should include all alerts when no service filter
                         assert len(result["correlated_alerts"]) == 1
 
@@ -682,36 +700,36 @@ class TestAIContextService:
                 "desc": "Test",
                 "raw_time": "2024-01-01 12:00:00",
                 "source": "prometheus",
-                "host": "server1"
+                "host": "server1",
             }
             for i in range(25)
         ]
-        
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', alert_history):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", alert_history):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats.return_value = {}
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         assert len(result["correlated_alerts"]) == 20
 
     @pytest.mark.asyncio
     async def test_timeout_handling(self, service):
         """Test timeout handling in data source collection"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats = AsyncMock(side_effect=asyncio.TimeoutError())
-                        
+
                         result = await service.collect_rich_context()
-                        
+
                         # Should handle timeout gracefully
                         assert isinstance(result, dict)
                         assert "stats" in result
@@ -719,14 +737,14 @@ class TestAIContextService:
     @pytest.mark.asyncio
     async def test_cancelled_error_propagation(self, service):
         """Test that CancelledError is propagated"""
-        with patch('core.ai_service.get_cached_snapshot') as mock_snapshot:
+        with patch("core.ai_service.get_cached_snapshot") as mock_snapshot:
             mock_snapshot.return_value = {}
-            
-            with patch('core.ai_service.alert_history', []):
-                with patch('core.ai_service.repair_history', []):
-                    with patch('core.ai_service.metrics_history') as mock_metrics:
+
+            with patch("core.ai_service.alert_history", []):
+                with patch("core.ai_service.repair_history", []):
+                    with patch("core.ai_service.metrics_history") as mock_metrics:
                         mock_metrics.get_stats = AsyncMock(side_effect=asyncio.CancelledError())
-                        
+
                         with pytest.raises(asyncio.CancelledError):
                             await service.collect_rich_context()
 

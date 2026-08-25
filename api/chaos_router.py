@@ -227,7 +227,8 @@ async def run_experiment(
             experiment = ChaosExperiment(experiment_type)
         except ValueError:
             return create_error_response(
-                error=f"Invalid experiment type: {experiment_type}", error_code="INVALID_EXPERIMENT"
+                error=f"Invalid experiment type: {experiment_type}",
+                error_code="INVALID_EXPERIMENT",
             )
 
         # 执行实验

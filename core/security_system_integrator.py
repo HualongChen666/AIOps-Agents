@@ -13,11 +13,11 @@ from typing import Any, Callable, Dict, List, Optional
 from loguru import logger
 
 from core.vulnerability_intelligence import (
-    VulnerabilityIntelligenceEngine,
+    VulnerabilityDataSource,
     VulnerabilityIntelligenceConfig,
+    VulnerabilityIntelligenceEngine,
     VulnerabilityRecord,
     VulnerabilitySeverity,
-    VulnerabilityDataSource,
 )
 
 
@@ -104,8 +104,12 @@ class SecuritySystemIntegrator:
 
         # Vulnerability Intelligence
         self.vulnerability_intelligence: Optional[VulnerabilityIntelligenceEngine] = None
-        self.vulnerability_monitoring_enabled = self.config.get("vulnerability_monitoring_enabled", True)
-        self.vulnerability_monitoring_interval = self.config.get("vulnerability_monitoring_interval", 3600)
+        self.vulnerability_monitoring_enabled = self.config.get(
+            "vulnerability_monitoring_enabled", True
+        )
+        self.vulnerability_monitoring_interval = self.config.get(
+            "vulnerability_monitoring_interval", 3600
+        )
         self._vulnerability_monitoring_task: Optional[asyncio.Task] = None
         self._vulnerability_monitoring_running = False
 
@@ -519,9 +523,8 @@ class SecuritySystemIntegrator:
         """
         intel_config = VulnerabilityIntelligenceConfig(
             nvd_api_key=nvd_api_key or self.config.get("nvd_api_key", ""),
-            nvd_api_url=nvd_api_url or self.config.get(
-                "nvd_api_url", "https://services.nvd.nist.gov/rest/json/cves/2.0"
-            ),
+            nvd_api_url=nvd_api_url
+            or self.config.get("nvd_api_url", "https://services.nvd.nist.gov/rest/json/cves/2.0"),
             osv_api_url=osv_api_url or self.config.get("osv_api_url", "https://api.osv.dev"),
             github_token=github_token or self.config.get("github_token", ""),
             enable_caching=True,
@@ -543,7 +546,8 @@ class SecuritySystemIntegrator:
                     if monitoring_enabled is not None
                     else self.vulnerability_monitoring_enabled
                 ),
-                "monitoring_interval": monitoring_interval or self.vulnerability_monitoring_interval,
+                "monitoring_interval": monitoring_interval
+                or self.vulnerability_monitoring_interval,
             },
             enabled=True,
         )
@@ -746,7 +750,10 @@ class SecuritySystemIntegrator:
 
                 # Create incidents for high/critical vulnerabilities
                 for vuln in vulns:
-                    if vuln.severity in (VulnerabilitySeverity.CRITICAL, VulnerabilitySeverity.HIGH):
+                    if vuln.severity in (
+                        VulnerabilitySeverity.CRITICAL,
+                        VulnerabilitySeverity.HIGH,
+                    ):
                         risk = await self.vulnerability_intelligence.assess_vulnerability_risk(vuln)
 
                         incident = SecurityIncident(
@@ -779,7 +786,9 @@ class SecuritySystemIntegrator:
             return
 
         self._vulnerability_monitoring_running = True
-        self._vulnerability_monitoring_task = asyncio.create_task(self._vulnerability_monitoring_loop())
+        self._vulnerability_monitoring_task = asyncio.create_task(
+            self._vulnerability_monitoring_loop()
+        )
         logger.info("Vulnerability monitoring started")
 
     async def stop_vulnerability_monitoring(self) -> None:
@@ -818,11 +827,16 @@ class SecuritySystemIntegrator:
                         self.total_advisories_processed += 1
 
                         # Check for critical/high severity
-                        if vuln.severity in (VulnerabilitySeverity.CRITICAL, VulnerabilitySeverity.HIGH):
+                        if vuln.severity in (
+                            VulnerabilitySeverity.CRITICAL,
+                            VulnerabilitySeverity.HIGH,
+                        ):
                             self.critical_advisories_detected += 1
 
                             # Assess risk
-                            risk = await self.vulnerability_intelligence.assess_vulnerability_risk(vuln)
+                            risk = await self.vulnerability_intelligence.assess_vulnerability_risk(
+                                vuln
+                            )
 
                             # Create incident
                             incident = SecurityIncident(

@@ -244,7 +244,9 @@ def test_setup_environment_configuration(monkeypatch, env_fakes, tmp_path):
     (tmp_path / "development.yaml").write_text("dev")
     manager = env_config.EnvironmentConfigManager(tmp_path)
     monkeypatch.setattr(env_config, "environment_config_manager", manager)
-    result = env_config.setup_environment_configuration()  # noqa: F841  # Variable for test verification
+    result = (
+        env_config.setup_environment_configuration()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["environment"] == "development"
     assert result["unified_config_setup"]["ok"] is True
@@ -254,7 +256,9 @@ def test_setup_environment_configuration_error(monkeypatch):
     fake_manager = MagicMock()
     fake_manager.validate_environment_config.side_effect = RuntimeError("boom")
     monkeypatch.setattr(env_config, "environment_config_manager", fake_manager)
-    result = env_config.setup_environment_configuration()  # noqa: F841  # Variable for test verification
+    result = (
+        env_config.setup_environment_configuration()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert "boom" in result["error"]
 

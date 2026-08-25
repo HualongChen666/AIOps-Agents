@@ -225,7 +225,9 @@ async def test_index_log_fallback_and_search(tmp_path, monkeypatch):
     fallback_file = tmp_path / "data" / "es_fallback" / "logs.ndjson"
     assert fallback_file.exists()
 
-    result = await es_logger.es_search_logs("logs", query="~", size=10)  # noqa: F841  # Variable for test verification
+    result = await es_logger.es_search_logs(
+        "logs", query="~", size=10
+    )  # noqa: F841  # Variable for test verification
     assert result == []  # noqa: F841  # Variable for test verification
 
 
@@ -237,7 +239,9 @@ async def test_es_search_logs_with_client(monkeypatch):
     )
     monkeypatch.setattr(es_logger, "_es_client", fake_client)
 
-    result = await es_logger.es_search_logs("logs", query="*", size=10)  # noqa: F841  # Variable for test verification
+    result = await es_logger.es_search_logs(
+        "logs", query="*", size=10
+    )  # noqa: F841  # Variable for test verification
     assert len(result) >= 1
     fake_client.search.assert_awaited_once()
 
@@ -247,7 +251,9 @@ async def test_es_search_logs_not_found(monkeypatch):
     fake_client = MagicMock()
     fake_client.search = AsyncMock(side_effect=Exception("not found"))
     monkeypatch.setattr(es_logger, "_es_client", fake_client)
-    result = await es_logger.es_search_logs("logs", query="*", size=10)  # noqa: F841  # Variable for test verification
+    result = await es_logger.es_search_logs(
+        "logs", query="*", size=10
+    )  # noqa: F841  # Variable for test verification
     assert result == []  # noqa: F841  # Variable for test verification
 
 

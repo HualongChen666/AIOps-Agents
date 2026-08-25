@@ -31,7 +31,11 @@ _DEAD_LETTER_PATH = os.path.join(_DEAD_LETTER_DIR, "alert_dead_letter.jsonl")
 
 
 def _ensure_dead_letter_dir() -> None:
-    os.makedirs(_DEAD_LETTER_DIR, exist_ok=True)
+    try:
+        os.makedirs(_DEAD_LETTER_DIR, exist_ok=True)
+    except OSError as exc:
+        logger.error(f"Failed to create dead letter directory {_DEAD_LETTER_DIR}: {exc}")
+        raise
 
 
 def _append_dead_letter(payload: Dict[str, Any]) -> None:

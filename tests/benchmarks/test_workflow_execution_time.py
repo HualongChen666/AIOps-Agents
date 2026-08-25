@@ -25,15 +25,24 @@ import gc
 import sys
 import time
 import tracemalloc
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
 
 import pytest
 
 # Add workflow_service to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "extensions" / "addons" / "operations" / "workflow_service"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).parent.parent.parent
+        / "extensions"
+        / "addons"
+        / "operations"
+        / "workflow_service"
+    ),
+)
 
 from orchestrator import WorkflowOrchestrator
 from repository import InMemoryWorkflowRepository
@@ -53,7 +62,6 @@ from schemas import (
 )
 from state_machine import WorkflowStateMachine
 
-
 # Performance Benchmark Thresholds
 SIMPLE_WORKFLOW_THRESHOLD = 1.0  # seconds
 COMPLEX_WORKFLOW_THRESHOLD = 5.0  # seconds
@@ -64,6 +72,7 @@ ERROR_RECOVERY_THRESHOLD = 2.0  # seconds
 @dataclass
 class PerformanceMetrics:
     """Container for performance metrics."""
+
     execution_time: float
     memory_usage_mb: float
     cpu_time: float
@@ -77,6 +86,7 @@ class PerformanceMetrics:
 @dataclass
 class BenchmarkResult:
     """Container for benchmark test results."""
+
     test_name: str
     metrics: PerformanceMetrics
     passed: bool
@@ -213,12 +223,33 @@ def create_complex_workflow() -> WorkflowDefinition:
         description="A complex workflow with multiple execution paths",
         nodes=[
             WorkflowNode(node_id="init", name="Initialize", command="init", dependencies=[]),
-            WorkflowNode(node_id="branch1", name="Branch 1", command="process branch1", dependencies=["init"]),
-            WorkflowNode(node_id="branch2", name="Branch 2", command="process branch2", dependencies=["init"]),
-            WorkflowNode(node_id="branch3", name="Branch 3", command="process branch3", dependencies=["init"]),
-            WorkflowNode(node_id="merge1", name="Merge 1", command="merge 1-2", dependencies=["branch1", "branch2"]),
-            WorkflowNode(node_id="merge2", name="Merge 2", command="merge 2-3", dependencies=["branch2", "branch3"]),
-            WorkflowNode(node_id="finalize", name="Finalize", command="finalize", dependencies=["merge1", "merge2"]),
+            WorkflowNode(
+                node_id="branch1", name="Branch 1", command="process branch1", dependencies=["init"]
+            ),
+            WorkflowNode(
+                node_id="branch2", name="Branch 2", command="process branch2", dependencies=["init"]
+            ),
+            WorkflowNode(
+                node_id="branch3", name="Branch 3", command="process branch3", dependencies=["init"]
+            ),
+            WorkflowNode(
+                node_id="merge1",
+                name="Merge 1",
+                command="merge 1-2",
+                dependencies=["branch1", "branch2"],
+            ),
+            WorkflowNode(
+                node_id="merge2",
+                name="Merge 2",
+                command="merge 2-3",
+                dependencies=["branch2", "branch3"],
+            ),
+            WorkflowNode(
+                node_id="finalize",
+                name="Finalize",
+                command="finalize",
+                dependencies=["merge1", "merge2"],
+            ),
         ],
     )
 
@@ -235,7 +266,12 @@ def create_parallel_workflow() -> WorkflowDefinition:
             WorkflowNode(node_id="task2", name="Task 2", command="task2", dependencies=["start"]),
             WorkflowNode(node_id="task3", name="Task 3", command="task3", dependencies=["start"]),
             WorkflowNode(node_id="task4", name="Task 4", command="task4", dependencies=["start"]),
-            WorkflowNode(node_id="end", name="End", command="end", dependencies=["task1", "task2", "task3", "task4"]),
+            WorkflowNode(
+                node_id="end",
+                name="End",
+                command="end",
+                dependencies=["task1", "task2", "task3", "task4"],
+            ),
         ],
     )
 
@@ -248,8 +284,15 @@ def create_workflow_with_failure() -> WorkflowDefinition:
         description="A workflow with a failing node",
         nodes=[
             WorkflowNode(node_id="node1", name="First Node", command="echo step1", dependencies=[]),
-            WorkflowNode(node_id="node2", name="Failing Node", command="fail this step", dependencies=["node1"]),
-            WorkflowNode(node_id="node3", name="Third Node", command="echo step3", dependencies=["node2"]),
+            WorkflowNode(
+                node_id="node2",
+                name="Failing Node",
+                command="fail this step",
+                dependencies=["node1"],
+            ),
+            WorkflowNode(
+                node_id="node3", name="Third Node", command="echo step3", dependencies=["node2"]
+            ),
         ],
     )
 
@@ -304,14 +347,14 @@ class TestSimpleWorkflowExecution:
         )
 
         # Additional assertions
-        assert metrics.memory_usage_mb < 10, f"Memory usage {metrics.memory_usage_mb:.2f}MB too high"
+        assert (
+            metrics.memory_usage_mb < 10
+        ), f"Memory usage {metrics.memory_usage_mb:.2f}MB too high"
         assert len(result.node_results) == 3, "Expected 3 node results"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_simple_workflow_multiple_runs(
-        self, benchmark_orchestrator, performance_monitor
-    ):
+    async def test_simple_workflow_multiple_runs(self, benchmark_orchestrator, performance_monitor):
         """Test multiple consecutive simple workflow executions."""
         run_count = 10
         execution_times = []
@@ -335,12 +378,12 @@ class TestSimpleWorkflowExecution:
         avg_time = sum(execution_times) / len(execution_times)
         max_time = max(execution_times)
 
-        assert avg_time < SIMPLE_WORKFLOW_THRESHOLD, (
-            f"Average execution time {avg_time:.3f}s exceeds threshold"
-        )
-        assert max_time < SIMPLE_WORKFLOW_THRESHOLD * 1.5, (
-            f"Max execution time {max_time:.3f}s exceeds 1.5x threshold"
-        )
+        assert (
+            avg_time < SIMPLE_WORKFLOW_THRESHOLD
+        ), f"Average execution time {avg_time:.3f}s exceeds threshold"
+        assert (
+            max_time < SIMPLE_WORKFLOW_THRESHOLD * 1.5
+        ), f"Max execution time {max_time:.3f}s exceeds 1.5x threshold"
 
 
 class TestComplexWorkflowExecution:
@@ -407,9 +450,7 @@ class TestParallelWorkflowExecution:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_parallel_workflow_efficiency(
-        self, benchmark_orchestrator, performance_monitor
-    ):
+    async def test_parallel_workflow_efficiency(self, benchmark_orchestrator, performance_monitor):
         """Test parallel execution efficiency > 70%."""
         request = WorkflowRequest(
             workflow_id="parallel-workflow",
@@ -435,15 +476,11 @@ class TestParallelWorkflowExecution:
 
         # Since the current implementation is sequential, we test that it's still efficient
         # In a true parallel implementation, this would be much higher
-        assert metrics.execution_time < 1.0, (
-            f"Parallel workflow took {metrics.execution_time:.3f}s"
-        )
+        assert metrics.execution_time < 1.0, f"Parallel workflow took {metrics.execution_time:.3f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_concurrent_workflow_execution(
-        self, benchmark_orchestrator, performance_monitor
-    ):
+    async def test_concurrent_workflow_execution(self, benchmark_orchestrator, performance_monitor):
         """Test execution of multiple workflows concurrently."""
         request = WorkflowRequest(
             workflow_id="simple-workflow",
@@ -460,17 +497,15 @@ class TestParallelWorkflowExecution:
         performance_monitor.start()
 
         # Execute all tasks concurrently
-        results = await asyncio.gather(
-            *[benchmark_orchestrator.execute(task) for task in tasks]
-        )
+        results = await asyncio.gather(*[benchmark_orchestrator.execute(task) for task in tasks])
 
         metrics = performance_monitor.stop()
 
         assert all(r.success for r in results), "Some workflows failed"
         # Concurrent execution should be faster than sequential
-        assert metrics.execution_time < 5.0, (
-            f"Concurrent execution took {metrics.execution_time:.3f}s"
-        )
+        assert (
+            metrics.execution_time < 5.0
+        ), f"Concurrent execution took {metrics.execution_time:.3f}s"
 
 
 class TestWorkflowOrchestrationPerformance:
@@ -501,15 +536,13 @@ class TestWorkflowOrchestrationPerformance:
 
         assert result.success
         # Orchestration overhead should be minimal
-        assert metrics.execution_time < 0.5, (
-            f"Orchestration overhead {metrics.execution_time:.3f}s too high"
-        )
+        assert (
+            metrics.execution_time < 0.5
+        ), f"Orchestration overhead {metrics.execution_time:.3f}s too high"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_state_machine_performance(
-        self, benchmark_repository, performance_monitor
-    ):
+    async def test_state_machine_performance(self, benchmark_repository, performance_monitor):
         """Test state machine transition performance."""
         task = WorkflowTask(
             task_id="STATE-TEST",
@@ -535,9 +568,9 @@ class TestWorkflowOrchestrationPerformance:
         metrics = performance_monitor.stop()
 
         # State transitions should be very fast
-        assert metrics.execution_time < 0.01, (
-            f"State machine took {metrics.execution_time:.3f}s for transitions"
-        )
+        assert (
+            metrics.execution_time < 0.01
+        ), f"State machine took {metrics.execution_time:.3f}s for transitions"
         assert len(state_machine.history) == 6  # Initial + 5 transitions
 
 
@@ -575,9 +608,7 @@ class TestErrorHandlingAndRetryPerformance:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_retry_performance(
-        self, benchmark_retry_engine, performance_monitor
-    ):
+    async def test_retry_performance(self, benchmark_retry_engine, performance_monitor):
         """Test retry mechanism performance."""
         attempt_count = 0
 
@@ -600,9 +631,7 @@ class TestErrorHandlingAndRetryPerformance:
         assert result["success"], "Retry should have succeeded"
         assert attempt_count == 3, f"Expected 3 attempts, got {attempt_count}"
         # Retry with exponential backoff should complete in reasonable time
-        assert metrics.execution_time < 1.0, (
-            f"Retry took {metrics.execution_time:.3f}s"
-        )
+        assert metrics.execution_time < 1.0, f"Retry took {metrics.execution_time:.3f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
@@ -643,9 +672,7 @@ class TestErrorHandlingAndRetryPerformance:
         metrics = performance_monitor.stop()
 
         assert result["success"], "Saga should have succeeded"
-        assert metrics.execution_time < 0.1, (
-            f"Saga execution took {metrics.execution_time:.3f}s"
-        )
+        assert metrics.execution_time < 0.1, f"Saga execution took {metrics.execution_time:.3f}s"
 
 
 class TestSchedulerPerformance:
@@ -657,6 +684,7 @@ class TestSchedulerPerformance:
         self, benchmark_scheduler, benchmark_orchestrator, performance_monitor
     ):
         """Test scheduler enqueue and execution performance."""
+
         # Register handler
         async def handler(request: WorkflowRequest):
             return await benchmark_orchestrator.create_task(request)
@@ -679,9 +707,7 @@ class TestSchedulerPerformance:
         metrics = performance_monitor.stop()
 
         assert len(results) == 10, f"Expected 10 results, got {len(results)}"
-        assert metrics.execution_time < 1.0, (
-            f"Scheduling took {metrics.execution_time:.3f}s"
-        )
+        assert metrics.execution_time < 1.0, f"Scheduling took {metrics.execution_time:.3f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
@@ -689,6 +715,7 @@ class TestSchedulerPerformance:
         self, benchmark_scheduler, benchmark_orchestrator, performance_monitor
     ):
         """Test scheduler throughput (requests per second)."""
+
         async def handler(request: WorkflowRequest):
             return await benchmark_orchestrator.create_task(request)
 
@@ -718,9 +745,7 @@ class TestResourceUsageMonitoring:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_memory_usage_simple_workflow(
-        self, benchmark_orchestrator, performance_monitor
-    ):
+    async def test_memory_usage_simple_workflow(self, benchmark_orchestrator, performance_monitor):
         """Test memory usage for simple workflow."""
         request = WorkflowRequest(
             workflow_id="simple-workflow",
@@ -735,18 +760,12 @@ class TestResourceUsageMonitoring:
 
         assert result.success
         # Memory usage should be reasonable
-        assert metrics.memory_usage_mb < 5, (
-            f"Memory usage {metrics.memory_usage_mb:.2f}MB too high"
-        )
-        assert metrics.peak_memory_mb < 20, (
-            f"Peak memory {metrics.peak_memory_mb:.2f}MB too high"
-        )
+        assert metrics.memory_usage_mb < 5, f"Memory usage {metrics.memory_usage_mb:.2f}MB too high"
+        assert metrics.peak_memory_mb < 20, f"Peak memory {metrics.peak_memory_mb:.2f}MB too high"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_memory_usage_complex_workflow(
-        self, benchmark_orchestrator, performance_monitor
-    ):
+    async def test_memory_usage_complex_workflow(self, benchmark_orchestrator, performance_monitor):
         """Test memory usage for complex workflow."""
         request = WorkflowRequest(
             workflow_id="complex-workflow",
@@ -761,18 +780,14 @@ class TestResourceUsageMonitoring:
 
         assert result.success
         # Complex workflow may use more memory but should still be reasonable
-        assert metrics.memory_usage_mb < 10, (
-            f"Memory usage {metrics.memory_usage_mb:.2f}MB too high"
-        )
-        assert metrics.peak_memory_mb < 50, (
-            f"Peak memory {metrics.peak_memory_mb:.2f}MB too high"
-        )
+        assert (
+            metrics.memory_usage_mb < 10
+        ), f"Memory usage {metrics.memory_usage_mb:.2f}MB too high"
+        assert metrics.peak_memory_mb < 50, f"Peak memory {metrics.peak_memory_mb:.2f}MB too high"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_cpu_efficiency(
-        self, benchmark_orchestrator, performance_monitor
-    ):
+    async def test_cpu_efficiency(self, benchmark_orchestrator, performance_monitor):
         """Test CPU efficiency (CPU time vs wall clock time)."""
         request = WorkflowRequest(
             workflow_id="simple-workflow",
@@ -796,9 +811,7 @@ class TestPerformanceRegression:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_workflow_creation_performance(
-        self, benchmark_orchestrator, performance_monitor
-    ):
+    async def test_workflow_creation_performance(self, benchmark_orchestrator, performance_monitor):
         """Test workflow task creation performance."""
         request = WorkflowRequest(
             workflow_id="simple-workflow",
@@ -817,9 +830,9 @@ class TestPerformanceRegression:
 
         assert len(tasks) == 50
         avg_creation_time = metrics.execution_time / 50
-        assert avg_creation_time < 0.01, (
-            f"Average task creation time {avg_creation_time:.3f}s too high"
-        )
+        assert (
+            avg_creation_time < 0.01
+        ), f"Average task creation time {avg_creation_time:.3f}s too high"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
@@ -842,9 +855,9 @@ class TestPerformanceRegression:
         metrics = performance_monitor.stop()
 
         avg_operation_time = metrics.execution_time / 200  # 100 saves + 100 gets
-        assert avg_operation_time < 0.001, (
-            f"Average repository operation time {avg_operation_time:.3f}s too high"
-        )
+        assert (
+            avg_operation_time < 0.001
+        ), f"Average repository operation time {avg_operation_time:.3f}s too high"
 
 
 class TestComprehensiveWorkflowPerformance:
@@ -880,9 +893,9 @@ class TestComprehensiveWorkflowPerformance:
         assert result.success
         assert retrieved_task is not None
         assert retrieved_task.status == WorkflowStatus.SUCCEEDED
-        assert metrics.execution_time < COMPLEX_WORKFLOW_THRESHOLD, (
-            f"Full lifecycle took {metrics.execution_time:.3f}s"
-        )
+        assert (
+            metrics.execution_time < COMPLEX_WORKFLOW_THRESHOLD
+        ), f"Full lifecycle took {metrics.execution_time:.3f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
@@ -914,9 +927,7 @@ class TestComprehensiveWorkflowPerformance:
         metrics = performance_monitor.stop()
 
         assert all(r.success for r in results)
-        assert metrics.execution_time < 10.0, (
-            f"Mixed workflows took {metrics.execution_time:.3f}s"
-        )
+        assert metrics.execution_time < 10.0, f"Mixed workflows took {metrics.execution_time:.3f}s"
 
 
 class TestRepositoryPerformance:
@@ -950,9 +961,7 @@ class TestRepositoryPerformance:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_repository_list_performance(
-        self, benchmark_repository, performance_monitor
-    ):
+    async def test_repository_list_performance(self, benchmark_repository, performance_monitor):
         """Test repository list operations performance."""
         # Populate repository
         for i in range(50):
@@ -994,8 +1003,7 @@ class TestRepositoryPerformance:
         # Update and delete tasks
         for i in range(50):
             await benchmark_repository.update_task(
-                f"UPDATE-TASK-{i}",
-                {"status": WorkflowStatus.RUNNING.value}
+                f"UPDATE-TASK-{i}", {"status": WorkflowStatus.RUNNING.value}
             )
             await benchmark_repository.delete_task(f"UPDATE-TASK-{i}")
 
@@ -1019,10 +1027,7 @@ class TestRepositoryPerformance:
                 name=f"Definition {i}",
                 nodes=[
                     WorkflowNode(
-                        node_id=f"node{j}",
-                        name=f"Node {j}",
-                        command="test",
-                        dependencies=[]
+                        node_id=f"node{j}", name=f"Node {j}", command="test", dependencies=[]
                     )
                     for j in range(5)
                 ],
@@ -1042,9 +1047,7 @@ class TestRetryEnginePerformance:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_retry_with_different_policies(
-        self, benchmark_retry_engine, performance_monitor
-    ):
+    async def test_retry_with_different_policies(self, benchmark_retry_engine, performance_monitor):
         """Test retry performance with different policies."""
         policies = ["no_retry", "exponential_fast"]  # Only test fast policies
         results = []
@@ -1062,10 +1065,7 @@ class TestRetryEnginePerformance:
                 return {"success": True}
 
             try:
-                result = await benchmark_retry_engine.execute(
-                    failing_op,
-                    policy_name=policy_name
-                )
+                result = await benchmark_retry_engine.execute(failing_op, policy_name=policy_name)
                 results.append((policy_name, True, attempt_count))
             except Exception:
                 results.append((policy_name, False, attempt_count))
@@ -1074,7 +1074,9 @@ class TestRetryEnginePerformance:
 
         metrics = performance_monitor.stop()
 
-        assert metrics.execution_time < 1.0, f"Retry with policies took {metrics.execution_time:.3f}s"
+        assert (
+            metrics.execution_time < 1.0
+        ), f"Retry with policies took {metrics.execution_time:.3f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
@@ -1093,13 +1095,13 @@ class TestRetryEnginePerformance:
 
         metrics = performance_monitor.stop()
 
-        assert metrics.execution_time < 0.01, f"Delay computation took {metrics.execution_time:.4f}s"
+        assert (
+            metrics.execution_time < 0.01
+        ), f"Delay computation took {metrics.execution_time:.4f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_custom_retry_policy(
-        self, benchmark_retry_engine, performance_monitor
-    ):
+    async def test_custom_retry_policy(self, benchmark_retry_engine, performance_monitor):
         """Test custom retry policy performance."""
         custom_policy = RetryPolicy(
             name="custom_benchmark",
@@ -1121,10 +1123,7 @@ class TestRetryEnginePerformance:
 
         performance_monitor.start()
 
-        result = await benchmark_retry_engine.execute(
-            operation,
-            policy_name="custom_benchmark"
-        )
+        result = await benchmark_retry_engine.execute(operation, policy_name="custom_benchmark")
 
         metrics = performance_monitor.stop()
 
@@ -1138,9 +1137,7 @@ class TestSagaOrchestratorPerformance:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
-    async def test_saga_with_many_steps(
-        self, benchmark_saga_orchestrator, performance_monitor
-    ):
+    async def test_saga_with_many_steps(self, benchmark_saga_orchestrator, performance_monitor):
         """Test saga performance with many steps."""
         step_count = 20
         steps = [
@@ -1148,7 +1145,7 @@ class TestSagaOrchestratorPerformance:
                 step_id=f"step{i}",
                 service=f"service{i}",
                 action=f"action{i}",
-                compensation=f"comp{i}"
+                compensation=f"comp{i}",
             )
             for i in range(step_count)
         ]
@@ -1231,9 +1228,9 @@ class TestSagaOrchestratorPerformance:
         metrics = performance_monitor.stop()
 
         assert not result["success"]
-        assert metrics.execution_time < ERROR_RECOVERY_THRESHOLD, (
-            f"Saga failure handling took {metrics.execution_time:.3f}s"
-        )
+        assert (
+            metrics.execution_time < ERROR_RECOVERY_THRESHOLD
+        ), f"Saga failure handling took {metrics.execution_time:.3f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
@@ -1280,6 +1277,7 @@ class TestSchedulerAdvancedPerformance:
         self, benchmark_scheduler, benchmark_orchestrator, performance_monitor
     ):
         """Test scheduled task execution performance."""
+
         async def handler(request: WorkflowRequest):
             return await benchmark_orchestrator.create_task(request)
 
@@ -1298,6 +1296,7 @@ class TestSchedulerAdvancedPerformance:
         await benchmark_scheduler.schedule(scheduled_task)
         # Simulate time passing
         from datetime import datetime, timedelta
+
         scheduled_task.next_run = datetime.utcnow() - timedelta(seconds=1)
 
         results = await benchmark_scheduler.run_once()
@@ -1305,7 +1304,9 @@ class TestSchedulerAdvancedPerformance:
         metrics = performance_monitor.stop()
 
         assert len(results) > 0
-        assert metrics.execution_time < 1.0, f"Scheduled execution took {metrics.execution_time:.3f}s"
+        assert (
+            metrics.execution_time < 1.0
+        ), f"Scheduled execution took {metrics.execution_time:.3f}s"
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark
@@ -1313,6 +1314,7 @@ class TestSchedulerAdvancedPerformance:
         self, benchmark_scheduler, benchmark_orchestrator, performance_monitor
     ):
         """Test scheduler under high queue pressure."""
+
         async def handler(request: WorkflowRequest):
             return await benchmark_orchestrator.create_task(request)
 
@@ -1357,9 +1359,7 @@ def generate_performance_report(results: List[BenchmarkResult]) -> str:
 
     for result in results:
         status = "✓ PASS" if result.passed else "✗ FAIL"
-        report_lines.append(
-            f"\n{status} - {result.test_name}"
-        )
+        report_lines.append(f"\n{status} - {result.test_name}")
         report_lines.append(f"  Execution Time: {result.metrics.execution_time:.4f}s")
         report_lines.append(f"  Memory Usage: {result.metrics.memory_usage_mb:.2f}MB")
         report_lines.append(f"  Peak Memory: {result.metrics.peak_memory_mb:.2f}MB")
@@ -1368,23 +1368,29 @@ def generate_performance_report(results: List[BenchmarkResult]) -> str:
         if result.metrics.error:
             report_lines.append(f"  Error: {result.metrics.error}")
 
-    report_lines.extend([
-        "",
-        "-" * 80,
-        "SUMMARY STATISTICS",
-        "-" * 80,
-    ])
+    report_lines.extend(
+        [
+            "",
+            "-" * 80,
+            "SUMMARY STATISTICS",
+            "-" * 80,
+        ]
+    )
 
     execution_times = [r.metrics.execution_time for r in results]
     if execution_times:
-        report_lines.append(f"Average Execution Time: {sum(execution_times)/len(execution_times):.4f}s")
+        report_lines.append(
+            f"Average Execution Time: {sum(execution_times)/len(execution_times):.4f}s"
+        )
         report_lines.append(f"Min Execution Time: {min(execution_times):.4f}s")
         report_lines.append(f"Max Execution Time: {max(execution_times):.4f}s")
 
     memory_usage = [r.metrics.memory_usage_mb for r in results]
     if memory_usage:
         report_lines.append(f"Average Memory Usage: {sum(memory_usage)/len(memory_usage):.2f}MB")
-        report_lines.append(f"Peak Memory Usage: {max(r.metrics.peak_memory_mb for r in results):.2f}MB")
+        report_lines.append(
+            f"Peak Memory Usage: {max(r.metrics.peak_memory_mb for r in results):.2f}MB"
+        )
 
     report_lines.append("=" * 80)
 

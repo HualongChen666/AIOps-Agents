@@ -67,7 +67,9 @@ def test_factory_and_dataclasses(tmp_path):
     assert suite.enabled is True
 
     execution = ValidationExecution(execution_id="e1", test_id="t1")
-    assert execution.result == ValidationResult.SKIPPED  # noqa: F841  # Variable for test verification
+    assert (
+        execution.result == ValidationResult.SKIPPED
+    )  # noqa: F841  # Variable for test verification
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +170,9 @@ async def _execution_missing_and_error(validator):
     )
     await validator._execute_validation(exec_id)
     execution = validator.validation_executions[exec_id]
-    assert execution.result == ValidationResult.ERROR  # noqa: F841  # Variable for test verification
+    assert (
+        execution.result == ValidationResult.ERROR
+    )  # noqa: F841  # Variable for test verification
     assert execution.started_at is not None
     assert execution.completed_at is not None
     assert execution.duration >= 0
@@ -195,7 +199,9 @@ async def _execution_started_at_none(validator):
     # the exception fallback must keep duration at 0.0 because started_at is None
     await asyncio.gather(validator._execute_validation(exec_id), tamper())
     execution = validator.validation_executions[exec_id]
-    assert execution.result == ValidationResult.ERROR  # noqa: F841  # Variable for test verification
+    assert (
+        execution.result == ValidationResult.ERROR
+    )  # noqa: F841  # Variable for test verification
     assert execution.started_at is None
     assert execution.completed_at is not None
     assert execution.duration == 0.0

@@ -363,7 +363,7 @@ class SelfHealingEngine:
         if result.get("risk_level").value == "blocked" or result.get("action") != "execute":
             return False, result.get("reason", "command blocked by guard")
         try:
-            proc = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            proc = subprocess.run(command, capture_output=True, text=True, timeout=30, shell=False)
             if proc.returncode == 0:
                 return True, proc.stdout.strip()
             return False, proc.stderr.strip() or f"exit code {proc.returncode}"

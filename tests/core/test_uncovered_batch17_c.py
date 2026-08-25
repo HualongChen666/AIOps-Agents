@@ -335,7 +335,9 @@ def test_sso_auth_enabled_flow(monkeypatch):
         }
     )
     sso.get_user = AsyncMock(return_value=None)
-    result = asyncio.run(sso.auth_callback(request, state="valid3"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        sso.auth_callback(request, state="valid3")
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, RedirectResponse)
     assert "token=" in result.headers["location"]
 
@@ -350,13 +352,17 @@ def test_sso_auth_enabled_flow(monkeypatch):
         role="user",
     )
     sso.get_user = AsyncMock(return_value=existing)
-    result = asyncio.run(sso.auth_callback(request, state="valid4"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        sso.auth_callback(request, state="valid4")
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, RedirectResponse)
 
     # valid callback, get_user raises
     sso._state_store["valid5"] = datetime.now(timezone.utc)
     sso.get_user = AsyncMock(side_effect=RuntimeError("db down"))
-    result = asyncio.run(sso.auth_callback(request, state="valid5"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        sso.auth_callback(request, state="valid5")
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, RedirectResponse)
 
     # restore disabled state so other tests are not affected

@@ -26,8 +26,13 @@ if str(ROOT) not in sys.path:
 os.environ["USE_SQLITE"] = "false"
 os.environ["USE_SYNC_SQLITE"] = "false"
 
-from services.alert_service.main import _AGENT_ORCH_URL, _HTTP_TIMEOUT, _persist_alert, _call_agent_orchestration, app
-
+from services.alert_service.main import (
+    _AGENT_ORCH_URL,
+    _HTTP_TIMEOUT,
+    _call_agent_orchestration,
+    _persist_alert,
+    app,
+)
 
 # ============================================================================
 # Health Endpoint Tests
@@ -39,7 +44,7 @@ def test_health_endpoint():
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["status"] == "healthy"
 
@@ -57,12 +62,14 @@ async def test_persist_alert_success():
         "title": "Test Alert",
         "category": "system",
     }
-    
-    with patch("services.alert_service.main.async_insert_alert", new_callable=AsyncMock) as mock_insert:
+
+    with patch(
+        "services.alert_service.main.async_insert_alert", new_callable=AsyncMock
+    ) as mock_insert:
         mock_insert.return_value = None
-        
+
         await _persist_alert(alert_data)
-        
+
         mock_insert.assert_called_once_with(alert_data)
 
 
@@ -71,9 +78,10 @@ async def test_persist_alert_none():
     """Test persist when async_insert_alert is None."""
     # Temporarily set async_insert_alert to None
     import services.alert_service.main as main_module
+
     original_insert = main_module.async_insert_alert
     main_module.async_insert_alert = None
-    
+
     try:
         alert_data = {"id": "test-1"}
         # Should not raise exception
@@ -89,10 +97,12 @@ async def test_persist_alert_exception():
         "id": "test-1",
         "title": "Test Alert",
     }
-    
-    with patch("services.alert_service.main.async_insert_alert", new_callable=AsyncMock) as mock_insert:
+
+    with patch(
+        "services.alert_service.main.async_insert_alert", new_callable=AsyncMock
+    ) as mock_insert:
         mock_insert.side_effect = Exception("Database error")
-        
+
         # Should not raise exception, just log warning
         await _persist_alert(alert_data)
 
@@ -108,15 +118,17 @@ async def test_call_agent_orchestration_success():
     # Set environment variable
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ["AGENT_ORCHESTRATION_SERVICE_URL"] = "http://localhost:8003"
-    
+
     # Reload module to pick up env var
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {"id": "test-1", "title": "Test Alert"}
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -124,16 +136,16 @@ async def test_call_agent_orchestration_success():
             "success": True,
             "fix_applied": True,
         }
-        
+
         with patch("services.alert_service.main.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
-            
+
             result = await main_module._call_agent_orchestration(alert_data)
-            
+
             assert result["alert_id"] == "test-1"
             assert result["success"] is True
     finally:
@@ -149,15 +161,17 @@ async def test_call_agent_orchestration_no_url():
     # Clear environment variable
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     # Reload module
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {"id": "test-1"}
-        
+
         with pytest.raises(RuntimeError, match="AGENT_ORCHESTRATION_SERVICE_URL not configured"):
             await main_module._call_agent_orchestration(alert_data)
     finally:
@@ -170,25 +184,27 @@ async def test_call_agent_orchestration_http_error():
     """Test call when HTTP request fails."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ["AGENT_ORCHESTRATION_SERVICE_URL"] = "http://localhost:8003"
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {"id": "test-1"}
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.raise_for_status = MagicMock(side_effect=Exception("Server error"))
-        
+
         with patch("services.alert_service.main.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
-            
+
             with pytest.raises(Exception):
                 await main_module._call_agent_orchestration(alert_data)
     finally:
@@ -205,27 +221,29 @@ async def test_call_agent_orchestration_timeout():
     original_timeout = os.environ.get("ALERT_SERVICE_HTTP_TIMEOUT")
     os.environ["AGENT_ORCHESTRATION_SERVICE_URL"] = "http://localhost:8003"
     os.environ["ALERT_SERVICE_HTTP_TIMEOUT"] = "5.0"
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {"id": "test-1"}
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"success": True}
-        
+
         with patch("services.alert_service.main.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
-            
+
             result = await main_module._call_agent_orchestration(alert_data)
-            
+
             # Verify timeout was used
             mock_client_class.assert_called_once()
             call_kwargs = mock_client_class.call_args[1]
@@ -251,25 +269,29 @@ def test_process_alert_local_mode():
     # Clear environment variable
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {
             "id": "test-1",
             "title": "Test Alert",
             "category": "system",
         }
-        
-        with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+        with patch(
+            "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+        ) as mock_heal:
             mock_heal.return_value = {"status": "success", "action": "restarted"}
-            
+
             with TestClient(main_module.app) as client:
                 response = client.post("/process", json=alert_data)
                 assert response.status_code == 200
-                
+
                 data = response.json()
                 assert data["processed"] == 1
                 assert data["source"] == "local"
@@ -283,18 +305,20 @@ def test_process_alert_remote_mode():
     """Test /process endpoint in remote mode (with agent orchestration URL)."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ["AGENT_ORCHESTRATION_SERVICE_URL"] = "http://localhost:8003"
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {
             "id": "test-1",
             "title": "Test Alert",
             "category": "system",
         }
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -302,18 +326,18 @@ def test_process_alert_remote_mode():
             "success": True,
             "fix_applied": True,
         }
-        
+
         with patch("services.alert_service.main.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
-            
+
             with TestClient(main_module.app) as client:
                 response = client.post("/process", json=alert_data)
                 assert response.status_code == 200
-                
+
                 data = response.json()
                 assert data["processed"] == 1
                 assert data["source"] == "agent_orchestration"
@@ -329,18 +353,20 @@ def test_process_alert_remote_mode_fallback():
     """Test /process endpoint fallback to local when remote fails."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ["AGENT_ORCHESTRATION_SERVICE_URL"] = "http://localhost:8003"
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {
             "id": "test-1",
             "title": "Test Alert",
             "category": "system",
         }
-        
+
         with patch("services.alert_service.main.httpx.AsyncClient") as mock_client_class:
             # Remote call fails
             mock_client = AsyncMock()
@@ -348,14 +374,16 @@ def test_process_alert_remote_mode_fallback():
             mock_client.__aexit__.return_value = None
             mock_client.post = AsyncMock(side_effect=Exception("Connection failed"))
             mock_client_class.return_value = mock_client
-            
-            with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+            with patch(
+                "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"status": "success", "action": "restarted"}
-                
+
                 with TestClient(main_module.app) as client:
                     response = client.post("/process", json=alert_data)
                     assert response.status_code == 200
-                    
+
                     data = response.json()
                     assert data["processed"] == 1
                     assert data["source"] == "local"  # Should fallback to local
@@ -371,28 +399,34 @@ def test_process_alert_with_persistence():
     """Test /process endpoint with alert persistence."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {
             "id": "test-1",
             "title": "Test Alert",
             "category": "system",
         }
-        
-        with patch("services.alert_service.main.async_insert_alert", new_callable=AsyncMock) as mock_insert:
+
+        with patch(
+            "services.alert_service.main.async_insert_alert", new_callable=AsyncMock
+        ) as mock_insert:
             mock_insert.return_value = None
-            
-            with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+            with patch(
+                "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"status": "success"}
-                
+
                 with TestClient(main_module.app) as client:
                     response = client.post("/process", json=alert_data)
                     assert response.status_code == 200
-                    
+
                     # Verify persistence was called
                     mock_insert.assert_called_once()
     finally:
@@ -404,11 +438,13 @@ def test_process_alert_complex_alert():
     """Test /process endpoint with complex alert data."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {
             "id": "test-1",
@@ -430,14 +466,16 @@ def test_process_alert_complex_alert():
                 "description": "No active connections",
             },
         }
-        
-        with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+        with patch(
+            "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+        ) as mock_heal:
             mock_heal.return_value = {"status": "success", "action": "restarted_db"}
-            
+
             with TestClient(main_module.app) as client:
                 response = client.post("/process", json=alert_data)
                 assert response.status_code == 200
-                
+
                 data = response.json()
                 assert data["processed"] == 1
                 assert data["result"]["action"] == "restarted_db"
@@ -450,21 +488,25 @@ def test_process_alert_empty_alert():
     """Test /process endpoint with empty alert."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {}
-        
-        with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+        with patch(
+            "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+        ) as mock_heal:
             mock_heal.return_value = {"status": "no_action"}
-            
+
             with TestClient(main_module.app) as client:
                 response = client.post("/process", json=alert_data)
                 assert response.status_code == 200
-                
+
                 data = response.json()
                 assert data["processed"] == 1
     finally:
@@ -476,21 +518,25 @@ def test_process_alert_with_special_characters():
     """Test /process endpoint with special characters."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {
             "id": "test-1",
             "title": "Test <script>alert('xss')</script>",
             "description": "Test & special <> characters",
         }
-        
-        with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+        with patch(
+            "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+        ) as mock_heal:
             mock_heal.return_value = {"status": "success"}
-            
+
             with TestClient(main_module.app) as client:
                 response = client.post("/process", json=alert_data)
                 assert response.status_code == 200
@@ -503,21 +549,25 @@ def test_process_alert_with_unicode():
     """Test /process endpoint with unicode characters."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {
             "id": "test-1",
             "title": "测试警报",
             "description": "Test with émojis 🚨",
         }
-        
-        with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+        with patch(
+            "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+        ) as mock_heal:
             mock_heal.return_value = {"status": "success"}
-            
+
             with TestClient(main_module.app) as client:
                 response = client.post("/process", json=alert_data)
                 assert response.status_code == 200
@@ -535,23 +585,27 @@ def test_full_workflow_local():
     """Test full workflow in local mode."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         with TestClient(main_module.app) as client:
             # Health check
             health_response = client.get("/health")
             assert health_response.status_code == 200
-            
+
             # Process alert
             alert_data = {"id": "test-1", "title": "Test Alert"}
-            
-            with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+            with patch(
+                "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"status": "success"}
-                
+
                 process_response = client.post("/process", json=alert_data)
                 assert process_response.status_code == 200
     finally:
@@ -563,11 +617,13 @@ def test_full_workflow_remote():
     """Test full workflow in remote mode."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ["AGENT_ORCHESTRATION_SERVICE_URL"] = "http://localhost:8003"
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -576,24 +632,24 @@ def test_full_workflow_remote():
             "success": True,
             "fix_applied": True,
         }
-        
+
         with patch("services.alert_service.main.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
-            
+
             with TestClient(main_module.app) as client:
                 # Health check
                 health_response = client.get("/health")
                 assert health_response.status_code == 200
-                
+
                 # Process alert
                 alert_data = {"id": "test-1", "title": "Test Alert"}
                 process_response = client.post("/process", json=alert_data)
                 assert process_response.status_code == 200
-                
+
                 data = process_response.json()
                 assert data["source"] == "agent_orchestration"
     finally:
@@ -607,15 +663,19 @@ def test_concurrent_requests():
     """Test handling concurrent requests."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
-        with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+        with patch(
+            "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+        ) as mock_heal:
             mock_heal.return_value = {"status": "success"}
-            
+
             with TestClient(main_module.app) as client:
                 # Send multiple concurrent requests
                 responses = []
@@ -623,7 +683,7 @@ def test_concurrent_requests():
                     alert_data = {"id": f"test-{i}", "title": f"Alert {i}"}
                     response = client.post("/process", json=alert_data)
                     responses.append(response)
-                
+
                 # All should succeed
                 for response in responses:
                     assert response.status_code == 200
@@ -647,20 +707,26 @@ def test_process_alert_persistence_exception():
     """Test /process endpoint when persistence fails but heal succeeds."""
     original_url = os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL")
     os.environ.pop("AGENT_ORCHESTRATION_SERVICE_URL", None)
-    
+
     import importlib
+
     import services.alert_service.main as main_module
+
     importlib.reload(main_module)
-    
+
     try:
         alert_data = {"id": "test-1", "title": "Test Alert"}
-        
-        with patch("services.alert_service.main.async_insert_alert", new_callable=AsyncMock) as mock_insert:
+
+        with patch(
+            "services.alert_service.main.async_insert_alert", new_callable=AsyncMock
+        ) as mock_insert:
             mock_insert.side_effect = Exception("DB error")
-            
-            with patch("services.alert_service.main.try_auto_heal", new_callable=AsyncMock) as mock_heal:
+
+            with patch(
+                "services.alert_service.main.try_auto_heal", new_callable=AsyncMock
+            ) as mock_heal:
                 mock_heal.return_value = {"status": "success"}
-                
+
                 with TestClient(main_module.app) as client:
                     # Should still succeed even if persistence fails
                     response = client.post("/process", json=alert_data)
@@ -695,12 +761,18 @@ def test_app_routes():
 def test_http_timeout_default():
     """Test default HTTP timeout."""
     import services.alert_service.main as main_module
+
     # Default should be 10.0
-    assert main_module._HTTP_TIMEOUT == 10.0 or main_module._HTTP_TIMEOUT == float(os.environ.get("ALERT_SERVICE_HTTP_TIMEOUT", "10.0"))
+    assert main_module._HTTP_TIMEOUT == 10.0 or main_module._HTTP_TIMEOUT == float(
+        os.environ.get("ALERT_SERVICE_HTTP_TIMEOUT", "10.0")
+    )
 
 
 def test_agent_orch_url_default():
     """Test default agent orchestration URL."""
     import services.alert_service.main as main_module
+
     # Default should be empty string
-    assert main_module._AGENT_ORCH_URL == "" or main_module._AGENT_ORCH_URL == os.environ.get("AGENT_ORCHESTRATION_SERVICE_URL", "").rstrip("/")
+    assert main_module._AGENT_ORCH_URL == "" or main_module._AGENT_ORCH_URL == os.environ.get(
+        "AGENT_ORCHESTRATION_SERVICE_URL", ""
+    ).rstrip("/")

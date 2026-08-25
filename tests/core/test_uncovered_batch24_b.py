@@ -556,7 +556,9 @@ async def test_enterprise_compliance(enterprise):
     assert "error" in unsupported
 
     fresh = EnterpriseFeatures()
-    result = await fresh.assess_compliance(ComplianceStandard.HIPAA)  # noqa: F841  # Variable for test verification
+    result = await fresh.assess_compliance(
+        ComplianceStandard.HIPAA
+    )  # noqa: F841  # Variable for test verification
     assert "error" in result
 
 
@@ -633,13 +635,17 @@ async def test_enterprise_sso(monkeypatch, enterprise):
 
         monkeypatch.setattr("httpx.AsyncClient", FakeAsyncClient)
 
-    result = await ef.authenticate_sso(oauth.id, {"access_token": "tok", "id_token": id_token})  # noqa: F841  # Variable for test verification
+    result = await ef.authenticate_sso(
+        oauth.id, {"access_token": "tok", "id_token": id_token}
+    )  # noqa: F841  # Variable for test verification
     assert result is not None
     assert result["authenticated"] is True
     assert result["user_id"] == "user1"
     assert result["provider"] == "oauth2"
 
-    oidc_result = await ef.authenticate_sso(oidc.id, {"access_token": "tok2"})  # noqa: F841  # Variable for test verification
+    oidc_result = await ef.authenticate_sso(
+        oidc.id, {"access_token": "tok2"}
+    )  # noqa: F841  # Variable for test verification
     assert oidc_result is not None
     assert oidc_result["authenticated"] is True
 

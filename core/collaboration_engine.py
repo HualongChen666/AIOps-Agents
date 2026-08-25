@@ -51,12 +51,20 @@ class CollaborationEngine:
                 for ws in payload["workspaces"]:
                     if isinstance(ws, dict) and "id" in ws:
                         self._workspaces[str(ws["id"])] = ws
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error(
+                f"Failed to load collaboration data from {DATA_FILE}: {exc}", exc_info=True
+            )
+            self._workspaces = {}
         except Exception as exc:
             logger.error(f"Failed to load collaboration data: {exc}", exc_info=True)
             self._workspaces = {}
 
     def _save(self) -> None:
         """Persist workspaces to ``data/collaboration.json``."""
+        import os
+        import stat
+
         self._ensure_data_dir()
         try:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -67,6 +75,13 @@ class CollaborationEngine:
                     indent=2,
                     default=str,
                 )
+
+            # Set restrictive permissions for collaboration data file (600 - owner read/write only)
+            try:
+                os.chmod(DATA_FILE, stat.S_IRUSR | stat.S_IWUSR)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
         except Exception as exc:
             logger.error(f"Failed to save collaboration data: {exc}", exc_info=True)
 

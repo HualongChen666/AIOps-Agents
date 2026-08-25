@@ -417,13 +417,19 @@ async def test_collect_linux_host_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_collect_linux_host_missing_config():
-    result = await lc.collect_linux_host("not-a-dict")  # noqa: F841  # Variable for test verification
+    result = await lc.collect_linux_host(
+        "not-a-dict"
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
 
-    result = await lc.collect_linux_host({"name": "h1"})  # noqa: F841  # Variable for test verification
+    result = await lc.collect_linux_host(
+        {"name": "h1"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
 
-    result = await lc.collect_linux_host({"name": "h1", "host": "10.0.0.1", "username": "u"})  # noqa: F841  # Variable for test verification
+    result = await lc.collect_linux_host(
+        {"name": "h1", "host": "10.0.0.1", "username": "u"}
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "skipped"
 
 
@@ -458,14 +464,18 @@ async def test_collect_linux_host_error_and_cooldown(monkeypatch):
         AsyncMock(return_value=_ssh_proc(b"TIMEOUT")),
     )
     host_cfg = {"name": "h1", "host": "10.0.0.1", "username": "u", "key_file": "/key"}
-    result = await lc.collect_linux_host(host_cfg, metrics=["hostname"])  # noqa: F841  # Variable for test verification
+    result = await lc.collect_linux_host(
+        host_cfg, metrics=["hostname"]
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "error"
     assert lc._is_host_in_cooldown("h1") is True
 
     cached = {"name": "h1", "status": "ok"}
     with lc._last_collect_cache_lock:
         lc._last_collect_cache["h1"] = cached
-    result = await lc.collect_linux_host(host_cfg, metrics=["hostname"])  # noqa: F841  # Variable for test verification
+    result = await lc.collect_linux_host(
+        host_cfg, metrics=["hostname"]
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "cached_stale"
     assert "stale_reason" in result
     assert "stale_at" in result
@@ -567,7 +577,9 @@ async def test_register_and_test_prometheus(im_mod):
     assert integration.status == im_mod.IntegrationStatus.ACTIVE
     assert mgr.integrations[integration.integration_id] is integration
 
-    result = await mgr.test_integration("missing-id")  # noqa: F841  # Variable for test verification
+    result = await mgr.test_integration(
+        "missing-id"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
 
@@ -640,7 +652,9 @@ async def test_webhook_lifecycle(im_mod):
     raw = json.dumps(payload, sort_keys=True)
     expected = hmac.new("s3cret".encode(), raw.encode(), hashlib.sha256).hexdigest()
 
-    result = await mgr.handle_webhook(webhook_id, payload, signature=expected)  # noqa: F841  # Variable for test verification
+    result = await mgr.handle_webhook(
+        webhook_id, payload, signature=expected
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
     bad = await mgr.handle_webhook(webhook_id, payload, signature="wrong")
@@ -664,7 +678,9 @@ async def test_query_prometheus_metrics(im_mod):
         "prometheus",
         {"url": "http://prom"},
     )
-    result = await mgr.query_prometheus_metrics(integration.integration_id, "up", "1h")  # noqa: F841  # Variable for test verification
+    result = await mgr.query_prometheus_metrics(
+        integration.integration_id, "up", "1h"
+    )  # noqa: F841  # Variable for test verification
     assert "error" not in result
 
     assert (
@@ -695,7 +711,9 @@ async def test_query_prometheus_http_unavailable(im_mod, monkeypatch):
         "prometheus",
         {"url": "http://prom"},
     )
-    result = await mgr.query_prometheus_metrics(integration.integration_id, "up", "1h")  # noqa: F841  # Variable for test verification
+    result = await mgr.query_prometheus_metrics(
+        integration.integration_id, "up", "1h"
+    )  # noqa: F841  # Variable for test verification
     assert result["error"] == "HTTP client not available"
 
 
@@ -711,7 +729,9 @@ async def test_query_cloudwatch_metrics(im_mod):
             "aws_secret_access_key": "s",
         },
     )
-    result = await mgr.query_cloudwatch_metrics(integration.integration_id, "CPUUtilization", "1h")  # noqa: F841  # Variable for test verification
+    result = await mgr.query_cloudwatch_metrics(
+        integration.integration_id, "CPUUtilization", "1h"
+    )  # noqa: F841  # Variable for test verification
     assert "error" not in result
     assert result["metric_name"] == "CPUUtilization"
 
@@ -737,7 +757,9 @@ async def test_query_pagerduty_incidents(im_mod):
         "pagerduty",
         {"api_key": "k"},
     )
-    result = await mgr.query_pagerduty_incidents(pd.integration_id, "service", "1h")  # noqa: F841  # Variable for test verification
+    result = await mgr.query_pagerduty_incidents(
+        pd.integration_id, "service", "1h"
+    )  # noqa: F841  # Variable for test verification
     assert "error" not in result
 
     fail_response = MagicMock()
@@ -756,7 +778,9 @@ async def test_trigger_jenkins_and_create_jira(im_mod):
         "jenkins",
         {"url": "http://j", "username": "u", "api_token": "t"},
     )
-    result = await mgr.trigger_jenkins_job(jenkins.integration_id, "deploy")  # noqa: F841  # Variable for test verification
+    result = await mgr.trigger_jenkins_job(
+        jenkins.integration_id, "deploy"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
     jira = await mgr.register_integration(

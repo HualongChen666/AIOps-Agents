@@ -4,8 +4,7 @@
 import time
 
 import pytest
-
-from health_check import HealthCheckEngine, _START_TIME
+from health_check import _START_TIME, HealthCheckEngine
 from schemas import ServiceHealth
 
 

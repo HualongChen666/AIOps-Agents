@@ -28,7 +28,6 @@ import asyncio
 import gc
 import json
 import os
-import psutil
 import statistics
 import threading
 import time
@@ -37,7 +36,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
+import psutil
 import pytest
+
+from core.ai.token_budget import estimate_tokens
 
 # Import real AI modules
 from core.ai_enhancement import (
@@ -46,14 +48,12 @@ from core.ai_enhancement import (
     get_ai_enhancer,
     get_conversation_manager,
 )
-from core.ai.token_budget import estimate_tokens
 from core.ai_interface import AnalysisType
 from core.llm_cost_monitor import (
     LLMCostMonitor,
     get_llm_cost_monitor,
     reset_llm_cost_monitor,
 )
-
 
 # ============================================================================
 # Performance Metrics Data Classes
@@ -281,9 +281,7 @@ class PerformanceMonitor:
         )
 
 
-def measure_latency(
-    operation: str, func, iterations: int = 10, *args, **kwargs
-) -> LatencyMetrics:
+def measure_latency(operation: str, func, iterations: int = 10, *args, **kwargs) -> LatencyMetrics:
     """Measure operation latency over multiple iterations"""
 
     times = []
@@ -846,9 +844,7 @@ class TestBatchProcessingPerformance:
 
         # Measure sequential processing
         start_seq = time.perf_counter()
-        sequential_results = [
-            ai_enhancer.generate_context_key(alert) for alert in batch_alerts
-        ]
+        sequential_results = [ai_enhancer.generate_context_key(alert) for alert in batch_alerts]
         sequential_time = time.perf_counter() - start_seq
 
         # Calculate metrics
@@ -892,7 +888,10 @@ class TestBatchProcessingPerformance:
 
         # Prepare cache data
         cache_data = {
-            f"key_{i}": {"analysis": f"result_{i}", "timestamp": datetime.now(timezone.utc).isoformat()}
+            f"key_{i}": {
+                "analysis": f"result_{i}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
             for i in range(batch_size)
         }
 
@@ -930,8 +929,12 @@ class TestBatchProcessingPerformance:
         resource_metrics = monitor.end_measurement(start_data)
 
         # Benchmark: cache operations should be > 5000 items/s
-        assert write_metric.throughput > 5000, f"Cache write throughput too low: {write_metric.throughput} items/s"
-        assert read_metric.throughput > 5000, f"Cache read throughput too low: {read_metric.throughput} items/s"
+        assert (
+            write_metric.throughput > 5000
+        ), f"Cache write throughput too low: {write_metric.throughput} items/s"
+        assert (
+            read_metric.throughput > 5000
+        ), f"Cache read throughput too low: {read_metric.throughput} items/s"
 
         report = AIPerformanceReport(
             test_name="batch_cache_operations",
@@ -983,7 +986,9 @@ class TestBatchProcessingPerformance:
         resource_metrics = monitor.end_measurement(start_data)
 
         # Benchmark: metrics update should be > 10000 items/s
-        assert batch_metric.throughput > 10000, f"Metrics update throughput too low: {batch_metric.throughput} items/s"
+        assert (
+            batch_metric.throughput > 10000
+        ), f"Metrics update throughput too low: {batch_metric.throughput} items/s"
 
         report = AIPerformanceReport(
             test_name="batch_metrics_update",
@@ -1050,7 +1055,9 @@ class TestResourceUsageMonitoring:
             )
             ai_enhancer.cache_analysis(context_key, {"result": i})
             ai_enhancer.get_cached_analysis(context_key)
-            ai_enhancer.update_performance_metrics({"success": True, "response_time": 1.0, "model": "gpt-4o-mini"})
+            ai_enhancer.update_performance_metrics(
+                {"success": True, "response_time": 1.0, "model": "gpt-4o-mini"}
+            )
 
         resource_metrics = monitor.end_measurement(start_data)
 
@@ -1206,7 +1213,9 @@ class TestCostBenefitAnalysis:
         assert (
             abs(actual_total - expected_total) < 0.001
         ), f"Cost tracking inaccurate: expected {expected_total}, got {actual_total}"
-        assert actual_count == expected_count, f"Request count inaccurate: expected {expected_count}, got {actual_count}"
+        assert (
+            actual_count == expected_count
+        ), f"Request count inaccurate: expected {expected_count}, got {actual_count}"
 
         report = AIPerformanceReport(
             test_name="budget_tracking_accuracy",
@@ -1406,7 +1415,12 @@ class TestComprehensivePerformanceReport:
             "context_key_generation",
             ai_enhancer.generate_context_key,
             iterations=100,
-            alert_data={"host": "test", "platform": "linux", "level": "critical", "message": "test"},
+            alert_data={
+                "host": "test",
+                "platform": "linux",
+                "level": "critical",
+                "message": "test",
+            },
         )
         resource1 = monitor.end_measurement(start_data)
         all_reports.append(
@@ -1521,7 +1535,12 @@ class TestPerformanceRegressionDetection:
             "context_key_generation_baseline",
             ai_enhancer.generate_context_key,
             iterations=100,
-            alert_data={"host": "test", "platform": "linux", "level": "critical", "message": "test"},
+            alert_data={
+                "host": "test",
+                "platform": "linux",
+                "level": "critical",
+                "message": "test",
+            },
         )
 
         # Current measurement
@@ -1529,7 +1548,12 @@ class TestPerformanceRegressionDetection:
             "context_key_generation_current",
             ai_enhancer.generate_context_key,
             iterations=100,
-            alert_data={"host": "test", "platform": "linux", "level": "critical", "message": "test"},
+            alert_data={
+                "host": "test",
+                "platform": "linux",
+                "level": "critical",
+                "message": "test",
+            },
         )
 
         # Check for regression (allow 20% variance)
@@ -1546,7 +1570,8 @@ class TestPerformanceRegressionDetection:
                 "regression_detected": regression_detected,
                 "percent_change": round(
                     (current_latency.avg_time - baseline_latency.avg_time)
-                    / baseline_latency.avg_time * 100,
+                    / baseline_latency.avg_time
+                    * 100,
                     2,
                 ),
             }
@@ -1617,7 +1642,12 @@ class TestAdditionalCoverage:
     def test_cache_invalidation_specific_key(self):
         """Test cache invalidation for specific key"""
         enhancer = AIAnalysisEnhancer()
-        sample_alert_data = {"host": "test", "platform": "linux", "level": "critical", "message": "test"}
+        sample_alert_data = {
+            "host": "test",
+            "platform": "linux",
+            "level": "critical",
+            "message": "test",
+        }
         context_key = enhancer.generate_context_key(sample_alert_data)
         enhancer.cache_analysis(context_key, {"result": "test"})
 
@@ -1650,7 +1680,12 @@ class TestAdditionalCoverage:
         enhancer = AIAnalysisEnhancer()
         enhancer._cache_ttl = -1  # Force expiry
 
-        sample_alert_data = {"host": "test", "platform": "linux", "level": "critical", "message": "test"}
+        sample_alert_data = {
+            "host": "test",
+            "platform": "linux",
+            "level": "critical",
+            "message": "test",
+        }
         context_key = enhancer.generate_context_key(sample_alert_data)
         enhancer.cache_analysis(context_key, {"result": "test"})
 
@@ -1669,17 +1704,13 @@ class TestAdditionalCoverage:
     def test_context_suggestions_critical_level(self):
         """Test context suggestions with critical level"""
         enhancer = AIAnalysisEnhancer()
-        suggestions = enhancer.get_context_suggestions(
-            {"platform": "linux", "level": "critical"}
-        )
+        suggestions = enhancer.get_context_suggestions({"platform": "linux", "level": "critical"})
         assert any("priority" in s.lower() for s in suggestions)
 
     def test_context_suggestions_fatal_level(self):
         """Test context suggestions with fatal level"""
         enhancer = AIAnalysisEnhancer()
-        suggestions = enhancer.get_context_suggestions(
-            {"platform": "windows", "level": "fatal"}
-        )
+        suggestions = enhancer.get_context_suggestions({"platform": "windows", "level": "fatal"})
         assert any("priority" in s.lower() for s in suggestions)
 
     def test_conversation_cleanup_expired(self):
@@ -1721,11 +1752,17 @@ class TestAdditionalCoverage:
         enhancer = AIAnalysisEnhancer()
 
         # Add some successful analyses
-        enhancer.update_performance_metrics({"success": True, "response_time": 1.0, "model": "gpt-4o-mini"})
-        enhancer.update_performance_metrics({"success": True, "response_time": 2.0, "model": "gpt-3.5-turbo"})
+        enhancer.update_performance_metrics(
+            {"success": True, "response_time": 1.0, "model": "gpt-4o-mini"}
+        )
+        enhancer.update_performance_metrics(
+            {"success": True, "response_time": 2.0, "model": "gpt-3.5-turbo"}
+        )
 
         # Add some failed analyses
-        enhancer.update_performance_metrics({"success": False, "response_time": 0.5, "model": "gpt-4o-mini"})
+        enhancer.update_performance_metrics(
+            {"success": False, "response_time": 0.5, "model": "gpt-4o-mini"}
+        )
 
         metrics = enhancer.get_performance_metrics()
 

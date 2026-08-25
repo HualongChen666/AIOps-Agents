@@ -4,28 +4,29 @@ Comprehensive test suite for core/verifier.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
 import asyncio
-import sys
 import os
-from unittest.mock import patch, MagicMock, AsyncMock
+import sys
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.verifier import (
-    verify_repair,
-    _select_strategy,
-    _build_skipped_result,
-    _build_error_result,
-    VerifyResult,
-    _CONFIDENCE_SERVICE_STATUS,
-    _CONFIDENCE_PROCESS_CHECK,
     _CONFIDENCE_METRIC_THRESHOLD,
-    _VALID_PLATFORMS,
+    _CONFIDENCE_PROCESS_CHECK,
+    _CONFIDENCE_SERVICE_STATUS,
     _SERVICE_NAME_PATTERN,
     _SYSTEMCTL_ACTIVE_STATES,
+    _VALID_PLATFORMS,
+    VerifyResult,
+    _build_error_result,
+    _build_skipped_result,
+    _select_strategy,
+    verify_repair,
 )
 
 
@@ -35,7 +36,7 @@ class TestVerifyRepair:
     @pytest.mark.asyncio
     async def test_verify_repair_disabled(self):
         """Test verification when disabled in config"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": False}):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": False}):
             alert = {"platform": "linux", "host": "server1"}
             result = await verify_repair(
                 alert=alert,
@@ -43,32 +44,32 @@ class TestVerifyRepair:
                 params={},
                 pre_snapshot=None,
                 repair_output="Success",
-                repair_id=1
+                repair_id=1,
             )
-            
+
             assert result["verified"] is None
             assert result["strategy"] == "skipped"
 
     @pytest.mark.asyncio
     async def test_verify_repair_invalid_alert(self):
         """Test verification with invalid alert"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
             result = await verify_repair(
                 alert=None,
                 script_key="restart_service",
                 params={},
                 pre_snapshot=None,
                 repair_output="Success",
-                repair_id=1
+                repair_id=1,
             )
-            
+
             assert result["strategy"] == "error"
             assert "must be dict" in result["error_msg"]
 
     @pytest.mark.asyncio
     async def test_verify_repair_invalid_script_key(self):
         """Test verification with invalid script key"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
             alert = {"platform": "linux"}
             result = await verify_repair(
                 alert=alert,
@@ -76,16 +77,16 @@ class TestVerifyRepair:
                 params={},
                 pre_snapshot=None,
                 repair_output="Success",
-                repair_id=1
+                repair_id=1,
             )
-            
+
             assert result["strategy"] == "error"
             assert "cannot be empty" in result["error_msg"]
 
     @pytest.mark.asyncio
     async def test_verify_repair_invalid_platform(self):
         """Test verification with invalid platform (should default to windows)"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
             alert = {"platform": "invalid_platform"}
             result = await verify_repair(
                 alert=alert,
@@ -93,17 +94,17 @@ class TestVerifyRepair:
                 params={},
                 pre_snapshot=None,
                 repair_output="Success",
-                repair_id=1
+                repair_id=1,
             )
-            
+
             # Should default to windows
             assert result["strategy"] in ["skipped", "error", "service_status"]
 
     @pytest.mark.asyncio
     async def test_verify_repair_skipped_strategy(self):
         """Test verification when strategy is skipped"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
-            with patch('core.verifier._select_strategy', return_value="none"):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
+            with patch("core.verifier._select_strategy", return_value="none"):
                 alert = {"platform": "linux"}
                 result = await verify_repair(
                     alert=alert,
@@ -111,18 +112,20 @@ class TestVerifyRepair:
                     params={},
                     pre_snapshot=None,
                     repair_output="Success",
-                    repair_id=1
+                    repair_id=1,
                 )
-                
+
                 assert result["verified"] is None
                 assert result["strategy"] == "skipped"
 
     @pytest.mark.asyncio
     async def test_verify_repair_timeout(self):
         """Test verification timeout"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True, "timeout_sec": 0.1}):
-            with patch('core.verifier._select_strategy', return_value="service_status"):
-                with patch('core.verifier._dispatch_verification', side_effect=asyncio.TimeoutError):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True, "timeout_sec": 0.1}):
+            with patch("core.verifier._select_strategy", return_value="service_status"):
+                with patch(
+                    "core.verifier._dispatch_verification", side_effect=asyncio.TimeoutError
+                ):
                     alert = {"platform": "linux"}
                     result = await verify_repair(
                         alert=alert,
@@ -130,20 +133,22 @@ class TestVerifyRepair:
                         params={},
                         pre_snapshot=None,
                         repair_output="Success",
-                        repair_id=1
+                        repair_id=1,
                     )
-                    
+
                     assert result["strategy"] == "timeout"
                     assert "timeout" in result["error_msg"].lower()
 
     @pytest.mark.asyncio
     async def test_verify_repair_cancelled(self):
         """Test verification cancellation"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
-            with patch('core.verifier._select_strategy', return_value="service_status"):
-                with patch('core.verifier._dispatch_verification', side_effect=asyncio.CancelledError):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
+            with patch("core.verifier._select_strategy", return_value="service_status"):
+                with patch(
+                    "core.verifier._dispatch_verification", side_effect=asyncio.CancelledError
+                ):
                     alert = {"platform": "linux"}
-                    
+
                     with pytest.raises(asyncio.CancelledError):
                         await verify_repair(
                             alert=alert,
@@ -151,15 +156,17 @@ class TestVerifyRepair:
                             params={},
                             pre_snapshot=None,
                             repair_output="Success",
-                            repair_id=1
+                            repair_id=1,
                         )
 
     @pytest.mark.asyncio
     async def test_verify_repair_exception(self):
         """Test verification with exception"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
-            with patch('core.verifier._select_strategy', return_value="service_status"):
-                with patch('core.verifier._dispatch_verification', side_effect=Exception("Test error")):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
+            with patch("core.verifier._select_strategy", return_value="service_status"):
+                with patch(
+                    "core.verifier._dispatch_verification", side_effect=Exception("Test error")
+                ):
                     alert = {"platform": "linux"}
                     result = await verify_repair(
                         alert=alert,
@@ -167,17 +174,19 @@ class TestVerifyRepair:
                         params={},
                         pre_snapshot=None,
                         repair_output="Success",
-                        repair_id=1
+                        repair_id=1,
                     )
-                    
+
                     assert result["strategy"] == "error"
                     assert "Test error" in result["error_msg"]
 
     @pytest.mark.asyncio
     async def test_verify_repair_metric_threshold_conflict(self):
         """Test verification with metric_threshold timeout conflict"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True, "timeout_sec": 3, "metric_wait_sec": 5}):
-            with patch('core.verifier._select_strategy', return_value="metric_threshold"):
+        with patch(
+            "core.verifier.VERIFY_CONFIG", {"enabled": True, "timeout_sec": 3, "metric_wait_sec": 5}
+        ):
+            with patch("core.verifier._select_strategy", return_value="metric_threshold"):
                 alert = {"platform": "linux"}
                 result = await verify_repair(
                     alert=alert,
@@ -185,18 +194,18 @@ class TestVerifyRepair:
                     params={},
                     pre_snapshot=None,
                     repair_output="Success",
-                    repair_id=1
+                    repair_id=1,
                 )
-                
+
                 assert result["strategy"] == "skipped"
                 assert "incompatible" in result["recommendation"].lower()
 
     @pytest.mark.asyncio
     async def test_verify_repair_success(self):
         """Test successful verification"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True, "timeout_sec": 10}):
-            with patch('core.verifier._select_strategy', return_value="service_status"):
-                with patch('core.verifier._dispatch_verification') as mock_dispatch:
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True, "timeout_sec": 10}):
+            with patch("core.verifier._select_strategy", return_value="service_status"):
+                with patch("core.verifier._dispatch_verification") as mock_dispatch:
                     mock_dispatch.return_value = {
                         "verified": True,
                         "strategy": "service_status",
@@ -204,10 +213,10 @@ class TestVerifyRepair:
                         "evidence": {},
                         "duration_sec": 1.0,
                         "error_msg": "",
-                        "recommendation": ""
+                        "recommendation": "",
                     }
-                    
-                    with patch('core.verifier.upsert_verify_record'):
+
+                    with patch("core.verifier.upsert_verify_record"):
                         alert = {"platform": "linux"}
                         result = await verify_repair(
                             alert=alert,
@@ -215,9 +224,9 @@ class TestVerifyRepair:
                             params={},
                             pre_snapshot=None,
                             repair_output="Success",
-                            repair_id=1
+                            repair_id=1,
                         )
-                        
+
                         assert result["verified"] is True
 
 
@@ -226,65 +235,49 @@ class TestSelectStrategy:
 
     def test_select_strategy_ai_dynamic_systemctl(self):
         """Test AI_DYNAMIC with systemctl restart"""
-        ai_runbook = {
-            "commands": ["systemctl restart nginx"]
-        }
+        ai_runbook = {"commands": ["systemctl restart nginx"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "service_status"
 
     def test_select_strategy_ai_dynamic_kill(self):
         """Test AI_DYNAMIC with kill command"""
-        ai_runbook = {
-            "commands": ["kill -9 1234"]
-        }
+        ai_runbook = {"commands": ["kill -9 1234"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "process_check"
 
     def test_select_strategy_ai_dynamic_stop_process(self):
         """Test AI_DYNAMIC with Stop-Process"""
-        ai_runbook = {
-            "commands": ["Stop-Process -Id 1234"]
-        }
+        ai_runbook = {"commands": ["Stop-Process -Id 1234"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "process_check"
 
     def test_select_strategy_ai_dynamic_drop_caches(self):
         """Test AI_DYNAMIC with drop_caches"""
-        ai_runbook = {
-            "commands": ["echo 3 > /proc/sys/vm/drop_caches"]
-        }
+        ai_runbook = {"commands": ["echo 3 > /proc/sys/vm/drop_caches"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "metric_threshold"
 
     def test_select_strategy_ai_dynamic_disk_cleanup(self):
         """Test AI_DYNAMIC with disk cleanup"""
-        ai_runbook = {
-            "commands": ["rm -rf /tmp/*"]
-        }
+        ai_runbook = {"commands": ["rm -rf /tmp/*"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "disk_usage"
 
     def test_select_strategy_ai_dynamic_network(self):
         """Test AI_DYNAMIC with network command"""
-        ai_runbook = {
-            "commands": ["ping google.com"]
-        }
+        ai_runbook = {"commands": ["ping google.com"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "network_check"
 
     def test_select_strategy_ai_dynamic_kubectl(self):
         """Test AI_DYNAMIC with kubectl"""
-        ai_runbook = {
-            "commands": ["kubectl get pods"]
-        }
+        ai_runbook = {"commands": ["kubectl get pods"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "k8s_status"
 
     def test_select_strategy_ai_dynamic_no_match(self):
         """Test AI_DYNAMIC with no matching pattern"""
-        ai_runbook = {
-            "commands": ["some random command"]
-        }
+        ai_runbook = {"commands": ["some random command"]}
         result = _select_strategy("AI_DYNAMIC", ai_runbook)
         assert result == "custom_command"
 
@@ -335,7 +328,7 @@ class TestBuildSkippedResult:
     def test_build_skipped_result_basic(self):
         """Test basic skipped result"""
         result = _build_skipped_result(strategy="skipped", recommendation="Test recommendation")
-        
+
         assert result["verified"] is None
         assert result["strategy"] == "skipped"
         assert result["confidence"] == 0.0
@@ -349,7 +342,7 @@ class TestBuildErrorResult:
     def test_build_error_result_basic(self):
         """Test basic error result"""
         result = _build_error_result(strategy="error", error_msg="Test error")
-        
+
         assert result["verified"] is False
         assert result["strategy"] == "error"
         assert result["confidence"] == 0.0
@@ -359,7 +352,7 @@ class TestBuildErrorResult:
     def test_build_error_result_with_duration(self):
         """Test error result with duration"""
         result = _build_error_result(strategy="error", error_msg="Test error", duration_sec=5.5)
-        
+
         assert result["duration_sec"] == 5.5
 
 
@@ -402,9 +395,9 @@ class TestVerifyResultTypedDict:
             "evidence": {},
             "duration_sec": 1.0,
             "error_msg": "",
-            "recommendation": ""
+            "recommendation": "",
         }
-        
+
         assert result["verified"] is True
         assert result["strategy"] == "service_status"
         assert result["confidence"] == 0.95
@@ -416,20 +409,20 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_verify_repair_deep_copy_pre_snapshot(self):
         """Test that pre_snapshot is deep copied"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
-            with patch('core.verifier._select_strategy', return_value="none"):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
+            with patch("core.verifier._select_strategy", return_value="none"):
                 original_snapshot = {"data": "test"}
                 alert = {"platform": "linux"}
-                
+
                 await verify_repair(
                     alert=alert,
                     script_key="unknown",
                     params={},
                     pre_snapshot=original_snapshot,
                     repair_output="Success",
-                    repair_id=1
+                    repair_id=1,
                 )
-                
+
                 # Original should be unchanged
                 assert original_snapshot == {"data": "test"}
 
@@ -437,10 +430,10 @@ class TestEdgeCases:
     async def test_verify_repair_repair_output_truncation(self):
         """Test that repair_output is truncated in evidence"""
         long_output = "x" * 500
-        
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
-            with patch('core.verifier._select_strategy', return_value="none"):
-                with patch('core.verifier._dispatch_verification') as mock_dispatch:
+
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
+            with patch("core.verifier._select_strategy", return_value="none"):
+                with patch("core.verifier._dispatch_verification") as mock_dispatch:
                     mock_dispatch.return_value = {
                         "verified": None,
                         "strategy": "skipped",
@@ -448,10 +441,10 @@ class TestEdgeCases:
                         "evidence": {},
                         "duration_sec": 0.0,
                         "error_msg": "",
-                        "recommendation": ""
+                        "recommendation": "",
                     }
-                    
-                    with patch('core.verifier.upsert_verify_record'):
+
+                    with patch("core.verifier.upsert_verify_record"):
                         alert = {"platform": "linux"}
                         result = await verify_repair(
                             alert=alert,
@@ -459,9 +452,9 @@ class TestEdgeCases:
                             params={},
                             pre_snapshot=None,
                             repair_output=long_output,
-                            repair_id=1
+                            repair_id=1,
                         )
-                        
+
                         # Check that repair_output was added to evidence
                         assert "repair_output_preview" in result["evidence"]
                         assert len(result["evidence"]["repair_output_preview"]) <= 200
@@ -469,9 +462,9 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_verify_repair_vector_db_failure(self):
         """Test that vector DB write failure doesn't affect result"""
-        with patch('core.verifier.VERIFY_CONFIG', {"enabled": True}):
-            with patch('core.verifier._select_strategy', return_value="none"):
-                with patch('core.verifier.upsert_verify_record', side_effect=Exception("DB error")):
+        with patch("core.verifier.VERIFY_CONFIG", {"enabled": True}):
+            with patch("core.verifier._select_strategy", return_value="none"):
+                with patch("core.verifier.upsert_verify_record", side_effect=Exception("DB error")):
                     alert = {"platform": "linux"}
                     result = await verify_repair(
                         alert=alert,
@@ -479,8 +472,8 @@ class TestEdgeCases:
                         params={},
                         pre_snapshot=None,
                         repair_output="Success",
-                        repair_id=1
+                        repair_id=1,
                     )
-                    
+
                     # Should still return result despite DB error
                     assert result["strategy"] == "skipped"

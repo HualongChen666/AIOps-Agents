@@ -509,6 +509,16 @@ class I18nManager:
                 }
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+
+            # Set restrictive permissions for translation store file (644 - owner read/write, group/others read)
+            try:
+                import os
+                import stat
+
+                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
         except Exception as e:
             logger.warning(f"Failed to save translation store: {e}")
 

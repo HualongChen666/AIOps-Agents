@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
 """Tests for main.py module."""
 
-import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import patch
 
+import pytest
+from fastapi.testclient import TestClient
+
 from extensions.addons.ai_plus.knowledge_graph_service.main import (
-    app,
-    store,
     _create,
-    _list,
-    _get,
-    _update,
     _delete,
-    _query,
-    _run,
     _evaluate,
     _export,
+    _get,
     _import,
+    _list,
+    _query,
+    _run,
+    _update,
+    app,
+    store,
 )
 
 

@@ -12,29 +12,31 @@ Comprehensive tests for priority management advanced features including:
 - Permission control
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
 import uuid
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from api.priority_advanced_router import router, get_db
 from api.priority_advanced_router import (
+    PriorityHistoryResponse,
     PriorityRuleCreate,
-    PriorityRuleUpdate,
     PriorityRuleResponse,
+    PriorityRuleUpdate,
     PriorityScoreRequest,
     PriorityScoreResponse,
-    PriorityHistoryResponse
+    get_db,
+    router,
 )
-
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_db():
@@ -95,18 +97,14 @@ def sample_priority_rule_create():
         conditions={"metric": "cpu_usage", "operator": ">", "threshold": 90},
         priority_level="P0",
         weight=1.0,
-        meta_data={"category": "performance"}
+        meta_data={"category": "performance"},
     )
 
 
 @pytest.fixture
 def sample_priority_rule_update():
     """Sample priority rule update data"""
-    return PriorityRuleUpdate(
-        name="更新后的CPU规则",
-        description="更新后的描述",
-        enabled=False
-    )
+    return PriorityRuleUpdate(name="更新后的CPU规则", description="更新后的描述", enabled=False)
 
 
 @pytest.fixture
@@ -115,7 +113,7 @@ def sample_priority_score_request():
     return PriorityScoreRequest(
         alert_id="ALT-001",
         metrics={"cpu_usage": 95, "memory_usage": 80, "response_time": 5000},
-        context={"service": "api-service", "affected_users": 1000}
+        context={"service": "api-service", "affected_users": 1000},
     )
 
 
@@ -146,7 +144,9 @@ def mock_priority_score():
     score.priority_level = "P0"
     score.score = 100.0
     score.bis_score = 0.8
-    score.factors = {"高CPU使用率规则": {"matched": True, "priority_level": "P0", "weight": 1.0, "score": 100.0}}
+    score.factors = {
+        "高CPU使用率规则": {"matched": True, "priority_level": "P0", "weight": 1.0, "score": 100.0}
+    }
     score.calculated_at = datetime.now()
     score.meta_data = {"service": "api-service"}
     return score
@@ -173,6 +173,7 @@ def mock_priority_history():
 # GET /api/v1/priority/rules - Get Priority Rules List
 # ============================================================================
 
+
 class TestGetPriorityRules:
     """Test cases for getting priority rules list"""
 
@@ -196,7 +197,9 @@ class TestGetPriorityRules:
 
     def test_get_priority_rules_with_filters(self, client, mock_db, mock_priority_rule):
         """Test getting priority rules with filters"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [mock_priority_rule]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [
+            mock_priority_rule
+        ]
 
         response = client.get("/api/v1/priority/rules?enabled=true&priority_level=P0")
 
@@ -205,7 +208,9 @@ class TestGetPriorityRules:
 
     def test_get_priority_rules_with_pagination(self, client, mock_db, mock_priority_rule):
         """Test getting priority rules with pagination"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [mock_priority_rule]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [
+            mock_priority_rule
+        ]
 
         response = client.get("/api/v1/priority/rules?limit=10&offset=0")
 
@@ -214,7 +219,9 @@ class TestGetPriorityRules:
 
     def test_get_priority_rules_empty_list(self, client, mock_db):
         """Test getting priority rules when no rules exist"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = []
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            []
+        )
 
         response = client.get("/api/v1/priority/rules")
 
@@ -235,6 +242,7 @@ class TestGetPriorityRules:
 # POST /api/v1/priority/rules - Create Priority Rule
 # ============================================================================
 
+
 class TestCreatePriorityRule:
     """Test cases for creating priority rules"""
 
@@ -245,18 +253,19 @@ class TestCreatePriorityRule:
         mock_db.commit.return_value = None
         mock_db.refresh.return_value = None
 
-        with patch('api.priority_advanced_router.uuid') as mock_uuid:
+        with patch("api.priority_advanced_router.uuid") as mock_uuid:
             mock_uuid.uuid4.return_value.hex = "test001"
 
             response = client.post(
-                "/api/v1/priority/rules",
-                json=sample_priority_rule_create.model_dump()
+                "/api/v1/priority/rules", json=sample_priority_rule_create.model_dump()
             )
 
             # May fail due to DB mock limitations
             assert response.status_code in [200, 500]
 
-    def test_create_priority_rule_invalid_priority_level(self, client, mock_db, sample_priority_rule_create):
+    def test_create_priority_rule_invalid_priority_level(
+        self, client, mock_db, sample_priority_rule_create
+    ):
         """Test creating priority rule with invalid priority level"""
         invalid_data = sample_priority_rule_create.model_dump()
         invalid_data["priority_level"] = "P5"
@@ -266,13 +275,14 @@ class TestCreatePriorityRule:
         assert response.status_code == 400
         assert "无效的优先级级别" in response.json()["detail"]
 
-    def test_create_priority_rule_duplicate_name(self, client, mock_db, sample_priority_rule_create, mock_priority_rule):
+    def test_create_priority_rule_duplicate_name(
+        self, client, mock_db, sample_priority_rule_create, mock_priority_rule
+    ):
         """Test creating priority rule with duplicate name"""
         mock_db.query.return_value.filter.return_value.first.return_value = mock_priority_rule
 
         response = client.post(
-            "/api/v1/priority/rules",
-            json=sample_priority_rule_create.model_dump()
+            "/api/v1/priority/rules", json=sample_priority_rule_create.model_dump()
         )
 
         assert response.status_code == 400
@@ -282,7 +292,7 @@ class TestCreatePriorityRule:
         """Test creating priority rule with missing required field"""
         invalid_data = {
             "name": "测试规则",
-            "description": "测试描述"
+            "description": "测试描述",
             # Missing conditions and priority_level
         }
 
@@ -295,8 +305,7 @@ class TestCreatePriorityRule:
         mock_db.query.side_effect = Exception("Database error")
 
         response = client.post(
-            "/api/v1/priority/rules",
-            json=sample_priority_rule_create.model_dump()
+            "/api/v1/priority/rules", json=sample_priority_rule_create.model_dump()
         )
 
         assert response.status_code == 500
@@ -305,6 +314,7 @@ class TestCreatePriorityRule:
 # ============================================================================
 # GET /api/v1/priority/rules/{rule_id} - Get Single Priority Rule
 # ============================================================================
+
 
 class TestGetPriorityRule:
     """Test cases for getting a single priority rule"""
@@ -341,10 +351,13 @@ class TestGetPriorityRule:
 # PATCH /api/v1/priority/rules/{rule_id} - Update Priority Rule
 # ============================================================================
 
+
 class TestUpdatePriorityRule:
     """Test cases for updating priority rules"""
 
-    def test_update_priority_rule_success(self, client, mock_db, sample_priority_rule_update, mock_priority_rule):
+    def test_update_priority_rule_success(
+        self, client, mock_db, sample_priority_rule_update, mock_priority_rule
+    ):
         """Test successful update of priority rule"""
         mock_db.query.return_value.filter.return_value.first.return_value = mock_priority_rule
         mock_db.commit.return_value = None
@@ -352,7 +365,7 @@ class TestUpdatePriorityRule:
 
         response = client.patch(
             "/api/v1/priority/rules/PR-TEST001",
-            json=sample_priority_rule_update.model_dump(exclude_unset=True)
+            json=sample_priority_rule_update.model_dump(exclude_unset=True),
         )
 
         assert response.status_code == 200
@@ -363,7 +376,7 @@ class TestUpdatePriorityRule:
 
         response = client.patch(
             "/api/v1/priority/rules/PR-NONEXISTENT",
-            json=sample_priority_rule_update.model_dump(exclude_unset=True)
+            json=sample_priority_rule_update.model_dump(exclude_unset=True),
         )
 
         assert response.status_code == 404
@@ -398,7 +411,7 @@ class TestUpdatePriorityRule:
 
         response = client.patch(
             "/api/v1/priority/rules/PR-TEST001",
-            json=sample_priority_rule_update.model_dump(exclude_unset=True)
+            json=sample_priority_rule_update.model_dump(exclude_unset=True),
         )
 
         assert response.status_code == 500
@@ -407,6 +420,7 @@ class TestUpdatePriorityRule:
 # ============================================================================
 # DELETE /api/v1/priority/rules/{rule_id} - Delete Priority Rule
 # ============================================================================
+
 
 class TestDeletePriorityRule:
     """Test cases for deleting priority rules"""
@@ -445,12 +459,15 @@ class TestDeletePriorityRule:
 # GET /api/v1/priority/scores - Get Priority Scores List
 # ============================================================================
 
+
 class TestGetPriorityScores:
     """Test cases for getting priority scores list"""
 
     def test_get_priority_scores_success(self, client, mock_db, mock_priority_score):
         """Test successful retrieval of priority scores"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [mock_priority_score]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [
+            mock_priority_score
+        ]
 
         response = client.get("/api/v1/priority/scores")
 
@@ -460,7 +477,9 @@ class TestGetPriorityScores:
 
     def test_get_priority_scores_with_filters(self, client, mock_db, mock_priority_score):
         """Test getting priority scores with filters"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [mock_priority_score]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [
+            mock_priority_score
+        ]
 
         response = client.get("/api/v1/priority/scores?alert_id=ALT-001&priority_level=P0")
 
@@ -469,7 +488,9 @@ class TestGetPriorityScores:
 
     def test_get_priority_scores_empty_list(self, client, mock_db):
         """Test getting priority scores when no scores exist"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = []
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            []
+        )
 
         response = client.get("/api/v1/priority/scores")
 
@@ -489,10 +510,13 @@ class TestGetPriorityScores:
 # POST /api/v1/priority/calculator - Calculate Priority Score
 # ============================================================================
 
+
 class TestCalculatePriorityScore:
     """Test cases for calculating priority scores"""
 
-    def test_calculate_priority_score_success(self, client, mock_db, sample_priority_score_request, mock_priority_rule):
+    def test_calculate_priority_score_success(
+        self, client, mock_db, sample_priority_score_request, mock_priority_rule
+    ):
         """Test successful calculation of priority score"""
         mock_db.query.return_value.filter.return_value.all.return_value = [mock_priority_rule]
         mock_db.add.return_value = None
@@ -500,8 +524,7 @@ class TestCalculatePriorityScore:
         mock_db.refresh.return_value = None
 
         response = client.post(
-            "/api/v1/priority/calculator",
-            json=sample_priority_score_request.model_dump()
+            "/api/v1/priority/calculator", json=sample_priority_score_request.model_dump()
         )
 
         # May fail due to DB mock limitations, but endpoint should be callable
@@ -509,10 +532,7 @@ class TestCalculatePriorityScore:
 
     def test_calculate_priority_score_missing_alert_id(self, client, mock_db):
         """Test calculating priority score without alert_id"""
-        invalid_data = {
-            "metrics": {"cpu_usage": 95},
-            "context": {"service": "api-service"}
-        }
+        invalid_data = {"metrics": {"cpu_usage": 95}, "context": {"service": "api-service"}}
 
         response = client.post("/api/v1/priority/calculator", json=invalid_data)
 
@@ -520,34 +540,33 @@ class TestCalculatePriorityScore:
 
     def test_calculate_priority_score_missing_metrics(self, client, mock_db):
         """Test calculating priority score without metrics"""
-        invalid_data = {
-            "alert_id": "ALT-001",
-            "context": {"service": "api-service"}
-        }
+        invalid_data = {"alert_id": "ALT-001", "context": {"service": "api-service"}}
 
         response = client.post("/api/v1/priority/calculator", json=invalid_data)
 
         assert response.status_code == 422  # Validation error
 
-    def test_calculate_priority_score_no_matching_rules(self, client, mock_db, sample_priority_score_request):
+    def test_calculate_priority_score_no_matching_rules(
+        self, client, mock_db, sample_priority_score_request
+    ):
         """Test calculating priority score with no matching rules"""
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
         response = client.post(
-            "/api/v1/priority/calculator",
-            json=sample_priority_score_request.model_dump()
+            "/api/v1/priority/calculator", json=sample_priority_score_request.model_dump()
         )
 
         # Should still calculate with default values
         assert response.status_code in [200, 500]
 
-    def test_calculate_priority_score_db_error(self, client, mock_db, sample_priority_score_request):
+    def test_calculate_priority_score_db_error(
+        self, client, mock_db, sample_priority_score_request
+    ):
         """Test calculating priority score with database error"""
         mock_db.query.side_effect = Exception("Database error")
 
         response = client.post(
-            "/api/v1/priority/calculator",
-            json=sample_priority_score_request.model_dump()
+            "/api/v1/priority/calculator", json=sample_priority_score_request.model_dump()
         )
 
         assert response.status_code == 500
@@ -557,12 +576,15 @@ class TestCalculatePriorityScore:
 # GET /api/v1/priority/history - Get Priority History
 # ============================================================================
 
+
 class TestGetPriorityHistory:
     """Test cases for getting priority history"""
 
     def test_get_priority_history_success(self, client, mock_db, mock_priority_history):
         """Test successful retrieval of priority history"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [mock_priority_history]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [
+            mock_priority_history
+        ]
 
         response = client.get("/api/v1/priority/history")
 
@@ -572,7 +594,9 @@ class TestGetPriorityHistory:
 
     def test_get_priority_history_with_alert_filter(self, client, mock_db, mock_priority_history):
         """Test getting priority history with alert filter"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [mock_priority_history]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [
+            mock_priority_history
+        ]
 
         response = client.get("/api/v1/priority/history?alert_id=ALT-001")
 
@@ -581,7 +605,9 @@ class TestGetPriorityHistory:
 
     def test_get_priority_history_empty_list(self, client, mock_db):
         """Test getting priority history when no history exists"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = []
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            []
+        )
 
         response = client.get("/api/v1/priority/history")
 
@@ -600,6 +626,7 @@ class TestGetPriorityHistory:
 # ============================================================================
 # Data Validation Tests
 # ============================================================================
+
 
 class TestDataValidation:
     """Test cases for data validation"""
@@ -622,12 +649,15 @@ class TestDataValidation:
 # Edge Cases and Error Handling
 # ============================================================================
 
+
 class TestEdgeCases:
     """Test cases for edge cases and error handling"""
 
     def test_large_limit_value(self, client, mock_db):
         """Test with large limit value"""
-        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = []
+        mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
+            []
+        )
 
         response = client.get("/api/v1/priority/rules?limit=200")
 
@@ -652,6 +682,7 @@ class TestEdgeCases:
 # Test Summary
 # ============================================================================
 
+
 def test_coverage_summary():
     """Summary of test coverage"""
     test_classes = [
@@ -664,13 +695,10 @@ def test_coverage_summary():
         TestCalculatePriorityScore,
         TestGetPriorityHistory,
         TestDataValidation,
-        TestEdgeCases
+        TestEdgeCases,
     ]
 
-    total_tests = sum(
-        len([m for m in dir(cls) if m.startswith('test_')])
-        for cls in test_classes
-    )
+    total_tests = sum(len([m for m in dir(cls) if m.startswith("test_")]) for cls in test_classes)
 
     print(f"\n{'='*60}")
     print(f"Priority Advanced Router Test Coverage Summary")

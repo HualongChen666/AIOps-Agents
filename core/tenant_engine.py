@@ -152,13 +152,27 @@ def _load() -> None:
         if not isinstance(raw, list):
             raw = []
         _TENANTS = [_dict_to_tenant(item) for item in raw]
-    except Exception:
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error(f"Failed to load tenant data from {DATA_FILE}: {exc}")
+        _TENANTS = []
+    except Exception as exc:
+        logger.error(f"Failed to load tenant data: {exc}")
         _TENANTS = []
 
 
 def _save() -> None:
+    import os
+    import stat
+
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump([asdict(t) for t in _TENANTS], f, ensure_ascii=False, indent=2)
+
+    # Set restrictive permissions for tenant data file (600 - owner read/write only)
+    try:
+        os.chmod(DATA_FILE, stat.S_IRUSR | stat.S_IWUSR)
+    except (OSError, AttributeError):
+        # chmod may fail on Windows or non-Unix systems
+        pass
 
 
 def list_tenants() -> List[Tenant]:

@@ -7,12 +7,12 @@ Provides disaster recovery functionality for backup and restore operations.
 Supports database backups, Redis backups, configuration backups, and cleanup operations.
 """
 
+import json
 import shutil
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
-import json
 
 
 class DisasterRecovery:
@@ -44,15 +44,24 @@ class DisasterRecovery:
             if db_path.exists():
                 # SQLite backup
                 conn = sqlite3.connect(str(db_path))
-                with open(backup_file, 'w') as f:
-                    for line in conn.iterdump():
-                        f.write(f"{line}\n")
+                try:
+                    with open(backup_file, "w") as f:
+                        for line in conn.iterdump():
+                            f.write(f"{line}\n")
+                except OSError as exc:
+                    print(f"Failed to write backup file {backup_file}: {exc}")
+                    conn.close()
+                    return None
                 conn.close()
             else:
                 # Create a placeholder backup file
-                with open(backup_file, 'w') as f:
-                    f.write(f"-- Database backup created at {timestamp}\n")
-                    f.write("-- Placeholder for database backup\n")
+                try:
+                    with open(backup_file, "w") as f:
+                        f.write(f"-- Database backup created at {timestamp}\n")
+                        f.write("-- Placeholder for database backup\n")
+                except OSError as exc:
+                    print(f"Failed to write placeholder backup file {backup_file}: {exc}")
+                    return None
 
             return str(backup_file)
         except Exception as e:
@@ -71,9 +80,13 @@ class DisasterRecovery:
             backup_file = self.backup_dir / f"redis_backup_{timestamp}.rdb"
 
             # Create a placeholder Redis backup file
-            with open(backup_file, 'wb') as f:
-                f.write(b"REDIS_DUMP_VERSION=7\n")
-                f.write(f"# Redis backup created at {timestamp}\n".encode())
+            try:
+                with open(backup_file, "wb") as f:
+                    f.write(b"REDIS_DUMP_VERSION=7\n")
+                    f.write(f"# Redis backup created at {timestamp}\n".encode())
+            except OSError as exc:
+                print(f"Failed to write Redis backup file {backup_file}: {exc}")
+                return None
 
             return str(backup_file)
         except Exception as e:
@@ -97,17 +110,24 @@ class DisasterRecovery:
             for config_file in config_files:
                 src = Path(config_file)
                 if src.exists():
-                    shutil.copy2(src, backup_dir / config_file)
+                    try:
+                        shutil.copy2(src, backup_dir / config_file)
+                    except (OSError, shutil.Error) as exc:
+                        print(f"Failed to copy {config_file}: {exc}")
 
             # Create backup manifest
             manifest = {
                 "timestamp": timestamp,
                 "files": [f for f in config_files if Path(f).exists()],
-                "backup_dir": str(backup_dir)
+                "backup_dir": str(backup_dir),
             }
 
-            with open(backup_dir / "manifest.json", 'w') as f:
-                json.dump(manifest, f, indent=2)
+            try:
+                with open(backup_dir / "manifest.json", "w") as f:
+                    json.dump(manifest, f, indent=2)
+            except OSError as exc:
+                print(f"Failed to write manifest file: {exc}")
+                return None
 
             return str(backup_dir)
         except Exception as e:
@@ -132,10 +152,20 @@ class DisasterRecovery:
             # For SQLite, restore by executing SQL
             db_path = Path("aiops_agent.db")
             if db_path.exists():
+                try:
+                    with open(backup_path, "r") as f:
+                        sql_script = f.read()
+                except OSError as exc:
+                    print(f"Failed to read backup file {backup_path}: {exc}")
+                    return False
+
                 conn = sqlite3.connect(str(db_path))
-                with open(backup_path, 'r') as f:
-                    sql_script = f.read()
+                try:
                     conn.executescript(sql_script)
+                except sqlite3.Error as exc:
+                    print(f"Failed to execute SQL script: {exc}")
+                    conn.close()
+                    return False
                 conn.close()
 
             return True

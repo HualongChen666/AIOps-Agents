@@ -191,7 +191,9 @@ def test_fallback_schema_error_json():
 
 async def test_analyze_invalid_platform(monkeypatch):
     _stub_base(monkeypatch)
-    result = await ai_engine.analyze(query="q", platform="unknown")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="q", platform="unknown"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, str)
     assert "unknown" not in result
 
@@ -199,7 +201,9 @@ async def test_analyze_invalid_platform(monkeypatch):
 async def test_analyze_disabled(monkeypatch):
     monkeypatch.setattr(ai_engine, "_rate_limit_wait", AsyncMock())
     monkeypatch.setattr(ai_engine, "AI_CONFIG", {"is_enabled": False})
-    result = await ai_engine.analyze(query="q", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="q", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert "规则降级" in result
     assert "linux" in result
 
@@ -221,7 +225,9 @@ async def test_analyze_rich_context(monkeypatch):
         ],
         "correlated_alerts": [{"level": "critical", "title": "t", "source": "s", "desc": "d"}],
     }
-    result = await ai_engine.analyze(query="cpu high", platform="linux", rich_context=rich)  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu high", platform="linux", rich_context=rich
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, str)
     assert "analysis" in result
 
@@ -232,7 +238,9 @@ async def test_analyze_rag_context(monkeypatch):
     monkeypatch.setattr(
         ai_engine, "_rag_pipeline", type("RAG", (), {"retrieve_and_generate": rag})()
     )
-    result = await ai_engine.analyze(query="cpu", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, str)
     rag.assert_awaited_once()
 
@@ -243,7 +251,9 @@ async def test_analyze_rag_exception(monkeypatch):
     monkeypatch.setattr(
         ai_engine, "_rag_pipeline", type("RAG", (), {"retrieve_and_generate": rag})()
     )
-    result = await ai_engine.analyze(query="cpu", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert "ok" in result
 
 
@@ -262,7 +272,9 @@ async def test_analyze_cost_budget_exhausted(monkeypatch):
     monkeypatch.setattr(
         ai_engine, "get_llm_cost_monitor", lambda: _FakeCostMonitor(budget_ok=False)
     )
-    result = await ai_engine.analyze(query="cpu", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert "规则降级" in result
 
 
@@ -281,13 +293,17 @@ async def test_analyze_llm_router_exception(monkeypatch):
     bad_router = type("BadRouter", (), {})()
     bad_router.generate = AsyncMock(side_effect=RuntimeError("llm down"))
     monkeypatch.setattr(ai_engine, "get_llm_router", lambda: bad_router)
-    result = await ai_engine.analyze(query="cpu", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert "规则降级" in result
 
 
 async def test_analyze_llm_empty_content(monkeypatch):
     _stub_base(monkeypatch, _FakeLLMRouter(""))
-    result = await ai_engine.analyze(query="cpu", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert "规则降级" in result
 
 
@@ -311,14 +327,18 @@ async def test_analyze_validate_json_valid(monkeypatch):
         "recommended_action": "check",
     }
     _stub_base(monkeypatch, _FakeLLMRouter(json.dumps(payload, ensure_ascii=False)))
-    result = await ai_engine.analyze(query="cpu", platform="linux", validate_json=True)  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu", platform="linux", validate_json=True
+    )  # noqa: F841  # Variable for test verification
     parsed = json.loads(result)
     assert parsed["escalation_recommended"] is False
 
 
 async def test_analyze_validate_json_invalid_fallback(monkeypatch):
     _stub_base(monkeypatch, _FakeLLMRouter("not json"))
-    result = await ai_engine.analyze(query="cpu", platform="linux", validate_json=True)  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu", platform="linux", validate_json=True
+    )  # noqa: F841  # Variable for test verification
     assert "escalation_recommended" in result
 
 
@@ -379,7 +399,9 @@ async def test_llm_analysis_service_search_similar_success(monkeypatch):
     monkeypatch.setattr(ai_engine, "AUDIT_LOGGER_AVAILABLE", True)
     monkeypatch.setattr(ai_engine, "log_audit_event", MagicMock())
     service = ai_engine.LLMAnalysisService()
-    result = await service.search_similar("cpu", limit=5)  # noqa: F841  # Variable for test verification
+    result = await service.search_similar(
+        "cpu", limit=5
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0]["id"] == "1"
 
@@ -397,13 +419,17 @@ async def test_llm_analysis_service_search_similar_failure(monkeypatch):
         ai_engine, "log_audit_event", MagicMock(side_effect=RuntimeError("audit fail"))
     )
     service = ai_engine.LLMAnalysisService()
-    result = await service.search_similar("cpu", limit=5)  # noqa: F841  # Variable for test verification
+    result = await service.search_similar(
+        "cpu", limit=5
+    )  # noqa: F841  # Variable for test verification
     assert result == []  # noqa: F841  # Variable for test verification
 
 
 def test_predictive_engine_empty():
     engine = ai_engine.PredictiveAnalysisEngine()
-    result = asyncio.run(engine.predict_system_anomalies({"cpu": {"usage_percent": 10}}, 12))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        engine.predict_system_anomalies({"cpu": {"usage_percent": 10}}, 12)
+    )  # noqa: F841  # Variable for test verification
     assert result["predicted_anomalies"] == []
     assert result["confidence"] == 0.0
 
@@ -436,7 +462,9 @@ def test_natural_language_interaction_branches():
         ("hello", "general_query", None, None),
     ]
     for query, expected_intent, expected_metric, expected_time in cases:
-        result = asyncio.run(nli.process_natural_language_query(query, {"metrics": {"cpu": "80%"}}))  # noqa: F841  # Variable for test verification
+        result = asyncio.run(
+            nli.process_natural_language_query(query, {"metrics": {"cpu": "80%"}})
+        )  # noqa: F841  # Variable for test verification
         assert result["intent"] == expected_intent
         if expected_metric:
             assert result["entities"].get("metric") == expected_metric

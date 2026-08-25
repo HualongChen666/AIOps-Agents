@@ -238,7 +238,8 @@ async def generate_optimizations() -> dict[str, Any]:
     },
 )
 async def setup_endpoint_cache(
-    endpoint: str, ttl_seconds: int = Query(300, ge=60, le=3600, description="Cache TTL in seconds")
+    endpoint: str,
+    ttl_seconds: int = Query(300, ge=60, le=3600, description="Cache TTL in seconds"),
 ) -> dict[str, Any]:
     """
     Setup response cache for an endpoint

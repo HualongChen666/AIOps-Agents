@@ -974,15 +974,21 @@ def test_auto_heal_cross_platform_executor(auto_heal_module):
     executor = ah.CrossPlatformScriptExecutor()
     assert isinstance(executor.current_platform, ah.PlatformType)
     # memory_high_script does not require approval and should succeed
-    result = executor.execute_script("memory_high_script")  # noqa: F841  # Variable for test verification
+    result = executor.execute_script(
+        "memory_high_script"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert "Executed script" in result["output"]
 
-    result = executor.execute_script("no_such_script")  # noqa: F841  # Variable for test verification
+    result = executor.execute_script(
+        "no_such_script"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
 
     executor.current_platform = ah.PlatformType.KUBERNETES
-    result = executor.execute_script("memory_high_script")  # noqa: F841  # Variable for test verification
+    result = executor.execute_script(
+        "memory_high_script"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "not compatible" in result["error"]
 
@@ -991,7 +997,9 @@ def test_auto_heal_cross_platform_executor(auto_heal_module):
 
 def test_auto_heal_simulate_functions(auto_heal_module):
     ah = auto_heal_module
-    result = ah.simulate_repair({"platform": "windows"}, "memory_high_script")  # noqa: F841  # Variable for test verification
+    result = ah.simulate_repair(
+        {"platform": "windows"}, "memory_high_script"
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     verify = ah.simulate_verify({}, result)
     assert verify["verified"] is True

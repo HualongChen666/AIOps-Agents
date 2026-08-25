@@ -172,6 +172,16 @@ class TestAutomationManager:
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(pipeline_config)
 
+            # Set restrictive permissions for pipeline file (644 - owner read/write, group/others read)
+            try:
+                import os
+                import stat
+
+                os.chmod(output_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
+
             logger.info(f"Generated CI/CD pipeline: {output_path}")
 
             return True
@@ -388,6 +398,16 @@ e2e_tests:
 
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
+
+            # Set restrictive permissions for report file (644 - owner read/write, group/others read)
+            try:
+                import os
+                import stat
+
+                os.chmod(output_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
 
             logger.info(f"Generated test report: {output_path}")
 

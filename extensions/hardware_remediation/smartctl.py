@@ -30,6 +30,7 @@ def _run_smartctl(device: str, *args: str) -> Dict[str, Any]:
             text=True,
             timeout=120,
             check=False,
+            shell=False,
         )
         return {
             "success": result.returncode == 0,
@@ -38,7 +39,7 @@ def _run_smartctl(device: str, *args: str) -> Dict[str, Any]:
             "stderr": result.stderr[:1000],
         }
     except Exception as exc:
-        logger.exception("smartctl command failed: %s %s", args, device)
+        logger.error("smartctl command failed")
         return {"success": False, "error": str(exc)}
 
 

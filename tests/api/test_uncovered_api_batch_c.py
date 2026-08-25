@@ -13,6 +13,7 @@ import api.frontend_enhancement_router
 import api.itsm_router
 import api.linux_router
 import api.notify_router
+
 # import api.plugin_ecosystem_router  # File doesn't exist
 import api.qdrant_router
 import api.repair_router
@@ -290,9 +291,10 @@ def test_itsm_create_incident_servicenow_failure(client, admin_headers, monkeypa
 
 def test_itsm_create_incident_exception(client, admin_headers, monkeypatch):
     """Exception in create_incident returns local record."""
+
     def _raise_error(*args, **kwargs):
         raise Exception("Network error")
-    
+
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_URL", "https://snow.example")
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_TOKEN", "token")
     monkeypatch.setattr("httpx.AsyncClient", _raise_error)
@@ -414,9 +416,10 @@ def test_itsm_resolve_incident_servicenow_failure(client, admin_headers, monkeyp
 
 def test_itsm_resolve_incident_exception(client, admin_headers, monkeypatch):
     """Exception in resolve_incident returns local record."""
+
     def _raise_error(*args, **kwargs):
         raise Exception("Network error")
-    
+
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_URL", "https://snow.example")
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_TOKEN", "token")
     monkeypatch.setattr("httpx.AsyncClient", _raise_error)
@@ -1054,17 +1057,17 @@ def test_frontend_enhancement_endpoints(client, admin_headers):
 #     assert acts.status_code == 200
 #     assert acts.json()["data"]["count"] >= 1
 
-    # reg = client.post(
-    #     "/api/plugin-ecosystem/developer/register",
-    #     headers=admin_headers,
-    #     params={"developer_id": "dev-1", "name": "Alice", "email": "a@example.com"},
-    # )
-    # assert reg.status_code == 200
-    # assert reg.json()["data"]["developer_id"] == "dev-1"
-    #
-    # stats = client.get("/api/plugin-ecosystem/developer/dev-1", headers=admin_headers)
-    # assert stats.status_code == 200
-    # assert stats.json()["data"]["developer_id"] == "dev-1"
+# reg = client.post(
+#     "/api/plugin-ecosystem/developer/register",
+#     headers=admin_headers,
+#     params={"developer_id": "dev-1", "name": "Alice", "email": "a@example.com"},
+# )
+# assert reg.status_code == 200
+# assert reg.json()["data"]["developer_id"] == "dev-1"
+#
+# stats = client.get("/api/plugin-ecosystem/developer/dev-1", headers=admin_headers)
+# assert stats.status_code == 200
+# assert stats.json()["data"]["developer_id"] == "dev-1"
 
 
 # ---------------------------------------------------------------------------
@@ -1697,7 +1700,10 @@ def test_qdrant_point_with_none_payload(client, admin_headers, monkeypatch):
     none_payload = client.post(
         "/api/qdrant/points",
         headers=admin_headers,
-        json={"collection": "c2", "points": [{"id": 1, "vector": [0.1, 0.2, 0.3, 0.4], "payload": None}]},
+        json={
+            "collection": "c2",
+            "points": [{"id": 1, "vector": [0.1, 0.2, 0.3, 0.4], "payload": None}],
+        },
     )
     assert none_payload.status_code == 200
     assert none_payload.json()["status"] == "success"
@@ -1983,7 +1989,9 @@ def test_repair_router_direct(monkeypatch):
         monkeypatch.setattr(
             api.repair_router, "get_repair_scripts", lambda: {"clear_temp": {"name": "Clean temp"}}
         )
-        result = await api.repair_router.list_scripts()  # noqa: F841  # Variable for test verification
+        result = (
+            await api.repair_router.list_scripts()
+        )  # noqa: F841  # Variable for test verification
         assert "clear_temp" in result["scripts"]
 
         # list scripts error
@@ -1998,7 +2006,9 @@ def test_repair_router_direct(monkeypatch):
         monkeypatch.setattr(
             api.repair_router, "get_repair_history", lambda limit: [{"script_key": "x"}]
         )
-        result = await api.repair_router.get_history(20)  # noqa: F841  # Variable for test verification
+        result = await api.repair_router.get_history(
+            20
+        )  # noqa: F841  # Variable for test verification
         assert result["total"] == 1
 
         # history error
@@ -2016,7 +2026,9 @@ def test_repair_router_direct(monkeypatch):
         monkeypatch.setattr(api.repair_router, "execute_repair", _good_execute)
         req = api.repair_router.RepairRequest(script_key="clear_temp", params={})
         request = SN(client=SN(host="testclient"))
-        result = await api.repair_router.run_repair(req, request)  # noqa: F841  # Variable for test verification
+        result = await api.repair_router.run_repair(
+            req, request
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
 
         # blocked

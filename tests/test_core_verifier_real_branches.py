@@ -39,20 +39,26 @@ def _run(coro):
 # Top-level verify_repair branches
 # ---------------------------------------------------------------------------
 def test_verify_repair_invalid_alert():
-    result = _run(verify_repair("not-a-dict", "restart_service", {}, None, ""))  # noqa: F841  # Variable for test verification
+    result = _run(
+        verify_repair("not-a-dict", "restart_service", {}, None, "")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "alert 必须为 dict" in result["error_msg"]
 
 
 def test_verify_repair_empty_script_key():
-    result = _run(verify_repair({"platform": "windows"}, "", {}, None, ""))  # noqa: F841  # Variable for test verification
+    result = _run(
+        verify_repair({"platform": "windows"}, "", {}, None, "")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "error"
     assert "script_key 不能为空" in result["error_msg"]
 
 
 def test_verify_repair_invalid_platform_defaults_to_windows():
     # Unknown platform falls back to windows and ends up as a skipped/unknown strategy.
-    result = _run(verify_repair({"platform": "Plan9"}, "unknown_script", {}, None, ""))  # noqa: F841  # Variable for test verification
+    result = _run(
+        verify_repair({"platform": "Plan9"}, "unknown_script", {}, None, "")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
@@ -174,7 +180,9 @@ def test_verify_service_status_windows():
 
 
 def test_verify_service_status_no_service_name():
-    result = _run(_verify_service_status({"platform": "windows"}, {}, "windows"))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_service_status({"platform": "windows"}, {}, "windows")
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
 
 
@@ -466,55 +474,71 @@ def _push_memory_samples(values):
 
 
 def test_verify_metric_threshold_no_pre_snapshot():
-    result = _run(_verify_metric_threshold("free_cache", None))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", None)
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "无修复前快照" in result["recommendation"]
 
 
 def test_verify_metric_threshold_unmapped_script():
-    result = _run(_verify_metric_threshold("unknown_script", {"memory": [1, 2, 3]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("unknown_script", {"memory": [1, 2, 3]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "无关联的 metric 字段" in result["recommendation"]
 
 
 def test_verify_metric_threshold_malformed_series():
     # pre_series not a list
-    result = _run(_verify_metric_threshold("free_cache", {"memory": "not-a-list"}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": "not-a-list"})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert "序列格式异常" in result["error_msg"]
 
 
 def test_verify_metric_threshold_not_enough_samples():
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [1.0, 2.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [1.0, 2.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "skipped"
     assert "数据点不足" in result["recommendation"]
 
 
 def test_verify_metric_threshold_non_numeric():
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": ["a", "b", "c"]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": ["a", "b", "c"]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert "指标数值计算异常" in result["error_msg"]
 
 
 def test_verify_metric_threshold_zero_pre_avg():
     _push_memory_samples([0.0, 0.0, 0.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [0.0, 0.0, 0.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [0.0, 0.0, 0.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert result["verified"] is False
 
 
 def test_verify_metric_threshold_significant_drop():
     _push_memory_samples([1.0, 2.0, 3.0])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert result["verified"] is True
 
 
 def test_verify_metric_threshold_insufficient_drop():
     _push_memory_samples([9.9, 9.9, 9.9])
-    result = _run(_verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]}))  # noqa: F841  # Variable for test verification
+    result = _run(
+        _verify_metric_threshold("free_cache", {"memory": [10.0, 10.0, 10.0]})
+    )  # noqa: F841  # Variable for test verification
     assert result["strategy"] == "metric_threshold"
     assert result["verified"] is False
 

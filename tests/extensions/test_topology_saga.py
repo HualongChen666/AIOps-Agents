@@ -2,6 +2,7 @@
 """Comprehensive tests for topology service saga orchestrator to achieve 85%+ branch coverage."""
 
 import asyncio
+
 import pytest
 
 from extensions.addons.observability.topology_service.saga import TopologySagaOrchestrator
@@ -265,6 +266,7 @@ class TestTopologySagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_analyze():
             raise ValueError("Analysis failed")
+
         actions["analyze"] = failing_analyze
         result = await orchestrator.execute("saga_comp_sync")
 
@@ -302,6 +304,7 @@ class TestTopologySagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_analyze():
             raise ValueError("Analysis failed")
+
         actions["analyze"] = failing_analyze
         result = await orchestrator.execute("saga_comp_async")
 
@@ -336,6 +339,7 @@ class TestTopologySagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_analyze():
             raise ValueError("Analysis failed")
+
         actions["analyze"] = failing_analyze
         result = await orchestrator.execute("saga_missing_comp")
 
@@ -374,6 +378,7 @@ class TestTopologySagaOrchestrator:
         # Force compensation by making the second step fail
         def failing_analyze():
             raise ValueError("Analysis failed")
+
         actions["analyze"] = failing_analyze
         result = await orchestrator.execute("saga_comp_exception")
 
@@ -467,6 +472,7 @@ class TestTopologySagaOrchestrator:
         # Force compensation by making the action fail
         def failing_discover():
             raise ValueError("Discovery failed")
+
         actions["discover"] = failing_discover
         result = await orchestrator.execute("saga_missing_step")
 

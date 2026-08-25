@@ -30,9 +30,20 @@ def _should_execute(dry_run: bool) -> bool:
 
 def _http_request(method: str, url: str, **kwargs: Any) -> Any:
     """Make an HTTP request using ``requests`` if available, otherwise ``httpx``."""
+    # Use environment variable to control SSL verification (default: True for security)
+    ssl_verify = os.environ.get("CONNECTOR_BUS_SSL_VERIFY", "true").lower() == "true"
+
     if requests is not None:
+        kwargs.setdefault("verify", ssl_verify)
+        if not ssl_verify:
+            import logging
+            logging.warning("SSL verification is disabled in connector_bus - this is a security risk!")
         return requests.request(method, url, **kwargs)
     if httpx is not None:
+        kwargs.setdefault("verify", ssl_verify)
+        if not ssl_verify:
+            import logging
+            logging.warning("SSL verification is disabled in connector_bus - this is a security risk!")
         return httpx.request(method, url, **kwargs)
     raise RuntimeError("No HTTP client available (requests or httpx)")  # pragma: no cover
 
@@ -78,7 +89,7 @@ class ConnectorBus:
                 "--topic",
                 topic,
             ]
-            result = subprocess.run(cmd, input=payload, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, input=payload, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "produced" if result.returncode == 0 else "error",
@@ -95,7 +106,7 @@ class ConnectorBus:
                 f"routing_key={topic}",
                 f"payload={payload}",
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "published" if result.returncode == 0 else "error",
@@ -114,7 +125,7 @@ class ConnectorBus:
                 "--message-body",
                 payload,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "sent" if result.returncode == 0 else "error",
@@ -156,7 +167,7 @@ class ConnectorBus:
                 "--timeout-ms",
                 "5000",
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "consumed" if result.returncode == 0 else "error",
@@ -167,7 +178,7 @@ class ConnectorBus:
 
         if bus == "rabbitmq":
             cmd = ["rabbitmqadmin", "get", f"queue={topic}", f"count={limit}"]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "consumed" if result.returncode == 0 else "error",
@@ -186,7 +197,7 @@ class ConnectorBus:
                 "--max-number-of-messages",
                 str(limit),
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "received" if result.returncode == 0 else "error",
@@ -221,7 +232,7 @@ class ConnectorBus:
                 "--message-body",
                 payload,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "sent" if result.returncode == 0 else "error",
@@ -237,7 +248,7 @@ class ConnectorBus:
             f"routing_key={queue}",
             f"payload={payload}",
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
         return {
             "success": result.returncode == 0,
             "status": "published" if result.returncode == 0 else "error",
@@ -268,7 +279,7 @@ class ConnectorBus:
                 "--max-number-of-messages",
                 str(limit),
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
             return {
                 "success": result.returncode == 0,
                 "status": "received" if result.returncode == 0 else "error",
@@ -278,7 +289,7 @@ class ConnectorBus:
             }
 
         cmd = ["rabbitmqadmin", "get", f"queue={queue}", f"count={limit}"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, shell=False)
         return {
             "success": result.returncode == 0,
             "status": "consumed" if result.returncode == 0 else "error",

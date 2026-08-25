@@ -6,7 +6,6 @@ Realtime Advanced API Router
 
 import logging
 import uuid
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.models import RealtimeStream, RealtimeEvent, RealtimeSubscription, RealtimeWebhook
+from core.models import RealtimeEvent, RealtimeStream, RealtimeSubscription, RealtimeWebhook
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +200,11 @@ async def get_realtime_streams(
         if status is not None:
             query = query.filter(RealtimeStream.status == status)
 
-        streams = query.order_by(RealtimeStream.created_at.desc()).offset(offset).limit(limit).all()
+        # Apply pagination
+        query = query.order_by(RealtimeStream.created_at.desc())
+        query = query.offset(offset)
+        query = query.limit(limit)
+        streams = query.all()
 
         return [
             RealtimeStreamResponse(
@@ -341,9 +344,7 @@ async def update_realtime_stream(
         if stream_update.stream_type is not None:
             valid_types = ["sse", "websocket", "kafka"]
             if stream.stream_type not in valid_types:
-                raise HTTPException(
-                    status_code=400, detail=f"无效的流类型: {stream.stream_type}"
-                )
+                raise HTTPException(status_code=400, detail=f"无效的流类型: {stream.stream_type}")
 
         db.commit()
         db.refresh(stream)
@@ -435,7 +436,9 @@ async def get_realtime_events(
         raise HTTPException(status_code=500, detail=f"获取实时事件失败: {str(e)}")
 
 
-@router.get("/subscriptions", response_model=List[RealtimeSubscriptionResponse], summary="获取订阅列表")
+@router.get(
+    "/subscriptions", response_model=List[RealtimeSubscriptionResponse], summary="获取订阅列表"
+)
 async def get_realtime_subscriptions(
     stream_id: Optional[str] = Query(None, description="按流ID过滤"),
     subscriber_id: Optional[str] = Query(None, description="按订阅者ID过滤"),
@@ -459,9 +462,11 @@ async def get_realtime_subscriptions(
         if status is not None:
             query = query.filter(RealtimeSubscription.status == status)
 
-        subscriptions = (
-            query.order_by(RealtimeSubscription.created_at.desc()).offset(offset).limit(limit).all()
-        )
+        # Apply pagination
+        query = query.order_by(RealtimeSubscription.created_at.desc())
+        query = query.offset(offset)
+        query = query.limit(limit)
+        subscriptions = query.all()
 
         return [
             RealtimeSubscriptionResponse(
@@ -494,7 +499,9 @@ async def create_realtime_subscription(
     db: Session = Depends(get_db)
     try:
         # 验证流是否存在
-        stream = db.query(RealtimeStream).filter(RealtimeStream.id == subscription.stream_id).first()
+        stream = (
+            db.query(RealtimeStream).filter(RealtimeStream.id == subscription.stream_id).first()
+        )
         if not stream:
             raise HTTPException(status_code=404, detail=f"流 {subscription.stream_id} 不存在")
 
@@ -531,8 +538,12 @@ async def create_realtime_subscription(
             subscription_type=new_subscription.subscription_type,
             filters=new_subscription.filters,
             status=new_subscription.status,
-            created_at=new_subscription.created_at.isoformat() if new_subscription.created_at else "",
-            updated_at=new_subscription.updated_at.isoformat() if new_subscription.updated_at else "",
+            created_at=(
+                new_subscription.created_at.isoformat() if new_subscription.created_at else ""
+            ),
+            updated_at=(
+                new_subscription.updated_at.isoformat() if new_subscription.updated_at else ""
+            ),
             meta_data=new_subscription.meta_data,
         )
     except HTTPException:
@@ -564,7 +575,9 @@ async def get_realtime_webhooks(
         if enabled is not None:
             query = query.filter(RealtimeWebhook.enabled == enabled)
 
-        webhooks = query.order_by(RealtimeWebhook.created_at.desc()).offset(offset).limit(limit).all()
+        webhooks = (
+            query.order_by(RealtimeWebhook.created_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return [
             RealtimeWebhookResponse(
@@ -601,9 +614,8 @@ async def create_realtime_webhook(webhook: RealtimeWebhookCreate) -> RealtimeWeb
     try:
         # 验证流是否存在
         if webhook.stream_id:
-            stream = (
-                db.query(RealtimeStream).filter(RealtimeStream.id == webhook.stream_id).first()
-            )
+            query = db.query(RealtimeStream).filter(RealtimeStream.id == webhook.stream_id)
+            stream = query.first()
             if not stream:
                 raise HTTPException(status_code=404, detail=f"流 {webhook.stream_id} 不存在")
 

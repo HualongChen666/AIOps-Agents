@@ -29,6 +29,9 @@ def _ensure_data_dir() -> None:
 
 def save_slos() -> None:
     """Persist the current SLO store and id counter to disk."""
+    import os
+    import stat
+
     _ensure_data_dir()
     data = {
         "counter": _slo_engine._slo_counter,
@@ -36,6 +39,14 @@ def save_slos() -> None:
     }
     with _SLOS_FILE.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+    # Set restrictive permissions for SLO data file (600 - owner read/write only)
+    try:
+        os.chmod(_SLOS_FILE, stat.S_IRUSR | stat.S_IWUSR)
+    except (OSError, AttributeError):
+        # chmod may fail on Windows or non-Unix systems
+        pass
+
     logger.info("Saved %d SLO(s) to %s", len(_slo_engine._slo_store), _SLOS_FILE)
 
 

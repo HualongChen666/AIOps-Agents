@@ -47,7 +47,9 @@ async def test_get_translation_fallback(support, lang, key, expected):
 
 async def test_connect_websocket_not_available(support, monkeypatch):
     monkeypatch.setattr(ui, "WEBSOCKET_AVAILABLE", False)
-    result = await support.connect_websocket(None, "client")  # noqa: F841  # Variable for test verification
+    result = await support.connect_websocket(
+        None, "client"
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
@@ -55,7 +57,9 @@ async def test_connect_websocket_max_connections(support, monkeypatch):
     monkeypatch.setattr(ui, "WEBSOCKET_AVAILABLE", True)
     support.max_websocket_connections = 0
     mock_ws = AsyncMock()
-    result = await support.connect_websocket(mock_ws, "client")  # noqa: F841  # Variable for test verification
+    result = await support.connect_websocket(
+        mock_ws, "client"
+    )  # noqa: F841  # Variable for test verification
     assert result is False
 
 
@@ -165,8 +169,13 @@ async def test_get_widget_data_variants(support):
 
 
 async def test_get_metric_data_empty(support):
-    result = await support._get_metric_data("missing_metric")  # noqa: F841  # Variable for test verification
-    assert result == {"type": "metric", "data": None}  # noqa: F841  # Variable for test verification
+    result = await support._get_metric_data(
+        "missing_metric"
+    )  # noqa: F841  # Variable for test verification
+    assert result == {
+        "type": "metric",
+        "data": None,
+    }  # noqa: F841  # Variable for test verification
 
 
 async def test_get_chart_data_with_history_and_empty(support):

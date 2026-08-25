@@ -678,7 +678,9 @@ def test_scenario_memory_retry(monkeypatch):
     async def fail():
         raise RuntimeError("x")
 
-    result = asyncio.run(engine.execute(ok, operation="ok"))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        engine.execute(ok, operation="ok")
+    )  # noqa: F841  # Variable for test verification
     assert result == 1  # noqa: F841  # Variable for test verification
     result2 = asyncio.run(engine.execute(sync_ok, operation="sync"))
     assert result2 == 2

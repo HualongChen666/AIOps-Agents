@@ -96,7 +96,9 @@ async def test_get_full_link_topology(monkeypatch):
         "core.db_engine.alert_repository.get_recent",
         AsyncMock(return_value=[{"source": "x", "target": "y", "weight": 1}]),
     )
-    result = await topology_engine.get_full_link_topology("any")  # noqa: F841  # Variable for test verification
+    result = await topology_engine.get_full_link_topology(
+        "any"
+    )  # noqa: F841  # Variable for test verification
     assert "nodes" in result and "edges" in result
 
 

@@ -16,8 +16,9 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Body, HTTPException
 
+from api.common import handle_service_error, validate_list_length
 from core.anomaly_engine import detect_all_anomalies, detect_anomalies
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -55,12 +56,12 @@ async def detect_endpoint(payload: Optional[dict[str, Any]] = Body(default=None)
     values = payload.get("values")
 
     if metric and values is not None:
-        if not isinstance(values, list):
-            raise HTTPException(status_code=422, detail="values must be a list")
+        # 🔧 重构:使用公共 validate_list_length 函数
+        validated_values = validate_list_length(values, "values")
         timestamps = payload.get("timestamps") or [
-            datetime.datetime.now().isoformat() for _ in values
+            datetime.datetime.now().isoformat() for _ in validated_values
         ]
-        history = {metric: values, "timestamps": timestamps}
+        history = {metric: validated_values, "timestamps": timestamps}
         anomalies = detect_anomalies(history, metric)
     else:
         history = metrics_history.to_dict()

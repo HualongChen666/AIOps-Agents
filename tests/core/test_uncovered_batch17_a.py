@@ -105,7 +105,9 @@ async def test_module_graceful_shutdowns():
 
 
 async def test_check_all_modules_health_success(monkeypatch, patch_db, patch_redis, patch_ai):
-    result = await module_health_check.check_all_modules_health()  # noqa: F841  # Variable for test verification
+    result = (
+        await module_health_check.check_all_modules_health()
+    )  # noqa: F841  # Variable for test verification
     assert "database" in result
     assert "redis" in result
     assert "ai_engine" in result
@@ -125,7 +127,9 @@ async def test_check_all_modules_health_exception(monkeypatch):
         "module_health_registry",
         {"bad": BadHealth()},
     )
-    result = await module_health_check.check_all_modules_health()  # noqa: F841  # Variable for test verification
+    result = (
+        await module_health_check.check_all_modules_health()
+    )  # noqa: F841  # Variable for test verification
     assert result["bad"]["status"] == "error"
     assert "boom" in result["bad"]["error"]
 
@@ -363,7 +367,9 @@ async def test_run_compliance_check_non_compliant_and_notifications(monkeypatch,
 async def test_compliance_check_exception(monkeypatch, compliance_mgr):
     monkeypatch.setattr("asyncio.sleep", AsyncMock())
     monkeypatch.setattr("random.random", lambda: (_ for _ in ()).throw(Exception("rng error")))
-    result = await compliance_mgr.run_compliance_check(rule_id="gdpr_data_minimization")  # noqa: F841  # Variable for test verification
+    result = await compliance_mgr.run_compliance_check(
+        rule_id="gdpr_data_minimization"
+    )  # noqa: F841  # Variable for test verification
     assert result[0].status == compliance_manager.ComplianceStatus.UNKNOWN
     assert "rng error" in result[0].findings[0]
 
@@ -629,6 +635,8 @@ def test_business_metrics_acknowledge_resolve_missing():
 
 
 async def test_setup_business_metrics():
-    result = await business_metrics.setup_business_metrics()  # noqa: F841  # Variable for test verification
+    result = (
+        await business_metrics.setup_business_metrics()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["collector"] == "BusinessMetricsCollector"

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Real end-to-end tests for plugin system endpoints."""
 
+from unittest.mock import MagicMock, patch  # noqa: F401
+
 import pytest  # noqa: F401  # Imported for test setup
-from unittest.mock import patch, MagicMock  # noqa: F401
 
 # Import the module to ensure it's loaded for coverage
 import api.plugin_router  # noqa: F401

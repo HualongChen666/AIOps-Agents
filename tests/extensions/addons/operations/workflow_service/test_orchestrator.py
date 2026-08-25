@@ -2,7 +2,6 @@
 """Tests for workflow_service orchestrator module."""
 
 import pytest
-
 from orchestrator import (
     WorkflowOrchestrator,
 )
@@ -28,9 +27,7 @@ class TestWorkflowOrchestrator:
         assert orchestrator.retry_engine is not None
 
     @pytest.mark.asyncio
-    async def test_create_task_success(
-        self, orchestrator, workflow_definition, workflow_request
-    ):
+    async def test_create_task_success(self, orchestrator, workflow_definition, workflow_request):
         """Test creating a workflow task successfully."""
         await orchestrator.repo.save_definition(workflow_definition)
 
@@ -229,9 +226,7 @@ class TestWorkflowOrchestrator:
         assert len(retrieved.result) > 0
 
     @pytest.mark.asyncio
-    async def test_get_machine_creates_new_machine(
-        self, orchestrator, workflow_task
-    ):
+    async def test_get_machine_creates_new_machine(self, orchestrator, workflow_task):
         """Test that _get_machine creates a new machine if not exists."""
         machine = orchestrator._get_machine(workflow_task)
 
@@ -239,9 +234,7 @@ class TestWorkflowOrchestrator:
         assert workflow_task.task_id in orchestrator.machines
 
     @pytest.mark.asyncio
-    async def test_get_machine_returns_existing_machine(
-        self, orchestrator, workflow_task
-    ):
+    async def test_get_machine_returns_existing_machine(self, orchestrator, workflow_task):
         """Test that _get_machine returns existing machine."""
         machine1 = orchestrator._get_machine(workflow_task)
         machine2 = orchestrator._get_machine(workflow_task)
@@ -256,9 +249,7 @@ class TestWorkflowOrchestrator:
         assert can_run is True
 
     @pytest.mark.asyncio
-    async def test_can_run_with_satisfied_dependencies(
-        self, orchestrator, sample_workflow_nodes
-    ):
+    async def test_can_run_with_satisfied_dependencies(self, orchestrator, sample_workflow_nodes):
         """Test _can_run with satisfied dependencies."""
         node = sample_workflow_nodes[1]  # Depends on "start"
         completed = ["start"]
@@ -266,9 +257,7 @@ class TestWorkflowOrchestrator:
         assert can_run is True
 
     @pytest.mark.asyncio
-    async def test_can_run_with_unsatisfied_dependencies(
-        self, orchestrator, sample_workflow_nodes
-    ):
+    async def test_can_run_with_unsatisfied_dependencies(self, orchestrator, sample_workflow_nodes):
         """Test _can_run with unsatisfied dependencies."""
         node = sample_workflow_nodes[1]  # Depends on "start"
         completed = []  # "start" not completed
@@ -295,9 +284,7 @@ class TestWorkflowOrchestrator:
             assert can_run is True
 
     @pytest.mark.asyncio
-    async def test_run_node_renders_template(
-        self, orchestrator, workflow_request
-    ):
+    async def test_run_node_renders_template(self, orchestrator, workflow_request):
         """Test that _run_node renders command templates."""
         node = WorkflowNode(
             node_id="test-node",
@@ -315,9 +302,7 @@ class TestWorkflowOrchestrator:
     @pytest.mark.asyncio
     async def test_run_node_with_no_params(self, orchestrator):
         """Test _run_node with no parameters."""
-        node = WorkflowNode(
-            node_id="test-node", name="Test", command="echo static command"
-        )
+        node = WorkflowNode(node_id="test-node", name="Test", command="echo static command")
 
         result = await orchestrator._run_node(node, {})
 
@@ -327,9 +312,7 @@ class TestWorkflowOrchestrator:
     @pytest.mark.asyncio
     async def test_run_node_with_failure_command(self, orchestrator):
         """Test _run_node with a command that should fail."""
-        node = WorkflowNode(
-            node_id="test-node", name="Test", command="fail this step"
-        )
+        node = WorkflowNode(node_id="test-node", name="Test", command="fail this step")
 
         with pytest.raises(RuntimeError, match="Simulated node failure"):
             await orchestrator._run_node(node, {})
@@ -337,9 +320,7 @@ class TestWorkflowOrchestrator:
     @pytest.mark.asyncio
     async def test_run_node_case_insensitive_failure(self, orchestrator):
         """Test _run_node failure detection is case-insensitive."""
-        node = WorkflowNode(
-            node_id="test-node", name="Test", command="FAIL this step"
-        )
+        node = WorkflowNode(node_id="test-node", name="Test", command="FAIL this step")
 
         with pytest.raises(RuntimeError, match="Simulated node failure"):
             await orchestrator._run_node(node, {})
@@ -354,9 +335,7 @@ class TestWorkflowOrchestrator:
         assert result["node_id"] == "test-node"
 
     @pytest.mark.asyncio
-    async def test_execute_with_empty_workflow(
-        self, orchestrator, workflow_request
-    ):
+    async def test_execute_with_empty_workflow(self, orchestrator, workflow_request):
         """Test executing a workflow with no nodes."""
         empty_definition = WorkflowDefinition(
             workflow_id="empty-workflow",
@@ -373,9 +352,7 @@ class TestWorkflowOrchestrator:
         assert len(result.node_results) == 0
 
     @pytest.mark.asyncio
-    async def test_execute_with_single_node(
-        self, orchestrator, workflow_request
-    ):
+    async def test_execute_with_single_node(self, orchestrator, workflow_request):
         """Test executing a workflow with a single node."""
         single_node_definition = WorkflowDefinition(
             workflow_id="single-node-workflow",

@@ -115,7 +115,9 @@ async def test_backup_strategy_database_backup(monkeypatch, tmp_path):
     monkeypatch.setattr(backup_strategy, "_backup_history", [])
     _patch_backup_strategy_subprocess(monkeypatch, b"SELECT 1;\n")
 
-    result = await backup_strategy.perform_database_backup()  # noqa: F841  # Variable for test verification
+    result = (
+        await backup_strategy.perform_database_backup()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["type"] == "database"
     assert "backup_id" in result
@@ -158,7 +160,9 @@ async def test_backup_strategy_config_backup(monkeypatch, tmp_path):
     monkeypatch.setattr(backup_strategy.os.path, "getsize", lambda p: 123)
     monkeypatch.setattr(backup_strategy, "calculate_file_hash", lambda p: "hash123")
 
-    result = await backup_strategy.perform_config_backup()  # noqa: F841  # Variable for test verification
+    result = (
+        await backup_strategy.perform_config_backup()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["type"] == "config"
     assert "path" in result
@@ -183,7 +187,9 @@ async def test_backup_strategy_logs_backup(monkeypatch, tmp_path):
     monkeypatch.setattr(backup_strategy.os.path, "getsize", lambda p: 456)
     monkeypatch.setattr(backup_strategy, "calculate_file_hash", lambda p: "hash456")
 
-    result = await backup_strategy.perform_logs_backup()  # noqa: F841  # Variable for test verification
+    result = (
+        await backup_strategy.perform_logs_backup()
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["type"] == "logs"
     assert "path" in result

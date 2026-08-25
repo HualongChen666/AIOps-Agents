@@ -23,7 +23,9 @@ def test_windows_repair_registry():
 
 @pytest.mark.asyncio
 async def test_execute_windows_repair():
-    result = await wr.execute_windows_repair("clear_cache", {})  # noqa: F841  # Variable for test verification
+    result = await wr.execute_windows_repair(
+        "clear_cache", {}
+    )  # noqa: F841  # Variable for test verification
     assert result == {}  # noqa: F841  # Variable for test verification
 
 
@@ -231,7 +233,9 @@ async def test_batch_get_by_ids(monkeypatch, fake_session):
     select_mock = MagicMock(return_value=stmt)
     monkeypatch.setattr(qo, "select", select_mock)
 
-    result = await qo.BatchQueryOptimizer.batch_get_by_ids(fake_session, _FakeModel, [1, 2])  # noqa: F841  # Variable for test verification
+    result = await qo.BatchQueryOptimizer.batch_get_by_ids(
+        fake_session, _FakeModel, [1, 2]
+    )  # noqa: F841  # Variable for test verification
     assert result == {1: obj1, 2: obj2}  # noqa: F841  # Variable for test verification
 
     # empty/invalid cases
@@ -268,7 +272,9 @@ def test_with_eager_loading():
     stmt.options.return_value = stmt
     opt1 = MagicMock()
     opt2 = MagicMock()
-    result = qo.BatchQueryOptimizer.with_eager_loading(stmt, opt1, opt2)  # noqa: F841  # Variable for test verification
+    result = qo.BatchQueryOptimizer.with_eager_loading(
+        stmt, opt1, opt2
+    )  # noqa: F841  # Variable for test verification
     assert stmt.options.call_count == 2
     assert result is stmt
 

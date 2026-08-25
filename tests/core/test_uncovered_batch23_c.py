@@ -552,7 +552,9 @@ def test_check_dependencies_and_statistics(marketplace):
         dependencies=["base-1.0.0", "missing-1.0.0"],
     )
 
-    result = marketplace.check_dependencies(child.id)  # noqa: F841  # Variable for test verification
+    result = marketplace.check_dependencies(
+        child.id
+    )  # noqa: F841  # Variable for test verification
     assert result["valid"] is False
     assert "base-1.0.0" in result["available"]
     assert "missing-1.0.0" in result["missing"]
@@ -668,7 +670,9 @@ async def test_with_semaphore(po):
     async def _coro(arg, kwarg=None):
         return (arg, kwarg)
 
-    result = await opt.with_semaphore("api_requests", _coro, "hello", kwarg="world")  # noqa: F841  # Variable for test verification
+    result = await opt.with_semaphore(
+        "api_requests", _coro, "hello", kwarg="world"
+    )  # noqa: F841  # Variable for test verification
     assert result == ("hello", "world")  # noqa: F841  # Variable for test verification
 
     unknown = await opt.with_semaphore("unknown", _coro, "x")

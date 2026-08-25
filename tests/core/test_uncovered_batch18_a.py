@@ -265,7 +265,9 @@ def test_dsl_example(monkeypatch):
         return {"status": "completed"}
 
     monkeypatch.setattr(dsl_mod.Workflow, "execute", fake_execute)
-    result = asyncio.run(dsl_mod.example_dsl_usage())  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        dsl_mod.example_dsl_usage()
+    )  # noqa: F841  # Variable for test verification
     assert result is None
 
 

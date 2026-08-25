@@ -35,7 +35,6 @@ import datetime
 import hmac
 import logging
 import statistics
-import uuid
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -45,12 +44,10 @@ from config import INTERNAL_API_KEY
 from core.auth_db import Asset, get_session
 from core.auth_service import (
     User,
-    can_edit_asset,
-    can_view_asset,
     get_current_user,
     require_roles,
 )
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.slo_engine import (
     SLORule,
     create_slo,
@@ -530,9 +527,7 @@ async def get_slo_budgets(
                 "target": round(rule.target * 100.0, 2),
                 "current": round(result["current"] * 100.0, 2),
                 "error_budget_remaining": round(result["error_budget_remaining_percent"], 2),
-                "error_budget_consumed": round(
-                    100.0 - result["error_budget_remaining_percent"], 2
-                ),
+                "error_budget_consumed": round(100.0 - result["error_budget_remaining_percent"], 2),
                 "window": format_window(rule.window),
                 "status": result["status"],
             }
@@ -933,7 +928,12 @@ async def update_slo_objective(
     update_data = body.model_dump(exclude_unset=True)
 
     # If updating fields that affect the SLO rule, update it too
-    if "service" in update_data or "metric" in update_data or "target" in update_data or "window" in update_data:
+    if (
+        "service" in update_data
+        or "metric" in update_data
+        or "target" in update_data
+        or "window" in update_data
+    ):
         rule_id = objective.get("slo_rule_id")
         if rule_id:
             rule_update = {}
@@ -1049,12 +1049,8 @@ async def get_slo_rollups(
     rollups = []
     for service_name, rollup in service_rollups.items():
         if rollup["total_slos"] > 0:
-            rollup["avg_current"] = round(
-                (rollup["avg_current"] / rollup["total_slos"]) * 100.0, 2
-            )
-            rollup["avg_target"] = round(
-                (rollup["avg_target"] / rollup["total_slos"]) * 100.0, 2
-            )
+            rollup["avg_current"] = round((rollup["avg_current"] / rollup["total_slos"]) * 100.0, 2)
+            rollup["avg_target"] = round((rollup["avg_target"] / rollup["total_slos"]) * 100.0, 2)
 
         for metric_name, metric_data in rollup["metrics"].items():
             if metric_data["count"] > 0:

@@ -4,38 +4,39 @@ Comprehensive test suite for core/linux_collector.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-import sys
-import os
 import asyncio
+import os
+import sys
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock, AsyncMock
 from threading import Lock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Disable database fixtures for this test file
 pytestmark = [pytest.mark.skip_db, pytest.mark.core]
 
 from core.linux_collector import (
-    _host_failure_tracker,
+    _HOST_COOLDOWN_SEC,
+    _HOST_MAX_FAILURES,
+    COLLECT_COMMANDS,
+    _get_host_semaphore,
     _host_failure_lock,
+    _host_failure_tracker,
+    _is_host_in_cooldown,
     _last_collect_cache,
     _last_collect_cache_lock,
-    _is_host_in_cooldown,
     _record_host_failure,
     _record_host_success,
-    get_host_cooldown_status,
-    _HOST_MAX_FAILURES,
-    _HOST_COOLDOWN_SEC,
-    _get_host_semaphore,
-    get_last_snapshot,
+    collect_all_linux,
+    collect_linux_host,
     get_available_metrics,
     get_configured_hosts,
-    collect_linux_host,
-    collect_all_linux,
-    COLLECT_COMMANDS,
+    get_host_cooldown_status,
+    get_last_snapshot,
 )
 
 
@@ -140,8 +141,8 @@ class TestCollectCache:
         """Test that cache operations are lock-protected"""
         # This is more of a design verification
         assert _last_collect_cache_lock is not None
-        assert hasattr(_last_collect_cache_lock, 'acquire')
-        assert hasattr(_last_collect_cache_lock, 'release')
+        assert hasattr(_last_collect_cache_lock, "acquire")
+        assert hasattr(_last_collect_cache_lock, "release")
 
     def test_cache_concurrent_access(self):
         """Test cache concurrent access safety"""
@@ -191,10 +192,10 @@ class TestSSHCommandExecution:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
-        with patch('core.linux_collector.asyncio.create_subprocess_exec') as mock_exec:
+        with patch("core.linux_collector.asyncio.create_subprocess_exec") as mock_exec:
             mock_process = AsyncMock()
             mock_process.communicate = AsyncMock(return_value=(b"output", b""))
             mock_process.returncode = 0
@@ -212,10 +213,10 @@ class TestSSHCommandExecution:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
-        with patch('core.linux_collector.asyncio.create_subprocess_exec') as mock_exec:
+        with patch("core.linux_collector.asyncio.create_subprocess_exec") as mock_exec:
             mock_process = AsyncMock()
             mock_process.communicate = AsyncMock(return_value=(b"", b"error"))
             mock_process.returncode = 1
@@ -233,10 +234,10 @@ class TestSSHCommandExecution:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
-        with patch('core.linux_collector.asyncio.create_subprocess_exec') as mock_exec:
+        with patch("core.linux_collector.asyncio.create_subprocess_exec") as mock_exec:
             mock_process = AsyncMock()
             mock_process.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
             mock_process.kill = AsyncMock()
@@ -255,10 +256,10 @@ class TestSSHCommandExecution:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
-        with patch('core.linux_collector.asyncio.create_subprocess_exec') as mock_exec:
+        with patch("core.linux_collector.asyncio.create_subprocess_exec") as mock_exec:
             mock_exec.side_effect = ConnectionError("Connection refused")
 
             result = await _ssh_execute(host_config, "echo test")
@@ -302,7 +303,7 @@ class TestSSHCommandExecution:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         result = await _ssh_execute(host_config, "")
@@ -324,7 +325,7 @@ class TestLinuxMetricsCollection:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         # Mock the batch execution to return successful results for all metrics
@@ -344,8 +345,10 @@ class TestLinuxMetricsCollection:
                     results[metric_name] = "valid_data"
             return results
 
-        with patch('core.linux_collector._ssh_execute_batch', side_effect=mock_batch_execute):
-            result = await collect_linux_host(host_config, metrics=["cpu_usage", "memory", "load_avg", "swap"])
+        with patch("core.linux_collector._ssh_execute_batch", side_effect=mock_batch_execute):
+            result = await collect_linux_host(
+                host_config, metrics=["cpu_usage", "memory", "load_avg", "swap"]
+            )
             assert result is not None
             assert result["status"] == "ok"
             assert result["name"] == host_name
@@ -357,11 +360,7 @@ class TestLinuxMetricsCollection:
     @pytest.mark.asyncio
     async def test_collect_linux_host_no_auth(self):
         """Test collection with no authentication"""
-        host_config = {
-            "name": "test-host",
-            "host": "192.168.1.100",
-            "port": 22
-        }
+        host_config = {"name": "test-host", "host": "192.168.1.100", "port": 22}
 
         result = await collect_linux_host(host_config)
         assert result["status"] == "skipped"
@@ -389,7 +388,7 @@ class TestLinuxMetricsCollection:
             "host": "192.168.1.100",
             "status": "ok",
             "timestamp": "2024-01-01T00:00:00",
-            "metrics": {}
+            "metrics": {},
         }
 
         host_config = {
@@ -397,7 +396,7 @@ class TestLinuxMetricsCollection:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         result = await collect_linux_host(host_config)
@@ -418,7 +417,7 @@ class TestLinuxMetricsCollection:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         result = await collect_linux_host(host_config)
@@ -436,7 +435,7 @@ class TestLinuxMetricsCollection:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         async def mock_batch_execute(host_config, commands, semaphore):
@@ -449,8 +448,10 @@ class TestLinuxMetricsCollection:
                     results[k] = "ERROR: command failed"
             return results
 
-        with patch('core.linux_collector._ssh_execute_batch', side_effect=mock_batch_execute):
-            result = await collect_linux_host(host_config, metrics=["cpu_usage", "memory", "load_avg"])
+        with patch("core.linux_collector._ssh_execute_batch", side_effect=mock_batch_execute):
+            result = await collect_linux_host(
+                host_config, metrics=["cpu_usage", "memory", "load_avg"]
+            )
             assert result["status"] in ["degraded", "error"]
 
         # Cleanup
@@ -465,7 +466,7 @@ class TestLinuxMetricsCollection:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         async def mock_batch_execute(host_config, commands, semaphore):
@@ -475,8 +476,10 @@ class TestLinuxMetricsCollection:
                 results[k] = "ERROR: command failed"
             return results
 
-        with patch('core.linux_collector._ssh_execute_batch', side_effect=mock_batch_execute):
-            result = await collect_linux_host(host_config, metrics=["cpu_usage", "memory", "load_avg", "disk_usage", "swap"])
+        with patch("core.linux_collector._ssh_execute_batch", side_effect=mock_batch_execute):
+            result = await collect_linux_host(
+                host_config, metrics=["cpu_usage", "memory", "load_avg", "disk_usage", "swap"]
+            )
             assert result["status"] == "error"
             # Should record failure
             assert host_name in _host_failure_tracker
@@ -491,16 +494,28 @@ class TestBatchCollection:
     @pytest.mark.asyncio
     async def test_collect_all_linux_success(self):
         """Test collecting from all Linux hosts"""
-        with patch('core.linux_collector.LINUX_HOSTS') as mock_hosts:
+        with patch("core.linux_collector.LINUX_HOSTS") as mock_hosts:
             mock_hosts.get.return_value = [
-                {"name": "host1", "host": "192.168.1.1", "port": 22, "username": "user", "password": "pass"},
-                {"name": "host2", "host": "192.168.1.2", "port": 22, "username": "user", "password": "pass"},
+                {
+                    "name": "host1",
+                    "host": "192.168.1.1",
+                    "port": 22,
+                    "username": "user",
+                    "password": "pass",
+                },
+                {
+                    "name": "host2",
+                    "host": "192.168.1.2",
+                    "port": 22,
+                    "username": "user",
+                    "password": "pass",
+                },
             ]
 
             async def mock_collect(host_config, metrics):
                 return {"status": "ok", "name": host_config.get("name", "test")}
 
-            with patch('core.linux_collector.collect_linux_host', side_effect=mock_collect):
+            with patch("core.linux_collector.collect_linux_host", side_effect=mock_collect):
                 result = await collect_all_linux()
                 assert result is not None
                 assert len(result) == 2
@@ -508,7 +523,7 @@ class TestBatchCollection:
     @pytest.mark.asyncio
     async def test_collect_all_linux_empty_hosts(self):
         """Test collecting with no hosts configured"""
-        with patch('core.linux_collector.LINUX_HOSTS') as mock_hosts:
+        with patch("core.linux_collector.LINUX_HOSTS") as mock_hosts:
             mock_hosts.get.return_value = []
 
             result = await collect_all_linux()
@@ -517,15 +532,21 @@ class TestBatchCollection:
     @pytest.mark.asyncio
     async def test_collect_all_linux_with_exception(self):
         """Test collecting with host collection exception"""
-        with patch('core.linux_collector.LINUX_HOSTS') as mock_hosts:
+        with patch("core.linux_collector.LINUX_HOSTS") as mock_hosts:
             mock_hosts.get.return_value = [
-                {"name": "host1", "host": "192.168.1.1", "port": 22, "username": "user", "password": "pass"},
+                {
+                    "name": "host1",
+                    "host": "192.168.1.1",
+                    "port": 22,
+                    "username": "user",
+                    "password": "pass",
+                },
             ]
 
             async def mock_collect(host_config, metrics):
                 raise Exception("Collection failed")
 
-            with patch('core.linux_collector.collect_linux_host', side_effect=mock_collect):
+            with patch("core.linux_collector.collect_linux_host", side_effect=mock_collect):
                 result = await collect_all_linux()
                 assert result is not None
                 assert len(result) == 1
@@ -540,19 +561,16 @@ class TestBatchCollection:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
-        commands = {
-            "cpu_usage": "echo 80.5",
-            "memory": "echo 50.0"
-        }
+        commands = {"cpu_usage": "echo 80.5", "memory": "echo 50.0"}
 
         async def mock_ssh(host_config, command, semaphore):
             # Simulate batch output with nonce separators
             return "===AIOPS123METRIC:cpu_usage:123===AIOPSEND===\n80.5\n===AIOPS123METRIC:memory:123===AIOPSEND===\n50.0"
 
-        with patch('core.linux_collector._ssh_execute', side_effect=mock_ssh):
+        with patch("core.linux_collector._ssh_execute", side_effect=mock_ssh):
             result = await _ssh_execute_batch(host_config, commands)
             assert result is not None
             assert "cpu_usage" in result
@@ -567,7 +585,7 @@ class TestBatchCollection:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         result = await _ssh_execute_batch(host_config, {})
@@ -582,18 +600,15 @@ class TestBatchCollection:
             "host": "test-host",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
-        commands = {
-            "cpu_usage": "echo 80.5",
-            "memory": "echo 50.0"
-        }
+        commands = {"cpu_usage": "echo 80.5", "memory": "echo 50.0"}
 
         async def mock_ssh(host_config, command, semaphore):
             return "TIMEOUT"
 
-        with patch('core.linux_collector._ssh_execute', side_effect=mock_ssh):
+        with patch("core.linux_collector._ssh_execute", side_effect=mock_ssh):
             result = await _ssh_execute_batch(host_config, commands)
             assert result["cpu_usage"] == "TIMEOUT"
             assert result["memory"] == "TIMEOUT"
@@ -606,14 +621,7 @@ class TestMetricsParsing:
         """Test parsing CPU metrics"""
         from core.linux_collector import _parse_structured_metrics
 
-        result = {
-            "metrics": {
-                "cpu_usage": {
-                    "value": "80.5",
-                    "desc": "CPU 使用率(%)"
-                }
-            }
-        }
+        result = {"metrics": {"cpu_usage": {"value": "80.5", "desc": "CPU 使用率(%)"}}}
 
         _parse_structured_metrics(result)
         assert "parsed" in result["metrics"]["cpu_usage"]
@@ -623,14 +631,7 @@ class TestMetricsParsing:
         """Test parsing memory metrics"""
         from core.linux_collector import _parse_structured_metrics
 
-        result = {
-            "metrics": {
-                "memory": {
-                    "value": "8000 4000 4000 50.0",
-                    "desc": "内存使用率"
-                }
-            }
-        }
+        result = {"metrics": {"memory": {"value": "8000 4000 4000 50.0", "desc": "内存使用率"}}}
 
         _parse_structured_metrics(result)
         assert "parsed" in result["metrics"]["memory"]
@@ -642,14 +643,7 @@ class TestMetricsParsing:
         """Test parsing load average metrics"""
         from core.linux_collector import _parse_structured_metrics
 
-        result = {
-            "metrics": {
-                "load_avg": {
-                    "value": "1.0 2.0 3.0",
-                    "desc": "系统负载"
-                }
-            }
-        }
+        result = {"metrics": {"load_avg": {"value": "1.0 2.0 3.0", "desc": "系统负载"}}}
 
         _parse_structured_metrics(result)
         assert "parsed" in result["metrics"]["load_avg"]
@@ -661,14 +655,7 @@ class TestMetricsParsing:
         """Test parsing swap metrics"""
         from core.linux_collector import _parse_structured_metrics
 
-        result = {
-            "metrics": {
-                "swap": {
-                    "value": "2000 1000 50.0",
-                    "desc": "Swap 使用率"
-                }
-            }
-        }
+        result = {"metrics": {"swap": {"value": "2000 1000 50.0", "desc": "Swap 使用率"}}}
 
         _parse_structured_metrics(result)
         assert "parsed" in result["metrics"]["swap"]
@@ -680,31 +667,20 @@ class TestMetricsParsing:
         """Test parsing with invalid data"""
         from core.linux_collector import _parse_structured_metrics
 
-        result = {
-            "metrics": {
-                "cpu_usage": {
-                    "value": "invalid",
-                    "desc": "CPU 使用率(%)"
-                }
-            }
-        }
+        result = {"metrics": {"cpu_usage": {"value": "invalid", "desc": "CPU 使用率(%)"}}}
 
         _parse_structured_metrics(result)
         # Should not crash, just not add parsed field
-        assert "parsed" not in result["metrics"]["cpu_usage"] or result["metrics"]["cpu_usage"]["parsed"] is None
+        assert (
+            "parsed" not in result["metrics"]["cpu_usage"]
+            or result["metrics"]["cpu_usage"]["parsed"] is None
+        )
 
     def test_parse_structured_metrics_empty_value(self):
         """Test parsing with empty value"""
         from core.linux_collector import _parse_structured_metrics
 
-        result = {
-            "metrics": {
-                "cpu_usage": {
-                    "value": "",
-                    "desc": "CPU 使用率(%)"
-                }
-            }
-        }
+        result = {"metrics": {"cpu_usage": {"value": "", "desc": "CPU 使用率(%)"}}}
 
         _parse_structured_metrics(result)
         # Should not crash
@@ -716,7 +692,7 @@ class TestHostConfiguration:
 
     def test_get_configured_hosts(self):
         """Test getting configured hosts"""
-        with patch('core.linux_collector.LINUX_HOSTS') as mock_hosts:
+        with patch("core.linux_collector.LINUX_HOSTS") as mock_hosts:
             mock_hosts.get.return_value = [
                 {
                     "name": "host1",
@@ -726,7 +702,7 @@ class TestHostConfiguration:
                     "password": "pass",
                     "role": "app",
                     "layer": 3,
-                    "downstream": ["host2"]
+                    "downstream": ["host2"],
                 }
             ]
 
@@ -740,14 +716,14 @@ class TestHostConfiguration:
 
     def test_get_configured_hosts_key_auth(self):
         """Test getting configured hosts with key authentication"""
-        with patch('core.linux_collector.LINUX_HOSTS') as mock_hosts:
+        with patch("core.linux_collector.LINUX_HOSTS") as mock_hosts:
             mock_hosts.get.return_value = [
                 {
                     "name": "host1",
                     "host": "192.168.1.1",
                     "port": 22,
                     "username": "user",
-                    "key_file": "/path/to/key"
+                    "key_file": "/path/to/key",
                 }
             ]
 
@@ -756,14 +732,8 @@ class TestHostConfiguration:
 
     def test_get_configured_hosts_no_auth(self):
         """Test getting configured hosts with no authentication"""
-        with patch('core.linux_collector.LINUX_HOSTS') as mock_hosts:
-            mock_hosts.get.return_value = [
-                {
-                    "name": "host1",
-                    "host": "192.168.1.1",
-                    "port": 22
-                }
-            ]
+        with patch("core.linux_collector.LINUX_HOSTS") as mock_hosts:
+            mock_hosts.get.return_value = [{"name": "host1", "host": "192.168.1.1", "port": 22}]
 
             hosts = get_configured_hosts()
             assert hosts[0]["auth"] == "none"
@@ -778,10 +748,7 @@ class TestHostConfiguration:
     def test_get_last_snapshot(self):
         """Test getting last collection snapshot"""
         # Add some data to cache
-        _last_collect_cache["test-host"] = {
-            "name": "test-host",
-            "status": "ok"
-        }
+        _last_collect_cache["test-host"] = {"name": "test-host", "status": "ok"}
 
         snapshot = get_last_snapshot()
         assert isinstance(snapshot, dict)
@@ -920,14 +887,14 @@ class TestEdgeCases:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         async def mock_batch_execute(host_config, commands, semaphore):
             valid_data = self._get_valid_mock_data()
             return {k: valid_data.get(k, "valid_data") for k in commands.keys()}
 
-        with patch('core.linux_collector._ssh_execute_batch', side_effect=mock_batch_execute):
+        with patch("core.linux_collector._ssh_execute_batch", side_effect=mock_batch_execute):
             result = await collect_linux_host(host_config, metrics=["cpu_usage"])
             assert result is not None
             assert "cpu_usage" in result["metrics"]
@@ -946,13 +913,13 @@ class TestEdgeCases:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         async def mock_batch_execute(host_config, commands, semaphore):
             return {}
 
-        with patch('core.linux_collector._ssh_execute_batch', side_effect=mock_batch_execute):
+        with patch("core.linux_collector._ssh_execute_batch", side_effect=mock_batch_execute):
             result = await collect_linux_host(host_config, metrics=["invalid_metric"])
             assert result["status"] == "error"
 
@@ -983,7 +950,7 @@ class TestEdgeCases:
             "host": "192.168.1.100",
             "port": 22,
             "username": "test-user",
-            "key_file": "/path/to/key"
+            "key_file": "/path/to/key",
         }
 
         async def mock_batch_execute(host_config, commands, semaphore):
@@ -1002,8 +969,10 @@ class TestEdgeCases:
                     results[metric_name] = "valid_data"
             return results
 
-        with patch('core.linux_collector._ssh_execute_batch', side_effect=mock_batch_execute):
-            result = await collect_linux_host(host_config, metrics=["cpu_usage", "memory", "load_avg", "swap"])
+        with patch("core.linux_collector._ssh_execute_batch", side_effect=mock_batch_execute):
+            result = await collect_linux_host(
+                host_config, metrics=["cpu_usage", "memory", "load_avg", "swap"]
+            )
             assert result is not None
             assert result["status"] == "ok"
 
@@ -1020,7 +989,7 @@ class TestEdgeCases:
             "port": 22,
             "username": "test-user",
             "key_file": "/path/to/key",
-            "password": "test-pass"
+            "password": "test-pass",
         }
 
         async def mock_batch_execute(host_config, commands, semaphore):
@@ -1039,8 +1008,10 @@ class TestEdgeCases:
                     results[metric_name] = "valid_data"
             return results
 
-        with patch('core.linux_collector._ssh_execute_batch', side_effect=mock_batch_execute):
-            result = await collect_linux_host(host_config, metrics=["cpu_usage", "memory", "load_avg", "swap"])
+        with patch("core.linux_collector._ssh_execute_batch", side_effect=mock_batch_execute):
+            result = await collect_linux_host(
+                host_config, metrics=["cpu_usage", "memory", "load_avg", "swap"]
+            )
             assert result is not None
             assert result["status"] == "ok"
 

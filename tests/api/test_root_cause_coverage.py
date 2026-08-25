@@ -7,9 +7,10 @@ This file tests all uncovered branches including:
 - All endpoint success paths with real business logic
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
 from datetime import datetime
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 pytestmark = [pytest.mark.api]
 
@@ -21,6 +22,7 @@ class TestRootCauseRouter503Errors:
     def mock_unavailable_engine(self, monkeypatch):
         """Mock ROOT_CAUSE_INTELLIGENCE_AVAILABLE as False."""
         import api.root_cause_router as router_module
+
         monkeypatch.setattr(router_module, "ROOT_CAUSE_INTELLIGENCE_AVAILABLE", False)
         return router_module
 
@@ -183,9 +185,7 @@ class TestRootCauseRouter404Errors:
 
         return engine
 
-    def test_verify_root_cause_hypothesis_404(
-        self, client, mock_engine_with_empty_hypotheses
-    ):
+    def test_verify_root_cause_hypothesis_404(self, client, mock_engine_with_empty_hypotheses):
         """Test POST /verify returns 404 when hypothesis doesn't exist."""
         resp = client.post(
             "/api/v1/root-cause/verify",
@@ -199,9 +199,7 @@ class TestRootCauseRouter404Errors:
         error_msg = str(resp_data)
         assert "假设 nonexistent-h-123 不存在" in error_msg or "detail" in resp_data
 
-    def test_delete_hypothesis_404(
-        self, client, mock_engine_with_empty_hypotheses
-    ):
+    def test_delete_hypothesis_404(self, client, mock_engine_with_empty_hypotheses):
         """Test DELETE /hypotheses/{id} returns 404 when hypothesis doesn't exist."""
         resp = client.delete(
             "/api/v1/root-cause/hypotheses/nonexistent-h-456",
@@ -220,7 +218,12 @@ class TestRootCauseRouterSuccessPaths:
         """Mock engine with pre-populated topology, patterns, and hypotheses."""
         import api.root_cause_router as router_module
         import core.root_cause_intelligence as rci
-        from core.root_cause_intelligence import TopologyNode, TopologyLayer, HistoricalPattern, RootCauseHypothesis
+        from core.root_cause_intelligence import (
+            HistoricalPattern,
+            RootCauseHypothesis,
+            TopologyLayer,
+            TopologyNode,
+        )
 
         # Ensure engine is available
         monkeypatch.setattr(router_module, "ROOT_CAUSE_INTELLIGENCE_AVAILABLE", True)
@@ -284,9 +287,7 @@ class TestRootCauseRouterSuccessPaths:
 
         return engine
 
-    def test_get_topology_structure_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_get_topology_structure_success(self, client, mock_engine_with_data):
         """Test GET /topology returns topology structure successfully."""
         resp = client.get("/api/v1/root-cause/topology")
         assert resp.status_code == 200
@@ -299,9 +300,7 @@ class TestRootCauseRouterSuccessPaths:
         assert data["nodes"]["svc1"]["layer"] == "service"
         assert data["nodes"]["svc1"]["health_status"] == "healthy"
 
-    def test_discover_topology_realtime_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_discover_topology_realtime_success(self, client, mock_engine_with_data):
         """Test POST /topology/discover discovers topology successfully."""
         metrics_data = {
             "hosts": [{"hostname": "host1", "health": "healthy"}],
@@ -316,9 +315,7 @@ class TestRootCauseRouterSuccessPaths:
         assert data["status"] == "success"
         assert "discovery_result" in data
 
-    def test_perform_cross_layer_tracking_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_perform_cross_layer_tracking_success(self, client, mock_engine_with_data):
         """Test POST /cross-layer-track performs tracking successfully."""
         alert = {
             "id": "alert-1",
@@ -337,9 +334,7 @@ class TestRootCauseRouterSuccessPaths:
         assert isinstance(data["causal_path"], list)
         assert data["alert_id"] == "alert-1"
 
-    def test_match_historical_patterns_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_match_historical_patterns_success(self, client, mock_engine_with_data):
         """Test POST /patterns/match matches patterns successfully."""
         symptoms = {
             "alerts": [{"alert_type": "cpu_high", "host": "host1"}],
@@ -354,9 +349,7 @@ class TestRootCauseRouterSuccessPaths:
         assert "matched_patterns" in data
         assert isinstance(data["matched_patterns"], list)
 
-    def test_learn_historical_pattern_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_learn_historical_pattern_success(self, client, mock_engine_with_data):
         """Test POST /patterns/learn learns a new pattern successfully."""
         symptoms = {
             "alerts": [{"alert_type": "memory_high", "host": "host2"}],
@@ -375,9 +368,7 @@ class TestRootCauseRouterSuccessPaths:
         assert data["status"] == "success"
         assert data["root_cause"] == "memory_leak"
 
-    def test_get_historical_patterns_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_get_historical_patterns_success(self, client, mock_engine_with_data):
         """Test GET /patterns returns patterns successfully."""
         resp = client.get(
             "/api/v1/root-cause/patterns",
@@ -391,9 +382,7 @@ class TestRootCauseRouterSuccessPaths:
         assert isinstance(data["patterns"], list)
         assert data["total_patterns"] >= 1
 
-    def test_analyze_root_causes_enhanced_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_analyze_root_causes_enhanced_success(self, client, mock_engine_with_data):
         """Test POST /analyze performs enhanced analysis successfully."""
         alert = {
             "id": "alert-2",
@@ -418,9 +407,7 @@ class TestRootCauseRouterSuccessPaths:
         assert "hypotheses" in data
         assert isinstance(data["hypotheses"], list)
 
-    def test_predict_root_causes_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_predict_root_causes_success(self, client, mock_engine_with_data):
         """Test POST /predict predicts root causes successfully."""
         current_state = {
             "alerts": [{"alert_type": "cpu_high", "host": "host1"}],
@@ -438,9 +425,7 @@ class TestRootCauseRouterSuccessPaths:
         assert "predictions" in data
         assert data["predictions"]["prediction_horizon"] == 60
 
-    def test_verify_root_cause_hypothesis_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_verify_root_cause_hypothesis_success(self, client, mock_engine_with_data):
         """Test POST /verify verifies hypothesis successfully."""
         resp = client.post(
             "/api/v1/root-cause/verify",
@@ -457,9 +442,7 @@ class TestRootCauseRouterSuccessPaths:
         assert data["status"] == "success"
         assert "verification_result" in data
 
-    def test_get_root_cause_statistics_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_get_root_cause_statistics_success(self, client, mock_engine_with_data):
         """Test GET /statistics returns statistics successfully."""
         resp = client.get("/api/v1/root-cause/statistics")
         assert resp.status_code == 200
@@ -474,9 +457,7 @@ class TestRootCauseRouterSuccessPaths:
         assert stats["historical_patterns"] >= 1
         assert stats["active_hypotheses"] >= 1
 
-    def test_get_active_hypotheses_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_get_active_hypotheses_success(self, client, mock_engine_with_data):
         """Test GET /hypotheses returns active hypotheses successfully."""
         resp = client.get(
             "/api/v1/root-cause/hypotheses",
@@ -490,9 +471,7 @@ class TestRootCauseRouterSuccessPaths:
         assert isinstance(data["hypotheses"], list)
         assert data["total_hypotheses"] >= 1
 
-    def test_delete_hypothesis_success(
-        self, client, mock_engine_with_data
-    ):
+    def test_delete_hypothesis_success(self, client, mock_engine_with_data):
         """Test DELETE /hypotheses/{id} deletes hypothesis successfully."""
         resp = client.delete(
             "/api/v1/root-cause/hypotheses/h-123",
@@ -504,9 +483,7 @@ class TestRootCauseRouterSuccessPaths:
         # Verify hypothesis was moved to history
         assert len(mock_engine_with_data.hypothesis_history) >= 1
 
-    def test_pattern_filtering_by_similarity_threshold(
-        self, client, mock_engine_with_data
-    ):
+    def test_pattern_filtering_by_similarity_threshold(self, client, mock_engine_with_data):
         """Test that patterns are filtered by similarity threshold."""
         symptoms = {
             "alerts": [{"alert_type": "cpu_high", "host": "host1"}],
@@ -521,9 +498,7 @@ class TestRootCauseRouterSuccessPaths:
         # With high threshold, likely no matches
         assert data["total_matches"] >= 0
 
-    def test_pattern_limit_parameter(
-        self, client, mock_engine_with_data
-    ):
+    def test_pattern_limit_parameter(self, client, mock_engine_with_data):
         """Test that limit parameter works for patterns endpoint."""
         resp = client.get(
             "/api/v1/root-cause/patterns",
@@ -533,9 +508,7 @@ class TestRootCauseRouterSuccessPaths:
         data = resp.json()
         assert len(data["patterns"]) <= 1
 
-    def test_hypotheses_limit_parameter(
-        self, client, mock_engine_with_data
-    ):
+    def test_hypotheses_limit_parameter(self, client, mock_engine_with_data):
         """Test that limit parameter works for hypotheses endpoint."""
         resp = client.get(
             "/api/v1/root-cause/hypotheses",
@@ -545,9 +518,7 @@ class TestRootCauseRouterSuccessPaths:
         data = resp.json()
         assert len(data["hypotheses"]) <= 1
 
-    def test_cross_layer_tracking_max_depth_parameter(
-        self, client, mock_engine_with_data
-    ):
+    def test_cross_layer_tracking_max_depth_parameter(self, client, mock_engine_with_data):
         """Test that max_depth parameter works for cross-layer tracking."""
         alert = {
             "id": "alert-3",

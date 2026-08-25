@@ -80,7 +80,9 @@ def test_split_command_chain_quotes():
 
 def test_split_command_chain_fallback_unmatched_quote():
     # shlex fails on unmatched quote and falls back to re.split
-    result = cg._split_command_chain('echo "a && ls')  # noqa: F841  # Variable for test verification
+    result = cg._split_command_chain(
+        'echo "a && ls'
+    )  # noqa: F841  # Variable for test verification
     assert "echo" in result or "ls" in result
 
 
@@ -110,7 +112,9 @@ def test_check_self_termination():
 def test_analyze_command_chain():
     safe = cg._analyze_single_command("ls -la")
     blocked = cg._analyze_single_command("rm -rf /")
-    result = cg._analyze_command_chain(["ls -la", "rm -rf /"], "ls -la && rm -rf /")  # noqa: F841  # Variable for test verification
+    result = cg._analyze_command_chain(
+        ["ls -la", "rm -rf /"], "ls -la && rm -rf /"
+    )  # noqa: F841  # Variable for test verification
     assert result["risk_level"] == cg.RiskLevel.BLOCKED
     assert result["is_chained"] is True
     assert result["chain_count"] == 2
@@ -135,7 +139,9 @@ def test_check_whitelist():
 
 
 def test_check_blacklist():
-    result = cg._check_blacklist("rm -rf /", "rm -rf /")  # noqa: F841  # Variable for test verification
+    result = cg._check_blacklist(
+        "rm -rf /", "rm -rf /"
+    )  # noqa: F841  # Variable for test verification
     assert result["risk_level"] == cg.RiskLevel.BLOCKED
     high = cg._check_blacklist("shutdown now", "shutdown now")
     assert high["risk_level"] == cg.RiskLevel.HIGH
@@ -275,7 +281,9 @@ def test_clamp_newest():
 @pytest.mark.asyncio
 async def test_get_event_logs(monkeypatch):
     monkeypatch.setattr(lc, "_run_ps_json", MagicMock(return_value=[{"x": 1}]))
-    result = await lc.get_event_logs("System", "Error", 1000)  # noqa: F841  # Variable for test verification
+    result = await lc.get_event_logs(
+        "System", "Error", 1000
+    )  # noqa: F841  # Variable for test verification
     assert result == [{"x": 1}]  # noqa: F841  # Variable for test verification
     assert lc._run_ps_json.called
 
@@ -402,7 +410,9 @@ async def test_get_linux_logs_normal(monkeypatch):
     raw = "Jan 15 10:30:45 host msg1\n\nJan 15 10:30:46 host msg2"
     fake = _fake_linux_collector(raw)
     monkeypatch.setitem(sys.modules, "core.linux_collector", fake)
-    result = await lc.get_linux_logs({"host": "h1"}, source="syslog", newest=10)  # noqa: F841  # Variable for test verification
+    result = await lc.get_linux_logs(
+        {"host": "h1"}, source="syslog", newest=10
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 2
     assert result[0]["Platform"] == "linux"
 
@@ -453,7 +463,9 @@ async def test_search_linux_logs_empty_and_errors(monkeypatch):
     for raw in ("", "TIMEOUT", "SSH_NOT_FOUND", "ERROR: fail"):
         fake = _fake_linux_collector(raw)
         monkeypatch.setitem(sys.modules, "core.linux_collector", fake)
-        result = await lc.search_linux_logs({"host": "h1"}, "x", 10)  # noqa: F841  # Variable for test verification
+        result = await lc.search_linux_logs(
+            {"host": "h1"}, "x", 10
+        )  # noqa: F841  # Variable for test verification
         assert result == []  # noqa: F841  # Variable for test verification
 
 

@@ -110,9 +110,9 @@ def _collect_pods(
             pods_info.append({"_truncated": True, "limit": max_pods})
     except ApiException as e:
         _logger.error("K8s Pod collection ApiException: %s", e)
-    except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
-        _logger.exception("Unexpected error during K8s pod collection")
+    except Exception as e:  # noqa: F841 - Exception intentionally unused
+        logging.error("Unexpected exception during K8s pod collection")
+        _logger.error("Unexpected error during K8s pod collection")
     return pods_info
 
 

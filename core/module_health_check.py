@@ -109,7 +109,7 @@ class AIModuleHealth(ModuleHealthCheck):
 
 
 # 全局模块健康检查注册表
-module_health_registry = {
+MODULE_HEALTH_REGISTRY = {
     "database": DatabaseModuleHealth(),
     "redis": RedisModuleHealth(),
     "ai_engine": AIModuleHealth(),
@@ -124,7 +124,7 @@ async def check_all_modules_health() -> Dict[str, Any]:
         所有模块的健康状态
     """
     results = {}
-    for module_name, health_checker in module_health_registry.items():
+    for module_name, health_checker in MODULE_HEALTH_REGISTRY.items():
         try:
             results[module_name] = await health_checker.health_check()
         except Exception as e:

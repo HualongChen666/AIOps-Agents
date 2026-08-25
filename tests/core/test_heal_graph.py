@@ -4,22 +4,23 @@ Comprehensive test suite for core/heal_graph.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-import sys
-import os
 import asyncio
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock, AsyncMock
+import os
+import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.heal_graph import (
+    _HEAL_METRIC_COUNTERS,
     HealState,
     run_heal,
-    _HEAL_METRIC_COUNTERS,
 )
 
 
@@ -87,7 +88,7 @@ class TestRunHeal:
     async def test_run_heal_basic(self):
         """Test basic heal workflow execution"""
         state = HealState(alert={"id": "test-1", "level": "warning"})
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -99,7 +100,7 @@ class TestRunHeal:
             alert={"id": "test-1", "level": "critical", "category": "security"},
             sla_score=5,
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -112,7 +113,7 @@ class TestRunHeal:
             sla_score=3,
             analysis={"root_cause": "high_cpu", "confidence": 0.8},
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -126,7 +127,7 @@ class TestRunHeal:
             analysis={"root_cause": "high_cpu"},
             runbook={"steps": [{"action": "restart_service", "target": "api"}]},
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -135,9 +136,9 @@ class TestRunHeal:
     async def test_run_heal_error_handling(self):
         """Test heal workflow error handling"""
         state = HealState(alert={"id": "test-1", "level": "warning"})
-        
+
         # Mock a node to raise an error
-        with patch('core.heal_graph._fetch_alert', side_effect=Exception("Test error")):
+        with patch("core.heal_graph._fetch_alert", side_effect=Exception("Test error")):
             result = await run_heal(state)
             # Should still return a state, possibly with error set
             assert result is not None
@@ -149,7 +150,7 @@ class TestRunHeal:
             alert={"id": "test-1", "level": "warning"},
             metadata={"trace_id": "test-123", "user": "admin"},
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -162,7 +163,7 @@ class TestHealGraphNodes:
     async def test_fetch_alert_node(self):
         """Test fetch_alert node"""
         from core.heal_graph import _fetch_alert
-        
+
         state = HealState(alert={"id": "test-1", "level": "warning"})
         result = await _fetch_alert(state)
         assert result is not None
@@ -172,7 +173,7 @@ class TestHealGraphNodes:
     async def test_check_sla_node(self):
         """Test check_sla node"""
         from core.heal_graph import _check_sla
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "critical", "category": "security"},
         )
@@ -185,13 +186,13 @@ class TestHealGraphNodes:
     async def test_invoke_agent_node(self):
         """Test invoke_agent node"""
         from core.heal_graph import _invoke_agent
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
         )
-        
-        with patch('core.heal_graph.analyze', return_value={"root_cause": "test"}):
+
+        with patch("core.heal_graph.analyze", return_value={"root_cause": "test"}):
             result = await _invoke_agent(state)
             assert result is not None
             assert result.current_node == "invoke_agent"
@@ -200,13 +201,13 @@ class TestHealGraphNodes:
     async def test_generate_runbook_node(self):
         """Test generate_runbook node"""
         from core.heal_graph import _generate_runbook
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
             analysis={"root_cause": "high_cpu"},
         )
-        
+
         result = await _generate_runbook(state)
         assert result is not None
         assert result.current_node == "generate_runbook"
@@ -215,14 +216,14 @@ class TestHealGraphNodes:
     async def test_apply_fix_node(self):
         """Test apply_fix node"""
         from core.heal_graph import _apply_fix
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
             analysis={"root_cause": "high_cpu"},
             runbook={"steps": [{"action": "restart"}]},
         )
-        
+
         result = await _apply_fix(state)
         assert result is not None
         assert result.current_node == "apply_fix"
@@ -231,7 +232,7 @@ class TestHealGraphNodes:
     async def test_evaluate_node(self):
         """Test evaluate node"""
         from core.heal_graph import _evaluate
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
@@ -239,7 +240,7 @@ class TestHealGraphNodes:
             runbook={"steps": [{"action": "restart"}]},
             fix_result={"status": "success"},
         )
-        
+
         result = await _evaluate(state)
         assert result is not None
         assert result.current_node == "evaluate"
@@ -248,7 +249,7 @@ class TestHealGraphNodes:
     async def test_rollback_node(self):
         """Test rollback node"""
         from core.heal_graph import _rollback
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
@@ -257,7 +258,7 @@ class TestHealGraphNodes:
             fix_result={"status": "success"},
             verification={"passed": False},
         )
-        
+
         result = await _rollback(state)
         assert result is not None
         assert result.current_node == "rollback"
@@ -266,7 +267,7 @@ class TestHealGraphNodes:
     async def test_complete_node(self):
         """Test complete node"""
         from core.heal_graph import _complete
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
@@ -275,7 +276,7 @@ class TestHealGraphNodes:
             fix_result={"status": "success"},
             verification={"passed": True},
         )
-        
+
         result = await _complete(state)
         assert result is not None
         assert result.current_node == "complete"
@@ -287,7 +288,7 @@ class TestHealGraphFallback:
     def test_fallback_stategraph_init(self):
         """Test fallback StateGraph initialization"""
         from core.heal_graph import StateGraph
-        
+
         graph = StateGraph()
         assert graph.nodes == {}
         assert graph.edges == []
@@ -296,7 +297,7 @@ class TestHealGraphFallback:
     def test_fallback_stategraph_add_node(self):
         """Test adding node to fallback StateGraph"""
         from core.heal_graph import StateGraph
-        
+
         graph = StateGraph()
         graph.add_node("test_node", lambda x: x)
         assert "test_node" in graph.nodes
@@ -304,30 +305,30 @@ class TestHealGraphFallback:
     def test_fallback_stategraph_set_entry_point(self):
         """Test setting entry point in fallback StateGraph"""
         from core.heal_graph import StateGraph
-        
+
         graph = StateGraph()
         graph.set_entry_point("start")
         assert graph.entry_point == "start"
 
     def test_fallback_stategraph_add_edge(self):
         """Test adding edge to fallback StateGraph"""
-        from core.heal_graph import StateGraph, END
-        
+        from core.heal_graph import END, StateGraph
+
         graph = StateGraph()
         graph.add_edge("node1", "node2")
         assert ("node1", "node2") in graph.edges
 
     def test_fallback_stategraph_compile(self):
         """Test compiling fallback StateGraph"""
-        from core.heal_graph import StateGraph, END
-        
+        from core.heal_graph import END, StateGraph
+
         graph = StateGraph()
         graph.add_node("start", lambda x: x)
         graph.add_node("end", lambda x: x)
         graph.set_entry_point("start")
         graph.add_edge("start", "end")
         graph.add_edge("end", END)
-        
+
         compiled = graph.compile()
         assert compiled is not None
         assert asyncio.iscoroutinefunction(compiled)
@@ -335,28 +336,28 @@ class TestHealGraphFallback:
     @pytest.mark.asyncio
     async def test_fallback_stategraph_execution(self):
         """Test executing compiled fallback StateGraph"""
-        from core.heal_graph import StateGraph, END
-        
+        from core.heal_graph import END, StateGraph
+
         graph = StateGraph()
-        
+
         async def start_node(state):
             state["visited"] = state.get("visited", []) + ["start"]
             return state
-        
+
         async def end_node(state):
             state["visited"] = state.get("visited", []) + ["end"]
             return state
-        
+
         graph.add_node("start", start_node)
         graph.add_node("end", end_node)
         graph.set_entry_point("start")
         graph.add_edge("start", "end")
         graph.add_edge("end", END)
-        
+
         compiled = graph.compile()
         state = {"visited": []}
         result = await compiled(state)
-        
+
         assert "start" in result["visited"]
         assert "end" in result["visited"]
 
@@ -364,50 +365,50 @@ class TestHealGraphFallback:
     async def test_fallback_stategraph_no_entry_point(self):
         """Test fallback StateGraph without entry point"""
         from core.heal_graph import StateGraph
-        
+
         graph = StateGraph()
         compiled = graph.compile()
-        
+
         state = {"test": "data"}
         result = await compiled(state)
-        
+
         # Should return state unchanged
         assert result == state
 
     @pytest.mark.asyncio
     async def test_fallback_stategraph_node_not_found(self):
         """Test fallback StateGraph with missing node"""
-        from core.heal.graph import StateGraph, END
-        
+        from core.heal.graph import END, StateGraph
+
         graph = StateGraph()
         graph.set_entry_point("missing_node")
         graph.add_edge("missing_node", END)
-        
+
         compiled = graph.compile()
         state = {"test": "data"}
         result = await compiled(state)
-        
+
         # Should handle missing node gracefully
         assert result is not None
 
     @pytest.mark.asyncio
     async def test_fallback_stategraph_node_exception(self):
         """Test fallback StateGraph with node exception"""
-        from core.heal_graph import StateGraph, END
-        
+        from core.heal_graph import END, StateGraph
+
         graph = StateGraph()
-        
+
         async def failing_node(state):
             raise Exception("Node failed")
-        
+
         graph.add_node("failing", failing_node)
         graph.set_entry_point("failing")
         graph.add_edge("failing", END)
-        
+
         compiled = graph.compile()
         state = HealState(alert={"id": "test"})
         result = await compiled(state)
-        
+
         # Should handle exception gracefully
         assert result is not None
 
@@ -418,7 +419,7 @@ class TestCheckpointSQLiteFallback:
     def test_checkpoint_sqlite_init(self):
         """Test CheckpointSQLite initialization"""
         from core.heal_graph import CheckpointSQLite
-        
+
         checkpoint = CheckpointSQLite("test.db")
         assert checkpoint.db_path == "test.db"
         assert checkpoint._pending == {}
@@ -426,30 +427,30 @@ class TestCheckpointSQLiteFallback:
     def test_checkpoint_sqlite_put(self):
         """Test CheckpointSQLite put operation"""
         from core.heal_graph import CheckpointSQLite
-        
+
         checkpoint = CheckpointSQLite("test.db")
         checkpoint.put("config1", {"state": "test"})
-        
+
         assert "config1" in checkpoint._pending
         assert checkpoint._pending["config1"] == {"state": "test"}
 
     def test_checkpoint_sqlite_get(self):
         """Test CheckpointSQLite get operation"""
         from core.heal_graph import CheckpointSQLite
-        
+
         checkpoint = CheckpointSQLite("test.db")
         checkpoint.put("config1", {"state": "test"})
-        
+
         result = checkpoint.get("config1")
         assert result == {"state": "test"}
 
     def test_checkpoint_sqlite_get_missing(self):
         """Test CheckpointSQLite get operation with missing key"""
         from core.heal_graph import CheckpointSQLite
-        
+
         checkpoint = CheckpointSQLite("test.db")
         result = checkpoint.get("missing")
-        
+
         assert result is None
 
 
@@ -485,7 +486,7 @@ class TestHealGraphIntegration:
             },
             sla_score=3,
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -508,7 +509,7 @@ class TestHealGraphIntegration:
             },
             sla_score=5,
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -520,7 +521,7 @@ class TestHealGraphIntegration:
             alert={"id": "test-1", "level": "warning"},
             metadata={"dry_run": True},
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -532,7 +533,7 @@ class TestHealGraphIntegration:
             alert={"id": "test-1", "level": "warning"},
             metadata={"trace_id": "trace-123"},
         )
-        
+
         result = await run_heal(state)
         assert result is not None
         assert isinstance(result, HealState)
@@ -548,8 +549,8 @@ class TestHealGraphErrorRecovery:
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
         )
-        
-        with patch('core.heal_graph.analyze', side_effect=Exception("Analysis failed")):
+
+        with patch("core.heal_graph.analyze", side_effect=Exception("Analysis failed")):
             result = await run_heal(state)
             assert result is not None
             # Should handle error gracefully
@@ -563,8 +564,8 @@ class TestHealGraphErrorRecovery:
             sla_score=3,
             analysis={"root_cause": "test"},
         )
-        
-        with patch('core.heal_graph._generate_runbook', side_effect=Exception("Runbook failed")):
+
+        with patch("core.heal_graph._generate_runbook", side_effect=Exception("Runbook failed")):
             result = await run_heal(state)
             assert result is not None
             assert isinstance(result, HealState)
@@ -578,8 +579,8 @@ class TestHealGraphErrorRecovery:
             analysis={"root_cause": "test"},
             runbook={"steps": [{"action": "restart"}]},
         )
-        
-        with patch('core.heal_graph._apply_fix', side_effect=Exception("Fix failed")):
+
+        with patch("core.heal_graph._apply_fix", side_effect=Exception("Fix failed")):
             result = await run_heal(state)
             assert result is not None
             assert isinstance(result, HealState)
@@ -591,12 +592,12 @@ class TestHealGraphStateTransitions:
     @pytest.mark.asyncio
     async def test_state_transition_fetch_to_check_sla(self):
         """Test state transition from fetch_alert to check_sla"""
-        from core.heal_graph import _fetch_alert, _check_sla
-        
+        from core.heal_graph import _check_sla, _fetch_alert
+
         state = HealState(alert={"id": "test-1", "level": "warning"})
         state = await _fetch_alert(state)
         assert state.current_node == "fetch_alert"
-        
+
         state = await _check_sla(state)
         assert state.current_node == "check_sla"
 
@@ -604,7 +605,7 @@ class TestHealGraphStateTransitions:
     async def test_state_transition_with_rollback(self):
         """Test state transition when rollback is needed"""
         from core.heal_graph import _evaluate, _rollback
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
@@ -613,10 +614,10 @@ class TestHealGraphStateTransitions:
             fix_result={"status": "success"},
             verification={"passed": False, "reason": "Still failing"},
         )
-        
+
         state = await _evaluate(state)
         assert state.current_node == "evaluate"
-        
+
         state = await _rollback(state)
         assert state.current_node == "rollback"
 
@@ -628,14 +629,14 @@ class TestHealGraphDecisionRecording:
     async def test_decision_recording_in_apply_fix(self):
         """Test that decisions are recorded during apply_fix"""
         from core.heal_graph import _apply_fix
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
             analysis={"root_cause": "test"},
             runbook={"steps": [{"action": "restart"}]},
         )
-        
+
         result = await _apply_fix(state)
         # Verify decisions are recorded
         assert isinstance(result.decisions, list)
@@ -644,7 +645,7 @@ class TestHealGraphDecisionRecording:
     async def test_decision_recording_in_evaluate(self):
         """Test that decisions are recorded during evaluate"""
         from core.heal_graph import _evaluate
-        
+
         state = HealState(
             alert={"id": "test-1", "level": "warning"},
             sla_score=3,
@@ -652,7 +653,7 @@ class TestHealGraphDecisionRecording:
             runbook={"steps": [{"action": "restart"}]},
             fix_result={"status": "success"},
         )
-        
+
         result = await _evaluate(state)
         # Verify decisions are recorded
         assert isinstance(result.decisions, list)

@@ -564,7 +564,10 @@ def test_advanced_ai_invalid_data_points(client, admin_headers, monkeypatch):
     # Add invalid data points that will trigger ValueError or KeyError
     historical_data[3] = {"timestamp": "invalid-timestamp", "value": 3.0}  # Invalid timestamp
     historical_data[7] = {"value": 7.0}  # Missing timestamp key
-    historical_data[10] = {"timestamp": "2026-01-01T10:00:00Z", "value": "not-a-number"}  # Invalid value
+    historical_data[10] = {
+        "timestamp": "2026-01-01T10:00:00Z",
+        "value": "not-a-number",
+    }  # Invalid value
 
     r = client.post(
         "/api/v1/ai-advanced/predict/time-series",
@@ -611,12 +614,32 @@ def test_advanced_ai_all_endpoints_unavailable(client, admin_headers, monkeypatc
     monkeypatch.setattr(mod, "ADVANCED_AI_AVAILABLE", False)
 
     endpoints = [
-        ("POST", "/api/v1/ai-advanced/predict/anomalies", {"current_data": {"cpu": 95.0}, "historical_baseline": {"cpu": [1, 2, 3]}}),
-        ("POST", "/api/v1/ai-advanced/learning/update", {"new_data": {"x": 1}, "feedback": {"x": 0.5}, "learning_mode": "online"}),
-        ("POST", "/api/v1/ai-advanced/conversation", {"user_input": "hi", "conversation_id": "c1", "user_id": "u1"}),
+        (
+            "POST",
+            "/api/v1/ai-advanced/predict/anomalies",
+            {"current_data": {"cpu": 95.0}, "historical_baseline": {"cpu": [1, 2, 3]}},
+        ),
+        (
+            "POST",
+            "/api/v1/ai-advanced/learning/update",
+            {"new_data": {"x": 1}, "feedback": {"x": 0.5}, "learning_mode": "online"},
+        ),
+        (
+            "POST",
+            "/api/v1/ai-advanced/conversation",
+            {"user_input": "hi", "conversation_id": "c1", "user_id": "u1"},
+        ),
         ("GET", "/api/v1/ai-advanced/conversation/c1", None),
-        ("POST", "/api/v1/ai-advanced/explain", {"decision": "restart", "decision_context": {"cpu": 90}}),
-        ("POST", "/api/v1/ai-advanced/knowledge/learn", {"experience_data": {"x": 1}, "outcome": "success"}),
+        (
+            "POST",
+            "/api/v1/ai-advanced/explain",
+            {"decision": "restart", "decision_context": {"cpu": 90}},
+        ),
+        (
+            "POST",
+            "/api/v1/ai-advanced/knowledge/learn",
+            {"experience_data": {"x": 1}, "outcome": "success"},
+        ),
         ("GET", "/api/v1/ai-advanced/knowledge", None),
         ("GET", "/api/v1/ai-advanced/statistics", None),
         ("GET", "/api/v1/ai-advanced/learning/history", None),
@@ -635,7 +658,10 @@ def test_advanced_ai_all_endpoints_unavailable(client, admin_headers, monkeypatc
         assert r.status_code == 503
         # Check for the error message in the response (may be in different format)
         response_data = r.json()
-        assert "高级AI能力不可用" in str(response_data) or "not available" in str(response_data).lower()
+        assert (
+            "高级AI能力不可用" in str(response_data)
+            or "not available" in str(response_data).lower()
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -974,21 +1000,27 @@ def test_collaboration_errors(client, admin_headers, monkeypatch):
 
     # Test get_workspace with RuntimeError (lines 117-119)
     monkeypatch.setattr(
-        mod, "engine_get_workspace", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("get error"))
+        mod,
+        "engine_get_workspace",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("get error")),
     )
     r = client.get("/api/v1/collaboration/workspaces/ws1", headers=admin_headers)
     assert r.status_code == 500
 
     # Test create_workspace with RuntimeError (lines 146-148)
     monkeypatch.setattr(
-        mod, "engine_create_workspace", lambda **k: (_ for _ in ()).throw(RuntimeError("create error"))
+        mod,
+        "engine_create_workspace",
+        lambda **k: (_ for _ in ()).throw(RuntimeError("create error")),
     )
     r = client.post("/api/v1/collaboration/workspaces", headers=admin_headers, json={"name": "x"})
     assert r.status_code == 500
 
     # Test post_message with RuntimeError (lines 166-168)
     monkeypatch.setattr(
-        mod, "engine_post_message", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("post error"))
+        mod,
+        "engine_post_message",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("post error")),
     )
     r = client.post(
         "/api/v1/collaboration/workspaces/ws1/messages",
@@ -1010,7 +1042,9 @@ def test_collaboration_errors(client, admin_headers, monkeypatch):
 
     # Test add_task with RuntimeError (lines 186-188)
     monkeypatch.setattr(
-        mod, "engine_add_task", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("add task error"))
+        mod,
+        "engine_add_task",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("add task error")),
     )
     r = client.post(
         "/api/v1/collaboration/workspaces/ws1/tasks",
@@ -1021,7 +1055,9 @@ def test_collaboration_errors(client, admin_headers, monkeypatch):
 
     # Test update_task with ValueError (lines 206-207)
     monkeypatch.setattr(
-        mod, "engine_assign_task", lambda *a, **k: (_ for _ in ()).throw(ValueError("task not found"))
+        mod,
+        "engine_assign_task",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("task not found")),
     )
     r = client.patch(
         "/api/v1/collaboration/workspaces/ws1/tasks/t1",
@@ -1032,7 +1068,9 @@ def test_collaboration_errors(client, admin_headers, monkeypatch):
 
     # Test update_task with RuntimeError (lines 208-210)
     monkeypatch.setattr(
-        mod, "engine_assign_task", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("update error"))
+        mod,
+        "engine_assign_task",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("update error")),
     )
     r = client.patch(
         "/api/v1/collaboration/workspaces/ws1/tasks/t1",
@@ -1043,21 +1081,27 @@ def test_collaboration_errors(client, admin_headers, monkeypatch):
 
     # Test resolve_workspace with ValueError (lines 226-227)
     monkeypatch.setattr(
-        mod, "engine_resolve_workspace", lambda *a, **k: (_ for _ in ()).throw(ValueError("workspace not found"))
+        mod,
+        "engine_resolve_workspace",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("workspace not found")),
     )
     r = client.post("/api/v1/collaboration/workspaces/ws1/resolve", headers=admin_headers)
     assert r.status_code == 404
 
     # Test resolve_workspace with RuntimeError (lines 228-230)
     monkeypatch.setattr(
-        mod, "engine_resolve_workspace", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("resolve error"))
+        mod,
+        "engine_resolve_workspace",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("resolve error")),
     )
     r = client.post("/api/v1/collaboration/workspaces/ws1/resolve", headers=admin_headers)
     assert r.status_code == 500
 
     # Test get_active_context with RuntimeError (lines 247-249)
     monkeypatch.setattr(
-        mod, "engine_get_active_context", lambda: (_ for _ in ()).throw(RuntimeError("context error"))
+        mod,
+        "engine_get_active_context",
+        lambda: (_ for _ in ()).throw(RuntimeError("context error")),
     )
     r = client.get("/api/v1/collaboration/active-context", headers=admin_headers)
     assert r.status_code == 500

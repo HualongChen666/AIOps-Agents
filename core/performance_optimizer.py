@@ -663,7 +663,7 @@ class PerformanceOptimizer:
 
 
 # Global instance
-performance_optimizer = PerformanceOptimizer()
+PERFORMANCE_OPTIMIZER = PerformanceOptimizer()
 
 
 def get_performance_optimizer(config: Optional[Dict[str, Any]] = None) -> PerformanceOptimizer:
@@ -676,7 +676,7 @@ def get_performance_optimizer(config: Optional[Dict[str, Any]] = None) -> Perfor
     Returns:
         PerformanceOptimizer instance
     """
-    global performance_optimizer
-    if config is not None and performance_optimizer is None:
-        performance_optimizer = PerformanceOptimizer(config)
-    return performance_optimizer
+    global PERFORMANCE_OPTIMIZER
+    if config is not None and PERFORMANCE_OPTIMIZER is None:
+        PERFORMANCE_OPTIMIZER = PerformanceOptimizer(config)
+    return PERFORMANCE_OPTIMIZER

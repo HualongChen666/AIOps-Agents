@@ -4,29 +4,30 @@ Comprehensive test suite for Database Advanced API Router
 Tests all endpoints with various scenarios including success, error cases, validation, and mocking
 """
 
-import pytest
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.database_advanced_router import (
-    router,
+    DatabaseBackup,
+    DatabaseBackupCreate,
+    DatabaseIndex,
+    DatabaseIndexCreate,
+    DatabaseMigration,
+    DatabaseMigrationCreate,
     DatabaseOptimizationRequest,
     DatabaseOptimizationResponse,
     DatabasePerformanceMetrics,
     DatabaseQuery,
-    DatabaseIndex,
-    DatabaseIndexCreate,
-    DatabaseBackup,
-    DatabaseBackupCreate,
-    DatabaseMigration,
-    DatabaseMigrationCreate,
+    _backups,
+    _indexes,
+    _migrations,
     _optimizations,
     _queries,
-    _indexes,
-    _backups,
-    _migrations
+    router,
 )
 
 
@@ -34,6 +35,7 @@ from api.database_advanced_router import (
 def client():
     """Create a test client for the database router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -64,7 +66,7 @@ class TestDatabaseOptimizationEndpoints:
             "connection_optimizations": 1,
             "cache_optimizations": 1,
             "performance_improvement": 15.5,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/database/optimization")
@@ -83,7 +85,7 @@ class TestDatabaseOptimizationEndpoints:
             "connection_optimizations": 1,
             "cache_optimizations": 1,
             "performance_improvement": 15.5,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
         _optimizations["opt-2"] = {
             "optimization_id": "opt-2",
@@ -92,7 +94,7 @@ class TestDatabaseOptimizationEndpoints:
             "connection_optimizations": 0,
             "cache_optimizations": 0,
             "performance_improvement": 0.0,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/database/optimization?status_filter=completed")
@@ -110,7 +112,7 @@ class TestDatabaseOptimizationEndpoints:
                 "connection_optimizations": 1,
                 "cache_optimizations": 1,
                 "performance_improvement": 15.5,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         response = client.get("/api/v1/database/optimization?limit=3")
@@ -136,7 +138,7 @@ class TestDatabaseOptimizationEndpoints:
         assert isinstance(data, list)
         assert len(data) == 0
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_create_optimization_success(self, mock_get_manager, client):
         """Test POST /optimization - successful creation"""
         mock_manager = Mock()
@@ -144,7 +146,7 @@ class TestDatabaseOptimizationEndpoints:
             "overall_status": "complete",
             "query_optimization": {"optimizations_count": 5},
             "connection_optimization": True,
-            "cache_optimization": True
+            "cache_optimization": True,
         }
         mock_get_manager.return_value = mock_manager
 
@@ -152,7 +154,7 @@ class TestDatabaseOptimizationEndpoints:
             "enable_query_optimization": True,
             "enable_connection_optimization": True,
             "enable_cache_optimization": True,
-            "target_tables": ["users", "orders"]
+            "target_tables": ["users", "orders"],
         }
 
         response = client.post("/api/v1/database/optimization", json=request_data)
@@ -162,7 +164,7 @@ class TestDatabaseOptimizationEndpoints:
         assert data["status"] in ["completed", "partial"]
         assert data["query_optimizations"] >= 0
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_create_optimization_with_partial_status(self, mock_get_manager, client):
         """Test POST /optimization with partial completion"""
         mock_manager = Mock()
@@ -170,14 +172,14 @@ class TestDatabaseOptimizationEndpoints:
             "overall_status": "partial",
             "query_optimization": {"optimizations_count": 3},
             "connection_optimization": False,
-            "cache_optimization": True
+            "cache_optimization": True,
         }
         mock_get_manager.return_value = mock_manager
 
         request_data = {
             "enable_query_optimization": True,
             "enable_connection_optimization": False,
-            "enable_cache_optimization": True
+            "enable_cache_optimization": True,
         }
 
         response = client.post("/api/v1/database/optimization", json=request_data)
@@ -189,20 +191,18 @@ class TestDatabaseOptimizationEndpoints:
         """Test POST /optimization with invalid data"""
         request_data = {
             "enable_query_optimization": "invalid",  # Should be boolean
-            "target_tables": "not_a_list"  # Should be a list
+            "target_tables": "not_a_list",  # Should be a list
         }
 
         response = client.post("/api/v1/database/optimization", json=request_data)
         assert response.status_code == 422  # Validation error
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_create_optimization_manager_error(self, mock_get_manager, client):
         """Test POST /optimization when manager raises an error"""
         mock_get_manager.side_effect = Exception("Manager error")
 
-        request_data = {
-            "enable_query_optimization": True
-        }
+        request_data = {"enable_query_optimization": True}
 
         response = client.post("/api/v1/database/optimization", json=request_data)
         assert response.status_code == 500
@@ -211,13 +211,15 @@ class TestDatabaseOptimizationEndpoints:
         """Test POST /optimization with minimal required fields"""
         request_data = {}
 
-        with patch('core.database_optimization_manager.get_database_optimization_manager') as mock_get_manager:
+        with patch(
+            "core.database_optimization_manager.get_database_optimization_manager"
+        ) as mock_get_manager:
             mock_manager = Mock()
             mock_manager.run_comprehensive_optimization.return_value = {
                 "overall_status": "complete",
                 "query_optimization": {"optimizations_count": 0},
                 "connection_optimization": False,
-                "cache_optimization": False
+                "cache_optimization": False,
             }
             mock_get_manager.return_value = mock_manager
 
@@ -228,7 +230,7 @@ class TestDatabaseOptimizationEndpoints:
 class TestDatabasePerformanceEndpoints:
     """Test database performance endpoints"""
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_get_performance_success(self, mock_get_manager, client):
         """Test GET /performance - successful retrieval"""
         mock_manager = Mock()
@@ -247,7 +249,7 @@ class TestDatabasePerformanceEndpoints:
         assert "active_queries" in data
         assert "timestamp" in data
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_get_performance_manager_error(self, mock_get_manager, client):
         """Test GET /performance when manager raises an error"""
         mock_get_manager.side_effect = Exception("Manager error")
@@ -261,14 +263,14 @@ class TestDatabasePerformanceEndpoints:
 class TestDatabaseQueryEndpoints:
     """Test database query endpoints"""
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_get_queries_success(self, mock_get_manager, client):
         """Test GET /queries - successful retrieval"""
         mock_manager = Mock()
         mock_manager.analyze_slow_queries.return_value = {
             "slow_queries": [
                 {"query_id": "q1", "execution_count": 10, "avg_duration_ms": 150},
-                {"query_id": "q2", "execution_count": 5, "avg_duration_ms": 200}
+                {"query_id": "q2", "execution_count": 5, "avg_duration_ms": 200},
             ]
         }
         mock_get_manager.return_value = mock_manager
@@ -278,14 +280,14 @@ class TestDatabaseQueryEndpoints:
         data = response.json()
         assert isinstance(data, list)
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_get_queries_slow_only(self, mock_get_manager, client):
         """Test GET /queries with slow_only filter"""
         mock_manager = Mock()
         mock_manager.analyze_slow_queries.return_value = {
             "slow_queries": [
                 {"query_id": "q1", "execution_count": 10, "avg_duration_ms": 150},
-                {"query_id": "q2", "execution_count": 5, "avg_duration_ms": 50}
+                {"query_id": "q2", "execution_count": 5, "avg_duration_ms": 50},
             ]
         }
         mock_get_manager.return_value = mock_manager
@@ -296,7 +298,7 @@ class TestDatabaseQueryEndpoints:
         # Only queries with avg_duration_ms > 100 should be returned
         assert all(q["avg_duration_ms"] > 100 for q in data)
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_get_queries_with_limit(self, mock_get_manager, client):
         """Test GET /queries with limit parameter"""
         mock_manager = Mock()
@@ -313,7 +315,7 @@ class TestDatabaseQueryEndpoints:
         data = response.json()
         assert len(data) <= 5
 
-    @patch('core.database_optimization_manager.get_database_optimization_manager')
+    @patch("core.database_optimization_manager.get_database_optimization_manager")
     def test_get_queries_manager_error(self, mock_get_manager, client):
         """Test GET /queries when manager raises an error"""
         mock_get_manager.side_effect = Exception("Manager error")
@@ -337,7 +339,7 @@ class TestDatabaseIndexEndpoints:
             "index_type": "btree",
             "is_unique": True,
             "size_bytes": 1024000,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/database/indexes")
@@ -356,7 +358,7 @@ class TestDatabaseIndexEndpoints:
             "index_type": "btree",
             "is_unique": True,
             "size_bytes": 1024000,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
         }
         _indexes["idx-2"] = {
             "index_id": "idx-2",
@@ -366,7 +368,7 @@ class TestDatabaseIndexEndpoints:
             "index_type": "btree",
             "is_unique": False,
             "size_bytes": 2048000,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/database/indexes?table_name=users")
@@ -390,7 +392,7 @@ class TestDatabaseIndexEndpoints:
             "table_name": "products",
             "columns": ["name", "category"],
             "index_type": "btree",
-            "is_unique": False
+            "is_unique": False,
         }
 
         response = client.post("/api/v1/database/indexes", json=request_data)
@@ -412,11 +414,7 @@ class TestDatabaseIndexEndpoints:
 
     def test_create_index_minimal_request(self, client):
         """Test POST /indexes with minimal required fields"""
-        request_data = {
-            "index_name": "idx_test",
-            "table_name": "test_table",
-            "columns": ["col1"]
-        }
+        request_data = {"index_name": "idx_test", "table_name": "test_table", "columns": ["col1"]}
 
         response = client.post("/api/v1/database/indexes", json=request_data)
         assert response.status_code == 200
@@ -438,7 +436,7 @@ class TestDatabaseBackupEndpoints:
             "size_bytes": 1073741824,
             "status": "completed",
             "created_at": datetime.utcnow().isoformat(),
-            "completed_at": datetime.utcnow().isoformat()
+            "completed_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/database/backups")
@@ -456,7 +454,7 @@ class TestDatabaseBackupEndpoints:
             "size_bytes": 1073741824,
             "status": "completed",
             "created_at": datetime.utcnow().isoformat(),
-            "completed_at": datetime.utcnow().isoformat()
+            "completed_at": datetime.utcnow().isoformat(),
         }
         _backups["backup-2"] = {
             "backup_id": "backup-2",
@@ -465,7 +463,7 @@ class TestDatabaseBackupEndpoints:
             "size_bytes": 536870912,
             "status": "completed",
             "created_at": datetime.utcnow().isoformat(),
-            "completed_at": datetime.utcnow().isoformat()
+            "completed_at": datetime.utcnow().isoformat(),
         }
 
         response = client.get("/api/v1/database/backups?database_name=production")
@@ -482,7 +480,7 @@ class TestDatabaseBackupEndpoints:
             "size_bytes": 1073741824,
             "status": "completed",
             "created_at": datetime.utcnow().isoformat(),
-            "completed_at": datetime.utcnow().isoformat()
+            "completed_at": datetime.utcnow().isoformat(),
         }
         _backups["backup-2"] = {
             "backup_id": "backup-2",
@@ -491,7 +489,7 @@ class TestDatabaseBackupEndpoints:
             "size_bytes": 536870912,
             "status": "in_progress",
             "created_at": datetime.utcnow().isoformat(),
-            "completed_at": None
+            "completed_at": None,
         }
 
         response = client.get("/api/v1/database/backups?status_filter=completed")
@@ -512,11 +510,7 @@ class TestDatabaseBackupEndpoints:
         # Note: The backup manager function doesn't exist in the actual codebase,
         # so we'll test the endpoint without mocking the manager
         # The endpoint should handle the import error gracefully
-        request_data = {
-            "database_name": "production",
-            "backup_type": "full",
-            "compression": True
-        }
+        request_data = {"database_name": "production", "backup_type": "full", "compression": True}
 
         # This may fail due to missing import, but we'll test the structure
         try:
@@ -534,7 +528,7 @@ class TestDatabaseBackupEndpoints:
         request_data = {
             "database_name": "production",
             "backup_type": "incremental",
-            "compression": False
+            "compression": False,
         }
 
         try:
@@ -558,9 +552,7 @@ class TestDatabaseBackupEndpoints:
         """Test POST /backups when manager raises an error"""
         # Note: The backup manager function doesn't exist in the actual codebase
         # We'll test the endpoint structure
-        request_data = {
-            "database_name": "production"
-        }
+        request_data = {"database_name": "production"}
 
         try:
             response = client.post("/api/v1/database/backups", json=request_data)
@@ -583,7 +575,7 @@ class TestDatabaseMigrationEndpoints:
             "description": "Initial users table creation",
             "status": "applied",
             "applied_at": datetime.utcnow().isoformat(),
-            "rollback_script": "DROP TABLE users;"
+            "rollback_script": "DROP TABLE users;",
         }
 
         response = client.get("/api/v1/database/migrations")
@@ -601,7 +593,7 @@ class TestDatabaseMigrationEndpoints:
             "description": "Initial users table creation",
             "status": "applied",
             "applied_at": datetime.utcnow().isoformat(),
-            "rollback_script": "DROP TABLE users;"
+            "rollback_script": "DROP TABLE users;",
         }
         _migrations["migration-2"] = {
             "migration_id": "migration-2",
@@ -610,7 +602,7 @@ class TestDatabaseMigrationEndpoints:
             "description": "Add index on users.email",
             "status": "pending",
             "applied_at": None,
-            "rollback_script": "DROP INDEX idx_users_email;"
+            "rollback_script": "DROP INDEX idx_users_email;",
         }
 
         response = client.get("/api/v1/database/migrations?status_filter=pending")
@@ -633,7 +625,7 @@ class TestDatabaseMigrationEndpoints:
             "name": "add_preferences_table",
             "description": "Create user preferences table",
             "up_script": "CREATE TABLE user_preferences (id SERIAL PRIMARY KEY, user_id INTEGER, preferences JSONB);",
-            "down_script": "DROP TABLE user_preferences;"
+            "down_script": "DROP TABLE user_preferences;",
         }
 
         response = client.post("/api/v1/database/migrations", json=request_data)
@@ -660,7 +652,7 @@ class TestDatabaseMigrationEndpoints:
             "version": "005",
             "name": "test_migration",
             "description": "Test migration",
-            "up_script": "CREATE TABLE test (id INT);"
+            "up_script": "CREATE TABLE test (id INT);",
         }
 
         response = client.post("/api/v1/database/migrations", json=request_data)
@@ -687,7 +679,7 @@ class TestDatabaseRouterErrorHandling:
         response = client.post(
             "/api/v1/database/optimization",
             data="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 422
 
@@ -699,17 +691,17 @@ class TestDatabaseRouterDataValidation:
         """Test field type validation for optimization request"""
         # Note: Pydantic handles type validation, but the API may accept string "true"
         # We'll test with invalid type that should fail
-        request_data = {
-            "enable_query_optimization": "not_a_boolean"  # Invalid type
-        }
+        request_data = {"enable_query_optimization": "not_a_boolean"}  # Invalid type
 
-        with patch('core.database_optimization_manager.get_database_optimization_manager') as mock_get_manager:
+        with patch(
+            "core.database_optimization_manager.get_database_optimization_manager"
+        ) as mock_get_manager:
             mock_manager = Mock()
             mock_manager.run_comprehensive_optimization.return_value = {
                 "overall_status": "complete",
                 "query_optimization": {"optimizations_count": 0},
                 "connection_optimization": False,
-                "cache_optimization": False
+                "cache_optimization": False,
             }
             mock_get_manager.return_value = mock_manager
 
@@ -724,7 +716,7 @@ class TestDatabaseRouterDataValidation:
             "index_name": "test_idx",
             "table_name": "test_table",
             "columns": ["col1"],
-            "index_type": "invalid_type"
+            "index_type": "invalid_type",
         }
         response = client.post("/api/v1/database/indexes", json=request_data)
         # Should still work as index_type is not strictly validated
@@ -747,13 +739,15 @@ class TestDatabaseRouterResponseModels:
 
     def test_optimization_response_structure(self, client):
         """Test optimization response has correct structure"""
-        with patch('core.database_optimization_manager.get_database_optimization_manager') as mock_get_manager:
+        with patch(
+            "core.database_optimization_manager.get_database_optimization_manager"
+        ) as mock_get_manager:
             mock_manager = Mock()
             mock_manager.run_comprehensive_optimization.return_value = {
                 "overall_status": "complete",
                 "query_optimization": {"optimizations_count": 5},
                 "connection_optimization": True,
-                "cache_optimization": True
+                "cache_optimization": True,
             }
             mock_get_manager.return_value = mock_manager
 
@@ -761,16 +755,22 @@ class TestDatabaseRouterResponseModels:
             assert response.status_code == 200
             data = response.json()
             required_fields = [
-                "optimization_id", "status", "query_optimizations",
-                "connection_optimizations", "cache_optimizations",
-                "performance_improvement", "timestamp"
+                "optimization_id",
+                "status",
+                "query_optimizations",
+                "connection_optimizations",
+                "cache_optimizations",
+                "performance_improvement",
+                "timestamp",
             ]
             for field in required_fields:
                 assert field in data
 
     def test_performance_response_structure(self, client):
         """Test performance response has correct structure"""
-        with patch('core.database_optimization_manager.get_database_optimization_manager') as mock_get_manager:
+        with patch(
+            "core.database_optimization_manager.get_database_optimization_manager"
+        ) as mock_get_manager:
             mock_manager = Mock()
             mock_manager.get_optimization_status.return_value = "optimized"
             mock_get_manager.return_value = mock_manager
@@ -779,20 +779,26 @@ class TestDatabaseRouterResponseModels:
             assert response.status_code == 200
             data = response.json()
             required_fields = [
-                "cpu_usage", "memory_usage", "disk_io", "network_io",
-                "query_latency", "connection_count", "active_queries", "timestamp"
+                "cpu_usage",
+                "memory_usage",
+                "disk_io",
+                "network_io",
+                "query_latency",
+                "connection_count",
+                "active_queries",
+                "timestamp",
             ]
             for field in required_fields:
                 assert field in data
 
     def test_query_response_structure(self, client):
         """Test query response has correct structure"""
-        with patch('core.database_optimization_manager.get_database_optimization_manager') as mock_get_manager:
+        with patch(
+            "core.database_optimization_manager.get_database_optimization_manager"
+        ) as mock_get_manager:
             mock_manager = Mock()
             mock_manager.analyze_slow_queries.return_value = {
-                "slow_queries": [
-                    {"query_id": "q1", "execution_count": 10, "avg_duration_ms": 150}
-                ]
+                "slow_queries": [{"query_id": "q1", "execution_count": 10, "avg_duration_ms": 150}]
             }
             mock_get_manager.return_value = mock_manager
 
@@ -801,8 +807,13 @@ class TestDatabaseRouterResponseModels:
             data = response.json()
             if len(data) > 0:
                 required_fields = [
-                    "query_id", "query_text", "execution_count",
-                    "avg_duration_ms", "last_executed", "database", "table_name"
+                    "query_id",
+                    "query_text",
+                    "execution_count",
+                    "avg_duration_ms",
+                    "last_executed",
+                    "database",
+                    "table_name",
                 ]
                 for field in required_fields:
                     assert field in data[0]

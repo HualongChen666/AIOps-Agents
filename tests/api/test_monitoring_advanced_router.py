@@ -3,12 +3,14 @@
 监控高级API路由测试用例
 测试35个监控相关的API端点
 """
+
+import random
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from datetime import datetime, timedelta
-import random
 
 # 导入router
 from api.monitoring_advanced_router import router
@@ -18,6 +20,7 @@ from api.monitoring_advanced_router import router
 def client():
     """创建测试客户端"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -59,7 +62,7 @@ class TestLogAlerting:
             "pattern": "ERROR.*test",
             "severity": "warning",
             "status": "active",
-            "notification_channels": ["email"]
+            "notification_channels": ["email"],
         }
         response = client.post("/api/v1/monitoring/log-alerting", json=payload)
         assert response.status_code == 200
@@ -69,20 +72,13 @@ class TestLogAlerting:
 
     def test_create_or_update_log_alerting_validation_error(self, client):
         """测试创建/更新日志告警 - 验证错误"""
-        payload = {
-            "name": "",  # 空名称
-            "pattern": "test"
-        }
+        payload = {"name": "", "pattern": "test"}  # 空名称
         response = client.post("/api/v1/monitoring/log-alerting", json=payload)
         assert response.status_code == 422
 
     def test_create_or_update_log_alerting_invalid_severity(self, client):
         """测试创建/更新日志告警 - 无效严重级别"""
-        payload = {
-            "name": "Test",
-            "pattern": "test",
-            "severity": "invalid"
-        }
+        payload = {"name": "Test", "pattern": "test", "severity": "invalid"}
         response = client.post("/api/v1/monitoring/log-alerting", json=payload)
         assert response.status_code == 422
 
@@ -118,10 +114,7 @@ class TestLogAnalysis:
 
     def test_run_log_analysis_success(self, client):
         """测试执行日志分析 - 成功"""
-        payload = {
-            "time_range": "24h",
-            "log_sources": ["app.log", "system.log"]
-        }
+        payload = {"time_range": "24h", "log_sources": ["app.log", "system.log"]}
         response = client.post("/api/v1/monitoring/log-analysis", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -178,7 +171,9 @@ class TestTempo:
 
     def test_get_tempo_traces_with_params(self, client):
         """测试获取Tempo追踪 - 带参数"""
-        response = client.get("/api/v1/monitoring/tempo?service=api&trace_id=test-123&time_range=1h")
+        response = client.get(
+            "/api/v1/monitoring/tempo?service=api&trace_id=test-123&time_range=1h"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "traces" in data
@@ -203,7 +198,7 @@ class TestLoki:
 
     def test_get_loki_logs_with_params(self, client):
         """测试获取Loki日志 - 带参数"""
-        response = client.get("/api/v1/monitoring/loki?query={job=\"api\"}&time_range=1h")
+        response = client.get('/api/v1/monitoring/loki?query={job="api"}&time_range=1h')
         assert response.status_code == 200
         data = response.json()
         assert "logs" in data
@@ -253,7 +248,9 @@ class TestTracingVisualization:
 
     def test_get_tracing_visualization_with_params(self, client):
         """测试获取追踪可视化 - 带参数"""
-        response = client.get("/api/v1/monitoring/tracing-visualization?trace_id=test-123&service=api&time_range=1h")
+        response = client.get(
+            "/api/v1/monitoring/tracing-visualization?trace_id=test-123&service=api&time_range=1h"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "nodes" in data
@@ -277,7 +274,9 @@ class TestCrossServiceTracing:
 
     def test_get_cross_service_tracing_with_params(self, client):
         """测试获取跨服务追踪 - 带参数"""
-        response = client.get("/api/v1/monitoring/cross-service-tracing?trace_id=test-123&time_range=1h")
+        response = client.get(
+            "/api/v1/monitoring/cross-service-tracing?trace_id=test-123&time_range=1h"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "service_calls" in data
@@ -302,7 +301,9 @@ class TestFastAPITelemetry:
 
     def test_get_fastapi_telemetry_with_params(self, client):
         """测试获取FastAPI遥测 - 带参数"""
-        response = client.get("/api/v1/monitoring/fastapi-telemetry?endpoint=/api/v1/metrics&time_range=1h")
+        response = client.get(
+            "/api/v1/monitoring/fastapi-telemetry?endpoint=/api/v1/metrics&time_range=1h"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "endpoints" in data
@@ -316,48 +317,44 @@ class TestFastAPITelemetry:
 class TestTelemetryCore:
     """核心遥测测试"""
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_telemetry_core_success(self, mock_metrics, client):
         """测试获取核心遥测 - 成功"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0, 60.0, 70.0],
             "memory": [40.0, 50.0, 60.0],
             "net_in": [10.0, 20.0, 30.0],
-            "timestamps": ["00:00:00", "00:01:00", "00:02:00"]
+            "timestamps": ["00:00:00", "00:01:00", "00:02:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/telemetry-core")
         assert response.status_code == 200
         data = response.json()
         assert "metrics" in data
         assert "data_points" in data
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_telemetry_core_with_params(self, mock_metrics, client):
         """测试获取核心遥测 - 带参数"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/telemetry-core?metric_name=cpu&time_range=1h")
         assert response.status_code == 200
         data = response.json()
         assert "metrics" in data
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_post_telemetry_core_success(self, mock_metrics, client):
         """测试上报核心遥测 - 成功"""
         mock_metrics.push = Mock()
         mock_metrics.push_metric = Mock()
-        
-        payload = {
-            "metric_name": "cpu",
-            "metric_value": 75.5,
-            "labels": {"host": "server-01"}
-        }
+
+        payload = {"metric_name": "cpu", "metric_value": 75.5, "labels": {"host": "server-01"}}
         response = client.post("/api/v1/monitoring/telemetry-core", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -365,10 +362,7 @@ class TestTelemetryCore:
 
     def test_post_telemetry_core_validation_error(self, client):
         """测试上报核心遥测 - 验证错误"""
-        payload = {
-            "metric_name": "",  # 空名称
-            "metric_value": 75.5
-        }
+        payload = {"metric_name": "", "metric_value": 75.5}  # 空名称
         response = client.post("/api/v1/monitoring/telemetry-core", json=payload)
         assert response.status_code == 422
 
@@ -381,16 +375,16 @@ class TestTelemetryCore:
 class TestObservabilityQuery:
     """可观测性查询测试"""
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_observability_query_metrics(self, mock_metrics, client):
         """测试可观测性查询 - 指标"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/observability-query?query_type=metrics&query=cpu")
         assert response.status_code == 200
         data = response.json()
@@ -427,15 +421,15 @@ class TestObservabilityQuery:
 class TestDetailedHealth:
     """详细健康检查测试"""
 
-    @patch('api.monitoring_advanced_router.collect_all')
+    @patch("api.monitoring_advanced_router.collect_all")
     def test_get_detailed_health_success(self, mock_collect, client):
         """测试获取详细健康状态 - 成功"""
         mock_collect.return_value = {
             "cpu": {"usage_percent": 50.0},
             "memory": {"usage_percent": 60.0},
-            "disk": {"usage_percent": 70.0}
+            "disk": {"usage_percent": 70.0},
         }
-        
+
         response = client.get("/api/v1/monitoring/detailed-health")
         assert response.status_code == 200
         data = response.json()
@@ -462,10 +456,7 @@ class TestReadinessCheck:
 
     def test_post_readiness_check_success(self, client):
         """测试更新就绪状态 - 成功"""
-        payload = {
-            "ready": True,
-            "reason": "Service is ready"
-        }
+        payload = {"ready": True, "reason": "Service is ready"}
         response = client.post("/api/v1/monitoring/readiness-check", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -523,10 +514,7 @@ class TestOTELCollector:
 
     def test_configure_otel_collector_success(self, client):
         """测试配置OTEL Collector - 成功"""
-        payload = {
-            "exporters": ["otlp", "prometheus"],
-            "sampling_rate": 0.1
-        }
+        payload = {"exporters": ["otlp", "prometheus"], "sampling_rate": 0.1}
         response = client.post("/api/v1/monitoring/otel-collector", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -554,7 +542,7 @@ class TestMetricsConverter:
         payload = {
             "source_format": "prometheus",
             "target_format": "victoriametrics",
-            "metrics_data": {"cpu": 50.0, "memory": 60.0}
+            "metrics_data": {"cpu": 50.0, "memory": 60.0},
         }
         response = client.post("/api/v1/monitoring/metrics-converter", json=payload)
         assert response.status_code == 200
@@ -564,11 +552,7 @@ class TestMetricsConverter:
 
     def test_convert_metrics_invalid_format(self, client):
         """测试转换指标格式 - 无效格式"""
-        payload = {
-            "source_format": "invalid",
-            "target_format": "prometheus",
-            "metrics_data": {}
-        }
+        payload = {"source_format": "invalid", "target_format": "prometheus", "metrics_data": {}}
         response = client.post("/api/v1/monitoring/metrics-converter", json=payload)
         assert response.status_code == 422
 
@@ -581,28 +565,25 @@ class TestMetricsConverter:
 class TestMetricsExporter:
     """指标导出器测试"""
 
-    @patch('api.monitoring_advanced_router.MetricsExporter')
+    @patch("api.monitoring_advanced_router.MetricsExporter")
     def test_get_metrics_exporter_status_success(self, mock_exporter, client):
         """测试获取指标导出器状态 - 成功"""
         mock_exporter.return_value = MagicMock()
-        
+
         response = client.get("/api/v1/monitoring/metrics-exporter")
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
 
-    @patch('api.monitoring_advanced_router.collect_all')
+    @patch("api.monitoring_advanced_router.collect_all")
     def test_export_metrics_success(self, mock_collect, client):
         """测试导出指标 - 成功"""
         mock_collect.return_value = {
             "cpu": {"usage_percent": 50.0},
-            "memory": {"usage_percent": 60.0}
+            "memory": {"usage_percent": 60.0},
         }
-        
-        payload = {
-            "endpoint": "http://prometheus:9090/metrics",
-            "metrics": {"cpu": 50.0}
-        }
+
+        payload = {"endpoint": "http://prometheus:9090/metrics", "metrics": {"cpu": 50.0}}
         response = client.post("/api/v1/monitoring/metrics-exporter", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -617,32 +598,32 @@ class TestMetricsExporter:
 class TestPrometheusMetrics:
     """Prometheus指标测试"""
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_prometheus_metrics_success(self, mock_metrics, client):
         """测试获取Prometheus指标 - 成功"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/prometheus-metrics")
         assert response.status_code == 200
         data = response.json()
         assert "prometheus_url" in data
         assert "metrics" in data
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_prometheus_metrics_with_query(self, mock_metrics, client):
         """测试获取Prometheus指标 - 带查询"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/prometheus-metrics?query=up")
         assert response.status_code == 200
         data = response.json()
@@ -657,43 +638,42 @@ class TestPrometheusMetrics:
 class TestAnomalyAnalysis:
     """异常分析测试"""
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_anomaly_analysis_success(self, mock_metrics, client):
         """测试获取异常分析 - 成功"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0, 60.0, 70.0, 80.0, 90.0],
             "memory": [40.0, 50.0, 60.0],
             "net_in": [10.0, 20.0],
-            "timestamps": ["00:00:00", "00:01:00", "00:02:00", "00:03:00", "00:04:00"]
+            "timestamps": ["00:00:00", "00:01:00", "00:02:00", "00:03:00", "00:04:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/anomaly-analysis")
         assert response.status_code == 200
         data = response.json()
         assert "total_anomalies" in data
         assert "anomalies" in data
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_anomaly_analysis_with_filters(self, mock_metrics, client):
         """测试获取异常分析 - 带过滤"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
-        response = client.get("/api/v1/monitoring/anomaly-analysis?time_range=24h&severity=critical")
+
+        response = client.get(
+            "/api/v1/monitoring/anomaly-analysis?time_range=24h&severity=critical"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "anomalies" in data
 
     def test_run_anomaly_analysis_success(self, client):
         """测试执行异常分析 - 成功"""
-        payload = {
-            "time_range": "24h",
-            "metrics": ["cpu", "memory"]
-        }
+        payload = {"time_range": "24h", "metrics": ["cpu", "memory"]}
         response = client.post("/api/v1/monitoring/anomaly-analysis", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -709,43 +689,42 @@ class TestAnomalyAnalysis:
 class TestAnomalyDetection:
     """异常检测测试"""
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_anomaly_detection_success(self, mock_metrics, client):
         """测试获取异常检测 - 成功"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/anomaly-detection")
         assert response.status_code == 200
         data = response.json()
         assert "total_anomalies" in data
         assert "anomalies" in data
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_anomaly_detection_with_filters(self, mock_metrics, client):
         """测试获取异常检测 - 带过滤"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
-        response = client.get("/api/v1/monitoring/anomaly-detection?time_range=24h&severity=critical")
+
+        response = client.get(
+            "/api/v1/monitoring/anomaly-detection?time_range=24h&severity=critical"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "anomalies" in data
 
     def test_run_anomaly_detection_success(self, client):
         """测试执行异常检测 - 成功"""
-        payload = {
-            "time_range": "24h",
-            "algorithm": "isolation_forest"
-        }
+        payload = {"time_range": "24h", "algorithm": "isolation_forest"}
         response = client.post("/api/v1/monitoring/anomaly-detection", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -761,8 +740,8 @@ class TestAnomalyDetection:
 class TestLinuxLogs:
     """Linux日志测试"""
 
-    @patch('api.monitoring_advanced_router.get_linux_logs')
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [])
+    @patch("api.monitoring_advanced_router.get_linux_logs")
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [])
     def test_get_linux_logs_no_hosts(self, mock_get_logs, client):
         """测试获取Linux日志 - 无配置主机"""
         response = client.get("/api/v1/monitoring/linux-logs?host_name=test")
@@ -770,20 +749,20 @@ class TestLinuxLogs:
         data = response.json()
         assert "total" in data
 
-    @patch('api.monitoring_advanced_router.get_linux_logs')
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [{"name": "test", "host": "192.168.1.1"}])
+    @patch("api.monitoring_advanced_router.get_linux_logs")
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [{"name": "test", "host": "192.168.1.1"}])
     async def test_get_linux_logs_success(self, mock_get_logs, client):
         """测试获取Linux日志 - 成功"""
-        mock_get_logs.return_value = [
-            {"timestamp": "2024-01-01T00:00:00", "message": "Test log"}
-        ]
-        
-        response = client.get("/api/v1/monitoring/linux-logs?host_name=test&source=syslog&newest=10")
+        mock_get_logs.return_value = [{"timestamp": "2024-01-01T00:00:00", "message": "Test log"}]
+
+        response = client.get(
+            "/api/v1/monitoring/linux-logs?host_name=test&source=syslog&newest=10"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "logs" in data
 
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [{"name": "test", "host": "192.168.1.1"}])
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [{"name": "test", "host": "192.168.1.1"}])
     def test_get_linux_logs_host_not_found(self, client):
         """测试获取Linux日志 - 主机不存在"""
         response = client.get("/api/v1/monitoring/linux-logs?host_name=nonexistent")
@@ -803,13 +782,13 @@ class TestLinuxLogs:
 class TestLogSearch:
     """日志搜索测试"""
 
-    @patch('api.monitoring_advanced_router.search_logs')
+    @patch("api.monitoring_advanced_router.search_logs")
     async def test_search_logs_success(self, mock_search, client):
         """测试搜索日志 - 成功"""
         mock_search.return_value = [
             {"TimeGenerated": "2024-01-01T00:00:00", "Message": "Test error"}
         ]
-        
+
         response = client.get("/api/v1/monitoring/log-search?keyword=ERROR&time_range=1h&newest=10")
         assert response.status_code == 200
         data = response.json()
@@ -829,29 +808,29 @@ class TestLogSearch:
 class TestErrorLogs:
     """错误日志测试"""
 
-    @patch('api.monitoring_advanced_router.get_system_errors')
-    @patch('api.monitoring_advanced_router.get_linux_errors')
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [])
+    @patch("api.monitoring_advanced_router.get_system_errors")
+    @patch("api.monitoring_advanced_router.get_linux_errors")
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [])
     async def test_get_error_logs_success(self, mock_linux_errors, mock_system_errors, client):
         """测试获取错误日志 - 成功"""
         mock_system_errors.return_value = [
             {"TimeGenerated": "2024-01-01T00:00:00", "Message": "System error"}
         ]
         mock_linux_errors.return_value = []
-        
+
         response = client.get("/api/v1/monitoring/error-logs?platform=all&newest=10")
         assert response.status_code == 200
         data = response.json()
         assert "logs" in data
 
-    @patch('api.monitoring_advanced_router.get_system_errors')
-    @patch('api.monitoring_advanced_router.get_linux_errors')
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [])
+    @patch("api.monitoring_advanced_router.get_system_errors")
+    @patch("api.monitoring_advanced_router.get_linux_errors")
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [])
     async def test_get_error_logs_windows_only(self, mock_linux_errors, mock_system_errors, client):
         """测试获取错误日志 - 仅Windows"""
         mock_system_errors.return_value = []
         mock_linux_errors.return_value = []
-        
+
         response = client.get("/api/v1/monitoring/error-logs?platform=windows&newest=10")
         assert response.status_code == 200
         data = response.json()
@@ -863,7 +842,7 @@ class TestErrorLogs:
             "timestamp": "2024-01-01T00:00:00",
             "level": "error",
             "message": "Test error",
-            "source": "test"
+            "source": "test",
         }
         response = client.post("/api/v1/monitoring/error-logs", json=payload)
         assert response.status_code == 200
@@ -890,11 +869,7 @@ class TestLogCollection:
 
     def test_configure_log_collection_success(self, client):
         """测试配置日志采集 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60,
-            "retention_days": 30
-        }
+        payload = {"enabled": True, "interval_seconds": 60, "retention_days": 30}
         response = client.post("/api/v1/monitoring/log-collection", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -902,10 +877,7 @@ class TestLogCollection:
 
     def test_configure_log_collection_validation_error(self, client):
         """测试配置日志采集 - 验证错误"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 5  # 小于最小值10
-        }
+        payload = {"enabled": True, "interval_seconds": 5}  # 小于最小值10
         response = client.post("/api/v1/monitoring/log-collection", json=payload)
         assert response.status_code == 422
 
@@ -928,7 +900,9 @@ class TestAPIPerformance:
 
     def test_get_api_performance_with_filter(self, client):
         """测试获取API性能 - 带过滤"""
-        response = client.get("/api/v1/monitoring/api-performance?endpoint=/api/v1/metrics&time_range=1h")
+        response = client.get(
+            "/api/v1/monitoring/api-performance?endpoint=/api/v1/metrics&time_range=1h"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "endpoints" in data
@@ -988,10 +962,7 @@ class TestCloudMonitoring:
 
     def test_configure_cloud_monitoring_success(self, client):
         """测试配置云监控 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60
-        }
+        payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/cloud-monitoring", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -1023,10 +994,7 @@ class TestK8sMonitoring:
 
     def test_configure_k8s_monitoring_success(self, client):
         """测试配置K8s监控 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60
-        }
+        payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/k8s-monitoring", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -1051,17 +1019,16 @@ class TestDockerMonitoring:
 
     def test_get_docker_monitoring_with_filter(self, client):
         """测试获取Docker监控 - 带过滤"""
-        response = client.get("/api/v1/monitoring/docker-monitoring?container=aiops-api&time_range=1h")
+        response = client.get(
+            "/api/v1/monitoring/docker-monitoring?container=aiops-api&time_range=1h"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "containers" in data
 
     def test_configure_docker_monitoring_success(self, client):
         """测试配置Docker监控 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60
-        }
+        payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/docker-monitoring", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -1076,18 +1043,18 @@ class TestDockerMonitoring:
 class TestMacOSMonitoring:
     """macOS监控测试"""
 
-    @patch('api.monitoring_advanced_router.collect_all')
-    @patch('api.monitoring_advanced_router.get_top_processes')
+    @patch("api.monitoring_advanced_router.collect_all")
+    @patch("api.monitoring_advanced_router.get_top_processes")
     async def test_get_macos_monitoring_success(self, mock_processes, mock_collect, client):
         """测试获取macOS监控 - 成功"""
         mock_collect.return_value = {
             "cpu": {"usage_percent": 50.0},
             "memory": {"usage_percent": 60.0},
             "disk": {"usage_percent": 70.0},
-            "network": {"recv_speed_mb": 10.0, "sent_speed_mb": 5.0}
+            "network": {"recv_speed_mb": 10.0, "sent_speed_mb": 5.0},
         }
         mock_processes.return_value = []
-        
+
         response = client.get("/api/v1/monitoring/macos-monitoring")
         assert response.status_code == 200
         data = response.json()
@@ -1096,10 +1063,7 @@ class TestMacOSMonitoring:
 
     def test_configure_macos_monitoring_success(self, client):
         """测试配置macOS监控 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60
-        }
+        payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/macos-monitoring", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -1114,18 +1078,18 @@ class TestMacOSMonitoring:
 class TestWindowsMonitoring:
     """Windows监控测试"""
 
-    @patch('api.monitoring_advanced_router.collect_all')
-    @patch('api.monitoring_advanced_router.get_top_processes')
+    @patch("api.monitoring_advanced_router.collect_all")
+    @patch("api.monitoring_advanced_router.get_top_processes")
     async def test_get_windows_monitoring_success(self, mock_processes, mock_collect, client):
         """测试获取Windows监控 - 成功"""
         mock_collect.return_value = {
             "cpu": {"usage_percent": 50.0},
             "memory": {"usage_percent": 60.0},
             "disk": {"usage_percent": 70.0},
-            "network": {"recv_speed_mb": 10.0, "sent_speed_mb": 5.0}
+            "network": {"recv_speed_mb": 10.0, "sent_speed_mb": 5.0},
         }
         mock_processes.return_value = []
-        
+
         response = client.get("/api/v1/monitoring/windows-monitoring")
         assert response.status_code == 200
         data = response.json()
@@ -1134,10 +1098,7 @@ class TestWindowsMonitoring:
 
     def test_configure_windows_monitoring_success(self, client):
         """测试配置Windows监控 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60
-        }
+        payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/windows-monitoring", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -1152,23 +1113,23 @@ class TestWindowsMonitoring:
 class TestLinuxMonitoring:
     """Linux监控测试"""
 
-    @patch('api.monitoring_advanced_router.collect_all')
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [])
+    @patch("api.monitoring_advanced_router.collect_all")
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [])
     async def test_get_linux_monitoring_no_hosts(self, mock_collect, client):
         """测试获取Linux监控 - 无配置主机"""
         mock_collect.return_value = {
             "cpu": {"usage_percent": 50.0},
             "memory": {"usage_percent": 60.0},
             "disk": {"usage_percent": 70.0},
-            "network": {"recv_speed_mb": 10.0, "sent_speed_mb": 5.0}
+            "network": {"recv_speed_mb": 10.0, "sent_speed_mb": 5.0},
         }
-        
+
         response = client.get("/api/v1/monitoring/linux-monitoring")
         assert response.status_code == 200
         data = response.json()
         assert "platform" in data
 
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [{"name": "test", "host": "192.168.1.1"}])
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [{"name": "test", "host": "192.168.1.1"}])
     def test_get_linux_monitoring_with_host(self, client):
         """测试获取Linux监控 - 带主机"""
         response = client.get("/api/v1/monitoring/linux-monitoring?host_name=test&time_range=1h")
@@ -1176,7 +1137,7 @@ class TestLinuxMonitoring:
         data = response.json()
         assert "platform" in data
 
-    @patch('api.monitoring_advanced_router.LINUX_HOSTS', [{"name": "test", "host": "192.168.1.1"}])
+    @patch("api.monitoring_advanced_router.LINUX_HOSTS", [{"name": "test", "host": "192.168.1.1"}])
     def test_get_linux_monitoring_host_not_found(self, client):
         """测试获取Linux监控 - 主机不存在"""
         response = client.get("/api/v1/monitoring/linux-monitoring?host_name=nonexistent")
@@ -1184,10 +1145,7 @@ class TestLinuxMonitoring:
 
     def test_configure_linux_monitoring_success(self, client):
         """测试配置Linux监控 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60
-        }
+        payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/linux-monitoring", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -1202,24 +1160,24 @@ class TestLinuxMonitoring:
 class TestProcessMonitoring:
     """进程监控测试"""
 
-    @patch('api.monitoring_advanced_router.get_top_processes')
+    @patch("api.monitoring_advanced_router.get_top_processes")
     async def test_get_process_monitoring_success(self, mock_processes, client):
         """测试获取进程监控 - 成功"""
         mock_processes.return_value = [
             {"pid": 1, "name": "init", "cpu_percent": 0.1, "memory_percent": 0.1}
         ]
-        
+
         response = client.get("/api/v1/monitoring/process-monitoring")
         assert response.status_code == 200
         data = response.json()
         assert "total_processes" in data
         assert "processes" in data
 
-    @patch('api.monitoring_advanced_router.get_top_processes')
+    @patch("api.monitoring_advanced_router.get_top_processes")
     async def test_get_process_monitoring_with_limit(self, mock_processes, client):
         """测试获取进程监控 - 带限制"""
         mock_processes.return_value = []
-        
+
         response = client.get("/api/v1/monitoring/process-monitoring?limit=10")
         assert response.status_code == 200
         data = response.json()
@@ -1232,10 +1190,7 @@ class TestProcessMonitoring:
 
     def test_configure_process_monitoring_success(self, client):
         """测试配置进程监控 - 成功"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 60
-        }
+        payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/process-monitoring", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -1250,32 +1205,32 @@ class TestProcessMonitoring:
 class TestMetricsHistory:
     """指标历史测试"""
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_metrics_history_success(self, mock_metrics, client):
         """测试获取指标历史 - 成功"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0, 60.0, 70.0],
             "memory": [40.0, 50.0, 60.0],
             "net_in": [10.0, 20.0, 30.0],
-            "timestamps": ["00:00:00", "00:01:00", "00:02:00"]
+            "timestamps": ["00:00:00", "00:01:00", "00:02:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/metrics-history")
         assert response.status_code == 200
         data = response.json()
         assert "data" in data
         assert "data_points" in data
 
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.metrics_history")
     def test_get_metrics_history_with_filter(self, mock_metrics, client):
         """测试获取指标历史 - 带过滤"""
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/metrics-history?metric=cpu&time_range=1h")
         assert response.status_code == 200
         data = response.json()
@@ -1290,15 +1245,15 @@ class TestMetricsHistory:
 class TestMetricsSnapshot:
     """指标快照测试"""
 
-    @patch('api.monitoring_advanced_router.collect_all')
+    @patch("api.monitoring_advanced_router.collect_all")
     async def test_get_metrics_snapshot_success(self, mock_collect, client):
         """测试获取指标快照 - 成功"""
         mock_collect.return_value = {
             "cpu": {"usage_percent": 50.0},
             "memory": {"usage_percent": 60.0},
-            "disk": {"usage_percent": 70.0}
+            "disk": {"usage_percent": 70.0},
         }
-        
+
         response = client.get("/api/v1/monitoring/metrics-snapshot")
         assert response.status_code == 200
         data = response.json()
@@ -1314,29 +1269,29 @@ class TestMetricsSnapshot:
 class TestMetrics:
     """指标测试"""
 
-    @patch('api.monitoring_advanced_router.collect_all')
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.collect_all")
+    @patch("api.monitoring_advanced_router.metrics_history")
     async def test_get_metrics_success(self, mock_metrics, mock_collect, client):
         """测试获取系统指标 - 成功"""
         mock_collect.return_value = {
             "cpu": {"usage_percent": 50.0},
-            "memory": {"usage_percent": 60.0}
+            "memory": {"usage_percent": 60.0},
         }
         mock_metrics.to_dict.return_value = {
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/metrics")
         assert response.status_code == 200
         data = response.json()
         assert "current" in data
         assert "history" in data
 
-    @patch('api.monitoring_advanced_router.collect_all')
-    @patch('api.monitoring_advanced_router.metrics_history')
+    @patch("api.monitoring_advanced_router.collect_all")
+    @patch("api.monitoring_advanced_router.metrics_history")
     async def test_get_metrics_with_time_range(self, mock_metrics, mock_collect, client):
         """测试获取系统指标 - 带时间范围"""
         mock_collect.return_value = {}
@@ -1344,9 +1299,9 @@ class TestMetrics:
             "cpu": [50.0],
             "memory": [40.0],
             "net_in": [10.0],
-            "timestamps": ["00:00:00"]
+            "timestamps": ["00:00:00"],
         }
-        
+
         response = client.get("/api/v1/monitoring/metrics?time_range=1h")
         assert response.status_code == 200
         data = response.json()
@@ -1363,30 +1318,19 @@ class TestDataValidation:
 
     def test_log_alert_rule_invalid_severity(self, client):
         """测试日志告警规则 - 无效严重级别"""
-        payload = {
-            "name": "Test",
-            "pattern": "test",
-            "severity": "invalid"
-        }
+        payload = {"name": "Test", "pattern": "test", "severity": "invalid"}
         response = client.post("/api/v1/monitoring/log-alerting", json=payload)
         assert response.status_code == 422
 
     def test_metrics_converter_invalid_format(self, client):
         """测试指标转换 - 无效格式"""
-        payload = {
-            "source_format": "invalid",
-            "target_format": "prometheus",
-            "metrics_data": {}
-        }
+        payload = {"source_format": "invalid", "target_format": "prometheus", "metrics_data": {}}
         response = client.post("/api/v1/monitoring/metrics-converter", json=payload)
         assert response.status_code == 422
 
     def test_monitoring_config_invalid_interval(self, client):
         """测试监控配置 - 无效间隔"""
-        payload = {
-            "enabled": True,
-            "interval_seconds": 5  # 小于最小值10
-        }
+        payload = {"enabled": True, "interval_seconds": 5}  # 小于最小值10
         response = client.post("/api/v1/monitoring/log-collection", json=payload)
         assert response.status_code == 422
 

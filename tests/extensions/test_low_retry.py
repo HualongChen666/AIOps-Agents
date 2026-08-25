@@ -158,9 +158,13 @@ def test_retry_engine(retry_path, monkeypatch):
 
         try:
             if inspect.iscoroutinefunction(method):
-                result = _run_coro(method(dummy, operation="test"))  # noqa: F841  # Variable for test verification
+                result = _run_coro(
+                    method(dummy, operation="test")
+                )  # noqa: F841  # Variable for test verification
             else:
-                result = method(dummy, operation="test")  # noqa: F841  # Variable for test verification
+                result = method(
+                    dummy, operation="test"
+                )  # noqa: F841  # Variable for test verification
         except Exception:
             continue
         assert result == "ok"  # noqa: F841  # Variable for test verification
@@ -168,7 +172,9 @@ def test_retry_engine(retry_path, monkeypatch):
 
     if hasattr(engine, "execute"):
         dummy = _dummy_factory()
-        result = _run_coro(engine.execute(dummy, operation="test"))  # noqa: F841  # Variable for test verification
+        result = _run_coro(
+            engine.execute(dummy, operation="test")
+        )  # noqa: F841  # Variable for test verification
         assert result == "ok"  # noqa: F841  # Variable for test verification
         assert dummy.calls == 2
 
@@ -183,7 +189,9 @@ def test_retry_engine(retry_path, monkeypatch):
                     max_delay_seconds=0,
                 )
                 dummy = _dummy_factory()
-                result = _run_coro(engine.execute(dummy, policy_name="custom", operation="test"))  # noqa: F841  # Variable for test verification
+                result = _run_coro(
+                    engine.execute(dummy, policy_name="custom", operation="test")
+                )  # noqa: F841  # Variable for test verification
                 assert result == "ok"  # noqa: F841  # Variable for test verification
             except Exception:
                 pass

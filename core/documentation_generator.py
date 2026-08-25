@@ -313,6 +313,16 @@ If you continue to experience issues:
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(generated_doc.content)
 
+            # Set restrictive permissions for generated document file (644 - owner read/write, group/others read)
+            try:
+                import os
+                import stat
+
+                os.chmod(output_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            except (OSError, AttributeError):
+                # chmod may fail on Windows or non-Unix systems
+                pass
+
             logger.info(f"Saved generated document: {output_path}")
 
             return True

@@ -229,7 +229,8 @@ async def create_user(
     if user_data.email:
         existing_email = await user_service.get_user_by_email(user_data.email)
         if existing_email:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+            error_msg = "Email already exists"
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_msg)
     hashed_password = get_password_hash(user_data.password)
     new_user = await user_service.create_user(
         username=user_data.username,
@@ -302,7 +303,9 @@ async def list_users(
     summary="获取当前用户信息",
     responses={(200): {"description": "当前用户信息"}, (401): {"description": "未授权"}},
 )
-async def get_current_user_info(current_user: UserInDB = Depends(get_current_user)) -> UserResponse:
+async def get_current_user_info(
+    current_user: UserInDB = Depends(get_current_user),
+) -> UserResponse:
     """获取当前用户信息"""
     return UserResponse(
         id=current_user.id if current_user.id is not None else 0,

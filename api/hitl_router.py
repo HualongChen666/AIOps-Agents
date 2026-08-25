@@ -82,7 +82,8 @@ if HITL_AVAILABLE:
 )
 async def hitl_health() -> Dict[str, Any]:
     """HITL health check endpoint"""
-    return {"status": "healthy" if HITL_AVAILABLE else "degraded", "hitl_available": HITL_AVAILABLE}
+    status = "healthy" if HITL_AVAILABLE else "degraded"
+    return {"status": status, "hitl_available": HITL_AVAILABLE}
 
 
 @router.post(
@@ -293,7 +294,13 @@ async def reject_step(
                         "request_id": "req-123",
                         "status": "approved",
                         "current_step": "step-2",
-                        "steps": [{"step_id": "step-1", "status": "approved", "approver": "admin"}],
+                        "steps": [
+                            {
+                                "step_id": "step-1",
+                                "status": "approved",
+                                "approver": "admin",
+                            }
+                        ],
                         "created_at": "2026-07-03T09:00:00Z",
                     }
                 }

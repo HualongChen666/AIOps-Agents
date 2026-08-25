@@ -11,39 +11,41 @@ Tests all API endpoints for unified repair management including:
 - Analytics
 """
 
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from datetime import datetime
 
 from api.unified_repair_advanced_router import (
+    CrossPlatformRepairRequest,
+    PlatformCreate,
+    RepairExecutionCreate,
+    RepairExecutionUpdate,
+    RepairStrategyCreate,
+    RepairStrategyUpdate,
+    RepairTemplateCreate,
+    RepairTemplateUpdate,
+    _platforms,
+    _repair_executions,
+    _repair_strategies,
+    _templates,
     router,
     router_alt,
     router_v1,
-    RepairStrategyCreate,
-    RepairStrategyUpdate,
-    RepairExecutionCreate,
-    RepairExecutionUpdate,
-    PlatformCreate,
-    CrossPlatformRepairRequest,
-    RepairTemplateCreate,
-    RepairTemplateUpdate,
-    _repair_strategies,
-    _repair_executions,
-    _platforms,
-    _templates,
 )
-
 
 # ============================================================
 # Test Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def client():
     """Create a test client for the router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -53,6 +55,7 @@ def client():
 def client_alt():
     """Create a test client for the alt router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router_alt)
     return TestClient(app)
@@ -62,6 +65,7 @@ def client_alt():
 def client_v1():
     """Create a test client for the v1 router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router_v1)
     return TestClient(app)
@@ -88,7 +92,7 @@ def sample_strategy_data():
         "script_content": "systemctl restart {service}",
         "priority": "high",
         "auto_approve": False,
-        "metadata": {"category": "service"}
+        "metadata": {"category": "service"},
     }
 
 
@@ -100,7 +104,7 @@ def sample_execution_data():
         "target_resource": "service-1",
         "parameters": {"service": "nginx"},
         "requested_by": "admin",
-        "reason": "Service is down"
+        "reason": "Service is down",
     }
 
 
@@ -113,7 +117,7 @@ def sample_platform_data():
         "endpoint": "ssh://prod-server",
         "credentials": {"username": "admin"},
         "capabilities": ["script", "service", "process"],
-        "metadata": {"env": "production"}
+        "metadata": {"env": "production"},
     }
 
 
@@ -123,13 +127,10 @@ def sample_cross_platform_request():
     return {
         "target_platforms": ["linux", "docker"],
         "strategy_id": "strategy-123",
-        "target_resources": {
-            "linux": "server-1",
-            "docker": "container-1"
-        },
+        "target_resources": {"linux": "server-1", "docker": "container-1"},
         "parameters": {"timeout": 300},
         "parallel": False,
-        "requested_by": "admin"
+        "requested_by": "admin",
     }
 
 
@@ -142,10 +143,8 @@ def sample_template_data():
         "repair_type": "restart",
         "platform": "linux",
         "template_content": "systemctl restart {service_name}",
-        "parameters": [
-            {"name": "service_name", "type": "string", "required": True}
-        ],
-        "category": "service"
+        "parameters": [{"name": "service_name", "type": "string", "required": True}],
+        "category": "service",
     }
 
 
@@ -167,6 +166,7 @@ def clear_data_stores():
 # 1. Repair Strategy Management Endpoints Tests
 # ============================================================
 
+
 class TestRepairStrategyManagementEndpoints:
     """Test repair strategy management endpoints"""
 
@@ -185,7 +185,7 @@ class TestRepairStrategyManagementEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client.get("/api/v1/unified-repair/strategies")
         assert response.status_code == 200
         data = response.json()
@@ -198,13 +198,13 @@ class TestRepairStrategyManagementEndpoints:
         strategy1["repair_type"] = "restart"
         strategy1["status"] = "active"
         _repair_strategies["strategy-1"] = strategy1
-        
+
         strategy2 = sample_strategy_data.copy()
         strategy2["id"] = "strategy-2"
         strategy2["repair_type"] = "script"
         strategy2["status"] = "active"
         _repair_strategies["strategy-2"] = strategy2
-        
+
         response = client.get("/api/v1/unified-repair/strategies?repair_type=restart")
         assert response.status_code == 200
         data = response.json()
@@ -218,13 +218,13 @@ class TestRepairStrategyManagementEndpoints:
         strategy1["platform"] = "linux"
         strategy1["status"] = "active"
         _repair_strategies["strategy-1"] = strategy1
-        
+
         strategy2 = sample_strategy_data.copy()
         strategy2["id"] = "strategy-2"
         strategy2["platform"] = "windows"
         strategy2["status"] = "active"
         _repair_strategies["strategy-2"] = strategy2
-        
+
         response = client.get("/api/v1/unified-repair/strategies?platform=linux")
         assert response.status_code == 200
         data = response.json()
@@ -236,12 +236,12 @@ class TestRepairStrategyManagementEndpoints:
         strategy1["id"] = "strategy-1"
         strategy1["status"] = "active"
         _repair_strategies["strategy-1"] = strategy1
-        
+
         strategy2 = sample_strategy_data.copy()
         strategy2["id"] = "strategy-2"
         strategy2["status"] = "inactive"
         _repair_strategies["strategy-2"] = strategy2
-        
+
         response = client.get("/api/v1/unified-repair/strategies?status=active")
         assert response.status_code == 200
         data = response.json()
@@ -254,13 +254,13 @@ class TestRepairStrategyManagementEndpoints:
         strategy1["priority"] = "high"
         strategy1["status"] = "active"
         _repair_strategies["strategy-1"] = strategy1
-        
+
         strategy2 = sample_strategy_data.copy()
         strategy2["id"] = "strategy-2"
         strategy2["priority"] = "low"
         strategy2["status"] = "active"
         _repair_strategies["strategy-2"] = strategy2
-        
+
         response = client.get("/api/v1/unified-repair/strategies?priority=high")
         assert response.status_code == 200
         data = response.json()
@@ -279,11 +279,8 @@ class TestRepairStrategyManagementEndpoints:
 
     def test_create_strategy_validation_error(self, client):
         """Test creating a strategy with invalid data"""
-        invalid_data = {
-            "name": "",  # Empty name should fail
-            "target_scope": "service"
-        }
-        
+        invalid_data = {"name": "", "target_scope": "service"}  # Empty name should fail
+
         response = client.post("/api/v1/unified-repair/strategies", json=invalid_data)
         assert response.status_code == 422
 
@@ -294,7 +291,7 @@ class TestRepairStrategyManagementEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 200
         data = response.json()
@@ -309,14 +306,16 @@ class TestRepairStrategyManagementEndpoints:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
-    def test_get_strategy_with_execution_stats(self, client, sample_strategy_data, sample_execution_data):
+    def test_get_strategy_with_execution_stats(
+        self, client, sample_strategy_data, sample_execution_data
+    ):
         """Test getting strategy with execution statistics"""
         strategy_id = "strategy-123"
         strategy = sample_strategy_data.copy()
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         # Create some executions
         for i in range(3):
             execution = sample_execution_data.copy()
@@ -324,7 +323,7 @@ class TestRepairStrategyManagementEndpoints:
             execution["strategy_id"] = strategy_id
             execution["status"] = "completed" if i < 2 else "failed"
             _repair_executions[f"execution-{i}"] = execution
-        
+
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 200
         data = response.json()
@@ -339,14 +338,12 @@ class TestRepairStrategyManagementEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
-        update_data = {
-            "name": "Updated Strategy",
-            "priority": "critical",
-            "status": "inactive"
-        }
-        
-        response = client.patch(f"/api/v1/unified-repair/strategies/{strategy_id}", json=update_data)
+
+        update_data = {"name": "Updated Strategy", "priority": "critical", "status": "inactive"}
+
+        response = client.patch(
+            f"/api/v1/unified-repair/strategies/{strategy_id}", json=update_data
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Updated Strategy"
@@ -357,7 +354,7 @@ class TestRepairStrategyManagementEndpoints:
     def test_update_strategy_not_found(self, client):
         """Test updating a strategy that doesn't exist"""
         update_data = {"name": "Updated"}
-        
+
         response = client.patch("/api/v1/unified-repair/strategies/nonexistent", json=update_data)
         assert response.status_code == 404
 
@@ -368,7 +365,7 @@ class TestRepairStrategyManagementEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client.delete(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 200
         data = response.json()
@@ -376,21 +373,23 @@ class TestRepairStrategyManagementEndpoints:
         assert data["id"] == strategy_id
         assert strategy_id not in _repair_strategies
 
-    def test_delete_strategy_with_active_executions(self, client, sample_strategy_data, sample_execution_data):
+    def test_delete_strategy_with_active_executions(
+        self, client, sample_strategy_data, sample_execution_data
+    ):
         """Test deleting a strategy with active executions"""
         strategy_id = "strategy-123"
         strategy = sample_strategy_data.copy()
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         # Create active execution
         execution = sample_execution_data.copy()
         execution["id"] = "execution-1"
         execution["strategy_id"] = strategy_id
         execution["status"] = "pending"
         _repair_executions["execution-1"] = execution
-        
+
         response = client.delete(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 409
         assert "active executions" in response.json()["detail"]
@@ -404,6 +403,7 @@ class TestRepairStrategyManagementEndpoints:
 # ============================================================
 # 2. Repair Execution Management Endpoints Tests
 # ============================================================
+
 
 class TestRepairExecutionManagementEndpoints:
     """Test repair execution management endpoints"""
@@ -422,7 +422,7 @@ class TestRepairExecutionManagementEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         response = client.get("/api/v1/unified-repair/executions")
         assert response.status_code == 200
         data = response.json()
@@ -434,12 +434,12 @@ class TestRepairExecutionManagementEndpoints:
         execution1["id"] = "execution-1"
         execution1["strategy_id"] = "strategy-1"
         _repair_executions["execution-1"] = execution1
-        
+
         execution2 = sample_execution_data.copy()
         execution2["id"] = "execution-2"
         execution2["strategy_id"] = "strategy-2"
         _repair_executions["execution-2"] = execution2
-        
+
         response = client.get("/api/v1/unified-repair/executions?strategy_id=strategy-1")
         assert response.status_code == 200
         data = response.json()
@@ -452,12 +452,12 @@ class TestRepairExecutionManagementEndpoints:
         execution1["id"] = "execution-1"
         execution1["status"] = "completed"
         _repair_executions["execution-1"] = execution1
-        
+
         execution2 = sample_execution_data.copy()
         execution2["id"] = "execution-2"
         execution2["status"] = "failed"
         _repair_executions["execution-2"] = execution2
-        
+
         response = client.get("/api/v1/unified-repair/executions?status=completed")
         assert response.status_code == 200
         data = response.json()
@@ -469,12 +469,12 @@ class TestRepairExecutionManagementEndpoints:
         execution1["id"] = "execution-1"
         execution1["target_resource"] = "service-1"
         _repair_executions["execution-1"] = execution1
-        
+
         execution2 = sample_execution_data.copy()
         execution2["id"] = "execution-2"
         execution2["target_resource"] = "service-2"
         _repair_executions["execution-2"] = execution2
-        
+
         response = client.get("/api/v1/unified-repair/executions?target_resource=service-1")
         assert response.status_code == 200
         data = response.json()
@@ -486,7 +486,7 @@ class TestRepairExecutionManagementEndpoints:
             execution = sample_execution_data.copy()
             execution["id"] = f"execution-{i}"
             _repair_executions[f"execution-{i}"] = execution
-        
+
         response = client.get("/api/v1/unified-repair/executions?limit=5")
         assert response.status_code == 200
         data = response.json()
@@ -501,7 +501,7 @@ class TestRepairExecutionManagementEndpoints:
         strategy["status"] = "active"
         strategy["auto_approve"] = False
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client.post("/api/v1/unified-repair/executions", json=sample_execution_data)
         assert response.status_code == 200
         data = response.json()
@@ -510,7 +510,9 @@ class TestRepairExecutionManagementEndpoints:
         assert "id" in data
         assert "created_at" in data
 
-    def test_create_execution_with_auto_approve(self, client, sample_strategy_data, sample_execution_data):
+    def test_create_execution_with_auto_approve(
+        self, client, sample_strategy_data, sample_execution_data
+    ):
         """Test creating an execution with auto-approve"""
         # Create strategy with auto_approve
         strategy_id = "strategy-123"
@@ -519,7 +521,7 @@ class TestRepairExecutionManagementEndpoints:
         strategy["status"] = "active"
         strategy["auto_approve"] = True
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client.post("/api/v1/unified-repair/executions", json=sample_execution_data)
         assert response.status_code == 200
         data = response.json()
@@ -532,14 +534,16 @@ class TestRepairExecutionManagementEndpoints:
         assert response.status_code == 404
         assert "Strategy not found" in response.json()["detail"]
 
-    def test_create_execution_strategy_inactive(self, client, sample_strategy_data, sample_execution_data):
+    def test_create_execution_strategy_inactive(
+        self, client, sample_strategy_data, sample_execution_data
+    ):
         """Test creating an execution with inactive strategy"""
         strategy_id = "strategy-123"
         strategy = sample_strategy_data.copy()
         strategy["id"] = strategy_id
         strategy["status"] = "inactive"
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client.post("/api/v1/unified-repair/executions", json=sample_execution_data)
         assert response.status_code == 400
         assert "not active" in response.json()["detail"]
@@ -550,7 +554,7 @@ class TestRepairExecutionManagementEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         response = client.get(f"/api/v1/unified-repair/executions/{execution_id}")
         assert response.status_code == 200
         data = response.json()
@@ -569,16 +573,18 @@ class TestRepairExecutionManagementEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         # Create execution
         execution_id = "execution-123"
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         execution["status"] = "pending"
         _repair_executions[execution_id] = execution
-        
+
         update_data = {"status": "running"}
-        response = client.patch(f"/api/v1/unified-repair/executions/{execution_id}", json=update_data)
+        response = client.patch(
+            f"/api/v1/unified-repair/executions/{execution_id}", json=update_data
+        )
         assert response.status_code == 200
         data = response.json()
         # Will fail due to mock, but that's OK
@@ -590,14 +596,16 @@ class TestRepairExecutionManagementEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         update_data = {
             "status": "completed",
             "result": {"output": "Success"},
-            "error_message": None
+            "error_message": None,
         }
-        
-        response = client.patch(f"/api/v1/unified-repair/executions/{execution_id}", json=update_data)
+
+        response = client.patch(
+            f"/api/v1/unified-repair/executions/{execution_id}", json=update_data
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "completed"
@@ -606,7 +614,7 @@ class TestRepairExecutionManagementEndpoints:
     def test_update_execution_not_found(self, client):
         """Test updating an execution that doesn't exist"""
         update_data = {"status": "completed"}
-        
+
         response = client.patch("/api/v1/unified-repair/executions/nonexistent", json=update_data)
         assert response.status_code == 404
 
@@ -617,7 +625,7 @@ class TestRepairExecutionManagementEndpoints:
         execution["id"] = execution_id
         execution["status"] = "completed"
         _repair_executions[execution_id] = execution
-        
+
         response = client.delete(f"/api/v1/unified-repair/executions/{execution_id}")
         assert response.status_code == 200
         assert execution_id not in _repair_executions
@@ -629,7 +637,7 @@ class TestRepairExecutionManagementEndpoints:
         execution["id"] = execution_id
         execution["status"] = "pending"
         _repair_executions[execution_id] = execution
-        
+
         response = client.delete(f"/api/v1/unified-repair/executions/{execution_id}")
         assert response.status_code == 409
         assert "active execution" in response.json()["detail"]
@@ -643,6 +651,7 @@ class TestRepairExecutionManagementEndpoints:
 # ============================================================
 # 3. Platform Management Endpoints Tests
 # ============================================================
+
 
 class TestPlatformManagementEndpoints:
     """Test platform management endpoints"""
@@ -663,7 +672,7 @@ class TestPlatformManagementEndpoints:
         platform["id"] = platform_id
         platform["status"] = "active"
         _platforms[platform_id] = platform
-        
+
         response = client.get("/api/v1/unified-repair/platforms")
         assert response.status_code == 200
         data = response.json()
@@ -686,7 +695,7 @@ class TestPlatformManagementEndpoints:
         platform = sample_platform_data.copy()
         platform["id"] = platform_id
         _platforms[platform_id] = platform
-        
+
         response = client.get(f"/api/v1/unified-repair/platforms/{platform_id}")
         assert response.status_code == 200
         data = response.json()
@@ -703,7 +712,7 @@ class TestPlatformManagementEndpoints:
         platform = sample_platform_data.copy()
         platform["id"] = platform_id
         _platforms[platform_id] = platform
-        
+
         response = client.delete(f"/api/v1/unified-repair/platforms/{platform_id}")
         assert response.status_code == 200
         assert platform_id not in _platforms
@@ -718,26 +727,37 @@ class TestPlatformManagementEndpoints:
 # 4. Cross-Platform Repair Endpoints Tests
 # ============================================================
 
+
 class TestCrossPlatformRepairEndpoints:
     """Test cross-platform repair endpoints"""
 
-    def test_execute_cross_platform_repair_sequential(self, client, sample_strategy_data, sample_cross_platform_request):
+    def test_execute_cross_platform_repair_sequential(
+        self, client, sample_strategy_data, sample_cross_platform_request
+    ):
         """Test executing cross-platform repair sequentially"""
         # Skip this test as it requires async mocking
         pytest.skip("Requires async mocking of get_platform_strategy")
 
-    def test_execute_cross_platform_repair_parallel(self, client, sample_strategy_data, sample_cross_platform_request):
+    def test_execute_cross_platform_repair_parallel(
+        self, client, sample_strategy_data, sample_cross_platform_request
+    ):
         """Test executing cross-platform repair in parallel"""
         # Skip this test as it requires async mocking
         pytest.skip("Requires async mocking of get_platform_strategy")
 
-    def test_execute_cross_platform_repair_strategy_not_found(self, client, sample_cross_platform_request):
+    def test_execute_cross_platform_repair_strategy_not_found(
+        self, client, sample_cross_platform_request
+    ):
         """Test executing cross-platform repair with non-existent strategy"""
-        response = client.post("/api/v1/unified-repair/cross-platform", json=sample_cross_platform_request)
+        response = client.post(
+            "/api/v1/unified-repair/cross-platform", json=sample_cross_platform_request
+        )
         assert response.status_code == 404
         assert "Strategy not found" in response.json()["detail"]
 
-    def test_execute_cross_platform_repair_missing_target(self, client, sample_strategy_data, sample_cross_platform_request):
+    def test_execute_cross_platform_repair_missing_target(
+        self, client, sample_strategy_data, sample_cross_platform_request
+    ):
         """Test executing cross-platform repair with missing target resource"""
         # Skip this test as it requires async mocking
         pytest.skip("Requires async mocking of get_platform_strategy")
@@ -746,6 +766,7 @@ class TestCrossPlatformRepairEndpoints:
 # ============================================================
 # 5. Template Management Endpoints Tests
 # ============================================================
+
 
 class TestTemplateManagementEndpoints:
     """Test template management endpoints"""
@@ -765,7 +786,7 @@ class TestTemplateManagementEndpoints:
         template["id"] = template_id
         template["status"] = "active"
         _templates[template_id] = template
-        
+
         response = client.get("/api/v1/unified-repair/templates")
         assert response.status_code == 200
         data = response.json()
@@ -778,13 +799,13 @@ class TestTemplateManagementEndpoints:
         template1["repair_type"] = "restart"
         template1["status"] = "active"
         _templates["template-1"] = template1
-        
+
         template2 = sample_template_data.copy()
         template2["id"] = "template-2"
         template2["repair_type"] = "script"
         template2["status"] = "active"
         _templates["template-2"] = template2
-        
+
         response = client.get("/api/v1/unified-repair/templates?repair_type=restart")
         assert response.status_code == 200
         data = response.json()
@@ -797,13 +818,13 @@ class TestTemplateManagementEndpoints:
         template1["platform"] = "linux"
         template1["status"] = "active"
         _templates["template-1"] = template1
-        
+
         template2 = sample_template_data.copy()
         template2["id"] = "template-2"
         template2["platform"] = "windows"
         template2["status"] = "active"
         _templates["template-2"] = template2
-        
+
         response = client.get("/api/v1/unified-repair/templates?platform=linux")
         assert response.status_code == 200
         data = response.json()
@@ -816,13 +837,13 @@ class TestTemplateManagementEndpoints:
         template1["category"] = "service"
         template1["status"] = "active"
         _templates["template-1"] = template1
-        
+
         template2 = sample_template_data.copy()
         template2["id"] = "template-2"
         template2["category"] = "network"
         template2["status"] = "active"
         _templates["template-2"] = template2
-        
+
         response = client.get("/api/v1/unified-repair/templates?category=service")
         assert response.status_code == 200
         data = response.json()
@@ -845,7 +866,7 @@ class TestTemplateManagementEndpoints:
         template = sample_template_data.copy()
         template["id"] = template_id
         _templates[template_id] = template
-        
+
         response = client.get(f"/api/v1/unified-repair/templates/{template_id}")
         assert response.status_code == 200
         data = response.json()
@@ -862,13 +883,13 @@ class TestTemplateManagementEndpoints:
         template = sample_template_data.copy()
         template["id"] = template_id
         _templates[template_id] = template
-        
+
         update_data = {
             "name": "Updated Template",
             "description": "Updated description",
-            "status": "inactive"
+            "status": "inactive",
         }
-        
+
         response = client.patch(f"/api/v1/unified-repair/templates/{template_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
@@ -879,7 +900,7 @@ class TestTemplateManagementEndpoints:
     def test_update_template_not_found(self, client):
         """Test updating a template that doesn't exist"""
         update_data = {"name": "Updated"}
-        
+
         response = client.patch("/api/v1/unified-repair/templates/nonexistent", json=update_data)
         assert response.status_code == 404
 
@@ -889,25 +910,27 @@ class TestTemplateManagementEndpoints:
         template = sample_template_data.copy()
         template["id"] = template_id
         _templates[template_id] = template
-        
+
         response = client.delete(f"/api/v1/unified-repair/templates/{template_id}")
         assert response.status_code == 200
         assert template_id not in _templates
 
-    def test_delete_template_used_by_strategy(self, client, sample_template_data, sample_strategy_data):
+    def test_delete_template_used_by_strategy(
+        self, client, sample_template_data, sample_strategy_data
+    ):
         """Test deleting a template that's used by a strategy"""
         template_id = "template-123"
         template = sample_template_data.copy()
         template["id"] = template_id
         _templates[template_id] = template
-        
+
         # Create strategy that uses the template
         strategy_id = "strategy-123"
         strategy = sample_strategy_data.copy()
         strategy["id"] = strategy_id
         strategy["template_id"] = template_id
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client.delete(f"/api/v1/unified-repair/templates/{template_id}")
         assert response.status_code == 409
         assert "used by" in response.json()["detail"]
@@ -921,6 +944,7 @@ class TestTemplateManagementEndpoints:
 # ============================================================
 # 6. Analytics Endpoints Tests
 # ============================================================
+
 
 class TestAnalyticsEndpoints:
     """Test analytics endpoints"""
@@ -943,7 +967,7 @@ class TestAnalyticsEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         # Create executions
         for i in range(5):
             execution = sample_execution_data.copy()
@@ -951,7 +975,7 @@ class TestAnalyticsEndpoints:
             execution["strategy_id"] = strategy_id
             execution["status"] = "completed" if i < 4 else "failed"
             _repair_executions[f"execution-{i}"] = execution
-        
+
         response = client.get("/api/v1/unified-repair/analytics")
         assert response.status_code == 200
         data = response.json()
@@ -959,7 +983,9 @@ class TestAnalyticsEndpoints:
         assert data["summary"]["successful_executions"] == 4
         assert data["summary"]["failed_executions"] == 1
 
-    def test_get_analytics_with_platform_filter(self, client, sample_strategy_data, sample_execution_data):
+    def test_get_analytics_with_platform_filter(
+        self, client, sample_strategy_data, sample_execution_data
+    ):
         """Test getting analytics with platform filter"""
         # Create strategies for different platforms
         strategy1 = sample_strategy_data.copy()
@@ -967,19 +993,19 @@ class TestAnalyticsEndpoints:
         strategy1["platform"] = "linux"
         strategy1["status"] = "active"
         _repair_strategies["strategy-1"] = strategy1
-        
+
         strategy2 = sample_strategy_data.copy()
         strategy2["id"] = "strategy-2"
         strategy2["platform"] = "windows"
         strategy2["status"] = "active"
         _repair_strategies["strategy-2"] = strategy2
-        
+
         # Create executions
         execution1 = sample_execution_data.copy()
         execution1["id"] = "execution-1"
         execution1["strategy_id"] = "strategy-1"
         _repair_executions["execution-1"] = execution1
-        
+
         response = client.get("/api/v1/unified-repair/analytics?platform=linux")
         assert response.status_code == 200
         data = response.json()
@@ -993,7 +1019,7 @@ class TestAnalyticsEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         # Create executions with known success rate
         for i in range(10):
             execution = sample_execution_data.copy()
@@ -1001,13 +1027,15 @@ class TestAnalyticsEndpoints:
             execution["strategy_id"] = strategy_id
             execution["status"] = "completed" if i < 7 else "failed"
             _repair_executions[f"execution-{i}"] = execution
-        
+
         response = client.get("/api/v1/unified-repair/analytics")
         assert response.status_code == 200
         data = response.json()
         assert data["summary"]["success_rate"] == 70.0
 
-    def test_get_analytics_platform_breakdown(self, client, sample_strategy_data, sample_execution_data):
+    def test_get_analytics_platform_breakdown(
+        self, client, sample_strategy_data, sample_execution_data
+    ):
         """Test that analytics provides platform breakdown"""
         # Create strategies for different platforms
         for platform in ["linux", "windows", "docker"]:
@@ -1016,13 +1044,13 @@ class TestAnalyticsEndpoints:
             strategy["platform"] = platform
             strategy["status"] = "active"
             _repair_strategies[f"strategy-{platform}"] = strategy
-            
+
             execution = sample_execution_data.copy()
             execution["id"] = f"execution-{platform}"
             execution["strategy_id"] = f"strategy-{platform}"
             execution["status"] = "completed"
             _repair_executions[f"execution-{platform}"] = execution
-        
+
         response = client.get("/api/v1/unified-repair/analytics")
         assert response.status_code == 200
         data = response.json()
@@ -1031,7 +1059,9 @@ class TestAnalyticsEndpoints:
         assert "windows" in data["platform_breakdown"]
         assert "docker" in data["platform_breakdown"]
 
-    def test_get_analytics_top_strategies(self, client, sample_strategy_data, sample_execution_data):
+    def test_get_analytics_top_strategies(
+        self, client, sample_strategy_data, sample_execution_data
+    ):
         """Test that analytics returns top strategies"""
         # Create multiple strategies
         for i in range(5):
@@ -1040,7 +1070,7 @@ class TestAnalyticsEndpoints:
             strategy["name"] = f"Strategy {i}"
             strategy["status"] = "active"
             _repair_strategies[f"strategy-{i}"] = strategy
-            
+
             # Create different number of executions for each
             for j in range(5 - i):
                 execution = sample_execution_data.copy()
@@ -1048,18 +1078,22 @@ class TestAnalyticsEndpoints:
                 execution["strategy_id"] = f"strategy-{i}"
                 execution["status"] = "completed"
                 _repair_executions[f"execution-{i}-{j}"] = execution
-        
+
         response = client.get("/api/v1/unified-repair/analytics")
         assert response.status_code == 200
         data = response.json()
         assert len(data["top_strategies"]) > 0
         # Should be sorted by execution count
-        assert data["top_strategies"][0]["execution_count"] >= data["top_strategies"][-1]["execution_count"]
+        assert (
+            data["top_strategies"][0]["execution_count"]
+            >= data["top_strategies"][-1]["execution_count"]
+        )
 
 
 # ============================================================
 # 7. Alternative Router Endpoints Tests
 # ============================================================
+
 
 class TestAlternativeRouterEndpoints:
     """Test alternative router endpoints for frontend compatibility"""
@@ -1071,7 +1105,7 @@ class TestAlternativeRouterEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client_alt.get("/api/v1/repair/unified")
         assert response.status_code == 200
         data = response.json()
@@ -1085,9 +1119,9 @@ class TestAlternativeRouterEndpoints:
             "repairType": "script",
             "targetScope": "service",
             "platform": "linux",
-            "priority": "medium"
+            "priority": "medium",
         }
-        
+
         response = client_alt.post("/api/v1/repair/unified", json=repair_data)
         assert response.status_code == 200
 
@@ -1098,7 +1132,7 @@ class TestAlternativeRouterEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client_alt.post(f"/api/v1/repair/unified/{strategy_id}/execute")
         assert response.status_code == 200
 
@@ -1108,7 +1142,7 @@ class TestAlternativeRouterEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         response = client_alt.get("/api/v1/repair/history")
         assert response.status_code == 200
         data = response.json()
@@ -1120,7 +1154,7 @@ class TestAlternativeRouterEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         response = client_alt.get("/api/v1/repair/history/export")
         assert response.status_code == 200
         data = response.json()
@@ -1134,7 +1168,7 @@ class TestAlternativeRouterEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         response = client_alt.get("/api/v1/repair/scripts")
         assert response.status_code == 200
         data = response.json()
@@ -1146,7 +1180,7 @@ class TestAlternativeRouterEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         response = client_alt.get("/api/v1/repair/scripts/executions")
         assert response.status_code == 200
 
@@ -1157,7 +1191,7 @@ class TestAlternativeRouterEndpoints:
         execution["id"] = execution_id
         execution["status"] = "pending"
         _repair_executions[execution_id] = execution
-        
+
         response = client_alt.post(f"/api/v1/repair/scripts/executions/{execution_id}/cancel")
         assert response.status_code == 200
         data = response.json()
@@ -1169,7 +1203,7 @@ class TestAlternativeRouterEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         response = client_alt.post(f"/api/v1/repair/scripts/executions/{execution_id}/retry")
         assert response.status_code == 200
 
@@ -1188,9 +1222,9 @@ class TestAlternativeRouterEndpoints:
             "configType": "global",
             "key": "test_key",
             "value": "test_value",
-            "category": "test"
+            "category": "test",
         }
-        
+
         response = client_alt.post("/api/v1/repair/configuration", json=config_data)
         assert response.status_code == 200
 
@@ -1201,7 +1235,7 @@ class TestAlternativeRouterEndpoints:
         execution["id"] = execution_id
         execution["status"] = "pending"
         _repair_executions[execution_id] = execution
-        
+
         response = client_alt.get("/api/v1/repair/hitl-approval")
         assert response.status_code == 200
         data = response.json()
@@ -1213,9 +1247,11 @@ class TestAlternativeRouterEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         approval_data = {"comment": "Approved"}
-        response = client_alt.post(f"/api/v1/repair/hitl-approval/{execution_id}/approve", json=approval_data)
+        response = client_alt.post(
+            f"/api/v1/repair/hitl-approval/{execution_id}/approve", json=approval_data
+        )
         assert response.status_code == 200
 
     def test_reject_hitl_request_alt(self, client_alt, sample_execution_data):
@@ -1224,12 +1260,16 @@ class TestAlternativeRouterEndpoints:
         execution = sample_execution_data.copy()
         execution["id"] = execution_id
         _repair_executions[execution_id] = execution
-        
+
         rejection_data = {"reason": "Not approved"}
-        response = client_alt.post(f"/api/v1/repair/hitl-approval/{execution_id}/reject", json=rejection_data)
+        response = client_alt.post(
+            f"/api/v1/repair/hitl-approval/{execution_id}/reject", json=rejection_data
+        )
         assert response.status_code == 200
 
-    def test_get_repair_effectiveness_alt(self, client_alt, sample_strategy_data, sample_execution_data):
+    def test_get_repair_effectiveness_alt(
+        self, client_alt, sample_strategy_data, sample_execution_data
+    ):
         """Test getting repair effectiveness via alt router"""
         # Create strategy
         strategy_id = "strategy-123"
@@ -1237,7 +1277,7 @@ class TestAlternativeRouterEndpoints:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         # Create executions
         for i in range(3):
             execution = sample_execution_data.copy()
@@ -1245,7 +1285,7 @@ class TestAlternativeRouterEndpoints:
             execution["strategy_id"] = strategy_id
             execution["status"] = "completed"
             _repair_executions[f"execution-{i}"] = execution
-        
+
         response = client_alt.get("/api/v1/repair/effectiveness")
         assert response.status_code == 200
         data = response.json()
@@ -1258,7 +1298,7 @@ class TestAlternativeRouterEndpoints:
         execution["id"] = execution_id
         execution["status"] = "completed"
         _repair_executions[execution_id] = execution
-        
+
         response = client_alt.get("/api/v1/repair/verification")
         assert response.status_code == 200
         data = response.json()
@@ -1293,6 +1333,7 @@ class TestAlternativeRouterEndpoints:
 # 8. Data Validation Tests
 # ============================================================
 
+
 class TestDataValidation:
     """Test data validation for Pydantic models"""
 
@@ -1304,7 +1345,7 @@ class TestDataValidation:
             "repair_type": "script",
             "target_scope": "service",
             "platform": "linux",
-            "priority": "high"
+            "priority": "high",
         }
         strategy = RepairStrategyCreate(**data)
         assert strategy.name == "Test Strategy"
@@ -1326,7 +1367,7 @@ class TestDataValidation:
             "strategy_id": "strategy-123",
             "target_resource": "service-1",
             "parameters": {"timeout": 300},
-            "requested_by": "admin"
+            "requested_by": "admin",
         }
         execution = RepairExecutionCreate(**data)
         assert execution.strategy_id == "strategy-123"
@@ -1338,7 +1379,7 @@ class TestDataValidation:
             "name": "Test Platform",
             "type": "linux",
             "endpoint": "ssh://server",
-            "capabilities": ["script", "service"]
+            "capabilities": ["script", "service"],
         }
         platform = PlatformCreate(**data)
         assert platform.name == "Test Platform"
@@ -1350,7 +1391,7 @@ class TestDataValidation:
             "target_platforms": ["linux", "docker"],
             "strategy_id": "strategy-123",
             "target_resources": {"linux": "server-1", "docker": "container-1"},
-            "parallel": False
+            "parallel": False,
         }
         request = CrossPlatformRepairRequest(**data)
         assert len(request.target_platforms) == 2
@@ -1364,7 +1405,7 @@ class TestDataValidation:
             "repair_type": "script",
             "platform": "linux",
             "template_content": "echo test",
-            "parameters": [{"name": "param1", "type": "string"}]
+            "parameters": [{"name": "param1", "type": "string"}],
         }
         template = RepairTemplateCreate(**data)
         assert template.name == "Test Template"
@@ -1379,6 +1420,7 @@ class TestDataValidation:
 # ============================================================
 # 9. Error Handling Tests
 # ============================================================
+
 
 class TestErrorHandling:
     """Test error handling across all endpoints"""
@@ -1397,7 +1439,7 @@ class TestErrorHandling:
         strategy["id"] = strategy_id
         strategy["status"] = "active"
         _repair_strategies[strategy_id] = strategy
-        
+
         # Try to delete with active execution
         execution = sample_execution_data = {
             "id": "execution-1",
@@ -1406,10 +1448,10 @@ class TestErrorHandling:
             "parameters": {},
             "requested_by": "admin",
             "reason": "test",
-            "status": "pending"
+            "status": "pending",
         }
         _repair_executions["execution-1"] = execution
-        
+
         response = client.delete(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 409
         data = response.json()
@@ -1427,6 +1469,7 @@ class TestErrorHandling:
 # 10. Integration Tests
 # ============================================================
 
+
 class TestIntegration:
     """Integration tests for multiple endpoints working together"""
 
@@ -1436,15 +1479,17 @@ class TestIntegration:
         response = client.post("/api/v1/unified-repair/strategies", json=sample_strategy_data)
         assert response.status_code == 200
         strategy_id = response.json()["id"]
-        
+
         # Read
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 200
-        
+
         # Update
-        response = client.patch(f"/api/v1/unified-repair/strategies/{strategy_id}", json={"priority": "critical"})
+        response = client.patch(
+            f"/api/v1/unified-repair/strategies/{strategy_id}", json={"priority": "critical"}
+        )
         assert response.status_code == 200
-        
+
         # Delete
         response = client.delete(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 200
@@ -1455,22 +1500,24 @@ class TestIntegration:
         response = client.post("/api/v1/unified-repair/strategies", json=sample_strategy_data)
         assert response.status_code == 200
         strategy_id = response.json()["id"]
-        
+
         # Create execution
         execution_data = sample_execution_data.copy()
         execution_data["strategy_id"] = strategy_id
         response = client.post("/api/v1/unified-repair/executions", json=execution_data)
         assert response.status_code == 200
         execution_id = response.json()["id"]
-        
+
         # Read
         response = client.get(f"/api/v1/unified-repair/executions/{execution_id}")
         assert response.status_code == 200
-        
+
         # Update
-        response = client.patch(f"/api/v1/unified-repair/executions/{execution_id}", json={"status": "completed"})
+        response = client.patch(
+            f"/api/v1/unified-repair/executions/{execution_id}", json={"status": "completed"}
+        )
         assert response.status_code == 200
-        
+
         # Delete
         response = client.delete(f"/api/v1/unified-repair/executions/{execution_id}")
         assert response.status_code == 200
@@ -1481,14 +1528,14 @@ class TestIntegration:
         response = client.post("/api/v1/unified-repair/strategies", json=sample_strategy_data)
         assert response.status_code == 200
         strategy_id = response.json()["id"]
-        
+
         # Create executions
         for i in range(3):
             execution = sample_execution_data.copy()
             execution["strategy_id"] = strategy_id
             response = client.post("/api/v1/unified-repair/executions", json=execution)
             assert response.status_code == 200
-        
+
         # Get strategy with stats
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
         assert response.status_code == 200
@@ -1500,14 +1547,14 @@ class TestIntegration:
         # Create platform
         response = client.post("/api/v1/unified-repair/platforms", json=sample_platform_data)
         assert response.status_code == 200
-        
+
         # Create strategies for platform
         for i in range(2):
             strategy = sample_strategy_data.copy()
             strategy["name"] = f"Strategy {i}"
             response = client.post("/api/v1/unified-repair/strategies", json=strategy)
             assert response.status_code == 200
-        
+
         # List strategies by platform
         response = client.get("/api/v1/unified-repair/strategies?platform=linux")
         assert response.status_code == 200

@@ -50,7 +50,7 @@ from core.alert_engine import (
     register_ws,
     unregister_ws,
 )
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +274,9 @@ def test_check_linux_security_alerts_valid_and_fallback():
     hosts = [
         {"name": "host-a", "status": "ok", "metrics": {"ssh_failed_logins": {"value": 20}}},
     ]
-    result = asyncio.run(check_linux_security_alerts(hosts))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        check_linux_security_alerts(hosts)
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
     assert result[0]["alert_type"] == "ssh_brute_force"
 
@@ -295,7 +297,9 @@ def test_check_linux_security_alerts_invalid_inputs():
         {"name": "bad", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "ERROR"}}},
         {"name": "bad", "status": "ok", "metrics": {"ssh_failed_logins": {"value": "abc"}}},
     ]
-    result = asyncio.run(check_linux_security_alerts(hosts))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        check_linux_security_alerts(hosts)
+    )  # noqa: F841  # Variable for test verification
     assert result == []  # noqa: F841  # Variable for test verification
 
 
@@ -312,7 +316,9 @@ def test_check_linux_security_alerts_persistence_failure_falls_back():
     ae.alert_repository = FailingSaveRepository()
     host = {"name": "fail-db", "status": "ok", "metrics": {"ssh_failed_logins": {"value": 20}}}
     # engine catches the save error and still appends to memory
-    result = asyncio.run(check_linux_security_alerts([host]))  # noqa: F841  # Variable for test verification
+    result = asyncio.run(
+        check_linux_security_alerts([host])
+    )  # noqa: F841  # Variable for test verification
     assert len(result) == 1
 
 

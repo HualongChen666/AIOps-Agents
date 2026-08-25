@@ -11,42 +11,44 @@ Tests all API endpoints for tracing management including:
 - Performance metrics
 """
 
+import hashlib
+import time
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from datetime import datetime, timezone, timedelta
-import time
-import hashlib
 
 from api.tracing_advanced_router import (
+    AnalyticsCreate,
+    OperationCreate,
+    SearchRequest,
+    ServiceCreate,
+    SpanCreate,
+    TraceCreate,
+    TraceUpdate,
+    _analytics,
+    _generate_synthetic_trace,
+    _operations,
+    _recent_synthetic_traces,
+    _spans,
+    _traces,
     router,
     router_alt,
     router_v1,
-    TraceCreate,
-    TraceUpdate,
-    SpanCreate,
-    ServiceCreate,
-    OperationCreate,
-    AnalyticsCreate,
-    SearchRequest,
-    _traces,
-    _spans,
-    _operations,
-    _analytics,
-    _generate_synthetic_trace,
-    _recent_synthetic_traces,
 )
-
 
 # ============================================================
 # Test Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def client():
     """Create a test client for the router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -56,6 +58,7 @@ def client():
 def client_alt():
     """Create a test client for the alt router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router_alt)
     return TestClient(app)
@@ -65,6 +68,7 @@ def client_alt():
 def client_v1():
     """Create a test client for the v1 router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router_v1)
     return TestClient(app)
@@ -88,7 +92,7 @@ def sample_trace_data():
         "operation": "/api/v1/status",
         "duration_ms": 150.5,
         "status": "ok",
-        "tags": {"env": "production"}
+        "tags": {"env": "production"},
     }
 
 
@@ -104,7 +108,7 @@ def sample_span_data():
         "start_time": datetime.now(timezone.utc).isoformat(),
         "duration_ms": 50.0,
         "status": "ok",
-        "tags": {}
+        "tags": {},
     }
 
 
@@ -115,19 +119,14 @@ def sample_service_data():
         "name": "aiops-agent",
         "type": "application",
         "version": "1.0.0",
-        "metadata": {"env": "production"}
+        "metadata": {"env": "production"},
     }
 
 
 @pytest.fixture
 def sample_operation_data():
     """Sample operation data for testing"""
-    return {
-        "name": "/api/v1/status",
-        "service": "aiops-agent",
-        "type": "http",
-        "metadata": {}
-    }
+    return {"name": "/api/v1/status", "service": "aiops-agent", "type": "http", "metadata": {}}
 
 
 @pytest.fixture
@@ -138,19 +137,14 @@ def sample_analytics_data():
         "operation": "/api/v1/status",
         "metric_type": "latency",
         "value": 150.5,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
 @pytest.fixture
 def sample_search_request():
     """Sample search request for testing"""
-    return {
-        "query": "error",
-        "service_name": "aiops-agent",
-        "status": "error",
-        "limit": 50
-    }
+    return {"query": "error", "service_name": "aiops-agent", "status": "error", "limit": 50}
 
 
 @pytest.fixture(autouse=True)
@@ -171,6 +165,7 @@ def clear_data_stores():
 # 1. Trace Management Endpoints Tests
 # ============================================================
 
+
 class TestTraceManagementEndpoints:
     """Test trace management endpoints"""
 
@@ -186,7 +181,7 @@ class TestTraceManagementEndpoints:
     def test_list_traces_with_data(self, client, sample_trace_data):
         """Test listing traces with data"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client.get("/api/v1/tracing/traces")
         assert response.status_code == 200
         data = response.json()
@@ -199,12 +194,12 @@ class TestTraceManagementEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["root_service"] = "service-1"
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["root_service"] = "service-2"
         _traces["trace-2"] = trace2
-        
+
         response = client.get("/api/v1/tracing/traces?service_name=service-1")
         assert response.status_code == 200
         data = response.json()
@@ -217,12 +212,12 @@ class TestTraceManagementEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["operation"] = "/api/v1/status"
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["operation"] = "/api/v1/health"
         _traces["trace-2"] = trace2
-        
+
         response = client.get("/api/v1/tracing/traces?operation=/api/v1/status")
         assert response.status_code == 200
         data = response.json()
@@ -234,12 +229,12 @@ class TestTraceManagementEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["status"] = "ok"
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["status"] = "error"
         _traces["trace-2"] = trace2
-        
+
         response = client.get("/api/v1/tracing/traces?status=ok")
         assert response.status_code == 200
         data = response.json()
@@ -251,12 +246,12 @@ class TestTraceManagementEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["duration_ms"] = 100.0
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["duration_ms"] = 200.0
         _traces["trace-2"] = trace2
-        
+
         response = client.get("/api/v1/tracing/traces?min_duration=150")
         assert response.status_code == 200
         data = response.json()
@@ -269,7 +264,7 @@ class TestTraceManagementEndpoints:
             trace = sample_trace_data.copy()
             trace["trace_id"] = f"trace-{i}"
             _traces[f"trace-{i}"] = trace
-        
+
         response = client.get("/api/v1/tracing/traces?limit=5")
         assert response.status_code == 200
         data = response.json()
@@ -288,25 +283,22 @@ class TestTraceManagementEndpoints:
     def test_create_trace_duplicate_id(self, client, sample_trace_data):
         """Test creating a trace with duplicate ID"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client.post("/api/v1/tracing/traces", json=sample_trace_data)
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
     def test_create_trace_validation_error(self, client):
         """Test creating a trace with invalid data"""
-        invalid_data = {
-            "trace_id": "",  # Empty ID should fail
-            "root_service": "test"
-        }
-        
+        invalid_data = {"trace_id": "", "root_service": "test"}  # Empty ID should fail
+
         response = client.post("/api/v1/tracing/traces", json=invalid_data)
         assert response.status_code == 422
 
     def test_get_trace_by_id_success(self, client, sample_trace_data):
         """Test getting a trace by ID successfully"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client.get("/api/v1/tracing/traces/trace-123")
         assert response.status_code == 200
         data = response.json()
@@ -326,7 +318,7 @@ class TestTraceManagementEndpoints:
         """Test getting a trace with associated spans"""
         _traces["trace-123"] = sample_trace_data
         _spans["span-123"] = sample_span_data
-        
+
         response = client.get("/api/v1/tracing/traces/trace-123")
         assert response.status_code == 200
         data = response.json()
@@ -336,12 +328,9 @@ class TestTraceManagementEndpoints:
     def test_update_trace_success(self, client, sample_trace_data):
         """Test updating a trace successfully"""
         _traces["trace-123"] = sample_trace_data
-        
-        update_data = {
-            "status": "error",
-            "duration_ms": 200.0
-        }
-        
+
+        update_data = {"status": "error", "duration_ms": 200.0}
+
         response = client.patch("/api/v1/tracing/traces/trace-123", json=update_data)
         assert response.status_code == 200
         data = response.json()
@@ -352,7 +341,7 @@ class TestTraceManagementEndpoints:
     def test_update_trace_not_found(self, client):
         """Test updating a trace that doesn't exist"""
         update_data = {"status": "error"}
-        
+
         response = client.patch("/api/v1/tracing/traces/nonexistent", json=update_data)
         assert response.status_code == 404
 
@@ -360,7 +349,7 @@ class TestTraceManagementEndpoints:
         """Test deleting a trace successfully"""
         _traces["trace-123"] = sample_trace_data
         _spans["span-123"] = sample_span_data
-        
+
         response = client.delete("/api/v1/tracing/traces/trace-123")
         assert response.status_code == 200
         data = response.json()
@@ -380,6 +369,7 @@ class TestTraceManagementEndpoints:
 # 2. Span Management Endpoints Tests
 # ============================================================
 
+
 class TestSpanManagementEndpoints:
     """Test span management endpoints"""
 
@@ -394,7 +384,7 @@ class TestSpanManagementEndpoints:
     def test_list_spans_with_data(self, client, sample_span_data):
         """Test listing spans with data"""
         _spans["span-123"] = sample_span_data
-        
+
         response = client.get("/api/v1/tracing/spans")
         assert response.status_code == 200
         data = response.json()
@@ -406,12 +396,12 @@ class TestSpanManagementEndpoints:
         span1["span_id"] = "span-1"
         span1["trace_id"] = "trace-1"
         _spans["span-1"] = span1
-        
+
         span2 = sample_span_data.copy()
         span2["span_id"] = "span-2"
         span2["trace_id"] = "trace-2"
         _spans["span-2"] = span2
-        
+
         response = client.get("/api/v1/tracing/spans?trace_id=trace-1")
         assert response.status_code == 200
         data = response.json()
@@ -424,12 +414,12 @@ class TestSpanManagementEndpoints:
         span1["span_id"] = "span-1"
         span1["service"] = "service-1"
         _spans["span-1"] = span1
-        
+
         span2 = sample_span_data.copy()
         span2["span_id"] = "span-2"
         span2["service"] = "service-2"
         _spans["span-2"] = span2
-        
+
         response = client.get("/api/v1/tracing/spans?service=service-1")
         assert response.status_code == 200
         data = response.json()
@@ -441,12 +431,12 @@ class TestSpanManagementEndpoints:
         span1["span_id"] = "span-1"
         span1["status"] = "ok"
         _spans["span-1"] = span1
-        
+
         span2 = sample_span_data.copy()
         span2["span_id"] = "span-2"
         span2["status"] = "error"
         _spans["span-2"] = span2
-        
+
         response = client.get("/api/v1/tracing/spans?status=ok")
         assert response.status_code == 200
         data = response.json()
@@ -458,7 +448,7 @@ class TestSpanManagementEndpoints:
             span = sample_span_data.copy()
             span["span_id"] = f"span-{i}"
             _spans[f"span-{i}"] = span
-        
+
         response = client.get("/api/v1/tracing/spans?limit=5")
         assert response.status_code == 200
         data = response.json()
@@ -467,7 +457,7 @@ class TestSpanManagementEndpoints:
     def test_create_span_success(self, client, sample_span_data, sample_trace_data):
         """Test creating a span successfully"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client.post("/api/v1/tracing/spans", json=sample_span_data)
         assert response.status_code == 200
         data = response.json()
@@ -488,14 +478,14 @@ class TestSpanManagementEndpoints:
         """Test creating a span with duplicate ID"""
         _traces["trace-123"] = sample_trace_data
         _spans["span-123"] = sample_span_data
-        
+
         response = client.post("/api/v1/tracing/spans", json=sample_span_data)
         assert response.status_code == 409
 
     def test_get_span_by_id_success(self, client, sample_span_data):
         """Test getting a span by ID successfully"""
         _spans["span-123"] = sample_span_data
-        
+
         response = client.get("/api/v1/tracing/spans/span-123")
         assert response.status_code == 200
         data = response.json()
@@ -509,7 +499,7 @@ class TestSpanManagementEndpoints:
     def test_delete_span_success(self, client, sample_span_data):
         """Test deleting a span successfully"""
         _spans["span-123"] = sample_span_data
-        
+
         response = client.delete("/api/v1/tracing/spans/span-123")
         assert response.status_code == 200
         assert "span-123" not in _spans
@@ -523,6 +513,7 @@ class TestSpanManagementEndpoints:
 # ============================================================
 # 3. Service Management Endpoints Tests
 # ============================================================
+
 
 class TestServiceManagementEndpoints:
     """Test service management endpoints"""
@@ -569,6 +560,7 @@ class TestServiceManagementEndpoints:
 # 4. Operation Management Endpoints Tests
 # ============================================================
 
+
 class TestOperationManagementEndpoints:
     """Test operation management endpoints"""
 
@@ -588,9 +580,9 @@ class TestOperationManagementEndpoints:
             "name": "/api/v1/status",
             "service": "aiops-agent",
             "type": "http",
-            "metadata": {}
+            "metadata": {},
         }
-        
+
         response = client.get("/api/v1/tracing/operations")
         assert response.status_code == 200
         data = response.json()
@@ -603,19 +595,19 @@ class TestOperationManagementEndpoints:
             "name": "/api/v1/status",
             "service": "service-1",
             "type": "http",
-            "metadata": {}
+            "metadata": {},
         }
         _operations["service-1:/api/v1/status"] = op1
-        
+
         op2 = {
             "id": "service-2:/api/v1/health",
             "name": "/api/v1/health",
             "service": "service-2",
             "type": "http",
-            "metadata": {}
+            "metadata": {},
         }
         _operations["service-2:/api/v1/health"] = op2
-        
+
         response = client.get("/api/v1/tracing/operations?service=service-1")
         assert response.status_code == 200
         data = response.json()
@@ -629,19 +621,19 @@ class TestOperationManagementEndpoints:
             "name": "/api/v1/status",
             "service": "service-1",
             "type": "http",
-            "metadata": {}
+            "metadata": {},
         }
         _operations["service-1:/api/v1/status"] = op1
-        
+
         op2 = {
             "id": "service-2:query",
             "name": "query",
             "service": "service-2",
             "type": "db",
-            "metadata": {}
+            "metadata": {},
         }
         _operations["service-2:query"] = op2
-        
+
         response = client.get("/api/v1/tracing/operations?type=http")
         assert response.status_code == 200
         data = response.json()
@@ -661,7 +653,7 @@ class TestOperationManagementEndpoints:
         # Create first
         response = client.post("/api/v1/tracing/operations", json=sample_operation_data)
         assert response.status_code == 200
-        
+
         # Try to create duplicate
         response = client.post("/api/v1/tracing/operations", json=sample_operation_data)
         assert response.status_code == 409
@@ -674,9 +666,9 @@ class TestOperationManagementEndpoints:
             "name": "/api/v1/status",
             "service": "aiops-agent",
             "type": "http",
-            "metadata": {}
+            "metadata": {},
         }
-        
+
         # Use a simpler operation ID without special characters
         simple_id = "operation-123"
         _operations[simple_id] = {
@@ -684,9 +676,9 @@ class TestOperationManagementEndpoints:
             "name": "/api/v1/status",
             "service": "aiops-agent",
             "type": "http",
-            "metadata": {}
+            "metadata": {},
         }
-        
+
         response = client.delete(f"/api/v1/tracing/operations/{simple_id}")
         assert response.status_code == 200
         assert simple_id not in _operations
@@ -700,6 +692,7 @@ class TestOperationManagementEndpoints:
 # ============================================================
 # 5. Analytics Endpoints Tests
 # ============================================================
+
 
 class TestAnalyticsEndpoints:
     """Test analytics endpoints"""
@@ -716,7 +709,7 @@ class TestAnalyticsEndpoints:
     def test_get_analytics_with_data(self, client, sample_analytics_data):
         """Test getting analytics with data"""
         _analytics["analytics-1"] = sample_analytics_data
-        
+
         response = client.get("/api/v1/tracing/analytics")
         assert response.status_code == 200
         data = response.json()
@@ -727,11 +720,11 @@ class TestAnalyticsEndpoints:
         analytics1 = sample_analytics_data.copy()
         analytics1["service"] = "service-1"
         _analytics["analytics-1"] = analytics1
-        
+
         analytics2 = sample_analytics_data.copy()
         analytics2["service"] = "service-2"
         _analytics["analytics-2"] = analytics2
-        
+
         response = client.get("/api/v1/tracing/analytics?service=service-1")
         assert response.status_code == 200
         data = response.json()
@@ -742,11 +735,11 @@ class TestAnalyticsEndpoints:
         analytics1 = sample_analytics_data.copy()
         analytics1["metric_type"] = "latency"
         _analytics["analytics-1"] = analytics1
-        
+
         analytics2 = sample_analytics_data.copy()
         analytics2["metric_type"] = "error_rate"
         _analytics["analytics-2"] = analytics2
-        
+
         response = client.get("/api/v1/tracing/analytics?metric_type=latency")
         assert response.status_code == 200
         data = response.json()
@@ -755,15 +748,15 @@ class TestAnalyticsEndpoints:
     def test_get_analytics_with_time_range(self, client, sample_analytics_data):
         """Test getting analytics with time range"""
         now = datetime.now(timezone.utc)
-        
+
         analytics1 = sample_analytics_data.copy()
         analytics1["timestamp"] = (now - timedelta(hours=2)).isoformat()
         _analytics["analytics-1"] = analytics1
-        
+
         analytics2 = sample_analytics_data.copy()
         analytics2["timestamp"] = now.isoformat()
         _analytics["analytics-2"] = analytics2
-        
+
         start_time = (now - timedelta(hours=1)).isoformat()
         response = client.get(f"/api/v1/tracing/analytics?start_time={start_time}")
         assert response.status_code == 200
@@ -776,7 +769,7 @@ class TestAnalyticsEndpoints:
             analytics = sample_analytics_data.copy()
             analytics["value"] = 100.0 + i * 10
             _analytics[f"analytics-{i}"] = analytics
-        
+
         response = client.get("/api/v1/tracing/analytics")
         assert response.status_code == 200
         data = response.json()
@@ -799,6 +792,7 @@ class TestAnalyticsEndpoints:
 # 6. Search Endpoints Tests
 # ============================================================
 
+
 class TestSearchEndpoints:
     """Test search endpoints"""
 
@@ -814,7 +808,7 @@ class TestSearchEndpoints:
     def test_search_traces_with_data(self, client, sample_trace_data, sample_search_request):
         """Test searching traces with data"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client.post("/api/v1/tracing/search", json=sample_search_request)
         assert response.status_code == 200
         data = response.json()
@@ -826,12 +820,9 @@ class TestSearchEndpoints:
         trace1["trace_id"] = "trace-error-123"
         trace1["status"] = "error"
         _traces["trace-error-123"] = trace1
-        
-        search_request = {
-            "query": "error",
-            "limit": 50
-        }
-        
+
+        search_request = {"query": "error", "limit": 50}
+
         response = client.post("/api/v1/tracing/search", json=search_request)
         assert response.status_code == 200
         data = response.json()
@@ -843,13 +834,9 @@ class TestSearchEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["root_service"] = "service-1"
         _traces["trace-1"] = trace1
-        
-        search_request = {
-            "query": "test",
-            "service_name": "service-1",
-            "limit": 50
-        }
-        
+
+        search_request = {"query": "test", "service_name": "service-1", "limit": 50}
+
         response = client.post("/api/v1/tracing/search", json=search_request)
         assert response.status_code == 200
         data = response.json()
@@ -862,13 +849,9 @@ class TestSearchEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["status"] = "error"
         _traces["trace-1"] = trace1
-        
-        search_request = {
-            "query": "test",
-            "status": "error",
-            "limit": 50
-        }
-        
+
+        search_request = {"query": "test", "status": "error", "limit": 50}
+
         response = client.post("/api/v1/tracing/search", json=search_request)
         assert response.status_code == 200
         data = response.json()
@@ -881,19 +864,14 @@ class TestSearchEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["duration_ms"] = 100.0
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["duration_ms"] = 200.0
         _traces["trace-2"] = trace2
-        
-        search_request = {
-            "query": "test",
-            "min_duration": 150,
-            "max_duration": 250,
-            "limit": 50
-        }
-        
+
+        search_request = {"query": "test", "min_duration": 150, "max_duration": 250, "limit": 50}
+
         response = client.post("/api/v1/tracing/search", json=search_request)
         assert response.status_code == 200
         data = response.json()
@@ -903,24 +881,20 @@ class TestSearchEndpoints:
     def test_search_with_time_range(self, client, sample_trace_data):
         """Test searching with time range"""
         now = datetime.now(timezone.utc)
-        
+
         trace1 = sample_trace_data.copy()
         trace1["trace_id"] = "trace-1"
         trace1["start_time"] = (now - timedelta(hours=2)).isoformat()
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["start_time"] = now.isoformat()
         _traces["trace-2"] = trace2
-        
+
         start_time = (now - timedelta(hours=1)).isoformat()
-        search_request = {
-            "query": "test",
-            "start_time": start_time,
-            "limit": 50
-        }
-        
+        search_request = {"query": "test", "start_time": start_time, "limit": 50}
+
         response = client.post("/api/v1/tracing/search", json=search_request)
         assert response.status_code == 200
         data = response.json()
@@ -931,6 +905,7 @@ class TestSearchEndpoints:
 # ============================================================
 # 7. Performance Endpoints Tests
 # ============================================================
+
 
 class TestPerformanceEndpoints:
     """Test performance metrics endpoints"""
@@ -951,7 +926,7 @@ class TestPerformanceEndpoints:
             trace["trace_id"] = f"trace-{i}"
             trace["duration_ms"] = 100.0 + i * 10
             _traces[f"trace-{i}"] = trace
-        
+
         response = client.get("/api/v1/tracing/performance")
         assert response.status_code == 200
         data = response.json()
@@ -964,12 +939,12 @@ class TestPerformanceEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["root_service"] = "service-1"
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["root_service"] = "service-2"
         _traces["trace-2"] = trace2
-        
+
         response = client.get("/api/v1/tracing/performance?service=service-1")
         assert response.status_code == 200
         data = response.json()
@@ -981,12 +956,12 @@ class TestPerformanceEndpoints:
         trace1["trace_id"] = "trace-1"
         trace1["operation"] = "/api/v1/status"
         _traces["trace-1"] = trace1
-        
+
         trace2 = sample_trace_data.copy()
         trace2["trace_id"] = "trace-2"
         trace2["operation"] = "/api/v1/health"
         _traces["trace-2"] = trace2
-        
+
         response = client.get("/api/v1/tracing/performance?operation=/api/v1/status")
         assert response.status_code == 200
         data = response.json()
@@ -1000,12 +975,12 @@ class TestPerformanceEndpoints:
             trace["trace_id"] = f"trace-{i}"
             trace["duration_ms"] = duration
             _traces[f"trace-{i}"] = trace
-        
+
         response = client.get("/api/v1/tracing/performance")
         assert response.status_code == 200
         data = response.json()
         metrics = data["metrics"]
-        
+
         assert metrics["avg_duration_ms"] == sum(durations) / len(durations)
         assert metrics["min_duration_ms"] == min(durations)
         assert metrics["max_duration_ms"] == max(durations)
@@ -1019,7 +994,7 @@ class TestPerformanceEndpoints:
         assert response.status_code == 200
         data = response.json()
         time_series = data["time_series"]
-        
+
         assert len(time_series) == 60  # 60 data points
         for point in time_series:
             assert "timestamp" in point
@@ -1034,12 +1009,12 @@ class TestPerformanceEndpoints:
             trace["trace_id"] = f"trace-{i}"
             trace["status"] = "error" if i < 3 else "ok"
             _traces[f"trace-{i}"] = trace
-        
+
         response = client.get("/api/v1/tracing/performance")
         assert response.status_code == 200
         data = response.json()
         metrics = data["metrics"]
-        
+
         assert metrics["error_count"] == 3
         assert metrics["error_rate"] == 0.3
 
@@ -1047,6 +1022,7 @@ class TestPerformanceEndpoints:
 # ============================================================
 # 8. Alternative Router Endpoints Tests
 # ============================================================
+
 
 class TestAlternativeRouterEndpoints:
     """Test alternative router endpoints for frontend compatibility"""
@@ -1061,7 +1037,7 @@ class TestAlternativeRouterEndpoints:
     def test_get_trace_alt(self, client_alt, sample_trace_data):
         """Test getting trace via alt router"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client_alt.get("/api/tracing/trace/trace-123")
         assert response.status_code == 200
         data = response.json()
@@ -1071,6 +1047,7 @@ class TestAlternativeRouterEndpoints:
 # ============================================================
 # 9. V1 Router Endpoints Tests
 # ============================================================
+
 
 class TestV1RouterEndpoints:
     """Test V1 router endpoints"""
@@ -1085,7 +1062,7 @@ class TestV1RouterEndpoints:
     def test_get_trace_v1(self, client_v1, sample_trace_data):
         """Test getting trace via v1 router"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client_v1.get("/api/v1/tracing/traces/trace-123")
         assert response.status_code == 200
         data = response.json()
@@ -1094,7 +1071,7 @@ class TestV1RouterEndpoints:
     def test_list_spans_v1(self, client_v1, sample_span_data):
         """Test listing spans via v1 router"""
         _spans["span-123"] = sample_span_data
-        
+
         response = client_v1.get("/api/v1/tracing/spans")
         assert response.status_code == 200
         data = response.json()
@@ -1131,6 +1108,7 @@ class TestV1RouterEndpoints:
 # 10. Data Validation Tests
 # ============================================================
 
+
 class TestDataValidation:
     """Test data validation for Pydantic models"""
 
@@ -1141,7 +1119,7 @@ class TestDataValidation:
             "root_service": "aiops-agent",
             "operation": "/api/v1/status",
             "duration_ms": 150.5,
-            "status": "ok"
+            "status": "ok",
         }
         trace = TraceCreate(**data)
         assert trace.trace_id == "trace-123"
@@ -1156,10 +1134,7 @@ class TestDataValidation:
         """Test TraceCreate with negative duration"""
         with pytest.raises(Exception):
             TraceCreate(
-                trace_id="trace-123",
-                root_service="test",
-                operation="/test",
-                duration_ms=-10
+                trace_id="trace-123", root_service="test", operation="/test", duration_ms=-10
             )
 
     def test_span_create_valid(self):
@@ -1170,7 +1145,7 @@ class TestDataValidation:
             "service": "aiops-agent",
             "operation": "/api/v1/status",
             "start_time": datetime.now(timezone.utc).isoformat(),
-            "duration_ms": 50.0
+            "duration_ms": 50.0,
         }
         span = SpanCreate(**data)
         assert span.span_id == "span-123"
@@ -1185,16 +1160,12 @@ class TestDataValidation:
                 service="test",
                 operation="/test",
                 start_time=datetime.now(timezone.utc).isoformat(),
-                duration_ms=-10
+                duration_ms=-10,
             )
 
     def test_service_create_valid(self):
         """Test valid ServiceCreate model"""
-        data = {
-            "name": "aiops-agent",
-            "type": "application",
-            "version": "1.0.0"
-        }
+        data = {"name": "aiops-agent", "type": "application", "version": "1.0.0"}
         service = ServiceCreate(**data)
         assert service.name == "aiops-agent"
         assert service.type == "application"
@@ -1206,11 +1177,7 @@ class TestDataValidation:
 
     def test_operation_create_valid(self):
         """Test valid OperationCreate model"""
-        data = {
-            "name": "/api/v1/status",
-            "service": "aiops-agent",
-            "type": "http"
-        }
+        data = {"name": "/api/v1/status", "service": "aiops-agent", "type": "http"}
         operation = OperationCreate(**data)
         assert operation.name == "/api/v1/status"
         assert operation.service == "aiops-agent"
@@ -1221,7 +1188,7 @@ class TestDataValidation:
             "service": "aiops-agent",
             "metric_type": "latency",
             "value": 150.5,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         analytics = AnalyticsCreate(**data)
         assert analytics.service == "aiops-agent"
@@ -1229,12 +1196,7 @@ class TestDataValidation:
 
     def test_search_request_valid(self):
         """Test valid SearchRequest model"""
-        data = {
-            "query": "error",
-            "service_name": "aiops-agent",
-            "status": "error",
-            "limit": 50
-        }
+        data = {"query": "error", "service_name": "aiops-agent", "status": "error", "limit": 50}
         search = SearchRequest(**data)
         assert search.query == "error"
         assert search.limit == 50
@@ -1254,6 +1216,7 @@ class TestDataValidation:
 # 11. Synthetic Trace Generation Tests
 # ============================================================
 
+
 class TestSyntheticTraceGeneration:
     """Test synthetic trace generation"""
 
@@ -1261,7 +1224,7 @@ class TestSyntheticTraceGeneration:
         """Test generating a synthetic trace"""
         trace_id = "test-trace-123"
         trace = _generate_synthetic_trace(trace_id)
-        
+
         assert trace["trace_id"] == trace_id
         assert "spans" in trace
         assert "services" in trace
@@ -1274,14 +1237,14 @@ class TestSyntheticTraceGeneration:
         trace_id = "test-trace-123"
         trace1 = _generate_synthetic_trace(trace_id)
         trace2 = _generate_synthetic_trace(trace_id)
-        
+
         assert trace1["trace_id"] == trace2["trace_id"]
         assert len(trace1["spans"]) == len(trace2["spans"])
 
     def test_recent_synthetic_traces(self):
         """Test generating recent synthetic traces"""
         traces = _recent_synthetic_traces(10)
-        
+
         assert len(traces) == 10
         for trace in traces:
             assert "trace_id" in trace
@@ -1292,6 +1255,7 @@ class TestSyntheticTraceGeneration:
 # ============================================================
 # 12. Error Handling Tests
 # ============================================================
+
 
 class TestErrorHandling:
     """Test error handling across all endpoints"""
@@ -1305,7 +1269,7 @@ class TestErrorHandling:
     def test_409_response_format(self, client, sample_trace_data):
         """Test that 409 responses have correct format"""
         _traces["trace-123"] = sample_trace_data
-        
+
         response = client.post("/api/v1/tracing/traces", json=sample_trace_data)
         assert response.status_code == 409
         data = response.json()
@@ -1323,6 +1287,7 @@ class TestErrorHandling:
 # 13. Integration Tests
 # ============================================================
 
+
 class TestIntegration:
     """Integration tests for multiple endpoints working together"""
 
@@ -1332,15 +1297,15 @@ class TestIntegration:
         response = client.post("/api/v1/tracing/traces", json=sample_trace_data)
         assert response.status_code == 200
         trace_id = response.json()["trace_id"]
-        
+
         # Read
         response = client.get(f"/api/v1/tracing/traces/{trace_id}")
         assert response.status_code == 200
-        
+
         # Update
         response = client.patch(f"/api/v1/tracing/traces/{trace_id}", json={"status": "error"})
         assert response.status_code == 200
-        
+
         # Delete
         response = client.delete(f"/api/v1/tracing/traces/{trace_id}")
         assert response.status_code == 200
@@ -1350,14 +1315,14 @@ class TestIntegration:
         # Create trace
         response = client.post("/api/v1/tracing/traces", json=sample_trace_data)
         assert response.status_code == 200
-        
+
         # Create spans
         for i in range(3):
             span = sample_span_data.copy()
             span["span_id"] = f"span-{i}"
             response = client.post("/api/v1/tracing/spans", json=span)
             assert response.status_code == 200
-        
+
         # Get trace with spans
         response = client.get("/api/v1/tracing/traces/trace-123")
         assert response.status_code == 200

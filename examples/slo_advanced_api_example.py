@@ -8,24 +8,37 @@ for creating, reading, updating, and deleting SLO resources.
 """
 
 import asyncio
-import httpx
 from typing import Optional
+
+import httpx
 
 
 class SLOAdvancedAPIClient:
     """Client for interacting with SLO Advanced API endpoints."""
 
-    def __init__(self, base_url: str = "http://localhost:8000", api_key: Optional[str] = None):
-        self.base_url = base_url
-        self.api_key = api_key
+    def __init__(self, base_url: Optional[str] = None, api_key: Optional[str] = None):
+        import os
+
+        self.base_url = base_url or os.getenv("SLO_API_BASE_URL", "http://localhost:8000")
+        self.api_key = api_key or os.getenv("INTERNAL_API_KEY")
+        if not self.api_key:
+            raise ValueError("INTERNAL_API_KEY must be set via environment variable or parameter")
         self.headers = {}
-        if api_key:
-            self.headers["X-Internal-Key"] = api_key
+        if self.api_key:
+            self.headers["X-Internal-Key"] = self.api_key
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> dict:
         """Make an HTTP request to the API."""
         url = f"{self.base_url}{endpoint}"
-        async with httpx.AsyncClient() as client:
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("SLO_API_CLIENT_SSL_VERIFY", "true").lower() == "true"
+        if not ssl_verify:
+            import logging
+
+            logging.warning(
+                "SSL verification is disabled in SLO API client - this is a security risk!"
+            )
+        async with httpx.AsyncClient(verify=ssl_verify) as client:
             response = await client.request(
                 method, url, headers=self.headers, timeout=30.0, **kwargs
             )
@@ -75,7 +88,9 @@ class SLOAdvancedAPIClient:
         return await self._request("GET", "/api/v1/slo/error-budgets")
 
     # SLO Alerts
-    async def list_alerts(self, status: Optional[str] = None, severity: Optional[str] = None) -> dict:
+    async def list_alerts(
+        self, status: Optional[str] = None, severity: Optional[str] = None
+    ) -> dict:
         """List SLO alerts."""
         params = {}
         if status:
@@ -134,7 +149,13 @@ class SLOAdvancedAPIClient:
 async def main():
     """Example usage of the SLO Advanced API client."""
     # Initialize client (use internal API key for authentication)
-    client = SLOAdvancedAPIClient(base_url="http://localhost:8000", api_key="your-internal-api-key")
+    # API key and base URL are read from environment variables
+    try:
+        client = SLOAdvancedAPIClient()
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        print("Please set INTERNAL_API_KEY environment variable")
+        return
 
     print("=" * 60)
     print("SLO Advanced API Example Usage")
@@ -253,7 +274,9 @@ async def main():
         rollups = await client.get_rollups()
         print(f"   Found {len(rollups['rollups'])} rollups")
         for rollup in rollups["rollups"][:3]:  # Show first 3
-            print(f"   - {rollup['service']}: {rollup['healthy_slos']}/{rollup['total_slos']} healthy")
+            print(
+                f"   - {rollup['service']}: {rollup['healthy_slos']}/{rollup['total_slos']} healthy"
+            )
     except Exception as e:
         print(f"   Error getting rollups: {e}")
 

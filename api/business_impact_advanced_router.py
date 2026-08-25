@@ -8,7 +8,7 @@ Business Impact Advanced Router
 
 import json
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -42,6 +42,7 @@ REPORTS_FILE = DATA_DIR / "business_impact_reports.json"
 # Pydantic Models
 class ImpactSeverityEnum(str, Enum):
     """影响严重程度枚举"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -50,6 +51,7 @@ class ImpactSeverityEnum(str, Enum):
 
 class AnalysisStatusEnum(str, Enum):
     """分析状态枚举"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -58,6 +60,7 @@ class AnalysisStatusEnum(str, Enum):
 
 class CreateAnalysisRequest(BaseModel):
     """创建分析请求"""
+
     service_name: str = Field(..., min_length=1, max_length=200, description="服务名称")
     analysis_type: str = Field(default="full", description="分析类型")
     time_range: str = Field(default="1h", description="时间范围")
@@ -79,6 +82,7 @@ class CreateAnalysisRequest(BaseModel):
 
 class UpdateAnalysisRequest(BaseModel):
     """更新分析请求"""
+
     status: Optional[AnalysisStatusEnum] = Field(None, description="分析状态")
     result: Optional[Dict[str, Any]] = Field(None, description="分析结果")
 
@@ -94,10 +98,13 @@ class UpdateAnalysisRequest(BaseModel):
 
 class CreateDependencyRequest(BaseModel):
     """创建依赖关系请求"""
+
     source_service: str = Field(..., min_length=1, max_length=200, description="源服务")
     target_service: str = Field(..., min_length=1, max_length=200, description="目标服务")
     dependency_type: str = Field(default="api_call", description="依赖类型")
-    criticality: ImpactSeverityEnum = Field(default=ImpactSeverityEnum.MEDIUM, description="关键程度")
+    criticality: ImpactSeverityEnum = Field(
+        default=ImpactSeverityEnum.MEDIUM, description="关键程度"
+    )
     description: Optional[str] = Field(None, max_length=500, description="描述")
 
     model_config = {
@@ -115,6 +122,7 @@ class CreateDependencyRequest(BaseModel):
 
 class CreateReportRequest(BaseModel):
     """创建报告请求"""
+
     title: str = Field(..., min_length=1, max_length=200, description="报告标题")
     service_names: List[str] = Field(..., min_items=1, description="服务名称列表")
     time_range: str = Field(default="24h", description="时间范围")
@@ -141,15 +149,25 @@ def _load_json_file(file_path: Path) -> List[Dict[str, Any]]:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, list) else []
-    except Exception as e:
+    except Exception as e:  # noqa: F841 - Exception intentionally unused
         return []
 
 
 def _save_json_file(file_path: Path, data: List[Dict[str, Any]]) -> None:
     """保存JSON文件"""
+    import os
+    import stat
+
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+        # Set restrictive permissions for business impact data file (600 - owner read/write only)
+        try:
+            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+        except (OSError, AttributeError):
+            # chmod may fail on Windows or non-Unix systems
+            pass
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}")
 
@@ -528,7 +546,7 @@ async def create_report(request: CreateReportRequest) -> Dict[str, Any]:
             try:
                 impact = await assess_business_impact(service_name)
                 service_data.append(impact)
-            except Exception as e:
+            except Exception as e:  # noqa: F841 - Exception intentionally unused
                 # 跳过失败的服务
                 continue
 

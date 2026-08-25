@@ -316,7 +316,9 @@ async def test_performance_run_pass(tmp_path, monkeypatch):
     monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(0.0))
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     exec_id = await tester.run_performance_test("load_test_api")
-    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]  # noqa: F841  # Variable for test verification
+    pending = [
+        t for t in asyncio.all_tasks() if t is not asyncio.current_task()
+    ]  # noqa: F841  # Variable for test verification
     await asyncio.gather(*pending, return_exceptions=True)
     status = tester.get_execution_status(exec_id)
     assert status["status"] == "completed"
@@ -332,7 +334,9 @@ async def test_performance_run_fail(tmp_path, monkeypatch):
     monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(100.0))
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     exec_id = await tester.run_performance_test("load_test_api")
-    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]  # noqa: F841  # Variable for test verification
+    pending = [
+        t for t in asyncio.all_tasks() if t is not asyncio.current_task()
+    ]  # noqa: F841  # Variable for test verification
     await asyncio.gather(*pending, return_exceptions=True)
     status = tester.get_execution_status(exec_id)
     assert status["status"] == "completed"
@@ -378,7 +382,9 @@ async def test_performance_report_and_stats(tmp_path, monkeypatch):
     monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(0.0))
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     exec_id = await tester.run_performance_test("load_test_api")
-    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]  # noqa: F841  # Variable for test verification
+    pending = [
+        t for t in asyncio.all_tasks() if t is not asyncio.current_task()
+    ]  # noqa: F841  # Variable for test verification
     await asyncio.gather(*pending, return_exceptions=True)
 
     report = await tester.generate_performance_report()
@@ -409,7 +415,9 @@ async def test_plugin_manager_register_load_execute(monkeypatch):
     manager.register_plugin(_DemoBasePlugin)
     assert manager.load_plugin("demo") is True
 
-    result = await manager.execute_plugin("demo", {"x": 1})  # noqa: F841  # Variable for test verification
+    result = await manager.execute_plugin(
+        "demo", {"x": 1}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"out": {"x": 1}}  # noqa: F841  # Variable for test verification
 
     status = manager.get_plugin_status("demo")

@@ -189,7 +189,9 @@ def test_collect_cloud_aws(cloud_fakes):
         "namespace": "AWS/EC2",
         "dimensions": [{"Name": "InstanceId", "Value": "i-123"}],
     }
-    result = cloud_collector.collect_cloud_provider(cfg)  # noqa: F841  # Variable for test verification
+    result = cloud_collector.collect_cloud_provider(
+        cfg
+    )  # noqa: F841  # Variable for test verification
     assert result["provider"] == "aws"
     assert len(result["metrics"]) == 1
     assert result["metrics"][0]["name"] == "CPUUtilization"
@@ -207,7 +209,9 @@ def test_collect_cloud_azure(cloud_fakes):
         "resource_id": "/subscriptions/123/resourceGroups/rg",
         "metrics": ["cpu_percent", "memory_percent"],
     }
-    result = cloud_collector.collect_cloud_provider(cfg)  # noqa: F841  # Variable for test verification
+    result = cloud_collector.collect_cloud_provider(
+        cfg
+    )  # noqa: F841  # Variable for test verification
     assert result["provider"] == "azure"
     assert len(result["metrics"]) == 1
     assert result["metrics"][0]["value"] == 55.0
@@ -222,7 +226,9 @@ def test_collect_cloud_alibaba(cloud_fakes):
         "instance_id": "i-123",
         "metrics": ["cpu_total", "memory_used"],
     }
-    result = cloud_collector.collect_cloud_provider(cfg)  # noqa: F841  # Variable for test verification
+    result = cloud_collector.collect_cloud_provider(
+        cfg
+    )  # noqa: F841  # Variable for test verification
     assert result["provider"] == "alibaba"
     assert len(result["metrics"]) == 1
     assert result["metrics"][0]["value"] == 77.0
@@ -237,7 +243,9 @@ def test_collect_cloud_alicloud_alias(cloud_fakes):
         "instance_id": "i-123",
         "metrics": ["cpu_total"],
     }
-    result = cloud_collector.collect_cloud_provider(cfg)  # noqa: F841  # Variable for test verification
+    result = cloud_collector.collect_cloud_provider(
+        cfg
+    )  # noqa: F841  # Variable for test verification
     assert result["provider"] == "alibaba"
 
 

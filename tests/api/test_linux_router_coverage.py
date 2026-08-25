@@ -86,7 +86,7 @@ def test_linux_collect_request_metrics_too_long(client):
 
 def test_linux_collect_request_metrics_non_string_items(client):
     """Test line 93: non-string items in metrics list are skipped.
-    
+
     Note: Pydantic validates list item types before custom validators,
     so this test verifies the Pydantic layer validation (422 response).
     The custom validator at line 93 handles cases where validation is bypassed.
@@ -153,7 +153,9 @@ def test_linux_available_metrics_error(client, monkeypatch):
     """Test lines 176-178: exception handling in list_available_metrics."""
     import api.linux_router as _lrx
 
-    monkeypatch.setattr(_lrx, "get_available_metrics", lambda: (_ for _ in ()).throw(Exception("db error")))
+    monkeypatch.setattr(
+        _lrx, "get_available_metrics", lambda: (_ for _ in ()).throw(Exception("db error"))
+    )
     resp = client.get("/api/v1/platforms/linux/metrics/available")
     assert resp.status_code == 500
 
@@ -447,7 +449,7 @@ def test_linux_repair_param_error_not_allowed(client, monkeypatch):
 
 def test_linux_collect_request_metrics_all_invalid(client):
     """Test when all metrics are invalid (empty/non-string).
-    
+
     Note: Pydantic validates list item types before custom validators,
     so non-string items are rejected at the Pydantic layer (422 response).
     """
@@ -483,9 +485,7 @@ def test_find_linux_host_config_dict(monkeypatch):
     """Test line 42: LINUX_HOSTS is a dict."""
     import api.linux_router as _lrx
 
-    monkeypatch.setattr(
-        _lrx, "LINUX_HOSTS", {"h1": {"name": "h1", "host": "1.1.1.1"}}
-    )
+    monkeypatch.setattr(_lrx, "LINUX_HOSTS", {"h1": {"name": "h1", "host": "1.1.1.1"}})
     result = _lrx.find_linux_host_config("h1")
     assert result is not None
     assert result["name"] == "h1"
@@ -495,9 +495,7 @@ def test_find_linux_host_config_list(monkeypatch):
     """Test line 42: LINUX_HOSTS is a list."""
     import api.linux_router as _lrx
 
-    monkeypatch.setattr(
-        _lrx, "LINUX_HOSTS", [{"name": "h1", "host": "1.1.1.1"}]
-    )
+    monkeypatch.setattr(_lrx, "LINUX_HOSTS", [{"name": "h1", "host": "1.1.1.1"}])
     result = _lrx.find_linux_host_config("h1")
     assert result is not None
     assert result["name"] == "h1"
@@ -507,9 +505,7 @@ def test_find_linux_host_config_not_found(monkeypatch):
     """Test find_linux_host_config returns None for unknown host."""
     import api.linux_router as _lrx
 
-    monkeypatch.setattr(
-        _lrx, "LINUX_HOSTS", {"h1": {"name": "h1", "host": "1.1.1.1"}}
-    )
+    monkeypatch.setattr(_lrx, "LINUX_HOSTS", {"h1": {"name": "h1", "host": "1.1.1.1"}})
     result = _lrx.find_linux_host_config("unknown")
     assert result is None
 
@@ -546,12 +542,6 @@ def test_linux_collect_request_validate_metrics_non_string():
     assert result == ["cpu", "memory"]
 
 
-
-
-
 # =============================================================================
 # Test LinuxCollectRequest._validate_metrics line 87 directly
 # =============================================================================
-
-
-

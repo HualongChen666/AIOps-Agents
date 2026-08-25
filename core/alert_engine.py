@@ -52,7 +52,7 @@ from loguru import logger  # type: ignore
 from config import DYNAMIC_THRESHOLD_CONFIG  # 🔧 M-5
 from config import ALERT_HISTORY_MAX, ALERT_THRESHOLDS, COLLECT_INTERVAL_SEC
 from core.collector import collect_all
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.stats_engine import record_alert_noise, record_ingestion
 
 _random = secrets.SystemRandom()
@@ -76,7 +76,7 @@ def _get_alert_repository() -> Any:
 
 # P0-3: Import business metrics collector
 try:
-    from core.business_metrics import business_metrics_collector
+    from core.business_metrics import BUSINESS_METRICS_COLLECTOR as business_metrics_collector
 
     BUSINESS_METRICS_AVAILABLE = True
 except ImportError:
@@ -1289,7 +1289,7 @@ class AutomaticAlertRouter:
         }
 
 
-alert_engine = AutomaticAlertRouter()
+ALERT_ENGINE = AutomaticAlertRouter()
 
 
 # ============================================================
@@ -1490,18 +1490,18 @@ class AlertTrendPredictor:
 # ============================================================
 # P2 Enhancement: Global instances
 # ============================================================
-alert_topology_correlation = AlertTopologyCorrelation()
-automatic_alert_router = AutomaticAlertRouter()
-alert_trend_predictor = AlertTrendPredictor()
+ALERT_TOPOLOGY_CORRELATION = AlertTopologyCorrelation()
+AUTOMATIC_ALERT_ROUTER = AutomaticAlertRouter()
+ALERT_TREND_PREDICTOR = AlertTrendPredictor()
 
 # Initialize default routing rules
-automatic_alert_router.add_route(
+AUTOMATIC_ALERT_ROUTER.add_route(
     route_id="critical_alert",
     conditions={"severity": "critical"},
     target_channel="email",
     priority=10,
 )
-automatic_alert_router.add_route(
+AUTOMATIC_ALERT_ROUTER.add_route(
     route_id="warning_alert",
     conditions={"severity": "warning"},
     target_channel="webhook",

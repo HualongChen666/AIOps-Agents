@@ -32,11 +32,8 @@ from core.change_management_engine import (
     approve_request,
     create_request,
     get_request,
-    implement_request,
     list_requests,
     reject_request,
-    rollback_request,
-    submit_request,
 )
 from core.command_guard import record_audit
 
@@ -49,8 +46,10 @@ router = APIRouter(prefix="/api/v1/change", tags=["change-advanced"])
 # Enums and Models
 # ============================================================================
 
+
 class ChangeStatus(str, Enum):
     """Change request status."""
+
     DRAFT = "draft"
     PENDING = "pending"
     REVIEW = "review"
@@ -63,6 +62,7 @@ class ChangeStatus(str, Enum):
 
 class ApprovalStatus(str, Enum):
     """Approval status."""
+
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -71,6 +71,7 @@ class ApprovalStatus(str, Enum):
 
 class ScheduleStatus(str, Enum):
     """Schedule status."""
+
     SCHEDULED = "scheduled"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -80,6 +81,7 @@ class ScheduleStatus(str, Enum):
 
 class ImpactLevel(str, Enum):
     """Impact level."""
+
     NONE = "none"
     LOW = "low"
     MEDIUM = "medium"
@@ -91,8 +93,10 @@ class ImpactLevel(str, Enum):
 # Pydantic Models
 # ============================================================================
 
+
 class ChangeRequestCreate(BaseModel):
     """Model for creating a change request."""
+
     title: str = Field(..., min_length=1, max_length=255, description="Change title")
     description: str = Field(default="", description="Detailed description")
     requester: str = Field(..., description="Requester name")
@@ -104,15 +108,20 @@ class ChangeRequestCreate(BaseModel):
     rollback_plan: str = Field(default="", description="Rollback plan")
     priority: str = Field(default="medium", description="Priority (low/medium/high/critical)")
     estimated_duration: int = Field(default=60, description="Estimated duration in minutes")
-    change_type: str = Field(default="standard", description="Change type (standard/emergency/routine)")
+    change_type: str = Field(
+        default="standard", description="Change type (standard/emergency/routine)"
+    )
     test_plan: str = Field(default="", description="Test plan")
     validation_criteria: List[str] = Field(default_factory=list, description="Validation criteria")
-    notification_recipients: List[str] = Field(default_factory=list, description="Notification recipients")
+    notification_recipients: List[str] = Field(
+        default_factory=list, description="Notification recipients"
+    )
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class ChangeRequestUpdate(BaseModel):
     """Model for updating a change request."""
+
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     approver: Optional[str] = None
@@ -132,15 +141,19 @@ class ChangeRequestUpdate(BaseModel):
 
 class ApprovalRequest(BaseModel):
     """Model for approval request."""
+
     change_request_id: str = Field(..., description="Change request ID")
     approver: str = Field(..., description="Approver name")
     decision: ApprovalStatus = Field(..., description="Approval decision")
     comments: str = Field(default="", description="Approval comments")
-    conditions: Optional[List[str]] = Field(default_factory=list, description="Conditions for conditional approval")
+    conditions: Optional[List[str]] = Field(
+        default_factory=list, description="Conditions for conditional approval"
+    )
 
 
 class ApprovalResponse(BaseModel):
     """Model for approval response."""
+
     id: str = Field(..., description="Approval ID")
     change_request_id: str = Field(..., description="Change request ID")
     approver: str = Field(..., description="Approver name")
@@ -153,6 +166,7 @@ class ApprovalResponse(BaseModel):
 
 class ScheduleRequest(BaseModel):
     """Model for schedule request."""
+
     change_request_id: str = Field(..., description="Change request ID")
     scheduled_start: datetime = Field(..., description="Scheduled start time")
     scheduled_end: datetime = Field(..., description="Scheduled end time")
@@ -165,6 +179,7 @@ class ScheduleRequest(BaseModel):
 
 class ScheduleResponse(BaseModel):
     """Model for schedule response."""
+
     id: str = Field(..., description="Schedule ID")
     change_request_id: str = Field(..., description="Change request ID")
     scheduled_start: datetime = Field(..., description="Scheduled start time")
@@ -182,22 +197,34 @@ class ScheduleResponse(BaseModel):
 
 class ImpactAnalysisRequest(BaseModel):
     """Model for impact analysis request."""
+
     change_request_id: str = Field(..., description="Change request ID")
     affected_services: List[str] = Field(..., description="Services to analyze")
     change_description: str = Field(..., description="Description of the change")
     risk_level: RiskLevel = Field(..., description="Risk level")
-    analysis_depth: str = Field(default="standard", description="Analysis depth (quick/standard/deep)")
+    analysis_depth: str = Field(
+        default="standard", description="Analysis depth (quick/standard/deep)"
+    )
 
 
 class ImpactAnalysisResponse(BaseModel):
     """Model for impact analysis response."""
+
     change_request_id: str = Field(..., description="Change request ID")
     overall_impact: ImpactLevel = Field(..., description="Overall impact level")
-    service_impacts: List[Dict[str, Any]] = Field(default_factory=list, description="Per-service impact")
+    service_impacts: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Per-service impact"
+    )
     downtime_estimate: Dict[str, Any] = Field(..., description="Downtime estimates")
-    risk_factors: List[Dict[str, Any]] = Field(default_factory=list, description="Identified risk factors")
-    mitigation_strategies: List[str] = Field(default_factory=list, description="Mitigation strategies")
-    dependencies_affected: List[str] = Field(default_factory=list, description="Affected dependencies")
+    risk_factors: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Identified risk factors"
+    )
+    mitigation_strategies: List[str] = Field(
+        default_factory=list, description="Mitigation strategies"
+    )
+    dependencies_affected: List[str] = Field(
+        default_factory=list, description="Affected dependencies"
+    )
     rollback_feasibility: str = Field(..., description="Rollback feasibility assessment")
     recommendations: List[str] = Field(default_factory=list, description="Recommendations")
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
@@ -205,23 +232,33 @@ class ImpactAnalysisResponse(BaseModel):
 
 class RollbackPlanRequest(BaseModel):
     """Model for rollback plan request."""
+
     change_request_id: str = Field(..., description="Change request ID")
     rollback_steps: List[str] = Field(..., description="Rollback steps")
     estimated_rollback_time: int = Field(..., description="Estimated rollback time in minutes")
-    data_consistency_checks: List[str] = Field(default_factory=list, description="Data consistency checks")
+    data_consistency_checks: List[str] = Field(
+        default_factory=list, description="Data consistency checks"
+    )
     rollback_triggers: List[str] = Field(default_factory=list, description="Triggers for rollback")
-    validation_after_rollback: List[str] = Field(default_factory=list, description="Validation steps after rollback")
+    validation_after_rollback: List[str] = Field(
+        default_factory=list, description="Validation steps after rollback"
+    )
 
 
 class RollbackPlanResponse(BaseModel):
     """Model for rollback plan response."""
+
     id: str = Field(..., description="Rollback plan ID")
     change_request_id: str = Field(..., description="Change request ID")
     rollback_steps: List[str] = Field(..., description="Rollback steps")
     estimated_rollback_time: int = Field(..., description="Estimated rollback time (minutes)")
-    data_consistency_checks: List[str] = Field(default_factory=list, description="Data consistency checks")
+    data_consistency_checks: List[str] = Field(
+        default_factory=list, description="Data consistency checks"
+    )
     rollback_triggers: List[str] = Field(default_factory=list, description="Rollback triggers")
-    validation_after_rollback: List[str] = Field(default_factory=list, description="Validation steps")
+    validation_after_rollback: List[str] = Field(
+        default_factory=list, description="Validation steps"
+    )
     complexity: str = Field(..., description="Rollback complexity (low/medium/high)")
     success_probability: float = Field(..., ge=0, le=1, description="Success probability")
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -240,24 +277,28 @@ _rollback_plans: Dict[str, RollbackPlanResponse] = {}
 def _generate_approval_id() -> str:
     """Generate a unique approval ID."""
     import uuid
+
     return f"APR-{uuid.uuid4().hex[:8].upper()}"
 
 
 def _generate_schedule_id() -> str:
     """Generate a unique schedule ID."""
     import uuid
+
     return f"SCH-{uuid.uuid4().hex[:8].upper()}"
 
 
 def _generate_rollback_plan_id() -> str:
     """Generate a unique rollback plan ID."""
     import uuid
+
     return f"RBP-{uuid.uuid4().hex[:8].upper()}"
 
 
 # ============================================================================
 # API Endpoints - Change Requests
 # ============================================================================
+
 
 @router.get("/requests", response_model=List[ChangeRequest])
 async def list_change_requests(
@@ -269,28 +310,34 @@ async def list_change_requests(
 ):
     """
     List all change requests with optional filtering.
-    
+
     Returns change requests with filtering by status, risk level,
     requester, and priority.
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
         requests = await list_requests(tenant_id=tenant_id)
-        
+
         if status:
             requests = [r for r in requests if r.status.value == status]
         if risk_level:
             requests = [r for r in requests if r.risk_level == risk_level]
         if requester:
             requests = [r for r in requests if r.requester == requester]
-        
+
         # Filter by priority from metadata
         if priority:
-            requests = [r for r in requests if r.audit_log and any(
-                "priority" in str(entry.message).lower() and priority in str(entry.message).lower()
-                for entry in r.audit_log
-            )]
-        
+            requests = [
+                r
+                for r in requests
+                if r.audit_log
+                and any(
+                    "priority" in str(entry.message).lower()
+                    and priority in str(entry.message).lower()
+                    for entry in r.audit_log
+                )
+            ]
+
         return sorted(requests, key=lambda r: r.id, reverse=True)
     except Exception as e:
         logger.error(f"Error listing change requests: {e}", exc_info=True)
@@ -304,13 +351,13 @@ async def create_change_request(
 ):
     """
     Create a new change request.
-    
+
     Creates a comprehensive change request with all required metadata
     including implementation plan, rollback plan, and validation criteria.
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
-        
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
+
         # Build request data
         data = {
             "title": request.title,
@@ -323,7 +370,7 @@ async def create_change_request(
             "implementation_plan": request.implementation_plan,
             "rollback_plan": request.rollback_plan,
         }
-        
+
         # Add metadata for extended fields
         metadata = {
             "priority": request.priority,
@@ -335,12 +382,13 @@ async def create_change_request(
         }
         if request.metadata:
             metadata.update(request.metadata)
-        
+
         # Create the request
         change_request = await create_request(data, tenant_id=tenant_id)
-        
+
         # Add metadata to audit log
         from core.change_management_engine import AuditEntry
+
         change_request.audit_log.append(
             AuditEntry(
                 actor=request.requester,
@@ -348,9 +396,9 @@ async def create_change_request(
                 message=f"Extended metadata: {metadata}",
             )
         )
-        
+
         logger.info(f"Created change request: {change_request.id}")
-        
+
         return change_request
     except ChangeManagementError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -366,7 +414,7 @@ async def get_change_request(
 ):
     """Get a specific change request by ID."""
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
         return await get_request(request_id, tenant_id=tenant_id)
     except (ChangeManagementError, PermissionError) as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -383,14 +431,14 @@ async def update_change_request(
 ):
     """
     Update a change request.
-    
+
     Updates specific fields of a change request while maintaining
     audit trail of changes.
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
         change_request = await get_request(request_id, tenant_id=tenant_id)
-        
+
         # Update basic fields
         if update.title is not None:
             change_request.title = update.title
@@ -408,9 +456,10 @@ async def update_change_request(
             change_request.implementation_plan = update.implementation_plan
         if update.rollback_plan is not None:
             change_request.rollback_plan = update.rollback_plan
-        
+
         # Add metadata update to audit log
         from core.change_management_engine import AuditEntry
+
         metadata_updates = {}
         if update.priority is not None:
             metadata_updates["priority"] = update.priority
@@ -424,22 +473,23 @@ async def update_change_request(
             metadata_updates["validation_criteria"] = update.validation_criteria
         if update.notification_recipients is not None:
             metadata_updates["notification_recipients"] = update.notification_recipients
-        
+
         if metadata_updates:
             change_request.audit_log.append(
                 AuditEntry(
-                    actor=current_user.username if hasattr(current_user, 'username') else "system",
+                    actor=current_user.username if hasattr(current_user, "username") else "system",
                     action="updated",
                     message=f"Updated metadata: {metadata_updates}",
                 )
             )
-        
+
         # Persist changes
         from core.change_management_engine import _persist
+
         await _persist()
-        
+
         logger.info(f"Updated change request: {request_id}")
-        
+
         return change_request
     except (ChangeManagementError, PermissionError) as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -455,29 +505,30 @@ async def delete_change_request(
 ):
     """
     Delete a change request.
-    
+
     Deletes a change request (only allowed for draft or rejected requests).
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
         change_request = await get_request(request_id, tenant_id=tenant_id)
-        
+
         # Only allow deletion of draft or rejected requests
         from core.change_management_engine import ChangeStatus
+
         if change_request.status not in [ChangeStatus.DRAFT, ChangeStatus.REJECTED]:
             raise HTTPException(
-                status_code=400,
-                detail="Can only delete draft or rejected change requests"
+                status_code=400, detail="Can only delete draft or rejected change requests"
             )
-        
+
         # Delete from storage
         from core.change_management_engine import _REQUESTS, _persist
+
         if request_id in _REQUESTS:
             del _REQUESTS[request_id]
             await _persist()
-        
+
         logger.info(f"Deleted change request: {request_id}")
-        
+
         return None
     except HTTPException:
         raise
@@ -490,6 +541,7 @@ async def delete_change_request(
 # API Endpoints - Approvals
 # ============================================================================
 
+
 @router.get("/approvals", response_model=List[ApprovalResponse])
 async def list_approvals(
     change_request_id: Optional[str] = Query(None, description="Filter by change request ID"),
@@ -498,17 +550,17 @@ async def list_approvals(
 ):
     """
     List all approvals with optional filtering.
-    
+
     Returns approval records showing who approved what and when.
     """
     try:
         approvals = list(_approvals.values())
-        
+
         if change_request_id:
             approvals = [a for a in approvals if a.change_request_id == change_request_id]
         if decision:
             approvals = [a for a in approvals if a.decision == decision]
-        
+
         return sorted(approvals, key=lambda a: a.approved_at, reverse=True)
     except Exception as e:
         logger.error(f"Error listing approvals: {e}", exc_info=True)
@@ -522,22 +574,24 @@ async def create_approval(
 ):
     """
     Create an approval decision.
-    
+
     Records an approval decision for a change request with optional
     conditions for conditional approvals.
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
-        
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
+
         # Verify change request exists
-        change_request = await get_request(request.change_request_id, tenant_id=tenant_id)
-        
+        change_request = await get_request(
+            request.change_request_id, tenant_id=tenant_id
+        )  # noqa: F841 - Reserved for future validation
+
         # Create approval record
         approval_id = _generate_approval_id()
-        
+
         # Set validity period (30 days for standard approvals)
         valid_until = datetime.utcnow() + timedelta(days=30)
-        
+
         approval = ApprovalResponse(
             id=approval_id,
             change_request_id=request.change_request_id,
@@ -548,15 +602,15 @@ async def create_approval(
             approved_at=datetime.utcnow(),
             valid_until=valid_until,
         )
-        
+
         _approvals[approval_id] = approval
-        
+
         # Update change request based on decision
         if request.decision == ApprovalStatus.APPROVED:
             await approve_request(request.change_request_id, tenant_id=tenant_id)
         elif request.decision == ApprovalStatus.REJECTED:
             await reject_request(request.change_request_id, tenant_id=tenant_id)
-        
+
         # Record audit
         record_audit(
             host=request.change_request_id,
@@ -567,9 +621,9 @@ async def create_approval(
             user_id=str(current_user.id) if current_user.id else None,
             tenant_id=tenant_id,
         )
-        
+
         logger.info(f"Created approval: {approval_id} for request {request.change_request_id}")
-        
+
         return approval
     except (ChangeManagementError, PermissionError) as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -582,6 +636,7 @@ async def create_approval(
 # API Endpoints - Schedules
 # ============================================================================
 
+
 @router.get("/schedules", response_model=List[ScheduleResponse])
 async def list_schedules(
     change_request_id: Optional[str] = Query(None, description="Filter by change request ID"),
@@ -590,18 +645,18 @@ async def list_schedules(
 ):
     """
     List all change schedules with optional filtering.
-    
+
     Returns schedule information for change requests including
     maintenance windows and assigned teams.
     """
     try:
         schedules = list(_schedules.values())
-        
+
         if change_request_id:
             schedules = [s for s in schedules if s.change_request_id == change_request_id]
         if status:
             schedules = [s for s in schedules if s.status == status]
-        
+
         return sorted(schedules, key=lambda s: s.scheduled_start, reverse=True)
     except Exception as e:
         logger.error(f"Error listing schedules: {e}", exc_info=True)
@@ -615,23 +670,23 @@ async def create_schedule(
 ):
     """
     Create a change schedule.
-    
+
     Schedules a change request for execution within a specific
     maintenance window with assigned team and dependencies.
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
-        
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
+
         # Verify change request exists
         change_request = await get_request(request.change_request_id, tenant_id=tenant_id)
-        
+
         # Validate schedule times
         if request.scheduled_end <= request.scheduled_start:
             raise HTTPException(status_code=400, detail="End time must be after start time")
-        
+
         # Create schedule record
         schedule_id = _generate_schedule_id()
-        
+
         schedule = ScheduleResponse(
             id=schedule_id,
             change_request_id=request.change_request_id,
@@ -644,18 +699,19 @@ async def create_schedule(
             prerequisites=request.prerequisites,
             dependencies=request.dependencies,
         )
-        
+
         _schedules[schedule_id] = schedule
-        
+
         # Update change request schedule
         change_request.schedule = request.scheduled_start.isoformat()
-        
+
         # Persist changes
         from core.change_management_engine import _persist
+
         await _persist()
-        
+
         logger.info(f"Created schedule: {schedule_id} for request {request.change_request_id}")
-        
+
         return schedule
     except (ChangeManagementError, PermissionError) as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -678,18 +734,18 @@ async def update_schedule(
     try:
         if schedule_id not in _schedules:
             raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
-        
+
         schedule = _schedules[schedule_id]
-        
+
         if status is not None:
             schedule.status = status
         if actual_start is not None:
             schedule.actual_start = actual_start
         if actual_end is not None:
             schedule.actual_end = actual_end
-        
+
         logger.info(f"Updated schedule: {schedule_id}")
-        
+
         return schedule
     except HTTPException:
         raise
@@ -702,6 +758,7 @@ async def update_schedule(
 # API Endpoints - Impact Analysis
 # ============================================================================
 
+
 @router.post("/impact-analysis", response_model=ImpactAnalysisResponse)
 async def perform_impact_analysis(
     request: ImpactAnalysisRequest,
@@ -709,16 +766,18 @@ async def perform_impact_analysis(
 ):
     """
     Perform impact analysis for a change.
-    
+
     Analyzes the potential impact of a change on affected services,
     including downtime estimates, risk factors, and mitigation strategies.
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
-        
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
+
         # Verify change request exists
-        change_request = await get_request(request.change_request_id, tenant_id=tenant_id)
-        
+        change_request = await get_request(
+            request.change_request_id, tenant_id=tenant_id
+        )  # noqa: F841 - Reserved for future validation
+
         # Calculate overall impact based on risk level and affected services
         if request.risk_level == RiskLevel.HIGH:
             overall_impact = ImpactLevel.HIGH
@@ -726,27 +785,41 @@ async def perform_impact_analysis(
             overall_impact = ImpactLevel.MEDIUM
         else:
             overall_impact = ImpactLevel.LOW
-        
+
         # Generate per-service impacts
         service_impacts = []
         for service in request.affected_services:
             service_impact = {
                 "service": service,
                 "impact_level": overall_impact.value,
-                "estimated_downtime": 15 if overall_impact == ImpactLevel.LOW else 30 if overall_impact == ImpactLevel.MEDIUM else 60,
-                "affected_users": "low" if overall_impact == ImpactLevel.LOW else "medium" if overall_impact == ImpactLevel.MEDIUM else "high",
-                "business_criticality": "high" if "database" in service.lower() or "api" in service.lower() else "medium",
+                "estimated_downtime": (
+                    15
+                    if overall_impact == ImpactLevel.LOW
+                    else 30 if overall_impact == ImpactLevel.MEDIUM else 60
+                ),
+                "affected_users": (
+                    "low"
+                    if overall_impact == ImpactLevel.LOW
+                    else "medium" if overall_impact == ImpactLevel.MEDIUM else "high"
+                ),
+                "business_criticality": (
+                    "high"
+                    if "database" in service.lower() or "api" in service.lower()
+                    else "medium"
+                ),
             }
             service_impacts.append(service_impact)
-        
+
         # Calculate downtime estimates
         total_downtime = sum(s["estimated_downtime"] for s in service_impacts)
         downtime_estimate = {
             "total_estimated_minutes": total_downtime,
-            "per_service_downtime": {s["service"]: s["estimated_downtime"] for s in service_impacts},
+            "per_service_downtime": {
+                s["service"]: s["estimated_downtime"] for s in service_impacts
+            },
             "peak_impact_window": f"{total_downtime // 2} minutes around scheduled time",
         }
-        
+
         # Identify risk factors
         risk_factors = [
             {
@@ -760,7 +833,7 @@ async def perform_impact_analysis(
                 "description": f"Change classified as {request.risk_level.value} risk",
             },
         ]
-        
+
         # Generate mitigation strategies
         mitigation_strategies = [
             "Implement during low-traffic periods",
@@ -769,7 +842,7 @@ async def perform_impact_analysis(
             "Have on-call team available during change window",
             "Test in staging environment first",
         ]
-        
+
         # Identify affected dependencies
         dependencies_affected = []
         for service in request.affected_services:
@@ -778,7 +851,7 @@ async def perform_impact_analysis(
                 dependencies_affected.extend(["cache-service", "api-gateway"])
             elif "api" in service.lower():
                 dependencies_affected.extend(["frontend", "mobile-app"])
-        
+
         # Assess rollback feasibility
         if request.risk_level == RiskLevel.HIGH:
             rollback_feasibility = "Complex - requires careful coordination"
@@ -786,7 +859,7 @@ async def perform_impact_analysis(
             rollback_feasibility = "Moderate - standard rollback procedures apply"
         else:
             rollback_feasibility = "Simple - automated rollback available"
-        
+
         # Generate recommendations
         recommendations = [
             "Schedule change during maintenance window",
@@ -795,7 +868,7 @@ async def perform_impact_analysis(
             "Verify rollback plan is tested and documented",
             "Monitor key metrics during execution",
         ]
-        
+
         analysis = ImpactAnalysisResponse(
             change_request_id=request.change_request_id,
             overall_impact=overall_impact,
@@ -807,9 +880,9 @@ async def perform_impact_analysis(
             rollback_feasibility=rollback_feasibility,
             recommendations=recommendations,
         )
-        
+
         logger.info(f"Performed impact analysis for request {request.change_request_id}")
-        
+
         return analysis
     except (ChangeManagementError, PermissionError) as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -822,6 +895,7 @@ async def perform_impact_analysis(
 # API Endpoints - Rollback Plans
 # ============================================================================
 
+
 @router.get("/rollback-plans", response_model=List[RollbackPlanResponse])
 async def list_rollback_plans(
     change_request_id: Optional[str] = Query(None, description="Filter by change request ID"),
@@ -829,39 +903,41 @@ async def list_rollback_plans(
 ):
     """
     List all rollback plans with optional filtering.
-    
+
     Returns rollback plans for change requests including steps,
     triggers, and validation procedures.
     """
     try:
         plans = list(_rollback_plans.values())
-        
+
         if change_request_id:
             plans = [p for p in plans if p.change_request_id == change_request_id]
-        
+
         return sorted(plans, key=lambda p: p.created_at, reverse=True)
     except Exception as e:
         logger.error(f"Error listing rollback plans: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list rollback plans: {str(e)}")
 
 
-@router.post("/rollback-plans", response_model=RollbackPlanResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/rollback-plans", response_model=RollbackPlanResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_rollback_plan(
     request: RollbackPlanRequest,
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
     Create a rollback plan.
-    
+
     Creates a detailed rollback plan with steps, triggers,
     and validation procedures for a change request.
     """
     try:
-        tenant_id = str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "default"
-        
+        tenant_id = str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "default"
+
         # Verify change request exists
         change_request = await get_request(request.change_request_id, tenant_id=tenant_id)
-        
+
         # Determine complexity based on number of steps
         num_steps = len(request.rollback_steps)
         if num_steps <= 3:
@@ -873,10 +949,10 @@ async def create_rollback_plan(
         else:
             complexity = "high"
             success_probability = 0.75
-        
+
         # Create rollback plan record
         plan_id = _generate_rollback_plan_id()
-        
+
         plan = RollbackPlanResponse(
             id=plan_id,
             change_request_id=request.change_request_id,
@@ -887,20 +963,21 @@ async def create_rollback_plan(
             validation_after_rollback=request.validation_after_rollback,
             complexity=complexity,
             success_probability=success_probability,
-            created_by=current_user.username if hasattr(current_user, 'username') else "system",
+            created_by=current_user.username if hasattr(current_user, "username") else "system",
         )
-        
+
         _rollback_plans[plan_id] = plan
-        
+
         # Update change request with rollback plan
         change_request.rollback_plan = "\n".join(request.rollback_steps)
-        
+
         # Persist changes
         from core.change_management_engine import _persist
+
         await _persist()
-        
+
         logger.info(f"Created rollback plan: {plan_id} for request {request.change_request_id}")
-        
+
         return plan
     except (ChangeManagementError, PermissionError) as e:
         raise HTTPException(status_code=404, detail=str(e))

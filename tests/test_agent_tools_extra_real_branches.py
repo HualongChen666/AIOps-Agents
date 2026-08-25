@@ -193,7 +193,9 @@ def test_tool_executor_retry_and_success():
     """_execute_with_retry retries ConnectionError and records success."""
     reg = _custom_registry()
     executor = ToolExecutor(reg, retry_policy={"max_retries": 2, "backoff": [0, 0]})
-    result = executor.execute_tool("flaky", target="x")  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "flaky", target="x"
+    )  # noqa: F841  # Variable for test verification
     assert result["ok"] is True
     assert result["attempts"] == 2
     assert executor.get_execution_statistics()["successful"] == 1
@@ -226,7 +228,9 @@ def test_tool_executor_dry_run_success():
     """A successful dry-run execution is recorded."""
     reg = create_tool_registry()
     executor = ToolExecutor(reg)
-    result = executor.execute_tool("collect_metrics", target="node", dry_run=True)  # noqa: F841  # Variable for test verification
+    result = executor.execute_tool(
+        "collect_metrics", target="node", dry_run=True
+    )  # noqa: F841  # Variable for test verification
     assert result["dry_run"] is True
     assert executor.get_execution_statistics()["successful"] == 1
 

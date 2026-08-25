@@ -4,26 +4,27 @@ Test cases for Plugin Development Advanced Router
 Comprehensive test coverage for plugin development workflow API
 """
 
-import pytest
-import tempfile
-import shutil
 import json
+import shutil
+import tempfile
 from datetime import datetime
-from uuid import uuid4
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, mock_open
+from unittest.mock import MagicMock, Mock, mock_open, patch
+from uuid import uuid4
+
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.plugin_development_advanced_router import (
-    router,
-    ScaffoldRequest,
-    ValidateRequest,
-    TestRequest,
+    PLUGIN_TEMPLATES,
     BuildRequest,
     PackageRequest,
-    PLUGIN_TEMPLATES,
+    ScaffoldRequest,
+    TestRequest,
+    ValidateRequest,
     _sanitize_class_name,
+    router,
 )
 
 
@@ -31,6 +32,7 @@ from api.plugin_development_advanced_router import (
 def client():
     """Create a test client for the router"""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
@@ -41,17 +43,17 @@ def reset_plugins_dir():
     """Reset plugins directory before and after each test"""
     plugins_dir = Path("plugins")
     temp_plugins_dir = Path("plugins_test")
-    
+
     # Backup existing plugins directory if it exists
     if plugins_dir.exists():
         shutil.move(str(plugins_dir), str(temp_plugins_dir))
-    
+
     yield
-    
+
     # Clean up test plugins directory
     if plugins_dir.exists():
         shutil.rmtree(str(plugins_dir))
-    
+
     # Restore original plugins directory if it existed
     if temp_plugins_dir.exists():
         shutil.move(str(temp_plugins_dir), str(plugins_dir))
@@ -110,6 +112,7 @@ def sample_plugin_config():
 # Scaffold Endpoint Tests
 # ============================================================================
 
+
 class TestScaffoldEndpoint:
     """Test cases for scaffold endpoint"""
 
@@ -121,7 +124,7 @@ class TestScaffoldEndpoint:
             "author": "Test Author",
             "version": "1.0.0",
             "description": "Test collector plugin",
-            "template": "default"
+            "template": "default",
         }
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         # This test may fail due to template formatting issues
@@ -143,7 +146,7 @@ class TestScaffoldEndpoint:
             scaffold_data = {
                 "plugin_name": f"test_{plugin_type}",
                 "plugin_type": plugin_type,
-                "author": "Test Author"
+                "author": "Test Author",
             }
             response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
             # Skip if template formatting issue
@@ -158,15 +161,15 @@ class TestScaffoldEndpoint:
         scaffold_data = {
             "plugin_name": "test_plugin",
             "plugin_type": "collector",
-            "author": "Test Author"
+            "author": "Test Author",
         }
-        
+
         # First creation should succeed
         response1 = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         if response1.status_code == 500:
             pytest.skip("Template formatting issue in router")
         assert response1.status_code == 200
-        
+
         # Second creation should fail
         response2 = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         assert response2.status_code == 400
@@ -177,7 +180,7 @@ class TestScaffoldEndpoint:
         scaffold_data = {
             "plugin_name": "test_plugin",
             "plugin_type": "invalid_type",
-            "author": "Test Author"
+            "author": "Test Author",
         }
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         assert response.status_code == 422  # Validation error
@@ -196,16 +199,16 @@ class TestScaffoldEndpoint:
         scaffold_data = {
             "plugin_name": "test_plugin",
             "plugin_type": "collector",
-            "author": "Test Author"
+            "author": "Test Author",
         }
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         if response.status_code == 500:
             pytest.skip("Template formatting issue in router")
         assert response.status_code == 200
-        
+
         data = response.json()
         plugin_path = Path(data["plugin_path"])
-        
+
         # Check that files exist
         assert (plugin_path / "test_plugin.py").exists()
         assert (plugin_path / "config.json").exists()
@@ -219,33 +222,33 @@ class TestScaffoldEndpoint:
             "plugin_type": "collector",
             "author": "Test Author",
             "version": "2.0.0",
-            "description": "Test description"
+            "description": "Test description",
         }
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         if response.status_code == 500:
             pytest.skip("Template formatting issue in router")
         assert response.status_code == 200
-        
+
         data = response.json()
         plugin_path = Path(data["plugin_path"])
         config_file = plugin_path / "config.json"
-        
-        config = json.loads(config_file.read_text(encoding='utf-8'))
+
+        config = json.loads(config_file.read_text(encoding="utf-8"))
         assert config["plugin_name"] == "test_plugin"
         assert config["plugin_type"] == "collector"
         assert config["version"] == "2.0.0"
         assert config["author"] == "Test Author"
         assert config["description"] == "Test description"
 
-    @patch('api.plugin_development_advanced_router.Path')
+    @patch("api.plugin_development_advanced_router.Path")
     def test_create_scaffold_directory_error(self, mock_path, client):
         """Test scaffold creation when directory creation fails"""
         mock_path.return_value.mkdir.side_effect = Exception("Permission denied")
-        
+
         scaffold_data = {
             "plugin_name": "test_plugin",
             "plugin_type": "collector",
-            "author": "Test Author"
+            "author": "Test Author",
         }
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         assert response.status_code == 500
@@ -255,6 +258,7 @@ class TestScaffoldEndpoint:
 # Validate Endpoint Tests
 # ============================================================================
 
+
 class TestValidateEndpoint:
     """Test cases for validate endpoint"""
 
@@ -262,10 +266,7 @@ class TestValidateEndpoint:
         """Test validating a valid plugin code"""
         validate_data = {
             "plugin_code": sample_plugin_code,
-            "plugin_config": {
-                "plugin_name": "test_plugin",
-                "plugin_type": "collector"
-            }
+            "plugin_config": {"plugin_name": "test_plugin", "plugin_type": "collector"},
         }
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 200
@@ -276,15 +277,12 @@ class TestValidateEndpoint:
 
     def test_validate_plugin_syntax_error(self, client):
         """Test validating plugin with syntax error"""
-        invalid_code = '''
+        invalid_code = """
 def __init__(self, config):
     self.config = config
     # Missing closing parenthesis
-'''
-        validate_data = {
-            "plugin_code": invalid_code,
-            "plugin_config": {}
-        }
+"""
+        validate_data = {"plugin_code": invalid_code, "plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 200
         data = response.json()
@@ -294,15 +292,12 @@ def __init__(self, config):
 
     def test_validate_plugin_missing_required_method(self, client):
         """Test validating plugin missing required methods"""
-        incomplete_code = '''
+        incomplete_code = """
 class TestPlugin:
     def some_method(self):
         pass
-'''
-        validate_data = {
-            "plugin_code": incomplete_code,
-            "plugin_config": {}
-        }
+"""
+        validate_data = {"plugin_code": incomplete_code, "plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 200
         data = response.json()
@@ -312,18 +307,15 @@ class TestPlugin:
 
     def test_validate_plugin_missing_cleanup_warning(self, client, sample_plugin_code):
         """Test validating plugin without cleanup method (warning)"""
-        code_without_cleanup = '''
+        code_without_cleanup = """
 class TestPlugin:
     def __init__(self, config):
         self.config = config
     
     def initialize(self, config):
         return True
-'''
-        validate_data = {
-            "plugin_code": code_without_cleanup,
-            "plugin_config": {}
-        }
+"""
+        validate_data = {"plugin_code": code_without_cleanup, "plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 200
         data = response.json()
@@ -331,7 +323,7 @@ class TestPlugin:
 
     def test_validate_plugin_missing_docstring_warning(self, client):
         """Test validating plugin without docstring (warning)"""
-        code_without_docstring = '''
+        code_without_docstring = """
 class TestPlugin:
     def __init__(self, config):
         self.config = config
@@ -341,11 +333,8 @@ class TestPlugin:
     
     def cleanup(self):
         return True
-'''
-        validate_data = {
-            "plugin_code": code_without_docstring,
-            "plugin_config": {}
-        }
+"""
+        validate_data = {"plugin_code": code_without_docstring, "plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 200
         data = response.json()
@@ -358,7 +347,7 @@ class TestPlugin:
             "plugin_config": {
                 "plugin_name": "test_plugin"
                 # Missing plugin_type
-            }
+            },
         }
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 200
@@ -368,10 +357,7 @@ class TestPlugin:
 
     def test_validate_plugin_empty_code(self, client):
         """Test validating empty plugin code"""
-        validate_data = {
-            "plugin_code": "",
-            "plugin_config": {}
-        }
+        validate_data = {"plugin_code": "", "plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 200
         data = response.json()
@@ -382,6 +368,7 @@ class TestPlugin:
 # Test Endpoint Tests
 # ============================================================================
 
+
 class TestTestEndpoint:
     """Test cases for test endpoint"""
 
@@ -390,7 +377,7 @@ class TestTestEndpoint:
         test_data = {
             "plugin_code": sample_plugin_code,
             "test_config": {"test": True},
-            "test_data": {"input": "test"}
+            "test_data": {"input": "test"},
         }
         response = client.post("/api/v1/plugin/development/test", json=test_data)
         assert response.status_code == 200
@@ -400,15 +387,11 @@ class TestTestEndpoint:
 
     def test_plugin_test_no_plugin_class(self, client):
         """Test testing code without plugin class"""
-        code_without_class = '''
+        code_without_class = """
 def some_function():
     pass
-'''
-        test_data = {
-            "plugin_code": code_without_class,
-            "test_config": {},
-            "test_data": {}
-        }
+"""
+        test_data = {"plugin_code": code_without_class, "test_config": {}, "test_data": {}}
         response = client.post("/api/v1/plugin/development/test", json=test_data)
         assert response.status_code == 200
         data = response.json()
@@ -417,31 +400,23 @@ def some_function():
 
     def test_plugin_test_instantiation_error(self, client):
         """Test testing plugin that fails to instantiate"""
-        problematic_code = '''
+        problematic_code = """
 class TestPlugin:
     def __init__(self, config):
         raise ValueError("Cannot instantiate")
-'''
-        test_data = {
-            "plugin_code": problematic_code,
-            "test_config": {},
-            "test_data": {}
-        }
+"""
+        test_data = {"plugin_code": problematic_code, "test_config": {}, "test_data": {}}
         response = client.post("/api/v1/plugin/development/test", json=test_data)
         assert response.status_code == 200
         data = response.json()
         assert data["passed"] == False
 
-    @patch('api.plugin_development_advanced_router.tempfile.NamedTemporaryFile')
+    @patch("api.plugin_development_advanced_router.tempfile.NamedTemporaryFile")
     def test_plugin_test_file_creation_error(self, mock_tempfile, client):
         """Test plugin test when file creation fails"""
         mock_tempfile.side_effect = Exception("File creation error")
-        
-        test_data = {
-            "plugin_code": "class TestPlugin: pass",
-            "test_config": {},
-            "test_data": {}
-        }
+
+        test_data = {"plugin_code": "class TestPlugin: pass", "test_config": {}, "test_data": {}}
         response = client.post("/api/v1/plugin/development/test", json=test_data)
         assert response.status_code == 500
 
@@ -450,6 +425,7 @@ class TestPlugin:
 # Build Endpoint Tests
 # ============================================================================
 
+
 class TestBuildEndpoint:
     """Test cases for build endpoint"""
 
@@ -457,15 +433,12 @@ class TestBuildEndpoint:
         """Test building a plugin successfully"""
         # Create a simple plugin structure
         plugin_file = temp_plugin_dir / "test_plugin.py"
-        plugin_file.write_text("class TestPlugin: pass", encoding='utf-8')
-        
+        plugin_file.write_text("class TestPlugin: pass", encoding="utf-8")
+
         config_file = temp_plugin_dir / "config.json"
-        config_file.write_text('{"plugin_name": "test"}', encoding='utf-8')
-        
-        build_data = {
-            "plugin_path": str(temp_plugin_dir),
-            "build_config": {}
-        }
+        config_file.write_text('{"plugin_name": "test"}', encoding="utf-8")
+
+        build_data = {"plugin_path": str(temp_plugin_dir), "build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
         assert response.status_code == 200
         data = response.json()
@@ -475,10 +448,7 @@ class TestBuildEndpoint:
 
     def test_build_plugin_path_not_found(self, client):
         """Test building a plugin with non-existent path"""
-        build_data = {
-            "plugin_path": "/nonexistent/path",
-            "build_config": {}
-        }
+        build_data = {"plugin_path": "/nonexistent/path", "build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
@@ -486,15 +456,12 @@ class TestBuildEndpoint:
     def test_build_plugin_creates_build_directory(self, client, temp_plugin_dir):
         """Test that build creates a build directory"""
         plugin_file = temp_plugin_dir / "test_plugin.py"
-        plugin_file.write_text("class TestPlugin: pass", encoding='utf-8')
-        
-        build_data = {
-            "plugin_path": str(temp_plugin_dir),
-            "build_config": {}
-        }
+        plugin_file.write_text("class TestPlugin: pass", encoding="utf-8")
+
+        build_data = {"plugin_path": str(temp_plugin_dir), "build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
         assert response.status_code == 200
-        
+
         build_dir = temp_plugin_dir / "build"
         assert build_dir.exists()
 
@@ -502,16 +469,13 @@ class TestBuildEndpoint:
         """Test that build compiles Python files"""
         # Create a valid Python file
         plugin_file = temp_plugin_dir / "test_plugin.py"
-        plugin_file.write_text("class TestPlugin: pass", encoding='utf-8')
-        
+        plugin_file.write_text("class TestPlugin: pass", encoding="utf-8")
+
         # Create a file with syntax error
         bad_file = temp_plugin_dir / "bad_plugin.py"
-        bad_file.write_text("def broken(:", encoding='utf-8')
-        
-        build_data = {
-            "plugin_path": str(temp_plugin_dir),
-            "build_config": {}
-        }
+        bad_file.write_text("def broken(:", encoding="utf-8")
+
+        build_data = {"plugin_path": str(temp_plugin_dir), "build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
         assert response.status_code == 200
         data = response.json()
@@ -522,6 +486,7 @@ class TestBuildEndpoint:
 # Package Endpoint Tests
 # ============================================================================
 
+
 class TestPackageEndpoint:
     """Test cases for package endpoint"""
 
@@ -529,16 +494,16 @@ class TestPackageEndpoint:
         """Test packaging a plugin successfully"""
         # Create plugin structure
         plugin_file = temp_plugin_dir / "test_plugin.py"
-        plugin_file.write_text("class TestPlugin: pass", encoding='utf-8')
-        
+        plugin_file.write_text("class TestPlugin: pass", encoding="utf-8")
+
         config_file = temp_plugin_dir / "config.json"
-        config_file.write_text('{"plugin_name": "test", "version": "1.0.0"}', encoding='utf-8')
-        
+        config_file.write_text('{"plugin_name": "test", "version": "1.0.0"}', encoding="utf-8")
+
         package_data = {
             "plugin_path": str(temp_plugin_dir),
             "package_name": "test-package",
             "version": "1.0.0",
-            "include_dependencies": True
+            "include_dependencies": True,
         }
         response = client.post("/api/v1/plugin/development/package", json=package_data)
         assert response.status_code == 200
@@ -549,10 +514,7 @@ class TestPackageEndpoint:
 
     def test_package_plugin_path_not_found(self, client):
         """Test packaging a plugin with non-existent path"""
-        package_data = {
-            "plugin_path": "/nonexistent/path",
-            "package_name": "test"
-        }
+        package_data = {"plugin_path": "/nonexistent/path", "package_name": "test"}
         response = client.post("/api/v1/plugin/development/package", json=package_data)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
@@ -560,11 +522,11 @@ class TestPackageEndpoint:
     def test_package_plugin_auto_name(self, client, temp_plugin_dir):
         """Test packaging with auto-generated package name"""
         plugin_file = temp_plugin_dir / "test_plugin.py"
-        plugin_file.write_text("class TestPlugin: pass", encoding='utf-8')
-        
+        plugin_file.write_text("class TestPlugin: pass", encoding="utf-8")
+
         config_file = temp_plugin_dir / "config.json"
-        config_file.write_text('{"plugin_name": "my_plugin", "version": "2.0.0"}', encoding='utf-8')
-        
+        config_file.write_text('{"plugin_name": "my_plugin", "version": "2.0.0"}', encoding="utf-8")
+
         package_data = {
             "plugin_path": str(temp_plugin_dir)
             # No package_name or version provided
@@ -577,18 +539,15 @@ class TestPackageEndpoint:
     def test_package_plugin_creates_zip(self, client, temp_plugin_dir):
         """Test that packaging creates a zip file"""
         plugin_file = temp_plugin_dir / "test_plugin.py"
-        plugin_file.write_text("class TestPlugin: pass", encoding='utf-8')
-        
+        plugin_file.write_text("class TestPlugin: pass", encoding="utf-8")
+
         config_file = temp_plugin_dir / "config.json"
-        config_file.write_text('{"plugin_name": "test"}', encoding='utf-8')
-        
-        package_data = {
-            "plugin_path": str(temp_plugin_dir),
-            "package_name": "test-package"
-        }
+        config_file.write_text('{"plugin_name": "test"}', encoding="utf-8")
+
+        package_data = {"plugin_path": str(temp_plugin_dir), "package_name": "test-package"}
         response = client.post("/api/v1/plugin/development/package", json=package_data)
         assert response.status_code == 200
-        
+
         data = response.json()
         package_path = Path(data["package_path"])
         assert package_path.exists()
@@ -597,12 +556,9 @@ class TestPackageEndpoint:
     def test_package_plugin_without_config(self, client, temp_plugin_dir):
         """Test packaging without config.json"""
         plugin_file = temp_plugin_dir / "test_plugin.py"
-        plugin_file.write_text("class TestPlugin: pass", encoding='utf-8')
-        
-        package_data = {
-            "plugin_path": str(temp_plugin_dir),
-            "package_name": "test-package"
-        }
+        plugin_file.write_text("class TestPlugin: pass", encoding="utf-8")
+
+        package_data = {"plugin_path": str(temp_plugin_dir), "package_name": "test-package"}
         response = client.post("/api/v1/plugin/development/package", json=package_data)
         assert response.status_code == 200
         data = response.json()
@@ -612,6 +568,7 @@ class TestPackageEndpoint:
 # ============================================================================
 # Helper Function Tests
 # ============================================================================
+
 
 class TestHelperFunctions:
     """Test cases for helper functions"""
@@ -645,6 +602,7 @@ class TestHelperFunctions:
 # ============================================================================
 # Template Tests
 # ============================================================================
+
 
 class TestPluginTemplates:
     """Test cases for plugin templates"""
@@ -682,7 +640,7 @@ class TestPluginTemplates:
             class_name="TestPluginPlugin",
             version="1.0.0",
             author="Test Author",
-            self="self"  # Add self to avoid KeyError
+            self="self",  # Add self to avoid KeyError
         )
         assert "TestPlugin" in formatted
         assert "TestPluginPlugin" in formatted
@@ -694,40 +652,41 @@ class TestPluginTemplates:
 # Error Handling Tests
 # ============================================================================
 
+
 class TestErrorHandling:
     """Test cases for error handling"""
 
-    @patch('api.plugin_development_advanced_router.logger')
+    @patch("api.plugin_development_advanced_router.logger")
     def test_scaffold_exception_handling(self, mock_logger, client):
         """Test exception handling in scaffold endpoint"""
-        with patch('api.plugin_development_advanced_router.uuid4', side_effect=Exception("Test error")):
+        with patch(
+            "api.plugin_development_advanced_router.uuid4", side_effect=Exception("Test error")
+        ):
             scaffold_data = {
                 "plugin_name": "test_plugin",
                 "plugin_type": "collector",
-                "author": "Test Author"
+                "author": "Test Author",
             }
             response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
             assert response.status_code == 500
 
-    @patch('api.plugin_development_advanced_router.logger')
+    @patch("api.plugin_development_advanced_router.logger")
     def test_validate_exception_handling(self, mock_logger, client):
         """Test exception handling in validate endpoint"""
-        with patch('api.plugin_development_advanced_router.compile', side_effect=Exception("Test error")):
-            validate_data = {
-                "plugin_code": "class TestPlugin: pass",
-                "plugin_config": {}
-            }
+        with patch(
+            "api.plugin_development_advanced_router.compile", side_effect=Exception("Test error")
+        ):
+            validate_data = {"plugin_code": "class TestPlugin: pass", "plugin_config": {}}
             response = client.post("/api/v1/plugin/development/validate", json=validate_data)
             assert response.status_code == 500
 
-    @patch('api.plugin_development_advanced_router.logger')
+    @patch("api.plugin_development_advanced_router.logger")
     def test_build_exception_handling(self, mock_logger, client, temp_plugin_dir):
         """Test exception handling in build endpoint"""
-        with patch('api.plugin_development_advanced_router.Path', side_effect=Exception("Test error")):
-            build_data = {
-                "plugin_path": str(temp_plugin_dir),
-                "build_config": {}
-            }
+        with patch(
+            "api.plugin_development_advanced_router.Path", side_effect=Exception("Test error")
+        ):
+            build_data = {"plugin_path": str(temp_plugin_dir), "build_config": {}}
             response = client.post("/api/v1/plugin/development/build", json=build_data)
             assert response.status_code == 500
 
@@ -736,57 +695,43 @@ class TestErrorHandling:
 # Data Validation Tests
 # ============================================================================
 
+
 class TestDataValidation:
     """Test cases for data validation"""
 
     def test_scaffold_request_missing_plugin_name(self, client):
         """Test scaffold request without plugin name"""
-        scaffold_data = {
-            "plugin_type": "collector",
-            "author": "Test Author"
-        }
+        scaffold_data = {"plugin_type": "collector", "author": "Test Author"}
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         assert response.status_code == 422
 
     def test_scaffold_request_missing_plugin_type(self, client):
         """Test scaffold request without plugin type"""
-        scaffold_data = {
-            "plugin_name": "test_plugin",
-            "author": "Test Author"
-        }
+        scaffold_data = {"plugin_name": "test_plugin", "author": "Test Author"}
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         assert response.status_code == 422
 
     def test_validate_request_missing_plugin_code(self, client):
         """Test validate request without plugin code"""
-        validate_data = {
-            "plugin_config": {}
-        }
+        validate_data = {"plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert response.status_code == 422
 
     def test_test_request_missing_plugin_code(self, client):
         """Test test request without plugin code"""
-        test_data = {
-            "test_config": {},
-            "test_data": {}
-        }
+        test_data = {"test_config": {}, "test_data": {}}
         response = client.post("/api/v1/plugin/development/test", json=test_data)
         assert response.status_code == 422
 
     def test_build_request_missing_plugin_path(self, client):
         """Test build request without plugin path"""
-        build_data = {
-            "build_config": {}
-        }
+        build_data = {"build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
         assert response.status_code == 422
 
     def test_package_request_missing_plugin_path(self, client):
         """Test package request without plugin path"""
-        package_data = {
-            "package_name": "test"
-        }
+        package_data = {"package_name": "test"}
         response = client.post("/api/v1/plugin/development/package", json=package_data)
         assert response.status_code == 422
 
@@ -795,18 +740,19 @@ class TestDataValidation:
 # Mock Tests
 # ============================================================================
 
+
 class TestMockDependencies:
     """Test cases with mocked dependencies"""
 
-    @patch('api.plugin_development_advanced_router.uuid4')
+    @patch("api.plugin_development_advanced_router.uuid4")
     def test_scaffold_with_mocked_uuid(self, mock_uuid, client):
         """Test scaffold with mocked UUID"""
         mock_uuid.return_value = "test-uuid-123"
-        
+
         scaffold_data = {
             "plugin_name": "test_plugin",
             "plugin_type": "collector",
-            "author": "Test Author"
+            "author": "Test Author",
         }
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         if response.status_code == 500:
@@ -815,7 +761,7 @@ class TestMockDependencies:
         data = response.json()
         assert data["plugin_id"] == "test-uuid-123"
 
-    @patch('api.plugin_development_advanced_router.Path')
+    @patch("api.plugin_development_advanced_router.Path")
     def test_build_with_mocked_path(self, mock_path, client):
         """Test build with mocked Path"""
         # This test is complex due to Path mocking, skip for now
@@ -825,6 +771,7 @@ class TestMockDependencies:
 # ============================================================================
 # Integration Tests
 # ============================================================================
+
 
 class TestIntegration:
     """Integration test cases"""
@@ -836,56 +783,45 @@ class TestIntegration:
             "plugin_name": "integration_test",
             "plugin_type": "collector",
             "author": "Test Author",
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
         scaffold_response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         if scaffold_response.status_code == 500:
             pytest.skip("Template formatting issue in router")
         assert scaffold_response.status_code == 200
         plugin_path = scaffold_response.json()["plugin_path"]
-        
+
         # 2. Read the generated code
         plugin_file = Path(plugin_path) / "integration_test.py"
-        plugin_code = plugin_file.read_text(encoding='utf-8')
-        
+        plugin_code = plugin_file.read_text(encoding="utf-8")
+
         # 3. Validate the code
         validate_data = {
             "plugin_code": plugin_code,
-            "plugin_config": {
-                "plugin_name": "integration_test",
-                "plugin_type": "collector"
-            }
+            "plugin_config": {"plugin_name": "integration_test", "plugin_type": "collector"},
         }
         validate_response = client.post("/api/v1/plugin/development/validate", json=validate_data)
         assert validate_response.status_code == 200
         assert validate_response.json()["valid"] == True
-        
+
         # 4. Test the plugin
-        test_data = {
-            "plugin_code": plugin_code,
-            "test_config": {},
-            "test_data": {}
-        }
+        test_data = {"plugin_code": plugin_code, "test_config": {}, "test_data": {}}
         test_response = client.post("/api/v1/plugin/development/test", json=test_data)
         assert test_response.status_code == 200
-        
+
         # 5. Build the plugin
-        build_data = {
-            "plugin_path": plugin_path,
-            "build_config": {}
-        }
+        build_data = {"plugin_path": plugin_path, "build_config": {}}
         build_response = client.post("/api/v1/plugin/development/build", json=build_data)
         assert build_response.status_code == 200
-        
+
         # 6. Package the plugin
-        package_data = {
-            "plugin_path": plugin_path,
-            "package_name": "integration-test-package"
-        }
+        package_data = {"plugin_path": plugin_path, "package_name": "integration-test-package"}
         package_response = client.post("/api/v1/plugin/development/package", json=package_data)
         assert package_response.status_code == 200
         assert package_response.json()["success"] == True
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--cov=api.plugin_development_advanced_router", "--cov-report=html"])
+    pytest.main(
+        [__file__, "-v", "--cov=api.plugin_development_advanced_router", "--cov-report=html"]
+    )

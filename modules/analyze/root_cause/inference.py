@@ -453,8 +453,29 @@ class RootCauseInference:
         }
 
     def save(self, path: str) -> None:
-        """保存推断引擎"""
+        """
+        保存推断引擎 (with security checks)
+
+        Args:
+            path: 文件路径
+
+        Raises:
+            ValueError: 如果路径不安全
+        """
         import pickle
+        from pathlib import Path
+
+        # Security check: validate file path
+        file_path = Path(path).resolve()
+        allowed_dirs = [Path.cwd(), Path.home() / ".aiops"]
+        if not any(str(file_path).startswith(str(d.resolve())) for d in allowed_dirs):
+            logger.error(f"Invalid save path (outside allowed directories): {file_path}")
+            raise ValueError(f"Invalid save path: {file_path}")
+
+        # Warning about pickle security
+        logger.warning(
+            "Using pickle for serialization - ensure files are stored in secure locations"
+        )
 
         data = {
             "graph_builder": self.graph_builder,
@@ -462,17 +483,60 @@ class RootCauseInference:
             "is_trained": self.is_trained,
         }
 
-        with open(path, "wb") as f:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "wb") as f:
             pickle.dump(data, f)
 
         logger.info("Root cause inference saved to %s", path)
 
     def load(self, path: str) -> None:
-        """加载推断引擎"""
-        import pickle
+        """
+        加载推断引擎 (with security validation)
 
-        with open(path, "rb") as f:
+        Args:
+            path: 文件路径
+
+        Raises:
+            ValueError: 如果数据验证失败
+            TypeError: 如果数据类型不正确
+        """
+        import pickle
+        from pathlib import Path
+
+        # Security check: validate file path
+        file_path = Path(path).resolve()
+        allowed_dirs = [Path.cwd(), Path.home() / ".aiops"]
+        if not any(str(file_path).startswith(str(d.resolve())) for d in allowed_dirs):
+            logger.error(f"Invalid load path (outside allowed directories): {file_path}")
+            raise ValueError(f"Invalid load path: {file_path}")
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        # Load with validation
+        with open(file_path, "rb") as f:
             data = pickle.load(f)
+
+        # Validate data structure
+        if not isinstance(data, dict):
+            raise TypeError(f"Expected dict, got {type(data)}")
+
+        required_keys = ["graph_builder", "gnn_model", "is_trained"]
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"Missing required key: {key}")
+
+        # Validate types
+        if not isinstance(data["is_trained"], bool):
+            raise TypeError(f"is_trained must be bool, got {type(data['is_trained'])}")
+
+        # Validate graph_builder is instance of RootCauseGraphBuilder
+        from .graph_builder import RootCauseGraphBuilder
+
+        if not isinstance(data["graph_builder"], RootCauseGraphBuilder):
+            raise TypeError(
+                f"graph_builder must be RootCauseGraphBuilder, got {type(data['graph_builder'])}"
+            )
 
         self.graph_builder = data["graph_builder"]
         self.gnn_model = data["gnn_model"]

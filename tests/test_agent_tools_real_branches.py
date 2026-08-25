@@ -152,7 +152,9 @@ def test_health_check_http_and_invalid_port():
 def test_run_diagnostic_localhost():
     reg = create_tool_registry()
     tool = reg.get_tool("run_diagnostic")
-    result = tool.execute(target="localhost", type="basic")  # noqa: F841  # Variable for test verification
+    result = tool.execute(
+        target="localhost", type="basic"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "health" in result
 
@@ -282,11 +284,15 @@ def test_tool_executor_chain_break_and_auto_selection():
     assert isinstance(result, list)
 
     # infer data from metrics
-    result = executor.execute_with_auto_selection("detect anomaly", {"metrics": [1.0, 2.0, 3.0]})  # noqa: F841  # Variable for test verification
+    result = executor.execute_with_auto_selection(
+        "detect anomaly", {"metrics": [1.0, 2.0, 3.0]}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
     # infer required target from service
-    result = executor.execute_with_auto_selection("collect system metrics", {"service": "node"})  # noqa: F841  # Variable for test verification
+    result = executor.execute_with_auto_selection(
+        "collect system metrics", {"service": "node"}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
     # infer required service from target
@@ -296,11 +302,15 @@ def test_tool_executor_chain_break_and_auto_selection():
     assert isinstance(result, list)
 
     # infer required service_name from target (restart_service)
-    result = executor.execute_with_auto_selection("restart nginx", {"target": "nginx"})  # noqa: F841  # Variable for test verification
+    result = executor.execute_with_auto_selection(
+        "restart nginx", {"target": "nginx"}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
     # infer required alert_id from context alert
-    result = executor.execute_with_auto_selection("root cause analysis", {"alert": {"id": "a1"}})  # noqa: F841  # Variable for test verification
+    result = executor.execute_with_auto_selection(
+        "root cause analysis", {"alert": {"id": "a1"}}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
 
 

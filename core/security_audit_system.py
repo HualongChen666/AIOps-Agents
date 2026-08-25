@@ -304,8 +304,12 @@ class SecurityAuditSystem:
             "metadata": event.metadata,
         }
 
-        with open(event_log_path, "a") as f:
-            f.write(json.dumps(event_dict) + "\n")
+        try:
+            with open(event_log_path, "a") as f:
+                f.write(json.dumps(event_dict) + "\n")
+        except OSError as exc:
+            logger.error(f"Failed to write security audit event to {event_log_path}: {exc}")
+            raise
 
         # Prune old events
         if len(self.audit_events) > self.max_events:
@@ -454,8 +458,12 @@ class SecurityAuditSystem:
                 ],
             }
 
-            with open(report_path, "w") as f:
-                json.dump(report_data, f, indent=2)
+            try:
+                with open(report_path, "w") as f:
+                    json.dump(report_data, f, indent=2)
+            except OSError as exc:
+                logger.error(f"Failed to write security audit report to {report_path}: {exc}")
+                raise
 
         logger.info(f"Generated audit report: {report_path}")
 

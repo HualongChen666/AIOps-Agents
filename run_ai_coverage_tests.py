@@ -49,7 +49,7 @@ def run_tests():
     print(f"Command: {' '.join(cmd)}")
     print()
     
-    result = subprocess.run(cmd, cwd="C:\\aiops-sre-agent")
+    result = subprocess.run(cmd, cwd="C:\\aiops-sre-agent", shell=False)
     
     return result.returncode
 

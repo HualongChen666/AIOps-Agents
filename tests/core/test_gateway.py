@@ -146,15 +146,15 @@ async def test_check_all_marks_unreachable_services_unhealthy():
 async def test_check_all_caches_results():
     """check_all caches health results for subsequent calls."""
     registry = service_registry.AddOnServiceRegistry()
-    
+
     # First call performs health checks
     first_results = await registry.check_all()
     assert len(first_results) > 0
-    
+
     # Second call should return cached results
     second_results = registry.list_services()
     assert len(second_results) == len(first_results)
-    
+
     # Verify cached results are the same
     for first, second in zip(first_results, second_results):
         assert first.name == second.name
@@ -167,7 +167,7 @@ async def test_check_all_service_name_formatting():
     """Test that service names are properly formatted from environment variables."""
     registry = service_registry.AddOnServiceRegistry()
     results = await registry.check_all()
-    
+
     # Check that service names are properly formatted
     for result in results:
         # Service names should be lowercase and not empty
@@ -181,10 +181,10 @@ async def test_check_all_service_name_formatting():
 async def test_is_healthy_after_check():
     """is_healthy returns cached health status after check_all."""
     registry = service_registry.AddOnServiceRegistry()
-    
+
     # Perform health check
     await registry.check_all()
-    
+
     # Now is_healthy should return the cached result
     # Since services are not running, it should return False
     assert registry.is_healthy("RAG_SERVICE_URL") is False
@@ -201,13 +201,13 @@ async def test_is_healthy_unknown_service():
 async def test_list_services_after_health_check():
     """list_services returns cached results after health check."""
     registry = service_registry.AddOnServiceRegistry()
-    
+
     # Perform health check
     health_results = await registry.check_all()
-    
+
     # list_services should return the same cached results
     list_results = registry.list_services()
-    
+
     assert len(list_results) == len(health_results)
     for health, list_item in zip(health_results, list_results):
         assert health.name == list_item.name
@@ -218,24 +218,24 @@ async def test_list_services_after_health_check():
 async def test_check_all_with_multiple_services():
     """Test check_all handles multiple configured services."""
     registry = service_registry.AddOnServiceRegistry()
-    
+
     # Get all configured services
     all_services = registry.list_services()
     original_count = len(all_services)
-    
+
     # Perform health check
     results = await registry.check_all()
-    
+
     # Should have same number of results as configured services
     assert len(results) == original_count
-    
+
     # Each result should have required fields
     for result in results:
-        assert hasattr(result, 'name')
-        assert hasattr(result, 'url_env')
-        assert hasattr(result, 'url')
-        assert hasattr(result, 'healthy')
-        assert hasattr(result, 'error')
+        assert hasattr(result, "name")
+        assert hasattr(result, "url_env")
+        assert hasattr(result, "url")
+        assert hasattr(result, "healthy")
+        assert hasattr(result, "error")
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +295,9 @@ async def test_remote_call_unsupported_method_raises():
 async def test_remote_call_get_success(remote_client, monkeypatch):
     """_remote_call GET returns the JSON payload from the fake remote service."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
-    result = await _remote_call("RAG_SERVICE_URL", "GET", "/nodes")  # noqa: F841  # Variable for test verification
+    result = await _remote_call(
+        "RAG_SERVICE_URL", "GET", "/nodes"
+    )  # noqa: F841  # Variable for test verification
     assert result == {"nodes": [{"id": "n1"}]}  # noqa: F841  # Variable for test verification
 
 
@@ -303,7 +305,9 @@ async def test_remote_call_get_success(remote_client, monkeypatch):
 async def test_remote_call_post_success(remote_client, monkeypatch):
     """_remote_call POST returns the JSON payload from the fake remote service."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
-    result = await _remote_call("RAG_SERVICE_URL", "POST", "/search", {"query": "cpu"})  # noqa: F841  # Variable for test verification
+    result = await _remote_call(
+        "RAG_SERVICE_URL", "POST", "/search", {"query": "cpu"}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"results": [{"id": "remote"}]}  # noqa: F841  # Variable for test verification
 
 
@@ -346,7 +350,7 @@ async def test_process_alert_auto_heal_import_failure(monkeypatch):
     monkeypatch.setattr(services_client, "_AUTO_HEAL_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_try_auto_heal", None)
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
-    
+
     with pytest.raises(RuntimeError, match="Auto-heal engine is not available"):
         await process_alert({"id": "a1"})
 
@@ -359,7 +363,7 @@ async def test_approve_and_execute_heal_graph_import_failure(monkeypatch):
     monkeypatch.setattr(services_client, "_run_heal", None)
     monkeypatch.setattr(services_client, "HealState", None)
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
-    
+
     with pytest.raises(RuntimeError, match="Heal graph engine is not available"):
         await approve_and_execute("alert-123")
 
@@ -371,7 +375,7 @@ async def test_remote_rag_query_import_failure(monkeypatch):
     monkeypatch.setattr(services_client, "_RAG_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_rag_search", None)
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
-    
+
     with pytest.raises(RuntimeError, match="RAG engine is not available"):
         await remote_rag_query("test query")
 
@@ -383,7 +387,7 @@ async def test_remote_llm_route_import_failure(monkeypatch):
     monkeypatch.setattr(services_client, "_LLM_ROUTER_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_get_llm_router", None)
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
-    
+
     with pytest.raises(RuntimeError, match="LLM router is not available"):
         await remote_llm_route("test prompt")
 
@@ -395,7 +399,7 @@ async def test_remote_topology_import_failure(monkeypatch):
     monkeypatch.setattr(services_client, "_TOPOLOGY_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_get_full_link_topology", None)
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
-    
+
     with pytest.raises(RuntimeError, match="Topology engine is not available"):
         await remote_topology()
 
@@ -422,7 +426,7 @@ async def test_process_alert_remote_failure_without_fallback(remote_client, monk
     monkeypatch.setattr(services_client, "_get_http_client", lambda: failing_client)
     monkeypatch.setattr(services_client, "_AUTO_HEAL_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_try_auto_heal", None)
-    
+
     with pytest.raises(RuntimeError, match="Auto-heal engine is not available"):
         await process_alert({"id": "a1"})
 
@@ -437,7 +441,7 @@ async def test_approve_and_execute_remote_failure_without_fallback(remote_client
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_run_heal", None)
     monkeypatch.setattr(services_client, "HealState", None)
-    
+
     with pytest.raises(RuntimeError, match="Heal graph engine is not available"):
         await approve_and_execute("alert-123")
 
@@ -451,7 +455,7 @@ async def test_remote_rag_query_remote_failure_without_fallback(remote_client, m
     monkeypatch.setattr(services_client, "_get_http_client", lambda: failing_client)
     monkeypatch.setattr(services_client, "_RAG_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_rag_search", None)
-    
+
     with pytest.raises(RuntimeError, match="RAG engine is not available"):
         await remote_rag_query("test query")
 
@@ -465,7 +469,7 @@ async def test_remote_llm_route_remote_failure_without_fallback(remote_client, m
     monkeypatch.setattr(services_client, "_get_http_client", lambda: failing_client)
     monkeypatch.setattr(services_client, "_LLM_ROUTER_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_get_llm_router", None)
-    
+
     with pytest.raises(RuntimeError, match="LLM router is not available"):
         await remote_llm_route("test prompt")
 
@@ -479,7 +483,7 @@ async def test_remote_topology_remote_failure_without_fallback(remote_client, mo
     monkeypatch.setattr(services_client, "_get_http_client", lambda: failing_client)
     monkeypatch.setattr(services_client, "_TOPOLOGY_AVAILABLE", False)
     monkeypatch.setattr(services_client, "_get_full_link_topology", None)
-    
+
     with pytest.raises(RuntimeError, match="Topology engine is not available"):
         await remote_topology()
 
@@ -512,7 +516,9 @@ async def test_approve_and_execute_remote_success(remote_client, monkeypatch):
     """approve_and_execute creates and approves a remote repair task."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("REPAIR_SERVICE_URL", "http://repair")
-    result = await approve_and_execute("alert-1", {"host": "h1", "metric": "cpu"})  # noqa: F841  # Variable for test verification
+    result = await approve_and_execute(
+        "alert-1", {"host": "h1", "metric": "cpu"}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"approved": True}  # noqa: F841  # Variable for test verification
 
 
@@ -527,7 +533,9 @@ async def test_approve_and_execute_remote_missing_task_id(remote_client, monkeyp
         }
     )
     monkeypatch.setattr(services_client, "_get_http_client", lambda: no_id_client)
-    result = await approve_and_execute("alert-2", {"host": "h1"})  # noqa: F841  # Variable for test verification
+    result = await approve_and_execute(
+        "alert-2", {"host": "h1"}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is False
     assert "task_id" in result["error"]
 
@@ -541,7 +549,9 @@ async def test_approve_and_execute_remote_failure_then_local(remote_client, monk
     monkeypatch.setattr(services_client, "_get_http_client", lambda: failing_client)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
     monkeypatch.setattr(services_client, "_run_heal", AsyncMock(return_value=_FakeHealState()))
-    result = await approve_and_execute("alert-3", {"host": "h1"})  # noqa: F841  # Variable for test verification
+    result = await approve_and_execute(
+        "alert-3", {"host": "h1"}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
 
@@ -551,7 +561,9 @@ async def test_approve_and_execute_local(monkeypatch):
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
     monkeypatch.setattr(services_client, "_run_heal", AsyncMock(return_value=_FakeHealState()))
-    result = await approve_and_execute("alert-4", {"host": "h1"})  # noqa: F841  # Variable for test verification
+    result = await approve_and_execute(
+        "alert-4", {"host": "h1"}
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
 
 
@@ -584,7 +596,9 @@ async def test_remote_rag_query_remote_success(remote_client, monkeypatch):
     """remote_rag_query uses the remote RAG service in remote mode."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("RAG_SERVICE_URL", "http://rag")
-    result = await remote_rag_query("cpu high", top_k=3)  # noqa: F841  # Variable for test verification
+    result = await remote_rag_query(
+        "cpu high", top_k=3
+    )  # noqa: F841  # Variable for test verification
     assert result == {"results": [{"id": "remote"}]}  # noqa: F841  # Variable for test verification
 
 
@@ -613,7 +627,9 @@ async def test_remote_llm_route_remote_success(remote_client, monkeypatch):
     """remote_llm_route uses the remote LLM router service in remote mode."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("LLM_ROUTER_SERVICE_URL", "http://llm")
-    result = await remote_llm_route("hello", models=["model-a"])  # noqa: F841  # Variable for test verification
+    result = await remote_llm_route(
+        "hello", models=["model-a"]
+    )  # noqa: F841  # Variable for test verification
     assert result == {"content": "remote"}  # noqa: F841  # Variable for test verification
 
 
@@ -662,7 +678,10 @@ async def test_remote_topology_local(monkeypatch):
         AsyncMock(return_value={"nodes": [{"id": "local"}], "edges": []}),
     )
     result = await remote_topology()  # noqa: F841  # Variable for test verification
-    assert result == {"nodes": [{"id": "local"}], "edges": []}  # noqa: F841  # Variable for test verification
+    assert result == {
+        "nodes": [{"id": "local"}],
+        "edges": [],
+    }  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -689,7 +708,9 @@ async def test_remote_datadog_query(remote_client, monkeypatch):
     """remote_datadog_query forwards to the Datadog integration service."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("DATADOG_INTEGRATION_SERVICE_URL", "http://datadog")
-    result = await remote_datadog_query({"metric": "cpu"})  # noqa: F841  # Variable for test verification
+    result = await remote_datadog_query(
+        {"metric": "cpu"}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"metrics": []}  # noqa: F841  # Variable for test verification
 
 
@@ -698,7 +719,9 @@ async def test_remote_grafana_query(remote_client, monkeypatch):
     """remote_grafana_query forwards to the Grafana integration service."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("GRAFANA_INTEGRATION_SERVICE_URL", "http://grafana")
-    result = await remote_grafana_query({"dashboard": "ops"})  # noqa: F841  # Variable for test verification
+    result = await remote_grafana_query(
+        {"dashboard": "ops"}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"dashboards": []}  # noqa: F841  # Variable for test verification
 
 
@@ -707,7 +730,9 @@ async def test_remote_elk_search(remote_client, monkeypatch):
     """remote_elk_search forwards to the ELK stack integration service."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("ELK_STACK_SERVICE_URL", "http://elk")
-    result = await remote_elk_search({"index": "logs"})  # noqa: F841  # Variable for test verification
+    result = await remote_elk_search(
+        {"index": "logs"}
+    )  # noqa: F841  # Variable for test verification
     assert result == {"hits": []}  # noqa: F841  # Variable for test verification
 
 
@@ -728,13 +753,13 @@ async def test_approve_and_execute_local_with_full_alert_data(monkeypatch):
     """Test approve_and_execute with complete alert data."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     async def fake_run_heal(state):
         return _FakeHealState()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _FakeHealState)
-    
+
     alert = {
         "id": "alert-123",
         "host": "server-1",
@@ -742,9 +767,9 @@ async def test_approve_and_execute_local_with_full_alert_data(monkeypatch):
         "metric": "cpu",
         "metric_value": 95.0,
         "desc": "High CPU usage",
-        "params": {"threshold": 90}
+        "params": {"threshold": 90},
     }
-    
+
     result = await approve_and_execute("alert-123", alert)
     assert result["success"] is True
     assert result["alert_id"] == "alert-123"
@@ -756,7 +781,7 @@ async def test_approve_and_execute_local_with_runbook_output(monkeypatch):
     """Test approve_and_execute when runbook output is available."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithRunbook:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -765,13 +790,13 @@ async def test_approve_and_execute_local_with_runbook_output(monkeypatch):
             self.runbook = {"steps": ["step1", "step2"]}
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithRunbook()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithRunbook)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] == {"steps": ["step1", "step2"]}
 
@@ -781,7 +806,7 @@ async def test_approve_and_execute_local_with_analysis_output(monkeypatch):
     """Test approve_and_execute when analysis output is available."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithAnalysis:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -790,13 +815,13 @@ async def test_approve_and_execute_local_with_analysis_output(monkeypatch):
             self.runbook = None
             self.analysis = {"root_cause": "memory leak"}
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithAnalysis()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithAnalysis)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] == {"root_cause": "memory leak"}
 
@@ -806,7 +831,7 @@ async def test_approve_and_execute_local_with_object_runbook(monkeypatch):
     """Test approve_and_execute when runbook is a complex object."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithObjectRunbook:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -815,13 +840,13 @@ async def test_approve_and_execute_local_with_object_runbook(monkeypatch):
             self.runbook = object()  # Non-serializable object
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithObjectRunbook()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithObjectRunbook)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] != ""  # Should convert object to string
 
@@ -831,7 +856,7 @@ async def test_approve_and_execute_local_failure(monkeypatch):
     """Test approve_and_execute when heal fails."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _FailedHealState:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -840,13 +865,13 @@ async def test_approve_and_execute_local_failure(monkeypatch):
             self.runbook = None
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _FailedHealState()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _FailedHealState)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["success"] is False
     assert result["status"] == "pending"
@@ -867,13 +892,13 @@ async def test_remote_llm_route_local_with_models(monkeypatch):
     """Test remote_llm_route local fallback with models parameter."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_LLM_ROUTER_AVAILABLE", True)
-    
+
     class _FakeLLMRouter:
         async def generate(self, prompt, **kwargs):
             return {"model": kwargs.get("force_model", "default"), "text": "generated"}
-    
+
     monkeypatch.setattr(services_client, "_get_llm_router", lambda: _FakeLLMRouter())
-    
+
     result = await remote_llm_route("test prompt", models=["gpt-4"])
     assert result["model"] == "gpt-4"
 
@@ -920,7 +945,10 @@ async def test_remote_topology_remote_failure_then_local(remote_client, monkeypa
         AsyncMock(return_value={"nodes": [{"id": "local"}], "edges": []}),
     )
     result = await remote_topology()  # noqa: F841  # Variable for test verification
-    assert result == {"nodes": [{"id": "local"}], "edges": []}  # noqa: F841  # Variable for test verification
+    assert result == {
+        "nodes": [{"id": "local"}],
+        "edges": [],
+    }  # noqa: F841  # Variable for test verification
 
 
 @pytest.mark.asyncio
@@ -928,10 +956,10 @@ async def test_remote_call_with_custom_timeout(monkeypatch):
     """Test that HTTP client uses custom timeout from environment."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("MICROSERVICE_TIMEOUT", "30.0")
-    
+
     # Close existing client to force recreation with new timeout
     await _close_http_client()
-    
+
     # Get new client which should use the new timeout
     client = _get_http_client()
     # The timeout is a Timeout object, not a float
@@ -943,7 +971,7 @@ async def test_remote_call_invalid_service_url(monkeypatch):
     """Test _remote_call when service URL is not configured."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setattr(services_client, "_DEFAULT_SERVICE_URLS", {})
-    
+
     with pytest.raises(RuntimeError, match="is not configured"):
         await _remote_call("NONEXISTENT_SERVICE_URL", "GET", "/test")
 
@@ -953,14 +981,16 @@ async def test_approve_and_execute_remote_with_minimal_alert(monkeypatch):
     """Test approve_and_execute with minimal alert data."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("REPAIR_SERVICE_URL", "http://repair")
-    
+
     # Mock successful repair response
-    remote_client = _make_remote_client({
-        "/repairs": {"status": 201, "json": {"task_id": "task-123"}},
-        "/repairs/task-123/approve": {"status": 200, "json": {"approved": True}}
-    })
+    remote_client = _make_remote_client(
+        {
+            "/repairs": {"status": 201, "json": {"task_id": "task-123"}},
+            "/repairs/task-123/approve": {"status": 200, "json": {"approved": True}},
+        }
+    )
     monkeypatch.setattr(services_client, "_get_http_client", lambda: remote_client)
-    
+
     result = await approve_and_execute("alert-456", {})
     assert result["approved"] is True
 
@@ -970,14 +1000,16 @@ async def test_approve_and_execute_remote_without_task_id(monkeypatch):
     """Test approve_and_execute when remote service doesn't return task_id."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: True)
     monkeypatch.setenv("REPAIR_SERVICE_URL", "http://repair")
-    
+
     # Mock repair response without task_id
-    remote_client = _make_remote_client({
-        "/repairs": {"status": 201, "json": {"id": "task-123"}},
-        "/repairs/task-123/approve": {"status": 200, "json": {"approved": True}}
-    })
+    remote_client = _make_remote_client(
+        {
+            "/repairs": {"status": 201, "json": {"id": "task-123"}},
+            "/repairs/task-123/approve": {"status": 200, "json": {"approved": True}},
+        }
+    )
     monkeypatch.setattr(services_client, "_get_http_client", lambda: remote_client)
-    
+
     result = await approve_and_execute("alert-789")
     # The function should handle missing task_id gracefully
     assert result is not None
@@ -988,7 +1020,7 @@ async def test_approve_and_execute_local_with_string_runbook(monkeypatch):
     """Test approve_and_execute when runbook is a string."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithStringRunbook:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -997,13 +1029,13 @@ async def test_approve_and_execute_local_with_string_runbook(monkeypatch):
             self.runbook = "Runbook executed successfully"
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithStringRunbook()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithStringRunbook)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] == "Runbook executed successfully"
 
@@ -1013,7 +1045,7 @@ async def test_approve_and_execute_local_with_dict_runbook(monkeypatch):
     """Test approve_and_execute when runbook is a dict."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithDictRunbook:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -1022,13 +1054,13 @@ async def test_approve_and_execute_local_with_dict_runbook(monkeypatch):
             self.runbook = {"status": "completed", "steps": 3}
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithDictRunbook()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithDictRunbook)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] == {"status": "completed", "steps": 3}
 
@@ -1038,7 +1070,7 @@ async def test_approve_and_execute_local_with_list_runbook(monkeypatch):
     """Test approve_and_execute when runbook is a list."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithListRunbook:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -1047,13 +1079,13 @@ async def test_approve_and_execute_local_with_list_runbook(monkeypatch):
             self.runbook = ["step1", "step2", "step3"]
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithListRunbook()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithListRunbook)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] == ["step1", "step2", "step3"]
 
@@ -1063,7 +1095,7 @@ async def test_approve_and_execute_local_with_numeric_runbook(monkeypatch):
     """Test approve_and_execute when runbook is a number."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithNumericRunbook:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -1072,13 +1104,13 @@ async def test_approve_and_execute_local_with_numeric_runbook(monkeypatch):
             self.runbook = 42
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithNumericRunbook()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithNumericRunbook)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] == 42
 
@@ -1088,7 +1120,7 @@ async def test_approve_and_execute_local_with_boolean_runbook(monkeypatch):
     """Test approve_and_execute when runbook is a boolean."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_HEAL_GRAPH_AVAILABLE", True)
-    
+
     class _HealStateWithBooleanRunbook:
         def __init__(self, **kwargs):
             self.alert = kwargs.get("alert")
@@ -1097,13 +1129,13 @@ async def test_approve_and_execute_local_with_boolean_runbook(monkeypatch):
             self.runbook = True
             self.analysis = None
             self.verification = None
-    
+
     async def fake_run_heal(state):
         return _HealStateWithBooleanRunbook()
-    
+
     monkeypatch.setattr(services_client, "_run_heal", fake_run_heal)
     monkeypatch.setattr(services_client, "HealState", _HealStateWithBooleanRunbook)
-    
+
     result = await approve_and_execute("alert-123")
     assert result["output"] is True
 
@@ -1113,12 +1145,12 @@ async def test_remote_llm_route_local_without_models(monkeypatch):
     """Test remote_llm_route local fallback without models parameter."""
     monkeypatch.setattr(services_client, "_is_remote", lambda: False)
     monkeypatch.setattr(services_client, "_LLM_ROUTER_AVAILABLE", True)
-    
+
     class _FakeLLMRouter:
         async def generate(self, prompt, **kwargs):
             return {"model": kwargs.get("force_model", "default"), "text": "generated"}
-    
+
     monkeypatch.setattr(services_client, "_get_llm_router", lambda: _FakeLLMRouter())
-    
+
     result = await remote_llm_route("test prompt")
     assert result["model"] == "default"

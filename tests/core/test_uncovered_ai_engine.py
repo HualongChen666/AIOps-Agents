@@ -102,7 +102,9 @@ async def test_llm_analysis_service_analyze(monkeypatch):
 async def test_llm_analysis_service_observe(monkeypatch):
     _stub_llm(monkeypatch, content="observed")
     service = ai_engine.LLMAnalysisService()
-    result = await service.observe({"query": "service down"})  # noqa: F841  # Variable for test verification
+    result = await service.observe(
+        {"query": "service down"}
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "result" in result
 
@@ -130,7 +132,9 @@ def test_llm_analysis_service_get_health_status():
 
 async def test_llm_analysis_service_search_similar():
     service = ai_engine.LLMAnalysisService()
-    result = await service.search_similar("cpu spike", limit=5)  # noqa: F841  # Variable for test verification
+    result = await service.search_similar(
+        "cpu spike", limit=5
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, list)
     assert len(result) == 0
 
@@ -149,7 +153,9 @@ async def test_analyze_returns_rule_fallback_when_disabled(monkeypatch):
             "max_retries": 1,
         },
     )
-    result = await ai_engine.analyze(query="cpu high", platform="linux")  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu high", platform="linux"
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, str)
     assert "规则降级" in result
     assert "linux" in result
@@ -178,7 +184,9 @@ async def test_analyze_with_json_validation(monkeypatch):
         "recommended_action": "check process",
     }
     _stub_llm(monkeypatch, content=json.dumps(payload, ensure_ascii=False))
-    result = await ai_engine.analyze(query="cpu high", validate_json=True)  # noqa: F841  # Variable for test verification
+    result = await ai_engine.analyze(
+        query="cpu high", validate_json=True
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, str)
     parsed = json.loads(result)
     assert "data_assessment" in parsed
@@ -236,7 +244,9 @@ async def test_predictive_analysis_engine_predict_system_anomalies():
         "memory": {"usage_percent": 90},
         "disk": [{"usage_percent": 95, "mount_point": "/"}],
     }
-    result = await engine.predict_system_anomalies(metrics, prediction_horizon_hours=24)  # noqa: F841  # Variable for test verification
+    result = await engine.predict_system_anomalies(
+        metrics, prediction_horizon_hours=24
+    )  # noqa: F841  # Variable for test verification
     assert isinstance(result, dict)
     assert "predicted_anomalies" in result
     assert len(result["predicted_anomalies"]) == 3
@@ -249,7 +259,9 @@ async def test_predictive_analysis_engine_predict_capacity_needs():
         "cpu": {"usage_percent": 80},
         "memory": {"usage_percent": 70},
     }
-    result = await engine.predict_capacity_needs(metrics, growth_rate=0.1)  # noqa: F841  # Variable for test verification
+    result = await engine.predict_capacity_needs(
+        metrics, growth_rate=0.1
+    )  # noqa: F841  # Variable for test verification
     assert "predictions_3_months" in result
     assert "predictions_6_months" in result
     assert result["predictions_3_months"]["cpu"] == 80 * 1.3
@@ -279,9 +291,11 @@ async def test_intelligent_recommendation_engine_get_personalized_recommendation
 
 async def test_natural_language_interaction_process_query():
     nli = ai_engine.NaturalLanguageInteraction()
-    result = await nli.process_natural_language_query(  # noqa: F841  # Variable for test verification
-        "what is the cpu status?",
-        context={"metrics": {"cpu": "80%"}},
+    result = (
+        await nli.process_natural_language_query(  # noqa: F841  # Variable for test verification
+            "what is the cpu status?",
+            context={"metrics": {"cpu": "80%"}},
+        )
     )
     assert result["intent"] == "status_query"
     assert result["entities"]["metric"] == "cpu"
@@ -290,7 +304,9 @@ async def test_natural_language_interaction_process_query():
 
 async def test_natural_language_interaction_maintain_conversation():
     nli = ai_engine.NaturalLanguageInteraction()
-    result = await nli.maintain_conversation("u1", "predict memory trends")  # noqa: F841  # Variable for test verification
+    result = await nli.maintain_conversation(
+        "u1", "predict memory trends"
+    )  # noqa: F841  # Variable for test verification
     assert "conversation_history" in result
     assert len(nli.conversation_history["u1"]) == 2
 

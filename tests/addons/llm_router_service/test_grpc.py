@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Unit tests for grpc module - gRPC-like utilities for LLM router service."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from extensions.addons.ai_plus.llm_router_service.grpc.server import LLMRouterRPCServer
+
+import pytest
+
 from extensions.addons.ai_plus.llm_router_service.grpc.client import LLMRouterRPCClient
+from extensions.addons.ai_plus.llm_router_service.grpc.server import LLMRouterRPCServer
 
 
 class TestLLMRouterRPCServer:

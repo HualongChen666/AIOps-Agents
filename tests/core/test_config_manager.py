@@ -29,7 +29,9 @@ def good_config(tmp_path):
 
 
 def test_setup_unified_configuration(good_config):
-    result = setup_unified_configuration(good_config)  # noqa: F841  # Variable for test verification
+    result = setup_unified_configuration(
+        good_config
+    )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert "environment" in result
 

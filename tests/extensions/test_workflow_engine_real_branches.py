@@ -368,7 +368,9 @@ def test_execute_python_code_mode(monkeypatch):
         "code": "result = inputs['value'] * 2",  # noqa: F841  # Variable for test verification
         "output": "result",
     }
-    result = engine._execute_python(step, {"value": 21})  # noqa: F841  # Variable for test verification
+    result = engine._execute_python(
+        step, {"value": 21}
+    )  # noqa: F841  # Variable for test verification
     assert result == 42  # noqa: F841  # Variable for test verification
 
 
@@ -422,7 +424,9 @@ def test_execute_decision_with_context(monkeypatch):
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     engine = WorkflowEngine(dry_run=False)
     step = {"type": "decision", "condition": "value > 10", "true": "branch_a", "false": "branch_b"}
-    result = engine._execute_decision(step, {"value": 20})  # noqa: F841  # Variable for test verification
+    result = engine._execute_decision(
+        step, {"value": 20}
+    )  # noqa: F841  # Variable for test verification
     assert result["decision"] is True
     assert result["branch"] == "branch_a"
 
@@ -489,7 +493,11 @@ def test_execute_step_default_type(monkeypatch):
     """Test _execute_step with default type (python)."""
     monkeypatch.setenv("INFRA_EXECUTE_ENABLED", "true")
     engine = WorkflowEngine(dry_run=False)
-    step = {"mode": "code", "code": "result = 42", "output": "result"}  # noqa: F841  # Variable for test verification
+    step = {
+        "mode": "code",
+        "code": "result = 42",
+        "output": "result",
+    }  # noqa: F841  # Variable for test verification
     result = engine._execute_step(step, {})  # noqa: F841  # Variable for test verification
     assert result == 42  # noqa: F841  # Variable for test verification
 
@@ -555,9 +563,19 @@ def test_run_sequential_exception_handling(monkeypatch):
     monkeypatch.setattr(engine, "_execute_step", failing_execute_step)
 
     steps = [
-        {"name": "ok", "type": "python", "mode": "code", "code": "result = 1"},  # noqa: F841  # Variable for test verification
+        {
+            "name": "ok",
+            "type": "python",
+            "mode": "code",
+            "code": "result = 1",
+        },  # noqa: F841  # Variable for test verification
         {"name": "failing", "type": "python"},
-        {"name": "after", "type": "python", "mode": "code", "code": "result = 2"},  # noqa: F841  # Variable for test verification
+        {
+            "name": "after",
+            "type": "python",
+            "mode": "code",
+            "code": "result = 2",
+        },  # noqa: F841  # Variable for test verification
     ]
 
     result = engine._run_sequential(steps, {})  # noqa: F841  # Variable for test verification
@@ -588,7 +606,9 @@ def test_run_workflow_dict_definition(monkeypatch):
     """Test run_workflow with dict workflow definition."""
     monkeypatch.delenv("INFRA_EXECUTE_ENABLED", raising=False)
     engine = WorkflowEngine(dry_run=True)
-    workflow_def = {"steps": [{"type": "python", "mode": "code", "code": "result = 1"}]}  # noqa: F841  # Variable for test verification
+    workflow_def = {
+        "steps": [{"type": "python", "mode": "code", "code": "result = 1"}]
+    }  # noqa: F841  # Variable for test verification
     result = engine.run_workflow(workflow_def, {})  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["results"]) == 1
@@ -598,7 +618,9 @@ def test_run_workflow_list_definition(monkeypatch):
     """Test run_workflow with list workflow definition."""
     monkeypatch.delenv("INFRA_EXECUTE_ENABLED", raising=False)
     engine = WorkflowEngine(dry_run=True)
-    workflow_def = [{"type": "python", "mode": "code", "code": "result = 1"}]  # noqa: F841  # Variable for test verification
+    workflow_def = [
+        {"type": "python", "mode": "code", "code": "result = 1"}
+    ]  # noqa: F841  # Variable for test verification
     result = engine.run_workflow(workflow_def, {})  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["results"]) == 1
@@ -640,7 +662,9 @@ def test_run_workflow_langgraph_import_fallback(monkeypatch):
     monkeypatch.setitem(sys.modules, "core.ai.langgraph.workflow", FakeModule())
 
     engine = WorkflowEngine(dry_run=False)
-    workflow_def = [{"type": "python", "mode": "code", "code": "result = 1"}]  # noqa: F841  # Variable for test verification
+    workflow_def = [
+        {"type": "python", "mode": "code", "code": "result = 1"}
+    ]  # noqa: F841  # Variable for test verification
     result = engine.run_workflow(workflow_def, {})  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["results"]) == 1
@@ -672,7 +696,9 @@ def test_run_workflow_langgraph_empty_steps(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         workflow_def = []
-        result = engine.run_workflow(workflow_def, {"key": "value"})  # noqa: F841  # Variable for test verification
+        result = engine.run_workflow(
+            workflow_def, {"key": "value"}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert result["results"] == []
         assert result["context"] == {"key": "value"}
@@ -713,7 +739,9 @@ def test_run_workflow_langgraph_with_output_key(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         workflow_def = [{"type": "decision", "condition": "True", "output": "value"}]
-        result = engine.run_workflow(workflow_def, {})  # noqa: F841  # Variable for test verification
+        result = engine.run_workflow(
+            workflow_def, {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert len(result["results"]) == 1
     finally:
@@ -753,7 +781,9 @@ def test_run_workflow_langgraph_without_output_key(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         workflow_def = [{"type": "decision", "condition": "True"}]
-        result = engine.run_workflow(workflow_def, {})  # noqa: F841  # Variable for test verification
+        result = engine.run_workflow(
+            workflow_def, {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert len(result["results"]) == 1
     finally:
@@ -799,7 +829,9 @@ def test_run_workflow_langgraph_multiple_steps(monkeypatch):
             {"type": "decision", "condition": "True"},
             {"type": "decision", "condition": "False"},
         ]
-        result = engine.run_workflow(workflow_def, {})  # noqa: F841  # Variable for test verification
+        result = engine.run_workflow(
+            workflow_def, {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert len(result["results"]) == 2
     finally:
@@ -835,8 +867,12 @@ def test_run_workflow_asyncio_run_exception(monkeypatch):
 
     try:
         engine = WorkflowEngine(dry_run=False)
-        workflow_def = [{"type": "python", "mode": "code", "code": "result = 1"}]  # noqa: F841  # Variable for test verification
-        result = engine.run_workflow(workflow_def, {})  # noqa: F841  # Variable for test verification
+        workflow_def = [
+            {"type": "python", "mode": "code", "code": "result = 1"}
+        ]  # noqa: F841  # Variable for test verification
+        result = engine.run_workflow(
+            workflow_def, {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "error" in result
         assert "Async execution failed" in result["error"]
@@ -854,7 +890,9 @@ def test_get_scenario_memory_dry_run(monkeypatch):
     """Test get_scenario_memory in dry-run mode."""
     monkeypatch.delenv("INFRA_EXECUTE_ENABLED", raising=False)
     engine = WorkflowEngine(dry_run=True)
-    result = engine.get_scenario_memory("test query")  # noqa: F841  # Variable for test verification
+    result = engine.get_scenario_memory(
+        "test query"
+    )  # noqa: F841  # Variable for test verification
     assert result["query"] == "test query"
     assert len(result["matches"]) == 1
     assert result["matches"][0]["id"] == "synthetic"
@@ -873,7 +911,9 @@ def test_get_scenario_memory_real_import_error(monkeypatch):
     monkeypatch.setitem(sys.modules, "modules.analyze.runbook.vector_store", FakeModule())
 
     engine = WorkflowEngine(dry_run=False)
-    result = engine.get_scenario_memory("test query")  # noqa: F841  # Variable for test verification
+    result = engine.get_scenario_memory(
+        "test query"
+    )  # noqa: F841  # Variable for test verification
     assert result["query"] == "test query"
     assert len(result["matches"]) == 1
     assert result["matches"][0]["id"] == "synthetic"
@@ -901,7 +941,9 @@ def test_get_scenario_memory_real_empty_results(monkeypatch):
 
     try:
         engine = WorkflowEngine(dry_run=False)
-        result = engine.get_scenario_memory("test query")  # noqa: F841  # Variable for test verification
+        result = engine.get_scenario_memory(
+            "test query"
+        )  # noqa: F841  # Variable for test verification
         assert result["query"] == "test query"
         assert result["matches"] == []
     finally:
@@ -925,7 +967,9 @@ def test_capacity_analysis_scale_up(monkeypatch):
     engine = WorkflowEngine(dry_run=False)
     metrics = {"cpu": 50}
     forecasts = {"cpu": 70}  # 70 > 50 * 1.2 = 60
-    result = engine.capacity_analysis(metrics, forecasts)  # noqa: F841  # Variable for test verification
+    result = engine.capacity_analysis(
+        metrics, forecasts
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["recommendations"]) == 1
     assert result["recommendations"][0]["action"] == "scale_up"
@@ -937,7 +981,9 @@ def test_capacity_analysis_scale_down(monkeypatch):
     engine = WorkflowEngine(dry_run=False)
     metrics = {"cpu": 100}
     forecasts = {"cpu": 70}  # 70 < 100 * 0.8 = 80
-    result = engine.capacity_analysis(metrics, forecasts)  # noqa: F841  # Variable for test verification
+    result = engine.capacity_analysis(
+        metrics, forecasts
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["recommendations"]) == 1
     assert result["recommendations"][0]["action"] == "scale_down"
@@ -949,7 +995,9 @@ def test_capacity_analysis_monitor(monkeypatch):
     engine = WorkflowEngine(dry_run=False)
     metrics = {"cpu": 100}
     forecasts = {"cpu": 105}  # 105 is within 80-120 range
-    result = engine.capacity_analysis(metrics, forecasts)  # noqa: F841  # Variable for test verification
+    result = engine.capacity_analysis(
+        metrics, forecasts
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["recommendations"]) == 1
     assert result["recommendations"][0]["action"] == "monitor"
@@ -961,7 +1009,9 @@ def test_capacity_analysis_non_numeric_metrics(monkeypatch):
     engine = WorkflowEngine(dry_run=False)
     metrics = {"cpu": "high"}
     forecasts = {"cpu": 100}
-    result = engine.capacity_analysis(metrics, forecasts)  # noqa: F841  # Variable for test verification
+    result = engine.capacity_analysis(
+        metrics, forecasts
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["recommendations"]) == 0
 
@@ -972,7 +1022,9 @@ def test_capacity_analysis_non_numeric_forecasts(monkeypatch):
     engine = WorkflowEngine(dry_run=False)
     metrics = {"cpu": 100}
     forecasts = {"cpu": "high"}
-    result = engine.capacity_analysis(metrics, forecasts)  # noqa: F841  # Variable for test verification
+    result = engine.capacity_analysis(
+        metrics, forecasts
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["recommendations"]) == 0
 
@@ -983,7 +1035,9 @@ def test_capacity_analysis_missing_forecast(monkeypatch):
     engine = WorkflowEngine(dry_run=False)
     metrics = {"cpu": 100, "memory": 50}
     forecasts = {"cpu": 105}  # memory forecast missing
-    result = engine.capacity_analysis(metrics, forecasts)  # noqa: F841  # Variable for test verification
+    result = engine.capacity_analysis(
+        metrics, forecasts
+    )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
     assert len(result["recommendations"]) == 1  # Only cpu
 
@@ -1177,7 +1231,9 @@ def test_run_runbook_playbook_manager_import_error(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         runner = RunbookRunner(engine=engine)
-        result = runner.run_runbook("playbook.yml", {})  # noqa: F841  # Variable for test verification
+        result = runner.run_runbook(
+            "playbook.yml", {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "error" in result
     finally:
@@ -1211,7 +1267,9 @@ def test_run_runbook_execute_failure_fallback_to_engine(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         runner = RunbookRunner(engine=engine)
-        result = runner.run_runbook("playbook.yml", {})  # noqa: F841  # Variable for test verification
+        result = runner.run_runbook(
+            "playbook.yml", {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
         assert "error" in result
     finally:
@@ -1245,7 +1303,9 @@ def test_run_runbook_list_playbook_manager_fallback_to_engine(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         runner = RunbookRunner(engine=engine)
-        runbook = [{"type": "python", "mode": "code", "code": "result = 1"}]  # noqa: F841  # Variable for test verification
+        runbook = [
+            {"type": "python", "mode": "code", "code": "result = 1"}
+        ]  # noqa: F841  # Variable for test verification
         result = runner.run_runbook(runbook, {})  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert "results" in result
@@ -1277,7 +1337,9 @@ def test_run_runbook_list_playbook_manager_exception_fallback(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         runner = RunbookRunner(engine=engine)
-        runbook = [{"type": "python", "mode": "code", "code": "result = 1"}]  # noqa: F841  # Variable for test verification
+        runbook = [
+            {"type": "python", "mode": "code", "code": "result = 1"}
+        ]  # noqa: F841  # Variable for test verification
         result = runner.run_runbook(runbook, {})  # noqa: F841  # Variable for test verification
         assert result["success"] is True
         assert "results" in result
@@ -1312,7 +1374,9 @@ def test_run_runbook_string_playbook_manager_success(monkeypatch):
     try:
         engine = WorkflowEngine(dry_run=False)
         runner = RunbookRunner(engine=engine)
-        result = runner.run_runbook("playbook.yml", {})  # noqa: F841  # Variable for test verification
+        result = runner.run_runbook(
+            "playbook.yml", {}
+        )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
     finally:
         # Cleanup

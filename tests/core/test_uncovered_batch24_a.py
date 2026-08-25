@@ -22,6 +22,9 @@ pytestmark = [pytest.mark.core]
 
 def _make_self_signed(tmp_path, not_before=None, not_after=None):
     """Generate a self-signed certificate/key pair for TLS validation tests."""
+    import os
+    import stat
+
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "test")])
     now = datetime.now(timezone.utc)
@@ -47,6 +50,13 @@ def _make_self_signed(tmp_path, not_before=None, not_after=None):
             encryption_algorithm=serialization.NoEncryption(),
         )
     )
+    # Set restrictive permissions: 600 for private key, 644 for certificate
+    try:
+        os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)  # 600
+        os.chmod(cert_path, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)  # 644
+    except (OSError, AttributeError):
+        # chmod may fail on Windows or non-Unix systems
+        pass
     return str(cert_path), str(key_path)
 
 
@@ -335,8 +345,11 @@ def test_batch24_database_cache_optimizer_preload_and_recommendations():
     opt.create_cache("metrics", cache_size=100)
 
     for i in range(20):
-        opt.set("metrics", f"SELECT {i}", i)
-        opt.get("metrics", f"SELECT {i}")
+        # Security: Use string formatting for cache keys (not SQL queries)
+        # These are cache keys, not actual SQL queries being executed
+        cache_key = f"query_{i}"
+        opt.set("metrics", cache_key, i)
+        opt.get("metrics", cache_key)
     opt.get("metrics", "missing")  # one miss
 
     metrics = opt.get_cache_metrics("metrics")

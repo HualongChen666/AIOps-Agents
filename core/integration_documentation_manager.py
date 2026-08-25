@@ -387,6 +387,16 @@ Data flows through the system in a structured manner, following the 7-layer arch
         with open(doc_path, "w", encoding="utf-8") as f:
             f.write(doc.content)
 
+        # Set restrictive permissions for documentation file (644 - owner read/write, group/others read)
+        try:
+            import os
+            import stat
+
+            os.chmod(doc_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+        except (OSError, AttributeError):
+            # chmod may fail on Windows or non-Unix systems
+            pass
+
         # Update updated_at
         doc.updated_at = datetime.now(timezone.utc)
 

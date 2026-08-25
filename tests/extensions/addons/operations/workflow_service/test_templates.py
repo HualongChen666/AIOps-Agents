@@ -2,9 +2,8 @@
 """Tests for workflow_service templates module."""
 
 import pytest
-
-from templates import TemplateManager
 from schemas import WorkflowTemplate
+from templates import TemplateManager
 
 
 class TestTemplateManager:
@@ -95,9 +94,7 @@ class TestTemplateManager:
     @pytest.mark.asyncio
     async def test_list_templates_limit_zero(self, template_manager):
         """Test listing templates with limit=0."""
-        template = WorkflowTemplate(
-            template_id="template-1", name="Test", source="echo test"
-        )
+        template = WorkflowTemplate(template_id="template-1", name="Test", source="echo test")
         await template_manager.register(template)
 
         templates = await template_manager.list_templates(limit=0)
@@ -191,9 +188,7 @@ class TestTemplateManager:
         )
         await template_manager.register(template)
 
-        rendered = await template_manager.render(
-            "template-1", {"a": 1, "b": 2, "c": 3}
-        )
+        rendered = await template_manager.render("template-1", {"a": 1, "b": 2, "c": 3})
 
         assert "1" in rendered
         assert "2" in rendered
@@ -239,9 +234,7 @@ class TestTemplateManager:
         )
         await template_manager.register(template)
 
-        rendered = await template_manager.render(
-            "template-1", {"count": 42, "value": 3.14}
-        )
+        rendered = await template_manager.render("template-1", {"count": 42, "value": 3.14})
 
         assert "42" in rendered
         assert "3.14" in rendered
@@ -256,9 +249,7 @@ class TestTemplateManager:
         )
         await template_manager.register(template)
 
-        rendered = await template_manager.render(
-            "template-1", {"enabled": True, "active": False}
-        )
+        rendered = await template_manager.render("template-1", {"enabled": True, "active": False})
 
         assert "True" in rendered
         assert "False" in rendered
@@ -287,9 +278,7 @@ class TestTemplateManager:
         )
         await template_manager.register(template)
 
-        rendered = await template_manager.render(
-            "template-1", {"config": {"key": "value"}}
-        )
+        rendered = await template_manager.render("template-1", {"config": {"key": "value"}})
 
         assert "key" in rendered
         assert "value" in rendered
@@ -391,9 +380,7 @@ class TestTemplateManager:
         manager1 = TemplateManager()
         manager2 = TemplateManager()
 
-        template = WorkflowTemplate(
-            template_id="template-1", name="Test", source="echo test"
-        )
+        template = WorkflowTemplate(template_id="template-1", name="Test", source="echo test")
         await manager1.register(template)
 
         assert "template-1" in manager1._templates
@@ -505,7 +492,13 @@ class TestTemplateManager:
         templates = await template_manager.list_templates()
         template_ids = [t.template_id for t in templates]
 
-        assert template_ids == ["template-0", "template-1", "template-2", "template-3", "template-4"]
+        assert template_ids == [
+            "template-0",
+            "template-1",
+            "template-2",
+            "template-3",
+            "template-4",
+        ]
 
     @pytest.mark.asyncio
     async def test_render_template_with_none_value(self, template_manager):

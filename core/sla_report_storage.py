@@ -44,9 +44,19 @@ def _load() -> dict[str, Any]:
 
 
 def _save(data: dict[str, Any]) -> None:
+    import os
+    import stat
+
     _ensure_data_dir()
     with _REPORTS_FILE.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+    # Set restrictive permissions for SLA report file (600 - owner read/write only)
+    try:
+        os.chmod(_REPORTS_FILE, stat.S_IRUSR | stat.S_IWUSR)
+    except (OSError, AttributeError):
+        # chmod may fail on Windows or non-Unix systems
+        pass
 
 
 def _is_expired(report: dict[str, Any], max_age_days: int) -> bool:

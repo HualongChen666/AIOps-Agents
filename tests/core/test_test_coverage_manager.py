@@ -25,7 +25,9 @@ def test_add_and_get_module_coverage():
 def test_threshold_and_summary():
     mgr = TestCoverageManager()
     mgr.add_module_coverage("mod1", "Module 1", 100, 75)
-    result = mgr.check_coverage_threshold("mod1", "default")  # noqa: F841  # Variable for test verification
+    result = mgr.check_coverage_threshold(
+        "mod1", "default"
+    )  # noqa: F841  # Variable for test verification
     assert "meets_minimum" in result
     summary = mgr.get_coverage_summary()
     assert "average_coverage" in summary

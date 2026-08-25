@@ -357,7 +357,7 @@ async def create_performance_indexes() -> Dict[str, Any]:
                             )
                             logger.info(f"Created performance index: {index_name}")
                         except Exception as create_error:
-                            logger.info(f"Index creation failed: {create_error}")
+                            logger.info("Index creation failed")
                             results["failed"] += 1
                             results["details"].append(
                                 {

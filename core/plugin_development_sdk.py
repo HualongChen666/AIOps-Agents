@@ -50,14 +50,14 @@ class PluginDevelopmentSDK:
 
         logger.info("Plugin development SDK initialized")
 
-    def _load_default_templates(self) -> None:
-        """Load default plugin templates"""
-        # Monitoring plugin template
-        monitoring_template = PluginTemplate(
-            template_id="monitoring_plugin",
-            template_name="Monitoring Plugin Template",
-            template_type="monitoring",
-            code_template='''# -*- coding: utf-8 -*-
+    def _create_monitoring_template(self) -> PluginTemplate:
+        """
+        创建监控插件模板
+
+        Returns:
+            监控插件模板对象
+        """
+        code_template = '''# -*- coding: utf-8 -*-
 """
 {plugin_name} Monitoring Plugin
 Enterprise-grade monitoring plugin template
@@ -160,17 +160,25 @@ def create_plugin(config: Dict[str, Any]) -> {class_name}:
         Plugin instance
     """
     return {class_name}(config)
-''',
+'''
+
+        return PluginTemplate(
+            template_id="monitoring_plugin",
+            template_name="Monitoring Plugin Template",
+            template_type="monitoring",
+            code_template=code_template,
             config_template={"interval": 60, "timeout": 30, "retry_count": 3, "custom_config": {}},
             metadata={"description": "Template for monitoring plugins"},
         )
 
-        # Integration plugin template
-        integration_template = PluginTemplate(
-            template_id="integration_plugin",
-            template_name="Integration Plugin Template",
-            template_type="integration",
-            code_template='''# -*- coding: utf-8 -*-
+    def _create_integration_template(self) -> PluginTemplate:
+        """
+        创建集成插件模板
+
+        Returns:
+            集成插件模板对象
+        """
+        code_template = '''# -*- coding: utf-8 -*-
 """
 {plugin_name} Integration Plugin
 Enterprise-grade integration plugin template
@@ -272,7 +280,13 @@ def create_plugin(config: Dict[str, Any]) -> {class_name}:
         Plugin instance
     """
     return {class_name}(config)
-''',
+'''
+
+        return PluginTemplate(
+            template_id="integration_plugin",
+            template_name="Integration Plugin Template",
+            template_type="integration",
+            code_template=code_template,
             config_template={
                 "endpoint": "",
                 "auth_method": "token",
@@ -282,12 +296,14 @@ def create_plugin(config: Dict[str, Any]) -> {class_name}:
             metadata={"description": "Template for integration plugins"},
         )
 
-        # AI plugin template
-        ai_template = PluginTemplate(
-            template_id="ai_plugin",
-            template_name="AI Plugin Template",
-            template_type="ai",
-            code_template='''# -*- coding: utf-8 -*-
+    def _create_ai_template(self) -> PluginTemplate:
+        """
+        创建AI插件模板
+
+        Returns:
+            AI插件模板对象
+        """
+        code_template = '''# -*- coding: utf-8 -*-
 """
 {plugin_name} AI Plugin
 Enterprise-grade AI plugin template
@@ -387,7 +403,13 @@ def create_plugin(config: Dict[str, Any]) -> {class_name}:
         Plugin instance
     """
     return {class_name}(config)
-''',
+'''
+
+        return PluginTemplate(
+            template_id="ai_plugin",
+            template_name="AI Plugin Template",
+            template_type="ai",
+            code_template=code_template,
             config_template={
                 "model_type": "",
                 "model_path": "",
@@ -397,9 +419,11 @@ def create_plugin(config: Dict[str, Any]) -> {class_name}:
             metadata={"description": "Template for AI plugins"},
         )
 
-        self.templates["monitoring"] = monitoring_template
-        self.templates["integration"] = integration_template
-        self.templates["ai"] = ai_template
+    def _load_default_templates(self) -> None:
+        """Load default plugin templates"""
+        self.templates["monitoring"] = self._create_monitoring_template()
+        self.templates["integration"] = self._create_integration_template()
+        self.templates["ai"] = self._create_ai_template()
 
     def generate_plugin_code(
         self,

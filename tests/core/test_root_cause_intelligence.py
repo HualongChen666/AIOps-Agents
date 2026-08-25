@@ -4,29 +4,30 @@ Comprehensive test suite for core/root_cause_intelligence.py
 Target: 90%+ statement and branch coverage
 """
 
-import pytest
-import sys
 import os
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+import sys
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from core.root_cause_intelligence import (
+    CAUSAL_AVAILABLE,
+    CHANGE_CORRELATION_WINDOW_MINUTES,
+    ESCALATION_CONFIDENCE_THRESHOLD,
+    EXECUTION_CONFIDENCE_THRESHOLD,
+    MAX_DIAGNOSIS_STEPS,
+    MAX_ROOT_CAUSE_CANDIDATES,
+    ML_AVAILABLE,
+    RootCauseHypothesis,
     TopologyLayer,
     TopologyNode,
-    RootCauseHypothesis,
-    EXECUTION_CONFIDENCE_THRESHOLD,
-    ESCALATION_CONFIDENCE_THRESHOLD,
-    MAX_ROOT_CAUSE_CANDIDATES,
-    MAX_DIAGNOSIS_STEPS,
-    CHANGE_CORRELATION_WINDOW_MINUTES,
-    CAUSAL_AVAILABLE,
-    ML_AVAILABLE,
 )
 
 
@@ -222,16 +223,16 @@ class TestRootCauseIntelligenceEngine:
     def test_engine_initialization(self):
         """Test engine initialization"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         assert engine is not None
-        assert hasattr(engine, 'topology_graph')
-        assert hasattr(engine, 'hypotheses')
+        assert hasattr(engine, "topology_graph")
+        assert hasattr(engine, "hypotheses")
 
     def test_engine_with_config(self):
         """Test engine initialization with config"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         config = {
             "max_candidates": 10,
             "confidence_threshold": 0.8,
@@ -242,21 +243,21 @@ class TestRootCauseIntelligenceEngine:
     def test_add_topology_node(self):
         """Test adding topology node"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         node = TopologyNode(
             node_id="node-1",
             name="API Service",
             layer=TopologyLayer.SERVICE,
         )
-        
+
         engine.add_node(node)
         assert "node-1" in engine.topology_graph
 
     def test_add_topology_dependency(self):
         """Test adding topology dependency"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         node1 = TopologyNode(
             node_id="node-1",
@@ -268,24 +269,24 @@ class TestRootCauseIntelligenceEngine:
             name="Database",
             layer=TopologyLayer.STORAGE,
         )
-        
+
         engine.add_node(node1)
         engine.add_node(node2)
         engine.add_dependency("node-1", "node-2")
-        
+
         assert "node-2" in engine.topology_graph["node-1"]
 
     def test_remove_topology_node(self):
         """Test removing topology node"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         node = TopologyNode(
             node_id="node-1",
             name="API Service",
             layer=TopologyLayer.SERVICE,
         )
-        
+
         engine.add_node(node)
         engine.remove_node("node-1")
         assert "node-1" not in engine.topology_graph
@@ -293,14 +294,14 @@ class TestRootCauseIntelligenceEngine:
     def test_get_node(self):
         """Test getting topology node"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         node = TopologyNode(
             node_id="node-1",
             name="API Service",
             layer=TopologyLayer.SERVICE,
         )
-        
+
         engine.add_node(node)
         retrieved = engine.get_node("node-1")
         assert retrieved is not None
@@ -309,7 +310,7 @@ class TestRootCauseIntelligenceEngine:
     def test_get_node_not_found(self):
         """Test getting non-existent node"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         retrieved = engine.get_node("non-existent")
         assert retrieved is None
@@ -317,24 +318,24 @@ class TestRootCauseIntelligenceEngine:
     def test_update_node_health(self):
         """Test updating node health status"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         node = TopologyNode(
             node_id="node-1",
             name="API Service",
             layer=TopologyLayer.SERVICE,
         )
-        
+
         engine.add_node(node)
         engine.update_node_health("node-1", "degraded")
-        
+
         retrieved = engine.get_node("node-1")
         assert retrieved.health_status == "degraded"
 
     def test_get_affected_nodes(self):
         """Test getting affected nodes"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         node1 = TopologyNode(
             node_id="node-1",
@@ -346,18 +347,18 @@ class TestRootCauseIntelligenceEngine:
             name="Database",
             layer=TopologyLayer.STORAGE,
         )
-        
+
         engine.add_node(node1)
         engine.add_node(node2)
         engine.add_dependency("node-1", "node-2")
-        
+
         affected = engine.get_affected_nodes("node-2")
         assert "node-1" in affected
 
     def test_generate_hypothesis(self):
         """Test generating root cause hypothesis"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         alert = {
             "id": "alert-1",
@@ -366,7 +367,7 @@ class TestRootCauseIntelligenceEngine:
             "value": 95,
             "host": "server-1",
         }
-        
+
         hypothesis = engine.generate_hypothesis(alert)
         assert hypothesis is not None
         assert isinstance(hypothesis, RootCauseHypothesis)
@@ -374,7 +375,7 @@ class TestRootCauseIntelligenceEngine:
     def test_analyze_root_cause(self):
         """Test root cause analysis"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         alert = {
             "id": "alert-1",
@@ -383,7 +384,7 @@ class TestRootCauseIntelligenceEngine:
             "value": 95,
             "host": "server-1",
         }
-        
+
         # Add some topology
         node = TopologyNode(
             node_id="server-1",
@@ -391,7 +392,7 @@ class TestRootCauseIntelligenceEngine:
             layer=TopologyLayer.INFRASTRUCTURE,
         )
         engine.add_node(node)
-        
+
         result = engine.analyze_root_cause(alert)
         assert result is not None
         assert "candidates" in result or "hypothesis" in result
@@ -399,14 +400,14 @@ class TestRootCauseIntelligenceEngine:
     def test_verify_hypothesis(self):
         """Test hypothesis verification"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         hypothesis = RootCauseHypothesis(
             hypothesis_id="hypo-1",
             root_cause="High CPU usage",
             confidence=0.85,
         )
-        
+
         verification_result = engine.verify_hypothesis(hypothesis)
         assert verification_result is not None
         assert "status" in verification_result or "verified" in verification_result
@@ -414,14 +415,14 @@ class TestRootCauseIntelligenceEngine:
     def test_get_topology_summary(self):
         """Test getting topology summary"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         node = TopologyNode(
             node_id="node-1",
             name="API Service",
             layer=TopologyLayer.SERVICE,
         )
-        
+
         engine.add_node(node)
         summary = engine.get_topology_summary()
         assert summary is not None
@@ -434,45 +435,45 @@ class TestRootCauseAnalysisAlgorithms:
     def test_confidence_scoring(self):
         """Test confidence scoring algorithm"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         evidence = [
             {"type": "metric", "strength": 0.8},
             {"type": "log", "strength": 0.6},
             {"type": "topology", "strength": 0.7},
         ]
-        
+
         confidence = engine._calculate_confidence(evidence)
         assert 0.0 <= confidence <= 1.0
 
     def test_impact_scoring(self):
         """Test impact scoring algorithm"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         affected_services = ["api", "web", "mobile"]
         severity = "critical"
-        
+
         impact = engine._calculate_impact(affected_services, severity)
         assert 0.0 <= impact <= 1.0
 
     def test_causal_path_analysis(self):
         """Test causal path analysis"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
-        
+
         # Build topology
         node1 = TopologyNode("web", "Web", TopologyLayer.APPLICATION)
         node2 = TopologyNode("api", "API", TopologyLayer.SERVICE)
         node3 = TopologyNode("db", "DB", TopologyLayer.STORAGE)
-        
+
         engine.add_node(node1)
         engine.add_node(node2)
         engine.add_node(node3)
         engine.add_dependency("web", "api")
         engine.add_dependency("api", "db")
-        
+
         path = engine._find_causal_path("web", "db")
         assert path is not None
         assert len(path) >= 2
@@ -480,29 +481,29 @@ class TestRootCauseAnalysisAlgorithms:
     def test_historical_pattern_matching(self):
         """Test historical pattern matching"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         current_alert = {
             "metric": "cpu",
             "value": 95,
             "pattern": "spike",
         }
-        
+
         historical_patterns = [
             {"metric": "cpu", "pattern": "spike", "root_cause": "memory leak"},
             {"metric": "memory", "pattern": "gradual", "root_cause": "connection leak"},
         ]
-        
+
         match = engine._match_historical_pattern(current_alert, historical_patterns)
         assert match is not None or match is None  # May or may not find match
 
     def test_change_correlation(self):
         """Test change correlation analysis"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         alert_time = datetime.now(timezone.utc)
-        
+
         changes = [
             {
                 "timestamp": alert_time - timedelta(minutes=5),
@@ -515,7 +516,7 @@ class TestRootCauseAnalysisAlgorithms:
                 "service": "api",
             },
         ]
-        
+
         correlated = engine._correlate_with_changes(alert_time, changes)
         assert isinstance(correlated, list)
 
@@ -527,28 +528,28 @@ class TestRootCauseIntelligenceML:
         """Test ML analysis when libraries are available"""
         if not ML_AVAILABLE:
             pytest.skip("ML libraries not available")
-        
+
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         features = [[0.8, 0.6, 0.9], [0.3, 0.4, 0.5]]
         labels = [1, 0]
-        
+
         # This would train a model if ML is available
         # For testing, we just verify the method exists
-        assert hasattr(engine, '_train_model') or hasattr(engine, '_predict_with_ml')
+        assert hasattr(engine, "_train_model") or hasattr(engine, "_predict_with_ml")
 
     def test_rule_based_fallback(self):
         """Test rule-based fallback when ML is not available"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         alert = {
             "metric": "cpu",
             "value": 95,
             "host": "server-1",
         }
-        
+
         # Should use rule-based analysis
         result = engine.analyze_root_cause(alert)
         assert result is not None
@@ -560,20 +561,20 @@ class TestRootCauseIntelligenceIntegration:
     def test_full_analysis_workflow(self):
         """Test complete analysis workflow"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
-        
+
         # Build topology
         web = TopologyNode("web", "Web", TopologyLayer.APPLICATION)
         api = TopologyNode("api", "API", TopologyLayer.SERVICE)
         db = TopologyNode("db", "DB", TopologyLayer.STORAGE)
-        
+
         engine.add_node(web)
         engine.add_node(api)
         engine.add_node(db)
         engine.add_dependency("web", "api")
         engine.add_dependency("api", "db")
-        
+
         # Analyze alert
         alert = {
             "id": "alert-1",
@@ -582,14 +583,14 @@ class TestRootCauseIntelligenceIntegration:
             "value": 5.0,
             "service": "web",
         }
-        
+
         result = engine.analyze_root_cause(alert)
         assert result is not None
 
     def test_multi_hypothesis_generation(self):
         """Test generating multiple hypotheses"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         alert = {
             "id": "alert-1",
@@ -597,7 +598,7 @@ class TestRootCauseIntelligenceIntegration:
             "metric": "cpu",
             "value": 95,
         }
-        
+
         hypotheses = engine.generate_multiple_hypotheses(alert, max_count=3)
         assert len(hypotheses) <= 3
         assert all(isinstance(h, RootCauseHypothesis) for h in hypotheses)
@@ -605,14 +606,14 @@ class TestRootCauseIntelligenceIntegration:
     def test_hypothesis_ranking(self):
         """Test hypothesis ranking by confidence"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         hypotheses = [
             RootCauseHypothesis("h1", "Cause 1", 0.7),
             RootCauseHypothesis("h2", "Cause 2", 0.9),
             RootCauseHypothesis("h3", "Cause 3", 0.5),
         ]
-        
+
         ranked = engine.rank_hypotheses(hypotheses)
         assert ranked[0].confidence >= ranked[1].confidence
         assert ranked[1].confidence >= ranked[2].confidence
@@ -624,7 +625,7 @@ class TestRootCauseIntelligenceErrorHandling:
     def test_handle_missing_node(self):
         """Test handling of missing node in analysis"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         alert = {
             "id": "alert-1",
@@ -632,7 +633,7 @@ class TestRootCauseIntelligenceErrorHandling:
             "value": 95,
             "host": "non-existent",
         }
-        
+
         # Should handle gracefully
         result = engine.analyze_root_cause(alert)
         assert result is not None
@@ -640,7 +641,7 @@ class TestRootCauseIntelligenceErrorHandling:
     def test_handle_invalid_alert(self):
         """Test handling of invalid alert data"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
         invalid_alerts = [
             None,
@@ -648,7 +649,7 @@ class TestRootCauseIntelligenceErrorHandling:
             {"metric": None},
             {"metric": "cpu", "value": "invalid"},
         ]
-        
+
         for alert in invalid_alerts:
             result = engine.analyze_root_cause(alert)
             # Should handle gracefully or return appropriate error
@@ -657,12 +658,12 @@ class TestRootCauseIntelligenceErrorHandling:
     def test_handle_topology_inconsistency(self):
         """Test handling of topology inconsistency"""
         from core.root_cause_intelligence import RootCauseIntelligenceEngine
-        
+
         engine = RootCauseIntelligenceEngine()
-        
+
         # Add dependency without adding nodes
         engine.add_dependency("node-1", "node-2")
-        
+
         # Should handle gracefully
         summary = engine.get_topology_summary()
         assert summary is not None

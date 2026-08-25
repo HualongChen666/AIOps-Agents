@@ -15,9 +15,12 @@ all incoming requests before they reach the application logic.
 
 import html
 import logging
+import os
 import re
 import threading
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, status  # noqa: F401
 from fastapi.middleware import Middleware
@@ -288,6 +291,137 @@ class SecurityInputValidator:
                     return False, error
 
         return True, None
+
+    def validate_url(
+        self, url: str, allowed_schemes: Optional[List[str]] = None
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Validate a URL to prevent SSRF and other URL-based attacks.
+
+        Args:
+            url: The URL to validate
+            allowed_schemes: List of allowed URL schemes (default: ['http', 'https'])
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not isinstance(url, str):
+            return False, f"URL must be a string, got {type(url).__name__}"
+
+        if allowed_schemes is None:
+            allowed_schemes = ["http", "https"]
+
+        try:
+            parsed = urlparse(url)
+
+            # Check scheme
+            if parsed.scheme not in allowed_schemes:
+                return (
+                    False,
+                    f"URL scheme '{parsed.scheme}' is not allowed. Allowed schemes: {allowed_schemes}",
+                )
+
+            # Check for private/internal IP addresses (SSRF protection)
+            hostname = parsed.hostname or parsed.netloc.split(":")[0]
+
+            # Block localhost and private IPs
+            blocked_hosts = [
+                "localhost",
+                "127.0.0.1",
+                "::1",
+                "0.0.0.0",
+                "169.254.169.254",  # AWS metadata
+                "metadata.google.internal",  # GCP metadata
+            ]
+
+            if hostname.lower() in blocked_hosts:
+                return False, f"Access to '{hostname}' is not allowed for security reasons"
+
+            # Check for private IP ranges
+            if hostname.replace(".", "").isdigit():
+                parts = hostname.split(".")
+                if len(parts) == 4:
+                    try:
+                        first_octet = int(parts[0])
+                        second_octet = int(parts[1])
+                        # 10.0.0.0/8
+                        if first_octet == 10:
+                            return False, f"Access to private IP '{hostname}' is not allowed"
+                        # 172.16.0.0/12
+                        if first_octet == 172 and 16 <= second_octet <= 31:
+                            return False, f"Access to private IP '{hostname}' is not allowed"
+                        # 192.168.0.0/16
+                        if first_octet == 192 and second_octet == 168:
+                            return False, f"Access to private IP '{hostname}' is not allowed"
+                    except ValueError:
+                        pass
+
+            return True, None
+
+        except Exception as e:
+            logger.warning(f"URL validation failed for {url}: {e}")
+            return False, f"Invalid URL format: {str(e)}"
+
+    def validate_file_path(
+        self,
+        file_path: str,
+        allowed_base_dirs: Optional[List[str]] = None,
+        allowed_extensions: Optional[List[str]] = None,
+    ) -> tuple[bool, Optional[str], Optional[Path]]:
+        """
+        Validate a file path to prevent path traversal attacks.
+
+        Args:
+            file_path: The file path to validate
+            allowed_base_dirs: List of allowed base directories (default: current directory)
+            allowed_extensions: List of allowed file extensions (default: None = all allowed)
+
+        Returns:
+            Tuple of (is_valid, error_message, resolved_path)
+        """
+        if not isinstance(file_path, str):
+            return False, f"File path must be a string, got {type(file_path).__name__}", None
+
+        if allowed_base_dirs is None:
+            allowed_base_dirs = [os.getcwd()]
+
+        try:
+            # Resolve the path to its absolute form
+            resolved_path = Path(file_path).resolve()
+
+            # Check for path traversal attempts
+            if ".." in str(resolved_path):
+                # This is already handled by resolve(), but check explicitly
+                pass
+
+            # Check if the resolved path is within allowed base directories
+            is_allowed = False
+            for base_dir in allowed_base_dirs:
+                base_path = Path(base_dir).resolve()
+                try:
+                    resolved_path.relative_to(base_path)
+                    is_allowed = True
+                    break
+                except ValueError:
+                    continue
+
+            if not is_allowed:
+                return False, f"File path '{file_path}' is not within allowed directories", None
+
+            # Check file extension if specified
+            if allowed_extensions is not None:
+                if resolved_path.suffix.lower() not in [ext.lower() for ext in allowed_extensions]:
+                    return (
+                        False,
+                        f"File extension '{resolved_path.suffix}' is not allowed. Allowed: {allowed_extensions}",
+                        None,
+                    )
+
+            return True, None, resolved_path
+
+        except Exception as e:
+            logger.warning(f"File path validation failed for {file_path}: {e}")
+            return False, f"Invalid file path: {str(e)}", None
 
     def validate_list(
         self, input_list: List[Any], input_type: str = "general"

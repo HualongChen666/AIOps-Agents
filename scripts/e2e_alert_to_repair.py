@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 
 from core.authentication import get_current_active_user
 from core.database import Base
-from core.metrics_history import metrics_history
+from core.metrics_history import METRICS_HISTORY as metrics_history
 from main import app
 
 """End-to-end test: Prometheus alert -> approval -> repair -> audit."""

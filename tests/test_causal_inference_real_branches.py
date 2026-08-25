@@ -149,7 +149,9 @@ def test_counterfactual_what_if_real_data():
     a = np.linspace(0.0, 10.0, 20)
     data = pd.DataFrame({"A": a, "C": a + 2.0})
     cf = CounterfactualReasoning(g)
-    result = cf.what_if({"A": 5.0, "C": 7.0}, {"A": 3.0}, "C", data)  # noqa: F841  # Variable for test verification
+    result = cf.what_if(
+        {"A": 5.0, "C": 7.0}, {"A": 3.0}, "C", data
+    )  # noqa: F841  # Variable for test verification
     assert result["counterfactual_outcome"] == pytest.approx(3.0)
     assert result["factual_outcome"] == 7.0
 

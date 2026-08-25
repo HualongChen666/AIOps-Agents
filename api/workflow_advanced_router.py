@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
 
 from extensions.addons.operations.workflow_service.orchestrator import WorkflowOrchestrator
@@ -24,15 +24,10 @@ from extensions.addons.operations.workflow_service.schemas import (
     WorkflowNode,
     WorkflowRequest,
     WorkflowStatus,
-    WorkflowTask,
 )
 
 # Optional metrics import
 try:
-    from extensions.addons.operations.workflow_service.metrics import (
-        WORKFLOWS_COMPLETED,
-        WORKFLOWS_CREATED,
-    )
     METRICS_AVAILABLE = True
 except ImportError:
     METRICS_AVAILABLE = False
@@ -270,9 +265,7 @@ async def create_workflow_definition(
         # 检查是否已存在
         existing = await repo.get_definition(body.workflow_id)
         if existing:
-            raise HTTPException(
-                status_code=400, detail=f"工作流定义 '{body.workflow_id}' 已存在"
-            )
+            raise HTTPException(status_code=400, detail=f"工作流定义 '{body.workflow_id}' 已存在")
 
         # 转换节点数据
         nodes = []
@@ -682,9 +675,7 @@ async def stop_workflow_execution(
             raise HTTPException(status_code=404, detail=f"工作流执行 '{id}' 不存在")
 
         if task.status != WorkflowStatus.RUNNING:
-            raise HTTPException(
-                status_code=400, detail=f"工作流执行 '{id}' 未在运行中，无法停止"
-            )
+            raise HTTPException(status_code=400, detail=f"工作流执行 '{id}' 未在运行中，无法停止")
 
         # 更新状态为失败（模拟停止）
         await repo.update_task(
@@ -728,9 +719,7 @@ async def pause_workflow_execution(
             raise HTTPException(status_code=404, detail=f"工作流执行 '{id}' 不存在")
 
         if task.status != WorkflowStatus.RUNNING:
-            raise HTTPException(
-                status_code=400, detail=f"工作流执行 '{id}' 未在运行中，无法暂停"
-            )
+            raise HTTPException(status_code=400, detail=f"工作流执行 '{id}' 未在运行中，无法暂停")
 
         # 更新状态为暂停
         await repo.update_task(id, {"status": WorkflowStatus.PAUSED})
@@ -773,9 +762,7 @@ async def resume_workflow_execution(
             raise HTTPException(status_code=404, detail=f"工作流执行 '{id}' 不存在")
 
         if task.status != WorkflowStatus.PAUSED:
-            raise HTTPException(
-                status_code=400, detail=f"工作流执行 '{id}' 未暂停，无法恢复"
-            )
+            raise HTTPException(status_code=400, detail=f"工作流执行 '{id}' 未暂停，无法恢复")
 
         # 异步恢复执行
         async def resume_workflow():
@@ -841,9 +828,7 @@ async def list_schedules(
 
 
 @router.post("/schedules", summary="创建调度", status_code=201)
-async def create_schedule(
-    body: ScheduleCreate, request: Request
-) -> Dict[str, Any]:
+async def create_schedule(body: ScheduleCreate, request: Request) -> Dict[str, Any]:
     """
     创建新的工作流调度
     """
@@ -1082,9 +1067,7 @@ async def list_triggers(
 
 
 @router.post("/triggers", summary="创建触发器", status_code=201)
-async def create_trigger(
-    body: TriggerCreate, request: Request
-) -> Dict[str, Any]:
+async def create_trigger(body: TriggerCreate, request: Request) -> Dict[str, Any]:
     """
     创建新的工作流触发器
     """
@@ -1258,9 +1241,7 @@ async def list_variables(
 
 
 @router.post("/variables", summary="创建变量", status_code=201)
-async def create_variable(
-    body: VariableCreate, request: Request
-) -> Dict[str, Any]:
+async def create_variable(body: VariableCreate, request: Request) -> Dict[str, Any]:
     """
     创建新的工作流变量
     """
@@ -1476,9 +1457,7 @@ async def get_statistics() -> Dict[str, Any]:
         completed_tasks = [t for t in tasks if t.status == WorkflowStatus.SUCCEEDED]
         avg_duration = 0
         if completed_tasks:
-            durations = [
-                (t.updated_at - t.created_at).total_seconds() for t in completed_tasks
-            ]
+            durations = [(t.updated_at - t.created_at).total_seconds() for t in completed_tasks]
             avg_duration = sum(durations) / len(durations)
 
         total_schedules = len(_schedules)

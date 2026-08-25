@@ -44,7 +44,11 @@ if GRPC_AVAILABLE:
             "description": "健康状态",
             "content": {
                 "application/json": {
-                    "example": {"status": "healthy", "grpc_available": True, "server_running": True}
+                    "example": {
+                        "status": "healthy",
+                        "grpc_available": True,
+                        "server_running": True,
+                    }
                 }
             },
         },

@@ -45,7 +45,6 @@ from services.alert_service.schemas import (
     SuppressionRule,
 )
 
-
 # ============================================================================
 # Helper Functions Tests
 # ============================================================================
@@ -58,10 +57,11 @@ def test_ensure_dead_letter_dir():
         try:
             # Temporarily change the dead letter dir
             import services.alert_service.processor_core as pc_module
+
             original_dir = pc_module._DEAD_LETTER_DIR
             pc_module._DEAD_LETTER_DIR = tmpdir
             pc_module._DEAD_LETTER_PATH = os.path.join(tmpdir, "alert_dead_letter.jsonl")
-            
+
             _ensure_dead_letter_dir()
             assert os.path.exists(tmpdir)
         finally:
@@ -74,15 +74,16 @@ def test_append_dead_letter():
     """Test appending to dead letter file."""
     with tempfile.TemporaryDirectory() as tmpdir:
         import services.alert_service.processor_core as pc_module
+
         original_dir = pc_module._DEAD_LETTER_DIR
         original_path = pc_module._DEAD_LETTER_PATH
         try:
             pc_module._DEAD_LETTER_DIR = tmpdir
             pc_module._DEAD_LETTER_PATH = os.path.join(tmpdir, "alert_dead_letter.jsonl")
-            
+
             payload = {"type": "test", "alert_id": "123"}
             _append_dead_letter(payload)
-            
+
             # Verify file was created and contains the payload
             assert os.path.exists(pc_module._DEAD_LETTER_PATH)
             with open(pc_module._DEAD_LETTER_PATH, "r", encoding="utf-8") as f:
@@ -97,6 +98,7 @@ def test_append_dead_letter():
 def test_append_dead_letter_error_handling():
     """Test dead letter append error handling."""
     import services.alert_service.processor_core as pc_module
+
     original_path = pc_module._DEAD_LETTER_PATH
     try:
         # Set an invalid path
@@ -117,7 +119,7 @@ def test_pipeline_init_defaults():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     assert pipeline.repository == repo
     assert pipeline.mq == mq
     assert pipeline.window_seconds == 300
@@ -137,7 +139,7 @@ def test_pipeline_init_custom_params():
         max_concurrent=10,
         max_retries=5,
     )
-    
+
     assert pipeline.window_seconds == 600
     assert pipeline._max_concurrent == 10
     assert pipeline.max_retries == 5
@@ -148,7 +150,7 @@ def test_pipeline_init_max_retries_minimum():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, max_retries=0)
-    
+
     assert pipeline.max_retries == 1
 
 
@@ -162,7 +164,7 @@ def test_preprocess_payload_invalid_type():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     payload = {"type": "not_alert"}
     result = pipeline._preprocess_payload(payload)
     assert result is None
@@ -173,7 +175,7 @@ def test_preprocess_payload_missing_alert():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     payload = {"type": "alert"}
     result = pipeline._preprocess_payload(payload)
     assert result is None
@@ -184,7 +186,7 @@ def test_preprocess_payload_invalid_alert():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     payload = {"type": "alert", "alert": {"invalid": "data"}}
     result = pipeline._preprocess_payload(payload)
     assert result is None
@@ -195,7 +197,7 @@ def test_preprocess_payload_valid_alert():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert_data = {
         "id": "test-1",
         "title": "Test Alert",
@@ -206,7 +208,7 @@ def test_preprocess_payload_valid_alert():
     }
     payload = {"type": "alert", "alert": alert_data}
     result = pipeline._preprocess_payload(payload)
-    
+
     assert result is not None
     assert result.id == "test-1"
     assert result.fingerprint is not None
@@ -217,7 +219,7 @@ def test_preprocess_payload_flapping_detection():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, window_seconds=10)
-    
+
     alert_data = {
         "id": "test-1",
         "title": "Test Alert",
@@ -226,20 +228,20 @@ def test_preprocess_payload_flapping_detection():
         "level": AlertSeverity.WARNING,
         "status": AlertStatus.PENDING,
     }
-    
+
     # First alert - not flapping
     payload1 = {"type": "alert", "alert": alert_data.copy()}
     result1 = pipeline._preprocess_payload(payload1)
     assert result1 is not None
     assert not result1.tags.get("is_flapping")
-    
+
     # Manually trigger flapping by updating the flapping detector directly
     fp = result1.fingerprint or "test-fp"
     # Flapping detector needs multiple status changes
     for i in range(5):
         status = "pending" if i % 2 == 0 else "resolved"
         pipeline.flapping_detector.update(fp, status)
-    
+
     # Now preprocess another alert with same fingerprint
     alert_data["status"] = AlertStatus.PENDING
     payload = {"type": "alert", "alert": alert_data.copy()}
@@ -255,7 +257,7 @@ def test_preprocess_payload_resolved_alert():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert_data = {
         "id": "test-1",
         "title": "Test Alert",
@@ -266,7 +268,7 @@ def test_preprocess_payload_resolved_alert():
     }
     payload = {"type": "alert", "alert": alert_data}
     result = pipeline._preprocess_payload(payload)
-    
+
     assert result is not None
     assert result.status == AlertStatus.RESOLVED
 
@@ -282,7 +284,7 @@ async def test_process_alert_classification():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Add a classification rule
     rule = ClassificationRule(
         name="test_rule",
@@ -292,7 +294,7 @@ async def test_process_alert_classification():
         enabled=True,
     )
     pipeline.classifier.add_rule(rule)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -301,9 +303,9 @@ async def test_process_alert_classification():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     result = await pipeline.process_alert(alert)
-    
+
     assert result["status"] in ["buffered", "suppressed", "duplicate"]
     assert result["alert_id"] == "test-1"
 
@@ -314,7 +316,7 @@ async def test_process_alert_noise_suppression():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Add a suppression rule
     rule = SuppressionRule(
         name="test_suppression",
@@ -323,7 +325,7 @@ async def test_process_alert_noise_suppression():
         enabled=True,
     )
     pipeline.noise_suppressor.add_rule(rule)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -332,9 +334,9 @@ async def test_process_alert_noise_suppression():
         level=AlertSeverity.INFO,
         status=AlertStatus.PENDING,
     )
-    
+
     result = await pipeline.process_alert(alert)
-    
+
     assert result["status"] == "suppressed"
     assert result["alert_id"] == "test-1"
 
@@ -345,7 +347,7 @@ async def test_process_alert_deduplication():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, window_seconds=10)
-    
+
     alert1 = Alert(
         id="test-1",
         title="Test Alert",
@@ -356,10 +358,10 @@ async def test_process_alert_deduplication():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     result1 = await pipeline.process_alert(alert1)
     assert result1["status"] != "duplicate"
-    
+
     # Duplicate alert
     alert2 = Alert(
         id="test-2",
@@ -371,7 +373,7 @@ async def test_process_alert_deduplication():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     result2 = await pipeline.process_alert(alert2)
     assert result2["status"] == "duplicate"
 
@@ -382,7 +384,7 @@ async def test_process_alert_flapping_priority():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, window_seconds=10)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -392,7 +394,7 @@ async def test_process_alert_flapping_priority():
         status=AlertStatus.PENDING,
         tags={"is_flapping": True},
     )
-    
+
     result = await pipeline.process_alert(alert)
     assert alert.priority == "P0"
 
@@ -403,7 +405,7 @@ async def test_process_alert_aggregation():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, window_seconds=10)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -414,7 +416,7 @@ async def test_process_alert_aggregation():
         status=AlertStatus.PENDING,
         detected_at=datetime.now(timezone.utc),
     )
-    
+
     result = await pipeline.process_alert(alert)
     assert result["status"] == "buffered"
 
@@ -430,7 +432,7 @@ async def test_handle_resolved_alert():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, window_seconds=10)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -440,9 +442,9 @@ async def test_handle_resolved_alert():
         status=AlertStatus.RESOLVED,
         fingerprint="test-fp",
     )
-    
+
     await pipeline._handle_resolved(alert)
-    
+
     # Check that resolved notification was published
     assert "test-fp" in pipeline._resolved_fingerprints
 
@@ -453,13 +455,13 @@ async def test_handle_resolved_flapping():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, window_seconds=10)
-    
+
     # Mark as flapping first
     fp = "test-fp"
     pipeline.flapping_detector.update(fp, "firing")
     pipeline.flapping_detector.update(fp, "resolved")
     pipeline.flapping_detector.update(fp, "firing")
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -469,9 +471,9 @@ async def test_handle_resolved_flapping():
         status=AlertStatus.RESOLVED,
         fingerprint=fp,
     )
-    
+
     await pipeline._handle_resolved(alert)
-    
+
     # Flapping alerts should have longer TTL (window_seconds = 10)
     expire_at = pipeline._resolved_fingerprints[fp]
     assert expire_at > time.time() + 5  # Should be window_seconds (10)
@@ -483,14 +485,14 @@ async def test_is_resolved():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, window_seconds=10)
-    
+
     # Not resolved initially
     assert not await pipeline._is_resolved("test-fp")
-    
+
     # Mark as resolved
     pipeline._resolved_fingerprints["test-fp"] = time.time() + 100
     assert await pipeline._is_resolved("test-fp")
-    
+
     # Expired
     pipeline._resolved_fingerprints["test-fp"] = time.time() - 10
     assert not await pipeline._is_resolved("test-fp")
@@ -507,7 +509,7 @@ async def test_route_and_publish():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Add routing rule
     rule = RoutingRule(
         name="test_route",
@@ -516,7 +518,7 @@ async def test_route_and_publish():
         enabled=True,
     )
     pipeline.router.add_rule(rule)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -526,9 +528,9 @@ async def test_route_and_publish():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     result = await pipeline._route_and_publish(alert)
-    
+
     assert result["alert_id"] == "test-1"
     assert alert.routed_to == "team-a"
 
@@ -539,10 +541,10 @@ async def test_route_and_publish_resolved():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Mark as resolved
     pipeline._resolved_fingerprints["test-fp"] = time.time() + 100
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -552,9 +554,9 @@ async def test_route_and_publish_resolved():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     result = await pipeline._route_and_publish(alert)
-    
+
     assert result["status"] == "resolved"
 
 
@@ -564,7 +566,7 @@ async def test_route_and_publish_escalation():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Add escalation rule
     rule = EscalationRule(
         name="critical_escalation",
@@ -574,7 +576,7 @@ async def test_route_and_publish_escalation():
         enabled=True,
     )
     pipeline.escalator.add_rule(rule)
-    
+
     alert = Alert(
         id="test-1",
         title="Critical Alert",
@@ -584,9 +586,9 @@ async def test_route_and_publish_escalation():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     await pipeline._route_and_publish(alert)
-    
+
     assert alert.tags.get("escalation_target") == "manager"
 
 
@@ -596,7 +598,7 @@ async def test_route_and_publish_pattern():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -606,9 +608,9 @@ async def test_route_and_publish_pattern():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     await pipeline._route_and_publish(alert)
-    
+
     assert "pattern" in alert.tags
 
 
@@ -623,7 +625,7 @@ async def test_maybe_auto_heal_critical_p0():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Critical Alert",
@@ -633,13 +635,13 @@ async def test_maybe_auto_heal_critical_p0():
         priority="P0",
         status=AlertStatus.PENDING,
     )
-    
+
     # Mock the auto_heal module
     with patch("core.auto_heal.try_auto_heal", new_callable=AsyncMock) as mock_heal:
         mock_heal.return_value = {"status": "success"}
-        
+
         await pipeline._maybe_auto_heal(alert)
-        
+
         mock_heal.assert_called_once()
 
 
@@ -649,7 +651,7 @@ async def test_maybe_auto_heal_not_critical():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Warning Alert",
@@ -659,10 +661,10 @@ async def test_maybe_auto_heal_not_critical():
         priority="P1",
         status=AlertStatus.PENDING,
     )
-    
+
     with patch("core.auto_heal.try_auto_heal", new_callable=AsyncMock) as mock_heal:
         await pipeline._maybe_auto_heal(alert)
-        
+
         mock_heal.assert_not_called()
 
 
@@ -672,7 +674,7 @@ async def test_maybe_auto_heal_module_not_available():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Critical Alert",
@@ -682,7 +684,7 @@ async def test_maybe_auto_heal_module_not_available():
         priority="P0",
         status=AlertStatus.PENDING,
     )
-    
+
     # Module import will fail, should handle gracefully
     with patch("core.auto_heal.try_auto_heal", side_effect=ImportError("No module")):
         await pipeline._maybe_auto_heal(alert)  # Should not raise
@@ -694,7 +696,7 @@ async def test_maybe_auto_heal_exception():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Critical Alert",
@@ -704,10 +706,10 @@ async def test_maybe_auto_heal_exception():
         priority="P0",
         status=AlertStatus.PENDING,
     )
-    
+
     with patch("core.auto_heal.try_auto_heal", new_callable=AsyncMock) as mock_heal:
         mock_heal.side_effect = Exception("Heal failed")
-        
+
         await pipeline._maybe_auto_heal(alert)  # Should not raise
 
 
@@ -722,7 +724,7 @@ async def test_saga_save_and_publish_success():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -732,9 +734,9 @@ async def test_saga_save_and_publish_success():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     result = await pipeline._saga_save_and_publish(alert)
-    
+
     assert result["alert_id"] == "test-1"
     # Check data field for saved/published flags
     assert result.get("data", {}).get("saved") or result.get("data", {}).get("published")
@@ -746,10 +748,10 @@ async def test_saga_save_and_publish_resolved():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Mark as resolved
     pipeline._resolved_fingerprints["test-fp"] = time.time() + 100
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -759,9 +761,9 @@ async def test_saga_save_and_publish_resolved():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     result = await pipeline._saga_save_and_publish(alert)
-    
+
     # Check data field for resolved flag
     assert result.get("data", {}).get("resolved")
 
@@ -772,7 +774,7 @@ async def test_saga_save_retry():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, max_retries=2)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -782,21 +784,21 @@ async def test_saga_save_retry():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     # Mock repository to fail once then succeed
     original_save = repo.save
     call_count = [0]
-    
+
     async def failing_save(alert_obj):
         call_count[0] += 1
         if call_count[0] == 1:
             raise Exception("Temporary failure")
         return await original_save(alert_obj)
-    
+
     repo.save = failing_save
-    
+
     result = await pipeline._saga_save_and_publish(alert)
-    
+
     assert call_count[0] == 2  # Failed once, succeeded on retry
 
 
@@ -806,7 +808,7 @@ async def test_saga_publish_retry():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, max_retries=2)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -816,21 +818,21 @@ async def test_saga_publish_retry():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     # Mock publish to fail once then succeed
     original_publish = mq.publish
     call_count = [0]
-    
+
     async def failing_publish(topic, payload):
         call_count[0] += 1
         if call_count[0] == 1:
             raise Exception("Temporary failure")
         return await original_publish(topic, payload)
-    
+
     mq.publish = failing_publish
-    
+
     result = await pipeline._saga_save_and_publish(alert)
-    
+
     assert call_count[0] == 2  # Failed once, succeeded on retry
 
 
@@ -840,7 +842,7 @@ async def test_saga_publish_compensation():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, max_retries=1)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -850,15 +852,15 @@ async def test_saga_publish_compensation():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     # Mock publish to always fail
     async def always_fail_publish(topic, payload):
         raise Exception("Persistent failure")
-    
+
     # Replace the mq.publish method
     original_publish = mq.publish
     mq.publish = always_fail_publish
-    
+
     try:
         # Saga may or may not raise exception depending on implementation
         # Just verify it handles the failure gracefully
@@ -879,7 +881,7 @@ async def test_saga_compensation_publish_failed():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, max_retries=1)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -889,15 +891,15 @@ async def test_saga_compensation_publish_failed():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     # Mock both publish and failed queue publish to fail
     async def always_fail_publish(topic, payload):
         raise Exception("Persistent failure")
-    
+
     # Replace the mq.publish method
     original_publish = mq.publish
     mq.publish = always_fail_publish
-    
+
     try:
         # Saga may or may not raise exception depending on implementation
         # Just verify it handles the failure gracefully
@@ -923,7 +925,7 @@ async def test_flush():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -934,13 +936,13 @@ async def test_flush():
         status=AlertStatus.PENDING,
         detected_at=datetime.now(timezone.utc),
     )
-    
+
     # Add alert to buffer
     await pipeline.process_alert(alert)
-    
+
     # Flush
     results = await pipeline.flush(force=True)
-    
+
     assert isinstance(results, list)
 
 
@@ -950,7 +952,7 @@ async def test_flush_force():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -961,11 +963,11 @@ async def test_flush_force():
         status=AlertStatus.PENDING,
         detected_at=datetime.now(timezone.utc),
     )
-    
+
     await pipeline.process_alert(alert)
-    
+
     results = await pipeline._flush_internal(force=True)
-    
+
     assert isinstance(results, list)
 
 
@@ -975,7 +977,7 @@ async def test_process_and_flush():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -986,9 +988,9 @@ async def test_process_and_flush():
         status=AlertStatus.PENDING,
         detected_at=datetime.now(timezone.utc),
     )
-    
+
     result = await pipeline.process_and_flush(alert)
-    
+
     assert "flushed" in result
     assert isinstance(result["flushed"], list)
 
@@ -1003,10 +1005,10 @@ def test_pipeline_uptime():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     time.sleep(0.1)
     uptime = pipeline.uptime_seconds()
-    
+
     assert uptime >= 0
 
 
@@ -1015,9 +1017,9 @@ def test_pipeline_get_stats():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     stats = pipeline.get_stats()
-    
+
     assert "dedup" in stats
     assert "noise" in stats
     assert "patterns" in stats
@@ -1032,13 +1034,13 @@ def test_pipeline_stop():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Initially not running
     assert not pipeline._running
-    
+
     # Call stop method (should set _running to False)
     pipeline.stop()
-    
+
     # Verify it's still False
     assert not pipeline._running
 
@@ -1054,7 +1056,7 @@ async def test_worker_exception_handling():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -1063,19 +1065,19 @@ async def test_worker_exception_handling():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     # Set active workers to 1 before calling worker
     pipeline._active_workers = 1
-    
+
     # Mock _process_alert_internal to raise exception
     async def failing_process(alert_obj):
         raise Exception("Processing failed")
-    
+
     pipeline._process_alert_internal = failing_process
-    
+
     # Worker should handle exception gracefully
     await pipeline._worker(alert)
-    
+
     assert pipeline._active_workers == 0
 
 
@@ -1085,7 +1087,7 @@ async def test_worker_cancelled():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -1094,13 +1096,13 @@ async def test_worker_cancelled():
         level=AlertSeverity.WARNING,
         status=AlertStatus.PENDING,
     )
-    
+
     # Mock _process_alert_internal to raise CancelledError
     async def cancelled_process(alert_obj):
         raise asyncio.CancelledError()
-    
+
     pipeline._process_alert_internal = cancelled_process
-    
+
     with pytest.raises(asyncio.CancelledError):
         await pipeline._worker(alert)
 
@@ -1111,29 +1113,29 @@ async def test_drain():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Simulate active workers
     pipeline._active_workers = 2
-    
+
     # Create a task that will decrement the counter
     async def decrement_worker():
         await asyncio.sleep(0.01)
         pipeline._active_workers -= 1
-    
+
     # Start a background task
     task = asyncio.create_task(decrement_worker())
-    
+
     # Wait a bit for the task to start
     await asyncio.sleep(0.005)
-    
+
     # Drain should wait for the counter to reach 0
     # Manually decrement to simulate worker completion
     pipeline._active_workers -= 1
-    
+
     await pipeline._drain()
-    
+
     assert pipeline._active_workers == 0
-    
+
     # Clean up the task
     task.cancel()
     try:
@@ -1153,7 +1155,7 @@ async def test_process_alert_resolved_status():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -1162,9 +1164,9 @@ async def test_process_alert_resolved_status():
         level=AlertSeverity.WARNING,
         status=AlertStatus.RESOLVED,
     )
-    
+
     result = await pipeline._process_alert_internal(alert)
-    
+
     # Resolved alerts should not be suppressed or deduplicated
     assert result["status"] == "buffered"
 
@@ -1175,7 +1177,7 @@ async def test_route_and_publish_no_escalation():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Info Alert",
@@ -1185,9 +1187,9 @@ async def test_route_and_publish_no_escalation():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     await pipeline._route_and_publish(alert)
-    
+
     # Should not have escalation target
     assert "escalation_target" not in alert.tags or alert.tags.get("escalation_target") is None
 
@@ -1198,7 +1200,7 @@ async def test_saga_save_max_retries_exceeded():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq, max_retries=2)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -1208,15 +1210,15 @@ async def test_saga_save_max_retries_exceeded():
         status=AlertStatus.PENDING,
         fingerprint="test-fp",
     )
-    
+
     # Mock repository to always fail
     async def always_fail_save(alert_obj):
         raise Exception("Persistent failure")
-    
+
     # Replace the repo.save method
     original_save = repo.save
     repo.save = always_fail_save
-    
+
     try:
         # Saga may or may not raise exception depending on implementation
         try:
@@ -1233,9 +1235,9 @@ async def test_flush_aggregator_empty():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     results = await pipeline._flush_internal(force=True)
-    
+
     assert isinstance(results, list)
     assert len(results) == 0
 
@@ -1245,24 +1247,29 @@ def test_get_stats_with_rules():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Add some rules
-    pipeline.classifier.add_rule(ClassificationRule(
-        name="test", conditions={}, category="test", priority="P1", enabled=True
-    ))
-    pipeline.router.add_rule(RoutingRule(
-        name="test", conditions={}, destination="test", enabled=True
-    ))
-    pipeline.escalator.add_rule(EscalationRule(
-        name="test", level_threshold=AlertSeverity.CRITICAL,
-        time_threshold_seconds=300, escalation_target="test", enabled=True
-    ))
-    pipeline.noise_suppressor.add_rule(SuppressionRule(
-        name="test", pattern="test", reason="test", enabled=True
-    ))
-    
+    pipeline.classifier.add_rule(
+        ClassificationRule(name="test", conditions={}, category="test", priority="P1", enabled=True)
+    )
+    pipeline.router.add_rule(
+        RoutingRule(name="test", conditions={}, destination="test", enabled=True)
+    )
+    pipeline.escalator.add_rule(
+        EscalationRule(
+            name="test",
+            level_threshold=AlertSeverity.CRITICAL,
+            time_threshold_seconds=300,
+            escalation_target="test",
+            enabled=True,
+        )
+    )
+    pipeline.noise_suppressor.add_rule(
+        SuppressionRule(name="test", pattern="test", reason="test", enabled=True)
+    )
+
     stats = pipeline.get_stats()
-    
+
     assert stats["rules"]["classification"] >= 1
     assert stats["rules"]["routing"] >= 1
     assert stats["rules"]["escalation"] >= 1
@@ -1275,7 +1282,7 @@ async def test_process_alert_with_empty_fingerprint():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     alert = Alert(
         id="test-1",
         title="Test Alert",
@@ -1285,9 +1292,9 @@ async def test_process_alert_with_empty_fingerprint():
         status=AlertStatus.PENDING,
         fingerprint="",
     )
-    
+
     result = await pipeline._route_and_publish(alert)
-    
+
     assert result["alert_id"] == "test-1"
 
 
@@ -1297,6 +1304,6 @@ async def test_is_resolved_empty_fingerprint():
     repo = InMemoryAlertRepository()
     mq = InMemoryMessageQueue()
     pipeline = AlertPipeline(repository=repo, mq=mq)
-    
+
     # Empty fingerprint should return False
     assert not await pipeline._is_resolved("")

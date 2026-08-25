@@ -203,7 +203,12 @@ class ChainOfThought:
             response = self.llm_client.generate(prompt)
 
             # 解析响应
-            steps = json.loads(response)
+            try:
+                steps = json.loads(response)
+            except json.JSONDecodeError as exc:
+                logger.error(f"LLM 返回的响应不是有效的JSON: {exc}")
+                return self._rule_reason(goal, context, max_steps)
+
             if isinstance(steps, list):
                 return steps[:max_steps]
             else:

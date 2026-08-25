@@ -53,7 +53,9 @@ def test_snapshot_store():
 @pytest.mark.asyncio
 async def test_rollback_engine_all_strategies():
     engine = RollbackEngine()
-    result = RepairExecutionResult(task_id="t1", success=False)  # noqa: F841  # Variable for test verification
+    result = RepairExecutionResult(
+        task_id="t1", success=False
+    )  # noqa: F841  # Variable for test verification
     cases = [
         ("cpu_high", "process"),
         ("service_restart", "service"),
@@ -586,7 +588,9 @@ async def test_runbook_executor_validation():
 async def test_runbook_executor_strategy():
     ex = RunbookExecutor(dry_run=True)
     missing = RepairStrategy(name="x", script_key="does_not_exist", platform=PlatformType.LINUX)
-    result = await ex.execute_strategy("t1", missing)  # noqa: F841  # Variable for test verification
+    result = await ex.execute_strategy(
+        "t1", missing
+    )  # noqa: F841  # Variable for test verification
     assert result.success is False
 
     found = RepairStrategy(name="m", script_key="memory_high", platform=PlatformType.LINUX)
@@ -878,18 +882,18 @@ async def test_orchestrator_get_machine():
     """Test getting state machine for task."""
     app = OrchestratorApp()
     await app.init()
-    
+
     task = RepairTask(
         task_id="t1",
         alert_id="a1",
         host="h1",
         platform=PlatformType.LINUX,
     )
-    
+
     sm = app.get_machine(task)
     assert sm is not None
     assert sm.current_state == RepairStatus.PENDING
-    
+
     # Should return same machine for same task
     sm2 = app.get_machine(task)
     assert sm is sm2
@@ -900,14 +904,14 @@ async def test_orchestrator_create_task_with_strategy():
     """Test creating task with matched strategy."""
     app = OrchestratorApp()
     await app.init()
-    
+
     request = RepairRequest(
         alert_id="a1",
         host="h1",
         platform=PlatformType.LINUX,
         metric="cpu_percent",
     )
-    
+
     task = await app.create_task(request)
     assert task.strategy is not None
     assert task.strategy.name == "cpu_high_linux"
@@ -918,17 +922,17 @@ async def test_orchestrator_reject_already_completed():
     """Test rejecting a task that's already completed."""
     app = OrchestratorApp()
     await app.init()
-    
+
     request = RepairRequest(
         alert_id="a1",
         host="h1",
         platform=PlatformType.LINUX,
         metric="cpu_percent",
     )
-    
+
     task = await app.create_task(request)
     await app.reject(task.task_id)
-    
+
     # Try to reject again
     result = await app.reject(task.task_id)
     assert result is not None

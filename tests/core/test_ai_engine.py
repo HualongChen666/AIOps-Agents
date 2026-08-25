@@ -27,6 +27,8 @@ def test_compute_prompt_token_budget():
 
 
 def test_rule_based_analysis():
-    result = _rule_based_analysis("cpu high", "cpu=90", "linux")  # noqa: F841  # Variable for test verification
+    result = _rule_based_analysis(
+        "cpu high", "cpu=90", "linux"
+    )  # noqa: F841  # Variable for test verification
     assert "AI 引擎暂不可用" in result
     assert "linux" in result

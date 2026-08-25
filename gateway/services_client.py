@@ -30,7 +30,15 @@ def _get_http_client() -> httpx.AsyncClient:
     """Return a lazily-created async HTTP client."""
     global _http_client
     if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(timeout=float(os.getenv("MICROSERVICE_TIMEOUT", "15.0")))
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("GATEWAY_SSL_VERIFY", "true").lower() == "true"
+        _http_client = httpx.AsyncClient(
+            timeout=float(os.getenv("MICROSERVICE_TIMEOUT", "15.0")), verify=ssl_verify
+        )
+        if not ssl_verify:
+            logger.warning(
+                "SSL verification is disabled in gateway services_client - this is a security risk!"
+            )
     return _http_client
 
 

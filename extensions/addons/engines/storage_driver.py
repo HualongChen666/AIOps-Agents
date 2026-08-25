@@ -24,17 +24,17 @@ class StorageDriver:
     def __init__(
         self,
         dry_run: bool = True,
-        redis_url: str = "redis://localhost:6379",
-        database_url: str = "postgresql://localhost:5432/postgres",
-        qdrant_url: str = "http://localhost:6333",
+        redis_url: Optional[str] = None,
+        database_url: Optional[str] = None,
+        qdrant_url: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         if not dry_run and os.environ.get("INFRA_EXECUTE_ENABLED") != "true":
             raise RuntimeError("Real execution requires INFRA_EXECUTE_ENABLED=true")
         self.dry_run = dry_run
-        self.redis_url = redis_url
-        self.database_url = database_url
-        self.qdrant_url = qdrant_url.rstrip("/")
+        self.redis_url = redis_url or os.getenv("STORAGE_REDIS_URL", "redis://localhost:6379")
+        self.database_url = database_url or os.getenv("STORAGE_DATABASE_URL", "postgresql://localhost:5432/postgres")
+        self.qdrant_url = (qdrant_url or os.getenv("STORAGE_QDRANT_URL", "http://localhost:6333")).rstrip("/")
 
         # simulation state
         self._cache: Dict[str, Any] = {}
@@ -110,19 +110,23 @@ class StorageDriver:
         return url
 
     def _sql_sqlite(self, query: str, params: Any, readonly: bool) -> Any:
-        conn = sqlite3.connect(self._sqlite_path())
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
         try:
-            cur.execute(query, params or [])
-            if readonly or query.strip().lower().startswith("select"):
-                rows = cur.fetchall()
-                return [dict(row) for row in rows]
-            conn.commit()
-            return conn.total_changes
-        finally:
-            cur.close()
-            conn.close()
+            conn = sqlite3.connect(self._sqlite_path())
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            try:
+                cur.execute(query, params or [])
+                if readonly or query.strip().lower().startswith("select"):
+                    rows = cur.fetchall()
+                    return [dict(row) for row in rows]
+                conn.commit()
+                return conn.total_changes
+            finally:
+                cur.close()
+                conn.close()
+        except sqlite3.Error as exc:
+            logger.error(f"SQLite query failed: {exc}")
+            raise
 
     def _get_postgres_storage(self) -> Any:
         """Create and initialize a real PostgreSQLStorage instance."""
@@ -170,10 +174,15 @@ class StorageDriver:
         self, method: str, path: str, json_body: Optional[Dict[str, Any]] = None
     ) -> Any:
         url = f"{self.qdrant_url}{path}"
+        # Use environment variable to control SSL verification (default: True for security)
+        ssl_verify = os.environ.get("STORAGE_DRIVER_SSL_VERIFY", "true").lower() == "true"
+        if not ssl_verify:
+            import logging
+            logging.warning("SSL verification is disabled in storage_driver - this is a security risk!")
         try:
             import httpx
 
-            client = httpx.Client()
+            client = httpx.Client(verify=ssl_verify)
             request = getattr(client, method.lower())
             resp = request(url, json=json_body)
             body = resp.json() if resp.content else {}
@@ -183,7 +192,7 @@ class StorageDriver:
             import requests
 
             fn = getattr(requests, method.lower())
-            resp = fn(url, json=json_body)
+            resp = fn(url, json=json_body, verify=ssl_verify)
             return resp.json() if resp.content else {}
 
     def vector_create_collection(

@@ -37,43 +37,45 @@ from services.audit_service.schemas import AlertRule, AuditEvent, AuditEventSeve
 # Mock AuditRepository implementation for testing
 class MockAuditRepository(AuditRepository):
     """Mock implementation of AuditRepository for testing."""
-    
+
     async def save_event(self, event: AuditEvent) -> str:
         return event.id
-    
+
     async def get_event(self, event_id: str) -> Optional[AuditEvent]:
         return None
-    
-    async def list_events(self, limit: int = 100, filters: Optional[Dict[str, Any]] = None) -> List[AuditEvent]:
+
+    async def list_events(
+        self, limit: int = 100, filters: Optional[Dict[str, Any]] = None
+    ) -> List[AuditEvent]:
         return []
-    
+
     async def save_log(self, log: Dict[str, Any]) -> str:
         return "log_id"
-    
+
     async def list_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
         return []
-    
+
     async def save_policy(self, policy: Dict[str, Any]) -> str:
         return "policy_id"
-    
+
     async def get_policy(self, policy_id: str) -> Optional[Dict[str, Any]]:
         return None
-    
+
     async def save_report(self, report: Dict[str, Any]) -> str:
         return "report_id"
-    
+
     async def list_reports(self, limit: int = 100) -> List[Dict[str, Any]]:
         return []
-    
+
     async def save_saga(self, saga: Dict[str, Any]) -> str:
         return "saga_id"
-    
+
     async def get_saga(self, saga_id: str) -> Optional[Dict[str, Any]]:
         return None
-    
+
     async def save_blob(self, blob: Dict[str, Any]) -> str:
         return "blob_id"
-    
+
     async def get_blob(self, blob_id: str) -> Optional[Dict[str, Any]]:
         return None
 
@@ -270,7 +272,7 @@ def test_alerting_engine_init():
     """Test AlertingEngine initialization."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     assert engine.repo == repo
     assert len(engine.rules) == len(AlertingEngine.DEFAULT_RULES)
     assert "r1" in engine.rules
@@ -281,7 +283,7 @@ def test_alerting_engine_default_rules():
     """Test default rules are loaded."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     # Check all default rules are present
     expected_rule_ids = [f"r{i}" for i in range(1, 11)]
     for rule_id in expected_rule_ids:
@@ -292,7 +294,7 @@ def test_alerting_engine_evaluate_critical_event():
     """Test evaluating critical event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -301,9 +303,9 @@ def test_alerting_engine_evaluate_critical_event():
         user_id="test_user",
         severity=AuditEventSeverity.CRITICAL,
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r1 (critical_event rule)
     assert any(r.rule_id == "r1" for r in triggered)
@@ -313,7 +315,7 @@ def test_alerting_engine_evaluate_high_event():
     """Test evaluating high severity event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -322,9 +324,9 @@ def test_alerting_engine_evaluate_high_event():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r2 (high_event rule)
     assert any(r.rule_id == "r2" for r in triggered)
@@ -334,7 +336,7 @@ def test_alerting_engine_evaluate_unauthorized_access():
     """Test evaluating unauthorized access event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -343,9 +345,9 @@ def test_alerting_engine_evaluate_unauthorized_access():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r3 (unauthorized_access rule)
     assert any(r.rule_id == "r3" for r in triggered)
@@ -355,7 +357,7 @@ def test_alerting_engine_evaluate_admin_action():
     """Test evaluating admin action event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -364,9 +366,9 @@ def test_alerting_engine_evaluate_admin_action():
         user_id="admin_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r4 (admin_action rule)
     assert any(r.rule_id == "r4" for r in triggered)
@@ -376,7 +378,7 @@ def test_alerting_engine_evaluate_data_export():
     """Test evaluating data export event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -385,9 +387,9 @@ def test_alerting_engine_evaluate_data_export():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r5 (data_export rule)
     assert any(r.rule_id == "r5" for r in triggered)
@@ -397,7 +399,7 @@ def test_alerting_engine_evaluate_login_failure():
     """Test evaluating login failure event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -406,9 +408,9 @@ def test_alerting_engine_evaluate_login_failure():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r6 (login_failure rule)
     assert any(r.rule_id == "r6" for r in triggered)
@@ -418,7 +420,7 @@ def test_alerting_engine_evaluate_permission_change():
     """Test evaluating permission change event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -427,9 +429,9 @@ def test_alerting_engine_evaluate_permission_change():
         user_id="admin_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r7 (permission_change rule)
     assert any(r.rule_id == "r7" for r in triggered)
@@ -439,7 +441,7 @@ def test_alerting_engine_evaluate_delete_attempt():
     """Test evaluating delete attempt event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -448,9 +450,9 @@ def test_alerting_engine_evaluate_delete_attempt():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r8 (delete_attempt rule)
     assert any(r.rule_id == "r8" for r in triggered)
@@ -460,7 +462,7 @@ def test_alerting_engine_evaluate_config_change():
     """Test evaluating config change event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -469,9 +471,9 @@ def test_alerting_engine_evaluate_config_change():
         user_id="admin_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r9 (config_change rule)
     assert any(r.rule_id == "r9" for r in triggered)
@@ -481,7 +483,7 @@ def test_alerting_engine_evaluate_after_hours_access():
     """Test evaluating after hours access event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -490,9 +492,9 @@ def test_alerting_engine_evaluate_after_hours_access():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) > 0
     # Should trigger r10 (after_hours rule)
     assert any(r.rule_id == "r10" for r in triggered)
@@ -502,7 +504,7 @@ def test_alerting_engine_evaluate_no_match():
     """Test evaluating event that matches no rules."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -511,9 +513,9 @@ def test_alerting_engine_evaluate_no_match():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) == 0
 
 
@@ -521,7 +523,7 @@ def test_alerting_engine_evaluate_multiple_rules():
     """Test evaluating event that matches multiple rules."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -530,9 +532,9 @@ def test_alerting_engine_evaluate_multiple_rules():
         user_id="admin_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     # Should match multiple rules (high severity + admin action)
     assert len(triggered) >= 2
 
@@ -541,10 +543,10 @@ def test_alerting_engine_match_disabled_rule():
     """Test that disabled rules are not matched."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     # Disable r1
     engine.rules["r1"].enabled = False
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -553,9 +555,9 @@ def test_alerting_engine_match_disabled_rule():
         user_id="test_user",
         severity=AuditEventSeverity.CRITICAL,
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     # r1 should not be in triggered rules
     assert not any(r.rule_id == "r1" for r in triggered)
 
@@ -564,7 +566,7 @@ def test_alerting_engine_match_exception():
     """Test that evaluation exceptions are handled gracefully."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     # Add a rule with invalid condition
     invalid_rule = AlertRule(
         rule_id="invalid",
@@ -575,7 +577,7 @@ def test_alerting_engine_match_exception():
         enabled=True,
     )
     engine.rules["invalid"] = invalid_rule
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -584,10 +586,10 @@ def test_alerting_engine_match_exception():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     # Should not raise exception, just skip the invalid rule
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     # Invalid rule should not be in triggered
     assert not any(r.rule_id == "invalid" for r in triggered)
 
@@ -596,7 +598,7 @@ def test_alerting_engine_add_rule():
     """Test adding a custom rule."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     custom_rule = AlertRule(
         rule_id="custom_1",
         name="Custom Rule",
@@ -605,9 +607,9 @@ def test_alerting_engine_add_rule():
         action="notify",
         enabled=True,
     )
-    
+
     asyncio.run(engine.add_rule(custom_rule))
-    
+
     assert "custom_1" in engine.rules
     assert engine.rules["custom_1"].name == "Custom Rule"
 
@@ -616,7 +618,7 @@ def test_alerting_engine_add_rule_override():
     """Test that adding a rule with existing ID overrides it."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     # Override r1
     new_rule = AlertRule(
         rule_id="r1",
@@ -626,9 +628,9 @@ def test_alerting_engine_add_rule_override():
         action="log",
         enabled=True,
     )
-    
+
     asyncio.run(engine.add_rule(new_rule))
-    
+
     assert engine.rules["r1"].name == "Overridden Rule"
     assert engine.rules["r1"].condition == "action == 'override'"
 
@@ -637,7 +639,7 @@ def test_alerting_engine_evaluate_custom_rule():
     """Test evaluating event against custom rule."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     custom_rule = AlertRule(
         rule_id="custom_1",
         name="Custom Rule",
@@ -647,7 +649,7 @@ def test_alerting_engine_evaluate_custom_rule():
         enabled=True,
     )
     asyncio.run(engine.add_rule(custom_rule))
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -656,9 +658,9 @@ def test_alerting_engine_evaluate_custom_rule():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert any(r.rule_id == "custom_1" for r in triggered)
 
 
@@ -666,7 +668,7 @@ def test_alerting_engine_evaluate_with_complex_condition():
     """Test evaluating event with complex custom condition."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     custom_rule = AlertRule(
         rule_id="complex_1",
         name="Complex Rule",
@@ -676,7 +678,7 @@ def test_alerting_engine_evaluate_with_complex_condition():
         enabled=True,
     )
     asyncio.run(engine.add_rule(custom_rule))
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -685,9 +687,9 @@ def test_alerting_engine_evaluate_with_complex_condition():
         user_id="admin_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert any(r.rule_id == "complex_1" for r in triggered)
 
 
@@ -695,7 +697,7 @@ def test_alerting_engine_evaluate_info_severity():
     """Test evaluating INFO severity event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -704,9 +706,9 @@ def test_alerting_engine_evaluate_info_severity():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     # INFO severity should not trigger default rules
     assert len(triggered) == 0
 
@@ -715,7 +717,7 @@ def test_alerting_engine_evaluate_medium_severity():
     """Test evaluating MEDIUM severity event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -724,9 +726,9 @@ def test_alerting_engine_evaluate_medium_severity():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     # MEDIUM severity should not trigger severity-based rules
     assert len(triggered) == 0
 
@@ -735,7 +737,7 @@ def test_alerting_engine_evaluate_empty_action():
     """Test evaluating event with empty action."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -744,9 +746,9 @@ def test_alerting_engine_evaluate_empty_action():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert len(triggered) == 0
 
 
@@ -754,7 +756,7 @@ def test_alerting_engine_evaluate_special_characters():
     """Test evaluating event with special characters in action."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -763,7 +765,7 @@ def test_alerting_engine_evaluate_special_characters():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     # Should handle gracefully
     triggered = asyncio.run(engine.evaluate(event))
     assert isinstance(triggered, list)
@@ -773,7 +775,7 @@ def test_alerting_engine_evaluate_unicode():
     """Test evaluating event with unicode characters."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     event = AuditEvent(
         event_id="1",
         timestamp=datetime.now(timezone.utc),
@@ -782,7 +784,7 @@ def test_alerting_engine_evaluate_unicode():
         user_id="用户",
         resource="test_resource",
     )
-    
+
     # Should handle gracefully
     triggered = asyncio.run(engine.evaluate(event))
     assert isinstance(triggered, list)
@@ -797,7 +799,7 @@ def test_alerting_engine_full_workflow():
     """Test full workflow: add rule, evaluate event."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     # Add custom rule
     custom_rule = AlertRule(
         rule_id="workflow_test",
@@ -808,7 +810,7 @@ def test_alerting_engine_full_workflow():
         enabled=True,
     )
     asyncio.run(engine.add_rule(custom_rule))
-    
+
     # Evaluate event
     event = AuditEvent(
         event_id="1",
@@ -818,9 +820,9 @@ def test_alerting_engine_full_workflow():
         user_id="test_user",
         resource="test_resource",
     )
-    
+
     triggered = asyncio.run(engine.evaluate(event))
-    
+
     assert any(r.rule_id == "workflow_test" for r in triggered)
 
 
@@ -828,7 +830,7 @@ def test_alerting_engine_multiple_events():
     """Test evaluating multiple events."""
     repo = MockAuditRepository()
     engine = AlertingEngine(repo=repo)
-    
+
     events = [
         AuditEvent(
             event_id=str(i),
@@ -840,7 +842,7 @@ def test_alerting_engine_multiple_events():
         )
         for i in range(10)
     ]
-    
+
     for event in events:
         triggered = asyncio.run(engine.evaluate(event))
         assert isinstance(triggered, list)

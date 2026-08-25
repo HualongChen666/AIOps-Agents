@@ -118,6 +118,7 @@ def test_main_startup_scenario(scenario, overrides):
             capture_output=True,
             text=True,
             timeout=240,
+            shell=False,
         )
 
         if completed.returncode != 0 or not Path(result_file).exists():
