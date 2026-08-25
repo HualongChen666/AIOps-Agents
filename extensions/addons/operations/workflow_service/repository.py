@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from services.workflow_service.schemas import (
+from extensions.addons.operations.workflow_service.schemas import (
     ScheduledTask,
     WorkflowDefinition,
     WorkflowTask,

@@ -8,22 +8,22 @@ import time
 import uuid
 from typing import Any, Dict, List
 
-from services.workflow_service.metrics import (
+from extensions.addons.operations.workflow_service.metrics import (
     WORKFLOW_EXECUTION_DURATION,
     WORKFLOW_NODE_EXECUTION_DURATION,
     WORKFLOWS_COMPLETED,
     WORKFLOWS_CREATED,
 )
-from services.workflow_service.repository import WorkflowRepository
-from services.workflow_service.retry import RetryEngine
-from services.workflow_service.schemas import (
+from extensions.addons.operations.workflow_service.repository import WorkflowRepository
+from extensions.addons.operations.workflow_service.retry import RetryEngine
+from extensions.addons.operations.workflow_service.schemas import (
     WorkflowExecutionResult,
     WorkflowNode,
     WorkflowRequest,
     WorkflowStatus,
     WorkflowTask,
 )
-from services.workflow_service.state_machine import WorkflowStateMachine
+from extensions.addons.operations.workflow_service.state_machine import WorkflowStateMachine
 
 
 class WorkflowOrchestrator:

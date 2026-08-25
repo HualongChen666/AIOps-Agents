@@ -124,6 +124,7 @@ from slowapi.errors import RateLimitExceeded
 
 # Core routers are always imported and mounted
 from api.alert_router import router as alert_router
+from api.alert_advanced_router import router as alert_advanced_router
 from api.alert_webhook_router import router as alert_webhook_router
 from api.anomaly_router import router as anomaly_router
 from api.api_performance_router import router as api_performance_router
@@ -132,10 +133,13 @@ from api.audit_center_router import router as audit_center_router
 from api.audit_router import router as audit_router
 from api.auth_router import router as auth_router
 from api.autoheal_router import router as autoheal_router
+from api.business_impact_advanced_router import router as business_impact_advanced_router
 from api.business_impact_router import router as business_impact_router
 from api.capacity_router import router as capacity_router
 from api.change_management_router import router as change_management_router
+from api.collaboration_advanced_router import router as collaboration_advanced_router
 from api.collaboration_router import router as collaboration_router
+from api.cost_advanced_router import router as cost_advanced_router
 from api.cost_router import router as cost_router
 from api.guard_router import router as guard_router
 from api.guard_router import security_router as security_router
@@ -144,6 +148,7 @@ from api.hitl_approval_router import router as hitl_approval_router
 from api.linux_router import router as linux_router
 from api.macos_router import router as macos_router
 from api.maturity_router import router as maturity_router
+from api.repair_advanced_router import router as repair_advanced_router
 from api.repair_scripts_router import router as repair_scripts_router
 from api.settings_router import router as settings_router
 from api.slack_router import router as slack_router
@@ -153,8 +158,13 @@ from api.stats_router import router as stats_router
 from api.team_collaboration_router import router as team_collaboration_router
 from api.teams_router import router as teams_router
 from api.tenant_router import router as tenant_router
+from api.tenant_advanced_router import router as tenant_advanced_router
+from api.topology_advanced_router import router as topology_advanced_router, router_alt as topology_advanced_router_alt, router_v1 as topology_advanced_router_v1
+from api.tracing_advanced_router import router as tracing_advanced_router, router_alt as tracing_advanced_router_alt, router_v1 as tracing_advanced_router_v1
+from api.unified_repair_advanced_router import router as unified_repair_advanced_router, router_alt as unified_repair_advanced_router_alt, router_v1 as unified_repair_advanced_router_v1
 from api.unified_repair_router import router as unified_repair_router
 from api.users_router import router as users_router
+from api.users_advanced_router import router as users_advanced_router
 from api.vulnerability_router import router as vulnerability_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
@@ -193,10 +203,13 @@ notify_router: Any = None
 priority_router: Any = None
 chaos_router: Any = None
 cloud_router: Any = None
+database_advanced_router: Any = None
 database_optimization_router: Any = None
 grpc_router: Any = None
 grpc_service_router: Any = None
+infrastructure_advanced_router: Any = None
 infrastructure_router: Any = None
+itsm_advanced_router: Any = None
 mcp_router: Any = None
 plugin_development_router: Any = None
 plugin_ecosystem_router: Any = None
@@ -213,30 +226,46 @@ integration_router: Any = None
 itsm_router: Any = None
 doc_generator_router: Any = None
 documentation_router: Any = None
+documentation_advanced_router: Any = None
+enterprise_advanced_router: Any = None
 frontend_enhancement_router: Any = None
+frontend_advanced_router: Any = None
 i18n_router: Any = None
 localization_adapter_router: Any = None
 localization_resource_router: Any = None
+localization_advanced_router: Any = None
+notify_advanced_router: Any = None
+plugin_development_advanced_router: Any = None
+plugin_marketplace_advanced_router: Any = None
 log_router: Any = None
 metrics_router: Any = None
 qdrant_router: Any = None
 rag_history_router: Any = None
 rag_router: Any = None
 realtime_router: Any = None
+realtime_advanced_router: Any = None
 service_discovery_router: Any = None
+service_discovery_advanced_router: Any = None
 service_mesh_router: Any = None
+service_mesh_advanced_router: Any = None
 service_monitoring_router: Any = None
+service_monitoring_advanced_router: Any = None
 topology_router: Any = None
 topology_view_router: Any = None
 workflow_router: Any = None
+workflow_advanced_router: Any = None
 workflow_visualization_router: Any = None
+priority_advanced_router: Any = None
+root_cause_advanced_router: Any = None
 
 if ENABLE_ADDONS:
     if LLM_ROUTER_ENABLED:
         from api.advanced_ai_router import router as advanced_ai_router
+        from api.ai_advanced_router import router as ai_advanced_router
         from api.ai_feedback_router import router as ai_feedback_router
         from api.ai_router import router as ai_router
         from api.root_cause_router import router as root_cause_router
+        from api.root_cause_advanced_router import router as root_cause_advanced_router
     if RAG_ENABLED:
         from api.qdrant_router import router as qdrant_router
         from api.rag_history_router import router as rag_history_router
@@ -245,47 +274,69 @@ if ENABLE_ADDONS:
         from api.metrics_router import router as metrics_router
     if TOPOLOGY_ENABLED:
         from api.realtime_router import router as realtime_router
+        from api.realtime_advanced_router import router as realtime_advanced_router
         from api.service_discovery_router import router as service_discovery_router
+        from api.service_discovery_advanced_router import router as service_discovery_advanced_router
         from api.service_mesh_router import router as service_mesh_router
+        from api.service_mesh_advanced_router import router as service_mesh_advanced_router
         from api.service_monitoring_router import router as service_monitoring_router
+        from api.service_monitoring_advanced_router import router as service_monitoring_advanced_router
         from api.topology_router import router as topology_router
+        from api.topology_advanced_router import router as topology_advanced_router
         from api.topology_view_router import router as topology_view_router
     if TRACING_ENABLED:
         from api.apm_router import router as apm_router
         from api.tracing_router import router as tracing_router
+        from api.tracing_advanced_router import router as tracing_advanced_router
     if LOG_AGGREGATION_ENABLED:
         from api.log_router import router as log_router
     if INCIDENT_RESPONSE_ENABLED:
         from api.batch_router import router as batch_router
         from api.hitl_router import router as hitl_router
         from api.notify_router import router as notify_router
+        from api.notify_advanced_router import router as notify_advanced_router
         from api.priority_router import router as priority_router
+        from api.priority_advanced_router import router as priority_advanced_router
     if WORKFLOW_ENABLED:
         from api.workflow_router import router as workflow_router
+        from api.workflow_advanced_router import router as workflow_advanced_router
         from api.workflow_visualization_router import router as workflow_visualization_router
     if INTEGRATIONS_ENABLED:
         from api.dashboard_router import router as dashboard_router
+        from api.dashboard_advanced_router import router as dashboard_advanced_router
         from api.integration_router import router as integration_router
         from api.itsm_router import router as itsm_router
     if SECURITY_SCANNING_ENABLED:
         from api.backup_router import router as backup_router
         from api.enterprise_router import router as enterprise_router
+        from api.enterprise_advanced_router import router as enterprise_advanced_router
     if PLUGINS_ENABLED:
+        from api.chaos_advanced_router import router as chaos_advanced_router
         from api.chaos_router import router as chaos_router
         from api.cloud_router import router as cloud_router
+        from api.database_advanced_router import router as database_advanced_router
         from api.database_optimization_router import router as database_optimization_router
         from api.grpc_router import router as grpc_router
         from api.grpc_service_router import router as grpc_service_router
+        from api.infrastructure_advanced_router import router as infrastructure_advanced_router
         from api.infrastructure_router import router as infrastructure_router
+        from api.itsm_advanced_router import router as itsm_advanced_router
         from api.plugin_development_router import router as plugin_development_router
+        from api.plugin_development_advanced_router import router as plugin_development_advanced_router
         # from api.plugin_ecosystem_router import router as plugin_ecosystem_router  # File doesn't exist
         from api.plugin_marketplace_router import router as plugin_marketplace_router
+        from api.plugin_marketplace_advanced_router import router as plugin_marketplace_advanced_router
         from api.plugin_router import router as plugin_router
         from api.plugin_sdk_router import router as plugin_sdk_router
         from api.system_resource_router import router as system_resource_router
         from api.test_automation_router import router as test_automation_router
+        from api.test_automation_advanced_router import router as test_automation_advanced_router
         from api.test_coverage_router import router as test_coverage_router
+        from api.test_coverage_advanced_router import router as test_coverage_advanced_router
         from api.test_framework_router import router as test_framework_router
+        from api.test_framework_advanced_router import router as test_framework_advanced_router
+        from api.maturity_advanced_router import router as maturity_advanced_router
+        from api.dashboard_advanced_router import router as dashboard_advanced_router
     if GRAPHQL_ENABLED:
         from api.graphql_router import router as graphql_router
     if MCP_ENABLED:
@@ -294,10 +345,13 @@ if ENABLE_ADDONS:
         from api.i18n_router import router as i18n_router
         from api.localization_adapter_router import router as localization_adapter_router
         from api.localization_resource_router import router as localization_resource_router
+        from api.localization_advanced_router import router as localization_advanced_router
     if DOC_GENERATION_ENABLED:
         from api.doc_generator_router import router as doc_generator_router
         from api.documentation_router import router as documentation_router
+        from api.documentation_advanced_router import router as documentation_advanced_router
         from api.frontend_enhancement_router import router as frontend_enhancement_router
+        from api.frontend_advanced_router import router as frontend_advanced_router
 
 
 warnings.filterwarnings(
@@ -2001,6 +2055,7 @@ ALLOWED_ORIGINS = os.getenv(
 
 CORE_ROUTERS = [
     alert_router,
+    alert_advanced_router,
     alert_webhook_router,
     autoheal_router,
     audit_router,
@@ -2011,16 +2066,21 @@ CORE_ROUTERS = [
     macos_router,
     docker_router,
     hardware_log_router,
+    repair_advanced_router,
     repair_scripts_router,
     unified_repair_router,
+    unified_repair_advanced_router,
+    unified_repair_advanced_router_v1,
     windows_repair_router,
     guard_router,
     security_router,
     api_performance_router,
     cost_router,
+    cost_advanced_router,
     auth_router,
     settings_router,
     users_router,
+    users_advanced_router,
     assets_router,
     sso_router,
     slack_router,
@@ -2033,72 +2093,110 @@ CORE_ROUTERS = [
     anomaly_router,
     slo_router,
     tenant_router,
+    tenant_advanced_router,
     business_impact_router,
+    business_impact_advanced_router,
     change_management_router,
     maturity_router,
     collaboration_router,
+    collaboration_advanced_router,
     team_collaboration_router,
+    topology_advanced_router_alt,
+    topology_advanced_router_v1,
+    tracing_advanced_router_alt,
+    tracing_advanced_router_v1,
+    unified_repair_advanced_router_alt,
+    unified_repair_advanced_router_v1,
 ]
 
 ADDON_ROUTERS = [
     # AI Plus Pack
     (ai_router, LLM_ROUTER_ENABLED),
+    (ai_advanced_router, LLM_ROUTER_ENABLED),
     (advanced_ai_router, LLM_ROUTER_ENABLED),
     (ai_feedback_router, LLM_ROUTER_ENABLED),
     (root_cause_router, LLM_ROUTER_ENABLED),
+    (root_cause_advanced_router, LLM_ROUTER_ENABLED),
     (rag_router, RAG_ENABLED),
     (rag_history_router, RAG_ENABLED),
     (qdrant_router, RAG_ENABLED),
     # Observability & Topology Pack
     (metrics_router, METRICS_ENABLED),
     (topology_router, TOPOLOGY_ENABLED),
+    (topology_advanced_router, TOPOLOGY_ENABLED),
+    (topology_advanced_router_v1, TOPOLOGY_ENABLED),
     (topology_view_router, TOPOLOGY_ENABLED),
     (service_mesh_router, TOPOLOGY_ENABLED),
+    (service_mesh_advanced_router, TOPOLOGY_ENABLED),
     (service_discovery_router, TOPOLOGY_ENABLED),
+    (service_discovery_advanced_router, TOPOLOGY_ENABLED),
     (service_monitoring_router, TOPOLOGY_ENABLED),
+    (service_monitoring_advanced_router, TOPOLOGY_ENABLED),
     (realtime_router, TOPOLOGY_ENABLED),
+    (realtime_advanced_router, TOPOLOGY_ENABLED),
     (tracing_router, TRACING_ENABLED),
+    (tracing_advanced_router, TRACING_ENABLED),
+    (tracing_advanced_router_v1, TRACING_ENABLED),
     (apm_router, TRACING_ENABLED),
     (log_router, LOG_AGGREGATION_ENABLED),
     # SRE Operations Pack
     (workflow_router, WORKFLOW_ENABLED),
+    (workflow_advanced_router, WORKFLOW_ENABLED),
     (workflow_visualization_router, WORKFLOW_ENABLED),
     (hitl_router, INCIDENT_RESPONSE_ENABLED),
     (priority_router, INCIDENT_RESPONSE_ENABLED),
+    (priority_advanced_router, INCIDENT_RESPONSE_ENABLED),
     (batch_router, INCIDENT_RESPONSE_ENABLED),
     (notify_router, INCIDENT_RESPONSE_ENABLED),
+    (notify_advanced_router, INCIDENT_RESPONSE_ENABLED),
     # Multi-Cloud & Integrations Pack
     (integration_router, INTEGRATIONS_ENABLED),
     (itsm_router, INTEGRATIONS_ENABLED),
+    (itsm_advanced_router, INTEGRATIONS_ENABLED),
     (dashboard_router, INTEGRATIONS_ENABLED),
+    (dashboard_advanced_router, INTEGRATIONS_ENABLED),
     # Security & Compliance Pack
     (enterprise_router, SECURITY_SCANNING_ENABLED),
+    (enterprise_advanced_router, SECURITY_SCANNING_ENABLED),
     (backup_router, SECURITY_SCANNING_ENABLED),
     # Infrastructure & Plugin Ecosystem Pack
     (chaos_router, PLUGINS_ENABLED),
+    (chaos_advanced_router, PLUGINS_ENABLED),
     (cloud_router, PLUGINS_ENABLED),
     (mcp_router, MCP_ENABLED),
     (plugin_router, PLUGINS_ENABLED),
     (plugin_sdk_router, PLUGINS_ENABLED),
     (plugin_development_router, PLUGINS_ENABLED),
+    (plugin_development_advanced_router, PLUGINS_ENABLED),
     (plugin_marketplace_router, PLUGINS_ENABLED),
+    (plugin_marketplace_advanced_router, PLUGINS_ENABLED),
     # (plugin_ecosystem_router, PLUGINS_ENABLED),  # File doesn't exist
     (infrastructure_router, PLUGINS_ENABLED),
+    (infrastructure_advanced_router, PLUGINS_ENABLED),
     (grpc_router, PLUGINS_ENABLED),
     (grpc_service_router, PLUGINS_ENABLED),
     (database_optimization_router, PLUGINS_ENABLED),
+    (database_advanced_router, PLUGINS_ENABLED),
     (system_resource_router, PLUGINS_ENABLED),
     (test_framework_router, PLUGINS_ENABLED),
+    (test_framework_advanced_router, PLUGINS_ENABLED),
     (test_coverage_router, PLUGINS_ENABLED),
+    (test_coverage_advanced_router, PLUGINS_ENABLED),
     (test_automation_router, PLUGINS_ENABLED),
+    (test_automation_advanced_router, PLUGINS_ENABLED),
+    (maturity_advanced_router, PLUGINS_ENABLED),
+    (dashboard_advanced_router, PLUGINS_ENABLED),
     # I18n & Localization
     (i18n_router, I18N_ENABLED),
     (localization_resource_router, I18N_ENABLED),
     (localization_adapter_router, I18N_ENABLED),
+    (localization_advanced_router, I18N_ENABLED),
     # Documentation & Tooling Pack
     (documentation_router, DOC_GENERATION_ENABLED),
+    (documentation_advanced_router, DOC_GENERATION_ENABLED),
     (doc_generator_router, DOC_GENERATION_ENABLED),
     (frontend_enhancement_router, DOC_GENERATION_ENABLED),
+    (frontend_advanced_router, DOC_GENERATION_ENABLED),
     (graphql_router, GRAPHQL_ENABLED),
 ]
 

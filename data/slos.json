@@ -1,5 +1,5 @@
 {
-  "counter": 11,
+  "counter": 12,
   "slos": {
     "SLO-001": {
       "id": "SLO-001",
@@ -59,6 +59,16 @@
       "target": 0.9990000000000001,
       "window": 720,
       "alert_threshold": 0.99,
+      "aggregation": "good_ratio"
+    },
+    "SLO-012": {
+      "id": "SLO-012",
+      "name": "API Latency Objective",
+      "service": "api-service",
+      "metric": "latency",
+      "target": 0.95,
+      "window": 168,
+      "alert_threshold": 0.8999999999999999,
       "aggregation": "good_ratio"
     }
   }

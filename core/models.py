@@ -872,3 +872,779 @@ class Snapshot(Base):
             f"<Snapshot(id='{self.id}', alert_id='{self.alert_id}', "
             f"operation_type='{self.operation_type}', status='{self.status}')>"
         )
+
+
+# ==================== Alert Management Models ====================
+
+
+class AlertConfiguration(Base):
+    """告警配置表"""
+
+    __tablename__ = "alert_configurations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    config_key = Column(String(100), unique=True, nullable=False, index=True)
+    config_value = Column(JSON, nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(50), nullable=True, index=True)
+    is_sensitive = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_configurations_key", "config_key"),
+        Index("idx_alert_configurations_category", "category"),
+    )
+
+    def __repr__(self):
+        return f"<AlertConfiguration(id={self.id}, key='{self.config_key}', category='{self.category}')>"
+
+
+class NotificationChannel(Base):
+    """通知通道表"""
+
+    __tablename__ = "notification_channels"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    channel_type = Column(String(50), nullable=False, index=True)  # email, slack, webhook, sms
+    config = Column(JSON, nullable=False)  # channel-specific configuration
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)  # higher priority = used first
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_notification_channels_name", "name"),
+        Index("idx_notification_channels_type", "channel_type"),
+        Index("idx_notification_channels_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<NotificationChannel(id={self.id}, name='{self.name}', type='{self.channel_type}')>"
+
+
+class AlertEscalationRule(Base):
+    """告警升级规则表"""
+
+    __tablename__ = "alert_escalation_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    conditions = Column(JSON, nullable=False)  # escalation conditions
+    escalation_levels = Column(JSON, nullable=False)  # escalation levels and targets
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_escalation_rules_name", "name"),
+        Index("idx_alert_escalation_rules_rule_id", "rule_id"),
+        Index("idx_alert_escalation_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertEscalationRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertSuppressionRule(Base):
+    """告警抑制规则表"""
+
+    __tablename__ = "alert_suppression_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    pattern = Column(String(500), nullable=False)  # suppression pattern
+    reason = Column(Text, nullable=False)
+    suppression_window = Column(Integer, default=300, nullable=False)  # seconds
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_suppression_rules_name", "name"),
+        Index("idx_alert_suppression_rules_rule_id", "rule_id"),
+        Index("idx_alert_suppression_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertSuppressionRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertForwardingRule(Base):
+    """告警转发规则表"""
+
+    __tablename__ = "alert_forwarding_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    conditions = Column(JSON, nullable=False)  # forwarding conditions
+    destination = Column(String(200), nullable=False)  # destination endpoint
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_forwarding_rules_name", "name"),
+        Index("idx_alert_forwarding_rules_rule_id", "rule_id"),
+        Index("idx_alert_forwarding_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertForwardingRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertWebhookConfig(Base):
+    """告警Webhook配置表"""
+
+    __tablename__ = "alert_webhook_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    webhook_id = Column(String(100), unique=True, nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    method = Column(String(10), default="POST", nullable=False)  # GET, POST, PUT, DELETE
+    headers = Column(JSON, nullable=True)  # HTTP headers
+    body_template = Column(Text, nullable=True)  # request body template
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    retry_policy = Column(JSON, nullable=True)  # retry configuration
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_webhook_configs_name", "name"),
+        Index("idx_alert_webhook_configs_webhook_id", "webhook_id"),
+        Index("idx_alert_webhook_configs_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertWebhookConfig(id={self.id}, name='{self.name}', webhook_id='{self.webhook_id}')>"
+
+
+class AlertDynamicThresholdRule(Base):
+    """动态阈值规则表"""
+
+    __tablename__ = "alert_dynamic_threshold_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    metric_name = Column(String(100), nullable=False, index=True)
+    algorithm = Column(String(50), nullable=False)  # anomaly_detection, percentile, adaptive
+    parameters = Column(JSON, nullable=False)  # algorithm parameters
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_dynamic_threshold_rules_name", "name"),
+        Index("idx_alert_dynamic_threshold_rules_rule_id", "rule_id"),
+        Index("idx_alert_dynamic_threshold_rules_metric", "metric_name"),
+        Index("idx_alert_dynamic_threshold_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertDynamicThresholdRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertDeduplicationRule(Base):
+    """告警去重规则表"""
+
+    __tablename__ = "alert_deduplication_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    dedup_fields = Column(JSON, nullable=False)  # fields used for deduplication
+    dedup_window = Column(Integer, default=300, nullable=False)  # seconds
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_deduplication_rules_name", "name"),
+        Index("idx_alert_deduplication_rules_rule_id", "rule_id"),
+        Index("idx_alert_deduplication_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertDeduplicationRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertAggregationRule(Base):
+    """告警聚合规则表"""
+
+    __tablename__ = "alert_aggregation_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    aggregation_fields = Column(JSON, nullable=False)  # fields used for aggregation
+    aggregation_window = Column(Integer, default=300, nullable=False)  # seconds
+    aggregation_function = Column(String(50), default="count", nullable=False)  # count, sum, avg
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_aggregation_rules_name", "name"),
+        Index("idx_alert_aggregation_rules_rule_id", "rule_id"),
+        Index("idx_alert_aggregation_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertAggregationRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertRoutingRule(Base):
+    """告警路由规则表"""
+
+    __tablename__ = "alert_routing_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    conditions = Column(JSON, nullable=False)  # routing conditions
+    destination = Column(String(200), nullable=False)  # routing destination
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_routing_rules_name", "name"),
+        Index("idx_alert_routing_rules_rule_id", "rule_id"),
+        Index("idx_alert_routing_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertRoutingRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertRule(Base):
+    """告警规则表"""
+
+    __tablename__ = "alert_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    metric_name = Column(String(100), nullable=False, index=True)
+    condition = Column(String(50), nullable=False)  # >, <, >=, <=, ==, !=
+    threshold = Column(Float, nullable=False)
+    severity = Column(String(20), nullable=False)  # info, warning, critical, fatal
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_rules_name", "name"),
+        Index("idx_alert_rules_rule_id", "rule_id"),
+        Index("idx_alert_rules_metric", "metric_name"),
+        Index("idx_alert_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertRule(id={self.id}, name='{self.name}', rule_id='{self.rule_id}')>"
+
+
+class AlertIntegration(Base):
+    """告警集成配置表"""
+
+    __tablename__ = "alert_integrations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    integration_type = Column(String(50), nullable=False, index=True)  # zabbix, cloudwatch, pagerduty, datadog, grafana, prometheus
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    config = Column(JSON, nullable=False)  # integration-specific configuration
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_integrations_type", "integration_type"),
+        Index("idx_alert_integrations_name", "name"),
+        Index("idx_alert_integrations_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AlertIntegration(id={self.id}, type='{self.integration_type}', name='{self.name}')>"
+
+
+class AlertAcknowledgement(Base):
+    """告警确认记录表"""
+
+    __tablename__ = "alert_acknowledgements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alert_id = Column(String(100), nullable=False, index=True)
+    acknowledged_by = Column(String(50), nullable=False)
+    acknowledged_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    comment = Column(Text, nullable=True)
+    status = Column(String(20), default="acknowledged", nullable=False)  # acknowledged, resolved
+
+    __table_args__ = (
+        Index("idx_alert_acknowledgements_alert_id", "alert_id"),
+        Index("idx_alert_acknowledgements_acknowledged_at", "acknowledged_at"),
+    )
+
+    def __repr__(self):
+        return f"<AlertAcknowledgement(id={self.id}, alert_id='{self.alert_id}', acknowledged_by='{self.acknowledged_by}')>"
+
+
+# ==================== Priority Management Models ====================
+
+
+class PriorityRule(Base):
+    """优先级规则表"""
+
+    __tablename__ = "priority_rules"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+
+    # 规则条件
+    conditions = Column(JSON, nullable=False)  # 规则条件配置
+    priority_level = Column(String(10), nullable=False)  # P0, P1, P2, P3, P4
+    weight = Column(Float, default=1.0, nullable=False)  # 权重
+
+    # 规则状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_priority_rules_name", "name"),
+        Index("idx_priority_rules_enabled", "enabled"),
+        Index("idx_priority_rules_priority_level", "priority_level"),
+    )
+
+    def __repr__(self):
+        return f"<PriorityRule(id='{self.id}', name='{self.name}', priority='{self.priority_level}')>"
+
+
+class PriorityScore(Base):
+    """优先级分数表"""
+
+    __tablename__ = "priority_scores"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 关联告警
+    alert_id = Column(String(100), nullable=False, index=True)
+
+    # 优先级分数
+    priority_level = Column(String(10), nullable=False)  # P0, P1, P2, P3, P4
+    score = Column(Float, nullable=False)  # 0-100
+    bis_score = Column(Float, nullable=True)  # 业务影响分数
+
+    # 分数详情
+    factors = Column(JSON, nullable=True)  # 各因素分数详情
+
+    # 时间戳
+    calculated_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_priority_scores_alert_id", "alert_id"),
+        Index("idx_priority_scores_priority_level", "priority_level"),
+        Index("idx_priority_scores_calculated_at", "calculated_at"),
+    )
+
+    def __repr__(self):
+        return f"<PriorityScore(id={self.id}, alert_id='{self.alert_id}', score={self.score})>"
+
+
+class PriorityHistory(Base):
+    """优先级历史表"""
+
+    __tablename__ = "priority_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 关联告警
+    alert_id = Column(String(100), nullable=False, index=True)
+
+    # 优先级变更
+    old_priority = Column(String(10), nullable=True)
+    new_priority = Column(String(10), nullable=False)
+    old_score = Column(Float, nullable=True)
+    new_score = Column(Float, nullable=False)
+
+    # 变更原因
+    change_reason = Column(String(200), nullable=True)
+    changed_by = Column(String(50), nullable=True)  # 用户名或system
+
+    # 时间戳
+    changed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_priority_history_alert_id", "alert_id"),
+        Index("idx_priority_history_changed_at", "changed_at"),
+    )
+
+    def __repr__(self):
+        return f"<PriorityHistory(id={self.id}, alert_id='{self.alert_id}', old='{self.old_priority}', new='{self.new_priority}')>"
+
+
+# ==================== Realtime Models ====================
+
+
+class RealtimeStream(Base):
+    """实时流表"""
+
+    __tablename__ = "realtime_streams"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+
+    # 流配置
+    stream_type = Column(String(50), nullable=False, index=True)  # sse, websocket, kafka
+    source = Column(String(200), nullable=True)  # 数据源
+    config = Column(JSON, nullable=False)  # 流配置
+
+    # 流状态
+    status = Column(String(20), default="active", nullable=False, index=True)  # active, paused, stopped
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_realtime_streams_name", "name"),
+        Index("idx_realtime_streams_type", "stream_type"),
+        Index("idx_realtime_streams_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<RealtimeStream(id='{self.id}', name='{self.name}', type='{self.stream_type}')>"
+
+
+class RealtimeEvent(Base):
+    """实时事件表"""
+
+    __tablename__ = "realtime_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 关联流
+    stream_id = Column(String(100), nullable=True, index=True)
+
+    # 事件数据
+    event_type = Column(String(50), nullable=False, index=True)
+    event_data = Column(JSON, nullable=False)
+
+    # 时间戳
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_realtime_events_stream_id", "stream_id"),
+        Index("idx_realtime_events_type", "event_type"),
+        Index("idx_realtime_events_timestamp", "timestamp"),
+    )
+
+    def __repr__(self):
+        return f"<RealtimeEvent(id={self.id}, stream_id='{self.stream_id}', type='{self.event_type}')>"
+
+
+class RealtimeSubscription(Base):
+    """实时订阅表"""
+
+    __tablename__ = "realtime_subscriptions"
+
+    id = Column(String(100), primary_key=True)
+
+    # 订阅配置
+    stream_id = Column(String(100), nullable=False, index=True)
+    subscriber_id = Column(String(100), nullable=False, index=True)  # 用户ID或服务ID
+    subscription_type = Column(String(50), nullable=False)  # sse, websocket
+
+    # 过滤条件
+    filters = Column(JSON, nullable=True)  # 订阅过滤条件
+
+    # 订阅状态
+    status = Column(String(20), default="active", nullable=False, index=True)  # active, paused, cancelled
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_realtime_subscriptions_stream_id", "stream_id"),
+        Index("idx_realtime_subscriptions_subscriber_id", "subscriber_id"),
+        Index("idx_realtime_subscriptions_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<RealtimeSubscription(id='{self.id}', stream_id='{self.stream_id}', subscriber='{self.subscriber_id}')>"
+
+
+class RealtimeWebhook(Base):
+    """实时Webhook表"""
+
+    __tablename__ = "realtime_webhooks"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+
+    # Webhook配置
+    url = Column(String(500), nullable=False)
+    method = Column(String(10), default="POST", nullable=False)  # GET, POST, PUT, DELETE
+    headers = Column(JSON, nullable=True)  # HTTP headers
+    body_template = Column(Text, nullable=True)  # 请求体模板
+
+    # 关联流
+    stream_id = Column(String(100), nullable=True, index=True)
+
+    # Webhook状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+
+    # 重试策略
+    retry_policy = Column(JSON, nullable=True)  # 重试配置
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_realtime_webhooks_name", "name"),
+        Index("idx_realtime_webhooks_stream_id", "stream_id"),
+        Index("idx_realtime_webhooks_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<RealtimeWebhook(id='{self.id}', name='{self.name}', url='{self.url}')>"
+
+
+# ==================== Root Cause Analysis Models ====================
+
+
+class RootCauseHypothesis(Base):
+    """根因假设表"""
+
+    __tablename__ = "root_cause_hypotheses"
+
+    id = Column(String(100), primary_key=True)
+
+    # 关联告警
+    alert_id = Column(String(100), nullable=False, index=True)
+
+    # 假设内容
+    root_cause = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+
+    # 置信度和影响
+    confidence = Column(Float, nullable=False)  # 0-1
+    impact_score = Column(Float, nullable=False)  # 0-1
+
+    # 证据和因果路径
+    evidence = Column(JSON, nullable=True)  # 证据列表
+    causal_path = Column(JSON, nullable=True)  # 因果路径
+
+    # 验证状态
+    verification_status = Column(String(20), default="pending", nullable=False, index=True)  # pending, verified, rejected
+    verification_timestamp = Column(DateTime(timezone=True), nullable=True)
+
+    # 假设状态
+    status = Column(String(20), default="active", nullable=False, index=True)  # active, archived
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_root_cause_hypotheses_alert_id", "alert_id"),
+        Index("idx_root_cause_hypotheses_verification_status", "verification_status"),
+        Index("idx_root_cause_hypotheses_status", "status"),
+        Index("idx_root_cause_hypotheses_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<RootCauseHypothesis(id='{self.id}', alert_id='{self.alert_id}', root_cause='{self.root_cause}')>"
+
+
+class RootCauseExperiment(Base):
+    """根因实验表"""
+
+    __tablename__ = "root_cause_experiments"
+
+    id = Column(String(100), primary_key=True)
+
+    # 关联假设
+    hypothesis_id = Column(String(100), nullable=False, index=True)
+
+    # 实验配置
+    experiment_type = Column(String(50), nullable=False)  # verification, mitigation
+    description = Column(Text, nullable=True)
+    parameters = Column(JSON, nullable=False)  # 实验参数
+
+    # 实验结果
+    result = Column(JSON, nullable=True)  # 实验结果
+    success = Column(Boolean, nullable=True)
+    conclusion = Column(Text, nullable=True)
+
+    # 实验状态
+    status = Column(String(20), default="pending", nullable=False, index=True)  # pending, running, completed, failed
+
+    # 时间戳
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_root_cause_experiments_hypothesis_id", "hypothesis_id"),
+        Index("idx_root_cause_experiments_status", "status"),
+        Index("idx_root_cause_experiments_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<RootCauseExperiment(id='{self.id}', hypothesis_id='{self.hypothesis_id}', status='{self.status}')>"
+
+
+class RootCauseEvidence(Base):
+    """根因证据表"""
+
+    __tablename__ = "root_cause_evidence"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 关联假设
+    hypothesis_id = Column(String(100), nullable=False, index=True)
+
+    # 证据内容
+    evidence_type = Column(String(50), nullable=False, index=True)  # metric, log, trace, topology
+    evidence_data = Column(JSON, nullable=False)
+    description = Column(Text, nullable=True)
+
+    # 证据强度
+    strength = Column(Float, nullable=False)  # 0-1
+
+    # 时间戳
+    collected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_root_cause_evidence_hypothesis_id", "hypothesis_id"),
+        Index("idx_root_cause_evidence_type", "evidence_type"),
+        Index("idx_root_cause_evidence_collected_at", "collected_at"),
+    )
+
+    def __repr__(self):
+        return f"<RootCauseEvidence(id={self.id}, hypothesis_id='{self.hypothesis_id}', type='{self.evidence_type}')>"
+
+
+class RootCauseConclusion(Base):
+    """根因结论表"""
+
+    __tablename__ = "root_cause_conclusions"
+
+    id = Column(String(100), primary_key=True)
+
+    # 关联告警
+    alert_id = Column(String(100), nullable=False, index=True)
+
+    # 结论内容
+    root_cause = Column(String(500), nullable=False)
+    summary = Column(Text, nullable=False)
+    detailed_analysis = Column(Text, nullable=True)
+
+    # 置信度
+    confidence = Column(Float, nullable=False)  # 0-1
+
+    # 关联假设
+    verified_hypothesis_id = Column(String(100), nullable=True, index=True)
+
+    # 推荐操作
+    recommended_actions = Column(JSON, nullable=True)  # 推荐操作列表
+
+    # 结论状态
+    status = Column(String(20), default="draft", nullable=False, index=True)  # draft, final, archived
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_root_cause_conclusions_alert_id", "alert_id"),
+        Index("idx_root_cause_conclusions_status", "status"),
+        Index("idx_root_cause_conclusions_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<RootCauseConclusion(id='{self.id}', alert_id='{self.alert_id}', root_cause='{self.root_cause}')>"

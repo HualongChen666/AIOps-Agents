@@ -9,8 +9,8 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from loguru import logger
 
-from services.workflow_service.metrics import WORKFLOW_RETRY_ATTEMPTS
-from services.workflow_service.schemas import RetryPolicy
+from extensions.addons.operations.workflow_service.metrics import WORKFLOW_RETRY_ATTEMPTS
+from extensions.addons.operations.workflow_service.schemas import RetryPolicy
 
 
 class RetryEngine:

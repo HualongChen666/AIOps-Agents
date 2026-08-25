@@ -1,0 +1,80 @@
+[
+  {
+    "id": "ACT-85F79C93",
+    "team_id": "TM-12345678",
+    "activity_type": "permission_revoked",
+    "actor_id": "system",
+    "actor_name": "System",
+    "description": "撤销了权限",
+    "metadata": {
+      "permission_id": "PRM-12345678"
+    },
+    "created_at": "2026-08-24T08:03:33.042476+00:00"
+  },
+  {
+    "id": "ACT-D418B612",
+    "team_id": "TM-12345678",
+    "activity_type": "permission_granted",
+    "actor_id": "system",
+    "actor_name": "System",
+    "description": "授予了权限 admin",
+    "metadata": {
+      "member_id": "MBR-12345678",
+      "resource_type": "workspace",
+      "resource_id": "WS-12345678"
+    },
+    "created_at": "2026-08-24T08:03:33.056597+00:00"
+  },
+  {
+    "id": "ACT-7D0317AC",
+    "team_id": "TM-12345678",
+    "activity_type": "permission_revoked",
+    "actor_id": "system",
+    "actor_name": "System",
+    "description": "撤销了权限",
+    "metadata": {
+      "permission_id": "PRM-12345678"
+    },
+    "created_at": "2026-08-24T08:04:04.372901+00:00"
+  },
+  {
+    "id": "ACT-D37E292F",
+    "team_id": "TM-12345678",
+    "activity_type": "permission_granted",
+    "actor_id": "system",
+    "actor_name": "System",
+    "description": "授予了权限 admin",
+    "metadata": {
+      "member_id": "MBR-12345678",
+      "resource_type": "workspace",
+      "resource_id": "WS-12345678"
+    },
+    "created_at": "2026-08-24T08:04:04.393737+00:00"
+  },
+  {
+    "id": "ACT-C01113DE",
+    "team_id": "TM-12345678",
+    "activity_type": "permission_revoked",
+    "actor_id": "system",
+    "actor_name": "System",
+    "description": "撤销了权限",
+    "metadata": {
+      "permission_id": "PRM-12345678"
+    },
+    "created_at": "2026-08-24T08:04:29.675354+00:00"
+  },
+  {
+    "id": "ACT-AD0FA834",
+    "team_id": "TM-12345678",
+    "activity_type": "permission_granted",
+    "actor_id": "system",
+    "actor_name": "System",
+    "description": "授予了权限 admin",
+    "metadata": {
+      "member_id": "MBR-12345678",
+      "resource_type": "workspace",
+      "resource_id": "WS-12345678"
+    },
+    "created_at": "2026-08-24T08:04:29.692618+00:00"
+  }
+]

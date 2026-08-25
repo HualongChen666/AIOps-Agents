@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from services.workflow_service.schemas import WorkflowStatus, WorkflowTask
+from extensions.addons.operations.workflow_service.schemas import WorkflowStatus, WorkflowTask
 
 
 class StateTransition:
