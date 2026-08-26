@@ -38,7 +38,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -883,7 +883,7 @@ async def generate_runbook(
 
 
 @router.post("/intelligent-analysis/analyze", response_model=AnalysisReportResponse)
-async def run_intelligent_analysis(req: AnalyzeRequest) -> AnalysisReportResponse:
+async def run_intelligent_analysis(req: AnalyzeRequest, db: Session = Depends(get_db)) -> AnalysisReportResponse:
     """Run intelligent analysis on data sources"""
     try:
         from core.ai_engine import analyze
@@ -915,11 +915,125 @@ async def run_intelligent_analysis(req: AnalyzeRequest) -> AnalysisReportRespons
             },
             created_at=get_timestamp(),
         )
-        _analysis_reports[report_id] = report
+        
+        # Store in database instead of memory
+        from core.models import AIAnalysisReportDB
+        new_report = AIAnalysisReportDB(
+            id=report_id,
+            analysis_type=req.type,
+            results={
+                "name": req.name,
+                "status": JobStatus.COMPLETED.value,
+                "insights": report.insights,
+                "recommendations": report.recommendations,
+                "metrics": report.metrics,
+            },
+            report_metadata={
+                "data_sources": req.data_sources,
+                "created_at": report.created_at,
+            }
+        )
+        db.add(new_report)
+        db.commit()
+        db.refresh(new_report)
+        
         return report
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+# ============================================================================
+# Analysis Reports Endpoints
+# ============================================================================
+
+
+@router.get("/analysis-reports/reports", response_model=Dict[str, List[Dict[str, Any]]])
+async def get_analysis_reports(
+    analysis_type: Optional[str] = Query(None, description="Filter by analysis type"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db)
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Get all analysis reports with optional filtering and pagination"""
+    try:
+        from core.models import AIAnalysisReportDB
+        
+        query = db.query(AIAnalysisReportDB)
+        
+        if analysis_type:
+            query = query.filter(AIAnalysisReportDB.analysis_type == analysis_type)
+        
+        query = query.order_by(AIAnalysisReportDB.created_at.desc())
+        
+        total = query.count()
+        reports = query.offset(offset).limit(limit).all()
+        
+        return {
+            "reports": [
+                {
+                    "id": report.id,
+                    "analysis_type": report.analysis_type,
+                    "results": report.results,
+                    "created_at": report.created_at.isoformat() if report.created_at else None,
+                    "report_metadata": report.report_metadata,
+                }
+                for report in reports
+            ],
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+    except Exception as e:
+        logger.error(f"Error getting analysis reports: {e}")
+        return {"reports": [], "total": 0, "limit": limit, "offset": offset}
+
+
+@router.get("/analysis-reports/reports/{report_id}", response_model=Dict[str, Any])
+async def get_analysis_report(report_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get a specific analysis report by ID"""
+    try:
+        from core.models import AIAnalysisReportDB
+        
+        report = db.query(AIAnalysisReportDB).filter(AIAnalysisReportDB.id == report_id).first()
+        
+        if not report:
+            raise HTTPException(status_code=404, detail=f"Analysis report {report_id} not found")
+        
+        return {
+            "id": report.id,
+            "analysis_type": report.analysis_type,
+            "results": report.results,
+            "created_at": report.created_at.isoformat() if report.created_at else None,
+            "report_metadata": report.report_metadata,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting analysis report: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting analysis report: {str(e)}")
+
+
+@router.delete("/analysis-reports/reports/{report_id}", response_model=Dict[str, str])
+async def delete_analysis_report(report_id: str, db: Session = Depends(get_db)) -> Dict[str, str]:
+    """Delete an analysis report by ID"""
+    try:
+        from core.models import AIAnalysisReportDB
+        
+        report = db.query(AIAnalysisReportDB).filter(AIAnalysisReportDB.id == report_id).first()
+        
+        if not report:
+            raise HTTPException(status_code=404, detail=f"Analysis report {report_id} not found")
+        
+        db.delete(report)
+        db.commit()
+        
+        return {"status": "success", "message": f"Analysis report {report_id} deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting analysis report: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting analysis report: {str(e)}")
 
 
 # ============================================================================

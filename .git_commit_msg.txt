@@ -1,26 +1,16 @@
-Fix hardcoded path bugs in test and script files
+Fix README architecture: Restore 7-layer Platform architecture and add Agent closed-loop
 
-Fixed hardcoded Windows path bugs to make code platform-independent:
+Corrected the previous change by restoring the original 7-layer Platform architecture diagram and adding the Agent closed-loop architecture as a complementary view.
 
-1. run_ai_coverage_tests.py (Bug 2):
-   - Replaced hardcoded cwd="C:\\aiops-sre-agent" with dynamic PROJECT_ROOT
-   - Added os import and PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-   - Code now works on any platform and directory structure
+Changes:
+1. Restored the complete 7-layer Platform architecture diagram (L1-L7)
+2. Restored layer responsibilities and layer integrators descriptions
+3. Added new Agent closed-loop architecture diagram showing the autonomous workflow
+4. Added Agent closed-loop workflow description explaining how the agent operates on top of the platform
+5. Maintained the updated positioning: "Enterprise-grade Autonomous SRE Agent with Platform-scale Capabilities"
 
-2. tests/core/test_heal_graph_real_branches.py (Bug 3):
-   - Replaced hardcoded sys.path.insert(0, r"C:\aiops-sre-agent") with dynamic path
-   - Added PROJECT_ROOT calculation using os.path.dirname() to go up 3 directory levels
-   - Code now works on any platform and directory structure
+The README now accurately reflects both:
+- Platform-scale architecture (7 layers, 64 microservices, 270+ endpoints)
+- Agent autonomous capabilities (closed-loop learning, decision-making, execution)
 
-Compliance with constraints:
-- ✅ No stub/mock/placeholder code
-- ✅ Real business logic based on project requirements
-- ✅ Proper error handling maintained
-- ✅ Code quality maintained
-- ✅ Platform-independent implementation
-
-Note: Bug 1 (config.py:228 REDIS_URL) was verified to be incorrect - the code uses proper REDIS_* variables, not POSTGRES variables, and contains no fake password.
-
-Generated with [Devin](https://devin.ai)
-
-Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>
+This provides a complete picture of the system: Platform architecture provides the infrastructure, while Agent architecture provides the autonomous intelligence layer.
