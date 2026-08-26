@@ -23,10 +23,19 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.cost_monitor import budget_status, collect_costs, forecast_costs
+from core.database import get_db
+from core.models import (
+    CostBudgetDB,
+    CostOptimizationDB,
+    CostAnomalyDB,
+    CostAlertDB,
+    CostReportDB,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/cost", tags=["成本管理高级功能"])
@@ -147,6 +156,287 @@ _alerts: Dict[str, Dict] = {
 
 # Reports storage
 _reports: Dict[str, Dict] = {}
+
+
+# ============================================================================
+# Database Helper Functions (with fallback to memory storage)
+# ============================================================================
+
+
+def _get_budgets(db: Optional[Session] = None) -> Dict[str, Dict]:
+    """Get budgets from database with fallback to memory."""
+    try:
+        if db:
+            db_budgets = db.query(CostBudgetDB).all()
+            return {
+                budget.id: {
+                    "id": budget.id,
+                    "name": budget.name,
+                    "service": budget.service,
+                    "amount": budget.amount,
+                    "spent": budget.spent,
+                    "remaining": budget.remaining,
+                    "period": budget.period,
+                    "status": budget.status,
+                    "alerts_enabled": budget.alerts_enabled,
+                    "created_at": budget.created_at.isoformat() if budget.created_at else None,
+                    "updated_at": budget.updated_at.isoformat() if budget.updated_at else None,
+                }
+                for budget in db_budgets
+            }
+        # Fallback to memory storage
+        return _budgets
+    except Exception as e:
+        logger.error(f"Failed to get budgets from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _budgets
+
+
+def _set_budget(budget_id: str, budget: Dict, db: Optional[Session] = None) -> None:
+    """Set budget in database with fallback to memory."""
+    try:
+        if db:
+            existing_budget = db.query(CostBudgetDB).filter(
+                CostBudgetDB.id == budget_id
+            ).first()
+            if existing_budget:
+                existing_budget.name = budget.get("name")
+                existing_budget.service = budget.get("service")
+                existing_budget.amount = budget.get("amount")
+                existing_budget.spent = budget.get("spent", 0.0)
+                existing_budget.remaining = budget.get("remaining")
+                existing_budget.period = budget.get("period")
+                existing_budget.status = budget.get("status", "on_track")
+                existing_budget.alerts_enabled = budget.get("alerts_enabled", True)
+                existing_budget.budget_metadata = budget.get("metadata")
+            else:
+                db_budget = CostBudgetDB(
+                    id=budget_id,
+                    name=budget.get("name"),
+                    service=budget.get("service"),
+                    amount=budget.get("amount"),
+                    spent=budget.get("spent", 0.0),
+                    remaining=budget.get("remaining"),
+                    period=budget.get("period"),
+                    status=budget.get("status", "on_track"),
+                    alerts_enabled=budget.get("alerts_enabled", True),
+                    budget_metadata=budget.get("metadata"),
+                )
+                db.add(db_budget)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _budgets[budget_id] = budget
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set budget in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _budgets[budget_id] = budget
+
+
+def _delete_budget(budget_id: str, db: Optional[Session] = None) -> None:
+    """Delete budget from database with fallback to memory."""
+    try:
+        if db:
+            db.query(CostBudgetDB).filter(
+                CostBudgetDB.id == budget_id
+            ).delete()
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _budgets.pop(budget_id, None)
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to delete budget from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _budgets.pop(budget_id, None)
+
+
+def _get_optimizations(db: Optional[Session] = None) -> Dict[str, Dict]:
+    """Get optimizations from database with fallback to memory."""
+    try:
+        if db:
+            db_opts = db.query(CostOptimizationDB).all()
+            return {
+                opt.id: {
+                    "id": opt.id,
+                    "service": opt.service,
+                    "optimization_type": opt.optimization_type,
+                    "potential_savings": opt.potential_savings,
+                    "implementation_effort": opt.implementation_effort,
+                    "priority": opt.priority,
+                    "status": opt.status,
+                    "created_at": opt.created_at.isoformat() if opt.created_at else None,
+                }
+                for opt in db_opts
+            }
+        # Fallback to memory storage
+        return _optimization_suggestions
+    except Exception as e:
+        logger.error(f"Failed to get optimizations from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _optimization_suggestions
+
+
+def _get_anomalies(db: Optional[Session] = None) -> List[Dict]:
+    """Get anomalies from database with fallback to memory."""
+    try:
+        if db:
+            db_anomalies = db.query(CostAnomalyDB).all()
+            return [
+                {
+                    "id": anomaly.id,
+                    "service": anomaly.service,
+                    "anomaly_type": anomaly.anomaly_type,
+                    "detected_at": anomaly.detected_at.isoformat() if anomaly.detected_at else None,
+                    "severity": anomaly.severity,
+                    "description": anomaly.description,
+                    "affected_amount": anomaly.affected_amount,
+                    "status": anomaly.status,
+                    "created_at": anomaly.created_at.isoformat() if anomaly.created_at else None,
+                }
+                for anomaly in db_anomalies
+            ]
+        # Fallback to memory storage
+        return _anomalies
+    except Exception as e:
+        logger.error(f"Failed to get anomalies from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _anomalies
+
+
+def _get_alerts(db: Optional[Session] = None) -> Dict[str, Dict]:
+    """Get alerts from database with fallback to memory."""
+    try:
+        if db:
+            db_alerts = db.query(CostAlertDB).all()
+            return {
+                alert.id: {
+                    "id": alert.id,
+                    "name": alert.name,
+                    "alert_type": alert.alert_type,
+                    "threshold": alert.threshold,
+                    "current_value": alert.current_value,
+                    "service": alert.service,
+                    "status": alert.status,
+                    "notification_channels": alert.notification_channels,
+                    "created_at": alert.created_at.isoformat() if alert.created_at else None,
+                }
+                for alert in db_alerts
+            }
+        # Fallback to memory storage
+        return _alerts
+    except Exception as e:
+        logger.error(f"Failed to get alerts from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _alerts
+
+
+def _set_alert(alert_id: str, alert: Dict, db: Optional[Session] = None) -> None:
+    """Set alert in database with fallback to memory."""
+    try:
+        if db:
+            existing_alert = db.query(CostAlertDB).filter(
+                CostAlertDB.id == alert_id
+            ).first()
+            if existing_alert:
+                existing_alert.name = alert.get("name")
+                existing_alert.alert_type = alert.get("alert_type")
+                existing_alert.threshold = alert.get("threshold")
+                existing_alert.current_value = alert.get("current_value")
+                existing_alert.service = alert.get("service")
+                existing_alert.status = alert.get("status", "active")
+                existing_alert.notification_channels = alert.get("notification_channels", [])
+                existing_alert.alert_metadata = alert.get("metadata")
+            else:
+                db_alert = CostAlertDB(
+                    id=alert_id,
+                    name=alert.get("name"),
+                    alert_type=alert.get("alert_type"),
+                    threshold=alert.get("threshold"),
+                    current_value=alert.get("current_value"),
+                    service=alert.get("service"),
+                    status=alert.get("status", "active"),
+                    notification_channels=alert.get("notification_channels", []),
+                    alert_metadata=alert.get("metadata"),
+                )
+                db.add(db_alert)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _alerts[alert_id] = alert
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set alert in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _alerts[alert_id] = alert
+
+
+def _get_reports(db: Optional[Session] = None) -> Dict[str, Dict]:
+    """Get reports from database with fallback to memory."""
+    try:
+        if db:
+            db_reports = db.query(CostReportDB).all()
+            return {
+                report.id: {
+                    "id": report.id,
+                    "name": report.name,
+                    "report_type": report.report_type,
+                    "period_start": report.period_start.isoformat() if report.period_start else None,
+                    "period_end": report.period_end.isoformat() if report.period_end else None,
+                    "total_cost": report.total_cost,
+                    "generated_at": report.generated_at.isoformat() if report.generated_at else None,
+                    "status": report.status,
+                    "report_data": report.report_data,
+                }
+                for report in db_reports
+            }
+        # Fallback to memory storage
+        return _reports
+    except Exception as e:
+        logger.error(f"Failed to get reports from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _reports
+
+
+def _set_report(report_id: str, report: Dict, db: Optional[Session] = None) -> None:
+    """Set report in database with fallback to memory."""
+    try:
+        if db:
+            existing_report = db.query(CostReportDB).filter(
+                CostReportDB.id == report_id
+            ).first()
+            if existing_report:
+                existing_report.name = report.get("name")
+                existing_report.report_type = report.get("report_type")
+                existing_report.period_start = datetime.fromisoformat(report["period_start"]) if report.get("period_start") else None
+                existing_report.period_end = datetime.fromisoformat(report["period_end"]) if report.get("period_end") else None
+                existing_report.total_cost = report.get("total_cost")
+                existing_report.status = report.get("status", "completed")
+                existing_report.report_data = report.get("report_data")
+                existing_report.report_metadata = report.get("metadata")
+            else:
+                db_report = CostReportDB(
+                    id=report_id,
+                    name=report.get("name"),
+                    report_type=report.get("report_type"),
+                    period_start=datetime.fromisoformat(report["period_start"]) if report.get("period_start") else None,
+                    period_end=datetime.fromisoformat(report["period_end"]) if report.get("period_end") else None,
+                    total_cost=report.get("total_cost"),
+                    status=report.get("status", "completed"),
+                    report_data=report.get("report_data"),
+                    report_metadata=report.get("metadata"),
+                )
+                db.add(db_report)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _reports[report_id] = report
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set report in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _reports[report_id] = report
 
 # ============================================================================
 # Pydantic Models for Request/Response Validation
@@ -479,7 +769,10 @@ async def get_optimization_suggestions() -> Dict[str, Any]:
         500: {"description": "Internal server error"},
     },
 )
-async def handle_optimization(request: OptimizationRequest) -> Dict[str, Any]:
+async def handle_optimization(
+    request: OptimizationRequest,
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Apply or dismiss a specific optimization suggestion.
     """
@@ -487,10 +780,11 @@ async def handle_optimization(request: OptimizationRequest) -> Dict[str, Any]:
         if not request.resource_id:
             raise HTTPException(status_code=400, detail="resource_id is required")
 
-        if request.resource_id not in _optimization_suggestions:
+        optimizations = _get_optimizations(db_core)
+        if request.resource_id not in optimizations:
             raise HTTPException(status_code=404, detail="Optimization suggestion not found")
 
-        suggestion = _optimization_suggestions[request.resource_id]
+        suggestion = optimizations[request.resource_id]
 
         if request.action == "apply":
             suggestion["status"] = "applied"
@@ -526,12 +820,15 @@ async def handle_optimization(request: OptimizationRequest) -> Dict[str, Any]:
         500: {"description": "Internal server error"},
     },
 )
-async def get_budgets() -> Dict[str, Any]:
+async def get_budgets(
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Get all budgets with their current status.
     """
     try:
-        budgets = list(_budgets.values())
+        budgets_dict = _get_budgets(db_core)
+        budgets = list(budgets_dict.values())
 
         # Calculate summary
         total_budget = sum(b.get("amount", 0) for b in budgets)
@@ -574,7 +871,10 @@ async def get_budgets() -> Dict[str, Any]:
         500: {"description": "Internal server error"},
     },
 )
-async def create_budget(budget: BudgetCreate) -> Dict[str, Any]:
+async def create_budget(
+    budget: BudgetCreate,
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Create a new budget.
     """
@@ -595,7 +895,7 @@ async def create_budget(budget: BudgetCreate) -> Dict[str, Any]:
             "updated_at": datetime.now().isoformat(),
         }
 
-        _budgets[budget_id] = new_budget
+        _set_budget(budget_id, new_budget, db_core)
 
         return {
             "success": True,
@@ -617,15 +917,20 @@ async def create_budget(budget: BudgetCreate) -> Dict[str, Any]:
         500: {"description": "Internal server error"},
     },
 )
-async def update_budget(budget_id: str, budget: BudgetUpdate) -> Dict[str, Any]:
+async def update_budget(
+    budget_id: str,
+    budget: BudgetUpdate,
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Update an existing budget.
     """
     try:
-        if budget_id not in _budgets:
+        budgets = _get_budgets(db_core)
+        if budget_id not in budgets:
             raise HTTPException(status_code=404, detail="Budget not found")
 
-        existing_budget = _budgets[budget_id]
+        existing_budget = budgets[budget_id]
 
         # Update fields if provided
         if budget.name is not None:
@@ -649,6 +954,9 @@ async def update_budget(budget_id: str, budget: BudgetUpdate) -> Dict[str, Any]:
 
         existing_budget["updated_at"] = datetime.now().isoformat()
 
+        # Save to database with fallback
+        _set_budget(budget_id, existing_budget, db_core)
+
         return {
             "success": True,
             "message": "Budget updated successfully",
@@ -671,15 +979,20 @@ async def update_budget(budget_id: str, budget: BudgetUpdate) -> Dict[str, Any]:
         500: {"description": "Internal server error"},
     },
 )
-async def delete_budget(budget_id: str) -> Dict[str, Any]:
+async def delete_budget(
+    budget_id: str,
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Delete a budget.
     """
     try:
-        if budget_id not in _budgets:
+        budgets = _get_budgets(db_core)
+        if budget_id not in budgets:
             raise HTTPException(status_code=404, detail="Budget not found")
 
-        deleted_budget = _budgets.pop(budget_id)
+        deleted_budget = budgets.pop(budget_id)
+        _delete_budget(budget_id, db_core)
 
         return {
             "success": True,
@@ -765,12 +1078,15 @@ async def get_forecasts(
         500: {"description": "Internal server error"},
     },
 )
-async def get_reports() -> Dict[str, Any]:
+async def get_reports(
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Get list of available cost reports.
     """
     try:
-        reports = list(_reports.values())
+        reports_dict = _get_reports(db_core)
+        reports = list(reports_dict.values())
 
         return {
             "reports": reports,
@@ -791,7 +1107,10 @@ async def get_reports() -> Dict[str, Any]:
         500: {"description": "Internal server error"},
     },
 )
-async def generate_report(request: ReportRequest) -> Dict[str, Any]:
+async def generate_report(
+    request: ReportRequest,
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Generate a cost report for the specified period.
     """
@@ -862,7 +1181,7 @@ async def generate_report(request: ReportRequest) -> Dict[str, Any]:
             }
 
         # Store report
-        _reports[report_id] = report
+        _set_report(report_id, report, db_core)
 
         return {
             "success": True,
@@ -1003,7 +1322,10 @@ async def get_alerts(
         500: {"description": "Internal server error"},
     },
 )
-async def create_alert(alert: AlertCreate) -> Dict[str, Any]:
+async def create_alert(
+    alert: AlertCreate,
+    db_core: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Create a new cost alert.
     """
@@ -1023,7 +1345,7 @@ async def create_alert(alert: AlertCreate) -> Dict[str, Any]:
             "updated_at": datetime.now().isoformat(),
         }
 
-        _alerts[alert_id] = new_alert
+        _set_alert(alert_id, new_alert, db_core)
 
         return {
             "success": True,

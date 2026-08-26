@@ -2046,3 +2046,134 @@ class RightsizingRecommendationDB(Base):
 
     def __repr__(self):
         return f"<RightsizingRecommendationDB(id={self.id}, service='{self.service}', type='{self.resource_type}')>"
+
+
+# ==================== Cost Management Models ====================
+
+
+class CostBudgetDB(Base):
+    """成本预算表"""
+
+    __tablename__ = "cost_budgets"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    spent = Column(Float, nullable=False, default=0.0)
+    remaining = Column(Float, nullable=False)
+    period = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, default="on_track", index=True)
+    alerts_enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    budget_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_cost_budgets_service", "service"),
+        Index("idx_cost_budgets_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CostBudgetDB(id={self.id}, name='{self.name}', service='{self.service}')>"
+
+
+class CostOptimizationDB(Base):
+    """成本优化建议表"""
+
+    __tablename__ = "cost_optimizations"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    optimization_type = Column(String(50), nullable=False)
+    potential_savings = Column(Float, nullable=False)
+    implementation_effort = Column(String(50), nullable=False)
+    priority = Column(String(50), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    opt_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_cost_optimizations_service", "service"),
+        Index("idx_cost_optimizations_priority", "priority"),
+        Index("idx_cost_optimizations_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CostOptimizationDB(id={self.id}, service='{self.service}', type='{self.optimization_type}')>"
+
+
+class CostAnomalyDB(Base):
+    """成本异常表"""
+
+    __tablename__ = "cost_anomalies"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    anomaly_type = Column(String(50), nullable=False)
+    detected_at = Column(DateTime(timezone=True), nullable=False)
+    severity = Column(String(50), nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    affected_amount = Column(Float, nullable=False)
+    status = Column(String(50), nullable=False, default="open", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    anomaly_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_cost_anomalies_service", "service"),
+        Index("idx_cost_anomalies_severity", "severity"),
+        Index("idx_cost_anomalies_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CostAnomalyDB(id={self.id}, service='{self.service}', type='{self.anomaly_type}')>"
+
+
+class CostAlertDB(Base):
+    """成本告警表"""
+
+    __tablename__ = "cost_alerts"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    alert_type = Column(String(50), nullable=False)
+    threshold = Column(Float, nullable=False)
+    current_value = Column(Float, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    notification_channels = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    alert_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_cost_alerts_service", "service"),
+        Index("idx_cost_alerts_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CostAlertDB(id={self.id}, name='{self.name}', service='{self.service}')>"
+
+
+class CostReportDB(Base):
+    """成本报告表"""
+
+    __tablename__ = "cost_reports"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    report_type = Column(String(50), nullable=False)
+    period_start = Column(DateTime(timezone=True), nullable=False)
+    period_end = Column(DateTime(timezone=True), nullable=False)
+    total_cost = Column(Float, nullable=False)
+    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+    status = Column(String(50), nullable=False, default="completed", index=True)
+    report_data = Column(JSON, nullable=False)
+    report_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_cost_reports_type", "report_type"),
+        Index("idx_cost_reports_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CostReportDB(id={self.id}, name='{self.name}', type='{self.report_type}')>"
