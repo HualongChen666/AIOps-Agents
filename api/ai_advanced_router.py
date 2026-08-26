@@ -38,8 +38,31 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from core.database import get_db
+from core.models import (
+    AIFineTuningJobDB,
+    AIRunbookDB,
+    AIAnalysisReportDB,
+    AIDSLDefinitionDB,
+    AIExecutionDB,
+    AIWorkflowDB,
+    AIDeepLearningModelDB,
+    AIAdvancedFeatureDB,
+    AIFeedbackDB,
+    AIDocumentIndexDB,
+    AIPatternDB,
+    AITopologyAnalysisDB,
+    AIRootCauseAnalysisDB,
+    AIGraphNodeDB,
+    AIKnowledgeBaseDB,
+    AILoadBalancerConfigDB,
+    AICostSuggestionDB,
+    AIRoutingRuleDB,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai", tags=["AI高级分析"])
@@ -473,7 +496,7 @@ class RoutingRuleResponse(BaseModel):
 
 
 # ============================================================================
-# In-Memory Data Storage (for demo purposes)
+# In-Memory Data Storage (fallback)
 # ============================================================================
 
 _fine_tuning_jobs: Dict[str, FineTuningJobResponse] = {}
@@ -496,6 +519,231 @@ _load_balancer_configs: Dict[str, LoadBalancerConfigResponse] = {}
 _cost_suggestions: Dict[str, CostSuggestionResponse] = {}
 _routing_rules: Dict[str, RoutingRuleResponse] = {}
 
+
+# ============================================================================
+# Database Helper Functions (with fallback to memory storage)
+# ============================================================================
+
+
+def _get_fine_tuning_jobs(db: Optional[Session] = None) -> Dict[str, FineTuningJobResponse]:
+    """Get fine tuning jobs from database with fallback to memory."""
+    try:
+        if db:
+            db_jobs = db.query(AIFineTuningJobDB).all()
+            return {
+                job.id: FineTuningJobResponse(
+                    id=job.id,
+                    model_name=job.model_name,
+                    dataset=job.dataset,
+                    status=job.status,
+                    progress=job.progress,
+                    created_at=job.created_at,
+                )
+                for job in db_jobs
+            }
+        # Fallback to memory storage
+        return _fine_tuning_jobs
+    except Exception as e:
+        logger.error(f"Failed to get fine tuning jobs from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _fine_tuning_jobs
+
+
+def _set_fine_tuning_job(job: FineTuningJobResponse, db: Optional[Session] = None) -> None:
+    """Set fine tuning job in database with fallback to memory."""
+    try:
+        if db:
+            existing_job = db.query(AIFineTuningJobDB).filter(
+                AIFineTuningJobDB.id == job.id
+            ).first()
+            if existing_job:
+                existing_job.model_name = job.model_name
+                existing_job.dataset = job.dataset
+                existing_job.status = job.status
+                existing_job.progress = job.progress
+                existing_job.job_metadata = None
+            else:
+                db_job = AIFineTuningJobDB(
+                    id=job.id,
+                    model_name=job.model_name,
+                    dataset=job.dataset,
+                    status=job.status,
+                    progress=job.progress,
+                    job_metadata=None,
+                )
+                db.add(db_job)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _fine_tuning_jobs[job.id] = job
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set fine tuning job in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _fine_tuning_jobs[job.id] = job
+
+
+def _get_runbooks(db: Optional[Session] = None) -> Dict[str, RunbookResponse]:
+    """Get runbooks from database with fallback to memory."""
+    try:
+        if db:
+            db_runbooks = db.query(AIRunbookDB).all()
+            return {
+                runbook.id: RunbookResponse(
+                    id=runbook.id,
+                    title=runbook.title,
+                    description=runbook.description,
+                    steps=runbook.steps,
+                    created_at=runbook.created_at,
+                )
+                for runbook in db_runbooks
+            }
+        # Fallback to memory storage
+        return _runbooks
+    except Exception as e:
+        logger.error(f"Failed to get runbooks from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _runbooks
+
+
+def _set_runbook(runbook: RunbookResponse, db: Optional[Session] = None) -> None:
+    """Set runbook in database with fallback to memory."""
+    try:
+        if db:
+            existing_runbook = db.query(AIRunbookDB).filter(
+                AIRunbookDB.id == runbook.id
+            ).first()
+            if existing_runbook:
+                existing_runbook.title = runbook.title
+                existing_runbook.description = runbook.description
+                existing_runbook.steps = runbook.steps
+                existing_runbook.runbook_metadata = None
+            else:
+                db_runbook = AIRunbookDB(
+                    id=runbook.id,
+                    title=runbook.title,
+                    description=runbook.description,
+                    steps=runbook.steps,
+                    runbook_metadata=None,
+                )
+                db.add(db_runbook)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _runbooks[runbook.id] = runbook
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set runbook in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _runbooks[runbook.id] = runbook
+
+
+def _get_analysis_reports(db: Optional[Session] = None) -> Dict[str, AnalysisReportResponse]:
+    """Get analysis reports from database with fallback to memory."""
+    try:
+        if db:
+            db_reports = db.query(AIAnalysisReportDB).all()
+            return {
+                report.id: AnalysisReportResponse(
+                    id=report.id,
+                    analysis_type=report.analysis_type,
+                    results=report.results,
+                    created_at=report.created_at,
+                )
+                for report in db_reports
+            }
+        # Fallback to memory storage
+        return _analysis_reports
+    except Exception as e:
+        logger.error(f"Failed to get analysis reports from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _analysis_reports
+
+
+def _set_analysis_report(report: AnalysisReportResponse, db: Optional[Session] = None) -> None:
+    """Set analysis report in database with fallback to memory."""
+    try:
+        if db:
+            existing_report = db.query(AIAnalysisReportDB).filter(
+                AIAnalysisReportDB.id == report.id
+            ).first()
+            if existing_report:
+                existing_report.analysis_type = report.analysis_type
+                existing_report.results = report.results
+                existing_report.report_metadata = None
+            else:
+                db_report = AIAnalysisReportDB(
+                    id=report.id,
+                    analysis_type=report.analysis_type,
+                    results=report.results,
+                    report_metadata=None,
+                )
+                db.add(db_report)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _analysis_reports[report.id] = report
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set analysis report in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _analysis_reports[report.id] = report
+
+
+def _get_knowledge_bases(db: Optional[Session] = None) -> Dict[str, KnowledgeBaseResponse]:
+    """Get knowledge bases from database with fallback to memory."""
+    try:
+        if db:
+            db_kbs = db.query(AIKnowledgeBaseDB).all()
+            return {
+                kb.id: KnowledgeBaseResponse(
+                    id=kb.id,
+                    kb_name=kb.kb_name,
+                    kb_type=kb.kb_type,
+                    document_count=kb.document_count,
+                    created_at=kb.created_at,
+                )
+                for kb in db_kbs
+            }
+        # Fallback to memory storage
+        return _knowledge_bases
+    except Exception as e:
+        logger.error(f"Failed to get knowledge bases from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _knowledge_bases
+
+
+def _set_knowledge_base(kb: KnowledgeBaseResponse, db: Optional[Session] = None) -> None:
+    """Set knowledge base in database with fallback to memory."""
+    try:
+        if db:
+            existing_kb = db.query(AIKnowledgeBaseDB).filter(
+                AIKnowledgeBaseDB.id == kb.id
+            ).first()
+            if existing_kb:
+                existing_kb.kb_name = kb.kb_name
+                existing_kb.kb_type = kb.kb_type
+                existing_kb.document_count = kb.document_count
+                existing_kb.kb_metadata = None
+            else:
+                db_kb = AIKnowledgeBaseDB(
+                    id=kb.id,
+                    kb_name=kb.kb_name,
+                    kb_type=kb.kb_type,
+                    document_count=kb.document_count,
+                    kb_metadata=None,
+                )
+                db.add(db_kb)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _knowledge_bases[kb.id] = kb
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set knowledge base in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _knowledge_bases[kb.id] = kb
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -509,12 +757,13 @@ def get_timestamp() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
-async def simulate_training(job_id: str, total_epochs: int) -> None:
+async def simulate_training(job_id: str, total_epochs: int, db_core: Optional[Session] = None) -> None:
     """Simulate training progress for fine-tuning jobs"""
     for epoch in range(total_epochs + 1):
-        if job_id not in _fine_tuning_jobs:
+        jobs = _get_fine_tuning_jobs(db_core)
+        if job_id not in jobs:
             break
-        job = _fine_tuning_jobs[job_id]
+        job = jobs[job_id]
         job.epoch = epoch
         job.progress = (epoch / total_epochs) * 100
         job.loss = 2.0 * (1 - epoch / total_epochs) + 0.1
@@ -523,6 +772,7 @@ async def simulate_training(job_id: str, total_epochs: int) -> None:
             job.completed_at = get_timestamp()
         else:
             job.status = JobStatus.RUNNING
+        _set_fine_tuning_job(job, db_core)
         await asyncio.sleep(0.5)
 
 
@@ -532,13 +782,19 @@ async def simulate_training(job_id: str, total_epochs: int) -> None:
 
 
 @router.get("/model-fine-tuning/jobs", response_model=Dict[str, List[FineTuningJobResponse]])
-async def get_fine_tuning_jobs() -> Dict[str, List[FineTuningJobResponse]]:
+async def get_fine_tuning_jobs(
+    db_core: Session = Depends(get_db),
+) -> Dict[str, List[FineTuningJobResponse]]:
     """Get all fine-tuning jobs"""
-    return {"jobs": list(_fine_tuning_jobs.values())}
+    jobs_dict = _get_fine_tuning_jobs(db_core)
+    return {"jobs": list(jobs_dict.values())}
 
 
 @router.post("/model-fine-tuning/jobs", response_model=FineTuningJobResponse)
-async def create_fine_tuning_job(job: FineTuningJobCreate) -> FineTuningJobResponse:
+async def create_fine_tuning_job(
+    job: FineTuningJobCreate,
+    db_core: Session = Depends(get_db),
+) -> FineTuningJobResponse:
     """Create a new fine-tuning job"""
     job_id = generate_id()
     job_response = FineTuningJobResponse(
@@ -553,10 +809,10 @@ async def create_fine_tuning_job(job: FineTuningJobCreate) -> FineTuningJobRespo
         learning_rate=job.learning_rate,
         created_at=get_timestamp(),
     )
-    _fine_tuning_jobs[job_id] = job_response
+    _set_fine_tuning_job(job_response, db_core)
 
     # Start training simulation
-    asyncio.create_task(simulate_training(job_id, job.epochs))
+    asyncio.create_task(simulate_training(job_id, job.epochs, db_core))
 
     return job_response
 
@@ -573,7 +829,10 @@ async def get_fine_tuned_models() -> Dict[str, List[FineTunedModelResponse]]:
 
 
 @router.post("/runbook-generator/generate", response_model=RunbookResponse)
-async def generate_runbook(req: RunbookGenerateRequest) -> RunbookResponse:
+async def generate_runbook(
+    req: RunbookGenerateRequest,
+    db_core: Session = Depends(get_db),
+) -> RunbookResponse:
     """Generate a runbook for an incident type"""
     try:
         # Try to use actual AI engine if available
@@ -611,7 +870,7 @@ async def generate_runbook(req: RunbookGenerateRequest) -> RunbookResponse:
             created_at=get_timestamp(),
             updated_at=get_timestamp(),
         )
-        _runbooks[runbook_id] = runbook
+        _set_runbook(runbook, db_core)
         return runbook
     except Exception as e:
         logger.warning(f"AI engine not available, using fallback: {e}")
@@ -635,7 +894,7 @@ async def generate_runbook(req: RunbookGenerateRequest) -> RunbookResponse:
             created_at=get_timestamp(),
             updated_at=get_timestamp(),
         )
-        _runbooks[runbook_id] = runbook
+        _set_runbook(runbook, db_core)
         return runbook
 
 
@@ -1440,7 +1699,10 @@ async def get_knowledge_bases() -> Dict[str, List[KnowledgeBaseResponse]]:
 
 
 @router.post("/rag-knowledge-base/bases", response_model=KnowledgeBaseResponse)
-async def create_knowledge_base(req: KnowledgeBaseCreate) -> KnowledgeBaseResponse:
+async def create_knowledge_base(
+    req: KnowledgeBaseCreate,
+    db_core: Session = Depends(get_db),
+) -> KnowledgeBaseResponse:
     """Create a new knowledge base"""
     try:
         from core.ai.rag.knowledge_base import create_knowledge_base
@@ -1457,7 +1719,7 @@ async def create_knowledge_base(req: KnowledgeBaseCreate) -> KnowledgeBaseRespon
             updated_at=get_timestamp(),
             status="active",
         )
-        _knowledge_bases[kb_id] = kb
+        _set_knowledge_base(kb, db_core)
         return kb
     except Exception as e:
         logger.warning(f"Knowledge base engine not available, using simulation: {e}")
@@ -1472,14 +1734,18 @@ async def create_knowledge_base(req: KnowledgeBaseCreate) -> KnowledgeBaseRespon
             updated_at=get_timestamp(),
             status="active",
         )
-        _knowledge_bases[kb_id] = kb
+        _set_knowledge_base(kb, db_core)
         return kb
 
 
 @router.delete("/rag-knowledge-base/bases/{kb_id}")
-async def delete_knowledge_base(kb_id: str) -> Dict[str, str]:
+async def delete_knowledge_base(
+    kb_id: str,
+    db_core: Session = Depends(get_db),
+) -> Dict[str, str]:
     """Delete a knowledge base"""
-    if kb_id not in _knowledge_bases:
+    knowledge_bases = _get_knowledge_bases(db_core)
+    if kb_id not in knowledge_bases:
         raise HTTPException(status_code=404, detail="Knowledge base not found")
 
     try:
@@ -1489,7 +1755,18 @@ async def delete_knowledge_base(kb_id: str) -> Dict[str, str]:
     except Exception as e:
         logger.warning(f"Knowledge base deletion failed in engine: {e}")
 
-    del _knowledge_bases[kb_id]
+    del knowledge_bases[kb_id]
+    # Update database
+    try:
+        if db_core:
+            db_core.query(AIKnowledgeBaseDB).filter(
+                AIKnowledgeBaseDB.id == kb_id
+            ).delete()
+            db_core.commit()
+    except Exception as e:
+        db_core.rollback() if db_core else None
+        logger.warning(f"Failed to delete knowledge base from database: {e}")
+    
     return {"message": "Knowledge base deleted successfully"}
 
 

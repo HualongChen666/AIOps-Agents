@@ -2249,3 +2249,356 @@ class ChangeRollbackPlanDB(Base):
 
     def __repr__(self):
         return f"<ChangeRollbackPlanDB(id={self.id}, request_id='{self.request_id}', status='{self.status}')>"
+
+
+# ==================== AI Advanced Models ====================
+
+
+class AIFineTuningJobDB(Base):
+    """AI微调任务表"""
+
+    __tablename__ = "ai_fine_tuning_jobs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    model_name = Column(String(255), nullable=False)
+    dataset = Column(String(255), nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    progress = Column(Float, nullable=False, default=0.0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    job_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_fine_tuning_jobs_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIFineTuningJobDB(id={self.id}, model='{self.model_name}', status='{self.status}')>"
+
+
+class AIRunbookDB(Base):
+    """AI运行手册表"""
+
+    __tablename__ = "ai_runbooks"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    steps = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    runbook_metadata = Column(JSON, nullable=True)
+
+    def __repr__(self):
+        return f"<AIRunbookDB(id={self.id}, title='{self.title}')>"
+
+
+class AIAnalysisReportDB(Base):
+    """AI分析报告表"""
+
+    __tablename__ = "ai_analysis_reports"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    analysis_type = Column(String(50), nullable=False)
+    results = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    report_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_analysis_reports_type", "analysis_type"),
+    )
+
+    def __repr__(self):
+        return f"<AIAnalysisReportDB(id={self.id}, type='{self.analysis_type}')>"
+
+
+class AIDSLDefinitionDB(Base):
+    """AI DSL定义表"""
+
+    __tablename__ = "ai_dsl_definitions"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    definition = Column(JSON, nullable=False)
+    version = Column(String(50), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    dsl_metadata = Column(JSON, nullable=True)
+
+    def __repr__(self):
+        return f"<AIDSLDefinitionDB(id={self.id}, name='{self.name}', version='{self.version}')>"
+
+
+class AIExecutionDB(Base):
+    """AI执行记录表"""
+
+    __tablename__ = "ai_executions"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    dsl_id = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, default="running", index=True)
+    results = Column(JSON, nullable=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    execution_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_executions_dsl_id", "dsl_id"),
+        Index("idx_ai_executions_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIExecutionDB(id={self.id}, dsl_id='{self.dsl_id}', status='{self.status}')>"
+
+
+class AIWorkflowDB(Base):
+    """AI工作流表"""
+
+    __tablename__ = "ai_workflows"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    nodes = Column(JSON, nullable=False)
+    edges = Column(JSON, nullable=False)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    workflow_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_workflows_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIWorkflowDB(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+
+class AIDeepLearningModelDB(Base):
+    """AI深度学习模型表"""
+
+    __tablename__ = "ai_deep_learning_models"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    model_name = Column(String(255), nullable=False)
+    architecture = Column(String(50), nullable=False)
+    performance_metrics = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    model_metadata = Column(JSON, nullable=True)
+
+    def __repr__(self):
+        return f"<AIDeepLearningModelDB(id={self.id}, name='{self.model_name}', arch='{self.architecture}')>"
+
+
+class AIAdvancedFeatureDB(Base):
+    """AI高级功能表"""
+
+    __tablename__ = "ai_advanced_features"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    feature_name = Column(String(255), nullable=False)
+    feature_type = Column(String(50), nullable=False)
+    configuration = Column(JSON, nullable=False)
+    status = Column(String(50), nullable=False, default="enabled", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    feature_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_advanced_features_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIAdvancedFeatureDB(id={self.id}, name='{self.feature_name}', type='{self.feature_type}')>"
+
+
+class AIFeedbackDB(Base):
+    """AI反馈表"""
+
+    __tablename__ = "ai_feedbacks"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    feedback_type = Column(String(50), nullable=False)
+    content = Column(Text, nullable=False)
+    rating = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    feedback_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_feedbacks_type", "feedback_type"),
+    )
+
+    def __repr__(self):
+        return f"<AIFeedbackDB(id={self.id}, type='{self.feedback_type}', rating={self.rating})>"
+
+
+class AIDocumentIndexDB(Base):
+    """AI文档索引表"""
+
+    __tablename__ = "ai_document_indexes"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    index_name = Column(String(255), nullable=False)
+    document_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    index_metadata = Column(JSON, nullable=True)
+
+    def __repr__(self):
+        return f"<AIDocumentIndexDB(id={self.id}, name='{self.index_name}', count={self.document_count})>"
+
+
+class AIPatternDB(Base):
+    """AI模式表"""
+
+    __tablename__ = "ai_patterns"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    pattern_name = Column(String(255), nullable=False)
+    pattern_type = Column(String(50), nullable=False)
+    pattern_data = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    pattern_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_patterns_type", "pattern_type"),
+    )
+
+    def __repr__(self):
+        return f"<AIPatternDB(id={self.id}, name='{self.pattern_name}', type='{self.pattern_type}')>"
+
+
+class AITopologyAnalysisDB(Base):
+    """AI拓扑分析表"""
+
+    __tablename__ = "ai_topology_analyses"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    analysis_type = Column(String(50), nullable=False)
+    results = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    topology_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_topology_analyses_type", "analysis_type"),
+    )
+
+    def __repr__(self):
+        return f"<AITopologyAnalysisDB(id={self.id}, type='{self.analysis_type}')>"
+
+
+class AIRootCauseAnalysisDB(Base):
+    """AI根因分析表"""
+
+    __tablename__ = "ai_root_cause_analyses"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    incident_id = Column(String(50), nullable=False)
+    root_cause = Column(Text, nullable=False)
+    contributing_factors = Column(JSON, nullable=False)
+    recommended_actions = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    rca_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_root_cause_analyses_incident", "incident_id"),
+    )
+
+    def __repr__(self):
+        return f"<AIRootCauseAnalysisDB(id={self.id}, incident='{self.incident_id}')>"
+
+
+class AIGraphNodeDB(Base):
+    """AI图节点表"""
+
+    __tablename__ = "ai_graph_nodes"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    node_type = Column(String(50), nullable=False)
+    node_data = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    node_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_graph_nodes_type", "node_type"),
+    )
+
+    def __repr__(self):
+        return f"<AIGraphNodeDB(id={self.id}, type='{self.node_type}')>"
+
+
+class AIKnowledgeBaseDB(Base):
+    """AI知识库表"""
+
+    __tablename__ = "ai_knowledge_bases"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    kb_name = Column(String(255), nullable=False)
+    kb_type = Column(String(50), nullable=False)
+    document_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    kb_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_knowledge_bases_type", "kb_type"),
+    )
+
+    def __repr__(self):
+        return f"<AIKnowledgeBaseDB(id={self.id}, name='{self.kb_name}', type='{self.kb_type}')>"
+
+
+class AILoadBalancerConfigDB(Base):
+    """AI负载均衡配置表"""
+
+    __tablename__ = "ai_load_balancer_configs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    config_name = Column(String(255), nullable=False)
+    strategy = Column(String(50), nullable=False)
+    targets = Column(JSON, nullable=False)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    config_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_load_balancer_configs_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AILoadBalancerConfigDB(id={self.id}, name='{self.config_name}', strategy='{self.strategy}')>"
+
+
+class AICostSuggestionDB(Base):
+    """AI成本建议表"""
+
+    __tablename__ = "ai_cost_suggestions"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    suggestion_type = Column(String(50), nullable=False)
+    potential_savings = Column(Float, nullable=False)
+    details = Column(JSON, nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    cost_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_cost_suggestions_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AICostSuggestionDB(id={self.id}, type='{self.suggestion_type}', savings={self.potential_savings})>"
+
+
+class AIRoutingRuleDB(Base):
+    """AI路由规则表"""
+
+    __tablename__ = "ai_routing_rules"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    rule_name = Column(String(255), nullable=False)
+    condition = Column(JSON, nullable=False)
+    action = Column(JSON, nullable=False)
+    priority = Column(Integer, nullable=False)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    rule_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_routing_rules_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIRoutingRuleDB(id={self.id}, name='{self.rule_name}', priority={self.priority})>"
