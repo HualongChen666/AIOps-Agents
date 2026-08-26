@@ -2177,3 +2177,75 @@ class CostReportDB(Base):
 
     def __repr__(self):
         return f"<CostReportDB(id={self.id}, name='{self.name}', type='{self.report_type}')>"
+
+
+# ==================== Change Management Models ====================
+
+
+class ChangeApprovalDB(Base):
+    """变更审批表"""
+
+    __tablename__ = "change_approvals"
+
+    id = Column(String(20), primary_key=True, nullable=False)
+    request_id = Column(String(50), nullable=False, index=True)
+    approver = Column(String(255), nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    comments = Column(Text, nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approval_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_change_approvals_request_id", "request_id"),
+        Index("idx_change_approvals_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ChangeApprovalDB(id={self.id}, request_id='{self.request_id}', approver='{self.approver}')>"
+
+
+class ChangeScheduleDB(Base):
+    """变更调度表"""
+
+    __tablename__ = "change_schedules"
+
+    id = Column(String(20), primary_key=True, nullable=False)
+    request_id = Column(String(50), nullable=False, index=True)
+    scheduled_start = Column(DateTime(timezone=True), nullable=False)
+    scheduled_end = Column(DateTime(timezone=True), nullable=False)
+    maintenance_window = Column(String(50), nullable=False)
+    timezone = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, default="scheduled", index=True)
+    schedule_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_change_schedules_request_id", "request_id"),
+        Index("idx_change_schedules_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ChangeScheduleDB(id={self.id}, request_id='{self.request_id}', status='{self.status}')>"
+
+
+class ChangeRollbackPlanDB(Base):
+    """变更回滚计划表"""
+
+    __tablename__ = "change_rollback_plans"
+
+    id = Column(String(20), primary_key=True, nullable=False)
+    request_id = Column(String(50), nullable=False, index=True)
+    rollback_steps = Column(JSON, nullable=False)
+    data_consistency_checks = Column(JSON, nullable=False)
+    rollback_triggers = Column(JSON, nullable=False)
+    validation_after_rollback = Column(JSON, nullable=False)
+    estimated_rollback_time = Column(Integer, nullable=False)
+    status = Column(String(50), nullable=False, default="ready", index=True)
+    rollback_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_change_rollback_plans_request_id", "request_id"),
+        Index("idx_change_rollback_plans_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ChangeRollbackPlanDB(id={self.id}, request_id='{self.request_id}', status='{self.status}')>"
