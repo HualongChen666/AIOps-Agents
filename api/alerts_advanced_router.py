@@ -938,39 +938,101 @@ async def get_forwarding_rules() -> Dict[str, Any]:
 
 
 @router.post("/forwarding/rules", summary="创建转发规则")
-async def create_forwarding_rule(rule: ForwardingRule) -> Dict[str, Any]:
+async def create_forwarding_rule(rule: ForwardingRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的转发规则"""
-    rule_id = generate_id()
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = get_timestamp()
-    rule_data["updated_at"] = get_timestamp()
-    _forwarding_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+    try:
+        rule_id = generate_id()
+        new_rule = AlertForwardingRule(
+            name=rule.name,
+            rule_id=rule_id,
+            target_config=rule.target_config,
+            filter_conditions=rule.filter_conditions,
+            enabled=True,
+            priority=rule.priority if hasattr(rule, 'priority') else 0,
+            description=rule.description if hasattr(rule, 'description') else None,
+        )
+        db.add(new_rule)
+        db.commit()
+        db.refresh(new_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(new_rule.id),
+                "name": new_rule.name,
+                "rule_id": new_rule.rule_id,
+                "target_config": new_rule.target_config,
+                "filter_conditions": new_rule.filter_conditions,
+                "enabled": new_rule.enabled,
+                "priority": new_rule.priority,
+                "description": new_rule.description,
+                "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
+                "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating forwarding rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/forwarding/rules/{rule_id}", summary="更新转发规则")
-async def update_forwarding_rule(rule_id: str, rule: ForwardingRule) -> Dict[str, Any]:
+async def update_forwarding_rule(rule_id: str, rule: ForwardingRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新转发规则"""
-    if rule_id not in _forwarding_rules:
-        raise HTTPException(status_code=404, detail="转发规则不存在")
+    try:
+        existing_rule = db.query(AlertForwardingRule).filter(AlertForwardingRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="转发规则不存在")
 
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = _forwarding_rules[rule_id]["created_at"]
-    rule_data["updated_at"] = get_timestamp()
-    _forwarding_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+        existing_rule.name = rule.name
+        existing_rule.target_config = rule.target_config
+        existing_rule.filter_conditions = rule.filter_conditions
+        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.priority = rule.priority if hasattr(rule, 'priority') else 0
+        existing_rule.description = rule.description if hasattr(rule, 'description') else None
+        existing_rule.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(existing_rule.id),
+                "name": existing_rule.name,
+                "rule_id": existing_rule.rule_id,
+                "target_config": existing_rule.target_config,
+                "filter_conditions": existing_rule.filter_conditions,
+                "enabled": existing_rule.enabled,
+                "priority": existing_rule.priority,
+                "description": existing_rule.description,
+                "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
+                "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating forwarding rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/forwarding/rules/{rule_id}", summary="删除转发规则")
-async def delete_forwarding_rule(rule_id: str) -> Dict[str, Any]:
+async def delete_forwarding_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除转发规则"""
-    if rule_id not in _forwarding_rules:
-        raise HTTPException(status_code=404, detail="转发规则不存在")
+    try:
+        existing_rule = db.query(AlertForwardingRule).filter(AlertForwardingRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="转发规则不存在")
 
-    del _forwarding_rules[rule_id]
-    return {"status": "success", "message": "转发规则已删除"}
+        db.delete(existing_rule)
+        db.commit()
+        
+        return {"status": "success", "message": "转发规则已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting forwarding rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/webhook/configs", summary="获取Webhook配置列表")

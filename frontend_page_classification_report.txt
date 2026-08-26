@@ -1,0 +1,129 @@
+============================================================
+Frontend Page Classification Report
+============================================================
+Analysis Timestamp: 2026-08-26T04:01:45.233953
+Total Pages Analyzed: 490
+
+Classification Summary:
+------------------------------------------------------------
+Core Functional Pages: 119
+Auxiliary Pages: 371
+Redundant Pages: 0
+
+Core Functional Pages (with backend support):
+------------------------------------------------------------
+  - app\ai\advanced-ai\page.tsx
+    Complexity: 192
+    API Endpoints: 3
+    Business Logic: 2
+  - app\ai\deep-learning\page.tsx
+    Complexity: 205
+    API Endpoints: 3
+    Business Logic: 3
+  - app\ai\langgraph-visualizer\page.tsx
+    Complexity: 243
+    API Endpoints: 4
+    Business Logic: 2
+  - app\ai\model-optimization\page.tsx
+    Complexity: 237
+    API Endpoints: 3
+    Business Logic: 3
+  - app\alerts\alert-dashboard\page.tsx
+    Complexity: 332
+    API Endpoints: 1
+    Business Logic: 2
+  - app\alerts\alert-prediction\page.tsx
+    Complexity: 276
+    API Endpoints: 2
+    Business Logic: 2
+  - app\alerts\alert-statistics\page.tsx
+    Complexity: 271
+    API Endpoints: 1
+    Business Logic: 3
+  - app\alerts\alert-trends\page.tsx
+    Complexity: 273
+    API Endpoints: 1
+    Business Logic: 3
+  - app\anomaly\page.tsx
+    Complexity: 251
+    API Endpoints: 2
+    Business Logic: 2
+  - app\apm\page.tsx
+    Complexity: 363
+    API Endpoints: 3
+    Business Logic: 3
+  - app\capacity\page.tsx
+    Complexity: 315
+    API Endpoints: 2
+    Business Logic: 3
+  - app\charts\page.tsx
+    Complexity: 335
+    API Endpoints: 4
+    Business Logic: 3
+  - app\cost\page.tsx
+    Complexity: 336
+    API Endpoints: 3
+    Business Logic: 4
+  - app\cost\cost-monitoring\page.tsx
+    Complexity: 157
+    API Endpoints: 1
+    Business Logic: 2
+  - app\cost\cost-optimization\page.tsx
+    Complexity: 181
+    API Endpoints: 3
+    Business Logic: 2
+  - app\cost\llm-cost\page.tsx
+    Complexity: 157
+    API Endpoints: 1
+    Business Logic: 2
+  - app\dashboard\page.tsx
+    Complexity: 317
+    API Endpoints: 4
+    Business Logic: 3
+  - app\database\performance-tuning\page.tsx
+    Complexity: 96
+    API Endpoints: 1
+    Business Logic: 2
+  - app\frontend\performance-optimization\page.tsx
+    Complexity: 96
+    API Endpoints: 1
+    Business Logic: 2
+  - app\graphql\graphql-api\page.tsx
+    Complexity: 96
+    API Endpoints: 1
+    Business Logic: 2
+  ... and 99 more
+
+Auxiliary Pages (configuration, help, tools):
+------------------------------------------------------------
+  - app\page.tsx
+  - app\accessibility\page.tsx
+  - app\advanced-table\page.tsx
+  - app\ai\ai-copilot\page.tsx
+  - app\ai\ai-feedback\page.tsx
+  - app\ai\capability-evaluator\page.tsx
+  - app\ai\cost-optimizer\page.tsx
+  - app\ai\cross-layer-tracking\page.tsx
+  - app\ai\document-index\page.tsx
+  - app\ai\fusion\page.tsx
+  ... and 361 more
+
+Redundant Pages (duplicates, empty shells, test pages):
+------------------------------------------------------------
+
+Classification Criteria:
+------------------------------------------------------------
+Core Functional Pages:
+  - High complexity (>50 score)
+  - Real API integration
+  - No mock data
+  - Business logic score >= 2
+
+Auxiliary Pages:
+  - Medium complexity (>20 score)
+  - Some functionality (API or business logic)
+
+Redundant Pages:
+  - Low complexity (<=20 score)
+  - Mock data or no real API
+  - Limited functionality

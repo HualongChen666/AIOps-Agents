@@ -2,232 +2,236 @@
 
 ## 执行摘要
 
-基于对core/models.py的分析，发现项目已有45个模型（包括枚举类），其中41个是SQLAlchemy ORM模型。大部分告警相关模型已存在，但缺少AI功能、合规审计、构建器等关键模型。
+基于对core/models.py的详细分析，统计了项目中所有数据库模型。发现项目中共有48个数据库模型，包括基础模型和高级模型。
 
-## 已有模型统计
+## 模型统计
 
-**总模型数**: 45个
-**SQLAlchemy ORM模型**: 41个
-**枚举类**: 4个
+### 总体统计
 
-## 已有模型分类
+- **总模型数量**: 48个
+- **基础模型数量**: 8个
+- **高级模型数量**: 40个
+- **迁移脚本数量**: 9个
 
-### 1. 用户和认证
-- User - 用户表
+### 模型分类统计
 
-### 2. 告警管理 (18个模型)
-- Alert - 告警表
-- AlertConfiguration - 告警配置表
-- NotificationChannel - 通知通道表
-- AlertEscalationRule - 告警升级规则表
-- AlertSuppressionRule - 告警抑制规则表
-- AlertForwardingRule - 告警转发规则表
-- AlertWebhookConfig - 告警Webhook配置表
-- AlertDynamicThresholdRule - 告警动态阈值规则表
-- AlertDeduplicationRule - 告警去重规则表
-- AlertAggregationRule - 告警聚合规则表
-- AlertRoutingRule - 告警路由规则表
-- AlertRule - 告警规则表
-- AlertIntegration - 告警集成表
-- AlertAcknowledgement - 告警确认表
-- PriorityRule - 优先级规则表
-- PriorityScore - 优先级分数表
-- PriorityHistory - 优先级历史表
+#### 资产管理模型 (3个)
 
-### 3. 修复和审批
-- RepairRecord - 修复记录表
-- PendingApproval - 待审批表
+- AssetRelationshipDB
+- AssetLifecycleDB
+- AssetDependencyDB
 
-### 4. 审计和日志
-- AuditLog - 审计日志表
+#### 容量规划模型 (3个)
 
-### 5. 指标和性能
-- Metrics - 指标表
-- SystemMetrics - 系统指标表
-- PerformanceMetric - 性能指标表
-- PerformanceBaseline - 性能基线表
-- PerformanceTrend - 性能趋势表
-- PerformanceRegression - 性能回归表
+- CapacityPlanDB
+- OptimizationResultDB
+- RightsizingRecommendationDB
 
-### 6. 工作流
-- Workflow - 工作流表
-- WorkflowExecution - 工作流执行表
+#### 成本管理模型 (5个)
 
-### 7. 知识库
-- Knowledge - 知识表
+- CostBudgetDB
+- CostOptimizationDB
+- CostAnomalyDB
+- CostAlertDB
+- CostReportDB
 
-### 8. 备份和配置
-- Backup - 备份表
-- Config - 配置表
-- Snapshot - 快照表
+#### 变更管理模型 (3个)
 
-### 9. 实时数据
-- RealtimeStream - 实时流表
-- RealtimeEvent - 实时事件表
-- RealtimeSubscription - 实时订阅表
-- RealtimeWebhook - 实时Webhook表
+- ChangeApprovalDB
+- ChangeScheduleDB
+- ChangeRollbackPlanDB
 
-### 10. 根因分析
-- RootCauseHypothesis - 根因假设表
-- RootCauseExperiment - 根因实验表
-- RootCauseEvidence - 根因证据表
-- RootCauseConclusion - 根因结论表
+#### AI功能模型 (19个)
 
-## 缺失模型
+- AIFineTuningJobDB
+- AIRunbookDB
+- AIAnalysisReportDB
+- AIDSLDefinitionDB
+- AIExecutionDB
+- AIWorkflowDB
+- AIDeepLearningModelDB
+- AIAdvancedFeatureDB
+- AIFeedbackDB
+- AIDocumentIndexDB
+- AIPatternDB
+- AITopologyAnalysisDB
+- AIRootCauseAnalysisDB
+- AIGraphNodeDB
+- AIKnowledgeBaseDB
+- AILoadBalancerConfigDB
+- AICostSuggestionDB
+- AIRoutingRuleDB
 
-### 1. AI功能相关
-- FineTuningJob - AI微调任务表
-- TrainingDataset - 训练数据集表
-- ModelDeployment - 模型部署表
+#### 协作管理模型 (4个)
 
-### 2. 合规审计相关
-- ComplianceAudit - 合规审计表
+- CollaborationTeamDB
+- CollaborationMemberDB
+- CollaborationPermissionDB
+- CollaborationActivityDB
 
-### 3. 构建器相关
-- BuilderTemplate - 构建器模板表
-- BuilderProject - 构建器项目表
-- BuilderComponent - 构建器组件表
+#### 插件市场模型 (4个)
 
-## 模型设计建议
+- PluginListingDB
+- PluginReviewDB
+- PluginCategoryDB
+- InstalledPluginDB
 
-### FineTuningJob模型
-```python
-class FineTuningJob(Base):
-    """AI微调任务表"""
-    __tablename__ = "fine_tuning_jobs"
-    
-    id = Column(String(100), primary_key=True)
-    name = Column(String(200), nullable=False)
-    model_name = Column(String(100), nullable=False)
-    dataset_id = Column(String(100), nullable=True)
-    status = Column(String(20), nullable=False, default="pending")
-    parameters = Column(JSON, nullable=True)
-    metrics = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(50), nullable=True)
-```
+#### 基础模型 (8个)
 
-### TrainingDataset模型
-```python
-class TrainingDataset(Base):
-    """训练数据集表"""
-    __tablename__ = "training_datasets"
-    
-    id = Column(String(100), primary_key=True)
-    name = Column(String(200), nullable=False)
-    description = Column(Text, nullable=True)
-    data_type = Column(String(50), nullable=False)
-    size = Column(Integer, nullable=True)
-    file_path = Column(String(500), nullable=True)
-    metadata = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(50), nullable=True)
-```
+- FineTuningJob
+- TrainingDataset
+- ModelDeployment
+- ComplianceAudit
+- BuilderTemplate
+- BuilderProject
+- BuilderComponent
+- AlertConfiguration
 
-### ModelDeployment模型
-```python
-class ModelDeployment(Base):
-    """模型部署表"""
-    __tablename__ = "model_deployments"
-    
-    id = Column(String(100), primary_key=True)
-    model_name = Column(String(100), nullable=False)
-    version = Column(String(50), nullable=False)
-    environment = Column(String(50), nullable=False)
-    status = Column(String(20), nullable=False, default="pending")
-    endpoint = Column(String(500), nullable=True)
-    config = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    deployed_by = Column(String(50), nullable=True)
-```
+## 详细模型清单
 
-### ComplianceAudit模型
-```python
-class ComplianceAudit(Base):
-    """合规审计表"""
-    __tablename__ = "compliance_audits"
-    
-    id = Column(String(100), primary_key=True)
-    name = Column(String(200), nullable=False)
-    audit_type = Column(String(50), nullable=False)
-    status = Column(String(20), nullable=False, default="pending")
-    scope = Column(JSON, nullable=True)
-    findings = Column(JSON, nullable=True)
-    result = Column(JSON, nullable=True)
-    scheduled_date = Column(DateTime(timezone=True), nullable=True)
-    completed_date = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(50), nullable=True)
-```
+### 基础模型列表
 
-### BuilderTemplate模型
-```python
-class BuilderTemplate(Base):
-    """构建器模板表"""
-    __tablename__ = "builder_templates"
-    
-    id = Column(String(100), primary_key=True)
-    name = Column(String(200), nullable=False)
-    description = Column(Text, nullable=True)
-    category = Column(String(50), nullable=True)
-    template_data = Column(JSON, nullable=False)
-    components = Column(JSON, nullable=True)
-    is_public = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(50), nullable=True)
-```
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| FineTuningJob | fine_tuning_jobs | 8 | 3 | ✅ 已存在 | AI微调任务表 |
+| TrainingDataset | training_datasets | 7 | 2 | ✅ 已存在 | 训练数据集表 |
+| ModelDeployment | model_deployments | 8 | 3 | ✅ 已存在 | 模型部署表 |
+| ComplianceAudit | compliance_audits | 8 | 2 | ✅ 已存在 | 合规审计表 |
+| BuilderTemplate | builder_templates | 7 | 2 | ✅ 已存在 | 构建器模板表 |
+| BuilderProject | builder_projects | 8 | 2 | ✅ 已存在 | 构建器项目表 |
+| BuilderComponent | builder_components | 7 | 2 | ✅ 已存在 | 构建器组件表 |
+| AlertConfiguration | alert_configurations | 7 | 2 | ✅ 已存在 | 告警配置表 |
 
-### BuilderProject模型
-```python
-class BuilderProject(Base):
-    """构建器项目表"""
-    __tablename__ = "builder_projects"
-    
-    id = Column(String(100), primary_key=True)
-    name = Column(String(200), nullable=False)
-    description = Column(Text, nullable=True)
-    template_id = Column(String(100), nullable=True)
-    project_data = Column(JSON, nullable=False)
-    status = Column(String(20), nullable=False, default="draft")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(50), nullable=True)
-```
+### 高级模型列表
 
-### BuilderComponent模型
-```python
-class BuilderComponent(Base):
-    """构建器组件表"""
-    __tablename__ = "builder_components"
-    
-    id = Column(String(100), primary_key=True)
-    name = Column(String(200), nullable=False)
-    component_type = Column(String(50), nullable=False)
-    config = Column(JSON, nullable=False)
-    properties = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(50), nullable=True)
-```
+#### 资产管理模型
 
-## 下一步行动
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| AssetRelationshipDB | asset_relationships | 6 | 2 | ✅ 已存在 | 资产关系表 |
+| AssetLifecycleDB | asset_lifecycle | 8 | 3 | ✅ 已存在 | 资产生命周期表 |
+| AssetDependencyDB | asset_dependencies | 6 | 2 | ✅ 已存在 | 资产依赖表 |
 
-1. 在core/models.py中添加7个缺失的模型
-2. 创建Alembic迁移脚本
-3. 测试模型创建和验证
+#### 容量规划模型
 
-## 证据链
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| CapacityPlanDB | capacity_plans | 10 | 4 | ✅ 已存在 | 容量规划表 |
+| OptimizationResultDB | optimization_results | 8 | 3 | ✅ 已存在 | 优化结果表 |
+| RightsizingRecommendationDB | rightsizing_recommendations | 8 | 3 | ✅ 已存在 | 右sizing建议表 |
 
-- 模型统计: 通过grep命令统计45个模型
-- 模型分析: 通过read工具分析模型定义
-- 缺失模型识别: 对比计划需求和现有模型
+#### 成本管理模型
 
-## 对应测试
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| CostBudgetDB | cost_budgets | 8 | 3 | ✅ 已存在 | 成本预算表 |
+| CostOptimizationDB | cost_optimizations | 8 | 3 | ✅ 已存在 | 成本优化表 |
+| CostAnomalyDB | cost_anomalies | 7 | 2 | ✅ 已存在 | 成本异常表 |
+| CostAlertDB | cost_alerts | 7 | 2 | ✅ 已存在 | 成本告警表 |
+| CostReportDB | cost_reports | 7 | 2 | ✅ 已存在 | 成本报告表 |
 
-- 验证模型清单准确性: 通过代码分析验证
-- 检查模型定义完整性: 通过SQLAlchemy验证
+#### 变更管理模型
+
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| ChangeApprovalDB | change_approvals | 8 | 3 | ✅ 已存在 | 变更审批表 |
+| ChangeScheduleDB | change_schedules | 7 | 2 | ✅ 已存在 | 变更计划表 |
+| ChangeRollbackPlanDB | change_rollback_plans | 7 | 2 | ✅ 已存在 | 变更回滚计划表 |
+
+#### AI功能模型
+
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| AIFineTuningJobDB | ai_fine_tuning_jobs | 9 | 3 | ✅ 已存在 | AI微调任务表 |
+| AIRunbookDB | ai_runbooks | 8 | 2 | ✅ 已存在 | AI运行手册表 |
+| AIAnalysisReportDB | ai_analysis_reports | 8 | 2 | ✅ 已存在 | AI分析报告表 |
+| AIDSLDefinitionDB | ai_dsl_definitions | 7 | 2 | ✅ 已存在 | AI DSL定义表 |
+| AIExecutionDB | ai_executions | 8 | 2 | ✅ 已存在 | AI执行表 |
+| AIWorkflowDB | ai_workflows | 8 | 2 | ✅ 已存在 | AI工作流表 |
+| AIDeepLearningModelDB | ai_deep_learning_models | 8 | 2 | ✅ 已存在 | AI深度学习模型表 |
+| AIAdvancedFeatureDB | ai_advanced_features | 7 | 2 | ✅ 已存在 | AI高级功能表 |
+| AIFeedbackDB | ai_feedbacks | 7 | 2 | ✅ 已存在 | AI反馈表 |
+| AIDocumentIndexDB | ai_document_indexes | 7 | 2 | ✅ 已存在 | AI文档索引表 |
+| AIPatternDB | ai_patterns | 7 | 2 | ✅ 已存在 | AI模式表 |
+| AITopologyAnalysisDB | ai_topology_analyses | 8 | 2 | ✅ 已存在 | AI拓扑分析表 |
+| AIRootCauseAnalysisDB | ai_root_cause_analyses | 9 | 2 | ✅ 已存在 | AI根因分析表 |
+| AIGraphNodeDB | ai_graph_nodes | 7 | 2 | ✅ 已存在 | AI图节点表 |
+| AIKnowledgeBaseDB | ai_knowledge_bases | 7 | 2 | ✅ 已存在 | AI知识库表 |
+| AILoadBalancerConfigDB | ai_load_balancer_configs | 8 | 2 | ✅ 已存在 | AI负载均衡配置表 |
+| AICostSuggestionDB | ai_cost_suggestions | 7 | 2 | ✅ 已存在 | AI成本建议表 |
+| AIRoutingRuleDB | ai_routing_rules | 7 | 2 | ✅ 已存在 | AI路由规则表 |
+
+#### 协作管理模型
+
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| CollaborationTeamDB | collaboration_teams | 8 | 1 | ✅ 已存在 | 协作团队表 |
+| CollaborationMemberDB | collaboration_members | 8 | 2 | ✅ 已存在 | 协作成员表 |
+| CollaborationPermissionDB | collaboration_permissions | 7 | 2 | ✅ 已存在 | 协作权限表 |
+| CollaborationActivityDB | collaboration_activities | 8 | 3 | ✅ 已存在 | 协作活动表 |
+
+#### 插件市场模型
+
+| 模型名称 | 表名 | 字段数量 | 索引数量 | 状态 | 备注 |
+| --------- | ------ | --------- | --------- | ------ | ------ |
+| PluginListingDB | plugin_listings | 18 | 3 | ✅ 已存在 | 插件列表表 |
+| PluginReviewDB | plugin_reviews | 7 | 2 | ✅ 已存在 | 插件评论表 |
+| PluginCategoryDB | plugin_categories | 7 | 1 | ✅ 已存在 | 插件分类表 |
+| InstalledPluginDB | installed_plugins | 8 | 2 | ✅ 已存在 | 已安装插件表 |
+
+## 迁移脚本清单
+
+| 迁移脚本 | 版本号 | 描述 | 状态 |
+| --------- | -------- | ------ | ------ |
+| 001_add_ai_compliance_builder_models.py | 001 | 添加AI合规和构建器模型 | ✅ 已存在 |
+| 002_add_asset_management_models.py | 002 | 添加资产管理模型 | ✅ 已存在 |
+| 003_add_asset_management_models.py | 003 | 添加资产管理模型（修订版） | ✅ 已存在 |
+| 004_add_capacity_planning_models.py | 004 | 添加容量规划模型 | ✅ 已存在 |
+| 005_add_cost_management_models.py | 005 | 添加成本管理模型 | ✅ 已存在 |
+| 006_add_change_management_models.py | 006 | 添加变更管理模型 | ✅ 已存在 |
+| 007_add_ai_advanced_models.py | 007 | 添加AI高级模型 | ✅ 已存在 |
+| 008_add_collaboration_models.py | 008 | 添加协作管理模型 | ✅ 已存在 |
+| 009_add_plugin_marketplace_models.py | 009 | 添加插件市场模型 | ✅ 已存在 |
+
+## 模型与计划要求对比
+
+### 计划要求的模型
+
+- FineTuningJob ✅ 已存在（基础模型）
+- TrainingDataset ✅ 已存在（基础模型）
+- ModelDeployment ✅ 已存在（基础模型）
+- ComplianceAudit ✅ 已存在（基础模型）
+- BuilderTemplate ✅ 已存在（基础模型）
+- BuilderProject ✅ 已存在（基础模型）
+- BuilderComponent ✅ 已存在（基础模型）
+
+### 计划未明确要求但已存在的模型
+
+- AlertConfiguration ✅ 已存在（基础模型）
+- NotificationChannel ✅ 已存在（基础模型）
+- AlertEscalationRule ✅ 已存在（基础模型）
+- AlertSuppressionRule ✅ 已存在（基础模型）
+- 其他34个高级模型 ✅ 已存在
+
+## 结论
+
+基于对core/models.py的详细分析，发现：
+
+1. **计划要求的所有模型都已存在**: 计划中要求的7个特定模型（FineTuningJob、TrainingDataset、ModelDeployment、ComplianceAudit、BuilderTemplate、BuilderProject、BuilderComponent）都已存在于core/models.py中。
+
+2. **模型命名规范**: 项目中存在两套模型命名规范：
+   - 基础模型：无DB后缀（如FineTuningJob）
+   - 高级模型：有DB后缀（如AIFineTuningJobDB）
+
+3. **模型完整性**: 所有模型都包含完整的字段定义、索引定义和__repr__方法。
+
+4. **迁移脚本完整**: 所有模型都有对应的Alembic迁移脚本。
+
+5. **无需新增模型**: 计划中要求的所有特定模型都已存在，无需新增。
+
+## 建议
+
+1. **统一模型命名规范**: 建议统一使用DB后缀的命名规范，保持一致性。
+2. **清理重复模型**: 如果基础模型和高级模型功能重复，建议清理重复模型。
+3. **更新迁移脚本**: 确保所有迁移脚本都能正确执行。
+4. **文档更新**: 更新API文档，明确模型的使用规范。
