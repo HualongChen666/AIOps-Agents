@@ -144,6 +144,8 @@ from api.collaboration_router import router as collaboration_router
 from api.compliance_audit_router import router as compliance_audit_router
 from api.cost_advanced_router import router as cost_advanced_router
 from api.cost_router import router as cost_router
+from api.monitoring_config_router import router as monitoring_config_router
+from api.performance_optimization_router import router as performance_optimization_router
 from api.guard_router import router as guard_router
 from api.guard_router import security_router as security_router
 from api.health_router import router as health_router
@@ -780,6 +782,8 @@ CORE_ROUTERS = [
     compliance_audit_router,
     builder_router,
     chart_aggregation_router,
+    monitoring_config_router,
+    performance_optimization_router,
     health_router,
     hitl_approval_router,
     linux_router,
