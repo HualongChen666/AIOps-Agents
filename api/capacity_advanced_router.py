@@ -22,11 +22,18 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.auth_service import require_roles
 from core.capacity_engine import forecast_capacity, generate_scaling_recommendations
 from core.collector import get_disk_metrics
+from core.database import get_db
 from core.metrics_history import METRICS_HISTORY as metrics_history
+from core.models import (
+    CapacityPlanDB,
+    OptimizationResultDB,
+    RightsizingRecommendationDB,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -213,12 +220,251 @@ class ScalingRecommendation(BaseModel):
 
 
 # ============================================================================
-# In-Memory Data Storage
+# In-Memory Data Storage (fallback)
 # ============================================================================
 
 _capacity_plans: Dict[str, CapacityPlan] = {}
 _optimization_results: Dict[str, OptimizationResult] = {}
 _rightsizing_recommendations: List[RightsizingRecommendation] = []
+
+
+def _get_capacity_plans(db: Optional[Session] = None) -> Dict[str, CapacityPlan]:
+    """Get capacity plans from database with fallback to memory."""
+    try:
+        if db:
+            db_plans = db.query(CapacityPlanDB).all()
+            return {
+                plan.id: CapacityPlan(
+                    id=plan.id,
+                    name=plan.name,
+                    resource_type=ResourceType(plan.resource_type),
+                    service=plan.service,
+                    current_capacity=plan.current_capacity,
+                    projected_capacity=plan.projected_capacity,
+                    unit=plan.unit,
+                    horizon=PlanningHorizon(plan.horizon),
+                    target_date=plan.target_date,
+                    threshold=plan.threshold,
+                    recommended_action=plan.recommended_action,
+                    estimated_cost=plan.estimated_cost,
+                    created_at=plan.created_at,
+                    created_by=plan.created_by,
+                    status=plan.status,
+                    metadata=plan.plan_metadata,
+                )
+                for plan in db_plans
+            }
+        # Fallback to memory storage
+        return _capacity_plans
+    except Exception as e:
+        logger.error(f"Failed to get capacity plans from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _capacity_plans
+
+
+def _set_capacity_plan(plan: CapacityPlan, db: Optional[Session] = None) -> None:
+    """Set capacity plan in database with fallback to memory."""
+    try:
+        if db:
+            existing_plan = db.query(CapacityPlanDB).filter(
+                CapacityPlanDB.id == plan.id
+            ).first()
+            if existing_plan:
+                existing_plan.name = plan.name
+                existing_plan.resource_type = plan.resource_type.value
+                existing_plan.service = plan.service
+                existing_plan.current_capacity = plan.current_capacity
+                existing_plan.projected_capacity = plan.projected_capacity
+                existing_plan.unit = plan.unit
+                existing_plan.horizon = plan.horizon.value
+                existing_plan.target_date = plan.target_date
+                existing_plan.threshold = plan.threshold
+                existing_plan.recommended_action = plan.recommended_action
+                existing_plan.estimated_cost = plan.estimated_cost
+                existing_plan.status = plan.status
+                existing_plan.plan_metadata = plan.metadata
+            else:
+                db_plan = CapacityPlanDB(
+                    id=plan.id,
+                    name=plan.name,
+                    resource_type=plan.resource_type.value,
+                    service=plan.service,
+                    current_capacity=plan.current_capacity,
+                    projected_capacity=plan.projected_capacity,
+                    unit=plan.unit,
+                    horizon=plan.horizon.value,
+                    target_date=plan.target_date,
+                    threshold=plan.threshold,
+                    recommended_action=plan.recommended_action,
+                    estimated_cost=plan.estimated_cost,
+                    created_at=plan.created_at,
+                    created_by=plan.created_by,
+                    status=plan.status,
+                    plan_metadata=plan.metadata,
+                )
+                db.add(db_plan)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _capacity_plans[plan.id] = plan
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set capacity plan in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _capacity_plans[plan.id] = plan
+
+
+def _delete_capacity_plan(plan_id: str, db: Optional[Session] = None) -> None:
+    """Delete capacity plan from database with fallback to memory."""
+    try:
+        if db:
+            db.query(CapacityPlanDB).filter(
+                CapacityPlanDB.id == plan_id
+            ).delete()
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _capacity_plans.pop(plan_id, None)
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to delete capacity plan from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _capacity_plans.pop(plan_id, None)
+
+
+def _get_optimization_results(db: Optional[Session] = None) -> Dict[str, OptimizationResult]:
+    """Get optimization results from database with fallback to memory."""
+    try:
+        if db:
+            db_results = db.query(OptimizationResultDB).all()
+            return {
+                result.id: OptimizationResult(
+                    id=result.id,
+                    service=result.service,
+                    resource_types=[ResourceType(rt) for rt in result.resource_types],
+                    strategy=OptimizationStrategy(result.strategy),
+                    current_usage=result.current_usage,
+                    optimized_usage=result.optimized_usage,
+                    savings=result.savings,
+                    implementation_steps=result.implementation_steps,
+                    created_at=result.created_at,
+                    created_by=result.created_by,
+                    status=result.status,
+                    metadata=result.opt_metadata,
+                )
+                for result in db_results
+            }
+        # Fallback to memory storage
+        return _optimization_results
+    except Exception as e:
+        logger.error(f"Failed to get optimization results from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _optimization_results
+
+
+def _set_optimization_result(result: OptimizationResult, db: Optional[Session] = None) -> None:
+    """Set optimization result in database with fallback to memory."""
+    try:
+        if db:
+            existing_result = db.query(OptimizationResultDB).filter(
+                OptimizationResultDB.id == result.id
+            ).first()
+            if existing_result:
+                existing_result.service = result.service
+                existing_result.resource_types = [rt.value for rt in result.resource_types]
+                existing_result.strategy = result.strategy.value
+                existing_result.current_usage = result.current_usage
+                existing_result.optimized_usage = result.optimized_usage
+                existing_result.savings = result.savings
+                existing_result.implementation_steps = result.implementation_steps
+                existing_result.status = result.status
+                existing_result.opt_metadata = result.metadata
+            else:
+                db_result = OptimizationResultDB(
+                    id=result.id,
+                    service=result.service,
+                    resource_types=[rt.value for rt in result.resource_types],
+                    strategy=result.strategy.value,
+                    current_usage=result.current_usage,
+                    optimized_usage=result.optimized_usage,
+                    savings=result.savings,
+                    implementation_steps=result.implementation_steps,
+                    created_at=result.created_at,
+                    created_by=result.created_by,
+                    status=result.status,
+                    opt_metadata=result.metadata,
+                )
+                db.add(db_result)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _optimization_results[result.id] = result
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set optimization result in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _optimization_results[result.id] = result
+
+
+def _get_rightsizing_recommendations(db: Optional[Session] = None) -> List[RightsizingRecommendation]:
+    """Get rightsizing recommendations from database with fallback to memory."""
+    try:
+        if db:
+            db_recommendations = db.query(RightsizingRecommendationDB).all()
+            return [
+                RightsizingRecommendation(
+                    id=rec.id,
+                    service=rec.service,
+                    resource_type=ResourceType(rec.resource_type),
+                    current_spec=rec.current_spec,
+                    recommended_spec=rec.recommended_spec,
+                    action=RightsizingAction(rec.action),
+                    reason=rec.reason,
+                    priority=Priority(rec.priority),
+                    estimated_monthly_savings=rec.estimated_monthly_savings,
+                    performance_impact=rec.performance_impact,
+                    implementation_complexity=rec.implementation_complexity,
+                    created_at=rec.created_at,
+                )
+                for rec in db_recommendations
+            ]
+        # Fallback to memory storage
+        return _rightsizing_recommendations
+    except Exception as e:
+        logger.error(f"Failed to get rightsizing recommendations from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _rightsizing_recommendations
+
+
+def _add_rightsizing_recommendation(recommendation: RightsizingRecommendation, db: Optional[Session] = None) -> None:
+    """Add rightsizing recommendation to database with fallback to memory."""
+    try:
+        if db:
+            db_recommendation = RightsizingRecommendationDB(
+                id=recommendation.id,
+                service=recommendation.service,
+                resource_type=recommendation.resource_type.value,
+                current_spec=recommendation.current_spec,
+                recommended_spec=recommendation.recommended_spec,
+                action=recommendation.action.value,
+                reason=recommendation.reason,
+                priority=recommendation.priority.value,
+                estimated_monthly_savings=recommendation.estimated_monthly_savings,
+                performance_impact=recommendation.performance_impact,
+                implementation_complexity=recommendation.implementation_complexity,
+                created_at=recommendation.created_at,
+                rec_metadata=None,
+            )
+            db.add(db_recommendation)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _rightsizing_recommendations.append(recommendation)
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to add rightsizing recommendation to database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _rightsizing_recommendations.append(recommendation)
 
 
 def _generate_plan_id() -> str:
@@ -338,6 +584,7 @@ async def list_capacity_plans(
 @router.post("/planning", response_model=CapacityPlan, status_code=status.HTTP_201_CREATED)
 async def create_capacity_plan(
     plan: CapacityPlanCreate,
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
@@ -398,7 +645,7 @@ async def create_capacity_plan(
             metadata=plan.metadata,
         )
 
-        _capacity_plans[plan_id] = new_plan
+        _set_capacity_plan(new_plan, db_core)
 
         logger.info(f"Created capacity plan: {plan_id} for service {plan.service}")
 
@@ -411,13 +658,15 @@ async def create_capacity_plan(
 @router.get("/planning/{plan_id}", response_model=CapacityPlan)
 async def get_capacity_plan(
     plan_id: str,
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """Get a specific capacity plan by ID."""
     try:
-        if plan_id not in _capacity_plans:
+        plans = _get_capacity_plans(db_core)
+        if plan_id not in plans:
             raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
-        return _capacity_plans[plan_id]
+        return plans[plan_id]
     except HTTPException:
         raise
     except Exception as e:
@@ -431,14 +680,16 @@ async def update_capacity_plan(
     status: Optional[str] = None,
     recommended_action: Optional[str] = None,
     estimated_cost: Optional[float] = None,
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """Update a capacity plan."""
     try:
-        if plan_id not in _capacity_plans:
+        plans = _get_capacity_plans(db_core)
+        if plan_id not in plans:
             raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
 
-        plan = _capacity_plans[plan_id]
+        plan = plans[plan_id]
 
         if status is not None:
             plan.status = status
@@ -446,6 +697,9 @@ async def update_capacity_plan(
             plan.recommended_action = recommended_action
         if estimated_cost is not None:
             plan.estimated_cost = estimated_cost
+
+        # Save to database with fallback
+        _set_capacity_plan(plan, db_core)
 
         logger.info(f"Updated capacity plan: {plan_id}")
 
@@ -460,14 +714,16 @@ async def update_capacity_plan(
 @router.delete("/planning/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_capacity_plan(
     plan_id: str,
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin")),
 ):
     """Delete a capacity plan."""
     try:
-        if plan_id not in _capacity_plans:
+        plans = _get_capacity_plans(db_core)
+        if plan_id not in plans:
             raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
 
-        del _capacity_plans[plan_id]
+        _delete_capacity_plan(plan_id, db_core)
 
         logger.info(f"Deleted capacity plan: {plan_id}")
 
@@ -591,6 +847,7 @@ async def list_optimization_results(
 )
 async def create_optimization(
     request: OptimizationRequest,
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
@@ -703,7 +960,7 @@ async def create_optimization(
             estimated_implementation_time=implementation_time,
         )
 
-        _optimization_results[opt_id] = result
+        _set_optimization_result(result, db_core)
 
         logger.info(f"Created optimization analysis: {opt_id} for service {request.service}")
 
@@ -723,6 +980,7 @@ async def get_rightsizing_recommendations(
     service: Optional[str] = Query(None, description="Filter by service"),
     resource_type: Optional[ResourceType] = Query(None, description="Filter by resource type"),
     priority: Optional[Priority] = Query(None, description="Filter by priority"),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -732,11 +990,13 @@ async def get_rightsizing_recommendations(
     actual usage patterns to optimize costs.
     """
     try:
+        # Get recommendations from database with fallback
+        recommendations = _get_rightsizing_recommendations(db_core)
+        
         # Generate recommendations if not already done
-        if not _rightsizing_recommendations:
-            await _generate_rightsizing_recommendations()
-
-        recommendations = _rightsizing_recommendations
+        if not recommendations:
+            await _generate_rightsizing_recommendations(db_core)
+            recommendations = _get_rightsizing_recommendations(db_core)
 
         if service:
             recommendations = [r for r in recommendations if r.service == service]
@@ -751,7 +1011,7 @@ async def get_rightsizing_recommendations(
         raise HTTPException(status_code=500, detail=f"Failed to get rightsizing: {str(e)}")
 
 
-async def _generate_rightsizing_recommendations() -> None:
+async def _generate_rightsizing_recommendations(db_core: Optional[Session] = None) -> None:
     """Generate rightsizing recommendations based on current metrics."""
     global _rightsizing_recommendations
 
@@ -808,7 +1068,7 @@ async def _generate_rightsizing_recommendations() -> None:
                 ),
             )
 
-            _rightsizing_recommendations.append(rec)
+            _add_rightsizing_recommendation(rec, db_core)
 
 
 # ============================================================================

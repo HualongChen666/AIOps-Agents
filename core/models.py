@@ -1956,3 +1956,93 @@ class AssetDependencyDB(Base):
 
     def __repr__(self):
         return f"<AssetDependencyDB(id={self.id}, asset_id={self.asset_id}, type='{self.dependency_type}', criticality='{self.criticality}')>"
+
+
+# ==================== Capacity Planning Models ====================
+
+
+class CapacityPlanDB(Base):
+    """容量计划表"""
+
+    __tablename__ = "capacity_plans"
+
+    id = Column(String(20), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    resource_type = Column(String(50), nullable=False, index=True)
+    service = Column(String(255), nullable=False, index=True)
+    current_capacity = Column(Float, nullable=False)
+    projected_capacity = Column(Float, nullable=False)
+    unit = Column(String(50), nullable=False)
+    horizon = Column(String(50), nullable=False)
+    target_date = Column(DateTime(timezone=True), nullable=True)
+    threshold = Column(Float, nullable=False)
+    recommended_action = Column(Text, nullable=False)
+    estimated_cost = Column(Float, nullable=False, default=0.0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_by = Column(String(50), nullable=False, default="system")
+    status = Column(String(50), nullable=False, default="draft", index=True)
+    plan_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_plans_resource_type", "resource_type"),
+        Index("idx_capacity_plans_service", "service"),
+        Index("idx_capacity_plans_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityPlanDB(id={self.id}, name='{self.name}', service='{self.service}')>"
+
+
+class OptimizationResultDB(Base):
+    """优化结果表"""
+
+    __tablename__ = "optimization_results"
+
+    id = Column(String(20), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_types = Column(JSON, nullable=False)
+    strategy = Column(String(50), nullable=False)
+    current_usage = Column(JSON, nullable=False)
+    optimized_usage = Column(JSON, nullable=False)
+    savings = Column(Float, nullable=False)
+    implementation_steps = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_by = Column(String(50), nullable=False, default="system")
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    opt_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_optimization_results_service", "service"),
+        Index("idx_optimization_results_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<OptimizationResultDB(id={self.id}, service='{self.service}', strategy='{self.strategy}')>"
+
+
+class RightsizingRecommendationDB(Base):
+    """右缩建议表"""
+
+    __tablename__ = "rightsizing_recommendations"
+
+    id = Column(String(20), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    current_spec = Column(JSON, nullable=False)
+    recommended_spec = Column(JSON, nullable=False)
+    action = Column(String(50), nullable=False)
+    reason = Column(Text, nullable=False)
+    priority = Column(String(50), nullable=False)
+    estimated_monthly_savings = Column(Float, nullable=False)
+    performance_impact = Column(Text, nullable=False)
+    implementation_complexity = Column(String(50), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    rec_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_rightsizing_recommendations_service", "service"),
+        Index("idx_rightsizing_recommendations_resource_type", "resource_type"),
+    )
+
+    def __repr__(self):
+        return f"<RightsizingRecommendationDB(id={self.id}, service='{self.service}', type='{self.resource_type}')>"
