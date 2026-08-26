@@ -15,7 +15,7 @@ This module ensures that database operations are properly monitored with:
 
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 
 from fastapi import APIRouter, HTTPException
@@ -121,7 +121,17 @@ class DatabaseMonitoringStatus(BaseModel):
 # In-Memory Storage (for demo purposes)
 # ============================================================================
 
-_monitoring_config: DatabaseMonitoringConfig = DatabaseMonitoringConfig()
+_monitoring_config: DatabaseMonitoringConfig = DatabaseMonitoringConfig(
+    enabled=True,
+    collection_interval=60,
+    retention_days=30,
+    enable_realtime=True,
+    enable_slow_query_log=True,
+    slow_query_threshold=1.0,
+    enable_connection_monitoring=True,
+    max_connections_threshold=100,
+    enable_deadlock_detection=True
+)
 _metric_thresholds: Dict[str, DatabaseMetricThreshold] = {}
 _performance_baselines: Dict[str, DatabasePerformanceBaseline] = {}
 _alert_rules: Dict[str, DatabaseAlertRule] = {}
@@ -172,7 +182,7 @@ def _initialize_default_thresholds():
             description="慢查询数量阈值"
         ),
     ]
-    
+
     for threshold in default_thresholds:
         _metric_thresholds[threshold.metric_type.value] = threshold
 
@@ -214,7 +224,7 @@ def _initialize_default_alert_rules():
             description="当检测到死锁时立即触发告警"
         ),
     ]
-    
+
     for rule in default_rules:
         _alert_rules[rule.rule_id] = rule
 
@@ -258,7 +268,7 @@ async def update_metric_threshold(
     """更新特定指标的阈值"""
     if metric_type not in _metric_thresholds:
         raise HTTPException(status_code=404, detail=f"Metric type {metric_type} not found")
-    
+
     _metric_thresholds[metric_type] = threshold
     logger.info(f"Metric threshold updated for {metric_type}: {threshold}")
     return threshold
@@ -275,7 +285,7 @@ async def create_performance_baseline(baseline: DatabasePerformanceBaseline) -> 
     """创建新的性能基线"""
     if baseline.baseline_name in _performance_baselines:
         raise HTTPException(status_code=400, detail=f"Baseline {baseline.baseline_name} already exists")
-    
+
     _performance_baselines[baseline.baseline_name] = baseline
     logger.info(f"Performance baseline created: {baseline.baseline_name}")
     return baseline
@@ -286,7 +296,7 @@ async def get_performance_baseline(baseline_name: str) -> DatabasePerformanceBas
     """获取特定的性能基线"""
     if baseline_name not in _performance_baselines:
         raise HTTPException(status_code=404, detail=f"Baseline {baseline_name} not found")
-    
+
     return _performance_baselines[baseline_name]
 
 
@@ -301,7 +311,7 @@ async def create_alert_rule(rule: DatabaseAlertRule) -> DatabaseAlertRule:
     """创建新的告警规则"""
     if rule.rule_id in _alert_rules:
         raise HTTPException(status_code=400, detail=f"Alert rule {rule.rule_id} already exists")
-    
+
     _alert_rules[rule.rule_id] = rule
     logger.info(f"Alert rule created: {rule.rule_id}")
     return rule
@@ -312,7 +322,7 @@ async def update_alert_rule(rule_id: str, rule: DatabaseAlertRule) -> DatabaseAl
     """更新告警规则"""
     if rule_id not in _alert_rules:
         raise HTTPException(status_code=404, detail=f"Alert rule {rule_id} not found")
-    
+
     _alert_rules[rule_id] = rule
     logger.info(f"Alert rule updated: {rule_id}")
     return rule
@@ -323,7 +333,7 @@ async def delete_alert_rule(rule_id: str) -> Dict[str, str]:
     """删除告警规则"""
     if rule_id not in _alert_rules:
         raise HTTPException(status_code=404, detail=f"Alert rule {rule_id} not found")
-    
+
     del _alert_rules[rule_id]
     logger.info(f"Alert rule deleted: {rule_id}")
     return {"message": f"Alert rule {rule_id} deleted successfully"}
@@ -354,7 +364,7 @@ async def establish_current_baseline(baseline_name: str) -> DatabasePerformanceB
         database_size_mb=1024.0,
         description=f"Baseline established on {datetime.utcnow().isoformat()}"
     )
-    
+
     _performance_baselines[baseline_name] = baseline
     logger.info(f"Performance baseline established: {baseline_name}")
     return baseline

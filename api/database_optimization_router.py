@@ -14,7 +14,7 @@ This module ensures optimal database performance for the migrated system.
 
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 
 from fastapi import APIRouter, HTTPException
@@ -171,10 +171,10 @@ def _initialize_sample_data():
             recommendations=["Add composite index on (service, created_at)", "Optimize date comparison"]
         ),
     ]
-    
+
     for query in sample_queries:
         _query_metrics[query.query_id] = query
-    
+
     # Sample index recommendations
     sample_recommendations = [
         IndexRecommendation(
@@ -186,7 +186,8 @@ def _initialize_sample_data():
             current_query_impact=150,
             priority=Priority.HIGH,
             creation_cost="low",
-            description="Add index on assets.status to improve query performance"
+            description="Add index on assets.status to improve query performance",
+            enabled=True
         ),
         IndexRecommendation(
             recommendation_id="idx2",
@@ -197,13 +198,14 @@ def _initialize_sample_data():
             current_query_impact=80,
             priority=Priority.CRITICAL,
             creation_cost="medium",
-            description="Add composite index on capacity_plans(service, created_at)"
+            description="Add composite index on capacity_plans(service, created_at)",
+            enabled=True
         ),
     ]
-    
+
     for rec in sample_recommendations:
         _index_recommendations[rec.recommendation_id] = rec
-    
+
     # Sample database statistics
     sample_stats = [
         DatabaseStatistics(
@@ -212,7 +214,8 @@ def _initialize_sample_data():
             table_size_mb=25.5,
             index_count=3,
             index_size_mb=8.2,
-            bloat_percentage=5.0
+            bloat_percentage=5.0,
+            vacuum_status="active"
         ),
         DatabaseStatistics(
             table_name="capacity_plans",
@@ -220,10 +223,11 @@ def _initialize_sample_data():
             table_size_mb=12.3,
             index_count=2,
             index_size_mb=4.1,
-            bloat_percentage=3.0
+            bloat_percentage=3.0,
+            vacuum_status="active"
         ),
     ]
-    
+
     for stat in sample_stats:
         _database_statistics[stat.table_name] = stat
 
@@ -248,7 +252,7 @@ async def get_query_metric(query_id: str) -> QueryPerformanceMetrics:
     """获取特定查询的性能指标"""
     if query_id not in _query_metrics:
         raise HTTPException(status_code=404, detail=f"Query {query_id} not found")
-    
+
     return _query_metrics[query_id]
 
 
@@ -257,7 +261,7 @@ async def analyze_query_performance(query_text: str) -> QueryPerformanceMetrics:
     """分析查询性能"""
     # In a real implementation, this would execute EXPLAIN ANALYZE
     query_id = f"q_{len(_query_metrics) + 1}"
-    
+
     # Simulate analysis
     metric = QueryPerformanceMetrics(
         query_id=query_id,
@@ -269,7 +273,7 @@ async def analyze_query_performance(query_text: str) -> QueryPerformanceMetrics:
         optimization_score=75.0,
         recommendations=["Query looks optimized", "Consider adding appropriate indexes"]
     )
-    
+
     _query_metrics[query_id] = metric
     logger.info(f"Query performance analyzed: {query_id}")
     return metric
@@ -286,7 +290,7 @@ async def create_index_recommendation(recommendation: IndexRecommendation) -> In
     """创建新的索引推荐"""
     if recommendation.recommendation_id in _index_recommendations:
         raise HTTPException(status_code=400, detail=f"Recommendation {recommendation.recommendation_id} already exists")
-    
+
     _index_recommendations[recommendation.recommendation_id] = recommendation
     logger.info(f"Index recommendation created: {recommendation.recommendation_id}")
     return recommendation
@@ -298,10 +302,10 @@ async def generate_index_recommendations(table_name: str) -> Dict[str, IndexReco
     # In a real implementation, this would analyze query patterns and table structure
     # For now, return existing recommendations for the table
     table_recommendations = {
-        k: v for k, v in _index_recommendations.items() 
+        k: v for k, v in _index_recommendations.items()
         if v.table_name == table_name
     }
-    
+
     if not table_recommendations:
         # Generate a sample recommendation
         rec_id = f"idx_{len(_index_recommendations) + 1}"
@@ -314,11 +318,12 @@ async def generate_index_recommendations(table_name: str) -> Dict[str, IndexReco
             current_query_impact=50,
             priority=Priority.MEDIUM,
             creation_cost="low",
-            description=f"Sample index recommendation for {table_name}"
+            description=f"Sample index recommendation for {table_name}",
+            enabled=True
         )
         _index_recommendations[rec_id] = recommendation
         table_recommendations[rec_id] = recommendation
-    
+
     logger.info(f"Index recommendations generated for table: {table_name}")
     return table_recommendations
 
@@ -334,7 +339,7 @@ async def create_optimization_task(task: OptimizationTask) -> OptimizationTask:
     """创建新的优化任务"""
     if task.task_id in _optimization_tasks:
         raise HTTPException(status_code=400, detail=f"Task {task.task_id} already exists")
-    
+
     _optimization_tasks[task.task_id] = task
     logger.info(f"Optimization task created: {task.task_id}")
     return task
@@ -345,21 +350,21 @@ async def execute_optimization_task(task_id: str) -> OptimizationTask:
     """执行优化任务"""
     if task_id not in _optimization_tasks:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
+
     task = _optimization_tasks[task_id]
     task.status = "running"
     task.started_at = datetime.utcnow()
     task.progress = 50.0
-    
+
     # Simulate task execution
     import asyncio
     await asyncio.sleep(1)  # Simulate work
-    
+
     task.status = "completed"
     task.completed_at = datetime.utcnow()
     task.progress = 100.0
     task.result = {"success": True, "improvement": "15% performance gain"}
-    
+
     logger.info(f"Optimization task executed: {task_id}")
     return task
 
@@ -382,13 +387,14 @@ async def analyze_table_statistics(table_name: str) -> DatabaseStatistics:
             table_size_mb=5.0,
             index_count=1,
             index_size_mb=1.5,
-            bloat_percentage=2.0
+            bloat_percentage=2.0,
+            vacuum_status="active"
         )
         _database_statistics[table_name] = stat
     else:
         # Update last analyzed time
         _database_statistics[table_name].last_analyzed = datetime.utcnow()
-    
+
     logger.info(f"Table statistics analyzed: {table_name}")
     return _database_statistics[table_name]
 
@@ -427,10 +433,10 @@ async def generate_tuning_recommendations() -> Dict[str, PerformanceTuningRecomm
             implementation_steps=["Create VACUUM schedule", "Configure autovacuum parameters", "Monitor bloat metrics"]
         ),
     ]
-    
+
     for rec in sample_recommendations:
         _tuning_recommendations[rec.recommendation_id] = rec
-    
+
     logger.info("Performance tuning recommendations generated")
     return _tuning_recommendations
 
