@@ -134,6 +134,7 @@ from api.audit_router import router as audit_router
 from api.auth_router import router as auth_router
 from api.autoheal_router import router as autoheal_router
 from api.builder_router import router as builder_router
+from api.chart_aggregation_router import router as chart_aggregation_router
 from api.business_impact_advanced_router import router as business_impact_advanced_router
 from api.business_impact_router import router as business_impact_router
 from api.capacity_router import router as capacity_router
@@ -778,6 +779,7 @@ CORE_ROUTERS = [
     audit_center_router,
     compliance_audit_router,
     builder_router,
+    chart_aggregation_router,
     health_router,
     hitl_approval_router,
     linux_router,
