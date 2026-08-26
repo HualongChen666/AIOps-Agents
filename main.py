@@ -133,12 +133,14 @@ from api.audit_center_router import router as audit_center_router
 from api.audit_router import router as audit_router
 from api.auth_router import router as auth_router
 from api.autoheal_router import router as autoheal_router
+from api.builder_router import router as builder_router
 from api.business_impact_advanced_router import router as business_impact_advanced_router
 from api.business_impact_router import router as business_impact_router
 from api.capacity_router import router as capacity_router
 from api.change_management_router import router as change_management_router
 from api.collaboration_advanced_router import router as collaboration_advanced_router
 from api.collaboration_router import router as collaboration_router
+from api.compliance_audit_router import router as compliance_audit_router
 from api.cost_advanced_router import router as cost_advanced_router
 from api.cost_router import router as cost_router
 from api.guard_router import router as guard_router
@@ -774,6 +776,8 @@ CORE_ROUTERS = [
     autoheal_router,
     audit_router,
     audit_center_router,
+    compliance_audit_router,
+    builder_router,
     health_router,
     hitl_approval_router,
     linux_router,
