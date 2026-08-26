@@ -7,9 +7,9 @@
 ![Coverage](https://img.shields.io/badge/coverage-90.18%25-brightgreen.svg?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-99.9%25-brightgreen.svg?style=flat-square)
 
-> **Enterprise-grade AI SRE Platform that transforms monitoring alerts into approved, verified, auditable repairs for software and hardware incidents.**
+> **Enterprise-grade Autonomous SRE Agent with Platform-scale Capabilities**
 
-AIOps SRE Agent is a comprehensive, production-ready intelligent operations platform that consumes webhook notifications from multiple monitoring systems, normalizes them into a unified alert model, and executes intelligent repair workflows with AI-powered root cause analysis, automated approval gates, and comprehensive audit trails.
+AIOps SRE Agent is an intelligent, self-learning operations agent that transforms monitoring alerts into automated, approved, and auditable repairs. Built with platform-scale architecture but focused on autonomous decision-making, the agent continuously learns from incidents to improve its repair capabilities while maintaining enterprise-grade safety and compliance.
 
 ## 🚀 Key Features
 
@@ -88,7 +88,7 @@ curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
 
 ## 🏗️ Architecture
 
-### 7-Layer Architecture
+### Agent Closed-Loop Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -98,87 +98,61 @@ curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
                      │ Webhooks
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  L1: Real-time Stream Processing Layer                       │
+│  Alert Ingestion & Normalization Layer                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Kafka Stream │  │ Flink Jobs   │  │ Event Bus    │     │
+│  │ Alert Parser │  │ Normalizer   │  │ Classifier   │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
-│  L1L2DataFlowIntegrator                                     │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  L2: Analysis Layer                                          │
+│  AI Analysis & Decision Layer                                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Causal Graph │  │ AI Inference │  │ Anomaly Det  │     │
+│  │ LLM Analysis │  │ RAG Retrieval│  │ Knowledge Gr │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
-│  L2L3WorkflowIntegrator                                     │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  L3: Processing Layer                                        │
+│  Approval & Safety Layer                                     │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Workflow Eng │  │ State Machine│  │ DSL Engine   │     │
+│  │ Approval Gate│  │ Risk Engine  │  │ Command Guard│     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
-│  L3L4StorageIntegrator                                      │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  L4: Storage Layer                                           │
+│  Execution & Repair Layer                                    │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ PostgreSQL   │  │ Redis Cache  │  │ Qdrant Vector│     │
+│  │ Repair Engine│  │ Saga Coord   │  │ Rollback     │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
-│  L4L5DataIntegrator                                         │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  L5: Knowledge Layer                                        │
+│  Audit & Learning Layer                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Knowledge Gr │  │ RAG Retrieval│  │ Vector Store │     │
+│  │ Audit Trail  │  │ Knowledge Acq│  │ Model Update │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
-│  L5L6ExecutionIntegrator                                    │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  L6: Execution Layer                                        │
+│  Knowledge Base & Continuous Improvement                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Command Guard│  │ Approval Gate│  │ Saga Engine  │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│  L6L7FrontendIntegrator                                     │
-└────────────────────┬────────────────────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  L7: Integration Layer                                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Frontend UI  │  │ API Gateway   │  │ Third-party  │     │
+│  │ Vector Store │  │ Experience DB│  │ Feedback Loop│     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Layer Responsibilities
 
-- **L1 - Real-time Stream Processing**: Kafka stream processing, Flink job management, event bus
-- **L2 - Analysis**: Causal graph analysis, AI inference, anomaly detection, prediction
-- **L3 - Processing**: Workflow orchestration, state machine, DSL execution, business logic
-- **L4 - Storage**: Multi-backend storage (PostgreSQL, Redis, Qdrant), data policies, retention
-- **L5 - Knowledge**: Knowledge graphs, RAG retrieval, vector stores, intelligent decision making
-- **L6 - Execution**: Command execution, safety guards, approval gates, saga coordination
-- **L7 - Integration**: Frontend UI, API gateway, third-party integrations, user interfaces
-
-### Layer Integrators
-
-The 7-layer architecture is connected through dedicated integrators that handle data flow and transformation between layers:
-
-- **L1L2DataFlowIntegrator**: Stream processing to analysis layer data flow
-- **L2L3WorkflowIntegrator**: Analysis to processing layer workflow triggering
-- **L3L4StorageIntegrator**: Processing to storage layer data persistence
-- **L4L5DataIntegrator**: Storage to knowledge layer real-time data processing
-- **L5L6ExecutionIntegrator**: Knowledge to execution layer intelligent execution
-- **L6L7FrontendIntegrator**: Execution to integration layer frontend presentation
+- **Alert Ingestion & Normalization**: Multi-source alert ingestion, unified alert model, intelligent classification
+- **AI Analysis & Decision**: LLM-powered root cause analysis, RAG retrieval, knowledge graph reasoning
+- **Approval & Safety**: Multi-level approval gates, risk assessment, command guard system
+- **Execution & Repair**: Automated repair execution, saga coordination, rollback mechanisms
+- **Audit & Learning**: Comprehensive audit trails, knowledge acquisition, model updates
+- **Knowledge Base & Continuous Improvement**: Vector storage, experience database, feedback learning loop
 
 ---
 
