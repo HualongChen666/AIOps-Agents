@@ -1,0 +1,36 @@
+Add monitoring configuration and performance optimization APIs
+
+Phase 8.5: Monitoring Configuration API
+- Created api/monitoring_config_router.py with comprehensive monitoring endpoints
+- Implemented GET/PUT /api/v1/monitoring/config for general monitoring configuration
+- Implemented GET/PUT /api/v1/monitoring/metrics-config for metrics collection settings
+- Implemented GET/PUT /api/v1/monitoring/logging-config for logging configuration
+- Implemented GET/PUT /api/v1/monitoring/alert-thresholds for alert thresholds
+- Added GET /api/v1/monitoring/status for monitoring status
+- Added POST /api/v1/monitoring/test-connection for backend connection testing
+- Supports multiple storage backends (VictoriaMetrics, Loki, Tempo)
+- Integrated with main.py CORE_ROUTERS
+
+Phase 9: Performance Optimization API
+- Created api/performance_optimization_router.py with performance tuning endpoints
+- Implemented GET/PUT /api/v1/performance/config for general performance settings
+- Implemented GET/PUT /api/v1/performance/cache-config for cache configuration
+- Implemented GET/PUT /api/v1/performance/database-config for database settings
+- Implemented GET/PUT /api/v1/performance/resource-limits for resource management
+- Added GET /api/v1/performance/status for performance status monitoring
+- Added POST /api/v1/performance/optimize for executing performance optimizations
+- Added GET /api/v1/performance/recommendations for optimization suggestions
+- Supports caching, connection pooling, query optimization, and resource management
+- Integrated with main.py CORE_ROUTERS
+
+Both APIs follow REST conventions and include:
+- Proper error handling with HTTPException
+- Pydantic models for request/response validation
+- Configuration management with in-memory storage
+- Status monitoring and health checks
+- Optimization recommendations and execution
+- Complete CRUD operations for configuration entities
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>
