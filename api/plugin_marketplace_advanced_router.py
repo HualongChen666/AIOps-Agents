@@ -281,7 +281,7 @@ async def get_plugin(plugin_id: str):
 @router.post(
     "/plugins/{plugin_id}/install", response_model=InstallResponse, summary="Install a plugin"
 )
-async def install_plugin(plugin_id: str, request: InstallRequest):
+async def install_plugin(plugin_id: str, request: InstallRequest, db: Session = Depends(get_db)):
     """
     Install a plugin from the marketplace
 
@@ -294,37 +294,43 @@ async def install_plugin(plugin_id: str, request: InstallRequest):
     """
     try:
         # Find the plugin
-        plugin_listing = None
-        for listing in _listings.values():
-            if listing["id"] == plugin_id or listing["plugin_id"] == plugin_id:
-                plugin_listing = listing
-                break
+        plugin_listing = db.query(PluginListingDB).filter(
+            (PluginListingDB.id == plugin_id) | (PluginListingDB.plugin_id == plugin_id)
+        ).first()
 
         if not plugin_listing:
             raise HTTPException(status_code=404, detail="Plugin not found")
 
         # Check if already installed
-        if plugin_listing["plugin_id"] in _installed_plugins:
+        existing_install = db.query(InstalledPluginDB).filter(
+            InstalledPluginDB.plugin_id == plugin_listing.plugin_id
+        ).first()
+        if existing_install:
             raise HTTPException(status_code=400, detail="Plugin is already installed")
 
         # Simulate installation
-        install_path = f"plugins/{plugin_listing['plugin_name']}"
+        install_path = f"plugins/{plugin_listing.plugin_name}"
 
         # Record installation
-        _installed_plugins[plugin_listing["plugin_id"]] = {
-            "plugin_id": plugin_listing["plugin_id"],
-            "plugin_name": plugin_listing["plugin_name"],
-            "version": request.version or plugin_listing["version"],
-            "install_path": install_path,
-            "config": request.config,
-            "installed_at": datetime.utcnow(),
-        }
+        new_install = InstalledPluginDB(
+            id=str(uuid4()),
+            plugin_id=plugin_listing.plugin_id,
+            plugin_name=plugin_listing.plugin_name,
+            version=request.version or plugin_listing.version,
+            install_path=install_path,
+            config=request.config,
+            installed_at=datetime.utcnow(),
+        )
+        db.add(new_install)
+        db.commit()
+        db.refresh(new_install)
 
         # Update download count
-        plugin_listing["download_count"] += 1
-        plugin_listing["updated_at"] = datetime.utcnow()
+        plugin_listing.download_count += 1
+        plugin_listing.updated_at = datetime.utcnow()
+        db.commit()
 
-        logger.info(f"Installed plugin: {plugin_listing['plugin_name']}")
+        logger.info(f"Installed plugin: {plugin_listing.plugin_name}")
 
         return InstallResponse(
             success=True,
@@ -342,7 +348,7 @@ async def install_plugin(plugin_id: str, request: InstallRequest):
 
 
 @router.post("/plugins/{plugin_id}/uninstall", summary="Uninstall a plugin")
-async def uninstall_plugin(plugin_id: str):
+async def uninstall_plugin(plugin_id: str, db: Session = Depends(get_db)):
     """
     Uninstall a plugin
 
@@ -354,27 +360,29 @@ async def uninstall_plugin(plugin_id: str):
     """
     try:
         # Find the plugin
-        plugin_listing = None
-        for listing in _listings.values():
-            if listing["id"] == plugin_id or listing["plugin_id"] == plugin_id:
-                plugin_listing = listing
-                break
+        plugin_listing = db.query(PluginListingDB).filter(
+            (PluginListingDB.id == plugin_id) | (PluginListingDB.plugin_id == plugin_id)
+        ).first()
 
         if not plugin_listing:
             raise HTTPException(status_code=404, detail="Plugin not found")
 
         # Check if installed
-        if plugin_listing["plugin_id"] not in _installed_plugins:
+        installed_plugin = db.query(InstalledPluginDB).filter(
+            InstalledPluginDB.plugin_id == plugin_listing.plugin_id
+        ).first()
+        if not installed_plugin:
             raise HTTPException(status_code=400, detail="Plugin is not installed")
 
         # Remove installation record
-        del _installed_plugins[plugin_listing["plugin_id"]]
+        db.delete(installed_plugin)
+        db.commit()
 
-        logger.info(f"Uninstalled plugin: {plugin_listing['plugin_name']}")
+        logger.info(f"Uninstalled plugin: {plugin_listing.plugin_name}")
 
         return {
             "status": "success",
-            "message": f"Plugin '{plugin_listing['plugin_name']}' uninstalled successfully",
+            "message": f"Plugin '{plugin_listing.plugin_name}' uninstalled successfully",
         }
     except HTTPException:
         raise
@@ -385,7 +393,7 @@ async def uninstall_plugin(plugin_id: str):
 
 # Category Endpoints
 @router.get("/categories", response_model=List[CategoryResponse], summary="Get all categories")
-async def get_categories():
+async def get_categories(db: Session = Depends(get_db)):
     """
     Get all plugin categories
 
@@ -393,7 +401,17 @@ async def get_categories():
         List of categories
     """
     try:
-        return [CategoryResponse(**cat) for cat in _categories.values()]
+        categories = db.query(PluginCategoryDB).all()
+        return [
+            CategoryResponse(
+                id=str(category.id),
+                name=category.name,
+                description=category.description,
+                plugin_count=category.plugin_count,
+                icon=category.icon,
+            )
+            for category in categories
+        ]
     except Exception as e:
         logger.error(f"Error getting categories: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -405,6 +423,7 @@ async def get_reviews(
     plugin_id: Optional[str] = Query(None, description="Filter by plugin ID"),
     rating: Optional[int] = Query(None, ge=1, le=5, description="Filter by rating"),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    db: Session = Depends(get_db),
 ):
     """
     Get all reviews with optional filtering
@@ -418,33 +437,39 @@ async def get_reviews(
         List of reviews
     """
     try:
-        all_reviews = []
-        for plugin_id_key, reviews in _reviews.items():
-            for review in reviews:
-                all_reviews.append(review)
+        query = db.query(PluginReviewDB)
 
         # Filter by plugin_id
         if plugin_id:
-            all_reviews = [r for r in all_reviews if r["plugin_id"] == plugin_id]
+            query = query.filter(PluginReviewDB.plugin_id == plugin_id)
 
         # Filter by rating
         if rating:
-            all_reviews = [r for r in all_reviews if r["rating"] == rating]
+            query = query.filter(PluginReviewDB.rating == rating)
 
-        # Sort by timestamp (newest first)
-        all_reviews.sort(key=lambda x: x["timestamp"], reverse=True)
+        reviews = query.limit(limit).all()
 
-        # Limit results
-        all_reviews = all_reviews[:limit]
-
-        return [ReviewResponse(**r) for r in all_reviews]
+        return [
+            ReviewResponse(
+                id=str(review.id),
+                plugin_id=review.plugin_id,
+                user_id=review.user_id,
+                user_name=review.user_name,
+                rating=review.rating,
+                title=review.title,
+                comment=review.comment,
+                created_at=review.created_at.isoformat() if review.created_at else None,
+                updated_at=review.updated_at.isoformat() if review.updated_at else None,
+            )
+            for review in reviews
+        ]
     except Exception as e:
         logger.error(f"Error getting reviews: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return []
 
 
 @router.post("/reviews", response_model=ReviewResponse, summary="Create a review")
-async def create_review(review: ReviewCreate):
+async def create_review(review: ReviewCreate, db: Session = Depends(get_db)):
     """
     Create a new review for a plugin
 
@@ -456,43 +481,38 @@ async def create_review(review: ReviewCreate):
     """
     try:
         # Find the plugin
-        plugin_listing = None
-        for listing in _listings.values():
-            if listing["id"] == review.plugin_id or listing["plugin_id"] == review.plugin_id:
-                plugin_listing = listing
-                break
+        plugin_listing = db.query(PluginListingDB).filter(
+            (PluginListingDB.id == review.plugin_id) | (PluginListingDB.plugin_id == review.plugin_id)
+        ).first()
 
         if not plugin_listing:
             raise HTTPException(status_code=404, detail="Plugin not found")
 
         # Create review
-        new_review = {
-            "id": str(uuid4()),
-            "plugin_id": review.plugin_id,
-            "plugin_name": plugin_listing["plugin_name"],
-            "reviewer": review.reviewer,
-            "rating": review.rating,
-            "comment": review.comment,
-            "title": review.title,
-            "timestamp": datetime.utcnow(),
-            "helpful_count": 0,
-        }
+        new_review = PluginReviewDB(
+            id=str(uuid4()),
+            plugin_id=review.plugin_id,
+            user_id=review.reviewer,
+            user_name=review.reviewer,
+            rating=review.rating,
+            title=review.title if hasattr(review, 'title') else "",
+            comment=review.comment,
+        )
+        db.add(new_review)
+        db.commit()
+        db.refresh(new_review)
 
-        # Add to reviews
-        if review.plugin_id not in _reviews:
-            _reviews[review.plugin_id] = []
-        _reviews[review.plugin_id].append(new_review)
-
-        # Update plugin rating
-        plugin_reviews = _reviews[review.plugin_id]
-        total_rating = sum(r["rating"] for r in plugin_reviews)
-        plugin_listing["rating"] = round(total_rating / len(plugin_reviews), 1)
-        plugin_listing["review_count"] = len(plugin_reviews)
-        plugin_listing["updated_at"] = datetime.utcnow()
-
-        logger.info(f"Created review for plugin: {plugin_listing['plugin_name']}")
-
-        return ReviewResponse(**new_review)
+        return ReviewResponse(
+            id=str(new_review.id),
+            plugin_id=new_review.plugin_id,
+            user_id=new_review.user_id,
+            user_name=new_review.user_name,
+            rating=new_review.rating,
+            title=new_review.title,
+            comment=new_review.comment,
+            created_at=new_review.created_at.isoformat() if new_review.created_at else None,
+            updated_at=new_review.updated_at.isoformat() if new_review.updated_at else None,
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -505,7 +525,7 @@ async def create_review(review: ReviewCreate):
     response_model=List[ReviewResponse],
     summary="Get reviews for a plugin",
 )
-async def get_plugin_reviews(plugin_id: str, limit: int = Query(50, ge=1, le=100)):
+async def get_plugin_reviews(plugin_id: str, limit: int = Query(50, ge=1, le=100), db: Session = Depends(get_db)):
     """
     Get all reviews for a specific plugin
 
@@ -517,18 +537,22 @@ async def get_plugin_reviews(plugin_id: str, limit: int = Query(50, ge=1, le=100
         List of reviews for the plugin
     """
     try:
-        if plugin_id not in _reviews:
-            return []
+        reviews = db.query(PluginReviewDB).filter(PluginReviewDB.plugin_id == plugin_id).limit(limit).all()
 
-        reviews = _reviews[plugin_id].copy()
-
-        # Sort by timestamp (newest first)
-        reviews.sort(key=lambda x: x["timestamp"], reverse=True)
-
-        # Limit results
-        reviews = reviews[:limit]
-
-        return [ReviewResponse(**r) for r in reviews]
+        return [
+            ReviewResponse(
+                id=str(review.id),
+                plugin_id=review.plugin_id,
+                user_id=review.user_id,
+                user_name=review.user_name,
+                rating=review.rating,
+                title=review.title,
+                comment=review.comment,
+                created_at=review.created_at.isoformat() if review.created_at else None,
+                updated_at=review.updated_at.isoformat() if review.updated_at else None,
+            )
+            for review in reviews
+        ]
     except Exception as e:
         logger.error(f"Error getting plugin reviews: {e}")
         raise HTTPException(status_code=500, detail=str(e))

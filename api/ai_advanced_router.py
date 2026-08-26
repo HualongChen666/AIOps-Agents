@@ -1957,8 +1957,21 @@ async def update_routing_rule(rule_id: str, update: Dict[str, Any]) -> RoutingRu
 async def get_datasets(db: Session = Depends(get_db)) -> Dict[str, List[Any]]:
     """获取所有训练数据集"""
     try:
-        # For now, return empty list as datasets functionality is not fully implemented
-        return {"datasets": []}
+        datasets = db.query(TrainingDataset).all()
+        return {"datasets": [
+            {
+                "id": str(dataset.id),
+                "name": dataset.name,
+                "description": dataset.description,
+                "data_type": dataset.data_type,
+                "size": dataset.size,
+                "record_count": dataset.record_count,
+                "status": dataset.status,
+                "created_at": dataset.created_at.isoformat() if dataset.created_at else None,
+                "updated_at": dataset.updated_at.isoformat() if dataset.updated_at else None,
+            }
+            for dataset in datasets
+        ]}
     except Exception as e:
         logger.error(f"Error getting datasets: {e}")
         return {"datasets": []}
@@ -1968,15 +1981,32 @@ async def get_datasets(db: Session = Depends(get_db)) -> Dict[str, List[Any]]:
 async def create_dataset(dataset: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的训练数据集"""
     try:
-        # For now, return a mock response as datasets functionality is not fully implemented
         dataset_id = str(uuid.uuid4())
+        new_dataset = TrainingDataset(
+            id=dataset_id,
+            name=dataset.get("name", "unnamed"),
+            description=dataset.get("description", ""),
+            data_type=dataset.get("data_type", "text"),
+            size=dataset.get("size", 0),
+            record_count=dataset.get("record_count", 0),
+            status="pending",
+        )
+        db.add(new_dataset)
+        db.commit()
+        db.refresh(new_dataset)
+        
         return {
             "status": "success",
             "dataset": {
-                "id": dataset_id,
-                "name": dataset.get("name", "unnamed"),
-                "description": dataset.get("description", ""),
-                "created_at": datetime.utcnow().isoformat(),
+                "id": str(new_dataset.id),
+                "name": new_dataset.name,
+                "description": new_dataset.description,
+                "data_type": new_dataset.data_type,
+                "size": new_dataset.size,
+                "record_count": new_dataset.record_count,
+                "status": new_dataset.status,
+                "created_at": new_dataset.created_at.isoformat() if new_dataset.created_at else None,
+                "updated_at": new_dataset.updated_at.isoformat() if new_dataset.updated_at else None,
             }
         }
     except Exception as e:
@@ -1988,16 +2018,37 @@ async def create_dataset(dataset: Dict[str, Any], db: Session = Depends(get_db))
 async def update_dataset(dataset_id: str, dataset: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新训练数据集"""
     try:
-        # For now, return a mock response as datasets functionality is not fully implemented
+        existing_dataset = db.query(TrainingDataset).filter(TrainingDataset.id == dataset_id).first()
+        if not existing_dataset:
+            raise HTTPException(status_code=404, detail="训练数据集不存在")
+
+        existing_dataset.name = dataset.get("name", existing_dataset.name)
+        existing_dataset.description = dataset.get("description", existing_dataset.description)
+        existing_dataset.data_type = dataset.get("data_type", existing_dataset.data_type)
+        existing_dataset.size = dataset.get("size", existing_dataset.size)
+        existing_dataset.record_count = dataset.get("record_count", existing_dataset.record_count)
+        existing_dataset.status = dataset.get("status", existing_dataset.status)
+        existing_dataset.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_dataset)
+        
         return {
             "status": "success",
             "dataset": {
-                "id": dataset_id,
-                "name": dataset.get("name", "unnamed"),
-                "description": dataset.get("description", ""),
-                "updated_at": datetime.utcnow().isoformat(),
+                "id": str(existing_dataset.id),
+                "name": existing_dataset.name,
+                "description": existing_dataset.description,
+                "data_type": existing_dataset.data_type,
+                "size": existing_dataset.size,
+                "record_count": existing_dataset.record_count,
+                "status": existing_dataset.status,
+                "created_at": existing_dataset.created_at.isoformat() if existing_dataset.created_at else None,
+                "updated_at": existing_dataset.updated_at.isoformat() if existing_dataset.updated_at else None,
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating dataset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2007,8 +2058,16 @@ async def update_dataset(dataset_id: str, dataset: Dict[str, Any], db: Session =
 async def delete_dataset(dataset_id: str, db: Session = Depends(get_db)) -> Dict[str, str]:
     """删除训练数据集"""
     try:
-        # For now, return a mock response as datasets functionality is not fully implemented
+        existing_dataset = db.query(TrainingDataset).filter(TrainingDataset.id == dataset_id).first()
+        if not existing_dataset:
+            raise HTTPException(status_code=404, detail="训练数据集不存在")
+
+        db.delete(existing_dataset)
+        db.commit()
+        
         return {"status": "success", "message": f"Dataset {dataset_id} deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting dataset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2018,8 +2077,20 @@ async def delete_dataset(dataset_id: str, db: Session = Depends(get_db)) -> Dict
 async def get_deployments(db: Session = Depends(get_db)) -> Dict[str, List[Any]]:
     """获取所有模型部署"""
     try:
-        # For now, return empty list as deploy functionality is not fully implemented
-        return {"deployments": []}
+        deployments = db.query(ModelDeployment).all()
+        return {"deployments": [
+            {
+                "id": str(deployment.id),
+                "model_name": deployment.model_name,
+                "version": deployment.version,
+                "environment": deployment.environment,
+                "status": deployment.status,
+                "endpoint": deployment.endpoint,
+                "created_at": deployment.created_at.isoformat() if deployment.created_at else None,
+                "updated_at": deployment.updated_at.isoformat() if deployment.updated_at else None,
+            }
+            for deployment in deployments
+        ]}
     except Exception as e:
         logger.error(f"Error getting deployments: {e}")
         return {"deployments": []}
@@ -2029,20 +2100,35 @@ async def get_deployments(db: Session = Depends(get_db)) -> Dict[str, List[Any]]
 async def deploy_model(deployment: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
     """部署模型"""
     try:
-        # For now, return a mock response as deploy functionality is not fully implemented
         deployment_id = str(uuid.uuid4())
+        new_deployment = ModelDeployment(
+            id=deployment_id,
+            model_name=deployment.get("model_name", "unnamed"),
+            version=deployment.get("version", "1.0"),
+            environment=deployment.get("environment", "production"),
+            status="deploying",
+            endpoint=deployment.get("endpoint", ""),
+        )
+        db.add(new_deployment)
+        db.commit()
+        db.refresh(new_deployment)
+        
         return {
             "status": "success",
             "deployment": {
-                "id": deployment_id,
-                "model_name": deployment.get("model_name", "unnamed"),
-                "version": deployment.get("version", "1.0"),
-                "status": "deployed",
-                "created_at": datetime.utcnow().isoformat(),
+                "id": str(new_deployment.id),
+                "model_name": new_deployment.model_name,
+                "version": new_deployment.version,
+                "environment": new_deployment.environment,
+                "status": new_deployment.status,
+                "endpoint": new_deployment.endpoint,
+                "created_at": new_deployment.created_at.isoformat() if new_deployment.created_at else None,
+                "updated_at": new_deployment.updated_at.isoformat() if new_deployment.updated_at else None,
             }
         }
     except Exception as e:
         logger.error(f"Error deploying model: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -2050,17 +2136,35 @@ async def deploy_model(deployment: Dict[str, Any], db: Session = Depends(get_db)
 async def update_deployment(deployment_id: str, deployment: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新模型部署"""
     try:
-        # For now, return a mock response as deploy functionality is not fully implemented
+        existing_deployment = db.query(ModelDeployment).filter(ModelDeployment.id == deployment_id).first()
+        if not existing_deployment:
+            raise HTTPException(status_code=404, detail="模型部署不存在")
+
+        existing_deployment.model_name = deployment.get("model_name", existing_deployment.model_name)
+        existing_deployment.version = deployment.get("version", existing_deployment.version)
+        existing_deployment.environment = deployment.get("environment", existing_deployment.environment)
+        existing_deployment.status = deployment.get("status", existing_deployment.status)
+        existing_deployment.endpoint = deployment.get("endpoint", existing_deployment.endpoint)
+        existing_deployment.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_deployment)
+        
         return {
             "status": "success",
             "deployment": {
-                "id": deployment_id,
-                "model_name": deployment.get("model_name", "unnamed"),
-                "version": deployment.get("version", "1.0"),
-                "status": deployment.get("status", "deployed"),
-                "updated_at": datetime.utcnow().isoformat(),
+                "id": str(existing_deployment.id),
+                "model_name": existing_deployment.model_name,
+                "version": existing_deployment.version,
+                "environment": existing_deployment.environment,
+                "status": existing_deployment.status,
+                "endpoint": existing_deployment.endpoint,
+                "created_at": existing_deployment.created_at.isoformat() if existing_deployment.created_at else None,
+                "updated_at": existing_deployment.updated_at.isoformat() if existing_deployment.updated_at else None,
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating deployment: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2070,8 +2174,16 @@ async def update_deployment(deployment_id: str, deployment: Dict[str, Any], db: 
 async def delete_deployment(deployment_id: str, db: Session = Depends(get_db)) -> Dict[str, str]:
     """删除模型部署"""
     try:
-        # For now, return a mock response as deploy functionality is not fully implemented
+        existing_deployment = db.query(ModelDeployment).filter(ModelDeployment.id == deployment_id).first()
+        if not existing_deployment:
+            raise HTTPException(status_code=404, detail="模型部署不存在")
+
+        db.delete(existing_deployment)
+        db.commit()
+        
         return {"status": "success", "message": f"Deployment {deployment_id} deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting deployment: {e}")
         raise HTTPException(status_code=500, detail=str(e))

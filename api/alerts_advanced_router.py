@@ -932,9 +932,28 @@ async def get_history(
 
 
 @router.get("/forwarding/rules", summary="获取转发规则列表")
-async def get_forwarding_rules() -> Dict[str, Any]:
+async def get_forwarding_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有转发规则"""
-    return {"rules": list(_forwarding_rules.values())}
+    try:
+        rules = db.query(AlertForwardingRule).all()
+        return {"rules": [
+            {
+                "id": str(rule.id),
+                "name": rule.name,
+                "rule_id": rule.rule_id,
+                "target_config": rule.target_config,
+                "filter_conditions": rule.filter_conditions,
+                "enabled": rule.enabled,
+                "priority": rule.priority,
+                "description": rule.description,
+                "created_at": rule.created_at.isoformat() if rule.created_at else None,
+                "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+            }
+            for rule in rules
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting forwarding rules: {e}")
+        return {"rules": []}
 
 
 @router.post("/forwarding/rules", summary="创建转发规则")
@@ -1036,48 +1055,121 @@ async def delete_forwarding_rule(rule_id: str, db: Session = Depends(get_db)) ->
 
 
 @router.get("/webhook/configs", summary="获取Webhook配置列表")
-async def get_webhook_configs() -> Dict[str, Any]:
+async def get_webhook_configs(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有Webhook配置"""
-    return {"webhooks": list(_webhook_configs.values())}
+    try:
+        webhooks = db.query(AlertWebhookConfig).all()
+        return {"webhooks": [
+            {
+                "id": str(webhook.id),
+                "webhook_name": webhook.webhook_name,
+                "webhook_url": webhook.webhook_url,
+                "headers": webhook.headers,
+                "retry_policy": webhook.retry_policy,
+                "enabled": webhook.enabled,
+                "created_at": webhook.created_at.isoformat() if webhook.created_at else None,
+                "updated_at": webhook.updated_at.isoformat() if webhook.updated_at else None,
+            }
+            for webhook in webhooks
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting webhook configs: {e}")
+        return {"webhooks": []}
 
 
 @router.post("/webhook/configs", summary="创建Webhook配置")
-async def create_webhook_config(config: WebhookConfig) -> Dict[str, Any]:
+async def create_webhook_config(config: WebhookConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的Webhook配置"""
-    config_id = generate_id()
-    config_data = config.dict()
-    config_data["id"] = config_id
-    config_data["created_at"] = get_timestamp()
-    config_data["updated_at"] = get_timestamp()
-    _webhook_configs[config_id] = config_data
-    return {"status": "success", "webhook": config_data}
+    try:
+        config_id = generate_id()
+        new_webhook = AlertWebhookConfig(
+            id=config_id,
+            webhook_name=config.name,
+            webhook_url=config.url,
+            headers=config.headers,
+            retry_policy=config.retry_policy,
+            enabled=True,
+        )
+        db.add(new_webhook)
+        db.commit()
+        db.refresh(new_webhook)
+        
+        return {
+            "status": "success",
+            "webhook": {
+                "id": str(new_webhook.id),
+                "webhook_name": new_webhook.webhook_name,
+                "webhook_url": new_webhook.webhook_url,
+                "headers": new_webhook.headers,
+                "retry_policy": new_webhook.retry_policy,
+                "enabled": new_webhook.enabled,
+                "created_at": new_webhook.created_at.isoformat() if new_webhook.created_at else None,
+                "updated_at": new_webhook.updated_at.isoformat() if new_webhook.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating webhook config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/webhook/configs/{config_id}", summary="更新Webhook配置")
-async def update_webhook_config(config_id: str, config: WebhookConfig) -> Dict[str, Any]:
+async def update_webhook_config(config_id: str, config: WebhookConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新Webhook配置"""
-    if config_id not in _webhook_configs:
-        raise HTTPException(status_code=404, detail="Webhook配置不存在")
+    try:
+        existing_webhook = db.query(AlertWebhookConfig).filter(AlertWebhookConfig.id == config_id).first()
+        if not existing_webhook:
+            raise HTTPException(status_code=404, detail="Webhook配置不存在")
 
-    config_data = config.dict()
-    config_data["id"] = config_id
-    config_data["created_at"] = _webhook_configs[config_id]["created_at"]
-    config_data["updated_at"] = get_timestamp()
-    _webhook_configs[config_id] = config_data
-    return {"status": "success", "webhook": config_data}
+        existing_webhook.webhook_name = config.name
+        existing_webhook.webhook_url = config.url
+        existing_webhook.headers = config.headers
+        existing_webhook.retry_policy = config.retry_policy
+        existing_webhook.enabled = config.enabled if hasattr(config, 'enabled') else True
+        existing_webhook.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_webhook)
+        
+        return {
+            "status": "success",
+            "webhook": {
+                "id": str(existing_webhook.id),
+                "webhook_name": existing_webhook.webhook_name,
+                "webhook_url": existing_webhook.webhook_url,
+                "headers": existing_webhook.headers,
+                "retry_policy": existing_webhook.retry_policy,
+                "enabled": existing_webhook.enabled,
+                "created_at": existing_webhook.created_at.isoformat() if existing_webhook.created_at else None,
+                "updated_at": existing_webhook.updated_at.isoformat() if existing_webhook.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating webhook config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/webhook/configs/{config_id}", summary="删除Webhook配置")
-async def delete_webhook_config(config_id: str) -> Dict[str, Any]:
+async def delete_webhook_config(config_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除Webhook配置"""
-    if config_id not in _webhook_configs:
-        raise HTTPException(status_code=404, detail="Webhook配置不存在")
+    try:
+        existing_webhook = db.query(AlertWebhookConfig).filter(AlertWebhookConfig.id == config_id).first()
+        if not existing_webhook:
+            raise HTTPException(status_code=404, detail="Webhook配置不存在")
 
-    del _webhook_configs[config_id]
-    return {"status": "success", "message": "Webhook配置已删除"}
+        db.delete(existing_webhook)
+        db.commit()
+        
+        return {"status": "success", "message": "Webhook配置已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting webhook config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/intelligent-analysis", summary="获取智能分析结果")
+@router.get("/dynamic-threshold/rules", summary="获取动态阈值规则列表")
 async def get_intelligent_analysis() -> Dict[str, Any]:
     """获取智能分析结果"""
     return {
@@ -1119,213 +1211,578 @@ async def run_intelligent_analysis() -> Dict[str, Any]:
 
 
 @router.get("/dynamic-threshold/rules", summary="获取动态阈值规则列表")
-async def get_dynamic_threshold_rules() -> Dict[str, Any]:
+async def get_dynamic_threshold_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有动态阈值规则"""
-    return {"thresholds": list(_dynamic_threshold_rules.values())}
+    try:
+        thresholds = db.query(AlertDynamicThresholdRule).all()
+        return {"thresholds": [
+            {
+                "id": str(threshold.id),
+                "name": threshold.rule_name,
+                "rule_id": threshold.rule_id,
+                "metric_name": threshold.metric_name,
+                "threshold_expression": threshold.threshold_expression,
+                "evaluation_interval": threshold.evaluation_interval,
+                "enabled": threshold.enabled,
+                "created_at": threshold.created_at.isoformat() if threshold.created_at else None,
+                "updated_at": threshold.updated_at.isoformat() if threshold.updated_at else None,
+            }
+            for threshold in thresholds
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting dynamic threshold rules: {e}")
+        return {"thresholds": []}
 
 
 @router.post("/dynamic-threshold/rules", summary="创建动态阈值规则")
-async def create_dynamic_threshold_rule(rule: DynamicThresholdRule) -> Dict[str, Any]:
+async def create_dynamic_threshold_rule(rule: DynamicThresholdRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的动态阈值规则"""
-    rule_id = generate_id()
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = get_timestamp()
-    rule_data["updated_at"] = get_timestamp()
-    _dynamic_threshold_rules[rule_id] = rule_data
-    return {"status": "success", "threshold": rule_data}
+    try:
+        rule_id = generate_id()
+        new_threshold = AlertDynamicThresholdRule(
+            name=rule.name,
+            rule_id=rule_id,
+            metric_name=rule.metric_name,
+            threshold_expression=rule.threshold_expression,
+            evaluation_interval=rule.evaluation_interval,
+            enabled=True,
+        )
+        db.add(new_threshold)
+        db.commit()
+        db.refresh(new_threshold)
+        
+        return {
+            "status": "success",
+            "threshold": {
+                "id": str(new_threshold.id),
+                "name": new_threshold.rule_name,
+                "rule_id": new_threshold.rule_id,
+                "metric_name": new_threshold.metric_name,
+                "threshold_expression": new_threshold.threshold_expression,
+                "evaluation_interval": new_threshold.evaluation_interval,
+                "enabled": new_threshold.enabled,
+                "created_at": new_threshold.created_at.isoformat() if new_threshold.created_at else None,
+                "updated_at": new_threshold.updated_at.isoformat() if new_threshold.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating dynamic threshold rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/dynamic-threshold/rules/{rule_id}", summary="更新动态阈值规则")
-async def update_dynamic_threshold_rule(rule_id: str, rule: DynamicThresholdRule) -> Dict[str, Any]:
+async def update_dynamic_threshold_rule(rule_id: str, rule: DynamicThresholdRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新动态阈值规则"""
-    if rule_id not in _dynamic_threshold_rules:
-        raise HTTPException(status_code=404, detail="动态阈值规则不存在")
+    try:
+        existing_threshold = db.query(AlertDynamicThresholdRule).filter(AlertDynamicThresholdRule.rule_id == rule_id).first()
+        if not existing_threshold:
+            raise HTTPException(status_code=404, detail="动态阈值规则不存在")
 
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = _dynamic_threshold_rules[rule_id]["created_at"]
-    rule_data["updated_at"] = get_timestamp()
-    _dynamic_threshold_rules[rule_id] = rule_data
-    return {"status": "success", "threshold": rule_data}
+        existing_threshold.name = rule.name
+        existing_threshold.metric_name = rule.metric_name
+        existing_threshold.threshold_expression = rule.threshold_expression
+        existing_threshold.evaluation_interval = rule.evaluation_interval
+        existing_threshold.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_threshold.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_threshold)
+        
+        return {
+            "status": "success",
+            "threshold": {
+                "id": str(existing_threshold.id),
+                "name": existing_threshold.rule_name,
+                "rule_id": existing_threshold.rule_id,
+                "metric_name": existing_threshold.metric_name,
+                "threshold_expression": existing_threshold.threshold_expression,
+                "evaluation_interval": existing_threshold.evaluation_interval,
+                "enabled": existing_threshold.enabled,
+                "created_at": existing_threshold.created_at.isoformat() if existing_threshold.created_at else None,
+                "updated_at": existing_threshold.updated_at.isoformat() if existing_threshold.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating dynamic threshold rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/dynamic-threshold/rules/{rule_id}", summary="删除动态阈值规则")
-async def delete_dynamic_threshold_rule(rule_id: str) -> Dict[str, Any]:
+async def delete_dynamic_threshold_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除动态阈值规则"""
-    if rule_id not in _dynamic_threshold_rules:
-        raise HTTPException(status_code=404, detail="动态阈值规则不存在")
+    try:
+        existing_threshold = db.query(AlertDynamicThresholdRule).filter(AlertDynamicThresholdRule.rule_id == rule_id).first()
+        if not existing_threshold:
+            raise HTTPException(status_code=404, detail="动态阈值规则不存在")
 
-    del _dynamic_threshold_rules[rule_id]
-    return {"status": "success", "message": "动态阈值规则已删除"}
+        db.delete(existing_threshold)
+        db.commit()
+        
+        return {"status": "success", "message": "动态阈值规则已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting dynamic threshold rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/deduplication/rules", summary="获取去重规则列表")
-async def get_deduplication_rules() -> Dict[str, Any]:
+async def get_deduplication_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有去重规则"""
-    return {"rules": list(_deduplication_rules.values())}
+    try:
+        rules = db.query(AlertDeduplicationRule).all()
+        return {"rules": [
+            {
+                "id": str(rule.id),
+                "name": rule.rule_name,
+                "rule_id": rule.rule_id,
+                "match_conditions": rule.match_conditions,
+                "deduplication_window": rule.deduplication_window,
+                "enabled": rule.enabled,
+                "created_at": rule.created_at.isoformat() if rule.created_at else None,
+                "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+            }
+            for rule in rules
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting deduplication rules: {e}")
+        return {"rules": []}
 
 
 @router.post("/deduplication/rules", summary="创建去重规则")
-async def create_deduplication_rule(rule: DeduplicationRule) -> Dict[str, Any]:
+async def create_deduplication_rule(rule: DeduplicationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的去重规则"""
-    rule_id = generate_id()
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = get_timestamp()
-    rule_data["updated_at"] = get_timestamp()
-    _deduplication_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+    try:
+        rule_id = generate_id()
+        new_rule = AlertDeduplicationRule(
+            name=rule.name,
+            rule_id=rule_id,
+            match_conditions=rule.match_conditions,
+            deduplication_window=rule.deduplication_window,
+            enabled=True,
+        )
+        db.add(new_rule)
+        db.commit()
+        db.refresh(new_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(new_rule.id),
+                "name": new_rule.rule_name,
+                "rule_id": new_rule.rule_id,
+                "match_conditions": new_rule.match_conditions,
+                "deduplication_window": new_rule.deduplication_window,
+                "enabled": new_rule.enabled,
+                "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
+                "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating deduplication rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/deduplication/rules/{rule_id}", summary="更新去重规则")
-async def update_deduplication_rule(rule_id: str, rule: DeduplicationRule) -> Dict[str, Any]:
+async def update_deduplication_rule(rule_id: str, rule: DeduplicationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新去重规则"""
-    if rule_id not in _deduplication_rules:
-        raise HTTPException(status_code=404, detail="去重规则不存在")
+    try:
+        existing_rule = db.query(AlertDeduplicationRule).filter(AlertDeduplicationRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="去重规则不存在")
 
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = _deduplication_rules[rule_id]["created_at"]
-    rule_data["updated_at"] = get_timestamp()
-    _deduplication_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+        existing_rule.name = rule.name
+        existing_rule.match_conditions = rule.match_conditions
+        existing_rule.deduplication_window = rule.deduplication_window
+        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(existing_rule.id),
+                "name": existing_rule.rule_name,
+                "rule_id": existing_rule.rule_id,
+                "match_conditions": existing_rule.match_conditions,
+                "deduplication_window": existing_rule.deduplication_window,
+                "enabled": existing_rule.enabled,
+                "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
+                "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating deduplication rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/deduplication/rules/{rule_id}", summary="删除去重规则")
-async def delete_deduplication_rule(rule_id: str) -> Dict[str, Any]:
+async def delete_deduplication_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除去重规则"""
-    if rule_id not in _deduplication_rules:
-        raise HTTPException(status_code=404, detail="去重规则不存在")
+    try:
+        existing_rule = db.query(AlertDeduplicationRule).filter(AlertDeduplicationRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="去重规则不存在")
 
-    del _deduplication_rules[rule_id]
-    return {"status": "success", "message": "去重规则已删除"}
+        db.delete(existing_rule)
+        db.commit()
+        
+        return {"status": "success", "message": "去重规则已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting deduplication rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/aggregation/rules", summary="获取聚合规则列表")
-async def get_aggregation_rules() -> Dict[str, Any]:
+async def get_aggregation_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有聚合规则"""
-    return {"rules": list(_aggregation_rules.values())}
+    try:
+        rules = db.query(AlertAggregationRule).all()
+        return {"rules": [
+            {
+                "id": str(rule.id),
+                "name": rule.rule_name,
+                "rule_id": rule.rule_id,
+                "match_conditions": rule.match_conditions,
+                "group_by": rule.group_by,
+                "aggregation_function": rule.aggregation_function,
+                "enabled": rule.enabled,
+                "created_at": rule.created_at.isoformat() if rule.created_at else None,
+                "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+            }
+            for rule in rules
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting aggregation rules: {e}")
+        return {"rules": []}
 
 
 @router.post("/aggregation/rules", summary="创建聚合规则")
-async def create_aggregation_rule(rule: AggregationRule) -> Dict[str, Any]:
+async def create_aggregation_rule(rule: AggregationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的聚合规则"""
-    rule_id = generate_id()
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = get_timestamp()
-    rule_data["updated_at"] = get_timestamp()
-    _aggregation_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+    try:
+        rule_id = generate_id()
+        new_rule = AlertAggregationRule(
+            name=rule.name,
+            rule_id=rule_id,
+            match_conditions=rule.match_conditions,
+            group_by=rule.group_by,
+            aggregation_function=rule.aggregation_function,
+            enabled=True,
+        )
+        db.add(new_rule)
+        db.commit()
+        db.refresh(new_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(new_rule.id),
+                "name": new_rule.rule_name,
+                "rule_id": new_rule.rule_id,
+                "match_conditions": new_rule.match_conditions,
+                "group_by": new_rule.group_by,
+                "aggregation_function": new_rule.aggregation_function,
+                "enabled": new_rule.enabled,
+                "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
+                "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating aggregation rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/aggregation/rules/{rule_id}", summary="更新聚合规则")
-async def update_aggregation_rule(rule_id: str, rule: AggregationRule) -> Dict[str, Any]:
+async def update_aggregation_rule(rule_id: str, rule: AggregationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新聚合规则"""
-    if rule_id not in _aggregation_rules:
-        raise HTTPException(status_code=404, detail="聚合规则不存在")
+    try:
+        existing_rule = db.query(AlertAggregationRule).filter(AlertAggregationRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="聚合规则不存在")
 
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = _aggregation_rules[rule_id]["created_at"]
-    rule_data["updated_at"] = get_timestamp()
-    _aggregation_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+        existing_rule.name = rule.name
+        existing_rule.match_conditions = rule.match_conditions
+        existing_rule.group_by = rule.group_by
+        existing_rule.aggregation_function = rule.aggregation_function
+        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(existing_rule.id),
+                "name": existing_rule.rule_name,
+                "rule_id": existing_rule.rule_id,
+                "match_conditions": existing_rule.match_conditions,
+                "group_by": existing_rule.group_by,
+                "aggregation_function": existing_rule.aggregation_function,
+                "enabled": existing_rule.enabled,
+                "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
+                "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating aggregation rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/aggregation/rules/{rule_id}", summary="删除聚合规则")
-async def delete_aggregation_rule(rule_id: str) -> Dict[str, Any]:
+async def delete_aggregation_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除聚合规则"""
-    if rule_id not in _aggregation_rules:
-        raise HTTPException(status_code=404, detail="聚合规则不存在")
+    try:
+        existing_rule = db.query(AlertAggregationRule).filter(AlertAggregationRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="聚合规则不存在")
 
-    del _aggregation_rules[rule_id]
-    return {"status": "success", "message": "聚合规则已删除"}
+        db.delete(existing_rule)
+        db.commit()
+        
+        return {"status": "success", "message": "聚合规则已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting aggregation rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/routing", summary="获取告警路由列表")
-async def get_routing() -> Dict[str, Any]:
+async def get_routing(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有告警路由"""
-    return {"routes": list(_alert_routes.values())}
+    try:
+        routes = db.query(AlertRoutingRule).all()
+        return {"routes": [
+            {
+                "id": str(route.id),
+                "name": route.route_name,
+                "rule_id": route.rule_id,
+                "match_conditions": route.match_conditions,
+                "target_destination": route.target_destination,
+                "priority": route.priority,
+                "enabled": route.enabled,
+                "created_at": route.created_at.isoformat() if route.created_at else None,
+                "updated_at": route.updated_at.isoformat() if route.updated_at else None,
+            }
+            for route in routes
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting routing: {e}")
+        return {"routes": []}
 
 
 @router.post("/routing", summary="创建告警路由")
-async def create_routing(route: AlertRoute) -> Dict[str, Any]:
+async def create_routing(route: AlertRoute, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的告警路由"""
-    route_id = generate_id()
-    route_data = route.dict()
-    route_data["id"] = route_id
-    route_data["created_at"] = get_timestamp()
-    route_data["updated_at"] = get_timestamp()
-    _alert_routes[route_id] = route_data
-    return {"status": "success", "route": route_data}
+    try:
+        route_id = generate_id()
+        new_route = AlertRoutingRule(
+            name=route.name,
+            rule_id=route_id,
+            match_conditions=route.match_conditions,
+            target_destination=route.target_destination,
+            priority=route.priority,
+            enabled=True,
+        )
+        db.add(new_route)
+        db.commit()
+        db.refresh(new_route)
+        
+        return {
+            "status": "success",
+            "route": {
+                "id": str(new_route.id),
+                "name": new_route.route_name,
+                "rule_id": new_route.rule_id,
+                "match_conditions": new_route.match_conditions,
+                "target_destination": new_route.target_destination,
+                "priority": new_route.priority,
+                "enabled": new_route.enabled,
+                "created_at": new_route.created_at.isoformat() if new_route.created_at else None,
+                "updated_at": new_route.updated_at.isoformat() if new_route.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating routing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/routing/{route_id}", summary="更新告警路由")
-async def update_routing(route_id: str, route: AlertRoute) -> Dict[str, Any]:
+async def update_routing(route_id: str, route: AlertRoute, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新告警路由"""
-    if route_id not in _alert_routes:
-        raise HTTPException(status_code=404, detail="告警路由不存在")
+    try:
+        existing_route = db.query(AlertRoutingRule).filter(AlertRoutingRule.rule_id == route_id).first()
+        if not existing_route:
+            raise HTTPException(status_code=404, detail="告警路由不存在")
 
-    route_data = route.dict()
-    route_data["id"] = route_id
-    route_data["created_at"] = _alert_routes[route_id]["created_at"]
-    route_data["updated_at"] = get_timestamp()
-    _alert_routes[route_id] = route_data
-    return {"status": "success", "route": route_data}
+        existing_route.name = route.name
+        existing_route.match_conditions = route.match_conditions
+        existing_route.target_destination = route.target_destination
+        existing_route.priority = route.priority
+        existing_route.enabled = route.enabled if hasattr(route, 'enabled') else True
+        existing_route.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_route)
+        
+        return {
+            "status": "success",
+            "route": {
+                "id": str(existing_route.id),
+                "name": existing_route.route_name,
+                "rule_id": existing_route.rule_id,
+                "match_conditions": existing_route.match_conditions,
+                "target_destination": existing_route.target_destination,
+                "priority": existing_route.priority,
+                "enabled": existing_route.enabled,
+                "created_at": existing_route.created_at.isoformat() if existing_route.created_at else None,
+                "updated_at": existing_route.updated_at.isoformat() if existing_route.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating routing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/routing/{route_id}", summary="删除告警路由")
-async def delete_routing(route_id: str) -> Dict[str, Any]:
+async def delete_routing(route_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除告警路由"""
-    if route_id not in _alert_routes:
-        raise HTTPException(status_code=404, detail="告警路由不存在")
+    try:
+        existing_route = db.query(AlertRoutingRule).filter(AlertRoutingRule.rule_id == route_id).first()
+        if not existing_route:
+            raise HTTPException(status_code=404, detail="告警路由不存在")
 
-    del _alert_routes[route_id]
-    return {"status": "success", "message": "告警路由已删除"}
+        db.delete(existing_route)
+        db.commit()
+        
+        return {"status": "success", "message": "告警路由已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting routing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/rules", summary="获取告警规则列表")
-async def get_rules() -> Dict[str, Any]:
+async def get_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有告警规则"""
-    return {"rules": list(_alert_rules.values())}
+    try:
+        rules = db.query(AlertRule).all()
+        return {"rules": [
+            {
+                "id": str(rule.id),
+                "name": rule.name,
+                "rule_id": rule.rule_id,
+                "match_conditions": rule.match_conditions,
+                "enabled": rule.enabled,
+                "created_at": rule.created_at.isoformat() if rule.created_at else None,
+                "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+            }
+            for rule in rules
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting rules: {e}")
+        return {"rules": []}
 
 
 @router.post("/rules", summary="创建告警规则")
-async def create_rule(rule: AlertRule) -> Dict[str, Any]:
+async def create_rule(rule: AlertRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的告警规则"""
-    rule_id = generate_id()
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = get_timestamp()
-    rule_data["updated_at"] = get_timestamp()
-    _alert_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+    try:
+        rule_id = generate_id()
+        new_rule = AlertRule(
+            name=rule.name,
+            rule_id=rule_id,
+            match_conditions=rule.match_conditions,
+            enabled=True,
+        )
+        db.add(new_rule)
+        db.commit()
+        db.refresh(new_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(new_rule.id),
+                "name": new_rule.name,
+                "rule_id": new_rule.rule_id,
+                "match_conditions": new_rule.match_conditions,
+                "enabled": new_rule.enabled,
+                "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
+                "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/rules/{rule_id}", summary="更新告警规则")
-async def update_rule(rule_id: str, rule: AlertRule) -> Dict[str, Any]:
+async def update_rule(rule_id: str, rule: AlertRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新告警规则"""
-    if rule_id not in _alert_rules:
-        raise HTTPException(status_code=404, detail="告警规则不存在")
+    try:
+        existing_rule = db.query(AlertRule).filter(AlertRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="告警规则不存在")
 
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = _alert_rules[rule_id]["created_at"]
-    rule_data["updated_at"] = get_timestamp()
-    _alert_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+        existing_rule.name = rule.name
+        existing_rule.match_conditions = rule.match_conditions
+        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(existing_rule.id),
+                "name": existing_rule.name,
+                "rule_id": existing_rule.rule_id,
+                "match_conditions": existing_rule.match_conditions,
+                "enabled": existing_rule.enabled,
+                "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
+                "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/rules/{rule_id}", summary="删除告警规则")
-async def delete_rule(rule_id: str) -> Dict[str, Any]:
+async def delete_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除告警规则"""
-    if rule_id not in _alert_rules:
-        raise HTTPException(status_code=404, detail="告警规则不存在")
+    try:
+        existing_rule = db.query(AlertRule).filter(AlertRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="告警规则不存在")
 
-    del _alert_rules[rule_id]
-    return {"status": "success", "message": "告警规则已删除"}
+        db.delete(existing_rule)
+        db.commit()
+        
+        return {"status": "success", "message": "告警规则已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/zabbix", summary="获取Zabbix集成配置")
