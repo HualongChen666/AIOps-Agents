@@ -1863,3 +1863,96 @@ class BuilderComponent(Base):
 
     def __repr__(self):
         return f"<BuilderComponent(id={self.id}, name='{self.name}', type='{self.component_type}')>"
+
+
+# ==================== Asset Management Models ====================
+
+
+class AssetInventoryMetadata(Base):
+    """资产库存元数据表"""
+
+    __tablename__ = "asset_inventory_metadata"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(Integer, nullable=False, index=True)
+    inventory_metadata = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_asset_inventory_metadata_asset_id", "asset_id"),
+    )
+
+    def __repr__(self):
+        return f"<AssetInventoryMetadata(id={self.id}, asset_id={self.asset_id})>"
+
+
+class AssetRelationshipDB(Base):
+    """资产关系表"""
+
+    __tablename__ = "asset_relationships"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_id = Column(Integer, nullable=False, index=True)
+    target_id = Column(Integer, nullable=False, index=True)
+    relationship_type = Column(String(50), nullable=False, index=True)
+    properties = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_asset_relationships_source_id", "source_id"),
+        Index("idx_asset_relationships_target_id", "target_id"),
+        Index("idx_asset_relationships_type", "relationship_type"),
+    )
+
+    def __repr__(self):
+        return f"<AssetRelationshipDB(id={self.id}, source_id={self.source_id}, target_id={self.target_id}, type='{self.relationship_type}')>"
+
+
+class AssetLifecycleDB(Base):
+    """资产生命周期表"""
+
+    __tablename__ = "asset_lifecycles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(Integer, nullable=False, index=True)
+    stage = Column(String(50), nullable=False, index=True)
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_asset_lifecycles_asset_id", "asset_id"),
+        Index("idx_asset_lifecycles_stage", "stage"),
+        Index("idx_asset_lifecycles_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AssetLifecycleDB(id={self.id}, asset_id={self.asset_id}, stage='{self.stage}', status='{self.status}')>"
+
+
+class AssetDependencyDB(Base):
+    """资产依赖表"""
+
+    __tablename__ = "asset_dependencies"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(Integer, nullable=False, index=True)
+    dependency_type = Column(String(50), nullable=False, index=True)
+    dependency_details = Column(JSON, nullable=False)
+    criticality = Column(String(20), nullable=False, default="medium", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_asset_dependencies_asset_id", "asset_id"),
+        Index("idx_asset_dependencies_type", "dependency_type"),
+        Index("idx_asset_dependencies_criticality", "criticality"),
+    )
+
+    def __repr__(self):
+        return f"<AssetDependencyDB(id={self.id}, asset_id={self.asset_id}, type='{self.dependency_type}', criticality='{self.criticality}')>"

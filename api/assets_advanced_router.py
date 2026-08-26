@@ -25,6 +25,13 @@ from sqlalchemy.orm import Session
 
 from core.auth_db import Asset, get_session
 from core.auth_service import require_roles
+from core.database import get_db
+from core.models import (
+    AssetInventoryMetadata,
+    AssetRelationshipDB,
+    AssetLifecycleDB,
+    AssetDependencyDB,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -191,29 +198,77 @@ class AssetDependency(BaseModel):
 
 
 # ============================================================================
-# In-Memory Data Storage (for advanced features)
+# In-Memory Data Storage (for advanced features - fallback)
 # ============================================================================
 
 # Store additional asset metadata that extends the base Asset model
+# This serves as fallback when database is unavailable
 _asset_inventory_metadata: Dict[int, Dict[str, Any]] = {}
 _asset_relationships: List[AssetRelationship] = []
 _asset_lifecycle_data: Dict[int, AssetLifecycle] = {}
 _asset_dependencies: Dict[int, AssetDependency] = {}
 
 
-def _get_inventory_metadata(asset_id: int) -> Dict[str, Any]:
-    """Get inventory metadata for an asset."""
-    return _asset_inventory_metadata.get(asset_id, {})
+def _get_inventory_metadata(asset_id: int, db: Optional[Session] = None) -> Dict[str, Any]:
+    """Get inventory metadata for an asset from database with fallback to memory."""
+    try:
+        if db:
+            metadata_record = db.query(AssetInventoryMetadata).filter(
+                AssetInventoryMetadata.asset_id == asset_id
+            ).first()
+            if metadata_record:
+                return metadata_record.inventory_metadata
+        # Fallback to memory storage
+        return _asset_inventory_metadata.get(asset_id, {})
+    except Exception as e:
+        logger.error(f"Failed to get inventory metadata from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _asset_inventory_metadata.get(asset_id, {})
 
 
-def _set_inventory_metadata(asset_id: int, metadata: Dict[str, Any]) -> None:
-    """Set inventory metadata for an asset."""
-    _asset_inventory_metadata[asset_id] = metadata
+def _set_inventory_metadata(asset_id: int, metadata: Dict[str, Any], db: Optional[Session] = None) -> None:
+    """Set inventory metadata for an asset in database with fallback to memory."""
+    try:
+        if db:
+            existing_metadata = db.query(AssetInventoryMetadata).filter(
+                AssetInventoryMetadata.asset_id == asset_id
+            ).first()
+            if existing_metadata:
+                existing_metadata.inventory_metadata = metadata
+                existing_metadata.updated_at = datetime.utcnow()
+            else:
+                new_metadata = AssetInventoryMetadata(
+                    asset_id=asset_id,
+                    inventory_metadata=metadata
+                )
+                db.add(new_metadata)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_inventory_metadata[asset_id] = metadata
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set inventory metadata in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_inventory_metadata[asset_id] = metadata
 
 
-def _delete_inventory_metadata(asset_id: int) -> None:
-    """Delete inventory metadata for an asset."""
-    _asset_inventory_metadata.pop(asset_id, None)
+def _delete_inventory_metadata(asset_id: int, db: Optional[Session] = None) -> None:
+    """Delete inventory metadata for an asset from database with fallback to memory."""
+    try:
+        if db:
+            db.query(AssetInventoryMetadata).filter(
+                AssetInventoryMetadata.asset_id == asset_id
+            ).delete()
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_inventory_metadata.pop(asset_id, None)
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to delete inventory metadata from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_inventory_metadata.pop(asset_id, None)
 
 
 # ============================================================================
@@ -231,6 +286,7 @@ async def list_inventory(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
     db: Session = Depends(get_session),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -277,10 +333,10 @@ async def list_inventory(
 
         assets = query.offset(skip).limit(limit).all()
 
-        # Build response with metadata
+        # Build response with metadata from database
         result = []
         for asset in assets:
-            metadata = _get_inventory_metadata(asset.id)
+            metadata = _get_inventory_metadata(asset.id, db_core)
             result.append(
                 AssetInventoryResponse(
                     id=asset.id,
@@ -316,6 +372,7 @@ async def list_inventory(
 async def create_inventory_item(
     item: AssetInventoryCreate,
     db: Session = Depends(get_session),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
@@ -350,7 +407,7 @@ async def create_inventory_item(
             "warranty_expiry": item.warranty_expiry.isoformat() if item.warranty_expiry else None,
             "updated_at": datetime.utcnow().isoformat(),
         }
-        _set_inventory_metadata(asset.id, metadata)
+        _set_inventory_metadata(asset.id, metadata, db_core)
 
         # Initialize lifecycle data
         lifecycle = AssetLifecycle(
@@ -401,6 +458,7 @@ async def create_inventory_item(
 async def get_inventory_item(
     asset_id: int,
     db: Session = Depends(get_session),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -411,7 +469,7 @@ async def get_inventory_item(
         if not asset:
             raise HTTPException(status_code=404, detail=f"Asset {asset_id} not found")
 
-        metadata = _get_inventory_metadata(asset_id)
+        metadata = _get_inventory_metadata(asset_id, db_core)
 
         return AssetInventoryResponse(
             id=asset.id,
@@ -457,6 +515,7 @@ async def update_inventory_item(
     asset_id: int,
     item: AssetInventoryUpdate,
     db: Session = Depends(get_session),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
@@ -492,7 +551,7 @@ async def update_inventory_item(
         db.refresh(asset)
 
         # Update inventory metadata
-        metadata = _get_inventory_metadata(asset_id)
+        metadata = _get_inventory_metadata(asset_id, db_core)
         if item.asset_type is not None:
             metadata["asset_type"] = item.asset_type.value
         if item.status is not None:
@@ -515,7 +574,7 @@ async def update_inventory_item(
             metadata["warranty_expiry"] = item.warranty_expiry.isoformat()
         metadata["updated_at"] = datetime.utcnow().isoformat()
 
-        _set_inventory_metadata(asset_id, metadata)
+        _set_inventory_metadata(asset_id, metadata, db_core)
 
         logger.info(f"Updated inventory item: {asset_id}")
 
@@ -559,6 +618,7 @@ async def update_inventory_item(
 async def delete_inventory_item(
     asset_id: int,
     db: Session = Depends(get_session),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin")),
 ):
     """
@@ -575,7 +635,7 @@ async def delete_inventory_item(
         db.commit()
 
         # Clean up metadata
-        _delete_inventory_metadata(asset_id)
+        _delete_inventory_metadata(asset_id, db_core)
         _asset_lifecycle_data.pop(asset_id, None)
         _asset_dependencies.pop(asset_id, None)
         # Intentionally filtering relationships to maintain data consistency
