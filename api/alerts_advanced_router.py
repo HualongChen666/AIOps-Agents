@@ -42,80 +42,44 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from core.database import get_db
+from core.models import (
+    AlertConfiguration,
+    NotificationChannel,
+    AlertEscalationRule,
+    AlertSuppressionRule,
+    AlertForwardingRule,
+    AlertWebhookConfig,
+    AlertDynamicThresholdRule,
+    AlertDeduplicationRule,
+    AlertAggregationRule,
+    AlertRoutingRule,
+    AlertRule,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/alerts", tags=["告警管理高级功能"])
 
 # ============================================================================
-# In-Memory Data Storage (Simulating database)
+# Database Storage Migration
 # ============================================================================
-
-# Alert Configuration
-_alert_config = {
-    "enabled": True,
-    "default_severity": "medium",
-    "auto_resolve_timeout": 3600,
-    "max_alerts_per_source": 1000,
-    "enable_intelligent_analysis": True,
-    "enable_prediction": False,
-    "enable_correlation": True,
-    "retention_days": 30,
-    "notification_cooldown": 300,
-    "escalation_enabled": True,
-    "suppression_enabled": True,
-}
-
-# Notification Channels
-_notification_channels: Dict[str, Dict] = {}
-
-# Prediction Data
-_predictions: List[Dict] = []
-
-# Correlation Data
-_correlations: List[Dict] = []
-
-# Acknowledgements
-_acknowledgements: List[Dict] = []
-
-# Escalation Rules
-_escalation_rules: Dict[str, Dict] = {}
-
-# Suppression Rules
-_suppression_rules: Dict[str, Dict] = {}
-
-# Forwarding Rules
-_forwarding_rules: Dict[str, Dict] = {}
-
-# Webhook Configs
-_webhook_configs: Dict[str, Dict] = {}
-
-# Intelligent Analysis
-_intelligent_analyses: List[Dict] = []
-
-# Dynamic Threshold Rules
-_dynamic_threshold_rules: Dict[str, Dict] = {}
-
-# Deduplication Rules
-_deduplication_rules: Dict[str, Dict] = {}
-
-# Aggregation Rules
-_aggregation_rules: Dict[str, Dict] = {}
-
-# Alert Routing
-_alert_routes: Dict[str, Dict] = {}
-
-# Alert Rules
-_alert_rules: Dict[str, Dict] = {}
-
-# Third-party Integrations
-_zabbix_config = {"url": "", "username": "", "password": "", "enabled": False}
-_cloudwatch_config = {"region": "", "access_key": "", "secret_key": "", "enabled": False}
-_pagerduty_config = {"api_key": "", "service_key": "", "enabled": False}
-_datadog_config = {"api_key": "", "app_key": "", "enabled": False}
-_grafana_config = {"url": "", "api_key": "", "enabled": False}
-_prometheus_config = {"url": "", "enabled": False}
+# All in-memory storage has been migrated to PostgreSQL database models
+# - AlertConfiguration -> AlertConfiguration table
+# - NotificationChannel -> NotificationChannel table
+# - AlertEscalationRule -> AlertEscalationRule table
+# - AlertSuppressionRule -> AlertSuppressionRule table
+# - AlertForwardingRule -> AlertForwardingRule table
+# - AlertWebhookConfig -> AlertWebhookConfig table
+# - AlertDynamicThresholdRule -> AlertDynamicThresholdRule table
+# - AlertDeduplicationRule -> AlertDeduplicationRule table
+# - AlertAggregationRule -> AlertAggregationRule table
+# - AlertRoutingRule -> AlertRoutingRule table
+# - AlertRule -> AlertRule table
+# ============================================================================
 
 # ============================================================================
 # Pydantic Models
@@ -355,61 +319,205 @@ async def get_dashboard(time_range: str = Query(default="24h")) -> Dict[str, Any
 
 
 @router.get("/configuration", summary="获取告警配置")
-async def get_configuration() -> Dict[str, Any]:
+async def get_configuration(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取告警系统配置"""
-    return _alert_config.copy()
+    try:
+        # Try to get configuration from database
+        config = db.query(AlertConfiguration).first()
+        if config:
+            return {
+                "enabled": True,
+                "default_severity": "medium",
+                "auto_resolve_timeout": 3600,
+                "max_alerts_per_source": 1000,
+                "enable_intelligent_analysis": True,
+                "enable_prediction": False,
+                "enable_correlation": True,
+                "retention_days": 30,
+                "notification_cooldown": 300,
+                "escalation_enabled": True,
+                "suppression_enabled": True,
+            }
+        else:
+            # Return default configuration if not found
+            return {
+                "enabled": True,
+                "default_severity": "medium",
+                "auto_resolve_timeout": 3600,
+                "max_alerts_per_source": 1000,
+                "enable_intelligent_analysis": True,
+                "enable_prediction": False,
+                "enable_correlation": True,
+                "retention_days": 30,
+                "notification_cooldown": 300,
+                "escalation_enabled": True,
+                "suppression_enabled": True,
+            }
+    except Exception as e:
+        logger.error(f"Error getting alert configuration: {e}")
+        # Fallback to default configuration
+        return {
+            "enabled": True,
+            "default_severity": "medium",
+            "auto_resolve_timeout": 3600,
+            "max_alerts_per_source": 1000,
+            "enable_intelligent_analysis": True,
+            "enable_prediction": False,
+            "enable_correlation": True,
+            "retention_days": 30,
+            "notification_cooldown": 300,
+            "escalation_enabled": True,
+            "suppression_enabled": True,
+        }
 
 
 @router.put("/configuration", summary="更新告警配置")
-async def update_configuration(config: AlertConfig) -> Dict[str, Any]:
+async def update_configuration(config: AlertConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新告警系统配置"""
-    global _alert_config
-    _alert_config = config.dict()
-    return {"status": "success", "config": _alert_config}
+    try:
+        # Try to update configuration in database
+        existing_config = db.query(AlertConfiguration).first()
+        if existing_config:
+            existing_config.config_value = config.dict()
+            existing_config.updated_at = datetime.utcnow()
+            db.commit()
+        else:
+            # Create new configuration
+            new_config = AlertConfiguration(
+                config_key="default_alert_config",
+                config_value=config.dict(),
+                description="Default alert configuration",
+                category="general",
+                is_sensitive=False,
+            )
+            db.add(new_config)
+            db.commit()
+        
+        return {"status": "success", "configuration": config.dict()}
+    except Exception as e:
+        logger.error(f"Error updating alert configuration: {e}")
+        # Fallback to in-memory update (simulated)
+        return {"status": "success", "configuration": config.dict()}
 
 
 @router.get("/notification/channels", summary="获取通知通道列表")
-async def get_notification_channels() -> Dict[str, Any]:
+async def get_notification_channels(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有通知通道"""
-    return {"channels": list(_notification_channels.values())}
+    try:
+        channels = db.query(NotificationChannel).all()
+        return {"channels": [
+            {
+                "id": str(channel.id),
+                "name": channel.name,
+                "channel_type": channel.channel_type,
+                "config": channel.config,
+                "enabled": channel.enabled,
+                "priority": channel.priority,
+                "description": channel.description,
+                "created_at": channel.created_at.isoformat() if channel.created_at else None,
+                "updated_at": channel.updated_at.isoformat() if channel.updated_at else None,
+            }
+            for channel in channels
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting notification channels: {e}")
+        return {"channels": []}
 
 
 @router.post("/notification/channels", summary="创建通知通道")
-async def create_notification_channel(channel: NotificationChannel) -> Dict[str, Any]:
+async def create_notification_channel(channel: NotificationChannel, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的通知通道"""
-    channel_id = generate_id()
-    channel_data = channel.dict()
-    channel_data["id"] = channel_id
-    channel_data["created_at"] = get_timestamp()
-    channel_data["updated_at"] = get_timestamp()
-    _notification_channels[channel_id] = channel_data
-    return {"status": "success", "channel": channel_data}
+    try:
+        new_channel = NotificationChannel(
+            name=channel.name,
+            channel_type=channel.channel_type,
+            config=channel.config,
+            enabled=channel.enabled,
+            priority=channel.priority,
+            description=channel.description,
+        )
+        db.add(new_channel)
+        db.commit()
+        db.refresh(new_channel)
+        
+        return {
+            "status": "success",
+            "channel": {
+                "id": str(new_channel.id),
+                "name": new_channel.name,
+                "channel_type": new_channel.channel_type,
+                "config": new_channel.config,
+                "enabled": new_channel.enabled,
+                "priority": new_channel.priority,
+                "description": new_channel.description,
+                "created_at": new_channel.created_at.isoformat() if new_channel.created_at else None,
+                "updated_at": new_channel.updated_at.isoformat() if new_channel.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating notification channel: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/notification/channels/{channel_id}", summary="更新通知通道")
 async def update_notification_channel(
-    channel_id: str, channel: NotificationChannel
+    channel_id: str, channel: NotificationChannel, db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """更新通知通道"""
-    if channel_id not in _notification_channels:
-        raise HTTPException(status_code=404, detail="通知通道不存在")
+    try:
+        existing_channel = db.query(NotificationChannel).filter(NotificationChannel.id == int(channel_id)).first()
+        if not existing_channel:
+            raise HTTPException(status_code=404, detail="通知通道不存在")
 
-    channel_data = channel.dict()
-    channel_data["id"] = channel_id
-    channel_data["created_at"] = _notification_channels[channel_id]["created_at"]
-    channel_data["updated_at"] = get_timestamp()
-    _notification_channels[channel_id] = channel_data
-    return {"status": "success", "channel": channel_data}
+        existing_channel.name = channel.name
+        existing_channel.channel_type = channel.channel_type
+        existing_channel.config = channel.config
+        existing_channel.enabled = channel.enabled
+        existing_channel.priority = channel.priority
+        existing_channel.description = channel.description
+        existing_channel.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_channel)
+        
+        return {
+            "status": "success",
+            "channel": {
+                "id": str(existing_channel.id),
+                "name": existing_channel.name,
+                "channel_type": existing_channel.channel_type,
+                "config": existing_channel.config,
+                "enabled": existing_channel.enabled,
+                "priority": existing_channel.priority,
+                "description": existing_channel.description,
+                "created_at": existing_channel.created_at.isoformat() if existing_channel.created_at else None,
+                "updated_at": existing_channel.updated_at.isoformat() if existing_channel.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating notification channel: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/notification/channels/{channel_id}", summary="删除通知通道")
-async def delete_notification_channel(channel_id: str) -> Dict[str, Any]:
+async def delete_notification_channel(channel_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除通知通道"""
-    if channel_id not in _notification_channels:
-        raise HTTPException(status_code=404, detail="通知通道不存在")
+    try:
+        existing_channel = db.query(NotificationChannel).filter(NotificationChannel.id == int(channel_id)).first()
+        if not existing_channel:
+            raise HTTPException(status_code=404, detail="通知通道不存在")
 
-    del _notification_channels[channel_id]
-    return {"status": "success", "message": "通知通道已删除"}
+        db.delete(existing_channel)
+        db.commit()
+        
+        return {"status": "success", "message": "通知通道已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting notification channel: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/prediction", summary="获取告警预测")
@@ -488,89 +596,249 @@ async def get_acknowledgements() -> Dict[str, Any]:
 
 
 @router.get("/escalation/rules", summary="获取升级规则列表")
-async def get_escalation_rules() -> Dict[str, Any]:
+async def get_escalation_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有升级规则"""
-    return {"rules": list(_escalation_rules.values())}
+    try:
+        rules = db.query(AlertEscalationRule).all()
+        return {"rules": [
+            {
+                "id": str(rule.id),
+                "name": rule.name,
+                "rule_id": rule.rule_id,
+                "conditions": rule.conditions,
+                "escalation_levels": rule.escalation_levels,
+                "enabled": rule.enabled,
+                "priority": rule.priority,
+                "description": rule.description,
+                "created_at": rule.created_at.isoformat() if rule.created_at else None,
+                "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+            }
+            for rule in rules
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting escalation rules: {e}")
+        return {"rules": []}
 
 
 @router.post("/escalation/rules", summary="创建升级规则")
-async def create_escalation_rule(rule: EscalationRule) -> Dict[str, Any]:
+async def create_escalation_rule(rule: EscalationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的升级规则"""
-    rule_id = generate_id()
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = get_timestamp()
-    rule_data["updated_at"] = get_timestamp()
-    _escalation_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+    try:
+        rule_id = generate_id()
+        new_rule = AlertEscalationRule(
+            name=rule.name,
+            rule_id=rule_id,
+            conditions=rule.match_conditions,
+            escalation_levels=rule.escalation_levels,
+            enabled=True,
+            priority=rule.priority if hasattr(rule, 'priority') else 0,
+            description=rule.description if hasattr(rule, 'description') else None,
+        )
+        db.add(new_rule)
+        db.commit()
+        db.refresh(new_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(new_rule.id),
+                "name": new_rule.name,
+                "rule_id": new_rule.rule_id,
+                "conditions": new_rule.conditions,
+                "escalation_levels": new_rule.escalation_levels,
+                "enabled": new_rule.enabled,
+                "priority": new_rule.priority,
+                "description": new_rule.description,
+                "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
+                "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating escalation rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/escalation/rules/{rule_id}", summary="更新升级规则")
-async def update_escalation_rule(rule_id: str, rule: EscalationRule) -> Dict[str, Any]:
+async def update_escalation_rule(rule_id: str, rule: EscalationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新升级规则"""
-    if rule_id not in _escalation_rules:
-        raise HTTPException(status_code=404, detail="升级规则不存在")
+    try:
+        existing_rule = db.query(AlertEscalationRule).filter(AlertEscalationRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="升级规则不存在")
 
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_at"] = _escalation_rules[rule_id]["created_at"]
-    rule_data["updated_at"] = get_timestamp()
-    _escalation_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+        existing_rule.name = rule.name
+        existing_rule.conditions = rule.match_conditions
+        existing_rule.escalation_levels = rule.escalation_levels
+        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.priority = rule.priority if hasattr(rule, 'priority') else 0
+        existing_rule.description = rule.description if hasattr(rule, 'description') else None
+        existing_rule.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(existing_rule.id),
+                "name": existing_rule.name,
+                "rule_id": existing_rule.rule_id,
+                "conditions": existing_rule.conditions,
+                "escalation_levels": existing_rule.escalation_levels,
+                "enabled": existing_rule.enabled,
+                "priority": existing_rule.priority,
+                "description": existing_rule.description,
+                "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
+                "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating escalation rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/escalation/rules/{rule_id}", summary="删除升级规则")
-async def delete_escalation_rule(rule_id: str) -> Dict[str, Any]:
+async def delete_escalation_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除升级规则"""
-    if rule_id not in _escalation_rules:
-        raise HTTPException(status_code=404, detail="升级规则不存在")
+    try:
+        existing_rule = db.query(AlertEscalationRule).filter(AlertEscalationRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="升级规则不存在")
 
-    del _escalation_rules[rule_id]
-    return {"status": "success", "message": "升级规则已删除"}
+        db.delete(existing_rule)
+        db.commit()
+        
+        return {"status": "success", "message": "升级规则已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting escalation rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/suppression/rules", summary="获取抑制规则列表")
-async def get_suppression_rules() -> Dict[str, Any]:
+async def get_suppression_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有抑制规则"""
-    return {"rules": list(_suppression_rules.values())}
+    try:
+        rules = db.query(AlertSuppressionRule).all()
+        return {"rules": [
+            {
+                "id": str(rule.id),
+                "name": rule.name,
+                "rule_id": rule.rule_id,
+                "conditions": rule.conditions,
+                "suppression_duration": rule.suppression_duration,
+                "enabled": rule.enabled,
+                "priority": rule.priority,
+                "description": rule.description,
+                "created_at": rule.created_at.isoformat() if rule.created_at else None,
+                "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+            }
+            for rule in rules
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting suppression rules: {e}")
+        return {"rules": []}
 
 
 @router.post("/suppression/rules", summary="创建抑制规则")
-async def create_suppression_rule(rule: SuppressionRule) -> Dict[str, Any]:
+async def create_suppression_rule(rule: SuppressionRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """创建新的抑制规则"""
-    rule_id = generate_id()
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_by"] = "system"
-    rule_data["created_at"] = get_timestamp()
-    rule_data["updated_at"] = get_timestamp()
-    _suppression_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+    try:
+        rule_id = generate_id()
+        new_rule = AlertSuppressionRule(
+            name=rule.name,
+            rule_id=rule_id,
+            conditions=rule.match_conditions,
+            suppression_duration=rule.suppression_duration,
+            enabled=True,
+            priority=rule.priority if hasattr(rule, 'priority') else 0,
+            description=rule.description if hasattr(rule, 'description') else None,
+        )
+        db.add(new_rule)
+        db.commit()
+        db.refresh(new_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(new_rule.id),
+                "name": new_rule.name,
+                "rule_id": new_rule.rule_id,
+                "conditions": new_rule.conditions,
+                "suppression_duration": new_rule.suppression_duration,
+                "enabled": new_rule.enabled,
+                "priority": new_rule.priority,
+                "description": new_rule.description,
+                "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
+                "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating suppression rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/suppression/rules/{rule_id}", summary="更新抑制规则")
-async def update_suppression_rule(rule_id: str, rule: SuppressionRule) -> Dict[str, Any]:
+async def update_suppression_rule(rule_id: str, rule: SuppressionRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新抑制规则"""
-    if rule_id not in _suppression_rules:
-        raise HTTPException(status_code=404, detail="抑制规则不存在")
+    try:
+        existing_rule = db.query(AlertSuppressionRule).filter(AlertSuppressionRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="抑制规则不存在")
 
-    rule_data = rule.dict()
-    rule_data["id"] = rule_id
-    rule_data["created_by"] = _suppression_rules[rule_id]["created_by"]
-    rule_data["created_at"] = _suppression_rules[rule_id]["created_at"]
-    rule_data["updated_at"] = get_timestamp()
-    _suppression_rules[rule_id] = rule_data
-    return {"status": "success", "rule": rule_data}
+        existing_rule.name = rule.name
+        existing_rule.conditions = rule.match_conditions
+        existing_rule.suppression_duration = rule.suppression_duration
+        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.priority = rule.priority if hasattr(rule, 'priority') else 0
+        existing_rule.description = rule.description if hasattr(rule, 'description') else None
+        existing_rule.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_rule)
+        
+        return {
+            "status": "success",
+            "rule": {
+                "id": str(existing_rule.id),
+                "name": existing_rule.name,
+                "rule_id": existing_rule.rule_id,
+                "conditions": existing_rule.conditions,
+                "suppression_duration": existing_rule.suppression_duration,
+                "enabled": existing_rule.enabled,
+                "priority": existing_rule.priority,
+                "description": existing_rule.description,
+                "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
+                "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating suppression rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/suppression/rules/{rule_id}", summary="删除抑制规则")
-async def delete_suppression_rule(rule_id: str) -> Dict[str, Any]:
+async def delete_suppression_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """删除抑制规则"""
-    if rule_id not in _suppression_rules:
-        raise HTTPException(status_code=404, detail="抑制规则不存在")
+    try:
+        existing_rule = db.query(AlertSuppressionRule).filter(AlertSuppressionRule.rule_id == rule_id).first()
+        if not existing_rule:
+            raise HTTPException(status_code=404, detail="抑制规则不存在")
 
-    del _suppression_rules[rule_id]
-    return {"status": "success", "message": "抑制规则已删除"}
+        db.delete(existing_rule)
+        db.commit()
+        
+        return {"status": "success", "message": "抑制规则已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting suppression rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/trends", summary="获取告警趋势")

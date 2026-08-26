@@ -2602,3 +2602,209 @@ class AIRoutingRuleDB(Base):
 
     def __repr__(self):
         return f"<AIRoutingRuleDB(id={self.id}, name='{self.rule_name}', priority={self.priority})>"
+
+
+# ==================== Collaboration Management Models ====================
+
+
+class CollaborationTeamDB(Base):
+    """Collaboration team table"""
+
+    __tablename__ = "collaboration_teams"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    team_name = Column(String(255), nullable=False)
+    team_description = Column(Text, nullable=True)
+    team_status = Column(String(50), nullable=False, default="active")
+    team_lead_id = Column(String(50), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    team_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_collaboration_teams_status", "team_status"),
+    )
+
+    def __repr__(self):
+        return f"<CollaborationTeamDB(id={self.id}, name='{self.team_name}', status='{self.team_status}')>"
+
+
+class CollaborationMemberDB(Base):
+    """Collaboration member table"""
+
+    __tablename__ = "collaboration_members"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    team_id = Column(String(50), nullable=False)
+    member_name = Column(String(255), nullable=False)
+    member_email = Column(String(255), nullable=True)
+    member_role = Column(String(50), nullable=False)
+    member_status = Column(String(50), nullable=False, default="active")
+    joined_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    member_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_collaboration_members_team_id", "team_id"),
+        Index("idx_collaboration_members_status", "member_status"),
+    )
+
+    def __repr__(self):
+        return f"<CollaborationMemberDB(id={self.id}, name='{self.member_name}', role='{self.member_role}')>"
+
+
+class CollaborationPermissionDB(Base):
+    """Collaboration permission table"""
+
+    __tablename__ = "collaboration_permissions"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    team_id = Column(String(50), nullable=False)
+    member_id = Column(String(50), nullable=False)
+    permission_type = Column(String(50), nullable=False)
+    permission_level = Column(String(50), nullable=False)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    permission_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_collaboration_permissions_team_id", "team_id"),
+        Index("idx_collaboration_permissions_member_id", "member_id"),
+    )
+
+    def __repr__(self):
+        return f"<CollaborationPermissionDB(id={self.id}, type='{self.permission_type}', level='{self.permission_level}')>"
+
+
+class CollaborationActivityDB(Base):
+    """Collaboration activity table"""
+
+    __tablename__ = "collaboration_activities"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    team_id = Column(String(50), nullable=False)
+    member_id = Column(String(50), nullable=True)
+    activity_type = Column(String(50), nullable=False)
+    activity_description = Column(Text, nullable=True)
+    activity_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    activity_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_collaboration_activities_team_id", "team_id"),
+        Index("idx_collaboration_activities_member_id", "member_id"),
+        Index("idx_collaboration_activities_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<CollaborationActivityDB(id={self.id}, type='{self.activity_type}', team_id='{self.team_id}')>"
+
+
+# ==================== Plugin Marketplace Models ====================
+
+
+class PluginListingDB(Base):
+    """Plugin marketplace listing table"""
+
+    __tablename__ = "plugin_listings"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    plugin_id = Column(String(50), nullable=False)
+    plugin_name = Column(String(255), nullable=False)
+    version = Column(String(50), nullable=False)
+    description = Column(Text, nullable=False)
+    author = Column(String(255), nullable=False)
+    category = Column(String(50), nullable=False, default="general")
+    tags = Column(JSON, nullable=True)
+    price = Column(Float, nullable=True)
+    quality = Column(String(50), nullable=False, default="community")
+    download_url = Column(String(500), nullable=False)
+    screenshot_urls = Column(JSON, nullable=True)
+    documentation_url = Column(String(500), nullable=True)
+    repository_url = Column(String(500), nullable=True)
+    download_count = Column(Integer, nullable=False, default=0)
+    rating = Column(Float, nullable=False, default=0.0)
+    review_count = Column(Integer, nullable=False, default=0)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    listing_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_plugin_listings_plugin_id", "plugin_id"),
+        Index("idx_plugin_listings_category", "category"),
+        Index("idx_plugin_listings_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<PluginListingDB(id={self.id}, name='{self.plugin_name}', version='{self.version}')>"
+
+
+class PluginReviewDB(Base):
+    """Plugin review table"""
+
+    __tablename__ = "plugin_reviews"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    plugin_id = Column(String(50), nullable=False)
+    reviewer_id = Column(String(50), nullable=False)
+    reviewer_name = Column(String(255), nullable=False)
+    rating = Column(Integer, nullable=False)
+    review_text = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    review_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_plugin_reviews_plugin_id", "plugin_id"),
+        Index("idx_plugin_reviews_reviewer_id", "reviewer_id"),
+    )
+
+    def __repr__(self):
+        return f"<PluginReviewDB(id={self.id}, plugin_id='{self.plugin_id}', rating={self.rating})>"
+
+
+class PluginCategoryDB(Base):
+    """Plugin category table"""
+
+    __tablename__ = "plugin_categories"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    category_name = Column(String(255), nullable=False)
+    category_description = Column(Text, nullable=True)
+    parent_category_id = Column(String(50), nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    category_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_plugin_categories_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<PluginCategoryDB(id={self.id}, name='{self.category_name}')>"
+
+
+class InstalledPluginDB(Base):
+    """Installed plugin table"""
+
+    __tablename__ = "installed_plugins"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    plugin_id = Column(String(50), nullable=False)
+    installed_version = Column(String(50), nullable=False)
+    installation_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    status = Column(String(50), nullable=False, default="active")
+    configuration = Column(JSON, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    installation_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_installed_plugins_plugin_id", "plugin_id"),
+        Index("idx_installed_plugins_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<InstalledPluginDB(id={self.id}, plugin_id='{self.plugin_id}', version='{self.installed_version}')>"

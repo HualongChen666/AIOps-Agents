@@ -8,19 +8,30 @@ Collaboration Advanced Router
 
 import json
 import uuid
+import logging
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.api_response_standard import (
     ErrorCode,
     create_error_response,
     create_success_response,
 )
+from core.database import get_db
+from core.models import (
+    CollaborationTeamDB,
+    CollaborationMemberDB,
+    CollaborationPermissionDB,
+    CollaborationActivityDB,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/collaboration", tags=["协作高级"])
 
@@ -288,6 +299,7 @@ async def get_teams(
     owner_id: Optional[str] = Query(None, description="按所有者筛选"),
     limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     获取团队列表
@@ -295,37 +307,60 @@ async def get_teams(
     支持按状态和所有者筛选，支持分页。
     """
     try:
-        teams = _load_json_file(TEAMS_FILE)
-
-        # 过滤
+        # Try to get teams from database
+        query = db.query(CollaborationTeamDB)
+        
+        # Filter by status
         if status:
-            teams = [t for t in teams if t.get("status") == status.value]
+            query = query.filter(CollaborationTeamDB.team_status == status.value)
+        
+        # Filter by owner
         if owner_id:
-            teams = [t for t in teams if t.get("owner_id") == owner_id]
-
-        # 分页
-        total = len(teams)
-        paginated = teams[offset : offset + limit]
-
-        # 为每个团队添加成员数量
-        members = _load_json_file(MEMBERS_FILE)
-        for team in paginated:
-            team_id = team.get("id")
-            member_count = sum(1 for m in members if m.get("team_id") == team_id)
-            team["member_count"] = member_count
-
-        return create_success_response(
+            query = query.filter(CollaborationTeamDB.team_lead_id == owner_id)
+        
+        # Pagination
+        teams = query.offset(offset).limit(limit).all()
+        
+        # Convert to response format
+        team_list = [
             {
-                "items": paginated,
-                "total": total,
-                "limit": limit,
-                "offset": offset,
+                "id": str(team.id),
+                "name": team.team_name,
+                "description": team.team_description,
+                "status": team.team_status,
+                "owner_id": team.team_lead_id,
+                "tags": team.team_metadata.get("tags", []) if team.team_metadata else [],
+                "created_at": team.created_at.isoformat() if team.created_at else None,
+                "updated_at": team.updated_at.isoformat() if team.updated_at else None,
             }
-        )
+            for team in teams
+        ]
+        
+        return create_success_response(data={"teams": team_list, "total": len(team_list)})
+        
     except Exception as e:
-        return create_error_response(
-            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取团队列表失败"
-        )
+        logger.error(f"Error getting teams: {e}")
+        # Fallback to file-based storage
+        try:
+            teams = _load_json_file(TEAMS_FILE)
+
+            # 过滤
+            if status:
+                teams = [t for t in teams if t.get("status") == status.value]
+            if owner_id:
+                teams = [t for t in teams if t.get("owner_id") == owner_id]
+
+            # 分页
+            total = len(teams)
+            teams = teams[offset : offset + limit]
+
+            return create_success_response(data={"teams": teams, "total": total})
+        except Exception as fallback_error:
+            logger.error(f"Fallback error: {fallback_error}")
+            return create_error_response(
+                error_code=ErrorCode.INTERNAL_ERROR,
+                message="获取团队列表失败",
+            )
 
 
 @router.post(
@@ -338,44 +373,67 @@ async def get_teams(
         500: {"description": "服务器错误"},
     },
 )
-async def create_team(request: CreateTeamRequest) -> Dict[str, Any]:
+async def create_team(request: CreateTeamRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     创建新的团队
 
     创建一个协作团队，指定所有者和初始状态。
     """
     try:
-        teams = _load_json_file(TEAMS_FILE)
-
-        team = {
-            "id": _generate_id("TM"),
-            "name": request.name,
-            "description": request.description,
-            "owner_id": request.owner_id,
-            "status": request.status.value,
-            "tags": request.tags,
-            "created_at": _now(),
-            "updated_at": _now(),
+        # Try to create team in database
+        team_id = _generate_id("TM")
+        new_team = CollaborationTeamDB(
+            id=team_id,
+            team_name=request.name,
+            team_description=request.description,
+            team_status=request.status.value,
+            team_lead_id=request.owner_id,
+            team_metadata={"tags": request.tags},
+        )
+        db.add(new_team)
+        db.commit()
+        db.refresh(new_team)
+        
+        team_data = {
+            "id": str(new_team.id),
+            "name": new_team.team_name,
+            "description": new_team.team_description,
+            "status": new_team.team_status,
+            "owner_id": new_team.team_lead_id,
+            "tags": new_team.team_metadata.get("tags", []) if new_team.team_metadata else [],
+            "created_at": new_team.created_at.isoformat() if new_team.created_at else None,
+            "updated_at": new_team.updated_at.isoformat() if new_team.updated_at else None,
         }
-
-        teams.append(team)
-        _save_json_file(TEAMS_FILE, teams)
-
-        # 记录活动
-        _log_activity(
-            team_id=team["id"],
-            activity_type=ActivityTypeEnum.TEAM_CREATED,
-            actor_id=request.owner_id,
-            actor_name="System",
-            description=f"创建了团队 {request.name}",
-            metadata={"team_name": request.name},
-        )
-
-        return create_success_response(team, "团队创建成功")
+        
+        return create_success_response(data=team_data, status_code=201)
+        
     except Exception as e:
-        return create_error_response(
-            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="创建团队失败"
-        )
+        logger.error(f"Error creating team: {e}")
+        # Fallback to file-based storage
+        try:
+            teams = _load_json_file(TEAMS_FILE)
+
+            team = {
+                "id": _generate_id("TM"),
+                "name": request.name,
+                "description": request.description,
+                "owner_id": request.owner_id,
+                "status": request.status.value,
+                "tags": request.tags,
+                "created_at": _now(),
+                "updated_at": _now(),
+            }
+
+            teams.append(team)
+            _save_json_file(TEAMS_FILE, teams)
+
+            return create_success_response(data=team, status_code=201)
+        except Exception as fallback_error:
+            logger.error(f"Fallback error: {fallback_error}")
+            return create_error_response(
+                error_code=ErrorCode.INTERNAL_ERROR,
+                message="创建团队失败",
+            )
 
 
 @router.get(

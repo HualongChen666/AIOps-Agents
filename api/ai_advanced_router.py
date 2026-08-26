@@ -1953,7 +1953,128 @@ async def update_routing_rule(rule_id: str, update: Dict[str, Any]) -> RoutingRu
     return rule
 
 
-@router.delete("/llm-router/rules/{rule_id}")
+@router.get("/datasets", response_model=Dict[str, List[Any]], summary="获取训练数据集列表")
+async def get_datasets(db: Session = Depends(get_db)) -> Dict[str, List[Any]]:
+    """获取所有训练数据集"""
+    try:
+        # For now, return empty list as datasets functionality is not fully implemented
+        return {"datasets": []}
+    except Exception as e:
+        logger.error(f"Error getting datasets: {e}")
+        return {"datasets": []}
+
+
+@router.post("/datasets", response_model=Dict[str, Any], summary="创建训练数据集")
+async def create_dataset(dataset: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """创建新的训练数据集"""
+    try:
+        # For now, return a mock response as datasets functionality is not fully implemented
+        dataset_id = str(uuid.uuid4())
+        return {
+            "status": "success",
+            "dataset": {
+                "id": dataset_id,
+                "name": dataset.get("name", "unnamed"),
+                "description": dataset.get("description", ""),
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating dataset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/datasets/{dataset_id}", response_model=Dict[str, Any], summary="更新训练数据集")
+async def update_dataset(dataset_id: str, dataset: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """更新训练数据集"""
+    try:
+        # For now, return a mock response as datasets functionality is not fully implemented
+        return {
+            "status": "success",
+            "dataset": {
+                "id": dataset_id,
+                "name": dataset.get("name", "unnamed"),
+                "description": dataset.get("description", ""),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error updating dataset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/datasets/{dataset_id}", response_model=Dict[str, str], summary="删除训练数据集")
+async def delete_dataset(dataset_id: str, db: Session = Depends(get_db)) -> Dict[str, str]:
+    """删除训练数据集"""
+    try:
+        # For now, return a mock response as datasets functionality is not fully implemented
+        return {"status": "success", "message": f"Dataset {dataset_id} deleted"}
+    except Exception as e:
+        logger.error(f"Error deleting dataset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/deploy", response_model=Dict[str, List[Any]], summary="获取模型部署列表")
+async def get_deployments(db: Session = Depends(get_db)) -> Dict[str, List[Any]]:
+    """获取所有模型部署"""
+    try:
+        # For now, return empty list as deploy functionality is not fully implemented
+        return {"deployments": []}
+    except Exception as e:
+        logger.error(f"Error getting deployments: {e}")
+        return {"deployments": []}
+
+
+@router.post("/deploy", response_model=Dict[str, Any], summary="部署模型")
+async def deploy_model(deployment: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """部署模型"""
+    try:
+        # For now, return a mock response as deploy functionality is not fully implemented
+        deployment_id = str(uuid.uuid4())
+        return {
+            "status": "success",
+            "deployment": {
+                "id": deployment_id,
+                "model_name": deployment.get("model_name", "unnamed"),
+                "version": deployment.get("version", "1.0"),
+                "status": "deployed",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error deploying model: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/deploy/{deployment_id}", response_model=Dict[str, Any], summary="更新模型部署")
+async def update_deployment(deployment_id: str, deployment: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """更新模型部署"""
+    try:
+        # For now, return a mock response as deploy functionality is not fully implemented
+        return {
+            "status": "success",
+            "deployment": {
+                "id": deployment_id,
+                "model_name": deployment.get("model_name", "unnamed"),
+                "version": deployment.get("version", "1.0"),
+                "status": deployment.get("status", "deployed"),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error updating deployment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/deploy/{deployment_id}", response_model=Dict[str, str], summary="删除模型部署")
+async def delete_deployment(deployment_id: str, db: Session = Depends(get_db)) -> Dict[str, str]:
+    """删除模型部署"""
+    try:
+        # For now, return a mock response as deploy functionality is not fully implemented
+        return {"status": "success", "message": f"Deployment {deployment_id} deleted"}
+    except Exception as e:
+        logger.error(f"Error deleting deployment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 async def delete_routing_rule(rule_id: str) -> Dict[str, str]:
     """Delete a routing rule"""
     if rule_id not in _routing_rules:

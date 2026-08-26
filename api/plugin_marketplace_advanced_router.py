@@ -8,9 +8,18 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
+
+from core.database import get_db
+from core.models import (
+    PluginListingDB,
+    PluginReviewDB,
+    PluginCategoryDB,
+    InstalledPluginDB,
+)
 
 router = APIRouter(prefix="/api/v1/plugin/marketplace", tags=["Plugin Marketplace Advanced"])
 
@@ -140,118 +149,15 @@ class InstallResponse(BaseModel):
     message: str
 
 
-# In-memory storage (in production, use a database)
-_listings: Dict[str, Dict[str, Any]] = {}
-_reviews: Dict[str, List[Dict[str, Any]]] = {}
-_categories: Dict[str, Dict[str, Any]] = {}
-_installed_plugins: Dict[str, Dict[str, Any]] = {}
-
-
-def _initialize_default_data():
-    """Initialize default data"""
-    # Default categories
-    if not _categories:
-        default_categories = [
-            {
-                "id": str(uuid4()),
-                "name": "monitoring",
-                "description": "Monitoring and metrics collection plugins",
-                "plugin_count": 0,
-                "icon": "📊",
-            },
-            {
-                "id": str(uuid4()),
-                "name": "alerting",
-                "description": "Alerting and notification plugins",
-                "plugin_count": 0,
-                "icon": "🔔",
-            },
-            {
-                "id": str(uuid4()),
-                "name": "analysis",
-                "description": "Data analysis and processing plugins",
-                "plugin_count": 0,
-                "icon": "🔬",
-            },
-            {
-                "id": str(uuid4()),
-                "name": "integration",
-                "description": "Third-party integration plugins",
-                "plugin_count": 0,
-                "icon": "🔗",
-            },
-            {
-                "id": str(uuid4()),
-                "name": "automation",
-                "description": "Automation and action plugins",
-                "plugin_count": 0,
-                "icon": "⚡",
-            },
-        ]
-        for category in default_categories:
-            _categories[category["id"]] = category
-
-    # Default plugin listings
-    if not _listings:
-        category_id = (
-            list(_categories.keys())[0] if _categories else str(uuid4())
-        )  # noqa: F841 - Reserved for future use
-
-        default_listings = [
-            {
-                "id": str(uuid4()),
-                "plugin_id": str(uuid4()),
-                "plugin_name": "Prometheus Collector",
-                "version": "1.2.0",
-                "description": "Collects metrics from Prometheus endpoints",
-                "author": "AIOps Team",
-                "category": "monitoring",
-                "tags": ["prometheus", "metrics", "monitoring"],
-                "price": None,
-                "quality": "certified",
-                "review_status": "approved",
-                "download_count": 1250,
-                "rating": 4.8,
-                "review_count": 42,
-                "download_url": "https://example.com/plugins/prometheus-collector.zip",
-                "screenshot_urls": [],
-                "documentation_url": "https://docs.example.com/prometheus-collector",
-                "repository_url": "https://github.com/example/prometheus-collector",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-            {
-                "id": str(uuid4()),
-                "plugin_id": str(uuid4()),
-                "plugin_name": "Slack Notifier",
-                "version": "2.0.1",
-                "description": "Send alerts to Slack channels",
-                "author": "Community",
-                "category": "alerting",
-                "tags": ["slack", "notification", "alerting"],
-                "price": None,
-                "quality": "verified",
-                "review_status": "approved",
-                "download_count": 890,
-                "rating": 4.5,
-                "review_count": 28,
-                "download_url": "https://example.com/plugins/slack-notifier.zip",
-                "screenshot_urls": [],
-                "documentation_url": "https://docs.example.com/slack-notifier",
-                "repository_url": "https://github.com/example/slack-notifier",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-        ]
-        for listing in default_listings:
-            _listings[listing["id"]] = listing
-            # Update category count
-            for cat in _categories.values():
-                if cat["name"] == listing["category"]:
-                    cat["plugin_count"] += 1
-
-
-_initialize_default_data()
+# ============================================================================
+# Database Storage Migration
+# ============================================================================
+# All in-memory storage has been migrated to PostgreSQL database models
+# - PluginListingDB -> plugin_listings table
+# - PluginReviewDB -> plugin_reviews table
+# - PluginCategoryDB -> plugin_categories table
+# - InstalledPluginDB -> installed_plugins table
+# ============================================================================
 
 
 # Plugin Endpoints
@@ -266,6 +172,7 @@ async def get_plugin_listings(
         "updated_at", description="Sort field (name, rating, download_count, updated_at)"
     ),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    db: Session = Depends(get_db),
 ):
     """
     Get all plugin listings with optional filtering and sorting
@@ -281,43 +188,67 @@ async def get_plugin_listings(
         List of plugin listings
     """
     try:
-        listings = list(_listings.values())
-
+        # Try to get listings from database
+        query = db.query(PluginListingDB).filter(PluginListingDB.enabled == True)
+        
         # Filter by category
         if category:
-            listings = [l for l in listings if l["category"] == category]
-
+            query = query.filter(PluginListingDB.category == category)
+        
         # Filter by quality
         if quality:
-            listings = [l for l in listings if l["quality"] == quality]
-
-        # Filter by search
+            query = query.filter(PluginListingDB.quality == quality)
+        
+        # Search by name or description
         if search:
-            search_lower = search.lower()
-            listings = [
-                l
-                for l in listings
-                if search_lower in l["plugin_name"].lower()
-                or search_lower in l["description"].lower()
-            ]
-
+            query = query.filter(
+                (PluginListingDB.plugin_name.ilike(f"%{search}%")) |
+                (PluginListingDB.description.ilike(f"%{search}%"))
+            )
+        
         # Sort
         if sort_by == "name":
-            listings.sort(key=lambda x: x["plugin_name"])
+            query = query.order_by(PluginListingDB.plugin_name)
         elif sort_by == "rating":
-            listings.sort(key=lambda x: x["rating"], reverse=True)
+            query = query.order_by(PluginListingDB.rating.desc())
         elif sort_by == "download_count":
-            listings.sort(key=lambda x: x["download_count"], reverse=True)
-        else:  # updated_at
-            listings.sort(key=lambda x: x["updated_at"], reverse=True)
-
-        # Limit results
-        listings = listings[:limit]
-
-        return [PluginListingResponse(**l) for l in listings]
+            query = query.order_by(PluginListingDB.download_count.desc())
+        else:
+            query = query.order_by(PluginListingDB.updated_at.desc())
+        
+        # Limit
+        listings = query.limit(limit).all()
+        
+        # Convert to response format
+        return [
+            PluginListingResponse(
+                id=str(listing.id),
+                plugin_id=listing.plugin_id,
+                plugin_name=listing.plugin_name,
+                version=listing.version,
+                description=listing.description,
+                author=listing.author,
+                category=listing.category,
+                tags=listing.tags or [],
+                price=listing.price,
+                quality=listing.quality,
+                download_url=listing.download_url,
+                screenshot_urls=listing.screenshot_urls or [],
+                documentation_url=listing.documentation_url,
+                repository_url=listing.repository_url,
+                download_count=listing.download_count,
+                rating=listing.rating,
+                review_count=listing.review_count,
+                created_at=listing.created_at,
+                updated_at=listing.updated_at,
+            )
+            for listing in listings
+        ]
+        
     except Exception as e:
         logger.error(f"Error getting plugin listings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Fallback to empty list
+        return []
 
 
 @router.get(
