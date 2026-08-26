@@ -88,7 +88,7 @@ curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
 
 ## 🏗️ Architecture
 
-### Agent Closed-Loop Architecture
+### 7-Layer Platform Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -98,61 +98,147 @@ curl -X POST http://localhost:8000/api/v1/alerts/prometheus \
                      │ Webhooks
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Alert Ingestion & Normalization Layer                       │
+│  L1: Real-time Stream Processing Layer                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Alert Parser │  │ Normalizer   │  │ Classifier   │     │
+│  │ Kafka Stream │  │ Flink Jobs   │  │ Event Bus    │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L1L2DataFlowIntegrator                                     │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  AI Analysis & Decision Layer                                │
+│  L2: Analysis Layer                                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ LLM Analysis │  │ RAG Retrieval│  │ Knowledge Gr │     │
+│  │ Causal Graph │  │ AI Inference │  │ Anomaly Det  │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L2L3WorkflowIntegrator                                     │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Approval & Safety Layer                                     │
+│  L3: Processing Layer                                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Approval Gate│  │ Risk Engine  │  │ Command Guard│     │
+│  │ Workflow Eng │  │ State Machine│  │ DSL Engine   │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L3L4StorageIntegrator                                      │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Execution & Repair Layer                                    │
+│  L4: Storage Layer                                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Repair Engine│  │ Saga Coord   │  │ Rollback     │     │
+│  │ PostgreSQL   │  │ Redis Cache  │  │ Qdrant Vector│     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L4L5DataIntegrator                                         │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Audit & Learning Layer                                      │
+│  L5: Knowledge Layer                                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Audit Trail  │  │ Knowledge Acq│  │ Model Update │     │
+│  │ Knowledge Gr │  │ RAG Retrieval│  │ Vector Store │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L5L6ExecutionIntegrator                                    │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Knowledge Base & Continuous Improvement                      │
+│  L6: Execution Layer                                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Vector Store │  │ Experience DB│  │ Feedback Loop│     │
+│  │ Command Guard│  │ Approval Gate│  │ Saga Engine  │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  L6L7FrontendIntegrator                                     │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  L7: Integration Layer                                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Frontend UI  │  │ API Gateway   │  │ Third-party  │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Layer Responsibilities
 
-- **Alert Ingestion & Normalization**: Multi-source alert ingestion, unified alert model, intelligent classification
-- **AI Analysis & Decision**: LLM-powered root cause analysis, RAG retrieval, knowledge graph reasoning
-- **Approval & Safety**: Multi-level approval gates, risk assessment, command guard system
-- **Execution & Repair**: Automated repair execution, saga coordination, rollback mechanisms
-- **Audit & Learning**: Comprehensive audit trails, knowledge acquisition, model updates
-- **Knowledge Base & Continuous Improvement**: Vector storage, experience database, feedback learning loop
+- **L1 - Real-time Stream Processing**: Kafka stream processing, Flink job management, event bus
+- **L2 - Analysis**: Causal graph analysis, AI inference, anomaly detection, prediction
+- **L3 - Processing**: Workflow orchestration, state machine, DSL execution, business logic
+- **L4 - Storage**: Multi-backend storage (PostgreSQL, Redis, Qdrant), data policies, retention
+- **L5 - Knowledge**: Knowledge graphs, RAG retrieval, vector stores, intelligent decision making
+- **L6 - Execution**: Command execution, safety guards, approval gates, saga coordination
+- **L7 - Integration**: Frontend UI, API gateway, third-party integrations, user interfaces
+
+### Layer Integrators
+
+The 7-layer architecture is connected through dedicated integrators that handle data flow and transformation between layers:
+
+- **L1L2DataFlowIntegrator**: Stream processing to analysis layer data flow
+- **L2L3WorkflowIntegrator**: Analysis to processing layer workflow triggering
+- **L3L4StorageIntegrator**: Processing to storage layer data persistence
+- **L4L5DataIntegrator**: Storage to knowledge layer real-time data processing
+- **L5L6ExecutionIntegrator**: Knowledge to execution layer intelligent execution
+- **L6L7FrontendIntegrator**: Execution to integration layer frontend presentation
+
+### Agent Closed-Loop Architecture
+
+The system implements an autonomous SRE agent that operates on top of the platform architecture:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Monitoring Systems                        │
+│  Prometheus │ Grafana │ Datadog │ Zabbix │ CloudWatch     │
+└────────────────────┬────────────────────────────────────────┘
+                     │ Webhooks
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Alert Ingestion & Normalization (L1)                         │
+│  Alert Parser → Normalizer → Classifier                      │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  AI Analysis & Decision (L2 + L5)                             │
+│  LLM Analysis → RAG Retrieval → Knowledge Graph Reasoning   │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Approval & Safety (L6)                                      │
+│  Approval Gate → Risk Engine → Command Guard                │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Execution & Repair (L6)                                     │
+│  Repair Engine → Saga Coordination → Rollback                 │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Audit & Learning (L4 + L5)                                  │
+│  Audit Trail → Knowledge Acquisition → Model Update          │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Knowledge Base & Continuous Improvement (L5)                  │
+│  Vector Store → Experience Database → Feedback Loop         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Agent Closed-Loop Workflow
+
+The agent operates through a continuous learning cycle:
+
+1. **Alert Detection**: Monitoring systems send webhook alerts → Platform L1 normalizes and classifies
+2. **AI Analysis**: Platform L2 analyzes root cause using LLM and L5 knowledge retrieval
+3. **Decision Making**: Agent evaluates repair options based on risk assessment and historical data
+4. **Approval Gate**: Platform L6 enforces multi-level approval for high-risk operations
+5. **Safe Execution**: Agent executes repairs with command guards and rollback capabilities
+6. **Audit Trail**: Platform L4 records all actions for compliance and debugging
+7. **Knowledge Accumulation**: Agent learns from outcomes to improve future decisions
+8. **Continuous Improvement**: L5 updates models and knowledge base for better performance
 
 ---
 
