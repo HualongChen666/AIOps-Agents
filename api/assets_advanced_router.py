@@ -271,6 +271,229 @@ def _delete_inventory_metadata(asset_id: int, db: Optional[Session] = None) -> N
         _asset_inventory_metadata.pop(asset_id, None)
 
 
+def _get_asset_relationships(db: Optional[Session] = None) -> List[AssetRelationship]:
+    """Get asset relationships from database with fallback to memory."""
+    try:
+        if db:
+            db_relationships = db.query(AssetRelationshipDB).all()
+            return [
+                AssetRelationship(
+                    source_id=rel.source_id,
+                    target_id=rel.target_id,
+                    relationship_type=RelationshipType(rel.relationship_type),
+                    description=rel.properties.get("description") if rel.properties else None,
+                )
+                for rel in db_relationships
+            ]
+        # Fallback to memory storage
+        return _asset_relationships
+    except Exception as e:
+        logger.error(f"Failed to get asset relationships from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _asset_relationships
+
+
+def _add_asset_relationship(relationship: AssetRelationship, db: Optional[Session] = None) -> None:
+    """Add asset relationship to database with fallback to memory."""
+    try:
+        if db:
+            db_relationship = AssetRelationshipDB(
+                source_id=relationship.source_id,
+                target_id=relationship.target_id,
+                relationship_type=relationship.relationship_type.value,
+                properties={"description": relationship.description} if relationship.description else None,
+            )
+            db.add(db_relationship)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_relationships.append(relationship)
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to add asset relationship to database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_relationships.append(relationship)
+
+
+def _delete_asset_relationships(asset_id: int, db: Optional[Session] = None) -> None:
+    """Delete asset relationships from database with fallback to memory."""
+    global _asset_relationships
+    try:
+        if db:
+            db.query(AssetRelationshipDB).filter(
+                (AssetRelationshipDB.source_id == asset_id) | (AssetRelationshipDB.target_id == asset_id)
+            ).delete()
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_relationships = [
+                r for r in _asset_relationships if r.source_id != asset_id and r.target_id != asset_id
+            ]
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to delete asset relationships from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_relationships = [
+            r for r in _asset_relationships if r.source_id != asset_id and r.target_id != asset_id
+        ]
+
+
+def _get_asset_lifecycle(asset_id: int, db: Optional[Session] = None) -> Optional[AssetLifecycle]:
+    """Get asset lifecycle from database with fallback to memory."""
+    try:
+        if db:
+            db_lifecycle = db.query(AssetLifecycleDB).filter(
+                AssetLifecycleDB.asset_id == asset_id
+            ).first()
+            if db_lifecycle:
+                return AssetLifecycle(
+                    asset_id=db_lifecycle.asset_id,
+                    current_stage=LifecycleStage(db_lifecycle.stage),
+                    stage_start_date=db_lifecycle.start_date,
+                    estimated_end_date=db_lifecycle.end_date,
+                    stage_duration_days=0,  # Calculate if needed
+                    total_lifecycle_days=0,  # Calculate if needed
+                    next_stage=None,  # Determine if needed
+                    metadata={"notes": db_lifecycle.notes} if db_lifecycle.notes else None,
+                )
+        # Fallback to memory storage
+        return _asset_lifecycle_data.get(asset_id)
+    except Exception as e:
+        logger.error(f"Failed to get asset lifecycle from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _asset_lifecycle_data.get(asset_id)
+
+
+def _set_asset_lifecycle(asset_id: int, lifecycle: AssetLifecycle, db: Optional[Session] = None) -> None:
+    """Set asset lifecycle in database with fallback to memory."""
+    try:
+        if db:
+            existing_lifecycle = db.query(AssetLifecycleDB).filter(
+                AssetLifecycleDB.asset_id == asset_id
+            ).first()
+            if existing_lifecycle:
+                existing_lifecycle.stage = lifecycle.current_stage.value
+                existing_lifecycle.start_date = lifecycle.stage_start_date
+                existing_lifecycle.end_date = lifecycle.estimated_end_date
+                existing_lifecycle.status = "active"
+                existing_lifecycle.notes = lifecycle.metadata.get("notes") if lifecycle.metadata else None
+            else:
+                db_lifecycle = AssetLifecycleDB(
+                    asset_id=asset_id,
+                    stage=lifecycle.current_stage.value,
+                    start_date=lifecycle.stage_start_date,
+                    end_date=lifecycle.estimated_end_date,
+                    status="active",
+                    notes=lifecycle.metadata.get("notes") if lifecycle.metadata else None,
+                )
+                db.add(db_lifecycle)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_lifecycle_data[asset_id] = lifecycle
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set asset lifecycle in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_lifecycle_data[asset_id] = lifecycle
+
+
+def _delete_asset_lifecycle(asset_id: int, db: Optional[Session] = None) -> None:
+    """Delete asset lifecycle from database with fallback to memory."""
+    try:
+        if db:
+            db.query(AssetLifecycleDB).filter(
+                AssetLifecycleDB.asset_id == asset_id
+            ).delete()
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_lifecycle_data.pop(asset_id, None)
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to delete asset lifecycle from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_lifecycle_data.pop(asset_id, None)
+
+
+def _get_asset_dependencies(db: Optional[Session] = None) -> Dict[int, AssetDependency]:
+    """Get asset dependencies from database with fallback to memory."""
+    try:
+        if db:
+            db_dependencies = db.query(AssetDependencyDB).all()
+            return {
+                dep.asset_id: AssetDependency(
+                    asset_id=dep.asset_id,
+                    asset_name="",  # Would need to join with Asset table
+                    dependency_type=dep.dependency_type,
+                    criticality=dep.criticality,
+                    depends_on=dep.dependency_details.get("depends_on", []),
+                    depended_by=dep.dependency_details.get("depended_by", []),
+                    impact_score=dep.dependency_details.get("impact_score", 50.0),
+                )
+                for dep in db_dependencies
+            }
+        # Fallback to memory storage
+        return _asset_dependencies
+    except Exception as e:
+        logger.error(f"Failed to get asset dependencies from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        return _asset_dependencies
+
+
+def _set_asset_dependency(asset_id: int, dependency: AssetDependency, db: Optional[Session] = None) -> None:
+    """Set asset dependency in database with fallback to memory."""
+    try:
+        if db:
+            existing_dependency = db.query(AssetDependencyDB).filter(
+                AssetDependencyDB.asset_id == asset_id
+            ).first()
+            dependency_details = {
+                "depends_on": dependency.depends_on,
+                "depended_by": dependency.depended_by,
+                "impact_score": dependency.impact_score,
+            }
+            if existing_dependency:
+                existing_dependency.dependency_type = dependency.dependency_type
+                existing_dependency.dependency_details = dependency_details
+                existing_dependency.criticality = dependency.criticality
+            else:
+                db_dependency = AssetDependencyDB(
+                    asset_id=asset_id,
+                    dependency_type=dependency.dependency_type,
+                    dependency_details=dependency_details,
+                    criticality=dependency.criticality,
+                )
+                db.add(db_dependency)
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_dependencies[asset_id] = dependency
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to set asset dependency in database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_dependencies[asset_id] = dependency
+
+
+def _delete_asset_dependency(asset_id: int, db: Optional[Session] = None) -> None:
+    """Delete asset dependency from database with fallback to memory."""
+    try:
+        if db:
+            db.query(AssetDependencyDB).filter(
+                AssetDependencyDB.asset_id == asset_id
+            ).delete()
+            db.commit()
+        else:
+            # Fallback to memory storage
+            _asset_dependencies.pop(asset_id, None)
+    except Exception as e:
+        db.rollback() if db else None
+        logger.error(f"Failed to delete asset dependency from database, using fallback: {e}", exc_info=True)
+        # Fallback to memory storage
+        _asset_dependencies.pop(asset_id, None)
+
+
 # ============================================================================
 # API Endpoints - Inventory
 # ============================================================================
@@ -636,12 +859,9 @@ async def delete_inventory_item(
 
         # Clean up metadata
         _delete_inventory_metadata(asset_id, db_core)
-        _asset_lifecycle_data.pop(asset_id, None)
-        _asset_dependencies.pop(asset_id, None)
-        # Intentionally filtering relationships to maintain data consistency
-        _asset_relationships = [
-            r for r in _asset_relationships if r.source_id != asset_id and r.target_id != asset_id
-        ]  # noqa: F841
+        _delete_asset_lifecycle(asset_id, db_core)
+        _delete_asset_dependency(asset_id, db_core)
+        _delete_asset_relationships(asset_id, db_core)
 
         logger.info(f"Deleted inventory item: {asset_id}")
 
@@ -665,6 +885,7 @@ async def get_asset_relationships(
     relationship_type: Optional[RelationshipType] = Query(
         None, description="Filter by relationship type"
     ),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -674,7 +895,7 @@ async def get_asset_relationships(
     connections, etc.
     """
     try:
-        relationships = _asset_relationships
+        relationships = _get_asset_relationships(db_core)
 
         if asset_id is not None:
             relationships = [
@@ -696,6 +917,7 @@ async def get_asset_relationships(
 async def create_asset_relationship(
     relationship: AssetRelationship,
     db: Session = Depends(get_session),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
@@ -718,7 +940,8 @@ async def create_asset_relationship(
             )
 
         # Check for duplicate relationship
-        for existing in _asset_relationships:
+        existing_relationships = _get_asset_relationships(db_core)
+        for existing in existing_relationships:
             if (
                 existing.source_id == relationship.source_id
                 and existing.target_id == relationship.target_id
@@ -726,7 +949,7 @@ async def create_asset_relationship(
             ):
                 raise HTTPException(status_code=400, detail="Relationship already exists")
 
-        _asset_relationships.append(relationship)
+        _add_asset_relationship(relationship, db_core)
 
         logger.info(
             f"Created relationship: {relationship.source_id} -> {relationship.target_id} "
@@ -750,6 +973,7 @@ async def create_asset_relationship(
 async def get_asset_lifecycle(
     asset_id: Optional[int] = Query(None, description="Filter by asset ID"),
     current_stage: Optional[LifecycleStage] = Query(None, description="Filter by lifecycle stage"),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -759,7 +983,26 @@ async def get_asset_lifecycle(
     duration, and next planned stage.
     """
     try:
-        lifecycle_data = list(_asset_lifecycle_data.values())
+        # Get all assets to build lifecycle data
+        if db_core:
+            # Use database
+            db_lifecycles = db_core.query(AssetLifecycleDB).all()
+            lifecycle_data = []
+            for db_lifecycle in db_lifecycles:
+                lifecycle = AssetLifecycle(
+                    asset_id=db_lifecycle.asset_id,
+                    current_stage=LifecycleStage(db_lifecycle.stage),
+                    stage_start_date=db_lifecycle.start_date,
+                    estimated_end_date=db_lifecycle.end_date,
+                    stage_duration_days=0,  # Calculate if needed
+                    total_lifecycle_days=0,  # Calculate if needed
+                    next_stage=None,  # Determine if needed
+                    metadata={"notes": db_lifecycle.notes} if db_lifecycle.notes else None,
+                )
+                lifecycle_data.append(lifecycle)
+        else:
+            # Fallback to memory storage
+            lifecycle_data = list(_asset_lifecycle_data.values())
 
         if asset_id is not None:
             lifecycle_data = [lc for lc in lifecycle_data if lc.asset_id == asset_id]
@@ -777,6 +1020,7 @@ async def get_asset_lifecycle(
 async def update_asset_lifecycle(
     asset_id: int,
     current_stage: LifecycleStage,
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
@@ -785,12 +1029,11 @@ async def update_asset_lifecycle(
     Transitions an asset to a new lifecycle stage and updates timing information.
     """
     try:
-        if asset_id not in _asset_lifecycle_data:
+        lifecycle = _get_asset_lifecycle(asset_id, db_core)
+        if not lifecycle:
             raise HTTPException(
                 status_code=404, detail=f"Lifecycle data for asset {asset_id} not found"
             )
-
-        lifecycle = _asset_lifecycle_data[asset_id]
 
         # Calculate stage duration
         old_start = lifecycle.stage_start_date
@@ -826,6 +1069,9 @@ async def update_asset_lifecycle(
         )
         lifecycle.metadata["last_transition"] = datetime.utcnow().isoformat()
 
+        # Save to database with fallback
+        _set_asset_lifecycle(asset_id, lifecycle, db_core)
+
         logger.info(f"Updated lifecycle for asset {asset_id} to stage {current_stage}")
 
         return lifecycle
@@ -846,6 +1092,7 @@ async def get_asset_dependencies(
     asset_id: Optional[int] = Query(None, description="Filter by asset ID"),
     criticality: Optional[str] = Query(None, description="Filter by criticality (high/medium/low)"),
     db: Session = Depends(get_session),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -855,11 +1102,15 @@ async def get_asset_dependencies(
     along with criticality and impact scores.
     """
     try:
-        # Build dependency data from relationships
-        if not _asset_dependencies:
-            _build_dependency_graph(db)
+        # Build dependency data from database with fallback
+        dependencies_dict = _get_asset_dependencies(db_core)
+        
+        # If empty, try to build from relationships
+        if not dependencies_dict:
+            _build_dependency_graph(db, db_core)
+            dependencies_dict = _get_asset_dependencies(db_core)
 
-        dependencies = list(_asset_dependencies.values())
+        dependencies = list(dependencies_dict.values())
 
         if asset_id is not None:
             dependencies = [d for d in dependencies if d.asset_id == asset_id]
@@ -873,18 +1124,24 @@ async def get_asset_dependencies(
         raise HTTPException(status_code=500, detail=f"Failed to get dependencies: {str(e)}")
 
 
-def _build_dependency_graph(db: Session) -> None:
+def _build_dependency_graph(db: Session, db_core: Optional[Session] = None) -> None:
     """Build dependency graph from asset relationships."""
-    global _asset_dependencies
+    global _asset_dependencies, _asset_relationships
 
     assets = db.query(Asset).all()
+    
+    # Get relationships from database if available, otherwise use memory
+    if db_core:
+        relationships = _get_asset_relationships(db_core)
+    else:
+        relationships = _asset_relationships
 
     for asset in assets:
         # Find dependencies based on relationships
         depends_on = []
         depended_by = []
 
-        for rel in _asset_relationships:
+        for rel in relationships:
             if rel.source_id == asset.id and rel.relationship_type == RelationshipType.DEPENDS_ON:
                 depends_on.append(rel.target_id)
             elif rel.target_id == asset.id and rel.relationship_type == RelationshipType.DEPENDS_ON:
@@ -901,7 +1158,7 @@ def _build_dependency_graph(db: Session) -> None:
         else:
             criticality = "low"
 
-        _asset_dependencies[asset.id] = AssetDependency(
+        dependency = AssetDependency(
             asset_id=asset.id,
             asset_name=asset.name,
             dependency_type="operational",
@@ -910,3 +1167,9 @@ def _build_dependency_graph(db: Session) -> None:
             depended_by=depended_by,
             impact_score=impact_score,
         )
+        
+        # Store in database if available, otherwise use memory
+        if db_core:
+            _set_asset_dependency(asset.id, dependency, db_core)
+        else:
+            _asset_dependencies[asset.id] = dependency
