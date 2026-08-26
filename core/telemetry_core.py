@@ -324,6 +324,78 @@ def reset_apm_metrics() -> None:
     }
 
 
+def get_traces(
+    service_name: Optional[str] = None,
+    operation_name: Optional[str] = None,
+    min_duration: Optional[int] = None,
+    max_duration: Optional[int] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> dict[str, Any]:
+    """🔧 P1 Enhancement: Get performance traces data.
+
+    Args:
+        service_name: Service name filter
+        operation_name: Operation name filter
+        min_duration: Minimum duration in milliseconds
+        max_duration: Maximum duration in milliseconds
+        page: Page number
+        page_size: Page size
+
+    Returns:
+        Dictionary with traces data
+    """
+    # Mock traces data for now - in production, this would query OpenTelemetry backend
+    mock_traces = [
+        {
+            "trace_id": "trace-123",
+            "span_id": "span-456",
+            "parent_span_id": "span-789",
+            "operation_name": "GET /api/v1/alerts",
+            "service_name": "aiops-agent",
+            "start_time": "2026-06-12T00:00:00Z",
+            "duration_ms": 150,
+            "status": "success",
+            "tags": {"http.method": "GET", "http.status_code": "200"},
+            "logs": [],
+        },
+        {
+            "trace_id": "trace-124",
+            "span_id": "span-457",
+            "parent_span_id": "span-790",
+            "operation_name": "POST /api/v1/alerts",
+            "service_name": "aiops-agent",
+            "start_time": "2026-06-12T00:01:00Z",
+            "duration_ms": 200,
+            "status": "success",
+            "tags": {"http.method": "POST", "http.status_code": "201"},
+            "logs": [],
+        },
+    ]
+
+    # Apply filters
+    filtered_traces = mock_traces
+    if service_name:
+        filtered_traces = [t for t in filtered_traces if t.get("service_name") == service_name]
+    if operation_name:
+        filtered_traces = [t for t in filtered_traces if t.get("operation_name") == operation_name]
+    if min_duration:
+        filtered_traces = [t for t in filtered_traces if t.get("duration_ms", 0) >= min_duration]
+    if max_duration:
+        filtered_traces = [t for t in filtered_traces if t.get("duration_ms", 0) <= max_duration]
+
+    # Apply pagination
+    total = len(filtered_traces)
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    paginated_traces = filtered_traces[start_idx:end_idx]
+
+    return {
+        "traces": paginated_traces,
+        "total": total,
+    }
+
+
 __all__ = [
     "OTEL_AVAILABLE",
     "initialize_telemetry",
@@ -338,4 +410,5 @@ __all__ = [
     "record_apm_metric",
     "get_apm_metrics",
     "reset_apm_metrics",
+    "get_traces",
 ]

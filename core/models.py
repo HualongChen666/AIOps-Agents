@@ -119,7 +119,7 @@ class Alert(Base):
     bis_score = Column(Float, nullable=True)
 
     # 附加信息（JSON格式）
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     # 去重相关
     prev_suppressed = Column(Integer, nullable=True)
@@ -647,7 +647,7 @@ class PerformanceMetric(Base):
     )
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -706,7 +706,7 @@ class PerformanceBaseline(Base):
     is_active = Column(Boolean, default=True, nullable=False)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -754,7 +754,7 @@ class PerformanceTrend(Base):
     environment = Column(String(50), nullable=False, index=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -806,7 +806,7 @@ class PerformanceRegression(Base):
     environment = Column(String(50), nullable=False, index=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -1261,7 +1261,7 @@ class PriorityRule(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_priority_rules_name", "name"),
@@ -1297,7 +1297,7 @@ class PriorityScore(Base):
     calculated_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_priority_scores_alert_id", "alert_id"),
@@ -1333,7 +1333,7 @@ class PriorityHistory(Base):
     changed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_priority_history_alert_id", "alert_id"),
@@ -1372,7 +1372,7 @@ class RealtimeStream(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_streams_name", "name"),
@@ -1402,7 +1402,7 @@ class RealtimeEvent(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_events_stream_id", "stream_id"),
@@ -1441,7 +1441,7 @@ class RealtimeSubscription(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_subscriptions_stream_id", "stream_id"),
@@ -1483,7 +1483,7 @@ class RealtimeWebhook(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_webhooks_name", "name"),
@@ -1535,7 +1535,7 @@ class RootCauseHypothesis(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_hypotheses_alert_id", "alert_id"),
@@ -1581,7 +1581,7 @@ class RootCauseExperiment(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_experiments_hypothesis_id", "hypothesis_id"),
@@ -1615,7 +1615,7 @@ class RootCauseEvidence(Base):
     collected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_evidence_hypothesis_id", "hypothesis_id"),
@@ -1662,7 +1662,7 @@ class RootCauseConclusion(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    meta_data = Column(JSON, nullable=True)
+    dataset_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_conclusions_alert_id", "alert_id"),
@@ -1672,3 +1672,194 @@ class RootCauseConclusion(Base):
 
     def __repr__(self):
         return f"<RootCauseConclusion(id='{self.id}', alert_id='{self.alert_id}', root_cause='{self.root_cause}')>"
+
+
+# ============================================================================
+# AI Functionality Models
+# ============================================================================
+
+
+class FineTuningJob(Base):
+    """AI微调任务表"""
+
+    __tablename__ = "fine_tuning_jobs"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    model_name = Column(String(100), nullable=False)
+    dataset_id = Column(String(100), nullable=True)
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    parameters = Column(JSON, nullable=True)
+    metrics = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_fine_tuning_jobs_status", "status"),
+        Index("idx_fine_tuning_jobs_model_name", "model_name"),
+        Index("idx_fine_tuning_jobs_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<FineTuningJob(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+
+class TrainingDataset(Base):
+    """训练数据集表"""
+
+    __tablename__ = "training_datasets"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    data_type = Column(String(50), nullable=False, index=True)
+    size = Column(Integer, nullable=True)
+    file_path = Column(String(500), nullable=True)
+    extra_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_training_datasets_data_type", "data_type"),
+        Index("idx_training_datasets_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<TrainingDataset(id={self.id}, name='{self.name}', type='{self.data_type}')>"
+
+
+class ModelDeployment(Base):
+    """模型部署表"""
+
+    __tablename__ = "model_deployments"
+
+    id = Column(String(100), primary_key=True)
+    model_name = Column(String(100), nullable=False)
+    version = Column(String(50), nullable=False)
+    environment = Column(String(50), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    endpoint = Column(String(500), nullable=True)
+    config = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deployed_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_model_deployments_environment", "environment"),
+        Index("idx_model_deployments_status", "status"),
+        Index("idx_model_deployments_model_name", "model_name"),
+    )
+
+    def __repr__(self):
+        return f"<ModelDeployment(id={self.id}, model='{self.model_name}', env='{self.environment}')>"
+
+
+# ============================================================================
+# Compliance Audit Models
+# ============================================================================
+
+
+class ComplianceAudit(Base):
+    """合规审计表"""
+
+    __tablename__ = "compliance_audits"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    audit_type = Column(String(50), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    scope = Column(JSON, nullable=True)
+    findings = Column(JSON, nullable=True)
+    result = Column(JSON, nullable=True)
+    scheduled_date = Column(DateTime(timezone=True), nullable=True)
+    completed_date = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_compliance_audits_type", "audit_type"),
+        Index("idx_compliance_audits_status", "status"),
+        Index("idx_compliance_audits_scheduled_date", "scheduled_date"),
+    )
+
+    def __repr__(self):
+        return f"<ComplianceAudit(id={self.id}, name='{self.name}', type='{self.audit_type}')>"
+
+
+# ============================================================================
+# Builder Models
+# ============================================================================
+
+
+class BuilderTemplate(Base):
+    """构建器模板表"""
+
+    __tablename__ = "builder_templates"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(50), nullable=True, index=True)
+    template_data = Column(JSON, nullable=False)
+    components = Column(JSON, nullable=True)
+    is_public = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_builder_templates_category", "category"),
+        Index("idx_builder_templates_is_public", "is_public"),
+    )
+
+    def __repr__(self):
+        return f"<BuilderTemplate(id={self.id}, name='{self.name}', category='{self.category}')>"
+
+
+class BuilderProject(Base):
+    """构建器项目表"""
+
+    __tablename__ = "builder_projects"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    template_id = Column(String(100), nullable=True)
+    project_data = Column(JSON, nullable=False)
+    status = Column(String(20), nullable=False, default="draft", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_builder_projects_status", "status"),
+        Index("idx_builder_projects_template_id", "template_id"),
+    )
+
+    def __repr__(self):
+        return f"<BuilderProject(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+
+class BuilderComponent(Base):
+    """构建器组件表"""
+
+    __tablename__ = "builder_components"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    component_type = Column(String(50), nullable=False, index=True)
+    config = Column(JSON, nullable=False)
+    properties = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_builder_components_type", "component_type"),
+    )
+
+    def __repr__(self):
+        return f"<BuilderComponent(id={self.id}, name='{self.name}', type='{self.component_type}')>"

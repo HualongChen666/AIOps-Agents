@@ -15,9 +15,9 @@ Endpoints:
 Provides APM metrics and performance monitoring endpoints
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
 from core import telemetry_core as telemetry
@@ -164,3 +164,90 @@ async def reset_apm_metrics() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"重置APM指标失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"重置APM指标失败: {str(e)[:200]}")
+
+
+@router.get(
+    "/traces",
+    summary="获取性能追踪数据",
+    responses={
+        200: {
+            "description": "性能追踪数据",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "traces": [
+                            {
+                                "trace_id": "trace-123",
+                                "span_id": "span-456",
+                                "parent_span_id": "span-789",
+                                "operation_name": "GET /api/v1/alerts",
+                                "service_name": "aiops-agent",
+                                "start_time": "2026-06-12T00:00:00Z",
+                                "duration_ms": 150,
+                                "status": "success",
+                                "tags": {"http.method": "GET", "http.status_code": "200"},
+                                "logs": [],
+                            }
+                        ],
+                        "total": 1,
+                        "page": 1,
+                        "page_size": 20,
+                    }
+                }
+            },
+        },
+        500: {"description": "获取性能追踪数据失败"},
+    },
+)
+async def get_traces(
+    service_name: Optional[str] = Query(None, description="服务名称过滤"),
+    operation_name: Optional[str] = Query(None, description="操作名称过滤"),
+    min_duration: Optional[int] = Query(None, description="最小持续时间（毫秒）"),
+    max_duration: Optional[int] = Query(None, description="最大持续时间（毫秒）"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+) -> Dict[str, Any]:
+    """
+    🔧 P1 Enhancement: 获取性能追踪数据
+
+    提供应用性能追踪数据，包括：
+    - 追踪ID
+    - 跨度ID
+    - 操作名称
+    - 服务名称
+    - 持续时间
+    - 状态
+    - 标签
+    - 日志
+
+    Args:
+        service_name: 服务名称过滤
+        operation_name: 操作名称过滤
+        min_duration: 最小持续时间（毫秒）
+        max_duration: 最大持续时间（毫秒）
+        page: 页码
+        page_size: 每页数量
+
+    Returns:
+        追踪数据字典
+    """
+    try:
+        # 获取追踪数据
+        traces_data = telemetry.get_traces(
+            service_name=service_name,
+            operation_name=operation_name,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            page=page,
+            page_size=page_size,
+        )
+
+        return {
+            "traces": traces_data.get("traces", []),
+            "total": traces_data.get("total", 0),
+            "page": page,
+            "page_size": page_size,
+        }
+    except Exception as e:
+        logger.error(f"获取性能追踪数据失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取性能追踪数据失败: {str(e)[:200]}")
