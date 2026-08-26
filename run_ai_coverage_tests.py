@@ -2,8 +2,12 @@
 """
 Script to run AI enhancement module coverage tests
 """
+import os
 import subprocess
 import sys
+
+# Get project root directory dynamically
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # Test files for AI enhancement modules
 test_files = [
@@ -49,7 +53,7 @@ def run_tests():
     print(f"Command: {' '.join(cmd)}")
     print()
     
-    result = subprocess.run(cmd, cwd="C:\\aiops-sre-agent", shell=False)
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT, shell=False)
     
     return result.returncode
 

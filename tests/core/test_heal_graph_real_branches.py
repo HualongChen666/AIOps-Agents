@@ -13,7 +13,10 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest  # noqa: F401  # Imported for test setup
 
-sys.path.insert(0, r"C:\aiops-sre-agent")
+# Get project root directory dynamically
+# From tests/core/test_heal_graph_real_branches.py, go up 3 levels to reach project root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
 
 # noqa: E402  # Module level import not at top (intentional for sys.path setup)
 from core.heal_graph import (
