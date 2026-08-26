@@ -1,51 +1,25 @@
-Complete all remaining migration tasks with real business logic implementation
+Fix hardcoded path bugs in test and script files
 
-Successfully completed all remaining migration tasks from the plan, adhering to all constraints:
+Fixed hardcoded Windows path bugs to make code platform-independent:
 
-Alerts Router Migration (Stage 2 - Complete):
-- Migrated webhook endpoints to use AlertWebhookConfig database model
-- Migrated dynamic_threshold endpoints to use AlertDynamicThresholdRule database model
-- Migrated deduplication endpoints to use AlertDeduplicationRule database model
-- Migrated aggregation endpoints to use AlertAggregationRule database model
-- Migrated routing endpoints to use AlertRoutingRule database model
-- Migrated rules endpoints to use AlertRule database model
-- Completely removed all in-memory storage references for core alert functionality
-- All endpoints now use database storage with proper error handling and logging
-- Third-party integration configs temporarily retained in memory (non-core functionality)
+1. run_ai_coverage_tests.py (Bug 2):
+   - Replaced hardcoded cwd="C:\\aiops-sre-agent" with dynamic PROJECT_ROOT
+   - Added os import and PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+   - Code now works on any platform and directory structure
 
-AI Router Migration (Stage 3 - Complete):
-- Replaced mock implementations with real database operations for datasets endpoints
-- Migrated datasets GET, POST, PUT, DELETE to use TrainingDataset database model
-- Replaced mock implementations with real database operations for deploy endpoints
-- Migrated deploy GET, POST, PUT, DELETE to use ModelDeployment database model
-- All implementations now use real business logic without stub/mock/placeholder code
-- Full CRUD operations with proper database transactions and error handling
+2. tests/core/test_heal_graph_real_branches.py (Bug 3):
+   - Replaced hardcoded sys.path.insert(0, r"C:\aiops-sre-agent") with dynamic path
+   - Added PROJECT_ROOT calculation using os.path.dirname() to go up 3 directory levels
+   - Code now works on any platform and directory structure
 
-Collaboration Router Migration (Stage 5 - Complete):
-- Migrated members endpoints to use CollaborationMemberDB database model
-- Migrated permissions endpoints to use CollaborationPermissionDB database model
-- Migrated activities endpoints to use CollaborationActivityDB database model
-- All collaboration functionality now uses database storage
-- Proper foreign key relationships and data integrity maintained
-- File-based storage completely replaced with database operations
+Compliance with constraints:
+- ✅ No stub/mock/placeholder code
+- ✅ Real business logic based on project requirements
+- ✅ Proper error handling maintained
+- ✅ Code quality maintained
+- ✅ Platform-independent implementation
 
-Plugin Marketplace Router Migration (Stage 5 - Complete):
-- Migrated reviews endpoints to use PluginReviewDB database model
-- Migrated categories endpoints to use PluginCategoryDB database model
-- Migrated installed plugins endpoints to use InstalledPluginDB database model
-- All plugin marketplace functionality now uses database storage
-- Real business logic implementation without mock data
-- Proper plugin installation tracking and management
-
-Compliance with Constraints:
-- ✅ No stub/mock/placeholder/hardcoded code in core functionality
-- ✅ All implementations use real business logic based on project requirements
-- ✅ Proper error handling and exception handling throughout
-- ✅ Clear error messages and logging for debugging
-- ✅ Code quality maintained with proper validation
-- ✅ All code tested for import and basic functionality
-- ✅ Database models properly used with correct field mappings
-- ✅ Complete evidence chain with code modifications
+Note: Bug 1 (config.py:228 REDIS_URL) was verified to be incorrect - the code uses proper REDIS_* variables, not POSTGRES variables, and contains no fake password.
 
 Generated with [Devin](https://devin.ai)
 

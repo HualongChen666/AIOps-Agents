@@ -873,29 +873,8 @@ async def generate_runbook(
         _set_runbook(runbook, db_core)
         return runbook
     except Exception as e:
-        logger.warning(f"AI engine not available, using fallback: {e}")
-        # Fallback to template-based generation
-        runbook_id = generate_id()
-        runbook = RunbookResponse(
-            id=runbook_id,
-            name=f"{req.incident_type} Runbook",
-            description=f"Template runbook for {req.incident_type}",
-            category=req.incident_type,
-            status="draft",
-            steps=[
-                {
-                    "order": 1,
-                    "title": "Initial assessment",
-                    "description": "Gather information about the incident",
-                    "commands": [],
-                    "expected_result": "Information collected",
-                }
-            ],
-            created_at=get_timestamp(),
-            updated_at=get_timestamp(),
-        )
-        _set_runbook(runbook, db_core)
-        return runbook
+        logger.error(f"AI engine error: {e}")
+        raise HTTPException(status_code=503, detail="AI analysis service temporarily unavailable")
 
 
 # ============================================================================
@@ -1310,19 +1289,8 @@ async def retrieve_knowledge(req: RetrievalRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"RAG engine not available, using fallback: {e}")
-        # Fallback to mock results
-        return {
-            "results": [
-                RetrievalResult(
-                    id="1",
-                    content=f"Mock result for query: {req.query}",
-                    source="mock",
-                    relevance_score=0.85,
-                    metadata={},
-                )
-            ]
-        }
+        logger.error(f"RAG engine error: {e}")
+        raise HTTPException(status_code=503, detail="Knowledge retrieval service temporarily unavailable")
 
 
 # ============================================================================
@@ -1378,18 +1346,8 @@ async def semantic_search(req: SearchRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"Semantic search not available, using fallback: {e}")
-        return {
-            "results": [
-                SearchResult(
-                    id="1",
-                    content=f"Semantic search result for: {req.query}",
-                    score=0.78,
-                    source="fallback",
-                    metadata={},
-                )
-            ]
-        }
+        logger.error(f"Semantic search error: {e}")
+        raise HTTPException(status_code=503, detail="Semantic search service temporarily unavailable")
 
 
 # ============================================================================
@@ -1580,17 +1538,8 @@ async def fuse_results(req: FusionRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"Fusion engine not available, using fallback: {e}")
-        return {
-            "results": [
-                FusionResult(
-                    document_id="1",
-                    content=f"Fused result for: {req.query}",
-                    fused_score=0.82,
-                    source_scores={"source1": 0.80, "source2": 0.85},
-                )
-            ]
-        }
+        logger.error(f"Fusion engine error: {e}")
+        raise HTTPException(status_code=503, detail="Fusion service temporarily unavailable")
 
 
 # ============================================================================
@@ -1642,12 +1591,8 @@ async def embed_text(req: EmbedRequest) -> EmbedResponse:
 
         return EmbedResponse(embedding=embedding, dimensions=len(embedding))
     except Exception as e:
-        logger.warning(f"Vectorizer not available, using fallback: {e}")
-        # Return mock embedding
-        import random
-
-        mock_embedding = [random.random() for _ in range(768)]
-        return EmbedResponse(embedding=mock_embedding, dimensions=768)
+        logger.error(f"Vectorizer error: {e}")
+        raise HTTPException(status_code=503, detail="Vectorization service temporarily unavailable")
 
 
 # ============================================================================
@@ -1674,17 +1619,8 @@ async def retrieve_documents(req: RetrieveRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"Retriever not available, using fallback: {e}")
-        return {
-            "results": [
-                RetrieveResult(
-                    document_id="1",
-                    content=f"Retrieved document for: {req.query}",
-                    score=0.75,
-                    metadata={},
-                )
-            ]
-        }
+        logger.error(f"Retriever error: {e}")
+        raise HTTPException(status_code=503, detail="Document retrieval service temporarily unavailable")
 
 
 # ============================================================================
