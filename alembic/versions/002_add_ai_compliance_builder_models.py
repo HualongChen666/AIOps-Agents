@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "002"
-down_revision = "001"
+revision = '002'
+down_revision = '001'
 branch_labels = None
 depends_on = None
 
@@ -27,8 +27,8 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, default="pending"),
         sa.Column("parameters", sa.JSON, nullable=True),
         sa.Column("metrics", sa.JSON, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("created_by", sa.String(50), nullable=True),
     )
     op.create_index("idx_fine_tuning_jobs_status", "fine_tuning_jobs", ["status"])
@@ -44,8 +44,8 @@ def upgrade() -> None:
         sa.Column("size", sa.Integer, nullable=True),
         sa.Column("file_path", sa.String(500), nullable=True),
         sa.Column("extra_data", sa.JSON, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("created_by", sa.String(50), nullable=True),
     )
     op.create_index("idx_training_datasets_data_type", "training_datasets", ["data_type"])
@@ -60,8 +60,8 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, default="pending"),
         sa.Column("endpoint", sa.String(500), nullable=True),
         sa.Column("config", sa.JSON, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("deployed_by", sa.String(50), nullable=True),
     )
     op.create_index("idx_model_deployments_environment", "model_deployments", ["environment"])
@@ -78,10 +78,10 @@ def upgrade() -> None:
         sa.Column("scope", sa.JSON, nullable=True),
         sa.Column("findings", sa.JSON, nullable=True),
         sa.Column("result", sa.JSON, nullable=True),
-        sa.Column("scheduled_date", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("completed_date", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column("scheduled_date", sa.DateTime(), nullable=True),
+        sa.Column("completed_date", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("created_by", sa.String(50), nullable=True),
     )
     op.create_index("idx_compliance_audits_type", "compliance_audits", ["audit_type"])
@@ -98,8 +98,8 @@ def upgrade() -> None:
         sa.Column("template_data", sa.JSON, nullable=False),
         sa.Column("components", sa.JSON, nullable=True),
         sa.Column("is_public", sa.Boolean, default=False, nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("created_by", sa.String(50), nullable=True),
     )
     op.create_index("idx_builder_templates_category", "builder_templates", ["category"])
@@ -113,8 +113,8 @@ def upgrade() -> None:
         sa.Column("template_id", sa.String(100), nullable=True),
         sa.Column("project_data", sa.JSON, nullable=False),
         sa.Column("status", sa.String(20), nullable=False, default="draft"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("created_by", sa.String(50), nullable=True),
     )
     op.create_index("idx_builder_projects_status", "builder_projects", ["status"])
@@ -127,8 +127,8 @@ def upgrade() -> None:
         sa.Column("component_type", sa.String(50), nullable=False),
         sa.Column("config", sa.JSON, nullable=False),
         sa.Column("properties", sa.JSON, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("created_by", sa.String(50), nullable=True),
     )
     op.create_index("idx_builder_components_type", "builder_components", ["component_type"])

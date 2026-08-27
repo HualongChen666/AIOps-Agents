@@ -15,16 +15,23 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.api_response_standard import (
     ErrorCode,
     create_error_response,
     create_success_response,
 )
+from core.auth_db import get_session
 from core.business_impact_engine import (
     assess_business_impact,
     list_business_impact_services,
     list_business_impact_ux_metrics,
+)
+from core.models import (
+    BusinessImpactAnalysisDB,
+    BusinessImpactDependencyDB,
+    BusinessImpactReportDB,
 )
 
 router = APIRouter(prefix="/api/v1/business-impact", tags=["业务影响高级"])
@@ -172,6 +179,72 @@ def _save_json_file(file_path: Path, data: List[Dict[str, Any]]) -> None:
         raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}")
 
 
+# Dual-write functions for database migration
+def _save_analysis_to_db(db: Session, analysis: Dict[str, Any]) -> None:
+    """保存分析到数据库"""
+    try:
+        db_analysis = BusinessImpactAnalysisDB(
+            id=analysis["id"],
+            service_name=analysis["service_name"],
+            analysis_type=analysis["analysis_type"],
+            time_range=analysis["time_range"],
+            include_dependencies=analysis["include_dependencies"],
+            include_ux_metrics=analysis["include_ux_metrics"],
+            status=analysis["status"],
+            result=analysis.get("result"),
+            error=analysis.get("error"),
+            created_at=datetime.fromisoformat(analysis["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(analysis["updated_at"].replace("Z", "+00:00")),
+        )
+        db.merge(db_analysis)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save analysis to database: {str(e)}")
+
+
+def _save_dependency_to_db(db: Session, dependency: Dict[str, Any]) -> None:
+    """保存依赖关系到数据库"""
+    try:
+        db_dependency = BusinessImpactDependencyDB(
+            id=dependency["id"],
+            source_service=dependency["source_service"],
+            target_service=dependency["target_service"],
+            dependency_type=dependency["dependency_type"],
+            criticality=dependency["criticality"],
+            description=dependency.get("description"),
+            created_at=datetime.fromisoformat(dependency["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(dependency["updated_at"].replace("Z", "+00:00")),
+        )
+        db.merge(db_dependency)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save dependency to database: {str(e)}")
+
+
+def _save_report_to_db(db: Session, report: Dict[str, Any]) -> None:
+    """保存报告到数据库"""
+    try:
+        db_report = BusinessImpactReportDB(
+            id=report["id"],
+            title=report["title"],
+            service_names=report["service_names"],
+            time_range=report["time_range"],
+            include_recommendations=report["include_recommendations"],
+            summary=report.get("summary"),
+            service_data=report.get("service_data"),
+            recommendations=report.get("recommendations"),
+            created_at=datetime.fromisoformat(report["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(report["updated_at"].replace("Z", "+00:00")),
+        )
+        db.merge(db_report)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save report to database: {str(e)}")
+
+
 def _generate_id(prefix: str) -> str:
     """生成唯一ID"""
     return f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
@@ -264,6 +337,16 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
         analyses.append(analysis)
         _save_json_file(ANALYSIS_FILE, analyses)
 
+        # Dual-write to database
+        db = get_session()
+        try:
+            _save_analysis_to_db(db, analysis)
+        except Exception as e:
+            # Log database error but continue with JSON storage
+            pass
+        finally:
+            db.close()
+
         # 异步执行分析
         try:
             # 获取业务影响评估
@@ -296,12 +379,33 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
 
             _save_json_file(ANALYSIS_FILE, analyses)
 
+            # Dual-write to database
+            db = get_session()
+            try:
+                _save_analysis_to_db(db, analysis)
+            except Exception as e:
+                # Log database error but continue with JSON storage
+                pass
+            finally:
+                db.close()
+
             return create_success_response(analysis, "分析创建成功")
         except Exception as e:
             analysis["status"] = AnalysisStatusEnum.FAILED.value
             analysis["error"] = str(e)
             analysis["updated_at"] = _now()
             _save_json_file(ANALYSIS_FILE, analyses)
+
+            # Dual-write to database
+            db = get_session()
+            try:
+                _save_analysis_to_db(db, analysis)
+            except Exception as e:
+                # Log database error but continue with JSON storage
+                pass
+            finally:
+                db.close()
+
             return create_error_response(
                 error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="分析执行失败"
             )
@@ -475,6 +579,16 @@ async def create_dependency(request: CreateDependencyRequest) -> Dict[str, Any]:
         dependencies.append(dependency)
         _save_json_file(DEPENDENCIES_FILE, dependencies)
 
+        # Dual-write to database
+        db = get_session()
+        try:
+            _save_dependency_to_db(db, dependency)
+        except Exception as e:
+            # Log database error but continue with JSON storage
+            pass
+        finally:
+            db.close()
+
         return create_success_response(dependency, "依赖关系创建成功")
     except Exception as e:
         return create_error_response(
@@ -592,6 +706,16 @@ async def create_report(request: CreateReportRequest) -> Dict[str, Any]:
 
         reports.append(report)
         _save_json_file(REPORTS_FILE, reports)
+
+        # Dual-write to database
+        db = get_session()
+        try:
+            _save_report_to_db(db, report)
+        except Exception as e:
+            # Log database error but continue with JSON storage
+            pass
+        finally:
+            db.close()
 
         return create_success_response(report, "报告创建成功")
     except Exception as e:

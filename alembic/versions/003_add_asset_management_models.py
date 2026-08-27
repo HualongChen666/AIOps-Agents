@@ -11,8 +11,8 @@ from sqlalchemy.sql import func
 
 
 # revision identifiers, used by Alembic.
-revision = '003_add_asset_management_models'
-down_revision = '002_add_ai_compliance_builder_models'
+revision = '003'
+down_revision = '002'
 branch_labels = None
 depends_on = None
 
@@ -24,8 +24,8 @@ def upgrade():
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('asset_id', sa.Integer(), nullable=False),
         sa.Column('inventory_metadata', sa.JSON(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Index('idx_asset_inventory_metadata_asset_id', 'asset_id'),
     )
     op.create_primary_key('pk_asset_inventory_metadata', 'asset_inventory_metadata', ['id'])
@@ -38,8 +38,8 @@ def upgrade():
         sa.Column('target_id', sa.Integer(), nullable=False),
         sa.Column('relationship_type', sa.String(50), nullable=False),
         sa.Column('properties', sa.JSON(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Index('idx_asset_relationships_source_id', 'source_id'),
         sa.Index('idx_asset_relationships_target_id', 'target_id'),
         sa.Index('idx_asset_relationships_type', 'relationship_type'),
@@ -52,12 +52,12 @@ def upgrade():
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('asset_id', sa.Integer(), nullable=False),
         sa.Column('stage', sa.String(50), nullable=False),
-        sa.Column('start_date', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('end_date', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('start_date', sa.DateTime(), nullable=True),
+        sa.Column('end_date', sa.DateTime(), nullable=True),
         sa.Column('status', sa.String(50), nullable=False, server_default='active'),
         sa.Column('notes', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Index('idx_asset_lifecycles_asset_id', 'asset_id'),
         sa.Index('idx_asset_lifecycles_stage', 'stage'),
         sa.Index('idx_asset_lifecycles_status', 'status'),
@@ -72,8 +72,8 @@ def upgrade():
         sa.Column('dependency_type', sa.String(50), nullable=False),
         sa.Column('dependency_details', sa.JSON(), nullable=False),
         sa.Column('criticality', sa.String(20), nullable=False, server_default='medium'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Index('idx_asset_dependencies_asset_id', 'asset_id'),
         sa.Index('idx_asset_dependencies_type', 'dependency_type'),
         sa.Index('idx_asset_dependencies_criticality', 'criticality'),

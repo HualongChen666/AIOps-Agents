@@ -11,8 +11,8 @@ from sqlalchemy.sql import func
 
 
 # revision identifiers, used by Alembic.
-revision = '004_add_capacity_planning_models'
-down_revision = '003_add_asset_management_models'
+revision = '004'
+down_revision = '003'
 branch_labels = None
 depends_on = None
 
@@ -29,11 +29,11 @@ def upgrade():
         sa.Column('projected_capacity', sa.Float(), nullable=False),
         sa.Column('unit', sa.String(50), nullable=False),
         sa.Column('horizon', sa.String(50), nullable=False),
-        sa.Column('target_date', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('target_date', sa.DateTime(), nullable=True),
         sa.Column('threshold', sa.Float(), nullable=False),
         sa.Column('recommended_action', sa.Text(), nullable=False),
         sa.Column('estimated_cost', sa.Float(), nullable=False, server_default='0.0'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('created_by', sa.String(50), nullable=False, server_default='system'),
         sa.Column('status', sa.String(50), nullable=False, server_default='draft'),
         sa.Column('plan_metadata', sa.JSON(), nullable=True),
@@ -54,7 +54,7 @@ def upgrade():
         sa.Column('optimized_usage', sa.JSON(), nullable=False),
         sa.Column('savings', sa.Float(), nullable=False),
         sa.Column('implementation_steps', sa.JSON(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('created_by', sa.String(50), nullable=False, server_default='system'),
         sa.Column('status', sa.String(50), nullable=False, server_default='pending'),
         sa.Column('opt_metadata', sa.JSON(), nullable=True),
@@ -77,7 +77,7 @@ def upgrade():
         sa.Column('estimated_monthly_savings', sa.Float(), nullable=False),
         sa.Column('performance_impact', sa.Text(), nullable=False),
         sa.Column('implementation_complexity', sa.String(50), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('rec_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_rightsizing_recommendations_service', 'service'),
         sa.Index('idx_rightsizing_recommendations_resource_type', 'resource_type'),

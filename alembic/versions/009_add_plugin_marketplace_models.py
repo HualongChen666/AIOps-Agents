@@ -11,8 +11,8 @@ from sqlalchemy.sql import func
 
 
 # revision identifiers, used by Alembic.
-revision = '009_add_plugin_marketplace_models'
-down_revision = '008_add_collaboration_models'
+revision = '009'
+down_revision = '008'
 branch_labels = None
 depends_on = None
 
@@ -39,8 +39,8 @@ def upgrade():
         sa.Column('rating', sa.Float(), nullable=False, server_default='0.0'),
         sa.Column('review_count', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('listing_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_plugin_listings_plugin_id', 'plugin_id'),
         sa.Index('idx_plugin_listings_category', 'category'),
@@ -57,8 +57,8 @@ def upgrade():
         sa.Column('reviewer_name', sa.String(255), nullable=False),
         sa.Column('rating', sa.Integer(), nullable=False),
         sa.Column('review_text', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('review_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_plugin_reviews_plugin_id', 'plugin_id'),
         sa.Index('idx_plugin_reviews_reviewer_id', 'reviewer_id'),
@@ -73,8 +73,8 @@ def upgrade():
         sa.Column('category_description', sa.Text(), nullable=True),
         sa.Column('parent_category_id', sa.String(50), nullable=True),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('category_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_plugin_categories_enabled', 'enabled'),
     )
@@ -86,11 +86,11 @@ def upgrade():
         sa.Column('id', sa.String(50), nullable=False),
         sa.Column('plugin_id', sa.String(50), nullable=False),
         sa.Column('installed_version', sa.String(50), nullable=False),
-        sa.Column('installation_date', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('installation_date', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='active'),
         sa.Column('configuration', sa.JSON(), nullable=True),
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('installation_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_installed_plugins_plugin_id', 'plugin_id'),
         sa.Index('idx_installed_plugins_enabled', 'enabled'),

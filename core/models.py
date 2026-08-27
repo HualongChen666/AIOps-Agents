@@ -73,9 +73,9 @@ class User(Base):
     disabled = Column(Boolean, default=False, nullable=False)
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    last_login_at = Column(DateTime(), nullable=True)
 
     # MFA相关
     mfa_enabled = Column(Boolean, default=False, nullable=False)
@@ -104,8 +104,8 @@ class Alert(Base):
     value = Column(Float, nullable=True)
 
     # 时间戳
-    detected_at = Column(DateTime(timezone=True), nullable=False, index=True)
-    metric_time = Column(DateTime(timezone=True), nullable=True)
+    detected_at = Column(DateTime(), nullable=False, index=True)
+    metric_time = Column(DateTime(), nullable=True)
 
     # 状态
     status = Column(String(20), default=AlertStatus.PENDING.value, nullable=False, index=True)
@@ -131,7 +131,7 @@ class Alert(Base):
     repair_id = Column(String(100), nullable=True)
 
     # 创建时间
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
 
     # 索引
     __table_args__ = (
@@ -153,7 +153,7 @@ class RepairRecord(Base):
 
     # 关联告警
     alert_id = Column(String(100), nullable=True, index=True)
-    alert_time = Column(DateTime(timezone=True), nullable=True)
+    alert_time = Column(DateTime(), nullable=True)
 
     # 修复脚本信息
     script_key = Column(String(100), nullable=False, index=True)
@@ -164,7 +164,7 @@ class RepairRecord(Base):
     status = Column(String(20), default=RepairStatus.SUCCESS.value, nullable=False, index=True)
 
     # 执行信息
-    repair_time = Column(DateTime(timezone=True), nullable=False, index=True)
+    repair_time = Column(DateTime(), nullable=False, index=True)
     repair_duration_sec = Column(Float, nullable=False)
 
     # 平台
@@ -189,7 +189,7 @@ class RepairRecord(Base):
     executor = Column(String(100), nullable=True)  # 用户名或system
 
     # 创建时间
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
 
     # 索引
     __table_args__ = (
@@ -229,11 +229,11 @@ class PendingApproval(Base):
 
     # 审批人
     approver = Column(String(50), nullable=True)
-    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approved_at = Column(DateTime(), nullable=True)
     rejection_reason = Column(Text, nullable=True)
 
     # 提交时间
-    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
+    submitted_at = Column(DateTime(), server_default=func.now())
 
     # 索引
     __table_args__ = (
@@ -276,7 +276,7 @@ class AuditLog(Base):
     changes = Column(JSON, nullable=True)
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    created_at = Column(DateTime(), server_default=func.now(), index=True)
 
     # 索引
     __table_args__ = (
@@ -312,10 +312,10 @@ class Metrics(Base):
     tags = Column(JSON, nullable=True)
 
     # 时间戳
-    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+    timestamp = Column(DateTime(), nullable=False, index=True)
 
     # 创建时间
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
 
     # 索引
     __table_args__ = (
@@ -362,10 +362,10 @@ class SystemMetrics(Base):
     network_out = Column(Float, nullable=True)
 
     # 时间戳
-    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+    timestamp = Column(DateTime(), nullable=False, index=True)
 
     # 创建时间
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
 
     # 索引
     __table_args__ = (
@@ -406,8 +406,8 @@ class Workflow(Base):
     created_by = Column(String(50), nullable=True)
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     # 索引
     __table_args__ = (
@@ -439,8 +439,8 @@ class WorkflowExecution(Base):
     error_message = Column(Text, nullable=True)
 
     # 执行时间
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    completed_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(DateTime(), server_default=func.now())
+    completed_at = Column(DateTime(), nullable=True)
     duration_sec = Column(Float, nullable=True)
 
     # 触发信息
@@ -490,8 +490,8 @@ class Knowledge(Base):
     created_by = Column(String(50), nullable=True)
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     # 索引
     __table_args__ = (
@@ -524,15 +524,15 @@ class Backup(Base):
     )  # completed, failed, in_progress
 
     # 时间戳
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    completed_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(DateTime(), server_default=func.now())
+    completed_at = Column(DateTime(), nullable=True)
 
     # 创建者
     created_by = Column(String(50), nullable=True)
 
     # 保留策略
     retention_days = Column(Integer, nullable=True)
-    expires_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(), nullable=True)
 
     # 索引
     __table_args__ = (
@@ -567,8 +567,8 @@ class Config(Base):
     is_sensitive = Column(Boolean, default=False, nullable=False)
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     # 更新者
     updated_by = Column(String(50), nullable=True)
@@ -643,7 +643,7 @@ class PerformanceMetric(Base):
 
     # 时间戳
     timestamp = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+        DateTime(), server_default=func.now(), nullable=False, index=True
     )
 
     # 元数据
@@ -695,12 +695,12 @@ class PerformanceBaseline(Base):
     environment = Column(String(50), nullable=False, index=True)
 
     # 生效时间
-    effective_from = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    effective_until = Column(DateTime(timezone=True), nullable=True)
+    effective_from = Column(DateTime(), server_default=func.now(), nullable=False)
+    effective_until = Column(DateTime(), nullable=True)
 
     # 创建者
     created_by = Column(String(50), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
 
     # 状态
     is_active = Column(Boolean, default=True, nullable=False)
@@ -737,7 +737,7 @@ class PerformanceTrend(Base):
 
     # 趋势数据
     timestamp = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+        DateTime(), server_default=func.now(), nullable=False, index=True
     )
     metric_value = Column(Float, nullable=False)
 
@@ -792,15 +792,15 @@ class PerformanceRegression(Base):
     severity = Column(String(20), nullable=False)  # warning, critical
 
     # 时间信息
-    detected_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    detected_at = Column(DateTime(), server_default=func.now(), nullable=False)
     git_commit = Column(String(50), nullable=True)
     git_branch = Column(String(50), nullable=True)
 
     # 状态
     status = Column(String(20), default="open", nullable=False)  # open, acknowledged, resolved
     acknowledged_by = Column(String(50), nullable=True)
-    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
-    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    acknowledged_at = Column(DateTime(), nullable=True)
+    resolved_at = Column(DateTime(), nullable=True)
 
     # 环境信息
     environment = Column(String(50), nullable=False, index=True)
@@ -849,14 +849,14 @@ class Snapshot(Base):
 
     # 保留策略
     retention_days = Column(Integer, nullable=False, default=7)
-    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
-    completed_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(), nullable=False, index=True)
+    completed_at = Column(DateTime(), nullable=True)
 
     # 错误信息
     error_message = Column(Text, nullable=True)
 
     # 创建时间
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
 
     # 索引
     __table_args__ = (
@@ -888,8 +888,8 @@ class AlertConfiguration(Base):
     description = Column(Text, nullable=True)
     category = Column(String(50), nullable=True, index=True)
     is_sensitive = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -913,8 +913,8 @@ class NotificationChannel(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)  # higher priority = used first
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -942,8 +942,8 @@ class AlertEscalationRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -970,8 +970,8 @@ class AlertSuppressionRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -997,8 +997,8 @@ class AlertForwardingRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1026,8 +1026,8 @@ class AlertWebhookConfig(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     retry_policy = Column(JSON, nullable=True)  # retry configuration
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1054,8 +1054,8 @@ class AlertDynamicThresholdRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1082,8 +1082,8 @@ class AlertDeduplicationRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1112,8 +1112,8 @@ class AlertAggregationRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1139,8 +1139,8 @@ class AlertRoutingRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1168,8 +1168,8 @@ class AlertRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     priority = Column(Integer, default=0, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1196,8 +1196,8 @@ class AlertIntegration(Base):
     config = Column(JSON, nullable=False)  # integration-specific configuration
     enabled = Column(Boolean, default=True, nullable=False, index=True)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     updated_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1221,7 +1221,7 @@ class AlertAcknowledgement(Base):
     alert_id = Column(String(100), nullable=False, index=True)
     acknowledged_by = Column(String(50), nullable=False)
     acknowledged_at = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+        DateTime(), server_default=func.now(), nullable=False, index=True
     )
     comment = Column(Text, nullable=True)
     status = Column(String(20), default="acknowledged", nullable=False)  # acknowledged, resolved
@@ -1256,8 +1256,8 @@ class PriorityRule(Base):
     enabled = Column(Boolean, default=True, nullable=False, index=True)
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     # 元数据
@@ -1294,7 +1294,7 @@ class PriorityScore(Base):
     factors = Column(JSON, nullable=True)  # 各因素分数详情
 
     # 时间戳
-    calculated_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    calculated_at = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
     dataset_metadata = Column(JSON, nullable=True)
@@ -1330,7 +1330,7 @@ class PriorityHistory(Base):
     changed_by = Column(String(50), nullable=True)  # 用户名或system
 
     # 时间戳
-    changed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    changed_at = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
     dataset_metadata = Column(JSON, nullable=True)
@@ -1367,8 +1367,8 @@ class RealtimeStream(Base):
     )  # active, paused, stopped
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     # 元数据
@@ -1399,7 +1399,7 @@ class RealtimeEvent(Base):
     event_data = Column(JSON, nullable=False)
 
     # 时间戳
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    timestamp = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
     dataset_metadata = Column(JSON, nullable=True)
@@ -1437,8 +1437,8 @@ class RealtimeSubscription(Base):
     )  # active, paused, cancelled
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     # 元数据
     dataset_metadata = Column(JSON, nullable=True)
@@ -1478,8 +1478,8 @@ class RealtimeWebhook(Base):
     retry_policy = Column(JSON, nullable=True)  # 重试配置
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     # 元数据
@@ -1524,14 +1524,14 @@ class RootCauseHypothesis(Base):
     verification_status = Column(
         String(20), default="pending", nullable=False, index=True
     )  # pending, verified, rejected
-    verification_timestamp = Column(DateTime(timezone=True), nullable=True)
+    verification_timestamp = Column(DateTime(), nullable=True)
 
     # 假设状态
     status = Column(String(20), default="active", nullable=False, index=True)  # active, archived
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     # 元数据
@@ -1574,10 +1574,10 @@ class RootCauseExperiment(Base):
     )  # pending, running, completed, failed
 
     # 时间戳
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    completed_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    started_at = Column(DateTime(), nullable=True)
+    completed_at = Column(DateTime(), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     # 元数据
@@ -1612,7 +1612,7 @@ class RootCauseEvidence(Base):
     strength = Column(Float, nullable=False)  # 0-1
 
     # 时间戳
-    collected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    collected_at = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
     dataset_metadata = Column(JSON, nullable=True)
@@ -1657,8 +1657,8 @@ class RootCauseConclusion(Base):
     )  # draft, final, archived
 
     # 时间戳
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     # 元数据
@@ -1691,8 +1691,8 @@ class FineTuningJob(Base):
     status = Column(String(20), nullable=False, default="pending", index=True)
     parameters = Column(JSON, nullable=True)
     metrics = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1717,8 +1717,8 @@ class TrainingDataset(Base):
     size = Column(Integer, nullable=True)
     file_path = Column(String(500), nullable=True)
     extra_data = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1742,8 +1742,8 @@ class ModelDeployment(Base):
     status = Column(String(20), nullable=False, default="pending", index=True)
     endpoint = Column(String(500), nullable=True)
     config = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     deployed_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1773,10 +1773,10 @@ class ComplianceAudit(Base):
     scope = Column(JSON, nullable=True)
     findings = Column(JSON, nullable=True)
     result = Column(JSON, nullable=True)
-    scheduled_date = Column(DateTime(timezone=True), nullable=True)
-    completed_date = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    scheduled_date = Column(DateTime(), nullable=True)
+    completed_date = Column(DateTime(), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1806,8 +1806,8 @@ class BuilderTemplate(Base):
     template_data = Column(JSON, nullable=False)
     components = Column(JSON, nullable=True)
     is_public = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1830,8 +1830,8 @@ class BuilderProject(Base):
     template_id = Column(String(100), nullable=True)
     project_data = Column(JSON, nullable=False)
     status = Column(String(20), nullable=False, default="draft", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1853,8 +1853,8 @@ class BuilderComponent(Base):
     component_type = Column(String(50), nullable=False, index=True)
     config = Column(JSON, nullable=False)
     properties = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     created_by = Column(String(50), nullable=True)
 
     __table_args__ = (
@@ -1876,8 +1876,8 @@ class AssetInventoryMetadata(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     asset_id = Column(Integer, nullable=False, index=True)
     inventory_metadata = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("idx_asset_inventory_metadata_asset_id", "asset_id"),
@@ -1897,8 +1897,8 @@ class AssetRelationshipDB(Base):
     target_id = Column(Integer, nullable=False, index=True)
     relationship_type = Column(String(50), nullable=False, index=True)
     properties = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("idx_asset_relationships_source_id", "source_id"),
@@ -1918,12 +1918,12 @@ class AssetLifecycleDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     asset_id = Column(Integer, nullable=False, index=True)
     stage = Column(String(50), nullable=False, index=True)
-    start_date = Column(DateTime(timezone=True), nullable=True)
-    end_date = Column(DateTime(timezone=True), nullable=True)
+    start_date = Column(DateTime(), nullable=True)
+    end_date = Column(DateTime(), nullable=True)
     status = Column(String(50), nullable=False, default="active", index=True)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("idx_asset_lifecycles_asset_id", "asset_id"),
@@ -1945,8 +1945,8 @@ class AssetDependencyDB(Base):
     dependency_type = Column(String(50), nullable=False, index=True)
     dependency_details = Column(JSON, nullable=False)
     criticality = Column(String(20), nullable=False, default="medium", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("idx_asset_dependencies_asset_id", "asset_id"),
@@ -1974,11 +1974,11 @@ class CapacityPlanDB(Base):
     projected_capacity = Column(Float, nullable=False)
     unit = Column(String(50), nullable=False)
     horizon = Column(String(50), nullable=False)
-    target_date = Column(DateTime(timezone=True), nullable=True)
+    target_date = Column(DateTime(), nullable=True)
     threshold = Column(Float, nullable=False)
     recommended_action = Column(Text, nullable=False)
     estimated_cost = Column(Float, nullable=False, default=0.0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
     created_by = Column(String(50), nullable=False, default="system")
     status = Column(String(50), nullable=False, default="draft", index=True)
     plan_metadata = Column(JSON, nullable=True)
@@ -2006,7 +2006,7 @@ class OptimizationResultDB(Base):
     optimized_usage = Column(JSON, nullable=False)
     savings = Column(Float, nullable=False)
     implementation_steps = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
     created_by = Column(String(50), nullable=False, default="system")
     status = Column(String(50), nullable=False, default="pending", index=True)
     opt_metadata = Column(JSON, nullable=True)
@@ -2036,7 +2036,7 @@ class RightsizingRecommendationDB(Base):
     estimated_monthly_savings = Column(Float, nullable=False)
     performance_impact = Column(Text, nullable=False)
     implementation_complexity = Column(String(50), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
     rec_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2065,8 +2065,8 @@ class CostBudgetDB(Base):
     period = Column(String(50), nullable=False)
     status = Column(String(50), nullable=False, default="on_track", index=True)
     alerts_enabled = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
     budget_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2090,7 +2090,7 @@ class CostOptimizationDB(Base):
     implementation_effort = Column(String(50), nullable=False)
     priority = Column(String(50), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="pending", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
     opt_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2111,12 +2111,12 @@ class CostAnomalyDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     service = Column(String(255), nullable=False, index=True)
     anomaly_type = Column(String(50), nullable=False)
-    detected_at = Column(DateTime(timezone=True), nullable=False)
+    detected_at = Column(DateTime(), nullable=False)
     severity = Column(String(50), nullable=False, index=True)
     description = Column(Text, nullable=False)
     affected_amount = Column(Float, nullable=False)
     status = Column(String(50), nullable=False, default="open", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
     anomaly_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2142,7 +2142,7 @@ class CostAlertDB(Base):
     service = Column(String(255), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="active", index=True)
     notification_channels = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
     alert_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2162,10 +2162,10 @@ class CostReportDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     name = Column(String(255), nullable=False)
     report_type = Column(String(50), nullable=False)
-    period_start = Column(DateTime(timezone=True), nullable=False)
-    period_end = Column(DateTime(timezone=True), nullable=False)
+    period_start = Column(DateTime(), nullable=False)
+    period_end = Column(DateTime(), nullable=False)
     total_cost = Column(Float, nullable=False)
-    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+    generated_at = Column(DateTime(), server_default=func.now())
     status = Column(String(50), nullable=False, default="completed", index=True)
     report_data = Column(JSON, nullable=False)
     report_metadata = Column(JSON, nullable=True)
@@ -2192,7 +2192,7 @@ class ChangeApprovalDB(Base):
     approver = Column(String(255), nullable=False)
     status = Column(String(50), nullable=False, default="pending", index=True)
     comments = Column(Text, nullable=True)
-    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approved_at = Column(DateTime(), nullable=True)
     approval_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2211,8 +2211,8 @@ class ChangeScheduleDB(Base):
 
     id = Column(String(20), primary_key=True, nullable=False)
     request_id = Column(String(50), nullable=False, index=True)
-    scheduled_start = Column(DateTime(timezone=True), nullable=False)
-    scheduled_end = Column(DateTime(timezone=True), nullable=False)
+    scheduled_start = Column(DateTime(), nullable=False)
+    scheduled_end = Column(DateTime(), nullable=False)
     maintenance_window = Column(String(50), nullable=False)
     timezone = Column(String(50), nullable=False)
     status = Column(String(50), nullable=False, default="scheduled", index=True)
@@ -2264,7 +2264,7 @@ class AIFineTuningJobDB(Base):
     dataset = Column(String(255), nullable=False)
     status = Column(String(50), nullable=False, default="pending", index=True)
     progress = Column(Float, nullable=False, default=0.0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     job_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2284,7 +2284,7 @@ class AIRunbookDB(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     steps = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     runbook_metadata = Column(JSON, nullable=True)
 
     def __repr__(self):
@@ -2299,7 +2299,7 @@ class AIAnalysisReportDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     analysis_type = Column(String(50), nullable=False)
     results = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     report_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2319,7 +2319,7 @@ class AIDSLDefinitionDB(Base):
     name = Column(String(255), nullable=False)
     definition = Column(JSON, nullable=False)
     version = Column(String(50), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     dsl_metadata = Column(JSON, nullable=True)
 
     def __repr__(self):
@@ -2335,8 +2335,8 @@ class AIExecutionDB(Base):
     dsl_id = Column(String(50), nullable=False)
     status = Column(String(50), nullable=False, default="running", index=True)
     results = Column(JSON, nullable=True)
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    completed_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(DateTime, server_default=func.now())
+    completed_at = Column(DateTime, nullable=True)
     execution_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2358,7 +2358,7 @@ class AIWorkflowDB(Base):
     nodes = Column(JSON, nullable=False)
     edges = Column(JSON, nullable=False)
     status = Column(String(50), nullable=False, default="active", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     workflow_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2378,7 +2378,7 @@ class AIDeepLearningModelDB(Base):
     model_name = Column(String(255), nullable=False)
     architecture = Column(String(50), nullable=False)
     performance_metrics = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     model_metadata = Column(JSON, nullable=True)
 
     def __repr__(self):
@@ -2395,7 +2395,7 @@ class AIAdvancedFeatureDB(Base):
     feature_type = Column(String(50), nullable=False)
     configuration = Column(JSON, nullable=False)
     status = Column(String(50), nullable=False, default="enabled", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     feature_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2415,7 +2415,7 @@ class AIFeedbackDB(Base):
     feedback_type = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
     rating = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     feedback_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2434,7 +2434,7 @@ class AIDocumentIndexDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     index_name = Column(String(255), nullable=False)
     document_count = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     index_metadata = Column(JSON, nullable=True)
 
     def __repr__(self):
@@ -2450,7 +2450,7 @@ class AIPatternDB(Base):
     pattern_name = Column(String(255), nullable=False)
     pattern_type = Column(String(50), nullable=False)
     pattern_data = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     pattern_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2469,7 +2469,7 @@ class AITopologyAnalysisDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     analysis_type = Column(String(50), nullable=False)
     results = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     topology_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2490,7 +2490,7 @@ class AIRootCauseAnalysisDB(Base):
     root_cause = Column(Text, nullable=False)
     contributing_factors = Column(JSON, nullable=False)
     recommended_actions = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     rca_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2509,7 +2509,7 @@ class AIGraphNodeDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     node_type = Column(String(50), nullable=False)
     node_data = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     node_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2529,7 +2529,7 @@ class AIKnowledgeBaseDB(Base):
     kb_name = Column(String(255), nullable=False)
     kb_type = Column(String(50), nullable=False)
     document_count = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     kb_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2550,7 +2550,7 @@ class AILoadBalancerConfigDB(Base):
     strategy = Column(String(50), nullable=False)
     targets = Column(JSON, nullable=False)
     status = Column(String(50), nullable=False, default="active", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     config_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2571,7 +2571,7 @@ class AICostSuggestionDB(Base):
     potential_savings = Column(Float, nullable=False)
     details = Column(JSON, nullable=False)
     status = Column(String(50), nullable=False, default="pending", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     cost_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2593,7 +2593,7 @@ class AIRoutingRuleDB(Base):
     action = Column(JSON, nullable=False)
     priority = Column(Integer, nullable=False)
     status = Column(String(50), nullable=False, default="active", index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now())
     rule_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2617,8 +2617,8 @@ class CollaborationTeamDB(Base):
     team_description = Column(Text, nullable=True)
     team_status = Column(String(50), nullable=False, default="active")
     team_lead_id = Column(String(50), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
     team_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2640,8 +2640,8 @@ class CollaborationMemberDB(Base):
     member_email = Column(String(255), nullable=True)
     member_role = Column(String(50), nullable=False)
     member_status = Column(String(50), nullable=False, default="active")
-    joined_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    joined_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
     member_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2663,8 +2663,8 @@ class CollaborationPermissionDB(Base):
     member_id = Column(String(50), nullable=False)
     permission_type = Column(String(50), nullable=False)
     permission_level = Column(String(50), nullable=False)
-    granted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=True)
+    granted_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    expires_at = Column(DateTime(), nullable=True)
     permission_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2687,7 +2687,7 @@ class CollaborationActivityDB(Base):
     activity_type = Column(String(50), nullable=False)
     activity_description = Column(Text, nullable=True)
     activity_data = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
     activity_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2726,8 +2726,8 @@ class PluginListingDB(Base):
     rating = Column(Float, nullable=False, default=0.0)
     review_count = Column(Integer, nullable=False, default=0)
     enabled = Column(Boolean, nullable=False, default=True, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
     listing_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2751,8 +2751,8 @@ class PluginReviewDB(Base):
     reviewer_name = Column(String(255), nullable=False)
     rating = Column(Integer, nullable=False)
     review_text = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
     review_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2774,8 +2774,8 @@ class PluginCategoryDB(Base):
     category_description = Column(Text, nullable=True)
     parent_category_id = Column(String(50), nullable=True)
     enabled = Column(Boolean, nullable=False, default=True, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
     category_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2794,11 +2794,11 @@ class InstalledPluginDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     plugin_id = Column(String(50), nullable=False)
     installed_version = Column(String(50), nullable=False)
-    installation_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    installation_date = Column(DateTime(), server_default=func.now(), nullable=False)
     status = Column(String(50), nullable=False, default="active")
     configuration = Column(JSON, nullable=True)
     enabled = Column(Boolean, nullable=False, default=True, index=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
     installation_metadata = Column(JSON, nullable=True)
 
     __table_args__ = (
@@ -2808,3 +2808,159 @@ class InstalledPluginDB(Base):
 
     def __repr__(self):
         return f"<InstalledPluginDB(id={self.id}, plugin_id='{self.plugin_id}', version='{self.installed_version}')>"
+
+
+# Business Impact Models
+class BusinessImpactAnalysisDB(Base):
+    """业务影响分析表"""
+
+    __tablename__ = "business_impact_analysis"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service_name = Column(String(200), nullable=False, index=True)
+    analysis_type = Column(String(50), nullable=False, default="full")
+    time_range = Column(String(50), nullable=False, default="1h")
+    include_dependencies = Column(Boolean, nullable=False, default=True)
+    include_ux_metrics = Column(Boolean, nullable=False, default=True)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    result = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_business_impact_analysis_service_name", "service_name"),
+        Index("idx_business_impact_analysis_status", "status"),
+        Index("idx_business_impact_analysis_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<BusinessImpactAnalysisDB(id={self.id}, service_name='{self.service_name}', status='{self.status}')>"
+
+
+class BusinessImpactDependencyDB(Base):
+    """业务影响依赖关系表"""
+
+    __tablename__ = "business_impact_dependencies"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    source_service = Column(String(200), nullable=False, index=True)
+    target_service = Column(String(200), nullable=False, index=True)
+    dependency_type = Column(String(50), nullable=False, default="api_call")
+    criticality = Column(String(50), nullable=False, default="medium", index=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_business_impact_dependencies_source", "source_service"),
+        Index("idx_business_impact_dependencies_target", "target_service"),
+        Index("idx_business_impact_dependencies_criticality", "criticality"),
+    )
+
+    def __repr__(self):
+        return f"<BusinessImpactDependencyDB(id={self.id}, source='{self.source_service}', target='{self.target_service}')>"
+
+
+class BusinessImpactReportDB(Base):
+    """业务影响报告表"""
+
+    __tablename__ = "business_impact_reports"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    title = Column(String(200), nullable=False)
+    service_names = Column(JSON, nullable=False)
+    time_range = Column(String(50), nullable=False, default="24h")
+    include_recommendations = Column(Boolean, nullable=False, default=True)
+    summary = Column(JSON, nullable=True)
+    service_data = Column(JSON, nullable=True)
+    recommendations = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_business_impact_reports_title", "title"),
+        Index("idx_business_impact_reports_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<BusinessImpactReportDB(id={self.id}, title='{self.title}')>"
+
+
+# Chaos Engineering Models
+class ChaosExperimentDB(Base):
+    """混沌工程实验表"""
+
+    __tablename__ = "chaos_experiments"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(200), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    experiment_type = Column(String(50), nullable=False)
+    parameters = Column(JSON, nullable=True)
+    severity = Column(String(50), nullable=False, default="medium", index=True)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    tags = Column(JSON, nullable=True)
+    result = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_chaos_experiments_name", "name"),
+        Index("idx_chaos_experiments_status", "status"),
+        Index("idx_chaos_experiments_severity", "severity"),
+        Index("idx_chaos_experiments_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<ChaosExperimentDB(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+
+class ChaosScenarioDB(Base):
+    """混沌工程场景表"""
+
+    __tablename__ = "chaos_scenarios"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(200), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    fault_types = Column(JSON, nullable=False)
+    target_services = Column(JSON, nullable=False)
+    duration_seconds = Column(Integer, nullable=False)
+    auto_rollback = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_chaos_scenarios_name", "name"),
+        Index("idx_chaos_scenarios_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<ChaosScenarioDB(id={self.id}, name='{self.name}')>"
+
+
+class ChaosFaultDB(Base):
+    """混沌工程故障表"""
+
+    __tablename__ = "chaos_faults"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    fault_type = Column(String(50), nullable=False, index=True)
+    target = Column(String(200), nullable=False)
+    parameters = Column(JSON, nullable=False)
+    severity = Column(String(50), nullable=False, default="medium")
+    status = Column(String(50), nullable=False, default="pending")
+    result = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_chaos_faults_fault_type", "fault_type"),
+        Index("idx_chaos_faults_status", "status"),
+        Index("idx_chaos_faults_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<ChaosFaultDB(id={self.id}, fault_type='{self.fault_type}', target='{self.target}')>"

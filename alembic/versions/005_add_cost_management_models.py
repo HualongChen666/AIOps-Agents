@@ -11,8 +11,8 @@ from sqlalchemy.sql import func
 
 
 # revision identifiers, used by Alembic.
-revision = '005_add_cost_management_models'
-down_revision = '004_add_capacity_planning_models'
+revision = '005'
+down_revision = '004'
 branch_labels = None
 depends_on = None
 
@@ -30,8 +30,8 @@ def upgrade():
         sa.Column('period', sa.String(50), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='on_track'),
         sa.Column('alerts_enabled', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('budget_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_cost_budgets_service', 'service'),
         sa.Index('idx_cost_budgets_status', 'status'),
@@ -48,7 +48,7 @@ def upgrade():
         sa.Column('implementation_effort', sa.String(50), nullable=False),
         sa.Column('priority', sa.String(50), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='pending'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('opt_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_cost_optimizations_service', 'service'),
         sa.Index('idx_cost_optimizations_priority', 'priority'),
@@ -62,12 +62,12 @@ def upgrade():
         sa.Column('id', sa.String(50), nullable=False),
         sa.Column('service', sa.String(255), nullable=False),
         sa.Column('anomaly_type', sa.String(50), nullable=False),
-        sa.Column('detected_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('detected_at', sa.DateTime(), nullable=False),
         sa.Column('severity', sa.String(50), nullable=False),
         sa.Column('description', sa.Text(), nullable=False),
         sa.Column('affected_amount', sa.Float(), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='open'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('anomaly_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_cost_anomalies_service', 'service'),
         sa.Index('idx_cost_anomalies_severity', 'severity'),
@@ -86,7 +86,7 @@ def upgrade():
         sa.Column('service', sa.String(255), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='active'),
         sa.Column('notification_channels', sa.JSON(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('alert_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_cost_alerts_service', 'service'),
         sa.Index('idx_cost_alerts_status', 'status'),
@@ -99,10 +99,10 @@ def upgrade():
         sa.Column('id', sa.String(50), nullable=False),
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('report_type', sa.String(50), nullable=False),
-        sa.Column('period_start', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('period_end', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('period_start', sa.DateTime(), nullable=False),
+        sa.Column('period_end', sa.DateTime(), nullable=False),
         sa.Column('total_cost', sa.Float(), nullable=False),
-        sa.Column('generated_at', sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa.Column('generated_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='completed'),
         sa.Column('report_data', sa.JSON(), nullable=False),
         sa.Column('report_metadata', sa.JSON(), nullable=True),

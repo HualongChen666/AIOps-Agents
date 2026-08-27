@@ -11,8 +11,8 @@ from sqlalchemy.sql import func
 
 
 # revision identifiers, used by Alembic.
-revision = '006_add_change_management_models'
-down_revision = '005_add_cost_management_models'
+revision = '006'
+down_revision = '005'
 branch_labels = None
 depends_on = None
 
@@ -26,7 +26,7 @@ def upgrade():
         sa.Column('approver', sa.String(255), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='pending'),
         sa.Column('comments', sa.Text(), nullable=True),
-        sa.Column('approved_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('approved_at', sa.DateTime(), nullable=True),
         sa.Column('approval_metadata', sa.JSON(), nullable=True),
         sa.Index('idx_change_approvals_request_id', 'request_id'),
         sa.Index('idx_change_approvals_status', 'status'),
@@ -38,8 +38,8 @@ def upgrade():
         'change_schedules',
         sa.Column('id', sa.String(20), nullable=False),
         sa.Column('request_id', sa.String(50), nullable=False),
-        sa.Column('scheduled_start', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('scheduled_end', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('scheduled_start', sa.DateTime(), nullable=False),
+        sa.Column('scheduled_end', sa.DateTime(), nullable=False),
         sa.Column('maintenance_window', sa.String(50), nullable=False),
         sa.Column('timezone', sa.String(50), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='scheduled'),

@@ -15,16 +15,23 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.api_response_standard import (
     ErrorCode,
     create_error_response,
     create_success_response,
 )
+from core.auth_db import get_session
 from core.chaos_engineering import (
     ChaosExperiment,
     ExperimentStatus,
     chaos_engine,
+)
+from core.models import (
+    ChaosExperimentDB,
+    ChaosScenarioDB,
+    ChaosFaultDB,
 )
 
 router = APIRouter(prefix="/api/v1/chaos", tags=["混沌工程高级"])
@@ -224,6 +231,73 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Dual-write functions for database migration
+def _save_experiment_to_db(db: Session, experiment: Dict[str, Any]) -> None:
+    """保存实验到数据库"""
+    try:
+        db_experiment = ChaosExperimentDB(
+            id=experiment["id"],
+            name=experiment["name"],
+            description=experiment.get("description"),
+            experiment_type=experiment["experiment_type"],
+            parameters=experiment.get("parameters"),
+            severity=experiment.get("severity"),
+            status=experiment.get("status"),
+            tags=experiment.get("tags"),
+            result=experiment.get("result"),
+            error=experiment.get("error"),
+            created_at=datetime.fromisoformat(experiment["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(experiment["updated_at"].replace("Z", "+00:00")),
+        )
+        db.merge(db_experiment)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save experiment to database: {str(e)}")
+
+
+def _save_scenario_to_db(db: Session, scenario: Dict[str, Any]) -> None:
+    """保存场景到数据库"""
+    try:
+        db_scenario = ChaosScenarioDB(
+            id=scenario["id"],
+            name=scenario["name"],
+            description=scenario.get("description"),
+            fault_types=scenario.get("fault_types"),
+            target_services=scenario.get("target_services"),
+            duration_seconds=scenario.get("duration_seconds"),
+            auto_rollback=scenario.get("auto_rollback", True),
+            created_at=datetime.fromisoformat(scenario["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(scenario["updated_at"].replace("Z", "+00:00")),
+        )
+        db.merge(db_scenario)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save scenario to database: {str(e)}")
+
+
+def _save_fault_to_db(db: Session, fault: Dict[str, Any]) -> None:
+    """保存故障到数据库"""
+    try:
+        db_fault = ChaosFaultDB(
+            id=fault["id"],
+            fault_type=fault["fault_type"],
+            target=fault["target"],
+            parameters=fault.get("parameters"),
+            severity=fault.get("severity"),
+            status=fault.get("status"),
+            result=fault.get("result"),
+            created_at=datetime.fromisoformat(fault["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(fault["updated_at"].replace("Z", "+00:00")),
+        )
+        db.merge(db_fault)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save fault to database: {str(e)}")
+
+
 # Experiment endpoints
 @router.get(
     "/experiments",
@@ -317,6 +391,16 @@ async def create_experiment(request: CreateExperimentRequest) -> Dict[str, Any]:
 
         experiments.append(experiment)
         _save_json_file(EXPERIMENTS_FILE, experiments)
+
+        # Dual-write to database
+        db = get_session()
+        try:
+            _save_experiment_to_db(db, experiment)
+        except Exception as e:
+            # Log database error but continue with JSON storage
+            pass
+        finally:
+            db.close()
 
         return create_success_response(experiment, "实验创建成功")
     except Exception as e:
@@ -474,6 +558,16 @@ async def run_experiment(experiment_id: str) -> Dict[str, Any]:
         experiment["updated_at"] = _now()
         _save_json_file(EXPERIMENTS_FILE, experiments)
 
+        # Dual-write to database
+        db = get_session()
+        try:
+            _save_experiment_to_db(db, experiment)
+        except Exception as e:
+            # Log database error but continue with JSON storage
+            pass
+        finally:
+            db.close()
+
         # 执行实验
         try:
             experiment_type = ChaosExperiment(experiment["experiment_type"])
@@ -493,6 +587,16 @@ async def run_experiment(experiment_id: str) -> Dict[str, Any]:
             experiment["updated_at"] = _now()
 
             _save_json_file(EXPERIMENTS_FILE, experiments)
+
+            # Dual-write to database
+            db = get_session()
+            try:
+                _save_experiment_to_db(db, experiment)
+            except Exception as e:
+                # Log database error but continue with JSON storage
+                pass
+            finally:
+                db.close()
 
             return create_success_response(
                 {
@@ -646,6 +750,16 @@ async def create_scenario(request: CreateScenarioRequest) -> Dict[str, Any]:
         scenarios.append(scenario)
         _save_json_file(SCENARIOS_FILE, scenarios)
 
+        # Dual-write to database
+        db = get_session()
+        try:
+            _save_scenario_to_db(db, scenario)
+        except Exception as e:
+            # Log database error but continue with JSON storage
+            pass
+        finally:
+            db.close()
+
         return create_success_response(scenario, "场景创建成功")
     except Exception as e:
         return create_error_response(
@@ -727,6 +841,16 @@ async def create_fault(request: CreateFaultRequest) -> Dict[str, Any]:
 
         faults.append(fault)
         _save_json_file(FAULTS_FILE, faults)
+
+        # Dual-write to database
+        db = get_session()
+        try:
+            _save_fault_to_db(db, fault)
+        except Exception as e:
+            # Log database error but continue with JSON storage
+            pass
+        finally:
+            db.close()
 
         return create_success_response(fault, "故障创建成功")
     except Exception as e:

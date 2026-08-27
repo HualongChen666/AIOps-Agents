@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "001"
+revision = '001'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column("severity", sa.String(20), nullable=True),
         sa.Column("status", sa.String(20), nullable=True),
         sa.Column("payload", sa.JSON, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_alert_history_alert_id", "alert_history", ["alert_id"])
     op.create_index("ix_alert_history_created_at", "alert_history", ["created_at"])
@@ -35,12 +35,12 @@ def upgrade() -> None:
         "repair_records",
         sa.Column("id", sa.String(100), primary_key=True),
         sa.Column("alert_id", sa.String(100), nullable=True),
-        sa.Column("alert_time", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("alert_time", sa.DateTime(), nullable=True),
         sa.Column("script_key", sa.String(100), nullable=False),
         sa.Column("script_name", sa.String(200), nullable=False),
         sa.Column("success", sa.Boolean, nullable=False),
         sa.Column("status", sa.String(20), nullable=False),
-        sa.Column("repair_time", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("repair_time", sa.DateTime(), nullable=False),
         sa.Column("repair_duration_sec", sa.Float, nullable=False),
         sa.Column("platform", sa.String(20), nullable=False, server_default="windows"),
         sa.Column("host", sa.String(100), nullable=True),
@@ -51,7 +51,7 @@ def upgrade() -> None:
         sa.Column("params", sa.JSON, nullable=True),
         sa.Column("approval_id", sa.String(100), nullable=True),
         sa.Column("executor", sa.String(100), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_repair_records_alert_id", "repair_records", ["alert_id"])
     op.create_index("ix_repair_records_success", "repair_records", ["success"])
@@ -69,9 +69,9 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
         sa.Column("risk_level", sa.String(20), nullable=False),
         sa.Column("approver", sa.String(50), nullable=True),
-        sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("approved_at", sa.DateTime(), nullable=True),
         sa.Column("rejection_reason", sa.Text, nullable=True),
-        sa.Column("submitted_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("submitted_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_pending_approvals_alert_id", "pending_approvals", ["alert_id"])
     op.create_index("ix_pending_approvals_status", "pending_approvals", ["status"])
@@ -86,7 +86,7 @@ def upgrade() -> None:
         sa.Column("passed", sa.Boolean, nullable=False),
         sa.Column("result", sa.Text, nullable=True),
         sa.Column("duration_sec", sa.Float, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_verify_records_repair_id", "verify_records", ["repair_id"])
     op.create_index("ix_verify_records_alert_id", "verify_records", ["alert_id"])
@@ -102,7 +102,7 @@ def upgrade() -> None:
         sa.Column("ip_address", sa.String(45), nullable=True),
         sa.Column("user_agent", sa.String(500), nullable=True),
         sa.Column("details", sa.JSON, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_audit_logs_action", "audit_logs", ["action"])
     op.create_index("ix_audit_logs_resource_type", "audit_logs", ["resource_type"])
@@ -119,7 +119,7 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False),
         sa.Column("output", sa.Text, nullable=True),
         sa.Column("executed_by", sa.String(100), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
     )
     op.create_index("ix_hardware_remediation_alert_id", "hardware_remediation_log", ["alert_id"])
     op.create_index("ix_hardware_remediation_action", "hardware_remediation_log", ["action"])

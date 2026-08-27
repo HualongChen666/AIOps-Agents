@@ -803,7 +803,7 @@ Authentication = JWTAuthService
 ROUTER = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/token", response_model=Token)
+@ROUTER.post("/token", response_model=Token)
 async def login_for_access_token(username: str = Form(...), password: str = Form(...)):
     """Obtain a JWT token via username / password.
     Form fields are used to keep compatibility with classic OAuth2 password flow.
@@ -825,7 +825,7 @@ async def login_for_access_token(username: str = Form(...), password: str = Form
     }
 
 
-@router.post("/revoke")
+@ROUTER.post("/revoke")
 async def revoke_current_token(
     current_user: User = Depends(get_current_active_user), token: str = Depends(oauth2_scheme)
 ):
