@@ -14,11 +14,9 @@ from typing import Any, Dict, List, Set
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from config import DATABASE_URL
-
 
 def validate_migration(
-    json_file: str, table_name: str, primary_key: str, db_url: str = DATABASE_URL
+    json_file: str, table_name: str, primary_key: str, db_url: str = None
 ) -> bool:
     """验证JSON文件和数据库表的数据一致性
 
@@ -26,7 +24,7 @@ def validate_migration(
         json_file: JSON文件路径
         table_name: 数据库表名
         primary_key: 主键字段名
-        db_url: 数据库连接URL
+        db_url: 数据库连接URL (可选，默认使用config中的DATABASE_URL)
 
     Returns:
         bool: 数据一致性验证结果
@@ -48,6 +46,14 @@ def validate_migration(
 
     # 读取数据库
     try:
+        if db_url is None:
+            try:
+                from config import DATABASE_URL
+                db_url = DATABASE_URL
+            except ImportError:
+                print("无法导入DATABASE_URL，使用默认SQLite数据库")
+                db_url = "sqlite:///data/aiops.db"
+
         engine = create_engine(db_url)
         Session = sessionmaker(bind=engine)
         session = Session()
