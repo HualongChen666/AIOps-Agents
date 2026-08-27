@@ -1,297 +1,197 @@
 # -*- coding: utf-8 -*-
-"""Cache helpers with pluggable backends: memory, disk or redis.
+"""
+Cache Manager
+缓存管理器
 
-The default is a thread-safe in-memory store. Set ``CACHE_BACKEND=redis`` and
-``REDIS_URL`` (or ``CACHE_BACKEND=disk``) to use a real cache implementation.
+实现Redis缓存策略，提高查询性能
 """
 
-import hashlib
 import json
-import logging
-import os
-import threading
 import time
+from typing import Any, Optional, List, Dict
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+import hashlib
 
-logger = logging.getLogger(__name__)
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
 
-_BACKENDS: Dict[str, Any] = {}
-_DEFAULT_BACKEND = "memory"
-_BACKEND = os.getenv("CACHE_BACKEND", _DEFAULT_BACKEND).lower()
-
-_LOCK = threading.RLock()
-
-
-def _get_backend() -> "CacheBackend":
-    if _BACKEND not in _BACKENDS:
-        _BACKENDS[_BACKEND] = _create_backend(_BACKEND)
-    return _BACKENDS[_BACKEND]
+from config import REDIS_URL, REDIS_PASSWORD
 
 
-def _create_backend(name: str) -> "CacheBackend":
-    if name == "redis":
-        try:
-            import redis
-
-            client = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
-            return RedisCacheBackend(client)
-        except Exception as exc:
-            logger.warning(f"Redis cache init failed: {exc}; falling back to memory")
-    if name == "disk":
-        try:
-            import diskcache
-
-            return DiskCacheBackend(diskcache.Cache(os.getenv("DISK_CACHE_DIR", "data/cache")))
-        except Exception as exc:
-            logger.warning(f"Disk cache init failed: {exc}; falling back to memory")
-    return MemoryCacheBackend()
-
-
-class CacheBackend:
-    def get(self, key: str) -> Optional[Any]:  # pragma: no cover
-        raise NotImplementedError
-
-    def set(self, key: str, value: Any, ttl: int) -> None:  # pragma: no cover
-        raise NotImplementedError
-
-    def delete(self, key: str) -> bool:  # pragma: no cover
-        raise NotImplementedError
-
-    def clear(self) -> bool:  # pragma: no cover
-        raise NotImplementedError
-
-    def stats(self) -> Dict[str, int]:  # pragma: no cover
-        raise NotImplementedError
-
-
-class MemoryCacheBackend(CacheBackend):
-    """Thread-safe in-memory cache."""
+class CacheManager:
+    """缓存管理器"""
 
     def __init__(self):
-        self._store: Dict[str, Any] = {}
-        self._metadata: Dict[str, Dict[str, Any]] = {}
-        self._hits = 0
-        self._misses = 0
+        self.redis_client = None
+        self.default_ttl = 3600  # 默认缓存1小时
+        self._initialize_redis()
+
+    def _initialize_redis(self):
+        """初始化Redis连接"""
+        if not REDIS_AVAILABLE:
+            print("Redis not available, caching disabled")
+            return
+
+        try:
+            self.redis_client = redis.from_url(
+                REDIS_URL,
+                password=REDIS_PASSWORD,
+                decode_responses=True,
+                socket_timeout=5,
+                socket_connect_timeout=5,
+            )
+            # 测试连接
+            self.redis_client.ping()
+            print("Redis cache initialized successfully")
+        except Exception as e:
+            print(f"Failed to initialize Redis cache: {e}")
+            self.redis_client = None
 
     def get(self, key: str) -> Optional[Any]:
-        with _LOCK:
-            if key in self._store:
-                meta = self._metadata[key]
-                if time.time() - meta["timestamp"] < meta["ttl"]:
-                    self._hits += 1
-                    meta["hits"] = meta.get("hits", 0) + 1
-                    return self._store[key]
-                del self._store[key]
-                del self._metadata[key]
-            self._misses += 1
+        """从缓存获取数据"""
+        if not self.redis_client:
             return None
 
-    def set(self, key: str, value: Any, ttl: int) -> None:
-        with _LOCK:
-            self._store[key] = value
-            # key format: func:<func_name>:<md5>
-            func_name = ""
-            if key.startswith("func:"):
-                parts = key.split(":", 2)
-                func_name = parts[1] if len(parts) >= 2 else ""
-            self._metadata[key] = {
-                "timestamp": time.time(),
-                "ttl": ttl,
-                "hits": 1,
-                "func_name": func_name,
-            }
+        try:
+            cached_data = self.redis_client.get(key)
+            if cached_data:
+                return json.loads(cached_data)
+            return None
+        except Exception as e:
+            print(f"Cache get error: {e}")
+            return None
 
-    def delete(self, key: str) -> bool:
-        with _LOCK:
-            if key in self._store:
-                del self._store[key]
-                del self._metadata[key]
-                return True
+    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+        """设置缓存数据"""
+        if not self.redis_client:
             return False
 
-    def clear(self) -> bool:
-        with _LOCK:
-            self._store.clear()
-            self._metadata.clear()
-            self._hits = self._misses = 0
-            return True
-
-    def stats(self) -> Dict[str, int]:
-        with _LOCK:
-            return {
-                "total_hits": self._hits,
-                "total_misses": self._misses,
-                "cache_size": len(self._store),
-            }
-
-
-class RedisCacheBackend(CacheBackend):
-    def __init__(self, client: Any):
-        self._client = client
-
-    def get(self, key: str) -> Optional[Any]:
-        raw = self._client.get(key)
-        if raw is not None:
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError as exc:
-                logger.error(f"Failed to decode cached value for key {key}: {exc}")
-                return None
-        return None
-
-    def set(self, key: str, value: Any, ttl: int) -> None:
         try:
-            self._client.setex(key, ttl, json.dumps(value, default=str))
-        except (TypeError, ValueError) as exc:
-            logger.error(f"Failed to serialize value for key {key}: {exc}")
-            raise
+            ttl = ttl or self.default_ttl
+            serialized_value = json.dumps(value)
+            self.redis_client.setex(key, ttl, serialized_value)
+            return True
+        except Exception as e:
+            print(f"Cache set error: {e}")
+            return False
 
     def delete(self, key: str) -> bool:
-        return bool(self._client.delete(key))
+        """删除缓存数据"""
+        if not self.redis_client:
+            return False
 
-    def clear(self) -> bool:
-        self._client.flushdb()
-        return True
+        try:
+            self.redis_client.delete(key)
+            return True
+        except Exception as e:
+            print(f"Cache delete error: {e}")
+            return False
 
-    def stats(self) -> Dict[str, int]:
-        info = self._client.info()
-        return {
-            "total_hits": info.get("keyspace_hits", 0),
-            "total_misses": info.get("keyspace_misses", 0),
-            "cache_size": self._client.dbsize(),
-        }
+    def delete_pattern(self, pattern: str) -> int:
+        """删除匹配模式的所有缓存"""
+        if not self.redis_client:
+            return 0
+
+        try:
+            keys = self.redis_client.keys(pattern)
+            if keys:
+                return self.redis_client.delete(*keys)
+            return 0
+        except Exception as e:
+            print(f"Cache delete pattern error: {e}")
+            return 0
+
+    def exists(self, key: str) -> bool:
+        """检查缓存是否存在"""
+        if not self.redis_client:
+            return False
+
+        try:
+            return self.redis_client.exists(key) > 0
+        except Exception as e:
+            print(f"Cache exists error: {e}")
+            return False
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计信息"""
+        if not self.redis_client:
+            return {}
+
+        try:
+            info = self.redis_client.info()
+            return {
+                "used_memory": info.get("used_memory", 0),
+                "used_memory_human": info.get("used_memory_human", "0B"),
+                "keyspace_hits": info.get("keyspace_hits", 0),
+                "keyspace_misses": info.get("keyspace_misses", 0),
+                "total_connections_received": info.get("total_connections_received", 0),
+                "total_commands_processed": info.get("total_commands_processed", 0),
+            }
+        except Exception as e:
+            print(f"Cache stats error: {e}")
+            return {}
 
 
-class DiskCacheBackend(CacheBackend):
-    def __init__(self, cache: Any):
-        self._cache = cache
-
-    def get(self, key: str) -> Optional[Any]:
-        return self._cache.get(key)
-
-    def set(self, key: str, value: Any, ttl: int) -> None:
-        self._cache.set(key, value, expire=ttl)
-
-    def delete(self, key: str) -> bool:
-        return self._cache.delete(key)
-
-    def clear(self) -> bool:
-        self._cache.clear()
-        return True
-
-    def stats(self) -> Dict[str, int]:
-        return {"total_hits": 0, "total_misses": 0, "cache_size": len(self._cache)}
+# 全局缓存管理器实例
+cache_manager = CacheManager()
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-def _generate_cache_key(func_name: str, args: tuple, kwargs: dict) -> str:
-    key_str = f"{func_name}_{str(args)}_{str(sorted(kwargs.items()))}"
-    return hashlib.sha256(key_str.encode()).hexdigest()
+def cache_key_generator(prefix: str, *args, **kwargs) -> str:
+    """生成缓存键"""
+    key_parts = [prefix]
+    for arg in args:
+        if isinstance(arg, (str, int, float, bool)):
+            key_parts.append(str(arg))
+        else:
+            # 对于复杂对象，使用hash
+            key_parts.append(hashlib.md5(str(arg).encode()).hexdigest()[:8])
+    
+    for k, v in sorted(kwargs.items()):
+        key_parts.append(f"{k}:{v}")
+    
+    return ":".join(key_parts)
 
 
-def cache_result(
-    ttl: int = 300,
-    cache_level: str = "memory",
-    max_size: int = 100,
-    track_stats: bool = False,
-    enable_monitoring: bool = False,
-):
-    """Cache the result of a function."""
-
-    def decorator(func: Callable) -> Callable:
-        func_name = func.__name__
-
+def cached(ttl: int = 3600, prefix: str = "cache"):
+    """缓存装饰器"""
+    def decorator(func):
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            backend = _get_backend()
-            cache_key = f"func:{func_name}:{_generate_cache_key(func_name, args, kwargs)}"
-            value = backend.get(cache_key)
-            if value is not None:
-                if enable_monitoring:
-                    logger.debug(f"Cache hit for {func_name}")
-                return value
-
+        def wrapper(*args, **kwargs):
+            # 生成缓存键
+            cache_key = cache_key_generator(prefix, func.__name__, *args, **kwargs)
+            
+            # 尝试从缓存获取
+            cached_result = cache_manager.get(cache_key)
+            if cached_result is not None:
+                return cached_result
+            
+            # 执行函数
             result = func(*args, **kwargs)
-            backend.set(cache_key, result, ttl)
-            if enable_monitoring:
-                logger.debug(f"Cache set for {func_name}")
+            
+            # 设置缓存
+            cache_manager.set(cache_key, result, ttl)
+            
             return result
-
         return wrapper
-
     return decorator
 
 
-def invalidate_cache(func_name: str, args: tuple = ()) -> int:
-    """Invalidate cached entries for a function name."""
-    backend = _get_backend()
-    keys_to_remove = []
-    if isinstance(backend, MemoryCacheBackend):
-        with _LOCK:
-            for key, meta in backend._metadata.items():
-                if meta.get("func_name") == func_name:
-                    keys_to_remove.append(key)
-            for key in keys_to_remove:
-                backend.delete(key)
-    return len(keys_to_remove)
+def invalidate_cache_pattern(pattern: str) -> int:
+    """失效匹配模式的所有缓存"""
+    return cache_manager.delete_pattern(pattern)
 
 
-def get_cache_stats(func_name: str) -> Dict[str, Any]:
-    """Get cache statistics."""
-    backend = _get_backend()
-    stats = backend.stats()
-    if isinstance(backend, MemoryCacheBackend):
-        with _LOCK:
-            func_hits = 0
-            func_size = 0
-            for meta in backend._metadata.values():
-                if meta.get("func_name") == func_name:
-                    func_hits += meta.get("hits", 0) or 0
-                    func_size += 1
-            stats.update({"function_hits": func_hits, "function_size": func_size})
-    return stats
-
-
-def get_cache_metrics(func_name: str) -> Dict[str, Any]:
-    """Get cache monitoring metrics."""
-    return get_cache_stats(func_name)
-
-
-def backup_cache(func_name: str) -> Dict[str, Any]:
-    """Backup cache entries for a function."""
-    backend = _get_backend()
-    backup_data = {}
-    if isinstance(backend, MemoryCacheBackend):
-        with _LOCK:
-            for key, meta in backend._metadata.items():
-                if meta.get("func_name") == func_name:
-                    backup_data[key] = {"value": backend._store[key], "metadata": meta}
-    return backup_data
-
-
-def restore_cache(backup_data: Dict[str, Any]) -> int:
-    """Restore cache entries from a backup dictionary."""
-    backend = _get_backend()
-    if isinstance(backend, MemoryCacheBackend):
-        with _LOCK:
-            for key, data in backup_data.items():
-                backend._store[key] = data["value"]
-                backend._metadata[key] = data["metadata"]
-    return len(backup_data)
-
-
-def flush_all() -> bool:
-    """Clear all cached data."""
-    return _get_backend().clear()
-
-
-def configure_backend(name: str, **options: Any) -> bool:
-    """Switch the active cache backend at runtime."""
-    global _BACKEND
-    _BACKEND = name
-    _BACKENDS[name] = _create_backend(name)
-    logger.info(f"Cache backend switched to {name} with options {options}")
-    return True
+def get_cache_hit_rate() -> float:
+    """获取缓存命中率"""
+    stats = cache_manager.get_cache_stats()
+    hits = stats.get("keyspace_hits", 0)
+    misses = stats.get("keyspace_misses", 0)
+    total = hits + misses
+    
+    if total == 0:
+        return 0.0
+    
+    return hits / total

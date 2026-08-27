@@ -1,4 +1,5 @@
 # Developer Guide
+
 开发者指南
 
 ## 项目概述
@@ -8,6 +9,7 @@ AIOps SRE Agent是一个智能运维系统，提供全面的监控、自动化�
 ## 技术栈
 
 ### 后端
+
 - **语言**: Python 3.12+
 - **框架**: FastAPI
 - **数据库**: SQLite (开发) / PostgreSQL (生产)
@@ -16,11 +18,13 @@ AIOps SRE Agent是一个智能运维系统，提供全面的监控、自动化�
 - **缓存**: Redis
 
 ### 前端
+
 - **框架**: React
 - **状态管理**: Redux
 - **UI组件**: Material-UI
 
 ### AI/ML
+
 - **LLM**: OpenAI / MiniMax
 - **向量数据库**: Qdrant
 - **RAG**: LangChain
@@ -32,22 +36,225 @@ aiops-sre-agent/
 ├── api/                    # API路由
 │   ├── business_impact_advanced_router.py
 │   ├── chaos_advanced_router.py
+│   ├── ai_advanced_router.py
+│   ├── plugin_marketplace_router.py
 │   └── ...
 ├── core/                   # 核心模块
 │   ├── models.py          # 数据库模型
 │   ├── auth_db.py         # 认证数据库
 │   ├── database.py        # 数据库连接
+│   ├── cache_manager.py   # 缓存管理器
+│   ├── rbac.py            # 权限管理
 │   └── ...
 ├── alembic/               # 数据库迁移
 │   └── versions/
 ├── tests/                 # 测试
 │   ├── test_database_migration.py
 │   ├── test_dual_write_logic.py
+│   ├── test_cache_manager.py
+│   ├── test_query_optimization.py
+│   ├── test_connection_pool_optimization.py
+│   ├── test_plugin_marketplace.py
+│   ├── test_rbac.py
 │   └── ...
 ├── scripts/               # 脚本
 │   └── validate_business_impact_migration.py
 ├── docs/                  # 文档
 └── config.py              # 配置文件
+```
+
+## 快速开始
+
+### 环境设置
+
+1. 克隆仓库
+
+```bash
+git clone https://github.com/HualongChen666/AIOps-Agents.git
+cd AIOps-Agents
+```
+
+1. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+1. 配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env 文件，设置必要的环境变量
+```
+
+1. 初始化数据库
+
+```bash
+alembic upgrade head
+```
+
+1. 启动服务
+
+```bash
+uvicorn main:app --reload
+```
+
+## 开发指南
+
+### 添加新的API端点
+
+1. 在 `api/` 目录下创建新的路由文件
+2. 使用 `APIRouter` 定义路由
+3. 使用 `core.models` 中的数据库模型
+4. 使用 `core.cache_manager` 实现缓存
+5. 使用 `core.rbac` 实现权限控制
+
+示例：
+
+```python
+from fastapi import APIRouter
+from core.models import YourModelDB
+from core.cache_manager import cache_manager
+from core.rbac import require_permission, Permission
+
+router = APIRouter(prefix="/api/v1/your-feature", tags=["Your Feature"])
+
+@router.get("/items")
+@require_permission(Permission.READ)
+async def get_items():
+    # 实现逻辑
+    pass
+```
+
+### 数据库迁移
+
+1. 创建新的迁移
+
+```bash
+alembic revision --autogenerate -m "your migration message"
+```
+
+1. 检查生成的迁移文件
+2. 应用迁移
+
+```bash
+alembic upgrade head
+```
+
+### 测试
+
+运行所有测试：
+
+```bash
+pytest tests/ -v
+```
+
+运行特定测试：
+
+```bash
+pytest tests/test_cache_manager.py -v
+```
+
+生成覆盖率报告：
+
+```bash
+pytest tests/ --cov=. --cov-report=html
+```
+
+## 性能优化
+
+### 缓存策略
+
+- 使用 `core.cache_manager` 实现Redis缓存
+- 为频繁查询的数据添加缓存
+- 设置合理的TTL
+- 在数据更新时失效相关缓存
+
+### 数据库优化
+
+- 使用索引优化查询性能
+- 避免N+1查询问题
+- 使用分页减少数据传输
+- 优化连接池配置
+
+### 连接池配置
+
+当前配置：
+
+```python
+engine = create_engine(
+    f"sqlite:///{_DB_PATH}",
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
+```
+
+## 权限管理
+
+使用 `core.rbac` 实现基于角色的访问控制：
+
+```python
+from core.rbac import Role, Permission, RBACManager
+
+# 检查权限
+if RBACManager.has_permission(Role.OPERATOR, Permission.CHAOS_EXECUTE):
+    # 执行操作
+    pass
+```
+
+## 插件开发
+
+### 插件结构
+
+插件应该遵循以下结构：
+
+```
+your-plugin/
+├── plugin.json          # 插件元数据
+├── main.py             # 插件主逻辑
+├── requirements.txt    # 插件依赖
+└── README.md          # 插件文档
+```
+
+### 插件上传
+
+使用插件市场API上传插件：
+
+```bash
+POST /api/v1/plugin-marketplace/plugins
+```
+
+## 故障排除
+
+### 常见问题
+
+1. **数据库连接失败**
+   - 检查 `DATABASE_URL` 环境变量
+   - 确保数据库服务正在运行
+
+2. **Redis连接失败**
+   - 检查 `REDIS_URL` 环境变量
+   - 确保Redis服务正在运行
+
+3. **测试失败**
+   - 确保所有依赖已安装
+   - 检查环境变量配置
+   - 查看详细错误信息
+
+## 贡献指南
+
+1. Fork项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启Pull Request
+
+## 许可证
+
+本项目采用MIT许可证。
+
 ```
 
 ## 开发环境设置
@@ -196,6 +403,7 @@ python -m pytest --cov=api --cov=core --cov-report=html
 ```
 
 类型：
+
 - `feat`: 新功能
 - `fix`: 修复bug
 - `docs`: 文档更新
@@ -362,6 +570,7 @@ def save_with_dual_write(data: dict, json_file: Path):
 ### 数据库优化
 
 1. **使用索引**
+
    ```python
    __table_args__ = (
        Index("idx_table_field", "field"),
@@ -369,12 +578,14 @@ def save_with_dual_write(data: dict, json_file: Path):
    ```
 
 2. **批量操作**
+
    ```python
    # 批量插入
    db.bulk_insert_mappings(AnalysisDB, data_list)
    ```
 
 3. **查询优化**
+
    ```python
    # 使用select减少数据传输
    db.query(AnalysisDB.id, AnalysisDB.name).all()
@@ -458,12 +669,14 @@ spec:
 ### 常见问题
 
 1. **数据库连接失败**
+
    ```bash
    # 检查数据库连接
    python -c "from core.database import engine; engine.connect()"
    ```
 
 2. **迁移失败**
+
    ```bash
    # 检查迁移状态
    python -m alembic current
@@ -474,6 +687,7 @@ spec:
    ```
 
 3. **测试失败**
+
    ```bash
    # 运行特定测试查看详细输出
    python -m pytest tests/test_file.py -v -s
@@ -506,6 +720,7 @@ spec:
 ## 支持
 
 如有问题，请：
+
 1. 查看文档
 2. 搜索现有Issues
 3. 创建新的Issue

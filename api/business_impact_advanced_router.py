@@ -33,6 +33,7 @@ from core.models import (
     BusinessImpactDependencyDB,
     BusinessImpactReportDB,
 )
+from core.cache_manager import cache_manager, cache_key_generator
 
 router = APIRouter(prefix="/api/v1/business-impact", tags=["业务影响高级"])
 
@@ -276,26 +277,65 @@ async def get_analysis_list(
     支持按服务名称和状态筛选，支持分页。
     """
     try:
-        analyses = _load_json_file(ANALYSIS_FILE)
-
-        # 过滤
-        if service_name:
-            analyses = [a for a in analyses if a.get("service_name") == service_name]
-        if status:
-            analyses = [a for a in analyses if a.get("status") == status.value]
-
-        # 分页
-        total = len(analyses)
-        paginated = analyses[offset : offset + limit]
-
-        return create_success_response(
-            {
-                "items": paginated,
+        # 生成缓存键
+        cache_key = cache_key_generator(
+            "business_impact_analysis_list",
+            service_name,
+            status.value if status else None,
+            limit,
+            offset
+        )
+        
+        # 尝试从缓存获取
+        cached_result = cache_manager.get(cache_key)
+        if cached_result is not None:
+            return create_success_response(cached_result)
+        
+        # 从数据库获取数据
+        db = get_session()
+        try:
+            query = db.query(BusinessImpactAnalysisDB)
+            
+            # 过滤
+            if service_name:
+                query = query.filter(BusinessImpactAnalysisDB.service_name == service_name)
+            if status:
+                query = query.filter(BusinessImpactAnalysisDB.status == status.value)
+            
+            # 分页
+            total = query.count()
+            results = query.offset(offset).limit(limit).all()
+            
+            # 转换为字典格式
+            items = []
+            for result in results:
+                items.append({
+                    "id": result.id,
+                    "service_name": result.service_name,
+                    "analysis_type": result.analysis_type,
+                    "time_range": result.time_range,
+                    "include_dependencies": result.include_dependencies,
+                    "include_ux_metrics": result.include_ux_metrics,
+                    "status": result.status,
+                    "result": result.result,
+                    "error": result.error,
+                    "created_at": result.created_at.isoformat() if result.created_at else None,
+                    "updated_at": result.updated_at.isoformat() if result.updated_at else None,
+                })
+            
+            response_data = {
+                "items": items,
                 "total": total,
                 "limit": limit,
                 "offset": offset,
             }
-        )
+            
+            # 设置缓存，TTL为5分钟
+            cache_manager.set(cache_key, response_data, ttl=300)
+            
+            return create_success_response(response_data)
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取分析列表失败"
@@ -347,6 +387,9 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
         finally:
             db.close()
 
+        # Invalidate cache for analysis list
+        cache_manager.delete_pattern("business_impact_analysis_list:*")
+
         # 异步执行分析
         try:
             # 获取业务影响评估
@@ -389,6 +432,9 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
             finally:
                 db.close()
 
+            # Invalidate cache for analysis list
+            cache_manager.delete_pattern("business_impact_analysis_list:*")
+
             return create_success_response(analysis, "分析创建成功")
         except Exception as e:
             analysis["status"] = AnalysisStatusEnum.FAILED.value
@@ -405,6 +451,9 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
                 pass
             finally:
                 db.close()
+
+            # Invalidate cache for analysis list
+            cache_manager.delete_pattern("business_impact_analysis_list:*")
 
             return create_error_response(
                 error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="分析执行失败"

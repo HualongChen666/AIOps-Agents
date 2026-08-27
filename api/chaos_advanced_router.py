@@ -33,6 +33,12 @@ from core.models import (
     ChaosScenarioDB,
     ChaosFaultDB,
 )
+from core.cache_manager import cache_manager, cache_key_generator
+from core.models import (
+    ChaosExperimentDB,
+    ChaosScenarioDB,
+    ChaosFaultDB,
+)
 
 router = APIRouter(prefix="/api/v1/chaos", tags=["混沌工程高级"])
 
@@ -319,26 +325,66 @@ async def get_experiments(
     支持按状态和严重程度筛选，支持分页。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-
-        # 过滤
-        if status:
-            experiments = [e for e in experiments if e.get("status") == status.value]
-        if severity:
-            experiments = [e for e in experiments if e.get("severity") == severity.value]
-
-        # 分页
-        total = len(experiments)
-        paginated = experiments[offset : offset + limit]
-
-        return create_success_response(
-            {
-                "items": paginated,
+        # 生成缓存键
+        cache_key = cache_key_generator(
+            "chaos_experiments_list",
+            status.value if status else None,
+            severity.value if severity else None,
+            limit,
+            offset
+        )
+        
+        # 尝试从缓存获取
+        cached_result = cache_manager.get(cache_key)
+        if cached_result is not None:
+            return create_success_response(cached_result)
+        
+        # 从数据库获取数据
+        db = get_session()
+        try:
+            query = db.query(ChaosExperimentDB)
+            
+            # 过滤
+            if status:
+                query = query.filter(ChaosExperimentDB.status == status.value)
+            if severity:
+                query = query.filter(ChaosExperimentDB.severity == severity.value)
+            
+            # 分页
+            total = query.count()
+            results = query.offset(offset).limit(limit).all()
+            
+            # 转换为字典格式
+            items = []
+            for result in results:
+                items.append({
+                    "id": result.id,
+                    "name": result.name,
+                    "description": result.description,
+                    "experiment_type": result.experiment_type,
+                    "parameters": result.parameters,
+                    "severity": result.severity,
+                    "status": result.status,
+                    "tags": result.tags,
+                    "result": result.result,
+                    "error": result.error,
+                    "created_at": result.created_at.isoformat() if result.created_at else None,
+                    "updated_at": result.updated_at.isoformat() if result.updated_at else None,
+                })
+            
+            response_data = {
+                "items": items,
                 "total": total,
                 "limit": limit,
                 "offset": offset,
             }
-        )
+            
+            # 设置缓存，TTL为5分钟
+            cache_manager.set(cache_key, response_data, ttl=300)
+            
+            return create_success_response(response_data)
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取实验列表失败"

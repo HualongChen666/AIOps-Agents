@@ -1,4 +1,5 @@
 # Deployment Guide
+
 部署指南
 
 ## 概述
@@ -47,6 +48,290 @@
     ┌────▼────┐
     │PostgreSQL│
     └─────────┘
+```
+
+## 环境配置
+
+### 环境变量
+
+创建 `.env` 文件并配置以下变量：
+
+```bash
+# 数据库配置
+DATABASE_URL=postgresql://user:password@localhost:5432/aiops
+POSTGRES_PASSWORD=your_secure_password
+
+# Redis配置
+REDIS_URL=redis://localhost:6379/0
+REDIS_PASSWORD=your_redis_password
+
+# AI配置
+OPENAI_API_KEY=your_openai_api_key
+MINIMAX_API_KEY=your_minimax_api_key
+
+# 安全配置
+SECRET_KEY=your_secret_key
+JWT_SECRET_KEY=your_jwt_secret_key
+
+# 监控配置
+VICTORIAMETRICS_URL=http://localhost:8428
+LOKI_URL=http://localhost:3100
+TEMPO_URL=http://localhost:4318
+
+# 其他配置
+ENVIRONMENT=production
+LOG_LEVEL=INFO
+```
+
+## 部署步骤
+
+### 1. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 数据库初始化
+
+```bash
+# 创建数据库
+createdb aiops
+
+# 运行迁移
+alembic upgrade head
+```
+
+### 3. 启动Redis
+
+```bash
+redis-server
+```
+
+### 4. 启动应用
+
+开发环境：
+
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+生产环境：
+
+```bash
+uvicorn main:app --workers 4 --host 0.0.0.0 --port 8000
+```
+
+### 5. 配置Nginx
+
+```nginx
+upstream aiops_backend {
+    server localhost:8000;
+    server localhost:8001;
+    server localhost:8002;
+}
+
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://aiops_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+## Docker部署
+
+### Dockerfile
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/aiops
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=aiops
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:6
+    command: redis-server --requirepass your_redis_password
+
+volumes:
+  postgres_data:
+```
+
+### 启动服务
+
+```bash
+docker-compose up -d
+```
+
+## 性能优化
+
+### 缓存配置
+
+Redis缓存已集成到系统中，配置如下：
+
+- 默认TTL: 3600秒 (1小时)
+- 连接池: 自动管理
+- 失效策略: 基于模式的缓存失效
+
+### 数据库连接池
+
+当前配置：
+
+- pool_size: 20
+- max_overflow: 10
+- pool_pre_ping: True
+- pool_recycle: 3600秒
+
+### 监控指标
+
+系统提供以下监控指标：
+
+- API响应时间 (P50, P95, P99)
+- 数据库查询性能
+- 缓存命中率
+- 连接池状态
+
+## 安全配置
+
+### RBAC权限管理
+
+系统实现了基于角色的访问控制 (RBAC)：
+
+- **角色**: Admin, Operator, Developer, Viewer, Guest
+- **权限**: 细粒度的权限控制
+- **装饰器**: 用于API端点的权限检查
+
+### 安全头
+
+配置以下安全头：
+
+- Content-Security-Policy
+- X-Frame-Options
+- X-Content-Type-Options
+- Strict-Transport-Security
+
+## 备份与恢复
+
+### 数据库备份
+
+```bash
+# 备份
+pg_dump aiops > backup.sql
+
+# 恢复
+psql aiops < backup.sql
+```
+
+### Redis备份
+
+```bash
+# 备份
+redis-cli BGSAVE
+
+# 恢复
+redis-cli --rdb backup.rdb
+```
+
+## 故障排除
+
+### 常见问题
+
+1. **数据库连接失败**
+   - 检查DATABASE_URL配置
+   - 确保PostgreSQL服务正在运行
+   - 检查防火墙设置
+
+2. **Redis连接失败**
+   - 检查REDIS_URL配置
+   - 确保Redis服务正在运行
+   - 检查Redis密码配置
+
+3. **性能问题**
+   - 检查缓存命中率
+   - 分析慢查询日志
+   - 监控连接池状态
+
+## 监控与日志
+
+### 日志配置
+
+日志级别可通过环境变量配置：
+
+```bash
+LOG_LEVEL=INFO
+```
+
+### 监控集成
+
+系统支持以下监控工具：
+
+- VictoriaMetrics (指标)
+- Loki (日志)
+- Tempo (追踪)
+
+## 升级指南
+
+### 应用升级
+
+1. 备份数据库
+2. 停止服务
+3. 拉取新代码
+4. 运行数据库迁移
+5. 重启服务
+
+### 数据库迁移
+
+```bash
+alembic upgrade head
+```
+
+## 维护
+
+### 定期维护任务
+
+- 每日: 检查日志和错误
+- 每周: 分析性能指标
+- 每月: 安全审计和依赖更新
+- 每季度: 备份验证和灾难恢复演练
+
 ```
 
 ## 部署方式
@@ -457,6 +742,7 @@ scrape_configs:
 #### 2. Grafana仪表板
 
 导入预配置的仪表板或创建自定义仪表板监控：
+
 - API响应时间
 - 数据库连接数
 - Redis缓存命中率
@@ -643,6 +929,7 @@ sudo systemctl restart aiops-sre-agent
 ### 常见问题
 
 1. **应用无法启动**
+
    ```bash
    # 检查日志
    tail -f logs/app.log
@@ -652,6 +939,7 @@ sudo systemctl restart aiops-sre-agent
    ```
 
 2. **数据库连接失败**
+
    ```bash
    # 检查数据库状态
    sudo systemctl status postgresql
@@ -661,6 +949,7 @@ sudo systemctl restart aiops-sre-agent
    ```
 
 3. **内存不足**
+
    ```bash
    # 检查内存使用
    free -h
@@ -672,6 +961,7 @@ sudo systemctl restart aiops-sre-agent
 ## 支持
 
 如有部署问题，请：
+
 1. 查看部署文档
 2. 检查日志文件
 3. 联系技术支持团队
