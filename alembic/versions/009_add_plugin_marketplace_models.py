@@ -42,11 +42,11 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('listing_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_plugin_listings_plugin_id', 'plugin_id'),
         sa.Index('idx_plugin_listings_category', 'category'),
         sa.Index('idx_plugin_listings_enabled', 'enabled'),
     )
-    op.create_primary_key('pk_plugin_listings', 'plugin_listings', ['id'])
 
     # Create plugin_reviews table
     op.create_table(
@@ -60,10 +60,10 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('review_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_plugin_reviews_plugin_id', 'plugin_id'),
         sa.Index('idx_plugin_reviews_reviewer_id', 'reviewer_id'),
     )
-    op.create_primary_key('pk_plugin_reviews', 'plugin_reviews', ['id'])
 
     # Create plugin_categories table
     op.create_table(
@@ -76,9 +76,9 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('category_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_plugin_categories_enabled', 'enabled'),
     )
-    op.create_primary_key('pk_plugin_categories', 'plugin_categories', ['id'])
 
     # Create installed_plugins table
     op.create_table(
@@ -92,15 +92,27 @@ def upgrade():
         sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('installation_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_installed_plugins_plugin_id', 'plugin_id'),
         sa.Index('idx_installed_plugins_enabled', 'enabled'),
     )
-    op.create_primary_key('pk_installed_plugins', 'installed_plugins', ['id'])
 
 
 def downgrade():
     # Drop tables in reverse order
-    op.drop_table('installed_plugins')
-    op.drop_table('plugin_categories')
-    op.drop_table('plugin_reviews')
-    op.drop_table('plugin_listings')
+    try:
+        op.drop_table('installed_plugins')
+    except:
+        pass
+    try:
+        op.drop_table('plugin_categories')
+    except:
+        pass
+    try:
+        op.drop_table('plugin_reviews')
+    except:
+        pass
+    try:
+        op.drop_table('plugin_listings')
+    except:
+        pass

@@ -29,9 +29,9 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('team_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_collaboration_teams_status', 'team_status'),
     )
-    op.create_primary_key('pk_collaboration_teams', 'collaboration_teams', ['id'])
 
     # Create collaboration_members table
     op.create_table(
@@ -45,10 +45,10 @@ def upgrade():
         sa.Column('joined_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Column('member_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_collaboration_members_team_id', 'team_id'),
         sa.Index('idx_collaboration_members_status', 'member_status'),
     )
-    op.create_primary_key('pk_collaboration_members', 'collaboration_members', ['id'])
 
     # Create collaboration_permissions table
     op.create_table(
@@ -61,10 +61,10 @@ def upgrade():
         sa.Column('granted_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('expires_at', sa.DateTime(), nullable=True),
         sa.Column('permission_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_collaboration_permissions_team_id', 'team_id'),
         sa.Index('idx_collaboration_permissions_member_id', 'member_id'),
     )
-    op.create_primary_key('pk_collaboration_permissions', 'collaboration_permissions', ['id'])
 
     # Create collaboration_activities table
     op.create_table(
@@ -77,11 +77,11 @@ def upgrade():
         sa.Column('activity_data', sa.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('activity_metadata', sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
         sa.Index('idx_collaboration_activities_team_id', 'team_id'),
         sa.Index('idx_collaboration_activities_member_id', 'member_id'),
         sa.Index('idx_collaboration_activities_created_at', 'created_at'),
     )
-    op.create_primary_key('pk_collaboration_activities', 'collaboration_activities', ['id'])
 
 
 def downgrade():
