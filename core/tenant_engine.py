@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -11,6 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
+logger = logging.getLogger(__name__)
 DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "tenants.json"
 DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
 _LOCK = threading.RLock()

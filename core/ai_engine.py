@@ -521,7 +521,8 @@ def _validate_root_cause_output(raw: str) -> Optional[str]:
             return None
     try:
         validated = RootCauseAnalysisResponse.model_validate(data)
-        return validated.model_dump_json(ensure_ascii=False, indent=2)
+        # Pydantic v2: model_dump_json doesn't support ensure_ascii, use model_dump + json.dumps
+        return json.dumps(validated.model_dump(mode='json'), ensure_ascii=False, indent=2)
     except Exception as exc:
         logger.warning(f"AI 输出 schema 校验失败: {exc}")
         return None

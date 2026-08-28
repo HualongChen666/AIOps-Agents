@@ -12,9 +12,13 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.authentication import UserInDB, get_user, verify_token
 from core.maturity_engine import assess_maturity
+from core.api_response_standard import create_success_response, create_error_response
+from core.auth_db import get_session
+from core.models import MaturityAssessmentDB
 
 logger = logging.getLogger(__name__)
 
@@ -93,81 +97,12 @@ class MaturityAssessmentCreate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-# ============ In-memory data storage ============
-_assessment_records: Dict[str, MaturityAssessmentRecord] = {}
-
-
-def _init_assessment_records():
-    """初始化默认评估记录"""
-    if not _assessment_records:
-        # 创建一个模拟的评估结果
-        assessment_id = str(uuid.uuid4())
-        try:
-            result = await assess_maturity()
-        except:
-            # 如果核心引擎失败，创建一个模拟结果
-            result = {
-                "overall_score": 65,
-                "level": 3,
-                "level_name": "Intermediate",
-                "dimensions": [
-                    {
-                        "name": "可观测性",
-                        "score": 70,
-                        "maxScore": 100,
-                        "description": "系统监控覆盖度和实时性",
-                    },
-                    {
-                        "name": "自动化",
-                        "score": 60,
-                        "maxScore": 100,
-                        "description": "运维自动化程度",
-                    },
-                    {
-                        "name": "可靠性",
-                        "score": 65,
-                        "maxScore": 100,
-                        "description": "系统可靠性和稳定性",
-                    },
-                ],
-                "recommendations": [
-                    {
-                        "id": "rec-1",
-                        "category": "可观测性",
-                        "title": "增加监控覆盖",
-                        "description": "扩展监控指标覆盖范围",
-                        "priority": "high",
-                        "estimatedTime": "2周",
-                        "targetLevel": 4,
-                    }
-                ],
-            }
-
-        record = MaturityAssessmentRecord(
-            id=assessment_id,
-            assessment_name="Initial Assessment",
-            status=AssessmentStatus.COMPLETED,
-            overall_score=result.get("overall_score", 0),
-            level=result.get("level", 1),
-            level_name=result.get("level_name", "Unknown"),
-            dimensions=result.get("dimensions", []),
-            recommendations=result.get("recommendations", []),
-            assessed_at=datetime.now() - timedelta(days=7),
-            assessed_by="admin",
-            notes="Initial maturity assessment",
-        )
-
-        _assessment_records[assessment_id] = record
-
-
-# 初始化数据
-_init_assessment_records()
+# ============ Database-based data storage ============
 
 
 # ============ Assessment Endpoints ============
 @router.get(
     "/assessments",
-    response_model=List[MaturityAssessmentRecord],
     summary="获取成熟度评估列表",
     responses={
         (200): {"description": "评估记录列表"},
@@ -179,20 +114,42 @@ async def get_assessments(
     limit: int = 50,
     offset: int = 0,
     current_user: UserInDB = Depends(get_current_user),
-) -> List[MaturityAssessmentRecord]:
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
     """获取所有成熟度评估记录"""
-    records = list(_assessment_records.values())
+    try:
+        query = db.query(MaturityAssessmentDB)
 
-    if status:
-        records = [r for r in records if r.status == status]
+        if status:
+            query = query.filter(MaturityAssessmentDB.status == status.value)
 
-    records.sort(key=lambda x: x.assessed_at, reverse=True)
-    return records[offset : offset + limit]
+        records = query.order_by(MaturityAssessmentDB.assessed_at.desc()).offset(offset).limit(limit).all()
+
+        # Convert to response format
+        result = []
+        for record in records:
+            result.append({
+                "id": record.id,
+                "assessment_name": record.assessment_name,
+                "status": record.status,
+                "overall_score": record.overall_score,
+                "level": record.level,
+                "level_name": record.level_name,
+                "dimensions": record.dimensions or [],
+                "recommendations": record.recommendations or [],
+                "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+                "assessed_by": record.assessed_by,
+                "notes": record.notes,
+            })
+
+        return create_success_response(data=result)
+    except Exception as e:
+        logger.error(f"获取评估列表失败: {e}", exc_info=True)
+        return create_error_response(error=f"获取评估列表失败: {str(e)[:200]}")
 
 
 @router.post(
     "/assessments",
-    response_model=MaturityAssessmentRecord,
     status_code=status.HTTP_201_CREATED,
     summary="创建成熟度评估",
     responses={
@@ -205,7 +162,8 @@ async def create_assessment(
     assessment_create: MaturityAssessmentCreate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
-) -> MaturityAssessmentRecord:
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
     """创建新的成熟度评估"""
     assessment_id = str(uuid.uuid4())
     now = datetime.now()
@@ -225,10 +183,11 @@ async def create_assessment(
         }
         status = AssessmentStatus.FAILED
 
-    record = MaturityAssessmentRecord(
+    # Create database record
+    record = MaturityAssessmentDB(
         id=assessment_id,
         assessment_name=assessment_create.assessment_name,
-        status=status,
+        status=status.value,
         overall_score=result.get("overall_score", 0),
         level=result.get("level", 1),
         level_name=result.get("level_name", "Unknown"),
@@ -239,20 +198,41 @@ async def create_assessment(
         notes=assessment_create.notes,
     )
 
-    _assessment_records[assessment_id] = record
+    try:
+        db.add(record)
+        db.commit()
+        db.refresh(record)
 
-    logger.info(
-        f"Maturity assessment created | assessment_id={assessment_id} "
-        f"| name={assessment_create.assessment_name} | user={current_user.username} "
-        f"| ip={get_client_ip(request)}"
-    )
+        logger.info(
+            f"Maturity assessment created | assessment_id={assessment_id} "
+            f"| name={assessment_create.assessment_name} | user={current_user.username} "
+            f"| ip={get_client_ip(request)}"
+        )
 
-    return record
+        # Convert to response format
+        result_data = {
+            "id": record.id,
+            "assessment_name": record.assessment_name,
+            "status": record.status,
+            "overall_score": record.overall_score,
+            "level": record.level,
+            "level_name": record.level_name,
+            "dimensions": record.dimensions or [],
+            "recommendations": record.recommendations or [],
+            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+            "assessed_by": record.assessed_by,
+            "notes": record.notes,
+        }
+
+        return create_success_response(data=result_data)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"创建评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"创建评估失败: {str(e)[:200]}")
 
 
 @router.get(
     "/assessments/{id}",
-    response_model=MaturityAssessmentRecord,
     summary="获取评估详情",
     responses={
         (200): {"description": "评估详情"},
@@ -263,19 +243,40 @@ async def create_assessment(
 async def get_assessment(
     id: str,
     current_user: UserInDB = Depends(get_current_user),
-) -> MaturityAssessmentRecord:
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
     """获取指定评估的详情"""
-    if id not in _assessment_records:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
-    return _assessment_records[id]
+    try:
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            return create_error_response(error="Assessment not found")
+
+        # Convert to response format
+        result_data = {
+            "id": record.id,
+            "assessment_name": record.assessment_name,
+            "status": record.status,
+            "overall_score": record.overall_score,
+            "level": record.level,
+            "level_name": record.level_name,
+            "dimensions": record.dimensions or [],
+            "recommendations": record.recommendations or [],
+            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+            "assessed_by": record.assessed_by,
+            "notes": record.notes,
+        }
+
+        return create_success_response(data=result_data)
+    except Exception as e:
+        logger.error(f"获取评估详情失败: {e}", exc_info=True)
+        return create_error_response(error=f"获取评估详情失败: {str(e)[:200]}")
 
 
 @router.delete(
     "/assessments/{id}",
-    status_code=status.HTTP_204_NO_CONTENT,
     summary="删除评估",
     responses={
-        (204): {"description": "评估删除成功"},
+        (200): {"description": "评估删除成功"},
         (401): {"description": "未授权"},
         (403): {"description": "权限不足"},
         (404): {"description": "评估不存在"},
@@ -285,22 +286,30 @@ async def delete_assessment(
     id: str,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
-) -> None:
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
     """删除指定的评估记录"""
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
+    try:
+        if current_user.role != "admin":
+            return create_error_response(error="Admin privileges required")
+
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            return create_error_response(error="Assessment not found")
+
+        db.delete(record)
+        db.commit()
+
+        logger.info(
+            f"Maturity assessment deleted | assessment_id={id} | user={current_user.username} "
+            f"| ip={get_client_ip(request)}"
         )
 
-    if id not in _assessment_records:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
-
-    del _assessment_records[id]
-
-    logger.info(
-        f"Maturity assessment deleted | assessment_id={id} | user={current_user.username} "
-        f"| ip={get_client_ip(request)}"
-    )
+        return create_success_response(message="Assessment deleted successfully")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"删除评估失败: {str(e)[:200]}")
 
 
 @router.get(
@@ -316,27 +325,43 @@ async def export_assessment(
     id: str,
     format: str = "json",
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
 ) -> Dict[str, Any]:
     """导出指定评估的报告"""
-    if id not in _assessment_records:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+    try:
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            return create_error_response(error="Assessment not found")
 
-    record = _assessment_records[id]
-
-    if format == "json":
-        return record.model_dump()
-    elif format == "summary":
-        return {
-            "id": record.id,
-            "assessment_name": record.assessment_name,
-            "overall_score": record.overall_score,
-            "level": record.level,
-            "level_name": record.level_name,
-            "assessed_at": record.assessed_at.isoformat(),
-            "dimension_count": len(record.dimensions),
-            "recommendation_count": len(record.recommendations),
-        }
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported format: {format}"
-        )
+        if format == "json":
+            result_data = {
+                "id": record.id,
+                "assessment_name": record.assessment_name,
+                "status": record.status,
+                "overall_score": record.overall_score,
+                "level": record.level,
+                "level_name": record.level_name,
+                "dimensions": record.dimensions or [],
+                "recommendations": record.recommendations or [],
+                "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+                "assessed_by": record.assessed_by,
+                "notes": record.notes,
+            }
+            return create_success_response(data=result_data)
+        elif format == "summary":
+            result_data = {
+                "id": record.id,
+                "assessment_name": record.assessment_name,
+                "overall_score": record.overall_score,
+                "level": record.level,
+                "level_name": record.level_name,
+                "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+                "dimension_count": len(record.dimensions) if record.dimensions else 0,
+                "recommendation_count": len(record.recommendations) if record.recommendations else 0,
+            }
+            return create_success_response(data=result_data)
+        else:
+            return create_error_response(error=f"Unsupported format: {format}")
+    except Exception as e:
+        logger.error(f"导出评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"导出评估失败: {str(e)[:200]}")

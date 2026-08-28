@@ -594,3 +594,5 @@ class FrontendEnhancementManager:
 
 # Global instance
 FRONTEND_ENHANCEMENT_MANAGER = FrontendEnhancementManager()
+# 兼容旧代码使用的别名
+frontend_enhancement_manager = FRONTEND_ENHANCEMENT_MANAGER

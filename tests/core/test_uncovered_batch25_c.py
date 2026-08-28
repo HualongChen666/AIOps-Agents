@@ -17,6 +17,7 @@ def support():
     return ui.UIExperienceSupport()
 
 
+@pytest.mark.asyncio
 async def test_initialize_schedules_background_loops(support, monkeypatch):
     """initialize() loads templates/translations and starts background tasks."""
     tasks = []
@@ -40,11 +41,13 @@ async def test_initialize_schedules_background_loops(support, monkeypatch):
         ("en", "missing_key", "missing_key"),  # fallback to key name
     ],
 )
+@pytest.mark.asyncio
 async def test_get_translation_fallback(support, lang, key, expected):
     await support._load_translations()
     assert support.get_translation(lang, key) == expected
 
 
+@pytest.mark.asyncio
 async def test_connect_websocket_not_available(support, monkeypatch):
     monkeypatch.setattr(ui, "WEBSOCKET_AVAILABLE", False)
     result = await support.connect_websocket(
@@ -53,6 +56,7 @@ async def test_connect_websocket_not_available(support, monkeypatch):
     assert result is False
 
 
+@pytest.mark.asyncio
 async def test_connect_websocket_max_connections(support, monkeypatch):
     monkeypatch.setattr(ui, "WEBSOCKET_AVAILABLE", True)
     support.max_websocket_connections = 0
@@ -63,11 +67,13 @@ async def test_connect_websocket_max_connections(support, monkeypatch):
     assert result is False
 
 
+@pytest.mark.asyncio
 async def test_disconnect_websocket_missing(support):
     await support.disconnect_websocket("not_there")
     assert "not_there" not in support.websocket_connections
 
 
+@pytest.mark.asyncio
 async def test_disconnect_websocket_without_subscriptions(support):
     support.websocket_connections["c1"] = AsyncMock()
     await support.disconnect_websocket("c1")
@@ -75,11 +81,13 @@ async def test_disconnect_websocket_without_subscriptions(support):
     assert "c1" not in support.connection_subscriptions
 
 
+@pytest.mark.asyncio
 async def test_subscribe_new_client(support):
     await support.subscribe_to_updates("new_client", ["metrics", "alerts"])
     assert support.connection_subscriptions["new_client"] == ["metrics", "alerts"]
 
 
+@pytest.mark.asyncio
 async def test_unsubscribe_missing_client_and_topic(support):
     # No errors when client or topic does not exist.
     await support.unsubscribe_from_updates("missing", ["metrics"])
@@ -88,11 +96,13 @@ async def test_unsubscribe_missing_client_and_topic(support):
     assert support.connection_subscriptions["c"] == ["alerts"]
 
 
+@pytest.mark.asyncio
 async def test_broadcast_update_not_available(support, monkeypatch):
     monkeypatch.setattr(ui, "WEBSOCKET_AVAILABLE", False)
     await support.broadcast_update("topic", {})  # should short-circuit safely
 
 
+@pytest.mark.asyncio
 async def test_broadcast_update_send_exception(support, monkeypatch):
     monkeypatch.setattr(ui, "WEBSOCKET_AVAILABLE", True)
     mock_ws = AsyncMock()
@@ -103,6 +113,7 @@ async def test_broadcast_update_send_exception(support, monkeypatch):
     mock_ws.send_json.assert_awaited()
 
 
+@pytest.mark.asyncio
 async def test_realtime_data_push_and_alert_updates(support, monkeypatch):
     await support._push_realtime_metrics()
     assert "cpu_usage" in support.realtime_data_cache
@@ -110,6 +121,7 @@ async def test_realtime_data_push_and_alert_updates(support, monkeypatch):
     await support._push_alert_updates()
 
 
+@pytest.mark.asyncio
 async def test_realtime_data_push_loop_lifecycle(support, monkeypatch):
     calls = []
 
@@ -127,6 +139,7 @@ async def test_realtime_data_push_loop_lifecycle(support, monkeypatch):
     assert len(calls) >= 2
 
 
+@pytest.mark.asyncio
 async def test_topology_update_data_and_broadcast(support):
     await support._update_topology_data()
     assert {"frontend", "api", "db", "cache"} <= set(support.topology_nodes)
@@ -136,6 +149,7 @@ async def test_topology_update_data_and_broadcast(support):
     await support._broadcast_topology_update()
 
 
+@pytest.mark.asyncio
 async def test_topology_update_loop_lifecycle(support, monkeypatch):
     calls = []
 
@@ -153,6 +167,7 @@ async def test_topology_update_loop_lifecycle(support, monkeypatch):
     assert len(calls) >= 2
 
 
+@pytest.mark.asyncio
 async def test_get_topology_data(support):
     await support._update_topology_data()
     data = await support.get_topology_data(ui.VisualizationType.FLOW)
@@ -161,6 +176,7 @@ async def test_get_topology_data(support):
     assert data["metadata"]["total_edges"] == 3
 
 
+@pytest.mark.asyncio
 async def test_get_widget_data_variants(support):
     metric_none = await support._get_widget_data({"type": "metric", "data_source": None}, "1h")
     assert metric_none == {"type": "metric", "data": None}
@@ -168,6 +184,7 @@ async def test_get_widget_data_variants(support):
     assert unknown == {"type": "unknown", "data": None}
 
 
+@pytest.mark.asyncio
 async def test_get_metric_data_empty(support):
     result = await support._get_metric_data(
         "missing_metric"
@@ -178,6 +195,7 @@ async def test_get_metric_data_empty(support):
     }  # noqa: F841  # Variable for test verification
 
 
+@pytest.mark.asyncio
 async def test_get_chart_data_with_history_and_empty(support):
     now = datetime.now()
     # Data points 20 and 40 minutes ago are inside the 1-hour range; 80 minutes is outside.
@@ -216,6 +234,7 @@ def test_parse_time_range(support, time_range, expected):
     assert support._parse_time_range(time_range) == expected
 
 
+@pytest.mark.asyncio
 async def test_get_dashboard_data_with_layout(support):
     await support._load_dashboard_templates()
     await support.set_ui_settings(
@@ -238,6 +257,7 @@ async def test_get_dashboard_data_with_layout(support):
     assert len(data["widgets"]) == 4
 
 
+@pytest.mark.asyncio
 async def test_set_ui_settings_partial_update(support):
     first = await support.set_ui_settings("u1", {"theme": "dark"})
     assert first.theme == ui.ThemeMode.DARK
@@ -254,6 +274,7 @@ async def test_set_ui_settings_partial_update(support):
     assert updated.dashboard_layout == {"x": 0}
 
 
+@pytest.mark.asyncio
 async def test_get_ui_settings(support):
     assert await support.get_ui_settings("u1") is None
     await support.set_ui_settings("u1", {"language": "zh"})
@@ -261,6 +282,7 @@ async def test_get_ui_settings(support):
     assert fetched.language == "zh"
 
 
+@pytest.mark.asyncio
 async def test_get_mobile_optimized_data(support):
     dash = await support.get_mobile_optimized_data("dashboard")
     assert dash["optimized"] is True
@@ -274,6 +296,7 @@ async def test_get_mobile_optimized_data(support):
     assert default == {"optimized": False}
 
 
+@pytest.mark.asyncio
 async def test_create_report_for_all_chart_types(support):
     for ctype in ui.ChartType:
         config = ui.ReportConfig(

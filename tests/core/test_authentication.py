@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests for core/authentication.py helper functions and classes."""
 
+import pytest
+
 from core.authentication import (
     ABACPolicy,
     ComplianceFramework,
@@ -62,6 +64,7 @@ def test_refresh_access_token():
     assert refresh_access_token("invalid") is None
 
 
+@pytest.mark.asyncio
 async def test_tenant_context():
     ctx = TenantContext()
     config = await ctx.get_tenant_config("t1")
@@ -69,6 +72,7 @@ async def test_tenant_context():
     assert await ctx.validate_tenant_access("t1", "u1") is True
 
 
+@pytest.mark.asyncio
 async def test_abac_policy():
     policy = ABACPolicy()
     assert await policy.evaluate_access({"role": "admin"}, "alerts", "delete") is True
@@ -77,6 +81,7 @@ async def test_abac_policy():
     assert await policy.evaluate_access({"role": "operator"}, "repairs", "execute") is True
 
 
+@pytest.mark.asyncio
 async def test_sso_provider():
     sso = SSOProvider()
     assert await sso.authenticate_with_sso("oidc", "tok") is not None
@@ -85,6 +90,7 @@ async def test_sso_provider():
     assert link and "oidc" in link
 
 
+@pytest.mark.asyncio
 async def test_compliance_manager():
     mgr = ComplianceManager()
     await mgr.log_audit_event("login", "u1", "auth", "read")

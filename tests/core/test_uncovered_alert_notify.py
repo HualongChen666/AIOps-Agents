@@ -126,6 +126,7 @@ def test_ssh_brute_force_and_clear():
     assert alert_engine.clear_ssh_brute_force_cache() >= 1
 
 
+@pytest.mark.asyncio
 async def test_check_linux_security_alerts(monkeypatch):
     """``check_linux_security_alerts`` persists SSH alerts and forwards to notify."""
     notify_send = AsyncMock(return_value={"status": "ok"})
@@ -144,6 +145,7 @@ async def test_check_linux_security_alerts(monkeypatch):
     notify_send.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 async def test_broadcast():
     """``broadcast`` sends JSON to registered WebSocket subscribers."""
     sent = []
@@ -220,6 +222,7 @@ def test_alert_trend_predictor():
     assert summary["predictions"]["cpu"]["trend_direction"] == prediction.trend_direction
 
 
+@pytest.mark.asyncio
 async def test_get_summary_metrics(monkeypatch):
     """``get_summary_metrics`` delegates to ``stats_engine.get_real_summary``."""
     fake_summary = {"active_alerts": 7, "critical_count": 1}
@@ -290,6 +293,7 @@ def test_validate_webhook_url():
     assert notify_engine._validate_webhook_url("https://" + "x" * 3000, "test") is False
 
 
+@pytest.mark.asyncio
 async def test_send_email_notification(monkeypatch):
     """``send_email_notification`` sends via smtplib and validates addresses."""
 
@@ -315,6 +319,7 @@ async def test_send_email_notification(monkeypatch):
     assert "invalid" in bad["error"].lower()
 
 
+@pytest.mark.asyncio
 async def test_send_teams_notification(monkeypatch):
     """``send_teams_notification`` posts via aiohttp when available."""
     fake_aiohttp = MagicMock()
@@ -334,6 +339,7 @@ async def test_send_teams_notification(monkeypatch):
     assert result["success"] is True
 
 
+@pytest.mark.asyncio
 async def test_send_notification(monkeypatch):
     """``send_notification`` routes to requested channels and validates alerts."""
     _stub_notify_channel_funcs(monkeypatch)
@@ -364,6 +370,7 @@ def test_channels_can_be_added_via_config():
     assert "email" in channels
 
 
+@pytest.mark.asyncio
 async def test_send_alert_notification_ok(monkeypatch):
     """``send_alert_notification`` succeeds over a configured webhook channel."""
     _stub_post_webhook(monkeypatch)
@@ -392,6 +399,7 @@ async def test_send_alert_notification_ok(monkeypatch):
     assert "wecom" in result["channels_sent"]
 
 
+@pytest.mark.asyncio
 async def test_send_alert_notification_states(monkeypatch):
     """``send_alert_notification`` respects disabled/min-level/no-channel config."""
     _stub_post_webhook(monkeypatch)
@@ -448,6 +456,7 @@ async def test_send_alert_notification_states(monkeypatch):
     assert no_channel["status"] == "no_channel_configured"
 
 
+@pytest.mark.asyncio
 async def test_notification_history_and_read_status(monkeypatch):
     """History/status/read APIs track sent notifications correctly."""
     _stub_post_webhook(monkeypatch)
@@ -484,6 +493,7 @@ async def test_notification_history_and_read_status(monkeypatch):
     assert read_status["status"] == "read"
 
 
+@pytest.mark.asyncio
 async def test_close_http_client():
     """``close_http_client`` closes the cached httpx client when present."""
     fake_client = MagicMock()

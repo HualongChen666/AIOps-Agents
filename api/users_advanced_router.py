@@ -256,6 +256,7 @@ def _add_activity_log(
     ip_address: Optional[str] = None,
 ) -> ActivityLog:
     """添加活动日志"""
+    global _activity_logs
     log = ActivityLog(
         id=f"act-{len(_activity_logs) + 1}",
         user_id=user_id,

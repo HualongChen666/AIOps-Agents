@@ -396,3 +396,5 @@ class MetricsHistory:
 # 全局单例
 # ============================================================
 METRICS_HISTORY = MetricsHistory()
+# 兼容旧代码使用的 metrics_history 别名
+metrics_history = METRICS_HISTORY

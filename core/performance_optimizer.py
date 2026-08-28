@@ -664,6 +664,8 @@ class PerformanceOptimizer:
 
 # Global instance
 PERFORMANCE_OPTIMIZER = PerformanceOptimizer()
+# 兼容旧代码使用的别名
+performance_optimizer = PERFORMANCE_OPTIMIZER
 
 
 def get_performance_optimizer(config: Optional[Dict[str, Any]] = None) -> PerformanceOptimizer:

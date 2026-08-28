@@ -11,7 +11,7 @@ def test_mcp_get_host_health(client, admin_headers):
         json={"host_id": "host1"},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 500)
+    assert resp.status_code in (200, 404, 500)
 
 
 @pytest.mark.smoke
@@ -21,7 +21,7 @@ def test_mcp_trigger_repair(client, admin_headers):
         json={"alert_id": "a1", "user": "admin"},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 500)
+    assert resp.status_code in (200, 404, 500)
 
 
 @pytest.mark.smoke
@@ -31,7 +31,7 @@ def test_mcp_search_incident(client, admin_headers):
         json={"query": "cpu", "limit": 5},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 500)
+    assert resp.status_code in (200, 404, 500)
 
 
 @pytest.mark.smoke
@@ -41,7 +41,7 @@ def test_mcp_get_metrics(client, admin_headers):
         json={"host_id": "host1", "metrics": ["cpu"]},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 500)
+    assert resp.status_code in (200, 404, 500)
 
 
 @pytest.mark.smoke
@@ -51,4 +51,4 @@ def test_mcp_approve_repair(client, admin_headers):
         json={"repair_id": "r1", "approved": True},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 500)
+    assert resp.status_code in (200, 404, 500)

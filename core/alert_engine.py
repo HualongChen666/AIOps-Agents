@@ -1509,4 +1509,4 @@ AUTOMATIC_ALERT_ROUTER.add_route(
 )
 
 # Expose the same routed instance under the historical alias used by tests/routers.
-alert_engine = automatic_alert_router
+alert_engine = AUTOMATIC_ALERT_ROUTER

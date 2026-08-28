@@ -109,6 +109,7 @@ def test_backup_strategy_configuration(monkeypatch, tmp_path):
     assert backup_strategy.is_backup_enabled() is True
 
 
+@pytest.mark.asyncio
 async def test_backup_strategy_database_backup(monkeypatch, tmp_path):
     cfg = _base_backup_cfg(tmp_path)
     monkeypatch.setattr(backup_strategy, "_backup_config", cfg)
@@ -141,6 +142,7 @@ async def test_backup_strategy_database_backup(monkeypatch, tmp_path):
     assert restore["restored_type"] == "database"
 
 
+@pytest.mark.asyncio
 async def test_backup_strategy_config_backup(monkeypatch, tmp_path):
     cfg = _base_backup_cfg(tmp_path)
     cfg["compression_enabled"] = True
@@ -168,6 +170,7 @@ async def test_backup_strategy_config_backup(monkeypatch, tmp_path):
     assert "path" in result
 
 
+@pytest.mark.asyncio
 async def test_backup_strategy_logs_backup(monkeypatch, tmp_path):
     cfg = _base_backup_cfg(tmp_path)
     cfg["compression_enabled"] = True
@@ -195,6 +198,7 @@ async def test_backup_strategy_logs_backup(monkeypatch, tmp_path):
     assert "path" in result
 
 
+@pytest.mark.asyncio
 async def test_backup_strategy_full_and_cleanup(monkeypatch, tmp_path):
     cfg = _base_backup_cfg(tmp_path)
     cfg["backup_types"] = ["database"]
@@ -238,6 +242,7 @@ def test_backup_strategy_hash_and_encryption(tmp_path):
 # ---------------------------------------------------------------------------
 # core.enterprise_features
 # ---------------------------------------------------------------------------
+@pytest.mark.asyncio
 async def test_enterprise_features(monkeypatch):
     ef = EnterpriseFeatures()
     await ef.initialize()
@@ -301,6 +306,7 @@ async def test_enterprise_features(monkeypatch):
 # ---------------------------------------------------------------------------
 # core.backup
 # ---------------------------------------------------------------------------
+@pytest.mark.asyncio
 async def test_backup_manager_and_factory(monkeypatch):
     _patch_backup_subprocess(monkeypatch)
 

@@ -660,6 +660,8 @@ class CrossPlatformScriptExecutor:
 REPAIR_SCRIPT_LIBRARY = RepairScriptLibrary()
 RISK_ASSESSMENT_ENGINE = RiskAssessmentEngine()
 CROSS_PLATFORM_EXECUTOR = CrossPlatformScriptExecutor()
+# 兼容旧代码使用的 repair_script_library 别名
+repair_script_library = REPAIR_SCRIPT_LIBRARY
 
 
 # ----------------------------------------------------------------------

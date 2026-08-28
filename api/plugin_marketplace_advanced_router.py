@@ -80,17 +80,17 @@ class PluginListingResponse(BaseModel):
     description: str
     author: str
     category: str
-    tags: List[str]
+    tags: Optional[List[str]]
     price: Optional[float]
     quality: str
-    review_status: str
     download_count: int
     rating: float
     review_count: int
     download_url: str
-    screenshot_urls: List[str]
+    screenshot_urls: Optional[List[str]]
     documentation_url: Optional[str]
     repository_url: Optional[str]
+    enabled: bool
     created_at: datetime
     updated_at: datetime
 
@@ -99,10 +99,10 @@ class ReviewCreate(BaseModel):
     """Review creation model"""
 
     plugin_id: str = Field(..., description="Plugin ID")
-    reviewer: str = Field(..., description="Reviewer name")
+    reviewer_id: str = Field(..., description="Reviewer ID")
+    reviewer_name: str = Field(..., description="Reviewer name")
     rating: int = Field(..., ge=1, le=5, description="Rating (1-5)")
-    comment: str = Field(..., description="Review comment")
-    title: Optional[str] = Field(None, description="Review title")
+    review_text: str = Field(..., description="Review text")
 
 
 class ReviewResponse(BaseModel):
@@ -110,23 +110,22 @@ class ReviewResponse(BaseModel):
 
     id: str
     plugin_id: str
-    plugin_name: str
-    reviewer: str
+    reviewer_id: str
+    reviewer_name: str
     rating: int
-    comment: str
-    title: Optional[str]
-    timestamp: datetime
-    helpful_count: int
+    review_text: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class CategoryResponse(BaseModel):
     """Category response model"""
 
     id: str
-    name: str
-    description: str
-    plugin_count: int
-    icon: Optional[str]
+    category_name: str
+    category_description: Optional[str]
+    parent_category_id: Optional[str]
+    enabled: bool
 
 
 class InstallRequest(BaseModel):
@@ -239,6 +238,7 @@ async def get_plugin_listings(
                 download_count=listing.download_count,
                 rating=listing.rating,
                 review_count=listing.review_count,
+                enabled=listing.enabled,
                 created_at=listing.created_at,
                 updated_at=listing.updated_at,
             )
@@ -254,7 +254,7 @@ async def get_plugin_listings(
 @router.get(
     "/plugins/{plugin_id}", response_model=PluginListingResponse, summary="Get a plugin by ID"
 )
-async def get_plugin(plugin_id: str):
+async def get_plugin(plugin_id: str, db: Session = Depends(get_db)):
     """
     Get a plugin listing by ID
 
@@ -266,11 +266,35 @@ async def get_plugin(plugin_id: str):
     """
     try:
         # Search by listing ID or plugin_id
-        for listing in _listings.values():
-            if listing["id"] == plugin_id or listing["plugin_id"] == plugin_id:
-                return PluginListingResponse(**listing)
+        plugin_listing = db.query(PluginListingDB).filter(
+            (PluginListingDB.id == plugin_id) | (PluginListingDB.plugin_id == plugin_id)
+        ).first()
 
-        raise HTTPException(status_code=404, detail="Plugin not found")
+        if not plugin_listing:
+            raise HTTPException(status_code=404, detail="Plugin not found")
+
+        return PluginListingResponse(
+            id=str(plugin_listing.id),
+            plugin_id=plugin_listing.plugin_id,
+            plugin_name=plugin_listing.plugin_name,
+            version=plugin_listing.version,
+            description=plugin_listing.description,
+            author=plugin_listing.author,
+            category=plugin_listing.category,
+            tags=plugin_listing.tags or [],
+            price=plugin_listing.price,
+            quality=plugin_listing.quality,
+            download_url=plugin_listing.download_url,
+            screenshot_urls=plugin_listing.screenshot_urls or [],
+            documentation_url=plugin_listing.documentation_url,
+            repository_url=plugin_listing.repository_url,
+            download_count=plugin_listing.download_count,
+            rating=plugin_listing.rating,
+            review_count=plugin_listing.review_count,
+            enabled=plugin_listing.enabled,
+            created_at=plugin_listing.created_at,
+            updated_at=plugin_listing.updated_at,
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -315,11 +339,9 @@ async def install_plugin(plugin_id: str, request: InstallRequest, db: Session = 
         new_install = InstalledPluginDB(
             id=str(uuid4()),
             plugin_id=plugin_listing.plugin_id,
-            plugin_name=plugin_listing.plugin_name,
-            version=request.version or plugin_listing.version,
-            install_path=install_path,
-            config=request.config,
-            installed_at=datetime.utcnow(),
+            installed_version=request.version or plugin_listing.version,
+            status="active",
+            configuration=request.config,
         )
         db.add(new_install)
         db.commit()
@@ -334,11 +356,11 @@ async def install_plugin(plugin_id: str, request: InstallRequest, db: Session = 
 
         return InstallResponse(
             success=True,
-            plugin_id=plugin_listing["plugin_id"],
-            plugin_name=plugin_listing["plugin_name"],
-            version=request.version or plugin_listing["version"],
+            plugin_id=plugin_listing.plugin_id,
+            plugin_name=plugin_listing.plugin_name,
+            version=request.version or plugin_listing.version,
             install_path=install_path,
-            message=f"Plugin '{plugin_listing['plugin_name']}' installed successfully",
+            message=f"Plugin '{plugin_listing.plugin_name}' installed successfully",
         )
     except HTTPException:
         raise
@@ -405,10 +427,10 @@ async def get_categories(db: Session = Depends(get_db)):
         return [
             CategoryResponse(
                 id=str(category.id),
-                name=category.name,
-                description=category.description,
-                plugin_count=category.plugin_count,
-                icon=category.icon,
+                category_name=category.category_name,
+                category_description=category.category_description,
+                parent_category_id=category.parent_category_id,
+                enabled=category.enabled,
             )
             for category in categories
         ]
@@ -453,13 +475,12 @@ async def get_reviews(
             ReviewResponse(
                 id=str(review.id),
                 plugin_id=review.plugin_id,
-                user_id=review.user_id,
-                user_name=review.user_name,
+                reviewer_id=review.reviewer_id,
+                reviewer_name=review.reviewer_name,
                 rating=review.rating,
-                title=review.title,
-                comment=review.comment,
-                created_at=review.created_at.isoformat() if review.created_at else None,
-                updated_at=review.updated_at.isoformat() if review.updated_at else None,
+                review_text=review.review_text,
+                created_at=review.created_at,
+                updated_at=review.updated_at,
             )
             for review in reviews
         ]
@@ -492,26 +513,28 @@ async def create_review(review: ReviewCreate, db: Session = Depends(get_db)):
         new_review = PluginReviewDB(
             id=str(uuid4()),
             plugin_id=review.plugin_id,
-            user_id=review.reviewer,
-            user_name=review.reviewer,
+            reviewer_id=review.reviewer_id,
+            reviewer_name=review.reviewer_name,
             rating=review.rating,
-            title=review.title if hasattr(review, 'title') else "",
-            comment=review.comment,
+            review_text=review.review_text,
         )
         db.add(new_review)
         db.commit()
         db.refresh(new_review)
 
+        # Update plugin review count
+        plugin_listing.review_count += 1
+        db.commit()
+
         return ReviewResponse(
             id=str(new_review.id),
             plugin_id=new_review.plugin_id,
-            user_id=new_review.user_id,
-            user_name=new_review.user_name,
+            reviewer_id=new_review.reviewer_id,
+            reviewer_name=new_review.reviewer_name,
             rating=new_review.rating,
-            title=new_review.title,
-            comment=new_review.comment,
-            created_at=new_review.created_at.isoformat() if new_review.created_at else None,
-            updated_at=new_review.updated_at.isoformat() if new_review.updated_at else None,
+            review_text=new_review.review_text,
+            created_at=new_review.created_at,
+            updated_at=new_review.updated_at,
         )
     except HTTPException:
         raise
@@ -543,13 +566,12 @@ async def get_plugin_reviews(plugin_id: str, limit: int = Query(50, ge=1, le=100
             ReviewResponse(
                 id=str(review.id),
                 plugin_id=review.plugin_id,
-                user_id=review.user_id,
-                user_name=review.user_name,
+                reviewer_id=review.reviewer_id,
+                reviewer_name=review.reviewer_name,
                 rating=review.rating,
-                title=review.title,
-                comment=review.comment,
-                created_at=review.created_at.isoformat() if review.created_at else None,
-                updated_at=review.updated_at.isoformat() if review.updated_at else None,
+                review_text=review.review_text,
+                created_at=review.created_at,
+                updated_at=review.updated_at,
             )
             for review in reviews
         ]

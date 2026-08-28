@@ -540,6 +540,7 @@ async def test_approve_and_execute_remote_missing_task_id(remote_client, monkeyp
     assert "task_id" in result["error"]
 
 
+@pytest.mark.skipif(not services_client._HEAL_GRAPH_AVAILABLE, reason="Heal graph engine not available")
 @pytest.mark.asyncio
 async def test_approve_and_execute_remote_failure_then_local(remote_client, monkeypatch):
     """approve_and_execute falls back to core.heal_graph when remote repair_service fails."""
@@ -555,6 +556,7 @@ async def test_approve_and_execute_remote_failure_then_local(remote_client, monk
     assert result["success"] is True
 
 
+@pytest.mark.skipif(not services_client._HEAL_GRAPH_AVAILABLE, reason="Heal graph engine not available")
 @pytest.mark.asyncio
 async def test_approve_and_execute_local(monkeypatch):
     """approve_and_execute uses core.heal_graph in local mode."""

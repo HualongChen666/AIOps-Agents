@@ -506,7 +506,7 @@ def _create_repair_record(
     }
 
 
-def _persist_repair_record(record: Dict[str, Any], script: Dict, script_key: str) -> None:
+async def _persist_repair_record(record: Dict[str, Any], script: Dict, script_key: str) -> None:
     """
     持久化修复记录
 
@@ -520,16 +520,19 @@ def _persist_repair_record(record: Dict[str, Any], script: Dict, script_key: str
         repair_history.appendleft(record)
 
     # ── 8. 🔧 BUG-FIX-23 + RE7:同步写入 SQLite ──
-    sqlite_ok = asyncio.to_thread(
-        _record_to_sqlite_sync,
-        record["success"],
-        f"Windows 手动修复: {script['name']}",
-        script_key,
-        str(record["output"]),
-    )
-
-    # 🔧 RE7:在记录中标记 SQLite 写入状态(供调用方感知)
-    record["sqlite_persisted"] = sqlite_ok
+    try:
+        sqlite_ok = await asyncio.to_thread(
+            _record_to_sqlite_sync,
+            record["success"],
+            f"Windows 手动修复: {script['name']}",
+            script_key,
+            str(record["output"]),
+        )
+        # 🔧 RE7:在记录中标记 SQLite 写入状态(供调用方感知)
+        record["sqlite_persisted"] = sqlite_ok
+    except Exception as e:
+        logger.error(f"SQLite persistence failed: {e}")
+        record["sqlite_persisted"] = False
 
 
 async def execute_repair(

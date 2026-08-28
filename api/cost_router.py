@@ -9,6 +9,7 @@
 全部受 `admin` 角色保护（调用 `core.rbac.role_required`).
 """
 
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 
 from core.cost_monitor import budget_status, collect_costs, forecast_costs
@@ -33,8 +34,24 @@ router = APIRouter(prefix="/api/cost", tags=["cost"])
         404: {"description": "无成本数据"},
     },
 )
-async def get_collect():
-    cost_data = collect_costs()
+async def get_collect(
+    start_date: str = Query(default=None, description="Start date in ISO format (YYYY-MM-DD)"),
+    end_date: str = Query(default=None, description="End date in ISO format (YYYY-MM-DD)")
+):
+    # Validate date format if provided
+    if start_date:
+        try:
+            datetime.fromisoformat(start_date)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid start_date format. Use YYYY-MM-DD")
+    
+    if end_date:
+        try:
+            datetime.fromisoformat(end_date)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid end_date format. Use YYYY-MM-DD")
+    
+    cost_data = collect_costs(start_date=start_date, end_date=end_date)
     if not cost_data:
         raise HTTPException(status_code=404, detail="No cost data found")
     return {"costs": cost_data}
@@ -62,6 +79,11 @@ async def get_collect():
 )
 async def get_forecast(days: int = Query(default=None, description="Forecast horizon days")):
     days = days or 30
+    
+    # Validate days parameter
+    if days <= 0:
+        raise HTTPException(status_code=422, detail="Days must be a positive integer")
+    
     cost_data = forecast_costs(days)
     if not cost_data:
         raise HTTPException(status_code=404, detail="Forecast data unavailable")
@@ -89,5 +111,7 @@ async def get_forecast(days: int = Query(default=None, description="Forecast hor
         403: {"description": "权限不足(需要管理员)"},
     },
 )
-async def get_budget():
-    return budget_status()
+async def get_budget(
+    detailed: bool = Query(default=False, description="Return detailed budget breakdown")
+):
+    return budget_status(detailed=detailed)

@@ -62,6 +62,7 @@ pytestmark = [pytest.mark.core]
 
 
 class TestFrontendPerformanceOptimizer:
+    @pytest.mark.asyncio
     async def test_analyze_and_report(self):
         opt = FrontendPerformanceOptimizer()
         report = await opt.analyze_performance("https://example.com")
@@ -78,6 +79,7 @@ class TestFrontendPerformanceOptimizer:
         assert stats["total_optimizations"] == 0
         assert stats["active_rules"] == len(opt.optimization_rules)
 
+    @pytest.mark.asyncio
     async def test_apply_optimization_all_paths(self, monkeypatch):
         opt = FrontendPerformanceOptimizer()
 
@@ -134,6 +136,7 @@ class TestFrontendPerformanceOptimizer:
         assert len(recommendations) > 0
         assert "Apply comprehensive optimization strategy" in recommendations
 
+    @pytest.mark.asyncio
     async def test_auto_optimize(self):
         opt = FrontendPerformanceOptimizer({"performance_threshold": 95.0})
         summary = await opt.auto_optimize("https://example.com")
@@ -176,6 +179,7 @@ class TestL5L6ExecutionIntegrator:
         )
         return inst
 
+    @pytest.mark.asyncio
     async def test_register_and_trigger(self, integrator):
         action = KnowledgeBasedAction(
             action_id="action_1",
@@ -203,6 +207,7 @@ class TestL5L6ExecutionIntegrator:
             )
             await integrator.trigger_execution(bad)
 
+    @pytest.mark.asyncio
     async def test_execute_request_success_and_history(self, integrator):
         action = KnowledgeBasedAction(
             action_id="action_1",
@@ -224,6 +229,7 @@ class TestL5L6ExecutionIntegrator:
         assert status is not None
         assert status["status"] == "completed"
 
+    @pytest.mark.asyncio
     async def test_execute_request_skipped(self, integrator):
         action = KnowledgeBasedAction(
             action_id="action_1",
@@ -244,6 +250,7 @@ class TestL5L6ExecutionIntegrator:
         status = await integrator.get_execution_status("req_2")
         assert status["status"] == "skipped"
 
+    @pytest.mark.asyncio
     async def test_execute_request_failure(self, integrator):
         action = KnowledgeBasedAction(
             action_id="action_1",
@@ -265,6 +272,7 @@ class TestL5L6ExecutionIntegrator:
         assert status["status"] == "failed"
         assert "boom" in status["error"]
 
+    @pytest.mark.asyncio
     async def test_cancel_execution(self, integrator):
         result = ExecutionResult(
             request_id="req_x", action_id="action_x", status="pending"
@@ -273,6 +281,7 @@ class TestL5L6ExecutionIntegrator:
         assert await integrator.cancel_execution("req_x") is True
         assert await integrator.cancel_execution("missing") is False
 
+    @pytest.mark.asyncio
     async def test_start_processor_and_getters(self, integrator):
         action = KnowledgeBasedAction(
             action_id="action_1",
@@ -294,6 +303,7 @@ class TestL5L6ExecutionIntegrator:
 
 
 class TestRequestTracking:
+    @pytest.mark.asyncio
     async def test_middleware_uses_existing_request_id(self):
         class FakeResponse:
             headers = {}
@@ -312,6 +322,7 @@ class TestRequestTracking:
         assert response.headers["X-Request-ID"] == "provided-id"
         assert get_request_id() == "provided-id"
 
+    @pytest.mark.asyncio
     async def test_middleware_generates_request_id(self):
         class FakeResponse:
             headers = {}
@@ -417,6 +428,7 @@ class TestL4L5DataIntegrator:
         )
         return inst
 
+    @pytest.mark.asyncio
     async def test_register_and_ingest(self, integrator):
         stream = DataStream(
             stream_id="metrics_1",
@@ -438,6 +450,7 @@ class TestL4L5DataIntegrator:
         assert await integrator.ingest_data("metrics_1", {"cpu": 0.5}) is True
         assert await integrator.ingest_data("missing", {}) is False
 
+    @pytest.mark.asyncio
     async def test_query_and_metrics(self, integrator):
         stream = DataStream(
             stream_id="logs_1",
@@ -455,6 +468,7 @@ class TestL4L5DataIntegrator:
         assert metrics is not None
         assert metrics["stream_id"] == "logs_1"
 
+    @pytest.mark.asyncio
     async def test_process_batch_success_and_failure(self, integrator):
         stream = DataStream(
             stream_id="events_1",
@@ -476,6 +490,7 @@ class TestL4L5DataIntegrator:
         await integrator._process_batch("events_1", batch)
         assert integrator.stream_metrics["events_1"].failed_records == 1
 
+    @pytest.mark.asyncio
     async def test_start_stop_realtime_processing(self, integrator):
         stream = DataStream(
             stream_id="alerts_1",

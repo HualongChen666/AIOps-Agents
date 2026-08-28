@@ -34,6 +34,7 @@ def enabled_config(monkeypatch):
     )
 
 
+@pytest.mark.asyncio
 async def test_verify_repair_disabled(patch_upsert, monkeypatch):
     monkeypatch.setattr(verifier, "VERIFY_CONFIG", {"enabled": False})
     result = await verifier.verify_repair(
@@ -43,6 +44,7 @@ async def test_verify_repair_disabled(patch_upsert, monkeypatch):
     assert result["strategy"] == "skipped"
 
 
+@pytest.mark.asyncio
 async def test_verify_repair_invalid_alert(enabled_config, patch_upsert):
     result = await verifier.verify_repair(
         "bad", "restart_service", {}, None, ""
@@ -51,6 +53,7 @@ async def test_verify_repair_invalid_alert(enabled_config, patch_upsert):
     assert "dict" in result["error_msg"]
 
 
+@pytest.mark.asyncio
 async def test_verify_repair_empty_script_key(enabled_config, patch_upsert):
     result = await verifier.verify_repair(
         {"platform": "linux"}, "", {}, None, ""
@@ -58,6 +61,7 @@ async def test_verify_repair_empty_script_key(enabled_config, patch_upsert):
     assert result["strategy"] == "error"
 
 
+@pytest.mark.asyncio
 async def test_verify_repair_unknown_script(enabled_config, patch_upsert):
     result = await verifier.verify_repair(
         {"platform": "linux"}, "unknown", {}, None, ""
@@ -66,6 +70,7 @@ async def test_verify_repair_unknown_script(enabled_config, patch_upsert):
     assert "skipped" in result["strategy"]
 
 
+@pytest.mark.asyncio
 async def test_verify_repair_metric_wait_conflict(enabled_config, patch_upsert, monkeypatch):
     monkeypatch.setattr(
         verifier,
@@ -79,6 +84,7 @@ async def test_verify_repair_metric_wait_conflict(enabled_config, patch_upsert, 
     assert "metric_wait_sec" in result["recommendation"]
 
 
+@pytest.mark.asyncio
 async def test_verify_repair_success(enabled_config, patch_upsert, monkeypatch):
     dispatch = AsyncMock(return_value=_ok_result())
     monkeypatch.setattr(verifier, "_dispatch_verification", dispatch)
@@ -97,6 +103,7 @@ async def test_verify_repair_success(enabled_config, patch_upsert, monkeypatch):
     assert dispatch.called
 
 
+@pytest.mark.asyncio
 async def test_verify_repair_dispatch_exception(enabled_config, patch_upsert, monkeypatch):
     monkeypatch.setattr(
         verifier, "_dispatch_verification", AsyncMock(side_effect=RuntimeError("boom"))

@@ -21,6 +21,7 @@ def ecosystem(no_http):
     return ie.IntegrationEcosystem()
 
 
+@pytest.mark.asyncio
 async def test_register_and_query_integrations(ecosystem):
     config = {"url": "http://prom", "port": 9090}
     integration = await ecosystem.register_integration(
@@ -42,6 +43,7 @@ async def test_register_and_query_integrations(ecosystem):
     assert len(filtered) == 1
 
 
+@pytest.mark.asyncio
 async def test_register_cloud_and_cicd_integrations(ecosystem):
     cloud = await ecosystem.register_integration(
         name="AWS",
@@ -62,6 +64,7 @@ async def test_register_cloud_and_cicd_integrations(ecosystem):
     assert cicd.type == ie.IntegrationType.CICD
 
 
+@pytest.mark.asyncio
 async def test_register_notification_integration(ecosystem):
     slack = await ecosystem.register_integration(  # noqa: F841  # Variable for test verification
         name="Slack",
@@ -78,6 +81,7 @@ async def test_register_notification_integration(ecosystem):
     assert result is False
 
 
+@pytest.mark.asyncio
 async def test_webhook_signature_and_trigger(ecosystem):
     webhook = await ecosystem.register_webhook(
         url="http://example.com", secret="s3cret", events=["alert"]
@@ -98,6 +102,7 @@ async def test_webhook_signature_and_trigger(ecosystem):
     assert unknown is False
 
 
+@pytest.mark.asyncio
 async def test_publish_and_process_event(ecosystem):
     called = []
 
@@ -117,6 +122,7 @@ async def test_publish_and_process_event(ecosystem):
     assert event.status == "processed"
 
 
+@pytest.mark.asyncio
 async def test_query_and_trigger_methods(ecosystem):
     integration = await ecosystem.register_integration(
         name="Prometheus",
@@ -147,6 +153,7 @@ async def test_query_and_trigger_methods(ecosystem):
     assert await ecosystem.create_jira_ticket("sum", "desc", jira.id) is None
 
 
+@pytest.mark.asyncio
 async def test_disable_enable_remove(ecosystem):
     integration = await ecosystem.register_integration(
         name="AWS",
@@ -165,6 +172,7 @@ async def test_disable_enable_remove(ecosystem):
     assert integration.id not in ecosystem.integrations
 
 
+@pytest.mark.asyncio
 async def test_integration_statistics(ecosystem):
     await ecosystem.register_integration(
         name="Prometheus",
@@ -191,6 +199,7 @@ def test_extended_integration_registry():
     assert any("Grafana" in s["name"] for s in search)
 
 
+@pytest.mark.asyncio
 async def test_connector_marketplace():
     market = ie.ConnectorMarketplace()
     connectors = await market.discover_connectors()
@@ -211,6 +220,7 @@ async def test_connector_marketplace():
     assert uninstall["success"] is True
 
 
+@pytest.mark.asyncio
 async def test_plugin_sdk():
     sdk = ie.PluginSDK()
 

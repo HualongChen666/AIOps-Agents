@@ -60,6 +60,7 @@ def test_error_logging():
     core.error_logging.setup_exception_handlers(app)
 
 
+@pytest.mark.asyncio
 async def test_exception_handler():
     app = FastAPI()
     core.exception_handler.setup_exception_handlers(app)
@@ -79,6 +80,7 @@ async def test_exception_handler():
     assert resp.status_code == 500
 
 
+@pytest.mark.asyncio
 async def test_error_handling_logging():
     ehl = core.error_handling_logging.ErrorHandlingAndLogging()
     record = await ehl.handle_exception(ValueError("x"))
@@ -86,6 +88,7 @@ async def test_error_handling_logging():
     ehl.info("test message")
 
 
+@pytest.mark.asyncio
 async def test_error_recovery():
     config = core.error_recovery.core.RetryConfig(max_attempts=2, base_delay=0.01, max_delay=0.1)
     policy = core.error_recovery.core.RetryPolicy(config)

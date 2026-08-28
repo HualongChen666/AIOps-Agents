@@ -12,11 +12,15 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from core.authentication import UserInDB, get_user, verify_token
+from core.api_helpers import create_success_response, create_error_response
+from core.database import get_db
+from core.models import TenantConfigDB, TenantSettingsDB, TenantMemberDB
 from core.tenant_engine import (
     _PLAN_LIMITS,
     get_tenant,
     update_tenant,
 )
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -222,20 +226,18 @@ class TenantMemberUpdate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-# ============ In-memory data storage ============
-_tenant_configs: Dict[str, TenantConfig] = {}
-_tenant_settings: Dict[str, TenantSettings] = {}
-_tenant_members: Dict[str, List[TenantMember]] = {}
-
-
-def _get_tenant_config(tenant_id: str) -> TenantConfig:
+# ============ Database Helper Functions ============
+def _get_tenant_config(db: Session, tenant_id: str) -> TenantConfig:
     """获取租户配置"""
-    if tenant_id not in _tenant_configs:
+    config = db.query(TenantConfigDB).filter(TenantConfigDB.tenant_id == tenant_id).first()
+    
+    if not config:
+        # 如果数据库中没有，从tenant_engine获取并创建
         tenant = get_tenant(tenant_id)
         if not tenant:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
-
-        _tenant_configs[tenant_id] = TenantConfig(
+        
+        config = TenantConfigDB(
             tenant_id=tenant_id,
             name=tenant.name,
             domain=None,
@@ -250,38 +252,76 @@ def _get_tenant_config(tenant_id: str) -> TenantConfig:
             sso_config=None,
             audit_logging_enabled=True,
             data_retention_days=90,
-            created_at=tenant.created_at,
-            updated_at=tenant.created_at,
         )
-    return _tenant_configs[tenant_id]
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    
+    return TenantConfig(
+        tenant_id=config.tenant_id,
+        name=config.name,
+        domain=config.domain,
+        logo_url=config.logo_url,
+        primary_color=config.primary_color,
+        secondary_color=config.secondary_color,
+        custom_css=config.custom_css,
+        custom_js=config.custom_js,
+        branding_enabled=config.branding_enabled,
+        sso_enabled=config.sso_enabled,
+        sso_provider=config.sso_provider,
+        sso_config=config.sso_config,
+        audit_logging_enabled=config.audit_logging_enabled,
+        data_retention_days=config.data_retention_days,
+        created_at=config.created_at.isoformat() if config.created_at else None,
+        updated_at=config.updated_at.isoformat() if config.updated_at else None,
+    )
 
 
-def _get_tenant_members(tenant_id: str) -> List[TenantMember]:
+def _get_tenant_members(db: Session, tenant_id: str) -> List[TenantMember]:
     """获取租户成员"""
-    if tenant_id not in _tenant_members:
+    members = db.query(TenantMemberDB).filter(TenantMemberDB.tenant_id == tenant_id).all()
+    
+    if not members:
         # 创建默认成员
-        _tenant_members[tenant_id] = [
-            TenantMember(
-                id=f"member-{tenant_id}-1",
-                tenant_id=tenant_id,
-                user_id=1,
-                username="admin",
-                full_name="系统管理员",
-                email="admin@example.com",
-                role="owner",
-                permissions=["*"],
-                status="active",
-                invited_at=datetime.now().isoformat(),
-                joined_at=datetime.now().isoformat(),
-            )
-        ]
-    return _tenant_members[tenant_id]
+        default_member = TenantMemberDB(
+            id=f"member-{tenant_id}-1",
+            tenant_id=tenant_id,
+            user_id="1",
+            role="owner",
+            email="admin@example.com",
+            full_name="系统管理员",
+        )
+        db.add(default_member)
+        db.commit()
+        db.refresh(default_member)
+        members = [default_member]
+    
+    return [
+        TenantMember(
+            id=m.id,
+            tenant_id=m.tenant_id,
+            user_id=int(m.user_id) if m.user_id.isdigit() else 1,
+            username=m.user_id,
+            full_name=m.full_name,
+            email=m.email,
+            role=m.role,
+            permissions=["*"] if m.role == "owner" else ["read"],
+            status="active",
+            invited_by="system",
+            invited_at=m.created_at.isoformat() if m.created_at else None,
+            joined_at=m.created_at.isoformat() if m.created_at else None,
+        )
+        for m in members
+    ]
 
 
-def _get_tenant_settings(tenant_id: str) -> TenantSettings:
+def _get_tenant_settings(db: Session, tenant_id: str) -> TenantSettings:
     """获取租户设置"""
-    if tenant_id not in _tenant_settings:
-        _tenant_settings[tenant_id] = TenantSettings(
+    settings = db.query(TenantSettingsDB).filter(TenantSettingsDB.tenant_id == tenant_id).first()
+    
+    if not settings:
+        # 创建默认设置
+        settings = TenantSettingsDB(
             tenant_id=tenant_id,
             notification_enabled=True,
             notification_channels=["email", "slack"],
@@ -292,7 +332,21 @@ def _get_tenant_settings(tenant_id: str) -> TenantSettings:
             compliance_settings={"audit_log_retention": 90},
             integration_settings={},
         )
-    return _tenant_settings[tenant_id]
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    
+    return TenantSettings(
+        tenant_id=settings.tenant_id,
+        notification_enabled=settings.notification_enabled,
+        notification_channels=settings.notification_channels or [],
+        alert_thresholds=settings.alert_thresholds or {},
+        maintenance_windows=settings.maintenance_windows or [],
+        backup_schedule=settings.backup_schedule,
+        security_policies=settings.security_policies or {},
+        compliance_settings=settings.compliance_settings or {},
+        integration_settings=settings.integration_settings or {},
+    )
 
 
 def _calculate_usage_percentage(used: float, total: float) -> float:
@@ -316,11 +370,12 @@ def _calculate_usage_percentage(used: float, total: float) -> float:
 )
 async def get_tenant_configurations(
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TenantConfig:
     """获取当前租户的配置信息"""
     # 使用默认租户ID（实际应该从用户上下文获取）
     tenant_id = "default"
-    return _get_tenant_config(tenant_id)
+    return _get_tenant_config(db, tenant_id)
 
 
 @router.patch(
@@ -338,25 +393,31 @@ async def update_tenant_configurations(
     config_update: TenantConfigUpdate,
     request: Request,
     current_user: UserInDB = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> TenantConfig:
     """更新当前租户的配置"""
     tenant_id = "default"
-    config = _get_tenant_config(tenant_id)
+    config_db = db.query(TenantConfigDB).filter(TenantConfigDB.tenant_id == tenant_id).first()
+    
+    if not config_db:
+        # 如果不存在，先创建
+        config = _get_tenant_config(db, tenant_id)
+        config_db = db.query(TenantConfigDB).filter(TenantConfigDB.tenant_id == tenant_id).first()
 
     update_data = config_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        if hasattr(config, key):
-            setattr(config, key, value)
+        if hasattr(config_db, key):
+            setattr(config_db, key, value)
 
-    config.updated_at = datetime.now().isoformat()
-    _tenant_configs[tenant_id] = config
+    db.commit()
+    db.refresh(config_db)
 
     logger.info(
         f"Tenant config updated | tenant_id={tenant_id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
     )
 
-    return config
+    return _get_tenant_config(db, tenant_id)
 
 
 # ============ Settings Endpoints ============
@@ -372,10 +433,11 @@ async def update_tenant_configurations(
 )
 async def get_tenant_settings_endpoint(
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TenantSettings:
     """获取当前租户的设置"""
     tenant_id = "default"
-    return _get_tenant_settings(tenant_id)
+    return _get_tenant_settings(db, tenant_id)
 
 
 @router.patch(
@@ -392,24 +454,31 @@ async def update_tenant_settings_endpoint(
     settings_update: TenantSettingsUpdate,
     request: Request,
     current_user: UserInDB = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> TenantSettings:
     """更新当前租户的设置"""
     tenant_id = "default"
-    settings = _get_tenant_settings(tenant_id)
+    settings_db = db.query(TenantSettingsDB).filter(TenantSettingsDB.tenant_id == tenant_id).first()
+    
+    if not settings_db:
+        # 如果不存在，先创建
+        settings = _get_tenant_settings(db, tenant_id)
+        settings_db = db.query(TenantSettingsDB).filter(TenantSettingsDB.tenant_id == tenant_id).first()
 
     update_data = settings_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        if hasattr(settings, key):
-            setattr(settings, key, value)
+        if hasattr(settings_db, key):
+            setattr(settings_db, key, value)
 
-    _tenant_settings[tenant_id] = settings
+    db.commit()
+    db.refresh(settings_db)
 
     logger.info(
         f"Tenant settings updated | tenant_id={tenant_id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
     )
 
-    return settings
+    return _get_tenant_settings(db, tenant_id)
 
 
 @router.patch(
@@ -428,24 +497,30 @@ async def update_tenant_config(
     config_update: TenantConfigUpdate,
     request: Request,
     current_user: UserInDB = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> TenantConfig:
     """更新指定租户的配置"""
-    config = _get_tenant_config(tenant_id)
+    config_db = db.query(TenantConfigDB).filter(TenantConfigDB.tenant_id == tenant_id).first()
+    
+    if not config_db:
+        # 如果不存在，先创建
+        config = _get_tenant_config(db, tenant_id)
+        config_db = db.query(TenantConfigDB).filter(TenantConfigDB.tenant_id == tenant_id).first()
 
     update_data = config_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        if hasattr(config, key):
-            setattr(config, key, value)
+        if hasattr(config_db, key):
+            setattr(config_db, key, value)
 
-    config.updated_at = datetime.now().isoformat()
-    _tenant_configs[tenant_id] = config
+    db.commit()
+    db.refresh(config_db)
 
     logger.info(
         f"Tenant config updated | tenant_id={tenant_id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
     )
 
-    return config
+    return _get_tenant_config(db, tenant_id)
 
 
 # ============ Limits Endpoints ============
@@ -775,6 +850,7 @@ async def get_tenant_billing_endpoint(
 async def get_tenant_members(
     tenant_id: str,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> List[TenantMember]:
     """获取指定租户的成员列表"""
     # 验证租户存在
@@ -782,7 +858,7 @@ async def get_tenant_members(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
-    return _get_tenant_members(tenant_id)
+    return _get_tenant_members(db, tenant_id)
 
 
 @router.post(
@@ -803,6 +879,7 @@ async def add_tenant_member(
     member_create: TenantMemberCreate,
     request: Request,
     current_user: UserInDB = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> TenantMember:
     """向指定租户添加新成员"""
     # 验证租户存在
@@ -810,14 +887,16 @@ async def add_tenant_member(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
-    members = _get_tenant_members(tenant_id)
-
     # 检查用户是否已是成员
-    for member in members:
-        if member.user_id == member_create.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="User is already a member"
-            )
+    existing = db.query(TenantMemberDB).filter(
+        TenantMemberDB.tenant_id == tenant_id,
+        TenantMemberDB.user_id == str(member_create.user_id)
+    ).first()
+    
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User is already a member"
+        )
 
     # 获取用户信息
     from core.user_service import user_service
@@ -827,30 +906,37 @@ async def add_tenant_member(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # 创建新成员
-    new_member = TenantMember(
-        id=f"member-{tenant_id}-{len(members) + 1}",
+    new_member_db = TenantMemberDB(
+        id=f"member-{tenant_id}-{member_create.user_id}",
         tenant_id=tenant_id,
-        user_id=member_create.user_id,
-        username=user.username,
-        full_name=user.full_name,
-        email=user.email,
+        user_id=str(member_create.user_id),
         role=member_create.role,
-        permissions=member_create.permissions if member_create.permissions else ["read"],
-        status="pending",
-        invited_by=current_user.username,
-        invited_at=datetime.now().isoformat(),
-        joined_at=None,
+        email=user.email,
+        full_name=user.full_name,
     )
-
-    members.append(new_member)
-    _tenant_members[tenant_id] = members
+    db.add(new_member_db)
+    db.commit()
+    db.refresh(new_member_db)
 
     logger.info(
         f"Tenant member added | tenant_id={tenant_id} | user_id={member_create.user_id} | "
         f"invited_by={current_user.username} | ip={get_client_ip(request)}"
     )
 
-    return new_member
+    return TenantMember(
+        id=new_member_db.id,
+        tenant_id=new_member_db.tenant_id,
+        user_id=member_create.user_id,
+        username=user.username,
+        full_name=new_member_db.full_name,
+        email=new_member_db.email,
+        role=new_member_db.role,
+        permissions=member_create.permissions if member_create.permissions else ["read"],
+        status="pending",
+        invited_by=current_user.username,
+        invited_at=new_member_db.created_at.isoformat() if new_member_db.created_at else None,
+        joined_at=None,
+    )
 
 
 @router.patch(
@@ -870,27 +956,33 @@ async def update_tenant_member(
     member_update: TenantMemberUpdate,
     request: Request,
     current_user: UserInDB = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> TenantMember:
     """更新指定租户成员的信息"""
-    members = _get_tenant_members(tenant_id)
+    member_db = db.query(TenantMemberDB).filter(
+        TenantMemberDB.tenant_id == tenant_id,
+        TenantMemberDB.id == member_id
+    ).first()
 
+    if not member_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    update_data = member_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if hasattr(member_db, key):
+            setattr(member_db, key, value)
+
+    db.commit()
+    db.refresh(member_db)
+
+    logger.info(
+        f"Tenant member updated | tenant_id={tenant_id} | member_id={member_id} | "
+        f"user={current_user.username} | ip={get_client_ip(request)}"
+    )
+
+    members = _get_tenant_members(db, tenant_id)
     for member in members:
         if member.id == member_id:
-            update_data = member_update.model_dump(exclude_unset=True)
-            for key, value in update_data.items():
-                if hasattr(member, key):
-                    setattr(member, key, value)
-
-            if member_update.status == "active" and not member.joined_at:
-                member.joined_at = datetime.now().isoformat()
-
-            _tenant_members[tenant_id] = members
-
-            logger.info(
-                f"Tenant member updated | tenant_id={tenant_id} | member_id={member_id} | "
-                f"user={current_user.username} | ip={get_client_ip(request)}"
-            )
-
             return member
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
@@ -912,15 +1004,19 @@ async def delete_tenant_member(
     member_id: str,
     request: Request,
     current_user: UserInDB = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> None:
     """从指定租户删除成员"""
-    members = _get_tenant_members(tenant_id)
+    member_db = db.query(TenantMemberDB).filter(
+        TenantMemberDB.tenant_id == tenant_id,
+        TenantMemberDB.id == member_id
+    ).first()
 
-    original_count = len(members)
-    _tenant_members[tenant_id] = [m for m in members if m.id != member_id]
-
-    if len(_tenant_members[tenant_id]) == original_count:
+    if not member_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    db.delete(member_db)
+    db.commit()
 
     logger.info(
         f"Tenant member deleted | tenant_id={tenant_id} | member_id={member_id} | "

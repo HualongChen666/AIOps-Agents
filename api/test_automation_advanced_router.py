@@ -14,6 +14,9 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from core.authentication import UserInDB, get_user, verify_token
+from core.database import get_db
+from core.models import TestSuiteDB, TestExecutionDB
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -146,80 +149,50 @@ class TestExecutionCreate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-# ============ In-memory data storage ============
-_test_suites: Dict[str, TestSuite] = {}
-_test_executions: Dict[str, TestExecution] = {}
+# ============ Database Helper Functions ============
+def _db_to_suite(suite_db: TestSuiteDB) -> TestSuite:
+    """Convert database model to API model"""
+    return TestSuite(
+        id=suite_db.id,
+        name=suite_db.name,
+        description=suite_db.description,
+        test_type=suite_db.test_type,
+        framework=suite_db.framework,
+        status=TestSuiteStatus(suite_db.status),
+        test_count=0,  # Will be calculated from executions
+        last_execution=None,  # Will be fetched from executions
+        last_result=None,
+        schedule=suite_db.schedule,
+        created_at=suite_db.created_at or datetime.now(),
+        updated_at=suite_db.updated_at or datetime.now(),
+        created_by=suite_db.created_by or "system",
+    )
 
 
-def _init_test_suites():
-    """初始化默认测试套件"""
-    if not _test_suites:
-        suite1 = TestSuite(
-            id=str(uuid.uuid4()),
-            name="API Integration Tests",
-            description="测试所有API端点的集成测试",
-            test_type="integration",
-            framework="pytest",
-            status=TestSuiteStatus.ACTIVE,
-            test_count=25,
-            last_execution=datetime.now() - timedelta(hours=2),
-            last_result="passed",
-            schedule="0 2 * * *",
-            created_at=datetime.now() - timedelta(days=30),
-            updated_at=datetime.now() - timedelta(hours=2),
-            created_by="admin",
-        )
-        suite2 = TestSuite(
-            id=str(uuid.uuid4()),
-            name="Performance Tests",
-            description="系统性能和负载测试",
-            test_type="performance",
-            framework="locust",
-            status=TestSuiteStatus.ACTIVE,
-            test_count=10,
-            last_execution=datetime.now() - timedelta(days=1),
-            last_result="passed",
-            schedule="0 3 * * 0",
-            created_at=datetime.now() - timedelta(days=20),
-            updated_at=datetime.now() - timedelta(days=1),
-            created_by="admin",
-        )
-        _test_suites[suite1.id] = suite1
-        _test_suites[suite2.id] = suite2
-
-
-def _init_test_executions():
-    """初始化默认执行记录"""
-    if not _test_executions:
-        for suite_id, suite in _test_suites.items():
-            execution = TestExecution(
-                id=str(uuid.uuid4()),
-                suite_id=suite_id,
-                suite_name=suite.name,
-                status=ExecutionStatus.COMPLETED,
-                started_at=suite.last_execution or datetime.now() - timedelta(hours=2),
-                completed_at=(
-                    suite.last_execution + timedelta(minutes=15)
-                    if suite.last_execution
-                    else datetime.now()
-                ),
-                duration=15.0,
-                total_tests=suite.test_count,
-                passed_tests=suite.test_count - 2,
-                failed_tests=2,
-                skipped_tests=0,
-                coverage=85.5,
-                triggered_by="admin",
-                trigger_type="scheduled",
-                logs_url=f"/logs/{suite_id}",
-                artifacts=[f"/artifacts/{suite_id}/report.html"],
-            )
-            _test_executions[execution.id] = execution
-
-
-# 初始化数据
-_init_test_suites()
-_init_test_executions()
+def _db_to_execution(exec_db: TestExecutionDB) -> TestExecution:
+    """Convert database model to API model"""
+    duration = None
+    if exec_db.started_at and exec_db.completed_at:
+        duration = (exec_db.completed_at - exec_db.started_at).total_seconds()
+    
+    return TestExecution(
+        id=exec_db.id,
+        suite_id=exec_db.suite_id,
+        suite_name=exec_db.suite_name,
+        status=ExecutionStatus(exec_db.status),
+        started_at=exec_db.started_at or datetime.now(),
+        completed_at=exec_db.completed_at,
+        duration=duration,
+        total_tests=exec_db.total_tests,
+        passed_tests=exec_db.passed_tests,
+        failed_tests=exec_db.failed_tests,
+        skipped_tests=exec_db.skipped_tests,
+        coverage=None,
+        triggered_by=exec_db.triggered_by or "system",
+        trigger_type=exec_db.trigger_type,
+        logs_url=None,
+        artifacts=[],
+    )
 
 
 # ============ Suite Endpoints ============
@@ -237,15 +210,17 @@ async def get_test_suites(
     limit: int = 100,
     offset: int = 0,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> List[TestSuite]:
     """获取所有测试套件"""
-    suites = list(_test_suites.values())
-
+    query = db.query(TestSuiteDB)
+    
     if status:
-        suites = [s for s in suites if s.status == status]
-
-    suites.sort(key=lambda x: x.updated_at, reverse=True)
-    return suites[offset : offset + limit]
+        query = query.filter(TestSuiteDB.status == status.value)
+    
+    suites_db = query.order_by(TestSuiteDB.updated_at.desc()).offset(offset).limit(limit).all()
+    
+    return [_db_to_suite(suite) for suite in suites_db]
 
 
 @router.post(
@@ -263,33 +238,35 @@ async def create_test_suite(
     suite_create: TestSuiteCreate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TestSuite:
     """创建新的测试套件"""
     suite_id = str(uuid.uuid4())
     now = datetime.now()
 
-    suite = TestSuite(
+    suite_db = TestSuiteDB(
         id=suite_id,
         name=suite_create.name,
         description=suite_create.description,
         test_type=suite_create.test_type,
         framework=suite_create.framework,
-        status=TestSuiteStatus.ACTIVE,
-        test_count=0,
+        status=TestSuiteStatus.ACTIVE.value,
         schedule=suite_create.schedule,
+        created_by=current_user.username,
         created_at=now,
         updated_at=now,
-        created_by=current_user.username,
     )
-
-    _test_suites[suite_id] = suite
+    
+    db.add(suite_db)
+    db.commit()
+    db.refresh(suite_db)
 
     logger.info(
         f"Test suite created | suite_id={suite_id} | name={suite_create.name} | "
         f"user={current_user.username} | ip={get_client_ip(request)}"
     )
 
-    return suite
+    return _db_to_suite(suite_db)
 
 
 @router.get(
@@ -305,11 +282,15 @@ async def create_test_suite(
 async def get_test_suite(
     id: str,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TestSuite:
     """获取指定测试套件的详情"""
-    if id not in _test_suites:
+    suite_db = db.query(TestSuiteDB).filter(TestSuiteDB.id == id).first()
+    
+    if not suite_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test suite not found")
-    return _test_suites[id]
+    
+    return _db_to_suite(suite_db)
 
 
 @router.patch(
@@ -327,27 +308,29 @@ async def update_test_suite(
     suite_update: TestSuiteUpdate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TestSuite:
     """更新指定测试套件"""
-    if id not in _test_suites:
+    suite_db = db.query(TestSuiteDB).filter(TestSuiteDB.id == id).first()
+    
+    if not suite_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test suite not found")
 
-    suite = _test_suites[id]
     update_data = suite_update.model_dump(exclude_unset=True)
-
     for key, value in update_data.items():
-        if hasattr(suite, key):
-            setattr(suite, key, value)
-
-    suite.updated_at = datetime.now()
-    _test_suites[id] = suite
+        if hasattr(suite_db, key):
+            setattr(suite_db, key, value)
+    
+    suite_db.updated_at = datetime.now()
+    db.commit()
+    db.refresh(suite_db)
 
     logger.info(
         f"Test suite updated | suite_id={id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
     )
 
-    return suite
+    return _db_to_suite(suite_db)
 
 
 @router.delete(
@@ -364,17 +347,20 @@ async def delete_test_suite(
     id: str,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> None:
     """删除指定测试套件"""
-    if id not in _test_suites:
+    suite_db = db.query(TestSuiteDB).filter(TestSuiteDB.id == id).first()
+    
+    if not suite_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test suite not found")
 
-    del _test_suites[id]
-
-    # 同时删除相关的执行记录
-    _test_executions = {  # noqa: F841 - Intentionally filtering to maintain data consistency
-        k: v for k, v in _test_executions.items() if v.suite_id != id
-    }
+    # 删除相关的执行记录
+    db.query(TestExecutionDB).filter(TestExecutionDB.suite_id == id).delete()
+    
+    # 删除套件
+    db.delete(suite_db)
+    db.commit()
 
     logger.info(
         f"Test suite deleted | suite_id={id} | user={current_user.username} "
@@ -398,18 +384,20 @@ async def get_test_executions(
     limit: int = 100,
     offset: int = 0,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> List[TestExecution]:
     """获取测试执行记录"""
-    executions = list(_test_executions.values())
-
+    query = db.query(TestExecutionDB)
+    
     if suite_id:
-        executions = [e for e in executions if e.suite_id == suite_id]
-
+        query = query.filter(TestExecutionDB.suite_id == suite_id)
+    
     if status:
-        executions = [e for e in executions if e.status == status]
-
-    executions.sort(key=lambda x: x.started_at, reverse=True)
-    return executions[offset : offset + limit]
+        query = query.filter(TestExecutionDB.status == status.value)
+    
+    executions_db = query.order_by(TestExecutionDB.started_at.desc()).offset(offset).limit(limit).all()
+    
+    return [_db_to_execution(execution) for execution in executions_db]
 
 
 @router.post(
@@ -428,32 +416,35 @@ async def create_test_execution(
     execution_create: TestExecutionCreate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TestExecution:
     """创建新的测试执行"""
-    if execution_create.suite_id not in _test_suites:
+    suite_db = db.query(TestSuiteDB).filter(TestSuiteDB.id == execution_create.suite_id).first()
+    
+    if not suite_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test suite not found")
 
-    suite = _test_suites[execution_create.suite_id]
     execution_id = str(uuid.uuid4())
     now = datetime.now()
 
-    execution = TestExecution(
+    execution_db = TestExecutionDB(
         id=execution_id,
         suite_id=execution_create.suite_id,
-        suite_name=suite.name,
-        status=ExecutionStatus.PENDING,
+        suite_name=suite_db.name,
+        status=ExecutionStatus.PENDING.value,
         started_at=now,
-        total_tests=suite.test_count,
+        total_tests=0,
         triggered_by=current_user.username,
         trigger_type=execution_create.trigger_type,
     )
-
-    _test_executions[execution_id] = execution
+    
+    db.add(execution_db)
+    db.commit()
+    db.refresh(execution_db)
 
     # 更新套件的最后执行时间
-    suite.last_execution = now
-    suite.updated_at = now
-    _test_suites[execution_create.suite_id] = suite
+    suite_db.updated_at = now
+    db.commit()
 
     logger.info(
         f"Test execution created | execution_id={execution_id} "
@@ -461,7 +452,7 @@ async def create_test_execution(
         f"| ip={get_client_ip(request)}"
     )
 
-    return execution
+    return _db_to_execution(execution_db)
 
 
 @router.get(
@@ -477,11 +468,15 @@ async def create_test_execution(
 async def get_test_execution(
     id: str,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TestExecution:
     """获取指定执行记录的详情"""
-    if id not in _test_executions:
+    execution_db = db.query(TestExecutionDB).filter(TestExecutionDB.id == id).first()
+    
+    if not execution_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found")
-    return _test_executions[id]
+    
+    return _db_to_execution(execution_db)
 
 
 @router.post(
@@ -498,25 +493,28 @@ async def cancel_test_execution(
     id: str,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TestExecution:
     """取消指定的测试执行"""
-    if id not in _test_executions:
+    execution_db = db.query(TestExecutionDB).filter(TestExecutionDB.id == id).first()
+    
+    if not execution_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found")
 
-    execution = _test_executions[id]
-    if execution.status not in [ExecutionStatus.PENDING, ExecutionStatus.RUNNING]:
+    if execution_db.status not in [ExecutionStatus.PENDING.value, ExecutionStatus.RUNNING.value]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot cancel execution that is not pending or running",
         )
 
-    execution.status = ExecutionStatus.CANCELLED
-    execution.completed_at = datetime.now()
-    _test_executions[id] = execution
+    execution_db.status = ExecutionStatus.CANCELLED.value
+    execution_db.completed_at = datetime.now()
+    db.commit()
+    db.refresh(execution_db)
 
     logger.info(
         f"Test execution cancelled | execution_id={id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
     )
 
-    return execution
+    return _db_to_execution(execution_db)

@@ -170,6 +170,7 @@ def test_is_abnormal_false(rci_engine):
     assert rci_engine._is_abnormal(metrics) is False
 
 
+@pytest.mark.asyncio
 async def test_topology_source_not_found(rci_engine):
     result = await rci_engine.perform_cross_layer_tracking(  # noqa: F841  # Variable for test verification
         {"id": "a1", "service": "missing"}, max_depth=3
@@ -178,11 +179,13 @@ async def test_topology_source_not_found(rci_engine):
     assert result == ["missing"]  # noqa: F841  # Variable for test verification
 
 
+@pytest.mark.asyncio
 async def test_find_common_upstream_single(rci_engine):
     common = await rci_engine._find_common_upstream_dependency(["only"])
     assert common is None
 
 
+@pytest.mark.asyncio
 async def test_match_historical_patterns_empty(rci_engine):
     patterns = await rci_engine.match_historical_patterns({"alerts": []})
     assert patterns == []
@@ -200,6 +203,7 @@ def test_learn_and_update_historical_pattern(rci_engine):
     assert updated.confidence >= first_conf
 
 
+@pytest.mark.asyncio
 async def test_causal_graph_analysis(rci_engine):
     alert = {"id": "a5", "source_service": "svc", "metric": "cpu", "value": 99}
     metrics = {"cpu": 99}
@@ -211,6 +215,7 @@ async def test_causal_graph_analysis(rci_engine):
     assert result[0].causal_path[0] == "svc"
 
 
+@pytest.mark.asyncio
 async def test_ml_based_analysis(rci_engine):
     alert = {"metric": "cpu", "value": 100, "threshold": 80}
     metrics = {"cpu": 10.0, "cpu2": 20.0}
@@ -222,6 +227,7 @@ async def test_ml_based_analysis(rci_engine):
     assert 0.0 <= result[0].confidence <= 1.0
 
 
+@pytest.mark.asyncio
 async def test_analyze_enhanced_sql(rci_engine):
     alert = {
         "id": "a6",
@@ -241,6 +247,7 @@ async def test_analyze_enhanced_sql(rci_engine):
     assert any("slow_sql" in c or "escalate" in c for c in causes)
 
 
+@pytest.mark.asyncio
 async def test_analyze_enhanced_oom(rci_engine):
     alert = {"id": "a7", "title": "pod OOMKilled", "pod": "web-1"}
     metrics = {
@@ -256,6 +263,7 @@ async def test_analyze_enhanced_oom(rci_engine):
     assert any(isinstance(h, rci.RootCauseHypothesis) for h in results)
 
 
+@pytest.mark.asyncio
 async def test_analyze_enhanced_escalation(rci_engine):
     alert = {"id": "a8", "title": "unknown anomaly"}
     metrics = {}
@@ -265,6 +273,7 @@ async def test_analyze_enhanced_escalation(rci_engine):
     assert any(h.hypothesis_id == "escalate" for h in results)
 
 
+@pytest.mark.asyncio
 async def test_verify_root_cause_scenarios(rci_engine):
     hyp = rci.RootCauseHypothesis(
         hypothesis_id="h-dns",
@@ -288,6 +297,7 @@ async def test_verify_root_cause_scenarios(rci_engine):
     )
 
 
+@pytest.mark.asyncio
 async def test_predict_root_causes_empty(rci_engine):
     prediction = await rci_engine.predict_root_causes({"alerts": [], "metrics": {}})
     assert isinstance(prediction, dict)
@@ -348,6 +358,7 @@ def test_build_graph_exists(stub_heal):
     assert runner is not None
 
 
+@pytest.mark.asyncio
 async def test_run_heal_missing_alert_id(monkeypatch, stub_heal):
     async def _fake_runner(state):
         state.error = "Missing alert_id; cannot execute repair without approval"
@@ -361,6 +372,7 @@ async def test_run_heal_missing_alert_id(monkeypatch, stub_heal):
     assert "Missing alert_id" in final.error
 
 
+@pytest.mark.asyncio
 async def test_run_heal_success_path(monkeypatch, stub_heal):
     async def _fake_runner(state):
         state.sla_score = 2
@@ -379,6 +391,7 @@ async def test_run_heal_success_path(monkeypatch, stub_heal):
     assert final.sla_score == 2
 
 
+@pytest.mark.asyncio
 async def test_apply_fix_no_runbook(stub_heal):
     state = hg.HealState(alert={"id": "alert-3"})
     result = await stub_heal.apply_fix(state)  # noqa: F841  # Variable for test verification
@@ -386,12 +399,14 @@ async def test_apply_fix_no_runbook(stub_heal):
     assert "No valid runbook" in (result.error or "")
 
 
+@pytest.mark.asyncio
 async def test_apply_fix_missing_alert_id(stub_heal):
     state = hg.HealState(alert={"title": "no id"}, runbook={"success": True})
     result = await stub_heal.apply_fix(state)  # noqa: F841  # Variable for test verification
     assert "Missing alert_id" in (result.error or "")
 
 
+@pytest.mark.asyncio
 async def test_generate_runbook_success(stub_heal):
     state = hg.HealState(
         alert={"id": "g1", "title": "x", "desc": "y"},
@@ -402,6 +417,7 @@ async def test_generate_runbook_success(stub_heal):
     assert result.runbook.get("success") is True
 
 
+@pytest.mark.asyncio
 async def test_evaluate_string_runbook(stub_heal):
     state = hg.HealState(
         alert={"id": "e1"},
@@ -413,6 +429,7 @@ async def test_evaluate_string_runbook(stub_heal):
     assert result.verification.get("passed") is True
 
 
+@pytest.mark.asyncio
 async def test_rollback_blocked_without_approval(monkeypatch, stub_heal):
     monkeypatch.setattr(stub_heal, "SNAPSHOT_CONFIG", {"rollback_approval_required": True})
     state = hg.HealState(
@@ -426,6 +443,7 @@ async def test_rollback_blocked_without_approval(monkeypatch, stub_heal):
     assert "not approved" in (result.error or "").lower()
 
 
+@pytest.mark.asyncio
 async def test_rollback_no_commands(stub_heal):
     state = hg.HealState(
         alert={"id": "r2"},
@@ -438,6 +456,7 @@ async def test_rollback_no_commands(stub_heal):
     assert isinstance(result, hg.HealState)
 
 
+@pytest.mark.asyncio
 async def test_complete_status_variants(stub_heal):
     state = hg.HealState(
         alert={"id": "c1"},
@@ -483,6 +502,7 @@ def test_langgraph_engine_status(l2_engine):
     assert status["config"]["model"] == "test"
 
 
+@pytest.mark.asyncio
 async def test_langgraph_engine_analyze_fallback(l2_engine, monkeypatch):
     monkeypatch.setattr(
         ai_engine,
@@ -541,6 +561,7 @@ def test_enhanced_causal_factory():
     assert "analysis_count" in metrics
 
 
+@pytest.mark.asyncio
 async def test_enhanced_causal_analyze_relationships(eca_analyzer):
     data = {
         "cpu": [10.0, 20.0, 30.0, 40.0],
@@ -556,6 +577,7 @@ async def test_enhanced_causal_analyze_relationships(eca_analyzer):
     assert "analysis_time" in result.metadata
 
 
+@pytest.mark.asyncio
 async def test_enhanced_causal_realtime(eca_analyzer):
     stream = {"cpu": 80.0, "memory": 70.0}
     result = await eca_analyzer.realtime_analysis(

@@ -359,6 +359,9 @@ class MemoryLeakDetector:
 # 全局内存监控实例
 MEMORY_MONITOR = MemoryMonitor()
 MEMORY_LEAK_DETECTOR = MemoryLeakDetector()
+# 兼容旧代码使用的别名
+memory_monitor = MEMORY_MONITOR
+memory_leak_detector = MEMORY_LEAK_DETECTOR
 
 
 async def setup_memory_monitoring():
@@ -373,16 +376,16 @@ async def setup_memory_monitoring():
         MEMORY_MONITOR.enable_tracemalloc()
 
         # 启用内存泄漏检测
-        memory_leak_detector.enable()
+        MEMORY_LEAK_DETECTOR.enable()
 
         logger.info("Memory monitoring setup completed")
 
         return {
             "status": "success",
-            "max_memory_mb": memory_monitor.max_memory_mb,
-            "warning_threshold": memory_monitor.warning_threshold,
-            "tracemalloc_enabled": memory_monitor._enable_tracemalloc,
-            "leak_detection_enabled": memory_leak_detector._enable_tracemalloc,
+            "max_memory_mb": MEMORY_MONITOR.max_memory_mb,
+            "warning_threshold": MEMORY_MONITOR.warning_threshold,
+            "tracemalloc_enabled": MEMORY_MONITOR._enable_tracemalloc,
+            "leak_detection_enabled": MEMORY_LEAK_DETECTOR._enable_tracemalloc,
         }
 
     except Exception as e:

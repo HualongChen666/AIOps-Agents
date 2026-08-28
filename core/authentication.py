@@ -28,6 +28,7 @@ import os
 import re
 import secrets
 import uuid
+from datetime import datetime
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, cast
@@ -374,6 +375,8 @@ class UserInDB(User):
     id: Optional[int] = None
     hashed_password: str
     mfa_enabled: Optional[bool] = False
+    created_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
 
 
 def validate_password_complexity(password: str) -> tuple[bool, str]:

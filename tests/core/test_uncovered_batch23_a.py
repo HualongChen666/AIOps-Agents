@@ -26,6 +26,7 @@ def test_get_docker_repair_scripts():
     assert scripts["prune_images"]["read_only"] is False
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_unknown_script():
     result = await docker_repair.execute_repair_sync(
         "h1", "missing", {}
@@ -34,6 +35,7 @@ async def test_execute_repair_unknown_script():
     assert "Unknown" in result["error"]
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_missing_required_param():
     result = await docker_repair.execute_repair_sync(
         "h1", "restart_container", {}
@@ -42,6 +44,7 @@ async def test_execute_repair_missing_required_param():
     assert "Missing required params" in result["error"]
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_dry_run_no_docker(monkeypatch):
     monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: None)
     result = await docker_repair.execute_repair_sync(
@@ -52,6 +55,7 @@ async def test_execute_repair_dry_run_no_docker(monkeypatch):
     assert result["docker_available"] is False
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_force_subprocess_success(monkeypatch):
     monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: "/bin/docker")
     fake_proc = MagicMock(returncode=0, stdout="ok output", stderr="")
@@ -64,6 +68,7 @@ async def test_execute_repair_force_subprocess_success(monkeypatch):
     assert "stdout" in result
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_force_subprocess_failure(monkeypatch):
     monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: "/bin/docker")
     fake_proc = MagicMock(returncode=1, stdout="", stderr="error")
@@ -75,6 +80,7 @@ async def test_execute_repair_force_subprocess_failure(monkeypatch):
     assert result["returncode"] == 1
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_subprocess_exception(monkeypatch, tmp_path):
     monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: "/bin/docker")
     monkeypatch.setattr(
@@ -114,6 +120,7 @@ def test_get_docker_repair_history_limits(monkeypatch, tmp_path):
     assert len(docker_repair.get_docker_repair_history(limit=0)) == 5
 
 
+@pytest.mark.asyncio
 async def test_history_recorded_after_execution(monkeypatch, tmp_path):
     hist = tmp_path / "hist.json"
     monkeypatch.setattr("core.docker_repair._HISTORY_FILE", hist)

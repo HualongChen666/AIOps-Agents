@@ -2,6 +2,7 @@
 """Tests for core/database, db_query_optimization, db_read_write_router, db_replication."""
 
 import time  # noqa: F401  # Imported for test setup
+import pytest
 
 import core.database
 import core.db_query_optimization
@@ -26,6 +27,7 @@ def test_query_cache():
     cache.cleanup_expired()
 
 
+@pytest.mark.asyncio
 async def test_cache_query_result():
     calls = []
 

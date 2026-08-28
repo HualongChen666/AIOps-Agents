@@ -60,6 +60,7 @@ class FakeNode(WorkflowNode):
         return "node_result"
 
 
+@pytest.mark.asyncio
 async def test_workflow_executor_success():
     executor = WorkflowExecutor()
     workflow = MagicMock()
@@ -73,6 +74,7 @@ async def test_workflow_executor_success():
     workflow.execute.assert_awaited_once_with({"in": 1})
 
 
+@pytest.mark.asyncio
 async def test_workflow_executor_timeout():
     async def _never(input_data=None):
         await asyncio.Event().wait()
@@ -87,6 +89,7 @@ async def test_workflow_executor_timeout():
     assert "timeout" in result["last_error"].lower()
 
 
+@pytest.mark.asyncio
 async def test_workflow_executor_retry_then_success(monkeypatch):
     monkeypatch.setattr(executor_mod.asyncio, "sleep", AsyncMock())
     executor = WorkflowExecutor(max_retries=2, retry_delay=0)
@@ -99,6 +102,7 @@ async def test_workflow_executor_retry_then_success(monkeypatch):
     assert workflow.execute.call_count == 2
 
 
+@pytest.mark.asyncio
 async def test_workflow_executor_all_retries_fail(monkeypatch):
     monkeypatch.setattr(executor_mod.asyncio, "sleep", AsyncMock())
     executor = WorkflowExecutor(max_retries=2, retry_delay=0)
@@ -112,6 +116,7 @@ async def test_workflow_executor_all_retries_fail(monkeypatch):
     assert workflow.execute.call_count == 3
 
 
+@pytest.mark.asyncio
 async def test_workflow_orchestrator(monkeypatch):
     monkeypatch.setattr(executor_mod.asyncio, "sleep", AsyncMock())
     orch = WorkflowOrchestrator()
@@ -137,6 +142,7 @@ async def test_workflow_orchestrator(monkeypatch):
 # ---------------------------------------------------------------------------
 # core.enterprise_functionality
 # ---------------------------------------------------------------------------
+@pytest.mark.asyncio
 async def test_enterprise_init_and_summary():
     mgr = EnterpriseFunctionalityManager(
         config={
@@ -167,6 +173,7 @@ def test_enterprise_tenant_isolation():
     assert mgr.enforce_tenant_isolation("tenant_b", "resource_1", "file") is True
 
 
+@pytest.mark.asyncio
 async def test_enterprise_compliance_and_report():
     mgr = EnterpriseFunctionalityManager(
         config={
@@ -250,6 +257,7 @@ def test_enterprise_encryption_and_masking():
     assert masked["customer_data"]["password"] != "hunter2"
 
 
+@pytest.mark.asyncio
 async def test_enterprise_audit_consent_and_cleanup():
     mgr = EnterpriseFunctionalityManager(config={"audit_retention_days": 7})
     entry = mgr.create_audit_log(
@@ -300,6 +308,7 @@ def cicd_manager(monkeypatch, tmp_path):
     return CICDIntegrationManager(config={"auto_approve": True, "default_timeout": 60})
 
 
+@pytest.mark.asyncio
 async def test_cicd_factory_and_init():
     mgr = get_cicd_integration_manager()
     assert isinstance(mgr, CICDIntegrationManager)
@@ -318,6 +327,7 @@ def test_cicd_register_and_config(cicd_manager):
     assert cicd_manager.get_integration_config("missing") is None
 
 
+@pytest.mark.asyncio
 async def test_cicd_trigger_and_execute(monkeypatch, cicd_manager):
     monkeypatch.setattr(cicd_mod.asyncio, "create_task", lambda coro: coro.close())
     integration = IntegrationConfig(
@@ -342,6 +352,7 @@ async def test_cicd_trigger_and_execute(monkeypatch, cicd_manager):
         await cicd_manager.trigger_integration("missing")
 
 
+@pytest.mark.asyncio
 async def test_cicd_execute_rollback(monkeypatch, cicd_manager):
     monkeypatch.setattr(cicd_mod.asyncio, "create_task", lambda coro: coro.close())
     integration = IntegrationConfig(
@@ -365,6 +376,7 @@ async def test_cicd_execute_rollback(monkeypatch, cicd_manager):
     cicd_manager._rollback_integration.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 async def test_cicd_execute_exception(monkeypatch, cicd_manager):
     monkeypatch.setattr(cicd_mod.asyncio, "create_task", lambda coro: coro.close())
     integration = IntegrationConfig(
@@ -385,6 +397,7 @@ async def test_cicd_execute_exception(monkeypatch, cicd_manager):
     assert "boom" in status["error_message"]
 
 
+@pytest.mark.asyncio
 async def test_cicd_execute_cancelled(monkeypatch, cicd_manager):
     monkeypatch.setattr(cicd_mod.asyncio, "create_task", lambda coro: coro.close())
     integration = IntegrationConfig(
@@ -406,6 +419,7 @@ async def test_cicd_execute_cancelled(monkeypatch, cicd_manager):
     assert status["current_stage"] == 0
 
 
+@pytest.mark.asyncio
 async def test_cicd_approval_and_cancel(monkeypatch, cicd_manager):
     monkeypatch.setattr(cicd_mod.asyncio, "create_task", lambda coro: coro.close())
     mgr = CICDIntegrationManager(config={"auto_approve": False})
@@ -459,6 +473,7 @@ def test_vuln_factory_and_init():
     assert isinstance(mgr, VulnerabilityManager)
 
 
+@pytest.mark.asyncio
 async def test_vuln_lifecycle(vuln_manager):
     v1 = VulnerabilityIssue(
         issue_id="v1",
@@ -513,6 +528,7 @@ async def test_vuln_lifecycle(vuln_manager):
     assert stats["resolved_vulnerabilities"] == 1
 
 
+@pytest.mark.asyncio
 async def test_vuln_overdue_and_notifications(vuln_manager, monkeypatch):
     overdue = VulnerabilityIssue(
         issue_id="v3",
@@ -546,6 +562,7 @@ async def test_vuln_overdue_and_notifications(vuln_manager, monkeypatch):
     fail_h.assert_called_once()
 
 
+@pytest.mark.asyncio
 async def test_vuln_sla_monitoring(vuln_manager, monkeypatch):
     monkeypatch.setattr(
         vuln_mod.asyncio, "sleep", AsyncMock(side_effect=[None, asyncio.CancelledError()])
@@ -592,6 +609,7 @@ def test_audit_register_policy(audit_system):
     assert "custom" in audit_system.audit_policies
 
 
+@pytest.mark.asyncio
 async def test_audit_log_and_query(audit_system):
     e1 = await audit_system.log_event(
         AuditEventType.USER_LOGIN,
@@ -632,6 +650,7 @@ async def test_audit_log_and_query(audit_system):
     assert summary["by_type"]["user_login"] == 1
 
 
+@pytest.mark.asyncio
 async def test_audit_alert_threshold(audit_system, monkeypatch):
     policy = audit_system.audit_policies["security_events"]
     policy.alert_threshold = 2
@@ -656,6 +675,7 @@ async def test_audit_alert_threshold(audit_system, monkeypatch):
     fail_h.assert_called_once()
 
 
+@pytest.mark.asyncio
 async def test_audit_report_and_prune(audit_system):
     for i in range(7):
         await audit_system.log_event(

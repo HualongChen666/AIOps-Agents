@@ -35,16 +35,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/collaboration", tags=["协作高级"])
 
-# Data storage paths
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-TEAMS_FILE = DATA_DIR / "collaboration_teams.json"
-MEMBERS_FILE = DATA_DIR / "collaboration_members.json"
-PERMISSIONS_FILE = DATA_DIR / "collaboration_permissions.json"
-ACTIVITIES_FILE = DATA_DIR / "collaboration_activities.json"
-
 
 # Pydantic Models
 class TeamStatusEnum(str, Enum):
@@ -212,39 +202,10 @@ class CreateActivityRequest(BaseModel):
     }
 
 
-# Data storage helpers
-def _load_json_file(file_path: Path) -> List[Dict[str, Any]]:
-    """加载JSON文件"""
-    if not file_path.exists():
-        return []
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning(f"Failed to load JSON file {file_path}: {exc}")
-        return []
-    except Exception as e:  # noqa: F841 - Exception intentionally unused
-        return []
 
-
-def _save_json_file(file_path: Path, data: List[Dict[str, Any]]) -> None:
-    """保存JSON文件"""
-    import os
-    import stat
-
-    try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-
-        # Set restrictive permissions for collaboration data file (600 - owner read/write only)
-        try:
-            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
-        except (OSError, AttributeError):
-            # chmod may fail on Windows or non-Unix systems
-            pass
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}")
+def _now() -> str:
+    """获取当前时间戳"""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _generate_id(prefix: str) -> str:
@@ -264,22 +225,24 @@ def _log_activity(
     actor_name: str,
     description: str,
     metadata: Optional[Dict[str, Any]] = None,
+    db: Session = None,
 ) -> None:
     """记录活动日志"""
     try:
-        activities = _load_json_file(ACTIVITIES_FILE)
-        activity = {
-            "id": _generate_id("ACT"),
-            "team_id": team_id,
-            "activity_type": activity_type.value,
-            "actor_id": actor_id,
-            "actor_name": actor_name,
-            "description": description,
-            "metadata": metadata or {},
-            "created_at": _now(),
-        }
-        activities.append(activity)
-        _save_json_file(ACTIVITIES_FILE, activities)
+        if db is None:
+            return
+            
+        activity = CollaborationActivityDB(
+            id=_generate_id("ACT"),
+            team_id=team_id,
+            activity_type=activity_type.value,
+            actor_id=actor_id,
+            actor_name=actor_name,
+            description=description,
+            metadata=metadata or {},
+        )
+        db.add(activity)
+        db.commit()
     except Exception as e:  # noqa: F841 - Exception intentionally unused
         # 记录失败不影响主流程
         pass
@@ -340,27 +303,10 @@ async def get_teams(
         
     except Exception as e:
         logger.error(f"Error getting teams: {e}")
-        # Fallback to file-based storage
-        try:
-            teams = _load_json_file(TEAMS_FILE)
-
-            # 过滤
-            if status:
-                teams = [t for t in teams if t.get("status") == status.value]
-            if owner_id:
-                teams = [t for t in teams if t.get("owner_id") == owner_id]
-
-            # 分页
-            total = len(teams)
-            teams = teams[offset : offset + limit]
-
-            return create_success_response(data={"teams": teams, "total": total})
-        except Exception as fallback_error:
-            logger.error(f"Fallback error: {fallback_error}")
-            return create_error_response(
-                error_code=ErrorCode.INTERNAL_ERROR,
-                message="获取团队列表失败",
-            )
+        return create_error_response(
+            error_code=ErrorCode.INTERNAL_ERROR,
+            message="获取团队列表失败",
+        )
 
 
 @router.post(
@@ -409,31 +355,10 @@ async def create_team(request: CreateTeamRequest, db: Session = Depends(get_db))
         
     except Exception as e:
         logger.error(f"Error creating team: {e}")
-        # Fallback to file-based storage
-        try:
-            teams = _load_json_file(TEAMS_FILE)
-
-            team = {
-                "id": _generate_id("TM"),
-                "name": request.name,
-                "description": request.description,
-                "owner_id": request.owner_id,
-                "status": request.status.value,
-                "tags": request.tags,
-                "created_at": _now(),
-                "updated_at": _now(),
-            }
-
-            teams.append(team)
-            _save_json_file(TEAMS_FILE, teams)
-
-            return create_success_response(data=team, status_code=201)
-        except Exception as fallback_error:
-            logger.error(f"Fallback error: {fallback_error}")
-            return create_error_response(
-                error_code=ErrorCode.INTERNAL_ERROR,
-                message="创建团队失败",
-            )
+        return create_error_response(
+            error_code=ErrorCode.INTERNAL_ERROR,
+            message="创建团队失败",
+        )
 
 
 @router.get(
@@ -452,23 +377,48 @@ async def get_team(team_id: str) -> Dict[str, Any]:
     根据团队ID获取团队的完整配置和成员信息。
     """
     try:
-        teams = _load_json_file(TEAMS_FILE)
-        team = next((t for t in teams if t.get("id") == team_id), None)
-
-        if not team:
-            return create_error_response(
-                error=f"Team {team_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="团队不存在",
-            )
-
-        # 获取团队成员
-        members = _load_json_file(MEMBERS_FILE)
-        team_members = [m for m in members if m.get("team_id") == team_id]
-        team["members"] = team_members
-        team["member_count"] = len(team_members)
-
-        return create_success_response(team)
+        db = next(get_db())
+        try:
+            team = db.query(CollaborationTeamDB).filter(
+                CollaborationTeamDB.id == team_id
+            ).first()
+            
+            if not team:
+                return create_error_response(
+                    error=f"Team {team_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="团队不存在",
+                )
+            
+            # 获取团队成员
+            members = db.query(CollaborationMemberDB).filter(
+                CollaborationMemberDB.team_id == team_id
+            ).all()
+            
+            team_data = {
+                "id": str(team.id),
+                "name": team.team_name,
+                "description": team.team_description,
+                "status": team.team_status,
+                "owner_id": team.team_lead_id,
+                "tags": team.team_metadata.get("tags", []) if team.team_metadata else [],
+                "members": [
+                    {
+                        "id": str(m.id),
+                        "user_id": m.user_id,
+                        "user_name": m.user_name,
+                        "role": m.role,
+                    }
+                    for m in members
+                ],
+                "member_count": len(members),
+                "created_at": team.created_at.isoformat() if team.created_at else None,
+                "updated_at": team.updated_at.isoformat() if team.updated_at else None,
+            }
+            
+            return create_success_response(team_data)
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取团队详情失败"
@@ -491,31 +441,47 @@ async def update_team(team_id: str, request: UpdateTeamRequest) -> Dict[str, Any
     更新团队的名称、描述、状态等信息。
     """
     try:
-        teams = _load_json_file(TEAMS_FILE)
-        team = next((t for t in teams if t.get("id") == team_id), None)
-
-        if not team:
-            return create_error_response(
-                error=f"Team {team_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="团队不存在",
-            )
-
-        # 更新字段
-        if request.name is not None:
-            team["name"] = request.name
-        if request.description is not None:
-            team["description"] = request.description
-        if request.status is not None:
-            team["status"] = request.status.value
-        if request.tags is not None:
-            team["tags"] = request.tags
-
-        team["updated_at"] = _now()
-
-        _save_json_file(TEAMS_FILE, teams)
-
-        return create_success_response(team, "团队更新成功")
+        db = next(get_db())
+        try:
+            team = db.query(CollaborationTeamDB).filter(
+                CollaborationTeamDB.id == team_id
+            ).first()
+            
+            if not team:
+                return create_error_response(
+                    error=f"Team {team_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="团队不存在",
+                )
+            
+            # 更新字段
+            if request.name is not None:
+                team.team_name = request.name
+            if request.description is not None:
+                team.team_description = request.description
+            if request.status is not None:
+                team.team_status = request.status.value
+            if request.tags is not None:
+                if team.team_metadata is None:
+                    team.team_metadata = {}
+                team.team_metadata["tags"] = request.tags
+            
+            team.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            
+            team_data = {
+                "id": str(team.id),
+                "name": team.team_name,
+                "description": team.team_description,
+                "status": team.team_status,
+                "owner_id": team.team_lead_id,
+                "tags": team.team_metadata.get("tags", []) if team.team_metadata else [],
+                "updated_at": team.updated_at.isoformat() if team.updated_at else None,
+            }
+            
+            return create_success_response(team_data, "团队更新成功")
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="更新团队失败"
@@ -538,28 +504,37 @@ async def delete_team(team_id: str) -> Dict[str, Any]:
     根据团队ID删除团队配置。
     """
     try:
-        teams = _load_json_file(TEAMS_FILE)
-        team = next((t for t in teams if t.get("id") == team_id), None)
-
-        if not team:
-            return create_error_response(
-                error=f"Team {team_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="团队不存在",
-            )
-
-        teams = [t for t in teams if t.get("id") != team_id]
-        _save_json_file(TEAMS_FILE, teams)
-
-        # 同时删除相关成员
-        members = _load_json_file(MEMBERS_FILE)
-        members = [m for m in members if m.get("team_id") != team_id]
-        _save_json_file(MEMBERS_FILE, members)
-
-        # 删除相关权限
-        permissions = _load_json_file(PERMISSIONS_FILE)
-        permissions = [p for p in permissions if p.get("team_id") != team_id]
-        _save_json_file(PERMISSIONS_FILE, permissions)
+        db = next(get_db())
+        try:
+            team = db.query(CollaborationTeamDB).filter(
+                CollaborationTeamDB.id == team_id
+            ).first()
+            
+            if not team:
+                return create_error_response(
+                    error=f"Team {team_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="团队不存在",
+                )
+            
+            # 删除相关成员
+            db.query(CollaborationMemberDB).filter(
+                CollaborationMemberDB.team_id == team_id
+            ).delete()
+            
+            # 删除相关权限
+            db.query(CollaborationPermissionDB).filter(
+                CollaborationPermissionDB.team_id == team_id
+            ).delete()
+            
+            # 删除团队
+            db.delete(team)
+            db.commit()
+            
+            return create_success_response({"id": team_id}, "团队删除成功")
+        finally:
+            db.close()
+    except Exception as e:
 
         return create_success_response({"id": team_id}, "团队删除成功")
     except Exception as e:
@@ -787,15 +762,6 @@ async def delete_member(member_id: str, db: Session = Depends(get_db)) -> Dict[s
         db.delete(member)
         db.commit()
 
-        return create_success_response(None, "成员删除成功")
-    except Exception as e:
-        return create_error_response(
-            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="删除成员失败"
-        )
-        permissions = _load_json_file(PERMISSIONS_FILE)
-        permissions = [p for p in permissions if p.get("member_id") != member_id]
-        _save_json_file(PERMISSIONS_FILE, permissions)
-
         # 记录活动
         _log_activity(
             team_id=team_id,
@@ -804,6 +770,7 @@ async def delete_member(member_id: str, db: Session = Depends(get_db)) -> Dict[s
             actor_name="System",
             description=f"移除了成员 {user_name}",
             metadata={"member_id": member_id},
+            db=db,
         )
 
         return create_success_response({"id": member_id}, "成员删除成功")
@@ -954,15 +921,6 @@ async def create_permission(request: CreatePermissionRequest, db: Session = Depe
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="创建权限失败"
         )
-        # 验证团队和成员是否存在
-        teams = _load_json_file(TEAMS_FILE)
-        team = next((t for t in teams if t.get("id") == request.team_id), None)
-        if not team:
-            return create_error_response(
-                error=f"Team {request.team_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="团队不存在",
-            )
 
 
 @router.delete(

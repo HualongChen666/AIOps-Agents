@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import pytest
+
 from core.docker_repair import (
     execute_repair_sync,
     get_docker_repair_history,
@@ -14,6 +16,7 @@ def test_get_repair_scripts():
     assert scripts["ps"]["read_only"] is True
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_dry_run():
     result = await execute_repair_sync(
         "localhost", "ps", {}
@@ -23,6 +26,7 @@ async def test_execute_repair_dry_run():
     assert "docker_available" in result
 
 
+@pytest.mark.asyncio
 async def test_execute_repair_missing_param():
     result = await execute_repair_sync(
         "localhost", "restart_container", {}
@@ -30,6 +34,7 @@ async def test_execute_repair_missing_param():
     assert result["success"] is False
 
 
+@pytest.mark.asyncio
 async def test_history_is_recorded(monkeypatch, tmp_path):
     hist_file = tmp_path / "docker_repair_history.json"
     monkeypatch.setattr("core.docker_repair._HISTORY_FILE", hist_file)

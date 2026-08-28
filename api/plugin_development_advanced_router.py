@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter(prefix="/api/v1/plugin/development", tags=["Plugin Development Advanced"])
 

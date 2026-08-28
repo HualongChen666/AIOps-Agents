@@ -42,15 +42,6 @@ from core.models import (
 
 router = APIRouter(prefix="/api/v1/chaos", tags=["混沌工程高级"])
 
-# Data storage paths
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-EXPERIMENTS_FILE = DATA_DIR / "chaos_experiments.json"
-SCENARIOS_FILE = DATA_DIR / "chaos_scenarios.json"
-FAULTS_FILE = DATA_DIR / "chaos_faults.json"
-
 
 # Pydantic Models
 class ExperimentStatusEnum(str, Enum):
@@ -192,40 +183,6 @@ class SafetyCheckRequest(BaseModel):
     }
 
 
-# Data storage helpers
-def _load_json_file(file_path: Path) -> List[Dict[str, Any]]:
-    """加载JSON文件"""
-    if not file_path.exists():
-        return []
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning(f"Failed to load JSON file {file_path}: {exc}")
-        return []
-    except Exception as e:  # noqa: F841 - Exception intentionally unused
-        return []
-
-
-def _save_json_file(file_path: Path, data: List[Dict[str, Any]]) -> None:
-    """保存JSON文件"""
-    import os
-    import stat
-
-    try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-
-        # Set restrictive permissions for chaos engineering data file (600 - owner read/write only)
-        try:
-            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
-        except (OSError, AttributeError):
-            # chmod may fail on Windows or non-Unix systems
-            pass
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}")
-
 
 def _generate_id(prefix: str) -> str:
     """生成唯一ID"""
@@ -236,55 +193,6 @@ def _now() -> str:
     """获取当前时间戳"""
     return datetime.now(timezone.utc).isoformat()
 
-
-# Dual-write functions for database migration
-def _save_experiment_to_db(db: Session, experiment: Dict[str, Any]) -> None:
-    """保存实验到数据库"""
-    try:
-        db_experiment = ChaosExperimentDB(
-            id=experiment["id"],
-            name=experiment["name"],
-            description=experiment.get("description"),
-            experiment_type=experiment["experiment_type"],
-            parameters=experiment.get("parameters"),
-            severity=experiment.get("severity"),
-            status=experiment.get("status"),
-            tags=experiment.get("tags"),
-            result=experiment.get("result"),
-            error=experiment.get("error"),
-            created_at=datetime.fromisoformat(experiment["created_at"].replace("Z", "+00:00")),
-            updated_at=datetime.fromisoformat(experiment["updated_at"].replace("Z", "+00:00")),
-        )
-        db.merge(db_experiment)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save experiment to database: {str(e)}")
-
-
-def _save_scenario_to_db(db: Session, scenario: Dict[str, Any]) -> None:
-    """保存场景到数据库"""
-    try:
-        db_scenario = ChaosScenarioDB(
-            id=scenario["id"],
-            name=scenario["name"],
-            description=scenario.get("description"),
-            fault_types=scenario.get("fault_types"),
-            target_services=scenario.get("target_services"),
-            duration_seconds=scenario.get("duration_seconds"),
-            auto_rollback=scenario.get("auto_rollback", True),
-            created_at=datetime.fromisoformat(scenario["created_at"].replace("Z", "+00:00")),
-            updated_at=datetime.fromisoformat(scenario["updated_at"].replace("Z", "+00:00")),
-        )
-        db.merge(db_scenario)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save scenario to database: {str(e)}")
-
-
-def _save_fault_to_db(db: Session, fault: Dict[str, Any]) -> None:
-    """保存故障到数据库"""
     try:
         db_fault = ChaosFaultDB(
             id=fault["id"],
@@ -418,37 +326,44 @@ async def create_experiment(request: CreateExperimentRequest) -> Dict[str, Any]:
                 message="无效的实验类型",
             )
 
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-
-        experiment = {
-            "id": _generate_id("EXP"),
-            "name": request.name,
-            "description": request.description,
-            "experiment_type": request.experiment_type,
-            "parameters": request.parameters,
-            "severity": request.severity.value,
-            "tags": request.tags,
-            "status": ExperimentStatusEnum.PENDING.value,
-            "created_at": _now(),
-            "updated_at": _now(),
-            "run_count": 0,
-            "last_run_at": None,
-        }
-
-        experiments.append(experiment)
-        _save_json_file(EXPERIMENTS_FILE, experiments)
-
-        # Dual-write to database
+        # 直接保存到数据库
         db = get_session()
         try:
-            _save_experiment_to_db(db, experiment)
+            experiment = ChaosExperimentDB(
+                id=_generate_id("EXP"),
+                name=request.name,
+                description=request.description,
+                experiment_type=request.experiment_type,
+                parameters=request.parameters,
+                severity=request.severity.value,
+                tags=request.tags,
+                status=ExperimentStatusEnum.PENDING.value,
+            )
+            db.add(experiment)
+            db.commit()
+            
+            response_data = {
+                "id": experiment.id,
+                "name": experiment.name,
+                "description": experiment.description,
+                "experiment_type": experiment.experiment_type,
+                "parameters": experiment.parameters,
+                "severity": experiment.severity,
+                "tags": experiment.tags,
+                "status": experiment.status,
+                "created_at": experiment.created_at.isoformat() if experiment.created_at else None,
+                "updated_at": experiment.updated_at.isoformat() if experiment.updated_at else None,
+            }
+            
+            # Invalidate cache
+            cache_manager.delete_pattern("chaos_experiments_list:*")
+            
+            return create_success_response(response_data, "实验创建成功")
         except Exception as e:
-            # Log database error but continue with JSON storage
-            pass
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to save experiment to database: {str(e)}")
         finally:
             db.close()
-
-        return create_success_response(experiment, "实验创建成功")
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="创建实验失败"
@@ -471,17 +386,37 @@ async def get_experiment(experiment_id: str) -> Dict[str, Any]:
     根据实验ID获取实验的完整配置和运行历史。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        experiment = next((e for e in experiments if e.get("id") == experiment_id), None)
-
-        if not experiment:
-            return create_error_response(
-                error=f"Experiment {experiment_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="实验不存在",
-            )
-
-        return create_success_response(experiment)
+        db = get_session()
+        try:
+            experiment = db.query(ChaosExperimentDB).filter(
+                ChaosExperimentDB.id == experiment_id
+            ).first()
+            
+            if not experiment:
+                return create_error_response(
+                    error=f"Experiment {experiment_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="实验不存在",
+                )
+            
+            response_data = {
+                "id": experiment.id,
+                "name": experiment.name,
+                "description": experiment.description,
+                "experiment_type": experiment.experiment_type,
+                "parameters": experiment.parameters,
+                "severity": experiment.severity,
+                "status": experiment.status,
+                "tags": experiment.tags,
+                "result": experiment.result,
+                "error": experiment.error,
+                "created_at": experiment.created_at.isoformat() if experiment.created_at else None,
+                "updated_at": experiment.updated_at.isoformat() if experiment.updated_at else None,
+            }
+            
+            return create_success_response(response_data)
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取实验详情失败"
@@ -504,33 +439,52 @@ async def update_experiment(experiment_id: str, request: UpdateExperimentRequest
     更新实验的名称、描述、参数、严重程度等信息。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        experiment = next((e for e in experiments if e.get("id") == experiment_id), None)
-
-        if not experiment:
-            return create_error_response(
-                error=f"Experiment {experiment_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="实验不存在",
-            )
-
-        # 更新字段
-        if request.name is not None:
-            experiment["name"] = request.name
-        if request.description is not None:
-            experiment["description"] = request.description
-        if request.parameters is not None:
-            experiment["parameters"] = request.parameters
-        if request.severity is not None:
-            experiment["severity"] = request.severity.value
-        if request.tags is not None:
-            experiment["tags"] = request.tags
-
-        experiment["updated_at"] = _now()
-
-        _save_json_file(EXPERIMENTS_FILE, experiments)
-
-        return create_success_response(experiment, "实验更新成功")
+        db = get_session()
+        try:
+            experiment = db.query(ChaosExperimentDB).filter(
+                ChaosExperimentDB.id == experiment_id
+            ).first()
+            
+            if not experiment:
+                return create_error_response(
+                    error=f"Experiment {experiment_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="实验不存在",
+                )
+            
+            # 更新字段
+            if request.name is not None:
+                experiment.name = request.name
+            if request.description is not None:
+                experiment.description = request.description
+            if request.parameters is not None:
+                experiment.parameters = request.parameters
+            if request.severity is not None:
+                experiment.severity = request.severity.value
+            if request.tags is not None:
+                experiment.tags = request.tags
+            
+            experiment.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            
+            # Invalidate cache
+            cache_manager.delete_pattern("chaos_experiments_list:*")
+            
+            response_data = {
+                "id": experiment.id,
+                "name": experiment.name,
+                "description": experiment.description,
+                "experiment_type": experiment.experiment_type,
+                "parameters": experiment.parameters,
+                "severity": experiment.severity,
+                "tags": experiment.tags,
+                "status": experiment.status,
+                "updated_at": experiment.updated_at.isoformat() if experiment.updated_at else None,
+            }
+            
+            return create_success_response(response_data, "实验更新成功")
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="更新实验失败"
@@ -553,20 +507,28 @@ async def delete_experiment(experiment_id: str) -> Dict[str, Any]:
     根据实验ID删除实验配置。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        experiment = next((e for e in experiments if e.get("id") == experiment_id), None)
-
-        if not experiment:
-            return create_error_response(
-                error=f"Experiment {experiment_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="实验不存在",
-            )
-
-        experiments = [e for e in experiments if e.get("id") != experiment_id]
-        _save_json_file(EXPERIMENTS_FILE, experiments)
-
-        return create_success_response({"id": experiment_id}, "实验删除成功")
+        db = get_session()
+        try:
+            experiment = db.query(ChaosExperimentDB).filter(
+                ChaosExperimentDB.id == experiment_id
+            ).first()
+            
+            if not experiment:
+                return create_error_response(
+                    error=f"Experiment {experiment_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="实验不存在",
+                )
+            
+            db.delete(experiment)
+            db.commit()
+            
+            # Invalidate cache
+            cache_manager.delete_pattern("chaos_experiments_list:*")
+            
+            return create_success_response({"id": experiment_id}, "实验删除成功")
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="删除实验失败"
@@ -589,77 +551,36 @@ async def run_experiment(experiment_id: str) -> Dict[str, Any]:
     执行实验并返回运行结果。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        experiment = next((e for e in experiments if e.get("id") == experiment_id), None)
-
-        if not experiment:
-            return create_error_response(
-                error=f"Experiment {experiment_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="实验不存在",
-            )
-
-        # 更新状态为运行中
-        experiment["status"] = ExperimentStatusEnum.RUNNING.value
-        experiment["updated_at"] = _now()
-        _save_json_file(EXPERIMENTS_FILE, experiments)
-
-        # Dual-write to database
         db = get_session()
         try:
-            _save_experiment_to_db(db, experiment)
-        except Exception as e:
-            # Log database error but continue with JSON storage
-            pass
+            experiment = db.query(ChaosExperimentDB).filter(
+                ChaosExperimentDB.id == experiment_id
+            ).first()
+            
+            if not experiment:
+                return create_error_response(
+                    error=f"Experiment {experiment_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="实验不存在",
+                )
+            
+            # 更新状态为运行中
+            experiment.status = ExperimentStatusEnum.RUNNING.value
+            experiment.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            
+            # Invalidate cache
+            cache_manager.delete_pattern("chaos_experiments_list:*")
+            
+            response_data = {
+                "id": experiment.id,
+                "status": experiment.status,
+                "updated_at": experiment.updated_at.isoformat() if experiment.updated_at else None,
+            }
+            
+            return create_success_response(response_data, "实验开始运行")
         finally:
             db.close()
-
-        # 执行实验
-        try:
-            experiment_type = ChaosExperiment(experiment["experiment_type"])
-            parameters = experiment.get("parameters", {})
-            result = await chaos_engine.run_experiment(experiment_type, parameters)
-
-            # 更新实验状态
-            experiment["status"] = result.status.value
-            experiment["run_count"] = experiment.get("run_count", 0) + 1
-            experiment["last_run_at"] = _now()
-            experiment["last_result"] = {
-                "success": result.success,
-                "duration_seconds": result.duration_seconds,
-                "metrics": result.metrics,
-                "error_message": result.error_message,
-            }
-            experiment["updated_at"] = _now()
-
-            _save_json_file(EXPERIMENTS_FILE, experiments)
-
-            # Dual-write to database
-            db = get_session()
-            try:
-                _save_experiment_to_db(db, experiment)
-            except Exception as e:
-                # Log database error but continue with JSON storage
-                pass
-            finally:
-                db.close()
-
-            return create_success_response(
-                {
-                    "experiment_id": experiment_id,
-                    "status": result.status.value,
-                    "success": result.success,
-                    "duration_seconds": result.duration_seconds,
-                    "metrics": result.metrics,
-                },
-                "实验运行完成",
-            )
-        except ValueError as e:
-            experiment["status"] = ExperimentStatusEnum.FAILED.value
-            _save_json_file(EXPERIMENTS_FILE, experiments)
-            return create_error_response(
-                error=str(e), error_code=ErrorCode.VALIDATION_ERROR, message="实验类型无效"
-            )
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="运行实验失败"
@@ -682,29 +603,36 @@ async def stop_experiment(experiment_id: str) -> Dict[str, Any]:
     中止当前正在执行的混沌实验。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        experiment = next((e for e in experiments if e.get("id") == experiment_id), None)
-
-        if not experiment:
-            return create_error_response(
-                error=f"Experiment {experiment_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="实验不存在",
-            )
-
-        if experiment["status"] != ExperimentStatusEnum.RUNNING.value:
-            return create_error_response(
-                error="Experiment is not running",
-                error_code=ErrorCode.BAD_REQUEST,
-                message="实验未在运行中",
-            )
-
-        # 更新状态为已中止
-        experiment["status"] = ExperimentStatusEnum.ABORTED.value
-        experiment["updated_at"] = _now()
-        _save_json_file(EXPERIMENTS_FILE, experiments)
-
-        return create_success_response({"id": experiment_id}, "实验已停止")
+        db = get_session()
+        try:
+            experiment = db.query(ChaosExperimentDB).filter(
+                ChaosExperimentDB.id == experiment_id
+            ).first()
+            
+            if not experiment:
+                return create_error_response(
+                    error=f"Experiment {experiment_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="实验不存在",
+                )
+            
+            # 更新状态为已停止
+            experiment.status = ExperimentStatusEnum.ABORTED.value
+            experiment.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            
+            # Invalidate cache
+            cache_manager.delete_pattern("chaos_experiments_list:*")
+            
+            response_data = {
+                "id": experiment.id,
+                "status": experiment.status,
+                "updated_at": experiment.updated_at.isoformat() if experiment.updated_at else None,
+            }
+            
+            return create_success_response(response_data, "实验已停止")
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="停止实验失败"
@@ -730,20 +658,36 @@ async def get_scenarios(
     场景是多个实验的组合，可以批量执行。
     """
     try:
-        scenarios = _load_json_file(SCENARIOS_FILE)
-
-        if enabled is not None:
-            scenarios = [s for s in scenarios if s.get("enabled") == enabled]
-
-        paginated = scenarios[:limit]
-
-        return create_success_response(
-            {
-                "items": paginated,
-                "total": len(scenarios),
+        db = get_session()
+        try:
+            query = db.query(ChaosScenarioDB)
+            
+            if enabled is not None:
+                query = query.filter(ChaosScenarioDB.enabled == enabled)
+            
+            total = query.count()
+            scenarios = query.limit(limit).all()
+            
+            items = []
+            for scenario in scenarios:
+                items.append({
+                    "id": scenario.id,
+                    "name": scenario.name,
+                    "description": scenario.description,
+                    "experiments": scenario.experiments,
+                    "enabled": scenario.enabled,
+                    "schedule": scenario.schedule,
+                    "created_at": scenario.created_at.isoformat() if scenario.created_at else None,
+                    "updated_at": scenario.updated_at.isoformat() if scenario.updated_at else None,
+                })
+            
+            return create_success_response({
+                "items": items,
+                "total": total,
                 "limit": limit,
-            }
-        )
+            })
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取场景列表失败"
@@ -767,46 +711,43 @@ async def create_scenario(request: CreateScenarioRequest) -> Dict[str, Any]:
     场景可以包含多个实验，支持批量执行和调度。
     """
     try:
-        scenarios = _load_json_file(SCENARIOS_FILE)
-
-        # 验证实验ID是否存在
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        experiment_ids = {e.get("id") for e in experiments}
-        for exp_id in request.experiments:
-            if exp_id not in experiment_ids:
-                return create_error_response(
-                    error=f"Experiment {exp_id} not found",
-                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                    message=f"实验 {exp_id} 不存在",
-                )
-
-        scenario = {
-            "id": _generate_id("SCN"),
-            "name": request.name,
-            "description": request.description,
-            "experiments": request.experiments,
-            "enabled": request.enabled,
-            "schedule": request.schedule,
-            "created_at": _now(),
-            "updated_at": _now(),
-            "run_count": 0,
-            "last_run_at": None,
-        }
-
-        scenarios.append(scenario)
-        _save_json_file(SCENARIOS_FILE, scenarios)
-
-        # Dual-write to database
         db = get_session()
         try:
-            _save_scenario_to_db(db, scenario)
-        except Exception as e:
-            # Log database error but continue with JSON storage
-            pass
+            # 验证实验ID是否存在
+            experiment_ids = {e.id for e in db.query(ChaosExperimentDB.id).all()}
+            for exp_id in request.experiments:
+                if exp_id not in experiment_ids:
+                    return create_error_response(
+                        error=f"Experiment {exp_id} not found",
+                        error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                        message=f"实验 {exp_id} 不存在",
+                    )
+            
+            scenario = ChaosScenarioDB(
+                id=_generate_id("SCN"),
+                name=request.name,
+                description=request.description,
+                experiments=request.experiments,
+                enabled=request.enabled,
+                schedule=request.schedule,
+            )
+            db.add(scenario)
+            db.commit()
+            
+            response_data = {
+                "id": scenario.id,
+                "name": scenario.name,
+                "description": scenario.description,
+                "experiments": scenario.experiments,
+                "enabled": scenario.enabled,
+                "schedule": scenario.schedule,
+                "created_at": scenario.created_at.isoformat() if scenario.created_at else None,
+                "updated_at": scenario.updated_at.isoformat() if scenario.updated_at else None,
+            }
+            
+            return create_success_response(response_data, "场景创建成功")
         finally:
             db.close()
-
-        return create_success_response(scenario, "场景创建成功")
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="创建场景失败"
@@ -832,20 +773,39 @@ async def get_faults(
     故障注入是混沌工程的核心功能，用于模拟各种系统故障。
     """
     try:
-        faults = _load_json_file(FAULTS_FILE)
-
-        if fault_type:
-            faults = [f for f in faults if f.get("fault_type") == fault_type.value]
-
-        paginated = faults[:limit]
-
-        return create_success_response(
-            {
-                "items": paginated,
-                "total": len(faults),
+        db = get_session()
+        try:
+            query = db.query(ChaosFaultDB)
+            
+            if fault_type:
+                query = query.filter(ChaosFaultDB.fault_type == fault_type.value)
+            
+            total = query.count()
+            faults = query.limit(limit).all()
+            
+            items = []
+            for fault in faults:
+                items.append({
+                    "id": fault.id,
+                    "name": fault.name,
+                    "description": fault.description,
+                    "fault_type": fault.fault_type,
+                    "target": fault.target,
+                    "parameters": fault.parameters,
+                    "severity": fault.severity,
+                    "status": fault.status,
+                    "result": fault.result,
+                    "created_at": fault.created_at.isoformat() if fault.created_at else None,
+                    "updated_at": fault.updated_at.isoformat() if fault.updated_at else None,
+                })
+            
+            return create_success_response({
+                "items": items,
+                "total": total,
                 "limit": limit,
-            }
-        )
+            })
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取故障列表失败"
@@ -869,36 +829,38 @@ async def create_fault(request: CreateFaultRequest) -> Dict[str, Any]:
     定义故障类型、参数、严重程度和恢复策略。
     """
     try:
-        faults = _load_json_file(FAULTS_FILE)
-
-        fault = {
-            "id": _generate_id("FLT"),
-            "name": request.name,
-            "fault_type": request.fault_type.value,
-            "description": request.description,
-            "parameters": request.parameters,
-            "severity": request.severity.value,
-            "recovery_strategy": request.recovery_strategy,
-            "created_at": _now(),
-            "updated_at": _now(),
-            "injection_count": 0,
-            "last_injection_at": None,
-        }
-
-        faults.append(fault)
-        _save_json_file(FAULTS_FILE, faults)
-
-        # Dual-write to database
         db = get_session()
         try:
-            _save_fault_to_db(db, fault)
-        except Exception as e:
-            # Log database error but continue with JSON storage
-            pass
+            fault = ChaosFaultDB(
+                id=_generate_id("FLT"),
+                name=request.name,
+                fault_type=request.fault_type.value,
+                description=request.description,
+                parameters=request.parameters,
+                target=request.parameters.get("target", "unknown"),
+                severity=request.severity.value,
+                recovery_strategy=request.recovery_strategy,
+            )
+            db.add(fault)
+            db.commit()
+            
+            response_data = {
+                "id": fault.id,
+                "name": fault.name,
+                "description": fault.description,
+                "fault_type": fault.fault_type,
+                "target": fault.target,
+                "parameters": fault.parameters,
+                "severity": fault.severity,
+                "recovery_strategy": fault.recovery_strategy,
+                "status": fault.status,
+                "created_at": fault.created_at.isoformat() if fault.created_at else None,
+                "updated_at": fault.updated_at.isoformat() if fault.updated_at else None,
+            }
+            
+            return create_success_response(response_data, "故障创建成功")
         finally:
             db.close()
-
-        return create_success_response(fault, "故障创建成功")
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="创建故障失败"
@@ -921,58 +883,74 @@ async def get_chaos_metrics() -> Dict[str, Any]:
     包括实验总数、成功率、平均执行时间等统计信息。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        scenarios = _load_json_file(SCENARIOS_FILE)
-        faults = _load_json_file(FAULTS_FILE)
-
+        db = get_session()
         # 统计实验数据
-        total_experiments = len(experiments)
-        running_experiments = sum(1 for e in experiments if e.get("status") == "running")
-        completed_experiments = sum(1 for e in experiments if e.get("status") == "completed")
-        failed_experiments = sum(1 for e in experiments if e.get("status") == "failed")
-
+        total_experiments = db.query(ChaosExperimentDB).count()
+        running_experiments = db.query(ChaosExperimentDB).filter(
+            ChaosExperimentDB.status == "running"
+        ).count()
+        completed_experiments = db.query(ChaosExperimentDB).filter(
+            ChaosExperimentDB.status == "completed"
+        ).count()
+        failed_experiments = db.query(ChaosExperimentDB).filter(
+            ChaosExperimentDB.status == "failed"
+        ).count()
+        
+        # 统计场景数据
+        total_scenarios = db.query(ChaosScenarioDB).count()
+        enabled_scenarios = db.query(ChaosScenarioDB).filter(
+            ChaosScenarioDB.enabled == True
+        ).count()
+        
+        # 统计故障数据
+        total_faults = db.query(ChaosFaultDB).count()
+        
         # 计算成功率
-        success_count = sum(
-            1 for e in experiments if e.get("last_result", {}).get("success", False)
-        )
+        success_count = db.query(ChaosExperimentDB).filter(
+            ChaosExperimentDB.status == "completed"
+        ).count()
         success_rate = (
             (success_count / completed_experiments * 100) if completed_experiments > 0 else 0
         )
-
+        
         # 获取引擎统计
         engine_stats = chaos_engine.get_experiment_stats()
-
+        
         metrics = {
-            "experiments": {
-                "total": total_experiments,
-                "running": running_experiments,
-                "completed": completed_experiments,
-                "failed": failed_experiments,
-                "success_rate": round(success_rate, 2),
-            },
-            "scenarios": {
-                "total": len(scenarios),
-                "enabled": sum(1 for s in scenarios if s.get("enabled", False)),
-            },
-            "faults": {
-                "total": len(faults),
-                "by_type": {},
-            },
-            "engine": engine_stats,
-        }
+        "experiments": {
+            "total": total_experiments,
+            "running": running_experiments,
+            "completed": completed_experiments,
+            "failed": failed_experiments,
+            "success_rate": round(success_rate, 2),
+        },
+        "scenarios": {
+            "total": total_scenarios,
+            "enabled": enabled_scenarios,
+        },
+        "faults": {
+            "total": total_faults,
+            "by_type": {},
+        },
+        "engine": engine_stats,
+    }
 
         # 按类型统计故障
-        for fault in faults:
-            fault_type = fault.get("fault_type", "unknown")
-            metrics["faults"]["by_type"][fault_type] = (
-                metrics["faults"]["by_type"].get(fault_type, 0) + 1
-            )
+        fault_types = db.query(ChaosFaultDB.fault_type).all()
+        for fault_type in fault_types:
+            type_name = fault_type[0]
+            count = db.query(ChaosFaultDB).filter(
+                ChaosFaultDB.fault_type == type_name
+            ).count()
+            metrics["faults"]["by_type"][type_name] = count
 
         return create_success_response(metrics)
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取指标失败"
         )
+    finally:
+        db.close()
 
 
 # Safety check endpoint
@@ -992,34 +970,32 @@ async def perform_safety_check(request: SafetyCheckRequest) -> Dict[str, Any]:
     检查系统状态、资源可用性、依赖关系等，确保实验安全执行。
     """
     try:
-        experiments = _load_json_file(EXPERIMENTS_FILE)
-        experiment = next((e for e in experiments if e.get("id") == request.experiment_id), None)
-
-        if not experiment:
-            return create_error_response(
-                error=f"Experiment {request.experiment_id} not found",
-                error_code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="实验不存在",
+        db = get_session()
+        try:
+            experiment = db.query(ChaosExperimentDB).filter(
+                ChaosExperimentDB.id == request.experiment_id
+            ).first()
+            
+            if not experiment:
+                return create_error_response(
+                    error=f"Experiment {request.experiment_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="实验不存在",
+                )
+            
+            # 执行安全检查
+            check_result = chaos_engine.perform_safety_check(
+                experiment_id=request.experiment_id,
+                check_type=request.check_type,
+                parameters=request.parameters,
             )
-
-        # 执行安全检查
-        checks = {
-            "experiment_id": request.experiment_id,
-            "check_type": request.check_type,
-            "timestamp": _now(),
-            "checks": [],
-        }
-
-        # 检查混沌工程是否启用
-        chaos_enabled = chaos_engine.is_enabled()
-        checks["checks"].append(
-            {
-                "name": "chaos_engine_enabled",
-                "status": "pass" if chaos_enabled else "fail",
-                "message": (
-                    "Chaos engine is enabled" if chaos_enabled else "Chaos engine is disabled"
-                ),
-            }
+            
+            return create_success_response(check_result, "安全检查完成")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="安全检查失败"
         )
 
         # 检查是否有正在运行的实验

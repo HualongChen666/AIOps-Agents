@@ -13,9 +13,13 @@ from typing import Any, Dict, List
 logger = logging.getLogger(__name__)
 
 
-def collect_costs() -> List[Dict[str, Any]]:
+def collect_costs(start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
     """
     Collect recent cost data from configured cloud billing integrations.
+
+    Args:
+        start_date: Optional start date in ISO format (YYYY-MM-DD)
+        end_date: Optional end date in ISO format (YYYY-MM-DD)
 
     Falls back to an empty list when no integrations are available or configured.
 
@@ -34,7 +38,11 @@ def collect_costs() -> List[Dict[str, Any]]:
             try:
                 client = boto3.client("ce")
                 end = datetime.now().date()
+                if end_date:
+                    end = datetime.fromisoformat(end_date).date()
                 start = (end - timedelta(days=30)).isoformat()
+                if start_date:
+                    start = start_date
                 response = client.get_cost_and_usage(
                     TimePeriod={
                         "Start": start,
@@ -108,9 +116,12 @@ def forecast_costs(days: int = 30) -> List[Dict[str, Any]]:
         return []
 
 
-def budget_status() -> Dict[str, Any]:
+def budget_status(detailed: bool = False) -> Dict[str, Any]:
     """
     Get current budget status and recommendations
+
+    Args:
+        detailed: If True, return detailed budget breakdown
 
     Returns:
         Budget status with alerts and recommendations
@@ -157,7 +168,7 @@ def budget_status() -> Dict[str, Any]:
             recommendations.append("Consider scaling down non-essential services")
             recommendations.append("Implement cost allocation tags")
 
-        return {
+        response = {
             "status": status,
             "alert_level": alert_level,
             "message": message,
@@ -174,6 +185,20 @@ def budget_status() -> Dict[str, Any]:
             "recommendations": recommendations,
             "last_updated": current_time.isoformat(),
         }
+
+        # Add detailed breakdown if requested
+        if detailed:
+            # Group costs by service
+            service_breakdown = {}
+            for record in current_month_costs:
+                service = record.get("service", "unknown")
+                service_breakdown[service] = service_breakdown.get(service, 0) + record["cost"]
+            
+            response["budget"]["service_breakdown"] = service_breakdown
+            response["budget"]["daily_average"] = total_spend / max(1, len(current_month_costs))
+            response["budget"]["projected_monthly"] = total_spend / max(1, current_time.day) * current_time.day
+
+        return response
 
     except Exception as e:
         logger.error(f"Error getting budget status: {e}")

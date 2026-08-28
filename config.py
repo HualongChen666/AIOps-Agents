@@ -253,6 +253,7 @@ else:
 
 # Build POSTGRES_URL safely - only include password if it's set
 if POSTGRES_PASSWORD:
+    _encoded_password = quote_plus(POSTGRES_PASSWORD)
     POSTGRES_URL: str = os.getenv(
         "POSTGRES_URL",
         f"postgresql+asyncpg://{POSTGRES_USER}:{_encoded_password}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501
@@ -406,7 +407,6 @@ SSL_KEY_FILE: str = os.getenv("SSL_KEY_FILE", "").strip()
 # ============================================================
 
 if POSTGRES_PASSWORD:
-    _encoded_password = quote_plus(POSTGRES_PASSWORD)
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
         f"postgresql+asyncpg://{POSTGRES_USER}:{_encoded_password}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",  # noqa: E501

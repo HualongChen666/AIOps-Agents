@@ -40,6 +40,7 @@ def test_create_retry_session():
     assert session is not None
 
 
+@pytest.mark.asyncio
 async def test_initialize(monkeypatch):
     """initialize sets up sessions and loads existing integrations."""
     e = ie.IntegrationEcosystem()
@@ -55,6 +56,7 @@ async def test_initialize(monkeypatch):
     assert e.aiohttp_session is not None
 
 
+@pytest.mark.asyncio
 async def test_load_existing_integrations(tmp_path, monkeypatch):
     """_load_existing_integrations handles missing and valid/invalid files."""
     e = ie.IntegrationEcosystem()
@@ -77,6 +79,7 @@ async def test_load_existing_integrations(tmp_path, monkeypatch):
     assert len(e.integrations) == 1
 
 
+@pytest.mark.asyncio
 async def test_register_integration_validation_and_limits(ecosystem, monkeypatch):
     """register_integration validates fields and enforces limits."""
     monkeypatch.setattr(ie, "validate_promql", lambda q: None)
@@ -115,6 +118,7 @@ async def test_register_integration_validation_and_limits(ecosystem, monkeypatch
         await ecosystem.register_integration("Slack", ie.IntegrationType.NOTIFICATION, "slack", {})
 
 
+@pytest.mark.asyncio
 async def test_register_integration_and_activate_all_branches(ecosystem, monkeypatch):
     """register_integration activates all provider branches."""
     monkeypatch.setattr(ie, "validate_promql", lambda q: None)
@@ -170,6 +174,7 @@ async def test_register_integration_and_activate_all_branches(ecosystem, monkeyp
         )
 
 
+@pytest.mark.asyncio
 async def test_send_notifications(ecosystem, monkeypatch):
     """send_notification covers all channels and failure modes."""
     # slack
@@ -211,6 +216,7 @@ async def test_send_notifications(ecosystem, monkeypatch):
     monkeypatch.setattr(ie, "REQUESTS_AVAILABLE", True)
 
 
+@pytest.mark.asyncio
 async def test_send_email(monkeypatch):
     """_send_email_notification covers success, missing fields and exceptions."""
     e = ie.IntegrationEcosystem()
@@ -253,6 +259,7 @@ async def test_send_email(monkeypatch):
     assert await e.send_notification(ie.NotificationChannel.EMAIL, "body") is False
 
 
+@pytest.mark.asyncio
 async def test_webhooks_and_triggers(ecosystem, monkeypatch):
     """register/trigger webhook covers requests, aiohttp, signatures and errors."""
     payload = {"event": "alert"}
@@ -287,6 +294,7 @@ async def test_webhooks_and_triggers(ecosystem, monkeypatch):
     assert await ecosystem.trigger_webhook(webhook.id, payload) is False
 
 
+@pytest.mark.asyncio
 async def test_event_publish_and_process(ecosystem):
     """publish_event, _process_event and _event_processing_loop."""
     called = []
@@ -323,6 +331,7 @@ async def test_event_publish_and_process(ecosystem):
         aio_mod.sleep = orig
 
 
+@pytest.mark.asyncio
 async def test_query_prometheus_metrics(ecosystem, monkeypatch):
     """query_prometheus_metrics covers validation, cache and HTTP paths."""
     monkeypatch.setattr(ie, "validate_promql", lambda q: None)
@@ -365,6 +374,7 @@ async def test_query_prometheus_metrics(ecosystem, monkeypatch):
     assert await ecosystem.query_prometheus_metrics("up", prom.id) is None
 
 
+@pytest.mark.asyncio
 async def test_trigger_jenkins_and_create_jira(ecosystem):
     """trigger_jenkins_build and create_jira_ticket branches."""
     jenkins = await ecosystem.register_integration(
@@ -394,6 +404,7 @@ async def test_trigger_jenkins_and_create_jira(ecosystem):
     assert await ecosystem.create_jira_ticket("sum", "desc", "x") is None
 
 
+@pytest.mark.asyncio
 async def test_integration_lifecycle(ecosystem):
     """disable, enable, remove and cleanup."""
     await ecosystem.register_webhook("http://w", events=["x"])
@@ -427,6 +438,7 @@ async def test_integration_lifecycle(ecosystem):
     # no removal assertion needed; cleanup is exercised by the call below
 
 
+@pytest.mark.asyncio
 async def test_get_integration_statistics(ecosystem):
     """get_integration_statistics returns expected aggregates."""
     await ecosystem.register_integration(
@@ -453,6 +465,7 @@ def test_extended_integration_registry():
     assert reg.search_integrations("monitoring")
 
 
+@pytest.mark.asyncio
 async def test_connector_marketplace():
     """ConnectorMarketplace covers discover/install/rate/uninstall."""
     market = ie.ConnectorMarketplace()
@@ -484,6 +497,7 @@ async def test_connector_marketplace():
     assert (await market.uninstall_connector("prometheus"))["success"] is True
 
 
+@pytest.mark.asyncio
 async def test_plugin_sdk():
     """PluginSDK covers register/execute/hooks/list/template."""
     sdk = ie.PluginSDK()
@@ -568,6 +582,7 @@ def test_langgraph_status_and_fallback(monkeypatch):
     assert status["langgraph_available"] is False
 
 
+@pytest.mark.asyncio
 async def test_langgraph_analyze_with_graph(monkeypatch):
     """analyze uses ainvoke/invoke and falls back on errors."""
     monkeypatch.setattr(l2e, "LANGGRAPH_AVAILABLE", True)
@@ -597,6 +612,7 @@ async def test_langgraph_analyze_with_graph(monkeypatch):
     assert "candidates" in result or "error" in result
 
 
+@pytest.mark.asyncio
 async def test_langgraph_build_graph_error(monkeypatch):
     """_build_graph exception path."""
     monkeypatch.setattr(l2e, "LANGGRAPH_AVAILABLE", True)
@@ -606,6 +622,7 @@ async def test_langgraph_build_graph_error(monkeypatch):
     assert engine.graph is None
 
 
+@pytest.mark.asyncio
 async def test_langgraph_steps(monkeypatch):
     """Run each LangGraph step manually."""
     engine = l2e.LangGraphAnalysisEngine(config={})
@@ -687,6 +704,7 @@ async def test_langgraph_steps(monkeypatch):
     assert engine._should_retry({"error": None}) == "finalize"
 
 
+@pytest.mark.asyncio
 async def test_langgraph_collect_data_failure(monkeypatch):
     """_collect_data_step exception handling."""
     engine = l2e.LangGraphAnalysisEngine(config={})
@@ -711,6 +729,7 @@ async def test_langgraph_collect_data_failure(monkeypatch):
     assert state["error"] is not None
 
 
+@pytest.mark.asyncio
 async def test_langgraph_collect_metrics_and_logs(monkeypatch):
     """_collect_metrics and _collect_logs cover success, fallback and failure."""
     engine = l2e.LangGraphAnalysisEngine(config={})
@@ -891,6 +910,7 @@ def test_langgraph_validate_step():
     assert s5["error"] is None
 
 
+@pytest.mark.asyncio
 async def test_langgraph_fallback_analysis(monkeypatch):
     """_fallback_analyze returns AI result or error dict."""
     monkeypatch.setattr(l2e, "LANGGRAPH_AVAILABLE", False)

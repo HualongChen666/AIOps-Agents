@@ -161,11 +161,16 @@ async def test_dual_write_disabled(dual_write_module):
 
 
 @pytest.mark.asyncio
-async def test_dual_write_sqlite_only_failure(dual_write_module):
+async def test_dual_write_sqlite_only_failure(dual_write_module, monkeypatch):
     """SQLite fails and VM disabled -> write_metric should fail."""
     import core.metrics_history as mh
 
-    mh.metrics_history.push_metric.side_effect = RuntimeError("db locked")
+    # Mock push_metric to raise an error
+    original_push = mh.METRICS_HISTORY.push_metric
+    def failing_push(*args, **kwargs):
+        raise RuntimeError("db locked")
+    monkeypatch.setattr(mh.METRICS_HISTORY, "push_metric", failing_push)
+
     strategy = dual_write_module.DualWriteStrategy()
     ok = await strategy.write_metric("cpu", 0.5, {"service": "web"})
     assert ok is False
@@ -527,16 +532,20 @@ async def test_repair_execute_powershell_not_found(repair_module):
 
 @pytest.mark.asyncio
 async def test_repair_execute_sqlite_record_failure(repair_module, monkeypatch):
-    import core.stats_engine as stats
+    import core.repair_engine._impl as impl
 
-    async def broken_record(_d):
+    # Mock the _record_to_sqlite_sync function to fail
+    original_record = impl._record_to_sqlite_sync
+    def broken_record(*args, **kwargs):
         raise RuntimeError("sqlite closed")
+    monkeypatch.setattr(impl, "_record_to_sqlite_sync", broken_record)
 
-    monkeypatch.setattr(stats, "record_repair", broken_record)
     result = await repair_module.execute_repair(
         "free_memory"
     )  # noqa: F841  # Variable for test verification
+    # The repair itself succeeds, but SQLite persistence fails
     assert result["success"] is True
+    # When SQLite fails, sqlite_persisted should be False
     assert result["sqlite_persisted"] is False
 
 

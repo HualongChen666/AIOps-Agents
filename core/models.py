@@ -647,7 +647,7 @@ class PerformanceMetric(Base):
     )
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -706,7 +706,7 @@ class PerformanceBaseline(Base):
     is_active = Column(Boolean, default=True, nullable=False)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -754,7 +754,7 @@ class PerformanceTrend(Base):
     environment = Column(String(50), nullable=False, index=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -806,7 +806,7 @@ class PerformanceRegression(Base):
     environment = Column(String(50), nullable=False, index=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     # 索引
     __table_args__ = (
@@ -1212,6 +1212,353 @@ class AlertIntegration(Base):
         )
 
 
+# ==================== Infrastructure Models ====================
+
+
+class InfrastructureResourceDB(Base):
+    """基础设施资源表"""
+
+    __tablename__ = "infrastructure_resources"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    resource_type = Column(String(50), nullable=False, index=True)
+    provider = Column(String(50), nullable=False, index=True)
+    region = Column(String(50), nullable=False, index=True)
+    status = Column(String(20), default="running", nullable=False, index=True)
+    cpu_cores = Column(Integer, nullable=False)
+    memory_gb = Column(Integer, nullable=False)
+    disk_gb = Column(Integer, nullable=False)
+    tags = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_infrastructure_resources_type", "resource_type"),
+        Index("idx_infrastructure_resources_provider", "provider"),
+        Index("idx_infrastructure_resources_region", "region"),
+        Index("idx_infrastructure_resources_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureResourceDB(id='{self.id}', name='{self.name}', type='{self.resource_type}')>"
+
+
+class InfrastructureProvisioningTaskDB(Base):
+    """基础设施资源配置任务表"""
+
+    __tablename__ = "infrastructure_provisioning_tasks"
+
+    id = Column(String(100), primary_key=True)
+    resource_id = Column(String(100), nullable=True, index=True)
+    name = Column(String(200), nullable=False)
+    resource_type = Column(String(50), nullable=False)
+    provider = Column(String(50), nullable=False)
+    region = Column(String(50), nullable=False)
+    status = Column(String(20), default="pending", nullable=False)
+    progress = Column(Integer, default=0, nullable=False)
+    logs = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_infrastructure_provisioning_resource_id", "resource_id"),
+        Index("idx_infrastructure_provisioning_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureProvisioningTaskDB(id='{self.id}', name='{self.name}', status='{self.status}')>"
+
+
+# ==================== ITSM Models ====================
+
+
+class ITSMIncidentDB(Base):
+    """ITSM事件表"""
+
+    __tablename__ = "itsm_incidents"
+
+    id = Column(String(100), primary_key=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    priority = Column(String(20), default="medium", nullable=False, index=True)
+    status = Column(String(20), default="open", nullable=False, index=True)
+    assigned_to = Column(String(100), nullable=True)
+    category = Column(String(50), nullable=False, index=True)
+    impact = Column(String(20), default="medium", nullable=False)
+    urgency = Column(String(20), default="medium", nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    resolved_at = Column(DateTime(), nullable=True)
+    resolution_notes = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_itsm_incidents_priority", "priority"),
+        Index("idx_itsm_incidents_status", "status"),
+        Index("idx_itsm_incidents_category", "category"),
+    )
+
+    def __repr__(self):
+        return f"<ITSMIncidentDB(id='{self.id}', title='{self.title}', status='{self.status}')>"
+
+
+class ITSMProblemDB(Base):
+    """ITSM问题表"""
+
+    __tablename__ = "itsm_problems"
+
+    id = Column(String(100), primary_key=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    status = Column(String(20), default="open", nullable=False, index=True)
+    priority = Column(String(20), default="medium", nullable=False)
+    root_cause = Column(Text, nullable=True)
+    related_incidents = Column(JSON, nullable=True)
+    workarounds = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    resolved_at = Column(DateTime(), nullable=True)
+
+    __table_args__ = (
+        Index("idx_itsm_problems_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ITSMProblemDB(id='{self.id}', title='{self.title}', status='{self.status}')>"
+
+
+class ITSMChangeDB(Base):
+    """ITSM变更表"""
+
+    __tablename__ = "itsm_changes"
+
+    id = Column(String(100), primary_key=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    status = Column(String(20), default="pending", nullable=False, index=True)
+    priority = Column(String(20), default="medium", nullable=False)
+    change_type = Column(String(50), nullable=False)
+    risk_level = Column(String(20), default="medium", nullable=False)
+    scheduled_start = Column(DateTime(), nullable=True)
+    scheduled_end = Column(DateTime(), nullable=True)
+    implemented_at = Column(DateTime(), nullable=True)
+    created_by = Column(String(100), nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_itsm_changes_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ITSMChangeDB(id='{self.id}', title='{self.title}', status='{self.status}')>"
+
+
+class ITSMServiceCatalogDB(Base):
+    """ITSM服务目录表"""
+
+    __tablename__ = "itsm_service_catalog"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    category = Column(String(50), nullable=False, index=True)
+    service_type = Column(String(50), nullable=False)
+    availability = Column(String(20), default="24x7", nullable=False)
+    sla_percentage = Column(Float, default=99.9, nullable=False)
+    owner = Column(String(100), nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_itsm_service_catalog_category", "category"),
+    )
+
+    def __repr__(self):
+        return f"<ITSMServiceCatalogDB(id='{self.id}', name='{self.name}', category='{self.category}')>"
+
+
+class ITSLADB(Base):
+    """ITSLA表"""
+
+    __tablename__ = "itsm_slas"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    service_id = Column(String(100), nullable=True, index=True)
+    response_time_minutes = Column(Integer, nullable=False)
+    resolution_time_minutes = Column(Integer, nullable=False)
+    availability_percentage = Column(Float, default=99.9, nullable=False)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_itsm_slas_service_id", "service_id"),
+    )
+
+    def __repr__(self):
+        return f"<ITSLADB(id='{self.id}', name='{self.name}')>"
+
+
+class ITSMKnowledgeBaseDB(Base):
+    """ITSM知识库表"""
+
+    __tablename__ = "itsm_knowledge_base"
+
+    id = Column(String(100), primary_key=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    category = Column(String(50), nullable=False, index=True)
+    tags = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_itsm_knowledge_base_category", "category"),
+    )
+
+    def __repr__(self):
+        return f"<ITSMKnowledgeBaseDB(id='{self.id}', title='{self.title}', category='{self.category}')>"
+
+
+# ==================== Localization Models ====================
+
+
+class LocalizationLanguageDB(Base):
+    """本地化语言表"""
+
+    __tablename__ = "localization_languages"
+
+    id = Column(String(100), primary_key=True)
+    code = Column(String(20), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    native_name = Column(String(100), nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    is_default = Column(Boolean, default=False, nullable=False)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_localization_languages_code", "code"),
+        Index("idx_localization_languages_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<LocalizationLanguageDB(id='{self.id}', code='{self.code}', name='{self.name}')>"
+
+
+class LocalizationResourceDB(Base):
+    """本地化资源表"""
+
+    __tablename__ = "localization_resources"
+
+    id = Column(String(100), primary_key=True)
+    language_code = Column(String(20), nullable=False, index=True)
+    namespace = Column(String(100), nullable=False, index=True)
+    key = Column(String(200), nullable=False)
+    value = Column(Text, nullable=False)
+    context = Column(Text, nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_localization_resources_language_code", "language_code"),
+        Index("idx_localization_resources_namespace", "namespace"),
+        Index("idx_localization_resources_key", "key"),
+    )
+
+    def __repr__(self):
+        return f"<LocalizationResourceDB(id='{self.id}', key='{self.key}', language='{self.language_code}')>"
+
+
+class LocalizationTranslationDB(Base):
+    """本地化翻译表"""
+
+    __tablename__ = "localization_translations"
+
+    id = Column(String(100), primary_key=True)
+    source_language = Column(String(20), nullable=False, index=True)
+    target_language = Column(String(20), nullable=False, index=True)
+    namespace = Column(String(100), nullable=False)
+    key = Column(String(200), nullable=False)
+    source_value = Column(Text, nullable=False)
+    target_value = Column(Text, nullable=False)
+    status = Column(String(20), default="draft", nullable=False)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_localization_translations_source", "source_language"),
+        Index("idx_localization_translations_target", "target_language"),
+    )
+
+    def __repr__(self):
+        return f"<LocalizationTranslationDB(id='{self.id}', key='{self.key}')>"
+
+
+class LocalizationAdapterDB(Base):
+    """本地化适配器表"""
+
+    __tablename__ = "localization_adapters"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    type = Column(String(50), nullable=False, index=True)
+    config = Column(JSON, nullable=True)
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_localization_adapters_type", "type"),
+        Index("idx_localization_adapters_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<LocalizationAdapterDB(id='{self.id}', name='{self.name}', type='{self.type}')>"
+
+
+# ==================== Maturity Models ====================
+
+
+class MaturityAssessmentDB(Base):
+    """成熟度评估表"""
+
+    __tablename__ = "maturity_assessments"
+
+    id = Column(String(100), primary_key=True)
+    assessment_name = Column(String(200), nullable=False)
+    status = Column(String(20), default="in_progress", nullable=False, index=True)
+    overall_score = Column(Integer, default=0, nullable=False)
+    level = Column(Integer, default=1, nullable=False)
+    level_name = Column(String(100), nullable=False)
+    dimensions = Column(JSON, nullable=True)
+    recommendations = Column(JSON, nullable=True)
+    assessed_at = Column(DateTime(), server_default=func.now())
+    assessed_by = Column(String(100), nullable=False)
+    notes = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_maturity_assessments_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<MaturityAssessmentDB(id='{self.id}', name='{self.assessment_name}', status='{self.status}')>"
+
+
 class AlertAcknowledgement(Base):
     """告警确认记录表"""
 
@@ -1261,7 +1608,7 @@ class PriorityRule(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_priority_rules_name", "name"),
@@ -1297,7 +1644,7 @@ class PriorityScore(Base):
     calculated_at = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_priority_scores_alert_id", "alert_id"),
@@ -1333,7 +1680,7 @@ class PriorityHistory(Base):
     changed_at = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_priority_history_alert_id", "alert_id"),
@@ -1372,7 +1719,7 @@ class RealtimeStream(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_streams_name", "name"),
@@ -1402,7 +1749,7 @@ class RealtimeEvent(Base):
     timestamp = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_events_stream_id", "stream_id"),
@@ -1441,7 +1788,7 @@ class RealtimeSubscription(Base):
     updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_subscriptions_stream_id", "stream_id"),
@@ -1483,7 +1830,7 @@ class RealtimeWebhook(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_realtime_webhooks_name", "name"),
@@ -1535,7 +1882,7 @@ class RootCauseHypothesis(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_hypotheses_alert_id", "alert_id"),
@@ -1581,7 +1928,7 @@ class RootCauseExperiment(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_experiments_hypothesis_id", "hypothesis_id"),
@@ -1615,7 +1962,7 @@ class RootCauseEvidence(Base):
     collected_at = Column(DateTime(), server_default=func.now(), index=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_evidence_hypothesis_id", "hypothesis_id"),
@@ -1662,7 +2009,7 @@ class RootCauseConclusion(Base):
     created_by = Column(String(50), nullable=True)
 
     # 元数据
-    dataset_metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_root_cause_conclusions_alert_id", "alert_id"),
@@ -2964,3 +3311,779 @@ class ChaosFaultDB(Base):
 
     def __repr__(self):
         return f"<ChaosFaultDB(id={self.id}, fault_type='{self.fault_type}', target='{self.target}')>"
+
+
+# ==================== Service Monitoring Models ====================
+
+
+class ServiceMonitorAlertDB(Base):
+    """服务监控告警表"""
+
+    __tablename__ = "service_monitor_alerts"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    service_name = Column(String(200), nullable=False, index=True)
+    metric_name = Column(String(100), nullable=False)
+    condition = Column(String(50), nullable=False)
+    threshold = Column(Float, nullable=False)
+    severity = Column(String(50), nullable=False, default="warning")
+    description = Column(Text, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True)
+    notification_channels = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_service_monitor_alerts_service", "service_name"),
+        Index("idx_service_monitor_alerts_severity", "severity"),
+    )
+
+    def __repr__(self):
+        return f"<ServiceMonitorAlertDB(id='{self.id}', name='{self.name}', service='{self.service_name}')>"
+
+
+class ServiceMonitorDashboardDB(Base):
+    """服务监控仪表板表"""
+
+    __tablename__ = "service_monitor_dashboards"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    widgets = Column(JSON, nullable=False)
+    refresh_interval_seconds = Column(Integer, nullable=False, default=30)
+    is_public = Column(Boolean, nullable=False, default=False)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_service_monitor_dashboards_name", "name"),
+    )
+
+    def __repr__(self):
+        return f"<ServiceMonitorDashboardDB(id='{self.id}', name='{self.name}')>"
+
+
+# ==================== SLO Models ====================
+
+
+class SLODefinitionDB(Base):
+    """SLO定义表"""
+
+    __tablename__ = "slo_definitions"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    metric_type = Column(String(50), nullable=False)
+    threshold = Column(Float, nullable=False)
+    operator = Column(String(50), nullable=False, default="gte")
+    window = Column(String(50), nullable=False, default="30d")
+    alerting = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_slo_definitions_name", "name"),
+        Index("idx_slo_definitions_metric_type", "metric_type"),
+    )
+
+    def __repr__(self):
+        return f"<SLODefinitionDB(id='{self.id}', name='{self.name}', metric_type='{self.metric_type}')>"
+
+
+class SLOObjectiveDB(Base):
+    """SLO目标表"""
+
+    __tablename__ = "slo_objectives"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    service = Column(String(200), nullable=False)
+    metric = Column(String(100), nullable=False)
+    target = Column(Float, nullable=False)
+    window = Column(String(50), nullable=False, default="30d")
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_slo_objectives_service", "service"),
+        Index("idx_slo_objectives_name", "name"),
+    )
+
+    def __repr__(self):
+        return f"<SLOObjectiveDB(id='{self.id}', name='{self.name}', service='{self.service}')>"
+
+
+class SLOAlertDB(Base):
+    """SLO告警表"""
+
+    __tablename__ = "slo_alerts"
+
+    id = Column(String(100), primary_key=True)
+    slo_id = Column(String(100), nullable=False)
+    severity = Column(String(50), nullable=False)
+    message = Column(Text, nullable=False)
+    meta_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_slo_alerts_slo_id", "slo_id"),
+        Index("idx_slo_alerts_severity", "severity"),
+    )
+
+    def __repr__(self):
+        return f"<SLOAlertDB(id='{self.id}', slo_id='{self.slo_id}', severity='{self.severity}')>"
+
+
+# ==================== Tenant Models ====================
+
+
+class TenantConfigDB(Base):
+    """租户配置表"""
+
+    __tablename__ = "tenant_configs"
+
+    tenant_id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    domain = Column(String(255), nullable=True)
+    logo_url = Column(String(500), nullable=True)
+    primary_color = Column(String(50), nullable=True, default="#0066cc")
+    secondary_color = Column(String(50), nullable=True, default="#004499")
+    custom_css = Column(Text, nullable=True)
+    custom_js = Column(Text, nullable=True)
+    branding_enabled = Column(Boolean, nullable=False, default=False)
+    sso_enabled = Column(Boolean, nullable=False, default=False)
+    sso_provider = Column(String(50), nullable=True)
+    sso_config = Column(JSON, nullable=True)
+    audit_logging_enabled = Column(Boolean, nullable=False, default=True)
+    data_retention_days = Column(Integer, nullable=False, default=90)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_tenant_configs_name", "name"),
+    )
+
+    def __repr__(self):
+        return f"<TenantConfigDB(tenant_id='{self.tenant_id}', name='{self.name}')>"
+
+
+class TenantSettingsDB(Base):
+    """租户设置表"""
+
+    __tablename__ = "tenant_settings"
+
+    tenant_id = Column(String(100), primary_key=True)
+    notification_enabled = Column(Boolean, nullable=False, default=True)
+    notification_channels = Column(JSON, nullable=True)
+    alert_thresholds = Column(JSON, nullable=True)
+    maintenance_windows = Column(JSON, nullable=True)
+    backup_schedule = Column(String(50), nullable=True)
+    security_policies = Column(JSON, nullable=True)
+    compliance_settings = Column(JSON, nullable=True)
+    integration_settings = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<TenantSettingsDB(tenant_id='{self.tenant_id}')>"
+
+
+class TenantMemberDB(Base):
+    """租户成员表"""
+
+    __tablename__ = "tenant_members"
+
+    id = Column(String(100), primary_key=True)
+    tenant_id = Column(String(100), nullable=False)
+    user_id = Column(String(100), nullable=False)
+    role = Column(String(50), nullable=False)
+    email = Column(String(255), nullable=True)
+    full_name = Column(String(200), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_tenant_members_tenant_id", "tenant_id"),
+        Index("idx_tenant_members_user_id", "user_id"),
+    )
+
+    def __repr__(self):
+        return f"<TenantMemberDB(id='{self.id}', tenant_id='{self.tenant_id}', role='{self.role}')>"
+
+
+# ==================== Test Automation Models ====================
+
+
+class TestSuiteDB(Base):
+    """测试套件表"""
+
+    __tablename__ = "test_suites"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    test_type = Column(String(50), nullable=False)
+    framework = Column(String(50), nullable=True)
+    status = Column(String(50), nullable=False, default="active")
+    schedule = Column(String(100), nullable=True)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_test_suites_name", "name"),
+        Index("idx_test_suites_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<TestSuiteDB(id='{self.id}', name='{self.name}', status='{self.status}')>"
+
+
+class TestExecutionDB(Base):
+    """测试执行表"""
+
+    __tablename__ = "test_executions"
+
+    id = Column(String(100), primary_key=True)
+    suite_id = Column(String(100), nullable=False)
+    suite_name = Column(String(200), nullable=False)
+    status = Column(String(50), nullable=False, default="pending")
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    total_tests = Column(Integer, nullable=False)
+    passed_tests = Column(Integer, nullable=False, default=0)
+    failed_tests = Column(Integer, nullable=False, default=0)
+    skipped_tests = Column(Integer, nullable=False, default=0)
+    trigger_type = Column(String(50), nullable=False, default="manual")
+    environment = Column(String(50), nullable=True)
+    triggered_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_test_executions_suite_id", "suite_id"),
+        Index("idx_test_executions_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<TestExecutionDB(id='{self.id}', suite_id='{self.suite_id}', status='{self.status}')>"
+
+
+# ==================== Test Coverage Models ====================
+
+
+class TestCoverageReportDB(Base):
+    """测试覆盖率报告表"""
+
+    __tablename__ = "test_coverage_reports"
+
+    id = Column(String(100), primary_key=True)
+    report_name = Column(String(200), nullable=False)
+    overall_coverage = Column(Float, nullable=False, default=0.0)
+    overall_level = Column(String(50), nullable=False, default="poor")
+    total_modules = Column(Integer, nullable=False, default=0)
+    summary = Column(JSON, nullable=True)
+    modules = Column(JSON, nullable=True)
+    trends = Column(JSON, nullable=True)
+    generated_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_test_coverage_reports_name", "report_name"),
+    )
+
+    def __repr__(self):
+        return f"<TestCoverageReportDB(id='{self.id}', report_name='{self.report_name}', coverage={self.overall_coverage})>"
+
+
+# Dashboard Models
+class DashboardWidgetDB(Base):
+    """Dashboard widget table"""
+
+    __tablename__ = "dashboard_widgets"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    widget_type = Column(String(50), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    config = Column(JSON, nullable=True)
+    data_source = Column(String(500), nullable=True)
+    refresh_interval = Column(Integer, nullable=False, default=30)
+    position = Column(JSON, nullable=True)
+    size = Column(JSON, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(100), nullable=False)
+
+    __table_args__ = (
+        Index("idx_dashboard_widgets_type", "widget_type"),
+        Index("idx_dashboard_widgets_enabled", "enabled"),
+        Index("idx_dashboard_widgets_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<DashboardWidgetDB(id={self.id}, title='{self.title}', type='{self.widget_type}')>"
+
+
+class DashboardLayoutDB(Base):
+    """Dashboard layout table"""
+
+    __tablename__ = "dashboard_layouts"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    layout_name = Column(String(200), nullable=False)
+    layout_type = Column(String(50), nullable=False, default="grid")
+    widgets = Column(JSON, nullable=True)
+    columns = Column(Integer, nullable=False, default=12)
+    is_default = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_dashboard_layouts_name", "layout_name"),
+        Index("idx_dashboard_layouts_type", "layout_type"),
+        Index("idx_dashboard_layouts_default", "is_default"),
+    )
+
+    def __repr__(self):
+        return f"<DashboardLayoutDB(id={self.id}, name='{self.layout_name}', type='{self.layout_type}')>"
+
+
+# Database Advanced Models
+class DatabaseOptimizationDB(Base):
+    """Database optimization table"""
+
+    __tablename__ = "database_optimizations"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    query_optimizations = Column(Integer, nullable=False, default=0)
+    connection_optimizations = Column(Integer, nullable=False, default=0)
+    cache_optimizations = Column(Integer, nullable=False, default=0)
+    performance_improvement = Column(Float, nullable=False, default=0.0)
+    target_tables = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_database_optimizations_status", "status"),
+        Index("idx_database_optimizations_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseOptimizationDB(id={self.id}, status='{self.status}')>"
+
+
+class DatabaseIndexDB(Base):
+    """Database index table"""
+
+    __tablename__ = "database_indexes"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    index_name = Column(String(200), nullable=False)
+    table_name = Column(String(200), nullable=False, index=True)
+    columns = Column(JSON, nullable=False)
+    index_type = Column(String(50), nullable=False, default="btree")
+    is_unique = Column(Boolean, nullable=False, default=False)
+    size_bytes = Column(Integer, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_database_indexes_name", "index_name"),
+        Index("idx_database_indexes_table", "table_name"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseIndexDB(id={self.id}, name='{self.index_name}', table='{self.table_name}')>"
+
+
+class DatabaseBackupDB(Base):
+    """Database backup table"""
+
+    __tablename__ = "database_backups"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    database_name = Column(String(200), nullable=False, index=True)
+    backup_type = Column(String(50), nullable=False, default="full")
+    size_bytes = Column(Integer, nullable=True)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    compression = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_database_backups_database", "database_name"),
+        Index("idx_database_backups_status", "status"),
+        Index("idx_database_backups_created_at", "created_at"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseBackupDB(id={self.id}, database='{self.database_name}', status='{self.status}')>"
+
+
+class DatabaseMigrationDB(Base):
+    """Database migration table"""
+
+    __tablename__ = "database_migrations"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    migration_name = Column(String(200), nullable=False)
+    database_name = Column(String(200), nullable=False)
+    version = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    script = Column(Text, nullable=True)
+    rollback_script = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    executed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_database_migrations_database", "database_name"),
+        Index("idx_database_migrations_status", "status"),
+        Index("idx_database_migrations_version", "version"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseMigrationDB(id={self.id}, name='{self.migration_name}', version='{self.version}')>"
+
+
+# Documentation Models
+class DocumentationDocumentDB(Base):
+    """Documentation document table"""
+
+    __tablename__ = "documentation_documents"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    title = Column(String(200), nullable=False, index=True)
+    doc_type = Column(String(50), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    author = Column(String(100), nullable=True)
+    version = Column(String(50), nullable=False, default="1.0")
+    status = Column(String(50), nullable=False, default="draft", index=True)
+    doc_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_documentation_documents_title", "title"),
+        Index("idx_documentation_documents_type", "doc_type"),
+        Index("idx_documentation_documents_status", "status"),
+        Index("idx_documentation_documents_author", "author"),
+    )
+
+    def __repr__(self):
+        return f"<DocumentationDocumentDB(id={self.id}, title='{self.title}', type='{self.doc_type}')>"
+
+
+class DocumentationTemplateDB(Base):
+    """Documentation template table"""
+
+    __tablename__ = "documentation_templates"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    template_name = Column(String(200), nullable=False)
+    doc_type = Column(String(50), nullable=False, index=True)
+    template_content = Column(Text, nullable=False)
+    template_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_documentation_templates_name", "template_name"),
+        Index("idx_documentation_templates_type", "doc_type"),
+    )
+
+    def __repr__(self):
+        return f"<DocumentationTemplateDB(id={self.id}, name='{self.template_name}', type='{self.doc_type}')>"
+
+
+class DocumentationVersionDB(Base):
+    """Documentation version table"""
+
+    __tablename__ = "documentation_versions"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    document_id = Column(String(50), nullable=False, index=True)
+    version = Column(String(50), nullable=False)
+    content = Column(Text, nullable=False)
+    changes = Column(Text, nullable=True)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_documentation_versions_document", "document_id"),
+        Index("idx_documentation_versions_version", "version"),
+    )
+
+    def __repr__(self):
+        return f"<DocumentationVersionDB(id={self.id}, document_id='{self.document_id}', version='{self.version}')>"
+
+
+class DocumentationReviewDB(Base):
+    """Documentation review table"""
+
+    __tablename__ = "documentation_reviews"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    document_id = Column(String(50), nullable=False, index=True)
+    reviewer = Column(String(100), nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    comments = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_documentation_reviews_document", "document_id"),
+        Index("idx_documentation_reviews_reviewer", "reviewer"),
+        Index("idx_documentation_reviews_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<DocumentationReviewDB(id={self.id}, document_id='{self.document_id}', reviewer='{self.reviewer}')>"
+
+
+# Enterprise Models
+class EnterpriseTenantDB(Base):
+    """Enterprise tenant table"""
+
+    __tablename__ = "enterprise_tenants"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(200), nullable=False, index=True)
+    domain = Column(String(200), nullable=False, unique=True)
+    plan = Column(String(50), nullable=False, default="standard", index=True)
+    max_users = Column(Integer, nullable=False, default=100)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    tenant_settings = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_enterprise_tenants_name", "name"),
+        Index("idx_enterprise_tenants_plan", "plan"),
+        Index("idx_enterprise_tenants_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<EnterpriseTenantDB(id={self.id}, name='{self.name}', domain='{self.domain}')>"
+
+
+class EnterpriseUserDB(Base):
+    """Enterprise user table"""
+
+    __tablename__ = "enterprise_users"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    username = Column(String(100), nullable=False)
+    email = Column(String(255), nullable=False)
+    full_name = Column(String(200), nullable=False)
+    role_id = Column(String(50), nullable=True)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    attributes = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_enterprise_users_tenant", "tenant_id"),
+        Index("idx_enterprise_users_username", "username"),
+        Index("idx_enterprise_users_email", "email"),
+        Index("idx_enterprise_users_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<EnterpriseUserDB(id={self.id}, username='{self.username}', tenant_id='{self.tenant_id}')>"
+
+
+class EnterpriseRoleDB(Base):
+    """Enterprise role table"""
+
+    __tablename__ = "enterprise_roles"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    role_name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    permissions = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_enterprise_roles_tenant", "tenant_id"),
+        Index("idx_enterprise_roles_name", "role_name"),
+    )
+
+    def __repr__(self):
+        return f"<EnterpriseRoleDB(id={self.id}, name='{self.role_name}', tenant_id='{self.tenant_id}')>"
+
+
+class EnterprisePermissionDB(Base):
+    """Enterprise permission table"""
+
+    __tablename__ = "enterprise_permissions"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    permission_name = Column(String(100), nullable=False, unique=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    action = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_enterprise_permissions_name", "permission_name"),
+        Index("idx_enterprise_permissions_resource", "resource_type"),
+    )
+
+    def __repr__(self):
+        return f"<EnterprisePermissionDB(id={self.id}, name='{self.permission_name}', resource='{self.resource_type}')>"
+
+
+class EnterpriseAuditLogDB(Base):
+    """Enterprise audit log table"""
+
+    __tablename__ = "enterprise_audit_logs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    user_id = Column(String(50), nullable=False, index=True)
+    action = Column(String(100), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False)
+    resource_id = Column(String(50), nullable=False)
+    outcome = Column(String(50), nullable=False)
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    data_classification = Column(String(50), nullable=True)
+    audit_metadata = Column(JSON, nullable=True)
+    timestamp = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_enterprise_audit_logs_tenant", "tenant_id"),
+        Index("idx_enterprise_audit_logs_user", "user_id"),
+        Index("idx_enterprise_audit_logs_action", "action"),
+        Index("idx_enterprise_audit_logs_timestamp", "timestamp"),
+    )
+
+    def __repr__(self):
+        return f"<EnterpriseAuditLogDB(id={self.id}, tenant_id='{self.tenant_id}', action='{self.action}')>"
+
+
+class EnterpriseSettingsDB(Base):
+    """Enterprise settings table"""
+
+    __tablename__ = "enterprise_settings"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    setting_key = Column(String(200), nullable=False, unique=True)
+    setting_value = Column(JSON, nullable=True)
+    description = Column(Text, nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_enterprise_settings_key", "setting_key"),
+    )
+
+    def __repr__(self):
+        return f"<EnterpriseSettingsDB(id={self.id}, key='{self.setting_key}')>"
+
+
+# Frontend Models
+class FrontendComponentDB(Base):
+    """Frontend component table"""
+
+    __tablename__ = "frontend_components"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(200), nullable=False, index=True)
+    type = Column(String(50), nullable=False, index=True)
+    category = Column(String(50), nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    props = Column(JSON, nullable=True)
+    code = Column(Text, nullable=False)
+    dependencies = Column(JSON, nullable=True)
+    is_public = Column(Boolean, nullable=False, default=False, index=True)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_frontend_components_name", "name"),
+        Index("idx_frontend_components_type", "type"),
+        Index("idx_frontend_components_category", "category"),
+        Index("idx_frontend_components_public", "is_public"),
+        Index("idx_frontend_components_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendComponentDB(id={self.id}, name='{self.name}', type='{self.type}')>"
+
+
+class FrontendThemeDB(Base):
+    """Frontend theme table"""
+
+    __tablename__ = "frontend_themes"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(200), nullable=False)
+    base_theme = Column(String(50), nullable=False, default="light", index=True)
+    colors = Column(JSON, nullable=False)
+    fonts = Column(JSON, nullable=True)
+    spacing = Column(JSON, nullable=True)
+    is_default = Column(Boolean, nullable=False, default=False, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_frontend_themes_name", "name"),
+        Index("idx_frontend_themes_base", "base_theme"),
+        Index("idx_frontend_themes_default", "is_default"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendThemeDB(id={self.id}, name='{self.name}', base='{self.base_theme}')>"
+
+
+class FrontendLayoutDB(Base):
+    """Frontend layout table"""
+
+    __tablename__ = "frontend_layouts"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(200), nullable=False)
+    layout_type = Column(String(50), nullable=False, default="grid")
+    structure = Column(JSON, nullable=False)
+    is_default = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_frontend_layouts_name", "name"),
+        Index("idx_frontend_layouts_type", "layout_type"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendLayoutDB(id={self.id}, name='{self.name}', type='{self.layout_type}')>"
+
+
+class FrontendLocalizationDB(Base):
+    """Frontend localization table"""
+
+    __tablename__ = "frontend_localizations"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    language_code = Column(String(10), nullable=False, index=True)
+    translation_key = Column(String(200), nullable=False, index=True)
+    translation_value = Column(Text, nullable=False)
+    context = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_frontend_localizations_language", "language_code"),
+        Index("idx_frontend_localizations_key", "translation_key"),
+        Index("idx_frontend_localizations_unique", "language_code", "translation_key", unique=True),
+    )
+
+    def __repr__(self):
+        return f"<FrontendLocalizationDB(id={self.id}, lang='{self.language_code}', key='{self.translation_key}')>"

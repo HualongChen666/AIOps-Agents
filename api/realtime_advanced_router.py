@@ -185,13 +185,13 @@ async def get_realtime_streams(
     status: Optional[str] = Query(None, description="按状态过滤"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RealtimeStreamResponse]:
     """
     获取实时流列表
 
     支持按流类型和状态过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RealtimeStream)
 
@@ -228,13 +228,12 @@ async def get_realtime_streams(
 
 
 @router.post("/streams", response_model=RealtimeStreamResponse, summary="创建实时流")
-async def create_realtime_stream(stream: RealtimeStreamCreate) -> RealtimeStreamResponse:
+async def create_realtime_stream(stream: RealtimeStreamCreate, db: Session = Depends(get_db)) -> RealtimeStreamResponse:
     """
     创建新的实时流
 
     流用于实时推送事件数据
     """
-    db: Session = Depends(get_db)
     try:
         # 验证流类型
         valid_types = ["sse", "websocket", "kafka"]
@@ -290,11 +289,10 @@ async def create_realtime_stream(stream: RealtimeStreamCreate) -> RealtimeStream
 
 
 @router.get("/streams/{stream_id}", response_model=RealtimeStreamResponse, summary="获取单个实时流")
-async def get_realtime_stream(stream_id: str) -> RealtimeStreamResponse:
+async def get_realtime_stream(stream_id: str, db: Session = Depends(get_db)) -> RealtimeStreamResponse:
     """
     根据ID获取单个实时流
     """
-    db: Session = Depends(get_db)
     try:
         stream = db.query(RealtimeStream).filter(RealtimeStream.id == stream_id).first()
         if not stream:
@@ -322,14 +320,13 @@ async def get_realtime_stream(stream_id: str) -> RealtimeStreamResponse:
 
 @router.patch("/streams/{stream_id}", response_model=RealtimeStreamResponse, summary="更新实时流")
 async def update_realtime_stream(
-    stream_id: str, stream_update: RealtimeStreamUpdate
+    stream_id: str, stream_update: RealtimeStreamUpdate, db: Session = Depends(get_db)
 ) -> RealtimeStreamResponse:
     """
     更新实时流
 
     支持部分更新
     """
-    db: Session = Depends(get_db)
     try:
         stream = db.query(RealtimeStream).filter(RealtimeStream.id == stream_id).first()
         if not stream:
@@ -373,11 +370,10 @@ async def update_realtime_stream(
 
 
 @router.delete("/streams/{stream_id}", summary="删除实时流")
-async def delete_realtime_stream(stream_id: str) -> Dict[str, Any]:
+async def delete_realtime_stream(stream_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     删除实时流
     """
-    db: Session = Depends(get_db)
     try:
         stream = db.query(RealtimeStream).filter(RealtimeStream.id == stream_id).first()
         if not stream:
@@ -403,13 +399,13 @@ async def get_realtime_events(
     event_type: Optional[str] = Query(None, description="按事件类型过滤"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RealtimeEventResponse]:
     """
     获取实时事件列表
 
     支持按流ID和事件类型过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RealtimeEvent)
 
@@ -445,13 +441,13 @@ async def get_realtime_subscriptions(
     status: Optional[str] = Query(None, description="按状态过滤"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RealtimeSubscriptionResponse]:
     """
     获取订阅列表
 
     支持按流ID、订阅者ID和状态过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RealtimeSubscription)
 
@@ -489,14 +485,13 @@ async def get_realtime_subscriptions(
 
 @router.post("/subscriptions", response_model=RealtimeSubscriptionResponse, summary="创建订阅")
 async def create_realtime_subscription(
-    subscription: RealtimeSubscriptionCreate,
+    subscription: RealtimeSubscriptionCreate, db: Session = Depends(get_db)
 ) -> RealtimeSubscriptionResponse:
     """
     创建新的订阅
 
     订阅用于接收实时流的事件
     """
-    db: Session = Depends(get_db)
     try:
         # 验证流是否存在
         stream = (
@@ -560,13 +555,13 @@ async def get_realtime_webhooks(
     enabled: Optional[bool] = Query(None, description="是否只返回启用的Webhook"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RealtimeWebhookResponse]:
     """
     获取Webhook列表
 
     支持按流ID和启用状态过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RealtimeWebhook)
 
@@ -604,14 +599,19 @@ async def get_realtime_webhooks(
 
 
 @router.post("/webhooks", response_model=RealtimeWebhookResponse, summary="创建Webhook")
-async def create_realtime_webhook(webhook: RealtimeWebhookCreate) -> RealtimeWebhookResponse:
+async def create_realtime_webhook(webhook: RealtimeWebhookCreate, db: Session = Depends(get_db)) -> RealtimeWebhookResponse:
     """
     创建新的Webhook
 
     Webhook用于将实时事件推送到外部系统
     """
-    db: Session = Depends(get_db)
     try:
+        # 验证URL格式
+        from urllib.parse import urlparse
+        parsed = urlparse(webhook.url)
+        if not parsed.scheme or not parsed.netloc:
+            raise HTTPException(status_code=422, detail="无效的URL格式")
+
         # 验证流是否存在
         if webhook.stream_id:
             query = db.query(RealtimeStream).filter(RealtimeStream.id == webhook.stream_id)

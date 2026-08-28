@@ -193,6 +193,7 @@ def test_restore_alert_cache(monkeypatch):
     assert len(ae.alert_history) == 0
 
 
+@pytest.mark.asyncio
 async def test_get_summary_metrics(monkeypatch):
     monkeypatch.setattr("core.stats_engine.get_real_summary", AsyncMock(return_value={"ok": True}))
     result = await ae.get_summary_metrics()  # noqa: F841  # Variable for test verification
@@ -219,6 +220,7 @@ def test_ws_register_unregister_and_broadcast():
     assert bad_ws not in ae._ws_subscribers
 
 
+@pytest.mark.asyncio
 async def test_check_linux_security_alerts(monkeypatch):
     repo = MagicMock(save=AsyncMock())
     monkeypatch.setattr(ae, "alert_repository", repo)
@@ -250,6 +252,7 @@ async def test_check_linux_security_alerts(monkeypatch):
     assert len(alerts) == 1
 
 
+@pytest.mark.asyncio
 async def test_alert_monitor_loop(monkeypatch):
     metrics = {
         "cpu": {"usage_percent": 95.0},
@@ -285,6 +288,7 @@ async def test_alert_monitor_loop(monkeypatch):
     ae.record_alert_noise.assert_called()
 
 
+@pytest.mark.asyncio
 async def test_alert_monitor_loop_exception(monkeypatch):
     monkeypatch.setattr(
         ae, "collect_all", MagicMock(side_effect=[Exception("boom"), asyncio.CancelledError()])
@@ -326,6 +330,7 @@ def test_automatic_alert_router():
     assert router.get_routing_stats()["total_routes"] == 1
 
 
+@pytest.mark.asyncio
 async def test_alert_trend_predictor():
     pred = ae.AlertTrendPredictor(model=ae.TrendPredictionModel.LINEAR_REGRESSION)
     for i in range(15):
@@ -421,6 +426,7 @@ def test_decode_for_revocation():
     assert payload["sub"] == "u"
 
 
+@pytest.mark.asyncio
 async def test_revoke_and_is_token_revoked(monkeypatch):
     token = auth.create_access_token({"sub": "u", "jti": str(uuid.uuid4())})
 
@@ -441,6 +447,7 @@ async def test_revoke_and_is_token_revoked(monkeypatch):
     assert await auth.is_token_revoked("not.valid", redis_client=None) is False
 
 
+@pytest.mark.asyncio
 async def test_is_token_revoked_memory_expiry(monkeypatch):
     monkeypatch.setattr(auth, "_get_redis_client", lambda: None)
     token = auth.create_access_token({"sub": "u", "jti": str(uuid.uuid4())})
@@ -487,6 +494,7 @@ def test_is_ip_allowed(monkeypatch):
     assert auth.is_ip_allowed("") is False
 
 
+@pytest.mark.asyncio
 async def test_get_user(monkeypatch):
     mock_user = MagicMock(
         id=1,
@@ -551,6 +559,7 @@ def test_authenticate_user(monkeypatch):
     assert auth.authenticate_user("u", "x") is None
 
 
+@pytest.mark.asyncio
 async def test_get_current_user(monkeypatch):
     token = auth.create_access_token({"sub": "admin", "role": "admin"})
     monkeypatch.setattr(auth, "is_token_revoked", AsyncMock(return_value=False))
@@ -574,6 +583,7 @@ async def test_get_current_user(monkeypatch):
         await auth.get_current_user(token=no_sub)
 
 
+@pytest.mark.asyncio
 async def test_get_current_active_user(monkeypatch):
     active = auth.User(username="u", role="user", disabled=False)
     result = await auth.get_current_active_user(
@@ -600,6 +610,7 @@ async def test_get_current_active_user(monkeypatch):
     assert await auth.get_current_active_user(current_user=None, token="tok") is None
 
 
+@pytest.mark.asyncio
 async def test_verify_ip_whitelist():
     req = MagicMock(client=MagicMock(host="127.0.0.1"))
     assert await auth.verify_ip_whitelist(req) is None
@@ -609,6 +620,7 @@ async def test_verify_ip_whitelist():
         await auth.verify_ip_whitelist(req)
 
 
+@pytest.mark.asyncio
 async def test_role_required():
     admin = auth.User(username="a", role="admin")
     user = auth.User(username="u", role="user")
@@ -618,6 +630,7 @@ async def test_role_required():
         await verifier(current_user=user)
 
 
+@pytest.mark.asyncio
 async def test_jwt_auth_service(monkeypatch):
     service = auth.JWTAuthService()
     token = service.create_access_token({"sub": "admin"})
@@ -637,6 +650,7 @@ async def test_jwt_auth_service(monkeypatch):
     assert info["username"] == "admin"
 
 
+@pytest.mark.asyncio
 async def test_login_and_revoke_endpoints(monkeypatch):
     user = auth.UserInDB(username="admin", hashed_password="x", disabled=False, role="admin")
     monkeypatch.setattr(auth, "authenticate_user", MagicMock(return_value=user))
@@ -656,6 +670,7 @@ async def test_login_and_revoke_endpoints(monkeypatch):
     assert revoke_result["detail"] == "Token revoked successfully"
 
 
+@pytest.mark.asyncio
 async def test_tenant_context_and_sso():
     ctx = auth.TenantContext()
     cfg = await ctx.get_tenant_config("t1")
@@ -669,6 +684,7 @@ async def test_tenant_context_and_sso():
     assert await sso.generate_sso_link("saml", "http://app/cb") is None
 
 
+@pytest.mark.asyncio
 async def test_abac_policy():
     policy = auth.ABACPolicy()
     assert await policy.evaluate_access({"role": "admin"}, "alerts", "delete") is True
@@ -678,6 +694,7 @@ async def test_abac_policy():
     assert await policy.evaluate_access({"role": "unknown"}, "alerts", "read") is False
 
 
+@pytest.mark.asyncio
 async def test_compliance_manager():
     mgr = auth.ComplianceManager()
     await mgr.log_audit_event("login", "u1", "auth", "read")
@@ -696,6 +713,7 @@ async def test_compliance_manager():
     assert report["summary"]["by_user"]["u1"] == 1
 
 
+@pytest.mark.asyncio
 async def test_jwt_auth_service_failures(monkeypatch):
     service = auth.JWTAuthService()
     token = auth.create_access_token({"sub": "admin", "role": "admin"})
@@ -714,6 +732,7 @@ async def test_jwt_auth_service_failures(monkeypatch):
     assert await service.authenticate_user("u", "p") is None
 
 
+@pytest.mark.asyncio
 async def test_get_current_user_not_found(monkeypatch):
     token = auth.create_access_token({"sub": "admin", "role": "admin"})
     monkeypatch.setattr(auth, "is_token_revoked", AsyncMock(return_value=False))
@@ -722,6 +741,7 @@ async def test_get_current_user_not_found(monkeypatch):
         await auth.get_current_user(token=token)
 
 
+@pytest.mark.asyncio
 async def test_get_current_active_user_branches(monkeypatch):
     monkeypatch.setattr(auth, "verify_token", MagicMock(return_value={"sub": "u"}))
     monkeypatch.setattr(
@@ -784,6 +804,7 @@ def test_authenticate_user_disabled_object(monkeypatch):
     assert auth.authenticate_user("u", "pass123") is None
 
 
+@pytest.mark.asyncio
 async def test_compliance_frameworks():
     mgr = auth.ComplianceManager()
     gdpr = await mgr.run_compliance_check(auth.ComplianceFramework.GDPR)

@@ -630,7 +630,7 @@ def test_optimizer_initialization_and_thresholds(po):
     assert "api_requests" in opt.async_pools
     assert "metrics" in opt.caches
     # The module-level global instance should exist
-    assert po.get_performance_optimizer() is po.performance_optimizer
+    assert po.get_performance_optimizer() is po.PERFORMANCE_OPTIMIZER
 
 
 def test_cache_operations(po):
@@ -818,7 +818,7 @@ def test_memory_monitor_failure(po, monkeypatch):
 
 
 def test_get_performance_optimizer_with_config(po, monkeypatch):
-    monkeypatch.setattr(po, "performance_optimizer", None)
+    monkeypatch.setattr(po, "PERFORMANCE_OPTIMIZER", None)
     instance = po.get_performance_optimizer({"foo": "bar"})
     assert isinstance(instance, po.PerformanceOptimizer)
 

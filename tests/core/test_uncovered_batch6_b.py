@@ -121,6 +121,7 @@ def missing_azure(monkeypatch):
         ("stop_instance", "stop"),
     ],
 )
+@pytest.mark.asyncio
 async def test_aws_repair_actions(fresh_repair_history, stub_boto3, action, expected_call):
     result = (
         await cloud_repair.execute_cloud_repair(  # noqa: F841  # Variable for test verification
@@ -189,6 +190,7 @@ async def test_aws_repair_missing_boto3(fresh_repair_history, missing_boto3):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("action", ["restart_vm", "start_vm", "stop_vm"])
+@pytest.mark.asyncio
 async def test_azure_repair_actions(fresh_repair_history, stub_azure, action):
     result = (
         await cloud_repair.execute_cloud_repair(  # noqa: F841  # Variable for test verification

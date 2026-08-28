@@ -57,8 +57,8 @@ class LogAlertRule(BaseModel):
     id: Optional[str] = None
     name: str = Field(..., min_length=1, max_length=100)
     pattern: str = Field(..., min_length=1, max_length=500)
-    severity: str = Field(default="warning", regex="^(critical|warning|info)$")
-    status: str = Field(default="active", regex="^(active|inactive)$")
+    severity: str = Field(default="warning", pattern="^(critical|warning|info)$")
+    status: str = Field(default="active", pattern="^(active|inactive)$")
     notification_channels: List[str] = Field(default_factory=list)
 
 
@@ -66,21 +66,21 @@ class LogAlertRuleAction(BaseModel):
     """Log alert rule action model"""
 
     rule_id: str = Field(..., min_length=1)
-    action: str = Field(..., regex="^(enable|disable|test)$")
+    action: str = Field(..., pattern="^(enable|disable|test)$")
 
 
 class LogPatternAction(BaseModel):
     """Log pattern action model"""
 
     pattern: str = Field(..., min_length=1)
-    action: str = Field(..., regex="^(investigate|ignore|alert)$")
+    action: str = Field(..., pattern="^(investigate|ignore|alert)$")
 
 
 class AnomalyAction(BaseModel):
     """Anomaly action model"""
 
     anomaly_id: str = Field(..., min_length=1)
-    action: str = Field(..., regex="^(investigate|resolve|ignore)$")
+    action: str = Field(..., pattern="^(investigate|resolve|ignore)$")
 
 
 class HealthCheckRequest(BaseModel):
@@ -101,8 +101,8 @@ class TelemetryData(BaseModel):
 class MetricsConverterRequest(BaseModel):
     """Metrics converter request model"""
 
-    source_format: str = Field(..., regex="^(prometheus|victoriametrics|influxdb)$")
-    target_format: str = Field(..., regex="^(prometheus|victoriametrics|influxdb)$")
+    source_format: str = Field(..., pattern="^(prometheus|victoriametrics|influxdb)$")
+    target_format: str = Field(..., pattern="^(prometheus|victoriametrics|influxdb)$")
     metrics_data: Dict[str, Any]
 
 
@@ -129,7 +129,7 @@ class MonitoringConfig(BaseModel):
     },
 )
 async def get_log_alerting(
-    status: str = Query(default="all", regex="^(all|active|inactive)$"),
+    status: str = Query(default="all", pattern="^(all|active|inactive)$"),
 ) -> Dict[str, Any]:
     """
     获取日志告警规则和统计信息
@@ -264,8 +264,8 @@ async def create_or_update_log_alerting(rule: LogAlertRule) -> Dict[str, Any]:
     },
 )
 async def get_log_analysis(
-    time_range: str = Query(default="24h", regex="^(1h|24h|7d|30d)$"),
-    severity: str = Query(default="all", regex="^(all|error|warning|info)$"),
+    time_range: str = Query(default="24h", pattern="^(1h|24h|7d|30d)$"),
+    severity: str = Query(default="all", pattern="^(all|error|warning|info)$"),
 ) -> Dict[str, Any]:
     """
     获取日志分析结果，包括模式识别和统计
@@ -395,7 +395,7 @@ async def run_log_analysis(
 )
 async def get_elasticsearch_logs(
     query: str = Query(default="*", min_length=1, max_length=500),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     查询Elasticsearch中的日志
@@ -464,7 +464,7 @@ async def get_elasticsearch_logs(
 async def get_tempo_traces(
     service: str = Query(default=""),
     trace_id: Optional[str] = Query(default=None),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     查询Tempo分布式追踪数据
@@ -527,7 +527,7 @@ async def get_tempo_traces(
 )
 async def get_loki_logs(
     query: str = Query(default='{job="varlogs"}', min_length=1, max_length=500),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     查询Loki日志聚合系统
@@ -589,7 +589,7 @@ async def get_loki_logs(
 )
 async def get_victoriametrics(
     query: str = Query(default="up", min_length=1, max_length=500),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     查询VictoriaMetrics时序数据库
@@ -652,7 +652,7 @@ async def get_victoriametrics(
 async def get_tracing_visualization(
     trace_id: Optional[str] = Query(default=None),
     service: str = Query(default=""),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取追踪可视化数据，用于生成追踪图
@@ -722,7 +722,7 @@ async def get_tracing_visualization(
 )
 async def get_cross_service_tracing(
     trace_id: Optional[str] = Query(default=None),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取跨服务追踪数据，分析服务间调用链
@@ -788,7 +788,7 @@ async def get_cross_service_tracing(
 )
 async def get_fastapi_telemetry(
     endpoint: Optional[str] = Query(default=None),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取FastAPI应用的遥测数据
@@ -859,7 +859,7 @@ async def get_fastapi_telemetry(
 )
 async def get_telemetry_core(
     metric_name: Optional[str] = Query(default=None),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取核心遥测数据
@@ -967,9 +967,9 @@ async def post_telemetry_core(data: TelemetryData) -> Dict[str, Any]:
     },
 )
 async def get_observability_query(
-    query_type: str = Query(default="metrics", regex="^(metrics|logs|traces)$"),
+    query_type: str = Query(default="metrics", pattern="^(metrics|logs|traces)$"),
     query: str = Query(default="", min_length=1, max_length=500),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     可观测性统一查询接口，支持指标、日志、追踪
@@ -1609,8 +1609,8 @@ async def get_prometheus_metrics(
     },
 )
 async def get_anomaly_analysis(
-    time_range: str = Query(default="24h", regex="^(1h|24h|7d|30d)$"),
-    severity: str = Query(default="all", regex="^(all|critical|warning|info)$"),
+    time_range: str = Query(default="24h", pattern="^(1h|24h|7d|30d)$"),
+    severity: str = Query(default="all", pattern="^(all|critical|warning|info)$"),
 ) -> Dict[str, Any]:
     """
     获取异常分析结果
@@ -1759,8 +1759,8 @@ async def run_anomaly_analysis(
     },
 )
 async def get_anomaly_detection(
-    time_range: str = Query(default="24h", regex="^(1h|24h|7d|30d)$"),
-    severity: str = Query(default="all", regex="^(all|critical|warning|info)$"),
+    time_range: str = Query(default="24h", pattern="^(1h|24h|7d|30d)$"),
+    severity: str = Query(default="all", pattern="^(all|critical|warning|info)$"),
 ) -> Dict[str, Any]:
     """
     获取异常检测结果
@@ -1878,7 +1878,7 @@ async def run_anomaly_detection(
 )
 async def get_linux_logs_endpoint(
     host_name: str = Query(..., min_length=1, max_length=128),
-    source: str = Query(default="syslog", regex="^(syslog|kern|auth|dmesg|journal)$"),
+    source: str = Query(default="syslog", pattern="^(syslog|kern|auth|dmesg|journal)$"),
     newest: int = Query(default=50, ge=1, le=500),
 ) -> Dict[str, Any]:
     """
@@ -1947,7 +1947,7 @@ async def get_linux_logs_endpoint(
 )
 async def search_logs_endpoint(
     keyword: str = Query(..., min_length=3, max_length=200),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
     newest: int = Query(default=100, ge=1, le=500),
 ) -> Dict[str, Any]:
     """
@@ -2006,7 +2006,7 @@ async def search_logs_endpoint(
     },
 )
 async def get_error_logs(
-    platform: str = Query(default="all", regex="^(all|windows|linux)$"),
+    platform: str = Query(default="all", pattern="^(all|windows|linux)$"),
     newest: int = Query(default=50, ge=1, le=200),
 ) -> Dict[str, Any]:
     """
@@ -2173,7 +2173,7 @@ async def configure_log_collection(
 )
 async def get_api_performance(
     endpoint: Optional[str] = Query(default=None),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取API性能数据
@@ -2256,7 +2256,7 @@ async def get_api_performance(
 )
 async def get_apm_data(
     service: Optional[str] = Query(default=None),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取应用性能监控(APM)数据
@@ -2333,8 +2333,8 @@ async def get_apm_data(
     },
 )
 async def get_cloud_monitoring(
-    provider: str = Query(default="all", regex="^(all|aws|azure|gcp)$"),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    provider: str = Query(default="all", pattern="^(all|aws|azure|gcp)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取云平台监控数据
@@ -2443,7 +2443,7 @@ async def configure_cloud_monitoring(
 )
 async def get_k8s_monitoring(
     namespace: str = Query(default="all"),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取Kubernetes监控数据
@@ -2550,7 +2550,7 @@ async def configure_k8s_monitoring(
 )
 async def get_docker_monitoring(
     container: Optional[str] = Query(default=None),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取Docker容器监控数据
@@ -2664,7 +2664,7 @@ async def configure_docker_monitoring(
     },
 )
 async def get_macos_monitoring(
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取macOS系统监控数据
@@ -2744,7 +2744,7 @@ async def configure_macos_monitoring(
     },
 )
 async def get_windows_monitoring(
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取Windows系统监控数据
@@ -2825,7 +2825,7 @@ async def configure_windows_monitoring(
 )
 async def get_linux_monitoring(
     host_name: str = Query(default="localhost"),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取Linux系统监控数据
@@ -3007,8 +3007,8 @@ async def configure_process_monitoring(
     },
 )
 async def get_metrics_history_endpoint(
-    metric: str = Query(default="all", regex="^(all|cpu|memory|network)$"),
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    metric: str = Query(default="all", pattern="^(all|cpu|memory|network)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取指标历史数据
@@ -3097,7 +3097,7 @@ async def get_metrics_snapshot() -> Dict[str, Any]:
     },
 )
 async def get_metrics(
-    time_range: str = Query(default="1h", regex="^(5m|1h|24h|7d)$"),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
 ) -> Dict[str, Any]:
     """
     获取系统指标

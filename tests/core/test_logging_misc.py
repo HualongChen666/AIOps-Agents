@@ -52,6 +52,7 @@ def test_observability_query_limit_and_align():
     assert isinstance(end, datetime) and isinstance(start, datetime)
 
 
+@pytest.mark.asyncio
 async def test_observability_cached_query():
     cache = core.observability_query.QueryCache()
 

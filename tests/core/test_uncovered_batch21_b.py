@@ -194,6 +194,7 @@ def test_oncall_adapter_sync_and_singleton():
     assert oncall.get_oncall_adapter() is oncall.get_oncall_adapter()
 
 
+@pytest.mark.asyncio
 async def test_oncall_adapter_external_success(monkeypatch):
     monkeypatch.setattr(ne, "_get_http_client", None)
 
@@ -215,6 +216,7 @@ async def test_oncall_adapter_external_success(monkeypatch):
     client.get.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 async def test_oncall_adapter_external_failure_fallback(monkeypatch):
     monkeypatch.setattr(ne, "_get_http_client", None)
 
@@ -351,6 +353,7 @@ def test_audit_summary():
     assert "GET" in summary["method_distribution"]
 
 
+@pytest.mark.asyncio
 async def test_audit_httpx_and_aiohttp_decorators(monkeypatch):
     local_logger = audit.ExternalAPIAuditLogger()
     monkeypatch.setattr(audit, "get_audit_logger", lambda: local_logger)
@@ -585,6 +588,7 @@ def ai_cap(monkeypatch):
     return eac.EnhancedAICapabilities()
 
 
+@pytest.mark.asyncio
 async def test_ai_initialize_and_stats(ai_cap, monkeypatch):
     monkeypatch.setattr(eac, "ML_AVAILABLE", True)
     monkeypatch.setattr(eac, "IsolationForest", _FakeIsolationForest, raising=False)
@@ -598,6 +602,7 @@ async def test_ai_initialize_and_stats(ai_cap, monkeypatch):
     assert stats["prediction_models"] >= 0
 
 
+@pytest.mark.asyncio
 async def test_ai_predict_timeseries(monkeypatch):
     monkeypatch.setattr(eac, "PROPHET_AVAILABLE", True)
     monkeypatch.setattr(eac, "Prophet", _FakeProphet, raising=False)
@@ -614,6 +619,7 @@ async def test_ai_predict_timeseries(monkeypatch):
     assert cached is result
 
 
+@pytest.mark.asyncio
 async def test_ai_predict_timeseries_unavailable(ai_cap):
     result = await ai_cap.predict_timeseries(
         "cpu_usage", []
@@ -621,6 +627,7 @@ async def test_ai_predict_timeseries_unavailable(ai_cap):
     assert result is None
 
 
+@pytest.mark.asyncio
 async def test_ai_predict_anomalies(monkeypatch):
     monkeypatch.setattr(eac, "ML_AVAILABLE", True)
     monkeypatch.setattr(eac, "IsolationForest", _FakeIsolationForest, raising=False)
@@ -635,6 +642,7 @@ async def test_ai_predict_anomalies(monkeypatch):
     assert result.is_anomalous is True
 
 
+@pytest.mark.asyncio
 async def test_ai_predict_anomalies_unavailable(ai_cap):
     result = await ai_cap.predict_anomalies(
         "cpu_usage", 1.0, []
@@ -642,6 +650,7 @@ async def test_ai_predict_anomalies_unavailable(ai_cap):
     assert result is None
 
 
+@pytest.mark.asyncio
 async def test_ai_adaptive_learn(ai_cap, monkeypatch):
     assert await ai_cap.adaptive_learn("rf_test", [], eac.LearningMode.ONLINE) is None
 
@@ -658,6 +667,7 @@ async def test_ai_adaptive_learn(ai_cap, monkeypatch):
     assert await cap.adaptive_learn("missing", samples) is None
 
 
+@pytest.mark.asyncio
 async def test_ai_fit_model(monkeypatch):
     class FakeClassifier:
         def __init__(self):
@@ -685,6 +695,7 @@ async def test_ai_fit_model(monkeypatch):
     assert len(acc[str(id(model))]) == 1
 
 
+@pytest.mark.asyncio
 async def test_ai_parse_natural_language(ai_cap):
     result = await ai_cap.parse_natural_language(
         "check cpu usage above 90 in last hour"
@@ -695,6 +706,7 @@ async def test_ai_parse_natural_language(ai_cap):
     assert isinstance(result.suggested_actions, list)
 
 
+@pytest.mark.asyncio
 async def test_ai_explain_decision(ai_cap):
     result = await ai_cap.explain_decision(  # noqa: F841  # Variable for test verification
         "scale_up",
@@ -713,6 +725,7 @@ async def test_ai_explain_decision(ai_cap):
     assert isinstance(restart, eac.DecisionExplanation)
 
 
+@pytest.mark.asyncio
 async def test_ai_knowledge_and_relearn(ai_cap):
     await ai_cap.accumulate_knowledge(
         {
@@ -745,6 +758,7 @@ def test_get_platform_strategy_and_registry():
         ps.get_platform_strategy("unknown")
 
 
+@pytest.mark.asyncio
 async def test_platform_strategies_execute(monkeypatch):
     for name, strategy in ps.PLATFORM_STRATEGIES.items():
         strategy._execute_repair = AsyncMock(return_value={"success": True})

@@ -134,6 +134,7 @@ def ai_cap(monkeypatch):
     return cap
 
 
+@pytest.mark.asyncio
 async def test_enhanced_ai_predict_timeseries(ai_cap):
     historical = [(datetime.now(), float(i)) for i in range(30)]
     result = await ai_cap.predict_timeseries(
@@ -146,6 +147,7 @@ async def test_enhanced_ai_predict_timeseries(ai_cap):
     assert "horizon_hours" in result.metadata
 
 
+@pytest.mark.asyncio
 async def test_enhanced_ai_predict_anomalies(ai_cap):
     historical = [(datetime.now(), float(i)) for i in range(50)]
     result = await ai_cap.predict_anomalies(
@@ -158,6 +160,7 @@ async def test_enhanced_ai_predict_anomalies(ai_cap):
     assert isinstance(result.explanation, str)
 
 
+@pytest.mark.asyncio
 async def test_enhanced_ai_adaptive_learn(ai_cap):
     ai_cap.prediction_models["rf_test"] = object()
     samples = [({"feature": 1}, 1.0), ({"feature": 2}, 2.0)]
@@ -167,6 +170,7 @@ async def test_enhanced_ai_adaptive_learn(ai_cap):
     assert update.samples_added == 2
 
 
+@pytest.mark.asyncio
 async def test_enhanced_ai_parse_natural_language(ai_cap):
     result = await ai_cap.parse_natural_language(
         "analyze cpu usage above 90 in the last hour"
@@ -178,6 +182,7 @@ async def test_enhanced_ai_parse_natural_language(ai_cap):
     assert isinstance(result.suggested_actions, list)
 
 
+@pytest.mark.asyncio
 async def test_enhanced_ai_explain_decision(ai_cap):
     result = await ai_cap.explain_decision(
         "scale_up", {"metrics": {}, "confidence": 0.8}
@@ -189,6 +194,7 @@ async def test_enhanced_ai_explain_decision(ai_cap):
     assert result.decision == "scale_up"
 
 
+@pytest.mark.asyncio
 async def test_enhanced_ai_knowledge_and_stats(ai_cap):
     await ai_cap.accumulate_knowledge(
         {
@@ -221,6 +227,7 @@ def rca_analyzer(monkeypatch):
     return rca.EnhancedRootCauseAnalyzer()
 
 
+@pytest.mark.asyncio
 async def test_enhanced_rca_build_graph_and_discover(rca_analyzer):
     rca_analyzer.edges = {
         "svc1": [rca.TopologyEdge("svc1", "db1", "reads")],
@@ -239,6 +246,7 @@ async def test_enhanced_rca_build_graph_and_discover(rca_analyzer):
     assert {"nodes_count", "edges_count", "discovery_time"} <= set(topology.keys())
 
 
+@pytest.mark.asyncio
 async def test_enhanced_rca_analyze(rca_analyzer):
     rca_analyzer.edges = {
         "svc1": [rca.TopologyEdge("svc1", "db1", "reads")],
@@ -257,6 +265,7 @@ async def test_enhanced_rca_analyze(rca_analyzer):
     assert 0.0 <= hypotheses[0].confidence <= 1.0
 
 
+@pytest.mark.asyncio
 async def test_enhanced_rca_predict(rca_analyzer, monkeypatch):
     monkeypatch.setattr(
         rca_analyzer,
@@ -286,6 +295,7 @@ async def test_enhanced_rca_predict(rca_analyzer, monkeypatch):
     assert hypotheses[0].node_id == "db1"
 
 
+@pytest.mark.asyncio
 async def test_enhanced_rca_verify(rca_analyzer):
     rca_analyzer.nodes["db1"] = rca.TopologyNode("db1", "database", "db1", health_status="critical")
     hypothesis = rca.RootCauseHypothesis(
@@ -301,6 +311,7 @@ async def test_enhanced_rca_verify(rca_analyzer):
     assert hypothesis.verification_status in ("verified", "rejected")
 
 
+@pytest.mark.asyncio
 async def test_enhanced_rca_record_and_stats(rca_analyzer):
     incident = rca.HistoricalIncident(
         id="i1",
@@ -330,6 +341,7 @@ def integration_manager(monkeypatch):
     return im.IntegrationManager({})
 
 
+@pytest.mark.asyncio
 async def test_integration_manager_register_and_summary(integration_manager):
     integration = await integration_manager.register_integration(
         im.IntegrationType.CICD,
@@ -348,6 +360,7 @@ async def test_integration_manager_register_and_summary(integration_manager):
     assert "webhooks_registered" in summary
 
 
+@pytest.mark.asyncio
 async def test_integration_manager_health_and_invoke(integration_manager):
     integration = await integration_manager.register_integration(
         im.IntegrationType.CICD,
@@ -367,6 +380,7 @@ async def test_integration_manager_health_and_invoke(integration_manager):
     assert "build" in result.get("message", "")
 
 
+@pytest.mark.asyncio
 async def test_integration_manager_webhooks(integration_manager):
     webhook_id = await integration_manager.register_webhook(
         "slack", "alert", "http://hooks.example.com/slack"
@@ -382,6 +396,7 @@ async def test_integration_manager_webhooks(integration_manager):
     assert "event_id" in result
 
 
+@pytest.mark.asyncio
 async def test_integration_manager_notification(integration_manager):
     integration_manager.notification_channels["email"] = {
         "name": "email",

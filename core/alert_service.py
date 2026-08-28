@@ -15,7 +15,10 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from core.alert_engine import alert_history
-from core.db_engine import alert_repository as db_alert_repository
+try:
+    from core.db_engine import alert_repository as db_alert_repository
+except ImportError:
+    db_alert_repository = None
 from core.db_engine import clear_alerts as db_clear_alerts
 from core.query_optimization import query_cache
 
@@ -150,7 +153,8 @@ class AlertService:
                 break
 
         try:
-            await db_alert_repository.update_status(alert_id, status)
+            if db_alert_repository is not None:
+                await db_alert_repository.update_status(alert_id, status)
         except Exception as db_err:
             logger.warning(f"告警状态持久化失败(已更新内存): {db_err}")
 
@@ -173,7 +177,8 @@ class AlertService:
         }
         alert_history.appendleft(alert)
         try:
-            await db_alert_repository.create(alert)
+            if db_alert_repository is not None:
+                await db_alert_repository.create(alert)
         except Exception as db_err:
             logger.warning(f"告警创建持久化失败(已写入内存): {db_err}")
         return alert
@@ -185,3 +190,5 @@ class AlertService:
 
 # 默认服务实例
 ALERT_SERVICE = AlertService()
+# 兼容旧代码使用的别名
+alert_service = ALERT_SERVICE

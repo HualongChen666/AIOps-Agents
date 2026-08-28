@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from extensions.addons.operations.workflow_service.orchestrator import WorkflowOrchestrator
 from extensions.addons.operations.workflow_service.repository import (
-    InMemoryWorkflowRepository,
+    WorkflowRepository,
     get_repository,
 )
 from extensions.addons.operations.workflow_service.schemas import (
@@ -39,15 +39,15 @@ router = APIRouter(prefix="/api/v1/workflow", tags=["工作流高级管理"])
 # ============================================================
 # 模块级常量和初始化
 # ============================================================
-_repository: Optional[InMemoryWorkflowRepository] = None
+_repository: Optional[WorkflowRepository] = None
 _orchestrator: Optional[WorkflowOrchestrator] = None
 
 
-async def _get_repository() -> InMemoryWorkflowRepository:
+async def _get_repository() -> WorkflowRepository:
     """获取工作流仓储实例（单例模式）"""
     global _repository
     if _repository is None:
-        _repository = await get_repository()  # type: ignore
+        _repository = await get_repository(use_in_memory=False)  # Use database by default
     return _repository
 
 

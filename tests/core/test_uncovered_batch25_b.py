@@ -101,6 +101,7 @@ def test_fallback_causal_graph_duplicate_node():
     assert g.nodes == ["a"]
 
 
+@pytest.mark.asyncio
 async def test_enhanced_analyze_with_full_components(eca_full):
     data = {
         "cpu": [10.0, 20.0, 30.0, 40.0],
@@ -123,6 +124,7 @@ async def test_enhanced_analyze_with_full_components(eca_full):
     assert metrics["avg_analysis_time"] >= 0.0
 
 
+@pytest.mark.asyncio
 async def test_enhanced_analyze_error_path(eca_full, monkeypatch):
     class BadPreprocessor:
         def __init__(self, *args, **kwargs):
@@ -192,6 +194,7 @@ def test_enhanced_find_path_and_causal_paths(eca_fallback):
     assert ["b", "c"] in paths
 
 
+@pytest.mark.asyncio
 async def test_enhanced_build_causal_graph_noniterable(eca_full, monkeypatch):
     class MockPCAlgorithmNonIterable:
         def __init__(self, *args, **kwargs):
@@ -215,6 +218,7 @@ async def test_enhanced_build_causal_graph_noniterable(eca_full, monkeypatch):
 # -----------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_intelligent_initialize_without_ml(monkeypatch):
     monkeypatch.setattr(analyzer, "ML_AVAILABLE", False)
     a = analyzer.IntelligentAlertAnalyzer()
@@ -235,6 +239,7 @@ async def test_intelligent_initialize_without_ml(monkeypatch):
     assert len(aggregated) == 1
 
 
+@pytest.mark.asyncio
 async def test_intelligent_ml_aggregation_paths(monkeypatch):
     a = analyzer.IntelligentAlertAnalyzer()
     await a.initialize()
@@ -291,6 +296,7 @@ def test_intelligent_determine_trend():
     assert empty == "stable"
 
 
+@pytest.mark.asyncio
 async def test_intelligent_trend_prediction(monkeypatch):
     class FakeProphet:
         def __init__(self, *args, **kwargs):
@@ -319,6 +325,7 @@ async def test_intelligent_trend_prediction(monkeypatch):
     assert pred2 is not None
 
 
+@pytest.mark.asyncio
 async def test_intelligent_trend_prediction_exception(monkeypatch):
     class BadProphet:
         def __init__(self, *args, **kwargs):
@@ -396,6 +403,7 @@ def test_intelligent_suppression_rules():
     assert a._matches_suppression_rule(alert, {"time_window": 60, "max_frequency": 10}) is False
 
 
+@pytest.mark.asyncio
 async def test_intelligent_noise_reduction_and_known_patterns():
     a = analyzer.IntelligentAlertAnalyzer()
     await a.add_suppression_rule({"time_window": 300, "max_frequency": 5})
@@ -428,6 +436,7 @@ async def test_intelligent_noise_reduction_and_known_patterns():
     assert result2 == []
 
 
+@pytest.mark.asyncio
 async def test_intelligent_correlate_topology_expansion():
     a = analyzer.IntelligentAlertAnalyzer()
     await a.update_topology({"db": ["api"]})

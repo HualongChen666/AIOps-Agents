@@ -261,7 +261,12 @@ def test_modern_call_chain_analysis_engine():
     assert len(advanced) == 1
 
 
+import os
+import pytest
+
 def test_plugin_marketplace():
+    # Set required environment variable for testing
+    os.environ.setdefault('PLUGIN_MARKETPLACE_PRIVATE_KEY', 'test_private_key_for_testing')
     marketplace = create_plugin_marketplace(config={})
     assert isinstance(marketplace, PluginMarketplace)
 

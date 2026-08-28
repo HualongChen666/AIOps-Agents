@@ -102,6 +102,7 @@ def test_dynamic_warn_threshold_branches(monkeypatch):
     assert alert_engine._get_dynamic_warn_threshold("cpu", 80.0) == 80.0
 
 
+@pytest.mark.asyncio
 async def test_check_linux_security_alerts_edge_cases():
     """``check_linux_security_alerts`` safely ignores malformed / non-ok results."""
     # Not a list
@@ -224,6 +225,7 @@ def test_email_validation_and_cooldown():
     assert notify_engine._is_in_cooldown(alert, "wecom", window_seconds=0) is False
 
 
+@pytest.mark.asyncio
 async def test_notification_query_and_read_not_found():
     """History, status, and read APIs handle missing records gracefully."""
     notify_engine._track_notification_status({"id": "N1", "level": "warning"}, "wecom", "delivered")
@@ -266,6 +268,7 @@ def test_formatters_edge_cases():
     assert "http://runbook.example.com" in structured
 
 
+@pytest.mark.asyncio
 async def test_slack_notification_with_client(monkeypatch):
     """``_send_slack_notification_once`` sends and interprets Slack responses."""
     fake_client = MagicMock()
@@ -295,6 +298,7 @@ async def test_slack_notification_with_client(monkeypatch):
     assert "rate limit" in result["error"]
 
 
+@pytest.mark.asyncio
 async def test_send_slack_notification_retry(monkeypatch):
     """``send_slack_notification`` retries until success or exhaustion."""
     once = AsyncMock(side_effect=[{"success": False}, {"success": True}])
@@ -313,6 +317,7 @@ async def test_send_slack_notification_retry(monkeypatch):
     assert result["success"] is False
 
 
+@pytest.mark.asyncio
 async def test_post_webhook_error_paths(monkeypatch):
     """``_post_webhook`` catches httpx HTTP, timeout, and connection errors."""
     # Use the original (non-retry-wrapped) implementation if available.
@@ -355,6 +360,7 @@ async def test_post_webhook_error_paths(monkeypatch):
     assert r["success"] is False
 
 
+@pytest.mark.asyncio
 async def test_send_wecom_dingtalk_feishu(monkeypatch):
     """``_send_wecom``, ``_send_dingtalk`` (with signature), and ``_send_feishu`` build payloads."""
     posted = AsyncMock(return_value={"success": True})
@@ -392,6 +398,7 @@ async def test_send_wecom_dingtalk_feishu(monkeypatch):
     assert payload["msg_type"] == "text"
 
 
+@pytest.mark.asyncio
 async def test_send_alert_notification_critical_all_channels(monkeypatch):
     """``send_alert_notification`` sends to all high-priority channels for fatal alerts."""
     monkeypatch.setattr(notify_engine, "_post_webhook", AsyncMock(return_value={"success": True}))
@@ -444,6 +451,7 @@ async def test_send_alert_notification_critical_all_channels(monkeypatch):
     assert len(result["channels_sent"]) >= 6
 
 
+@pytest.mark.asyncio
 async def test_send_alert_notification_warning_break_and_all_failed(monkeypatch):
     """``send_alert_notification`` breaks after first success for warning and reports all_failed."""
     monkeypatch.setattr(notify_engine, "_post_webhook", AsyncMock(return_value={"success": True}))
@@ -485,6 +493,7 @@ async def test_send_alert_notification_warning_break_and_all_failed(monkeypatch)
     assert result["status"] == "all_failed"
 
 
+@pytest.mark.asyncio
 async def test_phone_and_sms_notifications(monkeypatch):
     """``_send_phone_notification`` and ``_send_sms_notification`` call HTTP client."""
     client = MagicMock()
@@ -511,6 +520,7 @@ async def test_phone_and_sms_notifications(monkeypatch):
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_intelligent_alert_analyzer_lifecycle():
     """``IntelligentAlertAnalyzer`` initializes and reports statistics."""
     a = analyzer.IntelligentAlertAnalyzer()
@@ -523,6 +533,7 @@ async def test_intelligent_alert_analyzer_lifecycle():
     assert stats["topology_entities_count"] == 0
 
 
+@pytest.mark.asyncio
 async def test_intelligent_alert_analyzer_aggregation():
     """``aggregate_alerts`` groups similar alerts using the rule-based fallback."""
     a = analyzer.IntelligentAlertAnalyzer()
@@ -540,6 +551,7 @@ async def test_intelligent_alert_analyzer_aggregation():
     assert await a.aggregate_alerts([]) == []
 
 
+@pytest.mark.asyncio
 async def test_intelligent_alert_analyzer_trend_prediction(monkeypatch):
     """``predict_alert_trends`` returns None for insufficient data and a result with fake Prophet."""  # noqa: E501  # Line too long (intentional)
     a = analyzer.IntelligentAlertAnalyzer()
@@ -571,6 +583,7 @@ async def test_intelligent_alert_analyzer_trend_prediction(monkeypatch):
     assert len(prediction.predicted_values) == 24
 
 
+@pytest.mark.asyncio
 async def test_intelligent_alert_analyzer_route_and_correlate():
     """``route_alert`` and ``correlate_alerts_with_topology`` use rules and topology."""
     a = analyzer.IntelligentAlertAnalyzer()
@@ -594,6 +607,7 @@ async def test_intelligent_alert_analyzer_route_and_correlate():
     assert len(correlated["db"]) == 1
 
 
+@pytest.mark.asyncio
 async def test_intelligent_alert_analyzer_noise_reduction():
     """``reduce_alert_noise`` suppresses by rules and known noisy patterns."""
     a = analyzer.IntelligentAlertAnalyzer()
@@ -611,6 +625,7 @@ async def test_intelligent_alert_analyzer_noise_reduction():
     assert await a.reduce_alert_noise([noisy]) == []
 
 
+@pytest.mark.asyncio
 async def test_intelligent_alert_analyzer_noop_helpers():
     """Internal async helpers are safe to call."""
     a = analyzer.IntelligentAlertAnalyzer()

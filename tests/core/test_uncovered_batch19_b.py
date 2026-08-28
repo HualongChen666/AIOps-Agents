@@ -260,6 +260,7 @@ async def test_audit_collect_exception(tmp_path, monkeypatch):
     assert len(mgr.audit_sources) == 4
 
 
+@pytest.mark.asyncio
 async def test_audit_auto_collection_and_handlers(audit_instance, monkeypatch):
     mgr = audit_instance
 

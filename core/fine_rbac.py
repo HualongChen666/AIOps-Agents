@@ -26,6 +26,8 @@ from typing import Dict, Set, Tuple
 
 from fastapi import Depends, HTTPException, status
 
+from core.authentication import get_current_user
+
 # ---------------------------------------------------------------------------
 # In‑memory policy store.
 # Key: (tenant_id, resource, action) -> set of roles allowed
@@ -64,7 +66,7 @@ def require_permission(resource: str, action: str):
     permitted, a ``403`` error is raised.
     """
 
-    async def _dependency(current_user=Depends(__import__("core.auth").auth.get_current_user)):
+    async def _dependency(current_user=Depends(get_current_user)):
         # Resolve tenant – fallback to a default tenant if none is found.
         from core.rbac import get_user_tenant
 

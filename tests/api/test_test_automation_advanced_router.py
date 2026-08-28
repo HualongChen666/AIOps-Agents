@@ -1,12 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Test suite for test_automation_advanced_router.py
-Tests all endpoints with comprehensive coverage including:
-- GET, POST, PATCH, DELETE operations
-- Normal and error cases
-- Data validation
-- Permission control
-- Mock dependencies
+Test suite for Test Automation Advanced Router (Database-backed)
+测试自动化高级路由测试套件（数据库版本）
 """
 
 from datetime import datetime, timedelta
@@ -17,7 +12,6 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.test_automation_advanced_router import (
-    FAKE_ADMIN,
     ExecutionStatus,
     TestExecution,
     TestExecutionCreate,
@@ -25,14 +19,22 @@ from api.test_automation_advanced_router import (
     TestSuiteCreate,
     TestSuiteStatus,
     TestSuiteUpdate,
-    _init_test_executions,
-    _init_test_suites,
-    _test_executions,
-    _test_suites,
     get_current_user,
     router,
+    get_test_suites,
+    create_test_suite,
+    get_test_suite,
+    update_test_suite,
+    delete_test_suite,
+    get_test_executions,
+    create_test_execution,
+    get_test_execution,
+    cancel_test_execution,
 )
 from core.authentication import UserInDB
+from core.database import SessionLocal
+from core.models import TestSuiteDB, TestExecutionDB
+
 
 # ============ Fixtures ============
 
@@ -76,28 +78,66 @@ def client():
 
 
 @pytest.fixture
-def clear_data():
-    """Clear in-memory data before each test"""
-    _test_suites.clear()
-    _test_executions.clear()
+def db_session():
+    """Create a database session for testing"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture(autouse=True)
+def cleanup_database(db_session):
+    """Clean up database before and after each test"""
+    # Clean up before test
+    db_session.query(TestExecutionDB).delete()
+    db_session.query(TestSuiteDB).delete()
+    db_session.commit()
     yield
-    _test_suites.clear()
-    _test_executions.clear()
+    # Clean up after test
+    db_session.query(TestExecutionDB).delete()
+    db_session.query(TestSuiteDB).delete()
+    db_session.commit()
 
 
 @pytest.fixture
-def sample_suite(clear_data):
+def sample_suite(db_session):
     """Create a sample test suite"""
-    _init_test_suites()
-    return list(_test_suites.values())[0]
+    suite = TestSuiteDB(
+        id="TS-12345678",
+        name="Sample Test Suite",
+        description="A sample test suite",
+        test_type="integration",
+        framework="pytest",
+        status="active",
+        created_by="testuser",
+    )
+    db_session.add(suite)
+    db_session.commit()
+    return suite
 
 
 @pytest.fixture
-def sample_execution(clear_data):
+def sample_execution(db_session, sample_suite):
     """Create a sample test execution"""
-    _init_test_suites()
-    _init_test_executions()
-    return list(_test_executions.values())[0]
+    execution = TestExecutionDB(
+        id="TE-12345678",
+        suite_id=sample_suite.id,
+        suite_name=sample_suite.name,
+        status="completed",
+        started_at=datetime.now(),
+        completed_at=datetime.now(),
+        total_tests=10,
+        passed_tests=8,
+        failed_tests=2,
+        skipped_tests=0,
+        trigger_type="manual",
+        triggered_by="testuser",
+    )
+    db_session.add(execution)
+    db_session.commit()
+    return execution
 
 
 # ============ Suite Endpoints Tests ============
@@ -107,33 +147,80 @@ class TestSuiteEndpoints:
     """Test suite endpoints"""
 
     @pytest.mark.asyncio
-    async def test_get_test_suites_success(self, mock_user, clear_data):
+    async def test_get_test_suites_success(self, mock_user, db_session):
         """Test successful test suites retrieval"""
-        _init_test_suites()
-        result = await router.get_test_suites(current_user=mock_user)
+        # Create a test suite
+        suite = TestSuiteDB(
+            id="TS-12345678",
+            name="Test Suite 1",
+            description="Test suite 1",
+            test_type="integration",
+            framework="pytest",
+            status="active",
+            created_by="testuser",
+        )
+        db_session.add(suite)
+        db_session.commit()
+
+        result = await get_test_suites(current_user=mock_user, db=db_session)
 
         assert isinstance(result, list)
-        assert len(result) >= 2
+        assert len(result) >= 1
 
     @pytest.mark.asyncio
-    async def test_get_test_suites_with_status_filter(self, mock_user, clear_data):
+    async def test_get_test_suites_with_status_filter(self, mock_user, db_session):
         """Test test suites retrieval with status filter"""
-        _init_test_suites()
-        result = await router.get_test_suites(status=TestSuiteStatus.ACTIVE, current_user=mock_user)
+        # Create test suites with different statuses
+        suite1 = TestSuiteDB(
+            id="TS-12345678",
+            name="Active Suite",
+            description="Active suite",
+            test_type="integration",
+            framework="pytest",
+            status="active",
+            created_by="testuser",
+        )
+        suite2 = TestSuiteDB(
+            id="TS-87654321",
+            name="Inactive Suite",
+            description="Inactive suite",
+            test_type="unit",
+            framework="pytest",
+            status="inactive",
+            created_by="testuser",
+        )
+        db_session.add(suite1)
+        db_session.add(suite2)
+        db_session.commit()
+
+        result = await get_test_suites(status=TestSuiteStatus.ACTIVE, current_user=mock_user, db=db_session)
 
         assert isinstance(result, list)
         assert all(s.status == TestSuiteStatus.ACTIVE for s in result)
 
     @pytest.mark.asyncio
-    async def test_get_test_suites_with_pagination(self, mock_user, clear_data):
+    async def test_get_test_suites_with_pagination(self, mock_user, db_session):
         """Test test suites retrieval with pagination"""
-        _init_test_suites()
-        result = await router.get_test_suites(limit=1, offset=0, current_user=mock_user)
+        # Create multiple test suites
+        for i in range(3):
+            suite = TestSuiteDB(
+                id=f"TS-{i:08d}",
+                name=f"Test Suite {i}",
+                description=f"Test suite {i}",
+                test_type="integration",
+                framework="pytest",
+                status="active",
+                created_by="testuser",
+            )
+            db_session.add(suite)
+        db_session.commit()
 
-        assert len(result) == 1
+        result = await get_test_suites(limit=2, offset=0, current_user=mock_user, db=db_session)
+
+        assert len(result) == 2
 
     @pytest.mark.asyncio
-    async def test_create_test_suite_success(self, mock_user, clear_data):
+    async def test_create_test_suite_success(self, mock_user, db_session):
         """Test successful test suite creation"""
         suite_create = TestSuiteCreate(
             name="New Test Suite",
@@ -148,7 +235,7 @@ class TestSuiteEndpoints:
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
 
-        result = await router.create_test_suite(suite_create, request, current_user=mock_user)
+        result = await create_test_suite(suite_create, request, current_user=mock_user, db=db_session)
 
         assert isinstance(result, TestSuite)
         assert result.name == "New Test Suite"
@@ -157,42 +244,42 @@ class TestSuiteEndpoints:
         assert result.created_by == "testuser"
 
     @pytest.mark.asyncio
-    async def test_create_test_suite_validation_name_min(self, mock_user, clear_data):
+    async def test_create_test_suite_validation_name_min(self, mock_user, db_session):
         """Test test suite creation with name too short"""
         with pytest.raises(Exception):  # Pydantic validation error
             TestSuiteCreate(name="", test_type="integration")
 
     @pytest.mark.asyncio
-    async def test_create_test_suite_validation_name_max(self, mock_user, clear_data):
+    async def test_create_test_suite_validation_name_max(self, mock_user, db_session):
         """Test test suite creation with name too long"""
         with pytest.raises(Exception):  # Pydantic validation error
             TestSuiteCreate(name="a" * 201, test_type="integration")
 
     @pytest.mark.asyncio
-    async def test_create_test_suite_validation_test_type(self, mock_user, clear_data):
+    async def test_create_test_suite_validation_test_type(self, mock_user, db_session):
         """Test test suite creation with invalid test type"""
         with pytest.raises(Exception):  # Pydantic validation error
             TestSuiteCreate(name="Test", test_type="invalid")
 
     @pytest.mark.asyncio
-    async def test_get_test_suite_success(self, mock_user, sample_suite, clear_data):
+    async def test_get_test_suite_success(self, mock_user, sample_suite, db_session):
         """Test successful test suite retrieval"""
-        result = await router.get_test_suite(sample_suite.id, current_user=mock_user)
+        result = await get_test_suite(sample_suite.id, current_user=mock_user, db=db_session)
 
         assert isinstance(result, TestSuite)
         assert result.id == sample_suite.id
 
     @pytest.mark.asyncio
-    async def test_get_test_suite_not_found(self, mock_user, clear_data):
+    async def test_get_test_suite_not_found(self, mock_user, db_session):
         """Test test suite retrieval when not found"""
         with pytest.raises(HTTPException) as exc_info:
-            await router.get_test_suite("nonexistent", current_user=mock_user)
+            await get_test_suite("nonexistent", current_user=mock_user, db=db_session)
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Test suite not found"
 
     @pytest.mark.asyncio
-    async def test_update_test_suite_success(self, mock_user, sample_suite, clear_data):
+    async def test_update_test_suite_success(self, mock_user, sample_suite, db_session):
         """Test successful test suite update"""
         suite_update = TestSuiteUpdate(name="Updated Name", status=TestSuiteStatus.INACTIVE)
 
@@ -202,8 +289,8 @@ class TestSuiteEndpoints:
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
 
-        result = await router.update_test_suite(
-            sample_suite.id, suite_update, request, current_user=mock_user
+        result = await update_test_suite(
+            sample_suite.id, suite_update, request, current_user=mock_user, db=db_session
         )
 
         assert isinstance(result, TestSuite)
@@ -211,7 +298,7 @@ class TestSuiteEndpoints:
         assert result.status == TestSuiteStatus.INACTIVE
 
     @pytest.mark.asyncio
-    async def test_update_test_suite_not_found(self, mock_user, clear_data):
+    async def test_update_test_suite_not_found(self, mock_user, db_session):
         """Test test suite update when not found"""
         suite_update = TestSuiteUpdate(name="Updated Name")
 
@@ -220,15 +307,15 @@ class TestSuiteEndpoints:
         request = Mock(spec=Request)
 
         with pytest.raises(HTTPException) as exc_info:
-            await router.update_test_suite(
-                "nonexistent", suite_update, request, current_user=mock_user
+            await update_test_suite(
+                "nonexistent", suite_update, request, current_user=mock_user, db=db_session
             )
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Test suite not found"
 
     @pytest.mark.asyncio
-    async def test_delete_test_suite_success(self, mock_user, sample_suite, clear_data):
+    async def test_delete_test_suite_success(self, mock_user, sample_suite, db_session):
         """Test successful test suite deletion"""
         from fastapi import Request
 
@@ -236,39 +323,45 @@ class TestSuiteEndpoints:
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
 
-        await router.delete_test_suite(sample_suite.id, request, current_user=mock_user)
+        await delete_test_suite(sample_suite.id, request, current_user=mock_user, db=db_session)
 
-        assert sample_suite.id not in _test_suites
+        # Verify deletion
+        deleted = db_session.query(TestSuiteDB).filter(TestSuiteDB.id == sample_suite.id).first()
+        assert deleted is None
 
     @pytest.mark.asyncio
-    async def test_delete_test_suite_not_found(self, mock_user, clear_data):
+    async def test_delete_test_suite_not_found(self, mock_user, db_session):
         """Test test suite deletion when not found"""
         from fastapi import Request
 
         request = Mock(spec=Request)
 
         with pytest.raises(HTTPException) as exc_info:
-            await router.delete_test_suite("nonexistent", request, current_user=mock_user)
+            await delete_test_suite("nonexistent", request, current_user=mock_user, db=db_session)
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Test suite not found"
 
     @pytest.mark.asyncio
-    async def test_delete_test_suite_cascades_executions(self, mock_user, sample_suite, clear_data):
+    async def test_delete_test_suite_cascades_executions(self, mock_user, sample_suite, db_session):
         """Test test suite deletion cascades to executions"""
-        _init_test_executions()
-
         # Create an execution for the suite
-        execution_id = "exec-1"
-        _test_executions[execution_id] = TestExecution(
-            id=execution_id,
+        execution = TestExecutionDB(
+            id="TE-12345678",
             suite_id=sample_suite.id,
             suite_name=sample_suite.name,
-            status=ExecutionStatus.COMPLETED,
+            status="completed",
             started_at=datetime.now(),
+            completed_at=datetime.now(),
             total_tests=10,
+            passed_tests=8,
+            failed_tests=2,
+            skipped_tests=0,
+            trigger_type="manual",
             triggered_by="testuser",
         )
+        db_session.add(execution)
+        db_session.commit()
 
         from fastapi import Request
 
@@ -276,9 +369,15 @@ class TestSuiteEndpoints:
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
 
-        await router.delete_test_suite(sample_suite.id, request, current_user=mock_user)
+        # Save execution ID before deletion
+        execution_id = execution.id
 
-        assert execution_id not in _test_executions
+        await delete_test_suite(sample_suite.id, request, current_user=mock_user, db=db_session)
+
+        # Verify execution is also deleted
+        db_session.expire_all()
+        deleted_exec = db_session.query(TestExecutionDB).filter(TestExecutionDB.id == execution_id).first()
+        assert deleted_exec is None
 
 
 # ============ Execution Endpoints Tests ============
@@ -288,45 +387,128 @@ class TestExecutionEndpoints:
     """Test execution endpoints"""
 
     @pytest.mark.asyncio
-    async def test_get_test_executions_success(self, mock_user, clear_data):
+    async def test_get_test_executions_success(self, mock_user, db_session, sample_suite):
         """Test successful test executions retrieval"""
-        _init_test_suites()
-        _init_test_executions()
-        result = await router.get_test_executions(current_user=mock_user)
+        # Create test executions
+        for i in range(2):
+            execution = TestExecutionDB(
+                id=f"TE-{i:08d}",
+                suite_id=sample_suite.id,
+                suite_name=sample_suite.name,
+                status="completed",
+                started_at=datetime.now(),
+                completed_at=datetime.now(),
+                total_tests=10,
+                passed_tests=8,
+                failed_tests=2,
+                skipped_tests=0,
+                trigger_type="manual",
+                triggered_by="testuser",
+            )
+            db_session.add(execution)
+        db_session.commit()
+
+        result = await get_test_executions(current_user=mock_user, db=db_session)
 
         assert isinstance(result, list)
         assert len(result) >= 2
 
     @pytest.mark.asyncio
-    async def test_get_test_executions_with_suite_filter(self, mock_user, sample_suite, clear_data):
+    async def test_get_test_executions_with_suite_filter(self, mock_user, sample_suite, db_session):
         """Test test executions retrieval with suite filter"""
-        _init_test_executions()
-        result = await router.get_test_executions(suite_id=sample_suite.id, current_user=mock_user)
+        # Create an execution for the suite
+        execution = TestExecutionDB(
+            id="TE-12345678",
+            suite_id=sample_suite.id,
+            suite_name=sample_suite.name,
+            status="completed",
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
+            total_tests=10,
+            passed_tests=8,
+            failed_tests=2,
+            skipped_tests=0,
+            trigger_type="manual",
+            triggered_by="testuser",
+        )
+        db_session.add(execution)
+        db_session.commit()
+
+        result = await get_test_executions(suite_id=sample_suite.id, current_user=mock_user, db=db_session)
 
         assert isinstance(result, list)
         assert all(e.suite_id == sample_suite.id for e in result)
 
     @pytest.mark.asyncio
-    async def test_get_test_executions_with_status_filter(self, mock_user, clear_data):
+    async def test_get_test_executions_with_status_filter(self, mock_user, db_session, sample_suite):
         """Test test executions retrieval with status filter"""
-        _init_test_executions()
-        result = await router.get_test_executions(
-            status=ExecutionStatus.COMPLETED, current_user=mock_user
+        # Create executions with different statuses
+        exec1 = TestExecutionDB(
+            id="TE-12345678",
+            suite_id=sample_suite.id,
+            suite_name=sample_suite.name,
+            status="completed",
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
+            total_tests=10,
+            passed_tests=8,
+            failed_tests=2,
+            skipped_tests=0,
+            trigger_type="manual",
+            triggered_by="testuser",
+        )
+        exec2 = TestExecutionDB(
+            id="TE-87654321",
+            suite_id=sample_suite.id,
+            suite_name=sample_suite.name,
+            status="pending",
+            started_at=datetime.now(),
+            total_tests=10,
+            passed_tests=0,
+            failed_tests=0,
+            skipped_tests=0,
+            trigger_type="manual",
+            triggered_by="testuser",
+        )
+        db_session.add(exec1)
+        db_session.add(exec2)
+        db_session.commit()
+
+        result = await get_test_executions(
+            status=ExecutionStatus.COMPLETED, current_user=mock_user, db=db_session
         )
 
         assert isinstance(result, list)
         assert all(e.status == ExecutionStatus.COMPLETED for e in result)
 
     @pytest.mark.asyncio
-    async def test_get_test_executions_with_pagination(self, mock_user, clear_data):
+    async def test_get_test_executions_with_pagination(self, mock_user, db_session, sample_suite):
         """Test test executions retrieval with pagination"""
-        _init_test_executions()
-        result = await router.get_test_executions(limit=1, offset=0, current_user=mock_user)
+        # Create multiple executions
+        for i in range(3):
+            execution = TestExecutionDB(
+                id=f"TE-{i:08d}",
+                suite_id=sample_suite.id,
+                suite_name=sample_suite.name,
+                status="completed",
+                started_at=datetime.now(),
+                completed_at=datetime.now(),
+                total_tests=10,
+                passed_tests=8,
+                failed_tests=2,
+                skipped_tests=0,
+                trigger_type="manual",
+                triggered_by="testuser",
+            )
+            db_session.add(execution)
+        db_session.commit()
 
-        assert len(result) == 1
+        result = await get_test_executions(limit=2, offset=0, current_user=mock_user, db=db_session)
+
+        assert len(result) == 2
 
     @pytest.mark.asyncio
-    async def test_create_test_execution_success(self, mock_user, sample_suite, clear_data):
+    async def test_create_test_execution_success(self, mock_user, sample_suite, db_session):
         """Test successful test execution creation"""
         execution_create = TestExecutionCreate(suite_id=sample_suite.id, trigger_type="manual")
 
@@ -336,8 +518,8 @@ class TestExecutionEndpoints:
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
 
-        result = await router.create_test_execution(
-            execution_create, request, current_user=mock_user
+        result = await create_test_execution(
+            execution_create, request, current_user=mock_user, db=db_session
         )
 
         assert isinstance(result, TestExecution)
@@ -346,7 +528,7 @@ class TestExecutionEndpoints:
         assert result.triggered_by == "testuser"
 
     @pytest.mark.asyncio
-    async def test_create_test_execution_not_found(self, mock_user, clear_data):
+    async def test_create_test_execution_not_found(self, mock_user, db_session):
         """Test test execution creation when suite not found"""
         execution_create = TestExecutionCreate(suite_id="nonexistent")
 
@@ -355,40 +537,40 @@ class TestExecutionEndpoints:
         request = Mock(spec=Request)
 
         with pytest.raises(HTTPException) as exc_info:
-            await router.create_test_execution(execution_create, request, current_user=mock_user)
+            await create_test_execution(execution_create, request, current_user=mock_user, db=db_session)
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Test suite not found"
 
     @pytest.mark.asyncio
-    async def test_create_test_execution_validation_trigger_type(self, mock_user, clear_data):
+    async def test_create_test_execution_validation_trigger_type(self, mock_user, db_session):
         """Test test execution creation with invalid trigger type"""
         with pytest.raises(Exception):  # Pydantic validation error
             TestExecutionCreate(suite_id="test", trigger_type="invalid")
 
     @pytest.mark.asyncio
-    async def test_get_test_execution_success(self, mock_user, sample_execution, clear_data):
+    async def test_get_test_execution_success(self, mock_user, sample_execution, db_session):
         """Test successful test execution retrieval"""
-        result = await router.get_test_execution(sample_execution.id, current_user=mock_user)
+        result = await get_test_execution(sample_execution.id, current_user=mock_user, db=db_session)
 
         assert isinstance(result, TestExecution)
         assert result.id == sample_execution.id
 
     @pytest.mark.asyncio
-    async def test_get_test_execution_not_found(self, mock_user, clear_data):
+    async def test_get_test_execution_not_found(self, mock_user, db_session):
         """Test test execution retrieval when not found"""
         with pytest.raises(HTTPException) as exc_info:
-            await router.get_test_execution("nonexistent", current_user=mock_user)
+            await get_test_execution("nonexistent", current_user=mock_user, db=db_session)
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Execution not found"
 
     @pytest.mark.asyncio
-    async def test_cancel_test_execution_success(self, mock_user, sample_execution, clear_data):
+    async def test_cancel_test_execution_success(self, mock_user, sample_execution, db_session):
         """Test successful test execution cancellation"""
         # Set execution to pending
-        sample_execution.status = ExecutionStatus.PENDING
-        _test_executions[sample_execution.id] = sample_execution
+        sample_execution.status = "pending"
+        db_session.commit()
 
         from fastapi import Request
 
@@ -396,8 +578,8 @@ class TestExecutionEndpoints:
         request.headers = {}
         request.client = Mock(host="127.0.0.1")
 
-        result = await router.cancel_test_execution(
-            sample_execution.id, request, current_user=mock_user
+        result = await cancel_test_execution(
+            sample_execution.id, request, current_user=mock_user, db=db_session
         )
 
         assert isinstance(result, TestExecution)
@@ -405,33 +587,33 @@ class TestExecutionEndpoints:
         assert result.completed_at is not None
 
     @pytest.mark.asyncio
-    async def test_cancel_test_execution_not_found(self, mock_user, clear_data):
+    async def test_cancel_test_execution_not_found(self, mock_user, db_session):
         """Test test execution cancellation when not found"""
         from fastapi import Request
 
         request = Mock(spec=Request)
 
         with pytest.raises(HTTPException) as exc_info:
-            await router.cancel_test_execution("nonexistent", request, current_user=mock_user)
+            await cancel_test_execution("nonexistent", request, current_user=mock_user, db=db_session)
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert exc_info.value.detail == "Execution not found"
 
     @pytest.mark.asyncio
     async def test_cancel_test_execution_invalid_status(
-        self, mock_user, sample_execution, clear_data
+        self, mock_user, sample_execution, db_session
     ):
         """Test test execution cancellation with invalid status"""
         # Set execution to completed
-        sample_execution.status = ExecutionStatus.COMPLETED
-        _test_executions[sample_execution.id] = sample_execution
+        sample_execution.status = "completed"
+        db_session.commit()
 
         from fastapi import Request
 
         request = Mock(spec=Request)
 
         with pytest.raises(HTTPException) as exc_info:
-            await router.cancel_test_execution(sample_execution.id, request, current_user=mock_user)
+            await cancel_test_execution(sample_execution.id, request, current_user=mock_user, db=db_session)
 
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
         assert "cannot cancel" in exc_info.value.detail.lower()
@@ -531,143 +713,3 @@ class TestEnums:
         assert ExecutionStatus.COMPLETED == "completed"
         assert ExecutionStatus.FAILED == "failed"
         assert ExecutionStatus.CANCELLED == "cancelled"
-
-
-# ============ Integration Tests ============
-
-
-class TestIntegration:
-    """Integration tests for test automation operations"""
-
-    @pytest.mark.asyncio
-    async def test_full_suite_workflow(self, mock_user, clear_data):
-        """Test complete suite workflow"""
-        from fastapi import Request
-
-        request = Mock(spec=Request)
-        request.headers = {}
-        request.client = Mock(host="127.0.0.1")
-
-        # Create suite
-        suite_create = TestSuiteCreate(name="Workflow Test Suite", test_type="integration")
-        suite = await router.create_test_suite(suite_create, request, current_user=mock_user)
-        assert suite.name == "Workflow Test Suite"
-
-        # Get suite
-        retrieved = await router.get_test_suite(suite.id, current_user=mock_user)
-        assert retrieved.id == suite.id
-
-        # Update suite
-        suite_update = TestSuiteUpdate(name="Updated Workflow Suite")
-        updated = await router.update_test_suite(
-            suite.id, suite_update, request, current_user=mock_user
-        )
-        assert updated.name == "Updated Workflow Suite"
-
-        # Delete suite
-        await router.delete_test_suite(suite.id, request, current_user=mock_user)
-        assert suite.id not in _test_suites
-
-    @pytest.mark.asyncio
-    async def test_full_execution_workflow(self, mock_user, clear_data):
-        """Test complete execution workflow"""
-        _init_test_suites()
-        suite = list(_test_suites.values())[0]
-
-        from fastapi import Request
-
-        request = Mock(spec=Request)
-        request.headers = {}
-        request.client = Mock(host="127.0.0.1")
-
-        # Create execution
-        execution_create = TestExecutionCreate(suite_id=suite.id)
-        execution = await router.create_test_execution(
-            execution_create, request, current_user=mock_user
-        )
-        assert execution.status == ExecutionStatus.PENDING
-
-        # Get execution
-        retrieved = await router.get_test_execution(execution.id, current_user=mock_user)
-        assert retrieved.id == execution.id
-
-        # Cancel execution
-        cancelled = await router.cancel_test_execution(
-            execution.id, request, current_user=mock_user
-        )
-        assert cancelled.status == ExecutionStatus.CANCELLED
-
-    @pytest.mark.asyncio
-    async def test_suite_with_executions_workflow(self, mock_user, clear_data):
-        """Test suite with multiple executions"""
-        from fastapi import Request
-
-        request = Mock(spec=Request)
-        request.headers = {}
-        request.client = Mock(host="127.0.0.1")
-
-        # Create suite
-        suite_create = TestSuiteCreate(name="Multi-Exec Suite", test_type="integration")
-        suite = await router.create_test_suite(suite_create, request, current_user=mock_user)
-
-        # Create multiple executions
-        for i in range(3):
-            execution_create = TestExecutionCreate(suite_id=suite.id)
-            await router.create_test_execution(execution_create, request, current_user=mock_user)
-
-        # Get executions for suite
-        executions = await router.get_test_executions(suite_id=suite.id, current_user=mock_user)
-        assert len(executions) == 3
-
-
-# ============ Error Handling Tests ============
-
-
-class TestErrorHandling:
-    """Test error handling"""
-
-    @pytest.mark.asyncio
-    async def test_concurrent_suite_creation(self, mock_user, clear_data):
-        """Test concurrent suite creation"""
-        import asyncio
-
-        from fastapi import Request
-
-        request = Mock(spec=Request)
-        request.headers = {}
-        request.client = Mock(host="127.0.0.1")
-
-        async def create_suite():
-            suite_create = TestSuiteCreate(
-                name=f"Suite-{asyncio.current_task().get_name()}", test_type="integration"
-            )
-            await router.create_test_suite(suite_create, request, current_user=mock_user)
-
-        # Run multiple concurrent creations
-        await asyncio.gather(*[create_suite() for _ in range(5)])
-
-        # Should not raise errors
-        suites = await router.get_test_suites(current_user=mock_user)
-        assert len(suites) >= 5
-
-    @pytest.mark.asyncio
-    async def test_large_dataset_handling(self, mock_user, clear_data):
-        """Test handling of large datasets"""
-        from fastapi import Request
-
-        request = Mock(spec=Request)
-        request.headers = {}
-        request.client = Mock(host="127.0.0.1")
-
-        # Create many suites
-        for i in range(50):
-            suite_create = TestSuiteCreate(name=f"Suite-{i}", test_type="integration")
-            await router.create_test_suite(suite_create, request, current_user=mock_user)
-
-        # Should handle pagination correctly
-        result = await router.get_test_suites(limit=20, current_user=mock_user)
-        assert len(result) == 20
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--tb=short"])

@@ -289,6 +289,7 @@ def test_conditional_approval_default_rules():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_websocket_connect_disconnect_and_stats():
     mgr = ews.get_enhanced_websocket_manager(
         {
@@ -314,6 +315,7 @@ async def test_websocket_connect_disconnect_and_stats():
     assert mgr.connection_count == 0
 
 
+@pytest.mark.asyncio
 async def test_websocket_max_connections():
     mgr = ews.EnhancedWebSocketManager({"max_connections": 1})
     ws1 = AsyncMock()
@@ -323,6 +325,7 @@ async def test_websocket_max_connections():
         await mgr.connect(ws2)
 
 
+@pytest.mark.asyncio
 async def test_websocket_broadcast_and_failure():
     mgr = ews.EnhancedWebSocketManager()
     ws1 = AsyncMock()
@@ -342,6 +345,7 @@ async def test_websocket_broadcast_and_failure():
     assert ws2 not in mgr.client_info
 
 
+@pytest.mark.asyncio
 async def test_websocket_broadcast_to_channels():
     mgr = ews.EnhancedWebSocketManager()
     ws = AsyncMock()
@@ -356,6 +360,7 @@ async def test_websocket_broadcast_to_channels():
     assert res["c"] == 0
 
 
+@pytest.mark.asyncio
 async def test_websocket_subscribe_unsubscribe_and_personal():
     mgr = ews.EnhancedWebSocketManager()
     ws = AsyncMock()
@@ -375,6 +380,7 @@ async def test_websocket_subscribe_unsubscribe_and_personal():
     assert await mgr.send_personal_message(ws, msg) is False
 
 
+@pytest.mark.asyncio
 async def test_websocket_handle_and_emit():
     mgr = ews.EnhancedWebSocketManager()
     ws = AsyncMock()
@@ -411,6 +417,7 @@ async def test_websocket_handle_and_emit():
     assert ws.send_text.called
 
 
+@pytest.mark.asyncio
 async def test_websocket_heartbeat():
     mgr = ews.EnhancedWebSocketManager({"heartbeat_interval": 0.01})
     ws = AsyncMock()
@@ -507,6 +514,7 @@ def test_fault_tolerant_executor_init_and_factory():
     assert e.circuit_breaker_config.failure_threshold == 3
 
 
+@pytest.mark.asyncio
 async def test_fault_tolerant_executor_success():
     e = fte.FaultTolerantExecutor({"default_timeout": 1.0})
 
@@ -520,6 +528,7 @@ async def test_fault_tolerant_executor_success():
     assert "op1" in e.get_circuit_breaker_states()
 
 
+@pytest.mark.asyncio
 async def test_fault_tolerant_executor_sync_and_no_circuit():
     e = fte.FaultTolerantExecutor({"default_timeout": 1.0})
     result = await e.execute(
@@ -528,6 +537,7 @@ async def test_fault_tolerant_executor_sync_and_no_circuit():
     assert result.result == "ok"  # noqa: F841  # Variable for test verification
 
 
+@pytest.mark.asyncio
 async def test_fault_tolerant_executor_timeout_with_fallback():
     e = fte.FaultTolerantExecutor({"default_timeout": 0.01})
     e.register_fallback("op3", lambda: "fallback")
@@ -541,6 +551,7 @@ async def test_fault_tolerant_executor_timeout_with_fallback():
     assert result.metadata.get("fallback_used") is True
 
 
+@pytest.mark.asyncio
 async def test_fault_tolerant_executor_exception_with_fallback():
     e = fte.FaultTolerantExecutor({"default_timeout": 1.0})
     e.register_fallback("op4", AsyncMock(return_value="afallback"))
@@ -553,6 +564,7 @@ async def test_fault_tolerant_executor_exception_with_fallback():
     assert result.result == "afallback"  # noqa: F841  # Variable for test verification
 
 
+@pytest.mark.asyncio
 async def test_fault_tolerant_executor_exception_no_fallback():
     e = fte.FaultTolerantExecutor({"default_timeout": 1.0})
 
@@ -569,6 +581,7 @@ async def test_fault_tolerant_executor_exception_no_fallback():
     assert e.get_metrics("op5")["failure"] == 1
 
 
+@pytest.mark.asyncio
 async def test_fault_tolerant_executor_retry_succeeds():
     e = fte.FaultTolerantExecutor({"default_timeout": 1.0})
     f = AsyncMock(side_effect=[ConnectionError("fail"), "ok"])
@@ -605,6 +618,7 @@ def test_fault_tolerant_executor_helpers():
     assert e._classify_error(ValueError()) == fte.FailureType.LOGIC_ERROR
 
 
+@pytest.mark.asyncio
 async def test_circuit_breaker_success_open():
     cb = fte.CircuitBreaker(fte.CircuitBreakerConfig(failure_threshold=2, recovery_timeout=100))
     f_ok = AsyncMock(return_value=1)
@@ -624,6 +638,7 @@ async def test_circuit_breaker_success_open():
         await cb.call(f_fail)
 
 
+@pytest.mark.asyncio
 async def test_circuit_breaker_half_open_reset():
     cb = fte.CircuitBreaker(
         fte.CircuitBreakerConfig(failure_threshold=1, recovery_timeout=0.1, half_open_max_calls=2)
@@ -657,6 +672,7 @@ def test_circuit_breaker_internals():
     assert cb.last_failure_time is None
 
 
+@pytest.mark.asyncio
 async def test_fault_tolerant_executor_circuit_opens():
     e = fte.FaultTolerantExecutor(
         {

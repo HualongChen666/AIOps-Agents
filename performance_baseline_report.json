@@ -1,7 +1,7 @@
 {
-  "simple_query_ms": 29.598474502563477,
-  "complex_query_ms": 1.004934310913086,
-  "insert_ms": 8.843183517456055,
+  "simple_query_ms": 0.0,
+  "complex_query_ms": 3.7233829498291016,
+  "insert_ms": 8.932352066040039,
   "avg_connection_time_ms": 0,
   "max_connection_time_ms": 0,
   "memory_usage_mb": 0,

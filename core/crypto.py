@@ -81,6 +81,10 @@ def _get_fernet() -> Optional[Fernet]:
     except Exception as exc:
         logger.error(f"[crypto] Invalid SNAPSHOT_ENCRYPTION_KEY: {exc}")
         _fernet = None
+        if _ENV_PROD:
+            raise RuntimeError(
+                "[crypto] SNAPSHOT_ENCRYPTION_KEY must be a valid Fernet key in production"
+            ) from exc
     return _fernet
 
 

@@ -42,7 +42,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from config import SNAPSHOT_CONFIG
 
 from .escalation import notify_rollback_failure
-from .metrics_history import metrics_history as _metrics_history
+try:
+    from .metrics_history import METRICS_HISTORY as _metrics_history
+except ImportError:
+    _metrics_history = None
 
 logger = logging.getLogger(__name__)
 
@@ -289,21 +292,22 @@ def _is_alert_resolved(alert: Dict[str, Any]) -> bool:
         operator = str(condition.get("operator", ""))
         threshold = condition.get("threshold")
         try:
-            metrics = _metrics_history.to_dict()
-            values = metrics.get(metric, [])
-            if values and threshold is not None:
-                latest = float(values[-1])
-                threshold = float(threshold)
-                if operator in ("<", "lt"):
-                    return latest < threshold
-                if operator in (">", "gt"):
-                    return latest > threshold
-                if operator in ("<=", "le"):
-                    return latest <= threshold
-                if operator in (">=", "ge"):
-                    return latest >= threshold
-                if operator in ("==", "=", "eq"):
-                    return latest == threshold
+            if _metrics_history is not None:
+                metrics = _metrics_history.to_dict()
+                values = metrics.get(metric, [])
+                if values and threshold is not None:
+                    latest = float(values[-1])
+                    threshold = float(threshold)
+                    if operator in ("<", "lt"):
+                        return latest < threshold
+                    if operator in (">", "gt"):
+                        return latest > threshold
+                    if operator in ("<=", "le"):
+                        return latest <= threshold
+                    if operator in (">=", "ge"):
+                        return latest >= threshold
+                    if operator in ("==", "=", "eq"):
+                        return latest == threshold
         except Exception as exc:  # pragma: no cover
             logger.debug(f"Resolved condition check failed: {exc}")
 
@@ -518,7 +522,10 @@ async def invoke_agent(state: HealState) -> HealState:
 
         # Inject current metrics history as a structured snapshot.
         try:
-            rich_context["metrics_history"] = _metrics_history.to_dict()
+            if _metrics_history is not None:
+                rich_context["metrics_history"] = _metrics_history.to_dict()
+            else:
+                rich_context["metrics_history"] = {}
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
             rich_context["metrics_history"] = {}
@@ -819,7 +826,10 @@ async def apply_fix(state: HealState) -> HealState:
 
         # O13: capture a pre-execution snapshot for rollback and verification.
         try:
-            pre_metrics = _metrics_history.to_dict()
+            if _metrics_history is not None:
+                pre_metrics = _metrics_history.to_dict()
+            else:
+                pre_metrics = {}
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
             pre_metrics = {}
@@ -1020,7 +1030,10 @@ async def evaluate(state: HealState) -> HealState:
         if not isinstance(state.snapshot, dict):
             state.snapshot = {}
         if not isinstance(state.snapshot.get("metrics"), dict):
-            state.snapshot["metrics"] = _metrics_history.to_dict()
+            if _metrics_history is not None:
+                state.snapshot["metrics"] = _metrics_history.to_dict()
+            else:
+                state.snapshot["metrics"] = {}
         pre_snapshot = state.snapshot["metrics"]
         verify_res = await verify_repair(
             state.alert or {},

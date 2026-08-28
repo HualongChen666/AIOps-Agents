@@ -14,6 +14,9 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from core.authentication import UserInDB, get_user, verify_token
+from core.database import get_db
+from core.models import TestCoverageReportDB
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -103,87 +106,35 @@ class CoverageReportCreate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-# ============ In-memory data storage ============
-_coverage_reports: Dict[str, CoverageReport] = {}
-
-
-def _init_coverage_reports():
-    """初始化默认覆盖率报告"""
-    if not _coverage_reports:
-        modules = [
-            ModuleCoverage(
-                module_id="mod-1",
-                module_name="core/authentication",
-                total_lines=500,
-                covered_lines=450,
-                coverage_percentage=90.0,
-                coverage_level=CoverageLevel.EXCELLENT,
-                last_updated=datetime.now() - timedelta(hours=1),
-            ),
-            ModuleCoverage(
-                module_id="mod-2",
-                module_name="core/user_service",
-                total_lines=800,
-                covered_lines=640,
-                coverage_percentage=80.0,
-                coverage_level=CoverageLevel.GOOD,
-                last_updated=datetime.now() - timedelta(hours=1),
-            ),
-            ModuleCoverage(
-                module_id="mod-3",
-                module_name="api/routes",
-                total_lines=1200,
-                covered_lines=840,
-                coverage_percentage=70.0,
-                coverage_level=CoverageLevel.ADEQUATE,
-                last_updated=datetime.now() - timedelta(hours=1),
-            ),
-            ModuleCoverage(
-                module_id="mod-4",
-                module_name="utils/helpers",
-                total_lines=300,
-                covered_lines=150,
-                coverage_percentage=50.0,
-                coverage_level=CoverageLevel.POOR,
-                last_updated=datetime.now() - timedelta(hours=1),
-            ),
-        ]
-
-        overall_coverage = sum(m.coverage_percentage for m in modules) / len(modules)
-
-        report = CoverageReport(
-            id=str(uuid.uuid4()),
-            report_name="Latest Coverage Report",
-            generated_at=datetime.now(),
-            overall_coverage=overall_coverage,
-            overall_level=CoverageLevel.GOOD if overall_coverage >= 75 else CoverageLevel.ADEQUATE,
-            total_modules=len(modules),
-            modules=modules,
-            summary={
-                "total_lines": sum(m.total_lines for m in modules),
-                "covered_lines": sum(m.covered_lines for m in modules),
-                "uncovered_lines": sum(m.total_lines - m.covered_lines for m in modules),
-                "excellent_count": len(
-                    [m for m in modules if m.coverage_level == CoverageLevel.EXCELLENT]
-                ),
-                "good_count": len([m for m in modules if m.coverage_level == CoverageLevel.GOOD]),
-                "adequate_count": len(
-                    [m for m in modules if m.coverage_level == CoverageLevel.ADEQUATE]
-                ),
-                "poor_count": len([m for m in modules if m.coverage_level == CoverageLevel.POOR]),
-            },
-            trends={
-                "previous_coverage": 72.5,
-                "change": overall_coverage - 72.5,
-                "trend": "up" if overall_coverage > 72.5 else "down",
-            },
+# ============ Database Helper Functions ============
+def _db_to_report(report_db: TestCoverageReportDB) -> CoverageReport:
+    """Convert database model to API model"""
+    # Convert modules from JSON to ModuleCoverage objects
+    modules_data = report_db.modules or []
+    modules = [
+        ModuleCoverage(
+            module_id=m.get("module_id", f"mod-{i}"),
+            module_name=m.get("module_name", "unknown"),
+            total_lines=m.get("total_lines", 0),
+            covered_lines=m.get("covered_lines", 0),
+            coverage_percentage=m.get("coverage_percentage", 0.0),
+            coverage_level=CoverageLevel(m.get("coverage_level", "poor")),
+            last_updated=datetime.now(),
         )
-
-        _coverage_reports[report.id] = report
-
-
-# 初始化数据
-_init_coverage_reports()
+        for i, m in enumerate(modules_data)
+    ]
+    
+    return CoverageReport(
+        id=report_db.id,
+        report_name=report_db.report_name,
+        generated_at=report_db.generated_at or datetime.now(),
+        overall_coverage=report_db.overall_coverage,
+        overall_level=CoverageLevel(report_db.overall_level),
+        total_modules=report_db.total_modules,
+        modules=modules,
+        summary=report_db.summary or {},
+        trends=report_db.trends,
+    )
 
 
 def _calculate_coverage_level(percentage: float) -> CoverageLevel:
@@ -212,11 +163,14 @@ async def get_coverage_reports(
     limit: int = 50,
     offset: int = 0,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> List[CoverageReport]:
     """获取所有覆盖率报告"""
-    reports = list(_coverage_reports.values())
-    reports.sort(key=lambda x: x.generated_at, reverse=True)
-    return reports[offset : offset + limit]
+    reports_db = db.query(TestCoverageReportDB).order_by(
+        TestCoverageReportDB.generated_at.desc()
+    ).offset(offset).limit(limit).all()
+    
+    return [_db_to_report(report) for report in reports_db]
 
 
 @router.post(
@@ -234,37 +188,31 @@ async def create_coverage_report(
     report_create: CoverageReportCreate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> CoverageReport:
     """生成新的覆盖率报告"""
     # 获取最新的报告作为基础
-    if not _coverage_reports:
-        _init_coverage_reports()
-
-    latest_report = list(_coverage_reports.values())[0] if _coverage_reports else None
+    latest_report_db = db.query(TestCoverageReportDB).order_by(
+        TestCoverageReportDB.generated_at.desc()
+    ).first()
 
     # 模拟生成新报告（实际应该从测试框架获取最新数据）
-    if latest_report:
-        modules = [
-            ModuleCoverage(
-                module_id=m.module_id,
-                module_name=m.module_name,
-                total_lines=m.total_lines,
-                covered_lines=int(
-                    m.covered_lines * (1 + (hash(m.module_id) % 10) / 100)
-                ),  # 模拟变化
-                coverage_percentage=0,
-                coverage_level=CoverageLevel.GOOD,
-                last_updated=datetime.now(),
-            )
-            for m in latest_report.modules
-        ]
+    if latest_report_db:
+        modules_data = latest_report_db.modules or []
+        modules = []
+        for m in modules_data:
+            covered_lines = int(m.get("covered_lines", 0) * (1 + (hash(m.get("module_id", "")) % 10) / 100))
+            coverage_percentage = round((covered_lines / m.get("total_lines", 1)) * 100, 2)
+            modules.append({
+                "module_id": m.get("module_id", ""),
+                "module_name": m.get("module_name", ""),
+                "total_lines": m.get("total_lines", 0),
+                "covered_lines": covered_lines,
+                "coverage_percentage": coverage_percentage,
+                "coverage_level": _calculate_coverage_level(coverage_percentage).value,
+            })
 
-        # 重新计算覆盖率
-        for module in modules:
-            module.coverage_percentage = round((module.covered_lines / module.total_lines) * 100, 2)
-            module.coverage_level = _calculate_coverage_level(module.coverage_percentage)
-
-        overall_coverage = sum(m.coverage_percentage for m in modules) / len(modules)
+        overall_coverage = sum(m["coverage_percentage"] for m in modules) / len(modules) if modules else 0.0
     else:
         modules = []
         overall_coverage = 0.0
@@ -272,51 +220,45 @@ async def create_coverage_report(
     report_id = str(uuid.uuid4())
     now = datetime.now()
 
-    report = CoverageReport(
+    summary = {
+        "total_lines": sum(m["total_lines"] for m in modules),
+        "covered_lines": sum(m["covered_lines"] for m in modules),
+        "uncovered_lines": sum(m["total_lines"] - m["covered_lines"] for m in modules),
+        "excellent_count": len([m for m in modules if m["coverage_level"] == "excellent"]),
+        "good_count": len([m for m in modules if m["coverage_level"] == "good"]),
+        "adequate_count": len([m for m in modules if m["coverage_level"] == "adequate"]),
+        "poor_count": len([m for m in modules if m["coverage_level"] == "poor"]),
+    }
+
+    trends = None
+    if report_create.include_trends and latest_report_db:
+        trends = {
+            "previous_coverage": latest_report_db.overall_coverage,
+            "change": overall_coverage - latest_report_db.overall_coverage,
+            "trend": "up" if overall_coverage > latest_report_db.overall_coverage else "down",
+        }
+
+    report_db = TestCoverageReportDB(
         id=report_id,
         report_name=report_create.report_name,
         generated_at=now,
         overall_coverage=overall_coverage,
-        overall_level=_calculate_coverage_level(overall_coverage),
+        overall_level=_calculate_coverage_level(overall_coverage).value,
         total_modules=len(modules),
+        summary=summary,
         modules=modules,
-        summary={
-            "total_lines": sum(m.total_lines for m in modules),
-            "covered_lines": sum(m.covered_lines for m in modules),
-            "uncovered_lines": sum(m.total_lines - m.covered_lines for m in modules),
-            "excellent_count": len(
-                [m for m in modules if m.coverage_level == CoverageLevel.EXCELLENT]
-            ),
-            "good_count": len([m for m in modules if m.coverage_level == CoverageLevel.GOOD]),
-            "adequate_count": len(
-                [m for m in modules if m.coverage_level == CoverageLevel.ADEQUATE]
-            ),
-            "poor_count": len([m for m in modules if m.coverage_level == CoverageLevel.POOR]),
-        },
-        trends=(
-            {
-                "previous_coverage": latest_report.overall_coverage if latest_report else 0,
-                "change": overall_coverage
-                - (latest_report.overall_coverage if latest_report else 0),
-                "trend": (
-                    "up"
-                    if overall_coverage > (latest_report.overall_coverage if latest_report else 0)
-                    else "down"
-                ),
-            }
-            if report_create.include_trends and latest_report
-            else None
-        ),
+        trends=trends,
     )
-
-    _coverage_reports[report_id] = report
+    
+    db.add(report_db)
+    db.commit()
 
     logger.info(
         f"Coverage report generated | report_id={report_id} | name={report_create.report_name} | "
         f"user={current_user.username} | ip={get_client_ip(request)}"
     )
 
-    return report
+    return _db_to_report(report_db)
 
 
 @router.get(
@@ -332,11 +274,15 @@ async def create_coverage_report(
 async def get_coverage_report(
     id: str,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> CoverageReport:
     """获取指定覆盖率报告的详情"""
-    if id not in _coverage_reports:
+    report_db = db.query(TestCoverageReportDB).filter(TestCoverageReportDB.id == id).first()
+    
+    if not report_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-    return _coverage_reports[id]
+    
+    return _db_to_report(report_db)
 
 
 @router.delete(
@@ -353,12 +299,16 @@ async def delete_coverage_report(
     id: str,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> None:
     """删除指定的覆盖率报告"""
-    if id not in _coverage_reports:
+    report_db = db.query(TestCoverageReportDB).filter(TestCoverageReportDB.id == id).first()
+    
+    if not report_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
-    del _coverage_reports[id]
+    db.delete(report_db)
+    db.commit()
 
     logger.info(
         f"Coverage report deleted | report_id={id} | user={current_user.username} "
@@ -376,14 +326,14 @@ async def delete_coverage_report(
 )
 async def get_coverage_summary(
     current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """获取最新的覆盖率摘要信息"""
-    if not _coverage_reports:
-        _init_coverage_reports()
+    latest_report_db = db.query(TestCoverageReportDB).order_by(
+        TestCoverageReportDB.generated_at.desc()
+    ).first()
 
-    latest_report = list(_coverage_reports.values())[0] if _coverage_reports else None
-
-    if not latest_report:
+    if not latest_report_db:
         return {
             "overall_coverage": 0.0,
             "overall_level": "poor",
@@ -392,9 +342,9 @@ async def get_coverage_summary(
         }
 
     return {
-        "overall_coverage": latest_report.overall_coverage,
-        "overall_level": latest_report.overall_level.value,
-        "total_modules": latest_report.total_modules,
-        "summary": latest_report.summary,
-        "generated_at": latest_report.generated_at.isoformat(),
+        "overall_coverage": latest_report_db.overall_coverage,
+        "overall_level": latest_report_db.overall_level,
+        "total_modules": latest_report_db.total_modules,
+        "summary": latest_report_db.summary or {},
+        "generated_at": latest_report_db.generated_at.isoformat() if latest_report_db.generated_at else None,
     }

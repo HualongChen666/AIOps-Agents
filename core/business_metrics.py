@@ -290,7 +290,7 @@ async def setup_business_metrics() -> Any:
 
         return {
             "status": "success",
-            "retention_days": business_metrics_collector.retention_days,
+            "retention_days": BUSINESS_METRICS_COLLECTOR.retention_days,
             "collector": "BusinessMetricsCollector",
         }
 

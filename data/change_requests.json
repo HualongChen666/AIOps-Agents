@@ -814,5 +814,53 @@
         "message": "变更已回滚"
       }
     ]
+  },
+  "CR-1CCD07F5": {
+    "id": "CR-1CCD07F5",
+    "tenant_id": "default",
+    "title": "Test Change",
+    "description": "Test change description",
+    "requester": "admin",
+    "approver": "manager",
+    "status": "draft",
+    "risk_level": "low",
+    "schedule": "",
+    "affected_services": [
+      "compute-service"
+    ],
+    "implementation_plan": "Step 1, Step 2",
+    "rollback_plan": "Rollback step 1",
+    "audit_log": [
+      {
+        "timestamp": "2026-08-27T04:25:20.527664+00:00",
+        "actor": "admin",
+        "action": "created",
+        "message": "创建变更请求"
+      }
+    ]
+  },
+  "CR-E4B35B09": {
+    "id": "CR-E4B35B09",
+    "tenant_id": "default",
+    "title": "Test Change",
+    "description": "Test change description",
+    "requester": "admin",
+    "approver": "manager",
+    "status": "draft",
+    "risk_level": "low",
+    "schedule": "",
+    "affected_services": [
+      "compute-service"
+    ],
+    "implementation_plan": "Step 1, Step 2",
+    "rollback_plan": "Rollback step 1",
+    "audit_log": [
+      {
+        "timestamp": "2026-08-27T04:27:47.164888+00:00",
+        "actor": "admin",
+        "action": "created",
+        "message": "创建变更请求"
+      }
+    ]
   }
 }

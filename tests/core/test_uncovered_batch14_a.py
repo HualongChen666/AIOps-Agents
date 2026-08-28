@@ -4,6 +4,7 @@
 import asyncio  # noqa: F401  # Imported for test setup
 import hashlib
 import hmac
+import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -379,8 +380,9 @@ def test_get_current_user():
 
     db = auth_db.SessionLocal()
     try:
+        unique_username = f"inactive_user_{uuid.uuid4().hex[:8]}"
         inactive = auth_db.User(
-            username="inactive_user",
+            username=unique_username,
             password_hash=auth.hash_password("x"),
             role="viewer",
             is_active=False,
@@ -391,15 +393,17 @@ def test_get_current_user():
         db.close()
 
     with pytest.raises(HTTPException):
-        bad_token = auth.create_access_token({"sub": "inactive_user"})
+        bad_token = auth.create_access_token({"sub": unique_username})
         auth.get_current_user(token=bad_token)
 
 
 def _db_user(username, role, active=True):
     db = auth_db.SessionLocal()
     try:
+        # Generate unique username to avoid constraint conflicts
+        unique_username = f"{username}_{uuid.uuid4().hex[:8]}"
         user = auth_db.User(
-            username=username,
+            username=unique_username,
             password_hash=auth.hash_password("x"),
             role=role,
             is_active=active,

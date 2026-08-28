@@ -4,6 +4,8 @@
 import asyncio  # noqa: F401  # Imported for test setup
 from unittest.mock import MagicMock
 
+import pytest  # noqa: F401  # Imported for test setup
+
 import config
 import core.macos_collector
 import core.macos_repair
@@ -23,6 +25,7 @@ async def fake_subprocess(cmd, **kwargs):
     return FakeProc()
 
 
+@pytest.mark.asyncio
 async def test_run_command_local(monkeypatch):
     monkeypatch.setattr(asyncio, "create_subprocess_shell", fake_subprocess)
     result = await core.macos_collector._run_command(
@@ -31,6 +34,7 @@ async def test_run_command_local(monkeypatch):
     assert result["stdout"] == "ok"
 
 
+@pytest.mark.asyncio
 async def test_run_command_remote_not_supported():
     result = await core.macos_collector._run_command(
         "remote", "whoami"
@@ -38,6 +42,7 @@ async def test_run_command_remote_not_supported():
     assert "not supported" in result["stderr"]
 
 
+@pytest.mark.asyncio
 async def test_collect_macos_metrics(monkeypatch):
     monkeypatch.setattr(config, "MAC_HOSTS", [], raising=False)
     fake_psutil = MagicMock()
@@ -54,6 +59,7 @@ async def test_collect_macos_metrics(monkeypatch):
     assert results["localhost"]["cpu"] == 10.0
 
 
+@pytest.mark.asyncio
 async def test_execute_macos_repair(monkeypatch):
     monkeypatch.setattr(asyncio, "create_subprocess_shell", fake_subprocess)
     result = await core.macos_repair.execute_macos_repair(

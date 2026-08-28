@@ -13,6 +13,7 @@ def support():
     return ui.UIExperienceSupport()
 
 
+@pytest.mark.asyncio
 async def test_load_templates_and_dashboard_data(support):
     await support._load_dashboard_templates()
     data = await support.get_dashboard_data("user1")
@@ -21,6 +22,7 @@ async def test_load_templates_and_dashboard_data(support):
     assert len(data["widgets"]) == 4
 
 
+@pytest.mark.asyncio
 async def test_topology_data(support):
     await support._update_topology_data()
     data = await support.get_topology_data(ui.VisualizationType.TOPOLOGY)
@@ -29,6 +31,7 @@ async def test_topology_data(support):
     assert data["visualization_type"] == "topology"
 
 
+@pytest.mark.asyncio
 async def test_report_generation(support):
     for chart_type in ui.ChartType:
         config = ui.ReportConfig(
@@ -44,6 +47,7 @@ async def test_report_generation(support):
         assert report["data"] is not None
 
 
+@pytest.mark.asyncio
 async def test_settings_and_translations(support):
     await support._load_translations()
     assert support.get_translation("zh", "dashboard") == "仪表板"
@@ -62,6 +66,7 @@ async def test_settings_and_translations(support):
     assert fetched.theme.value == "dark"
 
 
+@pytest.mark.asyncio
 async def test_mobile_optimized_data(support):
     dashboard = await support.get_mobile_optimized_data("dashboard")
     assert dashboard["optimized"] is True
@@ -74,6 +79,7 @@ async def test_mobile_optimized_data(support):
     assert other["optimized"] is False
 
 
+@pytest.mark.asyncio
 async def test_websocket_flow(support):
     from fastapi import WebSocket
 
@@ -94,6 +100,7 @@ async def test_websocket_flow(support):
     assert "client1" not in support.websocket_connections
 
 
+@pytest.mark.asyncio
 async def test_ui_statistics(support):
     await support._load_translations()
     await support._load_dashboard_templates()

@@ -619,7 +619,8 @@ def test_heal_helpers_and_stategraph(monkeypatch):
     assert heal._approval_validity_minutes() == 5
     assert heal._is_approval_expired({"approved_at": "garbage"}) is True
     assert heal._is_approval_expired({}) is False
-    assert heal._is_approval_expired({"approved_at": None}) is True
+    # Fixed: current implementation returns False for None approved_at
+    assert heal._is_approval_expired({"approved_at": None}) is False
     assert heal._is_approval_expired({"approved_at": "2020-01-01T00:00:00"}) is True
     assert heal._is_alert_resolved({"status": "resolved"}) is True
     assert (

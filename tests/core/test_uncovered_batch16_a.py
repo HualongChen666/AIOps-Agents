@@ -233,6 +233,7 @@ def test_chunking_strategy_not_implemented():
         ChunkingStrategy().chunk(Document(id="d3", content="", metadata={}))
 
 
+@pytest.mark.asyncio
 async def test_sentence_transformer_import_missing(monkeypatch):
     empty = types.ModuleType("sentence_transformers")
     monkeypatch.setitem(sys.modules, "sentence_transformers", empty)
@@ -244,6 +245,7 @@ async def test_sentence_transformer_import_missing(monkeypatch):
     assert all(len(v) == 1024 for v in batch)
 
 
+@pytest.mark.asyncio
 async def test_sentence_transformer_with_model(monkeypatch):
     fake = types.ModuleType("sentence_transformers")
     fake.SentenceTransformer = _FakeSentenceTransformer
@@ -262,6 +264,7 @@ async def test_sentence_transformer_with_model(monkeypatch):
         await emb.embed_batch(["x"])
 
 
+@pytest.mark.asyncio
 async def test_vectorization_pipeline():
     class _FakeEmb(EmbeddingModel):
         async def embed(self, text: str):
@@ -307,6 +310,7 @@ def test_performance_register_and_status_missing(tmp_path):
     assert tester.get_execution_status("missing") is None
 
 
+@pytest.mark.asyncio
 async def test_performance_run_pass(tmp_path, monkeypatch):
     monkeypatch.setattr(
         perf_module,
@@ -325,6 +329,7 @@ async def test_performance_run_pass(tmp_path, monkeypatch):
     assert status["passed"] is True
 
 
+@pytest.mark.asyncio
 async def test_performance_run_fail(tmp_path, monkeypatch):
     monkeypatch.setattr(
         perf_module,
@@ -344,6 +349,7 @@ async def test_performance_run_fail(tmp_path, monkeypatch):
     assert "thresholds" in (status["error_message"] or "").lower() or True
 
 
+@pytest.mark.asyncio
 async def test_performance_run_not_found_and_disabled(tmp_path):
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     with pytest.raises(ValueError, match="not found"):
@@ -353,6 +359,7 @@ async def test_performance_run_not_found_and_disabled(tmp_path):
         await tester.run_performance_test("load_test_api")
 
 
+@pytest.mark.asyncio
 async def test_performance_execute_error(tmp_path, monkeypatch):
     monkeypatch.setattr(
         perf_module,
@@ -373,6 +380,7 @@ async def test_performance_execute_error(tmp_path, monkeypatch):
     assert "sleep boom" in (status["error_message"] or "")
 
 
+@pytest.mark.asyncio
 async def test_performance_report_and_stats(tmp_path, monkeypatch):
     monkeypatch.setattr(
         perf_module,
@@ -406,6 +414,7 @@ async def test_performance_report_and_stats(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_plugin_manager_register_load_execute(monkeypatch):
     monkeypatch.setattr(sys, "path", list(sys.path))
     manager = PluginManager()
@@ -447,6 +456,7 @@ def test_plugin_manager_load_fail_and_reload(monkeypatch):
     assert manager.reload_plugin("init_false") is False
 
 
+@pytest.mark.asyncio
 async def test_plugin_manager_broken_execute_and_not_found(monkeypatch):
     monkeypatch.setattr(sys, "path", list(sys.path))
     manager = PluginManager()
@@ -524,6 +534,7 @@ def test_execution_metrics():
     assert m.get_cache_hit_rate() == 0.5
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_cache_and_status(monkeypatch):
     ex = OptimizedExecutor({"cache_enabled": True, "cache_ttl": 300})
     status = ex.get_status()
@@ -549,6 +560,7 @@ async def test_optimized_executor_cache_and_status(monkeypatch):
     assert r3["cached"] is False
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_cache_exception():
     ex = OptimizedExecutor()
 
@@ -559,6 +571,7 @@ async def test_optimized_executor_cache_exception():
     assert r["success"] is False
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_cache_get_and_expired():
     ex = OptimizedExecutor()
     ex.cache["k"] = ("value", datetime.now())
@@ -569,6 +582,7 @@ async def test_optimized_executor_cache_get_and_expired():
     assert "k2" not in ex.cache
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_parallel():
     ex = OptimizedExecutor({"max_parallel_tasks": 2})
 
@@ -593,6 +607,7 @@ async def test_optimized_executor_parallel():
     assert any(not r["success"] for r in results)
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_l2_success(monkeypatch):
     _install_l2_fakes(monkeypatch, error=False)
     ex = OptimizedExecutor({"l2_integration": True})
@@ -606,6 +621,7 @@ async def test_optimized_executor_l2_success(monkeypatch):
     assert r["result"]["selected_model"] == "gpt-4"
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_l2_error(monkeypatch):
     _install_l2_fakes(monkeypatch, error=True)
     ex = OptimizedExecutor({"l2_integration": True})
@@ -617,6 +633,7 @@ async def test_optimized_executor_l2_error(monkeypatch):
     assert r["success"] is True
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_l3_success(monkeypatch):
     _install_l3_fakes(monkeypatch, error=False)
     ex = OptimizedExecutor({"l3_integration": True})
@@ -624,6 +641,7 @@ async def test_optimized_executor_l3_success(monkeypatch):
     assert r["status"] == "ok"
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_l3_disabled_and_error(monkeypatch):
     ex = OptimizedExecutor({"l3_integration": False})
     assert await ex.execute_with_l3_workflow("wf", {}) == {"error": "L3 integration not enabled"}
@@ -634,6 +652,7 @@ async def test_optimized_executor_l3_disabled_and_error(monkeypatch):
     assert "error" in r
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_l4_success_and_disabled(monkeypatch):
     _install_l4_fakes(monkeypatch, error=False)
     ex = OptimizedExecutor({"l4_integration": True})
@@ -643,6 +662,7 @@ async def test_optimized_executor_l4_success_and_disabled(monkeypatch):
     assert await ex2.execute_with_l4_storage("op2", {}, {}) is None
 
 
+@pytest.mark.asyncio
 async def test_optimized_executor_l4_error(monkeypatch):
     _install_l4_fakes(monkeypatch, error=True)
     ex = OptimizedExecutor({"l4_integration": True})
@@ -665,6 +685,7 @@ def test_optimized_executor_singleton_and_metrics(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_drill_all_scenarios(dr_mocked_asyncio):
     drill = DisasterRecoveryDrill()
     for scenario in DrillScenario:
@@ -674,6 +695,7 @@ async def test_drill_all_scenarios(dr_mocked_asyncio):
         assert result.end_time is not None
 
 
+@pytest.mark.asyncio
 async def test_drill_concurrent_and_unknown(dr_mocked_asyncio):
     drill = DisasterRecoveryDrill()
     first = asyncio.create_task(drill.run_drill(DrillScenario.SERVICE_OUTAGE))
@@ -683,6 +705,7 @@ async def test_drill_concurrent_and_unknown(dr_mocked_asyncio):
     await first
 
 
+@pytest.mark.asyncio
 async def test_drill_history_and_stats(dr_mocked_asyncio):
     drill = DisasterRecoveryDrill()
     await drill.run_drill(DrillScenario.SERVICE_OUTAGE)
@@ -702,6 +725,7 @@ def test_drill_empty_stats():
     assert stats["total_drills"] == 0
 
 
+@pytest.mark.asyncio
 async def test_setup_disaster_recovery():
     result = await setup_disaster_recovery()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"

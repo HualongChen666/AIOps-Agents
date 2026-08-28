@@ -157,6 +157,7 @@ def test_root_cause_statistics(rci_engine):
     assert 0 <= stats["average_verification_score"] <= 1
 
 
+@pytest.mark.asyncio
 async def test_root_cause_topology_discovery(rci_engine):
     metrics_data = {
         "hosts": [{"hostname": "host1", "health": "healthy", "metrics": {"cpu": 0.1}}],
@@ -183,6 +184,7 @@ async def test_root_cause_topology_discovery(rci_engine):
     assert "health_distribution" in summary and isinstance(summary["health_distribution"], dict)
 
 
+@pytest.mark.asyncio
 async def test_root_cause_cross_layer_tracking(rci_engine):
     metrics_data = {
         "services": [{"name": "svc1", "health": "unhealthy", "port": 8080}],
@@ -203,6 +205,7 @@ async def test_root_cause_cross_layer_tracking(rci_engine):
     assert path[0] == "svc1"
 
 
+@pytest.mark.asyncio
 async def test_root_cause_historical_patterns(rci_engine):
     symptoms = {
         "alerts": [{"alert_type": "cpu_high", "host": "host1"}],
@@ -218,6 +221,7 @@ async def test_root_cause_historical_patterns(rci_engine):
     assert stats["historical_patterns"] == 1
 
 
+@pytest.mark.asyncio
 async def test_root_cause_analyze_enhanced(rci_engine):
     alert = {
         "id": "a3",
@@ -251,6 +255,7 @@ async def test_root_cause_analyze_enhanced(rci_engine):
     assert top.recommended_action in ("auto_heal", "collect_more_data", "escalate")
 
 
+@pytest.mark.asyncio
 async def test_root_cause_verify(rci_engine):
     alert = {
         "id": "a4",
@@ -277,6 +282,7 @@ async def test_root_cause_verify(rci_engine):
     )
 
 
+@pytest.mark.asyncio
 async def test_root_cause_predict(rci_engine):
     symptoms = {
         "alerts": [{"alert_type": "oom", "host": "node1"}],
@@ -317,6 +323,7 @@ def test_build_heal_graph():
     assert asyncio.iscoroutinefunction(runner)
 
 
+@pytest.mark.asyncio
 async def test_run_heal_success(stub_heal):
     state = hg.HealState(
         alert={
@@ -342,6 +349,7 @@ async def test_run_heal_success(stub_heal):
     assert final.snapshot_id == "snap-123"
 
 
+@pytest.mark.asyncio
 async def test_run_heal_rollback(stub_heal_failed):
     state = hg.HealState(
         alert={

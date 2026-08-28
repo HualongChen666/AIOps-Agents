@@ -37,15 +37,6 @@ from core.cache_manager import cache_manager, cache_key_generator
 
 router = APIRouter(prefix="/api/v1/business-impact", tags=["业务影响高级"])
 
-# Data storage paths
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-ANALYSIS_FILE = DATA_DIR / "business_impact_analysis.json"
-DEPENDENCIES_FILE = DATA_DIR / "business_impact_dependencies.json"
-REPORTS_FILE = DATA_DIR / "business_impact_reports.json"
-
 
 # Pydantic Models
 class ImpactSeverityEnum(str, Enum):
@@ -148,112 +139,11 @@ class CreateReportRequest(BaseModel):
     }
 
 
-# Data storage helpers
-def _load_json_file(file_path: Path) -> List[Dict[str, Any]]:
-    """加载JSON文件"""
-    if not file_path.exists():
-        return []
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except Exception as e:  # noqa: F841 - Exception intentionally unused
-        return []
-
-
-def _save_json_file(file_path: Path, data: List[Dict[str, Any]]) -> None:
-    """保存JSON文件"""
-    import os
-    import stat
-
-    try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-
-        # Set restrictive permissions for business impact data file (600 - owner read/write only)
-        try:
-            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
-        except (OSError, AttributeError):
-            # chmod may fail on Windows or non-Unix systems
-            pass
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}")
-
-
-# Dual-write functions for database migration
-def _save_analysis_to_db(db: Session, analysis: Dict[str, Any]) -> None:
-    """保存分析到数据库"""
-    try:
-        db_analysis = BusinessImpactAnalysisDB(
-            id=analysis["id"],
-            service_name=analysis["service_name"],
-            analysis_type=analysis["analysis_type"],
-            time_range=analysis["time_range"],
-            include_dependencies=analysis["include_dependencies"],
-            include_ux_metrics=analysis["include_ux_metrics"],
-            status=analysis["status"],
-            result=analysis.get("result"),
-            error=analysis.get("error"),
-            created_at=datetime.fromisoformat(analysis["created_at"].replace("Z", "+00:00")),
-            updated_at=datetime.fromisoformat(analysis["updated_at"].replace("Z", "+00:00")),
-        )
-        db.merge(db_analysis)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save analysis to database: {str(e)}")
-
-
-def _save_dependency_to_db(db: Session, dependency: Dict[str, Any]) -> None:
-    """保存依赖关系到数据库"""
-    try:
-        db_dependency = BusinessImpactDependencyDB(
-            id=dependency["id"],
-            source_service=dependency["source_service"],
-            target_service=dependency["target_service"],
-            dependency_type=dependency["dependency_type"],
-            criticality=dependency["criticality"],
-            description=dependency.get("description"),
-            created_at=datetime.fromisoformat(dependency["created_at"].replace("Z", "+00:00")),
-            updated_at=datetime.fromisoformat(dependency["updated_at"].replace("Z", "+00:00")),
-        )
-        db.merge(db_dependency)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save dependency to database: {str(e)}")
-
-
-def _save_report_to_db(db: Session, report: Dict[str, Any]) -> None:
-    """保存报告到数据库"""
-    try:
-        db_report = BusinessImpactReportDB(
-            id=report["id"],
-            title=report["title"],
-            service_names=report["service_names"],
-            time_range=report["time_range"],
-            include_recommendations=report["include_recommendations"],
-            summary=report.get("summary"),
-            service_data=report.get("service_data"),
-            recommendations=report.get("recommendations"),
-            created_at=datetime.fromisoformat(report["created_at"].replace("Z", "+00:00")),
-            updated_at=datetime.fromisoformat(report["updated_at"].replace("Z", "+00:00")),
-        )
-        db.merge(db_report)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save report to database: {str(e)}")
 
 
 def _generate_id(prefix: str) -> str:
     """生成唯一ID"""
     return f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
-
-
-def _now() -> str:
-    """获取当前时间戳"""
-    return datetime.now(timezone.utc).isoformat()
 
 
 # Analysis endpoints
@@ -359,31 +249,36 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
     对指定服务进行业务影响分析，包括依赖关系、用户体验指标等。
     """
     try:
-        analyses = _load_json_file(ANALYSIS_FILE)
-
-        analysis = {
-            "id": _generate_id("BIA"),
-            "service_name": request.service_name,
-            "analysis_type": request.analysis_type,
-            "time_range": request.time_range,
-            "include_dependencies": request.include_dependencies,
-            "include_ux_metrics": request.include_ux_metrics,
-            "status": AnalysisStatusEnum.RUNNING.value,
-            "created_at": _now(),
-            "updated_at": _now(),
-            "result": None,
-        }
-
-        analyses.append(analysis)
-        _save_json_file(ANALYSIS_FILE, analyses)
-
-        # Dual-write to database
+        # 直接保存到数据库
         db = get_session()
         try:
-            _save_analysis_to_db(db, analysis)
+            db_analysis = BusinessImpactAnalysisDB(
+                id=_generate_id("BIA"),
+                service_name=request.service_name,
+                analysis_type=request.analysis_type,
+                time_range=request.time_range,
+                include_dependencies=request.include_dependencies,
+                include_ux_metrics=request.include_ux_metrics,
+                status=AnalysisStatusEnum.RUNNING.value,
+            )
+            db.add(db_analysis)
+            db.commit()
+            
+            analysis = {
+                "id": db_analysis.id,
+                "service_name": db_analysis.service_name,
+                "analysis_type": db_analysis.analysis_type,
+                "time_range": db_analysis.time_range,
+                "include_dependencies": db_analysis.include_dependencies,
+                "include_ux_metrics": db_analysis.include_ux_metrics,
+                "status": db_analysis.status,
+                "created_at": db_analysis.created_at.isoformat() if db_analysis.created_at else None,
+                "updated_at": db_analysis.updated_at.isoformat() if db_analysis.updated_at else None,
+                "result": None,
+            }
         except Exception as e:
-            # Log database error but continue with JSON storage
-            pass
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to save analysis to database: {str(e)}")
         finally:
             db.close()
 
@@ -398,13 +293,25 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
             # 如果需要，获取依赖关系
             dependencies = []
             if request.include_dependencies:
-                deps = _load_json_file(DEPENDENCIES_FILE)
-                dependencies = [
-                    d
-                    for d in deps
-                    if d.get("source_service") == request.service_name
-                    or d.get("target_service") == request.service_name
-                ]
+                db = get_session()
+                try:
+                    deps = db.query(BusinessImpactDependencyDB).filter(
+                        (BusinessImpactDependencyDB.source_service == request.service_name) |
+                        (BusinessImpactDependencyDB.target_service == request.service_name)
+                    ).all()
+                    dependencies = [
+                        {
+                            "id": dep.id,
+                            "source_service": dep.source_service,
+                            "target_service": dep.target_service,
+                            "dependency_type": dep.dependency_type,
+                            "criticality": dep.criticality,
+                            "description": dep.description,
+                        }
+                        for dep in deps
+                    ]
+                finally:
+                    db.close()
 
             # 如果需要，获取UX指标
             ux_metrics = []
@@ -412,23 +319,20 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
                 ux_metrics = await list_business_impact_ux_metrics()
 
             # 更新分析结果
-            analysis["status"] = AnalysisStatusEnum.COMPLETED.value
-            analysis["result"] = {
-                "impact_assessment": impact_assessment,
-                "dependencies": dependencies,
-                "ux_metrics": ux_metrics,
-            }
-            analysis["updated_at"] = _now()
-
-            _save_json_file(ANALYSIS_FILE, analyses)
-
-            # Dual-write to database
             db = get_session()
             try:
-                _save_analysis_to_db(db, analysis)
-            except Exception as e:
-                # Log database error but continue with JSON storage
-                pass
+                db_analysis = db.query(BusinessImpactAnalysisDB).filter(
+                    BusinessImpactAnalysisDB.id == analysis["id"]
+                ).first()
+                if db_analysis:
+                    db_analysis.status = AnalysisStatusEnum.COMPLETED.value
+                    db_analysis.result = {
+                        "impact_assessment": impact_assessment,
+                        "dependencies": dependencies,
+                        "ux_metrics": ux_metrics,
+                    }
+                    db_analysis.updated_at = datetime.now(timezone.utc)
+                    db.commit()
             finally:
                 db.close()
 
@@ -436,19 +340,21 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
             cache_manager.delete_pattern("business_impact_analysis_list:*")
 
             return create_success_response(analysis, "分析创建成功")
-        except Exception as e:
-            analysis["status"] = AnalysisStatusEnum.FAILED.value
-            analysis["error"] = str(e)
-            analysis["updated_at"] = _now()
-            _save_json_file(ANALYSIS_FILE, analyses)
+            cache_manager.delete_pattern("business_impact_analysis_list:*")
 
-            # Dual-write to database
+            return create_success_response(analysis, "分析创建成功")
+        except Exception as e:
+            # 更新分析状态为失败
             db = get_session()
             try:
-                _save_analysis_to_db(db, analysis)
-            except Exception as e:
-                # Log database error but continue with JSON storage
-                pass
+                db_analysis = db.query(BusinessImpactAnalysisDB).filter(
+                    BusinessImpactAnalysisDB.id == analysis["id"]
+                ).first()
+                if db_analysis:
+                    db_analysis.status = AnalysisStatusEnum.FAILED.value
+                    db_analysis.error = str(e)
+                    db_analysis.updated_at = datetime.now(timezone.utc)
+                    db.commit()
             finally:
                 db.close()
 
@@ -527,7 +433,7 @@ async def get_business_impact_metrics(
             "services": services,
             "ux_metrics": ux_metrics,
             "time_range": time_range,
-            "timestamp": _now(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         return create_success_response(metrics)
@@ -558,25 +464,46 @@ async def get_dependencies(
     支持按源服务、目标服务和关键程度筛选。
     """
     try:
-        dependencies = _load_json_file(DEPENDENCIES_FILE)
-
-        # 过滤
-        if source_service:
-            dependencies = [d for d in dependencies if d.get("source_service") == source_service]
-        if target_service:
-            dependencies = [d for d in dependencies if d.get("target_service") == target_service]
-        if criticality:
-            dependencies = [d for d in dependencies if d.get("criticality") == criticality.value]
-
-        paginated = dependencies[:limit]
-
-        return create_success_response(
-            {
-                "items": paginated,
-                "total": len(dependencies),
+        db = get_session()
+        try:
+            query = db.query(BusinessImpactDependencyDB)
+            
+            # 过滤
+            if source_service:
+                query = query.filter(BusinessImpactDependencyDB.source_service == source_service)
+            if target_service:
+                query = query.filter(BusinessImpactDependencyDB.target_service == target_service)
+            if criticality:
+                query = query.filter(BusinessImpactDependencyDB.criticality == criticality.value)
+            
+            # 分页
+            total = query.count()
+            results = query.offset(offset).limit(limit).all()
+            
+            # 转换为字典格式
+            items = []
+            for result in results:
+                items.append({
+                    "id": result.id,
+                    "source_service": result.source_service,
+                    "target_service": result.target_service,
+                    "dependency_type": result.dependency_type,
+                    "criticality": result.criticality,
+                    "description": result.description,
+                    "created_at": result.created_at.isoformat() if result.created_at else None,
+                    "updated_at": result.updated_at.isoformat() if result.updated_at else None,
+                })
+            
+            response_data = {
+                "items": items,
+                "total": total,
                 "limit": limit,
+                "offset": offset,
             }
-        )
+            
+            return create_success_response(response_data)
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取依赖关系失败"
@@ -600,41 +527,47 @@ async def create_dependency(request: CreateDependencyRequest) -> Dict[str, Any]:
     定义服务之间的依赖关系和关键程度。
     """
     try:
-        dependencies = _load_json_file(DEPENDENCIES_FILE)
-
-        # 检查是否已存在
-        for dep in dependencies:
-            if (
-                dep.get("source_service") == request.source_service
-                and dep.get("target_service") == request.target_service
-            ):
+        db = get_session()
+        try:
+            # 检查是否已存在
+            existing = db.query(BusinessImpactDependencyDB).filter(
+                BusinessImpactDependencyDB.source_service == request.source_service,
+                BusinessImpactDependencyDB.target_service == request.target_service
+            ).first()
+            
+            if existing:
                 return create_error_response(
                     error="Dependency already exists",
                     error_code=ErrorCode.BAD_REQUEST,
                     message="依赖关系已存在",
                 )
-
-        dependency = {
-            "id": _generate_id("DEP"),
-            "source_service": request.source_service,
-            "target_service": request.target_service,
-            "dependency_type": request.dependency_type,
-            "criticality": request.criticality.value,
-            "description": request.description,
-            "created_at": _now(),
-            "updated_at": _now(),
-        }
-
-        dependencies.append(dependency)
-        _save_json_file(DEPENDENCIES_FILE, dependencies)
-
-        # Dual-write to database
-        db = get_session()
-        try:
-            _save_dependency_to_db(db, dependency)
-        except Exception as e:
-            # Log database error but continue with JSON storage
-            pass
+            
+            # 创建新的依赖关系
+            dependency = BusinessImpactDependencyDB(
+                id=_generate_id("DEP"),
+                source_service=request.source_service,
+                target_service=request.target_service,
+                dependency_type=request.dependency_type,
+                criticality=request.criticality.value,
+                description=request.description,
+            )
+            
+            db.add(dependency)
+            db.commit()
+            
+            # Invalidate cache
+            cache_manager.delete_pattern("business_impact_dependencies:*")
+            
+            return create_success_response(
+                {
+                    "id": dependency.id,
+                    "source_service": dependency.source_service,
+                    "target_service": dependency.target_service,
+                    "dependency_type": dependency.dependency_type,
+                    "criticality": dependency.criticality,
+                },
+                "依赖关系创建成功"
+            )
         finally:
             db.close()
 
@@ -664,20 +597,37 @@ async def get_reports(
     支持分页查询。
     """
     try:
-        reports = _load_json_file(REPORTS_FILE)
-
-        # 分页
-        total = len(reports)
-        paginated = reports[offset : offset + limit]
-
-        return create_success_response(
-            {
-                "items": paginated,
+        db = get_session()
+        try:
+            # 分页
+            query = db.query(BusinessImpactReportDB)
+            total = query.count()
+            results = query.offset(offset).limit(limit).all()
+            
+            # 转换为字典格式
+            items = []
+            for result in results:
+                items.append({
+                    "id": result.id,
+                    "title": result.title,
+                    "service_names": result.service_names,
+                    "time_range": result.time_range,
+                    "include_recommendations": result.include_recommendations,
+                    "summary": result.summary,
+                    "created_at": result.created_at.isoformat() if result.created_at else None,
+                    "updated_at": result.updated_at.isoformat() if result.updated_at else None,
+                })
+            
+            response_data = {
+                "items": items,
                 "total": total,
                 "limit": limit,
                 "offset": offset,
             }
-        )
+            
+            return create_success_response(response_data)
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取报告列表失败"
@@ -701,8 +651,6 @@ async def create_report(request: CreateReportRequest) -> Dict[str, Any]:
     生成包含多个服务业务影响分析的报告。
     """
     try:
-        reports = _load_json_file(REPORTS_FILE)
-
         # 收集所有服务的业务影响数据
         service_data = []
         for service_name in request.service_names:
@@ -735,36 +683,41 @@ async def create_report(request: CreateReportRequest) -> Dict[str, Any]:
                     }
                 )
 
-        report = {
-            "id": _generate_id("RPT"),
-            "title": request.title,
-            "service_names": request.service_names,
-            "time_range": request.time_range,
-            "include_recommendations": request.include_recommendations,
-            "created_at": _now(),
-            "updated_at": _now(),
-            "summary": {
-                "total_services": len(service_data),
-                "total_revenue_impact": total_revenue_impact,
-                "total_affected_users": total_affected_users,
-                "avg_impact_score": round(avg_impact_score, 2),
-            },
-            "service_data": service_data,
-            "recommendations": recommendations,
-        }
-
-        reports.append(report)
-        _save_json_file(REPORTS_FILE, reports)
-
-        # Dual-write to database
-        db = get_session()
-        try:
-            _save_report_to_db(db, report)
-        except Exception as e:
-            # Log database error but continue with JSON storage
-            pass
-        finally:
-            db.close()
+            # 保存到数据库
+            db = get_session()
+            try:
+                report = BusinessImpactReportDB(
+                    id=_generate_id("RPT"),
+                    title=request.title,
+                    service_names=request.service_names,
+                    time_range=request.time_range,
+                    include_recommendations=request.include_recommendations,
+                    summary={
+                        "total_services": len(service_data),
+                        "total_revenue_impact": total_revenue_impact,
+                        "total_affected_users": total_affected_users,
+                        "avg_impact_score": round(avg_impact_score, 2),
+                    },
+                    service_data=service_data,
+                    recommendations=recommendations,
+                )
+                
+                db.add(report)
+                db.commit()
+                
+                # Invalidate cache
+                cache_manager.delete_pattern("business_impact_reports:*")
+                
+                return create_success_response(
+                    {
+                        "id": report.id,
+                        "title": report.title,
+                        "service_names": report.service_names,
+                    },
+                    "报告创建成功"
+                )
+            finally:
+                db.close()
 
         return create_success_response(report, "报告创建成功")
     except Exception as e:
@@ -833,7 +786,7 @@ async def get_impact_scores(
                 "max": round(max_score, 2),
                 "min": round(min_score, 2),
             },
-            "timestamp": _now(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         return create_success_response(result)

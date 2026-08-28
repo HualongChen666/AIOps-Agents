@@ -72,6 +72,7 @@ def test_tool_execute_dry_run_timeout_default():
     assert dry["parameters"]["x"] == "1"
 
 
+@pytest.mark.asyncio
 async def test_async_tool_inside_running_loop():
     """When called inside a running loop the tool returns a coroutine that can be awaited."""
     tool = Tool(

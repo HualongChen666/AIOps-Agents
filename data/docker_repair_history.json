@@ -208,5 +208,1253 @@
     "docker_available": false,
     "success": true,
     "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T07:55:06.553903+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T07:55:06.565735+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T07:55:06.572910+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T07:58:52.352568+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T07:58:52.361176+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T07:58:52.372165+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T07:59:39.178743+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T07:59:39.186977+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T07:59:39.197774+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T08:14:16.698799+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T08:14:16.713227+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T08:14:16.726929+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T08:28:22.050705+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T08:28:22.065107+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T08:28:22.080916+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T08:48:30.985221+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T08:48:30.995583+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T08:48:31.009143+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T09:07:00.858841+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T09:07:00.874563+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T09:07:00.893656+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T09:23:40.790919+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T09:23:40.809889+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T09:23:40.827049+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T09:40:34.331893+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T09:46:59.650524+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T09:46:59.668334+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T09:46:59.685098+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T09:59:35.754061+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:06:01.605583+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:06:01.621896+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:06:01.636653+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:15:09.349374+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:21:40.979756+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:21:40.995505+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:21:41.010646+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:30:26.369882+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:36:07.154794+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:36:07.170124+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:36:07.189257+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:45:06.599475+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:51:00.462682+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:51:00.480440+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T10:51:00.498426+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T10:58:17.731929+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:03:54.834830+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:03:54.859707+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:03:54.878124+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:11:12.576680+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:16:52.443706+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:16:52.463306+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:16:52.478252+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:20:11.634371+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:20:11.658407+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:20:11.675155+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:20:33.221790+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:26:35.127800+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:26:35.149105+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:26:35.170439+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:26:46.804096+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:37:10.222792+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-27T11:44:54.077630+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:44:54.174758+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-27T11:44:54.274680+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-28T02:47:42.566003+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-28T02:55:52.832659+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-28T02:55:52.994071+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-28T02:55:53.172044+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
+  },
+  {
+    "host": "localhost",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-28T06:07:43.880840+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "ps",
+    "command": [
+      "docker",
+      "ps"
+    ],
+    "params": {},
+    "timestamp": "2026-08-28T06:07:49.255696+00:00",
+    "dry_run": true,
+    "docker_available": false,
+    "success": true,
+    "output": "docker CLI not available; command simulated"
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-28T06:07:49.269340+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": true,
+    "returncode": 0,
+    "stdout": "ok output",
+    "stderr": ""
+  },
+  {
+    "host": "h1",
+    "script": "prune_images",
+    "command": [
+      "docker",
+      "image",
+      "prune",
+      "-f"
+    ],
+    "params": {
+      "force": "true"
+    },
+    "timestamp": "2026-08-28T06:07:49.280309+00:00",
+    "dry_run": false,
+    "docker_available": true,
+    "success": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "error"
   }
 ]

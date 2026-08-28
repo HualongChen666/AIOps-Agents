@@ -124,7 +124,7 @@ from slowapi.errors import RateLimitExceeded
 
 # Core routers are always imported and mounted
 from api.alert_router import router as alert_router
-from api.alert_advanced_router import router as alert_advanced_router
+from api.alerts_advanced_router import router as alert_advanced_router
 from api.alert_webhook_router import router as alert_webhook_router
 from api.anomaly_router import router as anomaly_router
 from api.api_performance_router import router as api_performance_router

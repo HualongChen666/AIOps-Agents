@@ -236,13 +236,12 @@ class RootCauseConclusionResponse(BaseModel):
 
 
 @router.post("/analysis", summary="执行根因分析")
-async def analyze_root_cause(request: RootCauseAnalysisRequest) -> Dict[str, Any]:
+async def analyze_root_cause(request: RootCauseAnalysisRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     执行根因分析
 
     基于告警信息和指标数据生成根因假设
     """
-    db: Session = Depends(get_db)
     try:
         alert_id = request.alert.get("id", "unknown")
 
@@ -358,13 +357,13 @@ async def get_root_cause_hypotheses(
     status: Optional[str] = Query(None, description="按状态过滤"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RootCauseHypothesisResponse]:
     """
     获取根因假设列表
 
     支持按告警ID、验证状态和状态过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RootCauseHypothesis)
 
@@ -409,13 +408,13 @@ async def get_root_cause_hypotheses(
 @router.post("/hypotheses", response_model=RootCauseHypothesisResponse, summary="创建根因假设")
 async def create_root_cause_hypothesis(
     hypothesis: RootCauseHypothesisCreate,
+    db: Session = Depends(get_db),
 ) -> RootCauseHypothesisResponse:
     """
     创建新的根因假设
 
     假设用于记录可能的根因
     """
-    db: Session = Depends(get_db)
     try:
         # 创建假设
         hyp_id = f"HYP-{uuid.uuid4().hex[:8].upper()}"
@@ -472,11 +471,10 @@ async def create_root_cause_hypothesis(
     response_model=RootCauseHypothesisResponse,
     summary="获取单个根因假设",
 )
-async def get_root_cause_hypothesis(hypothesis_id: str) -> RootCauseHypothesisResponse:
+async def get_root_cause_hypothesis(hypothesis_id: str, db: Session = Depends(get_db)) -> RootCauseHypothesisResponse:
     """
     根据ID获取单个根因假设
     """
-    db: Session = Depends(get_db)
     try:
         hypothesis = (
             db.query(RootCauseHypothesis).filter(RootCauseHypothesis.id == hypothesis_id).first()
@@ -518,14 +516,13 @@ async def get_root_cause_hypothesis(hypothesis_id: str) -> RootCauseHypothesisRe
     summary="更新根因假设",
 )
 async def update_root_cause_hypothesis(
-    hypothesis_id: str, hypothesis_update: RootCauseHypothesisUpdate
+    hypothesis_id: str, hypothesis_update: RootCauseHypothesisUpdate, db: Session = Depends(get_db)
 ) -> RootCauseHypothesisResponse:
     """
     更新根因假设
 
     支持部分更新
     """
-    db: Session = Depends(get_db)
     try:
         hypothesis = (
             db.query(RootCauseHypothesis).filter(RootCauseHypothesis.id == hypothesis_id).first()
@@ -577,11 +574,10 @@ async def update_root_cause_hypothesis(
 
 
 @router.delete("/hypotheses/{hypothesis_id}", summary="删除根因假设")
-async def delete_root_cause_hypothesis(hypothesis_id: str) -> Dict[str, Any]:
+async def delete_root_cause_hypothesis(hypothesis_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     删除根因假设
     """
-    db: Session = Depends(get_db)
     try:
         hypothesis = (
             db.query(RootCauseHypothesis).filter(RootCauseHypothesis.id == hypothesis_id).first()
@@ -611,13 +607,13 @@ async def get_root_cause_experiments(
     status: Optional[str] = Query(None, description="按状态过滤"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RootCauseExperimentResponse]:
     """
     获取根因实验列表
 
     支持按假设ID和状态过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RootCauseExperiment)
 
@@ -658,13 +654,13 @@ async def get_root_cause_experiments(
 @router.post("/experiments", response_model=RootCauseExperimentResponse, summary="创建根因实验")
 async def create_root_cause_experiment(
     experiment: RootCauseExperimentCreate,
+    db: Session = Depends(get_db),
 ) -> RootCauseExperimentResponse:
     """
     创建新的根因实验
 
     实验用于验证或缓解根因假设
     """
-    db: Session = Depends(get_db)
     try:
         # 验证假设是否存在
         hypothesis = (
@@ -736,11 +732,10 @@ async def create_root_cause_experiment(
     response_model=RootCauseExperimentResponse,
     summary="获取单个根因实验",
 )
-async def get_root_cause_experiment(experiment_id: str) -> RootCauseExperimentResponse:
+async def get_root_cause_experiment(experiment_id: str, db: Session = Depends(get_db)) -> RootCauseExperimentResponse:
     """
     根据ID获取单个根因实验
     """
-    db: Session = Depends(get_db)
     try:
         experiment = (
             db.query(RootCauseExperiment).filter(RootCauseExperiment.id == experiment_id).first()
@@ -778,14 +773,13 @@ async def get_root_cause_experiment(experiment_id: str) -> RootCauseExperimentRe
     summary="更新根因实验",
 )
 async def update_root_cause_experiment(
-    experiment_id: str, experiment_update: RootCauseExperimentUpdate
+    experiment_id: str, experiment_update: RootCauseExperimentUpdate, db: Session = Depends(get_db)
 ) -> RootCauseExperimentResponse:
     """
     更新根因实验
 
     支持部分更新
     """
-    db: Session = Depends(get_db)
     try:
         experiment = (
             db.query(RootCauseExperiment).filter(RootCauseExperiment.id == experiment_id).first()
@@ -837,11 +831,10 @@ async def update_root_cause_experiment(
 
 
 @router.delete("/experiments/{experiment_id}", summary="删除根因实验")
-async def delete_root_cause_experiment(experiment_id: str) -> Dict[str, Any]:
+async def delete_root_cause_experiment(experiment_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     删除根因实验
     """
-    db: Session = Depends(get_db)
     try:
         experiment = (
             db.query(RootCauseExperiment).filter(RootCauseExperiment.id == experiment_id).first()
@@ -869,13 +862,13 @@ async def get_root_cause_evidence(
     evidence_type: Optional[str] = Query(None, description="按证据类型过滤"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RootCauseEvidenceResponse]:
     """
     获取根因证据列表
 
     支持按假设ID和证据类型过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RootCauseEvidence)
 
@@ -914,13 +907,13 @@ async def get_root_cause_conclusions(
     status: Optional[str] = Query(None, description="按状态过滤"),
     limit: int = Query(default=50, ge=1, le=200, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    db: Session = Depends(get_db),
 ) -> List[RootCauseConclusionResponse]:
     """
     获取根因结论列表
 
     支持按告警ID和状态过滤
     """
-    db: Session = Depends(get_db)
     try:
         query = db.query(RootCauseConclusion)
 
@@ -959,13 +952,13 @@ async def get_root_cause_conclusions(
 @router.post("/conclusions", response_model=RootCauseConclusionResponse, summary="创建根因结论")
 async def create_root_cause_conclusion(
     conclusion: RootCauseConclusionCreate,
+    db: Session = Depends(get_db),
 ) -> RootCauseConclusionResponse:
     """
     创建新的根因结论
 
     结论用于记录最终的根因分析结果
     """
-    db: Session = Depends(get_db)
     try:
         # 创建结论
         concl_id = f"CON-{uuid.uuid4().hex[:8].upper()}"

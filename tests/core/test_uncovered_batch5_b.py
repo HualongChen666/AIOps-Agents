@@ -668,12 +668,14 @@ def fake_asyncssh(monkeypatch):
 
 
 class TestLinuxRepairSafeRecordAudit:
+    @pytest.mark.asyncio
     async def test_safe_record_audit_success(self, monkeypatch):
         record = MagicMock()
         monkeypatch.setattr(linux_repair, "record_audit", record)
         await linux_repair._safe_record_audit("h", "cmd", "low")
         record.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_safe_record_audit_failure(self, monkeypatch):
         record = MagicMock(side_effect=RuntimeError("audit"))
         monkeypatch.setattr(linux_repair, "record_audit", record)
@@ -793,6 +795,7 @@ class TestLinuxRepairHelpers:
 
 
 class TestLinuxRepairRiskHandlers:
+    @pytest.mark.asyncio
     async def test_handle_blocked_risk(self, monkeypatch):
         record = AsyncMock()
         monkeypatch.setattr(linux_repair, "_safe_record_audit", record)
@@ -802,6 +805,7 @@ class TestLinuxRepairRiskHandlers:
         assert result["blocked"] is True
         assert "bad" in result["error"]
 
+    @pytest.mark.asyncio
     async def test_handle_high_risk_approval(self, monkeypatch):
         monkeypatch.setattr("core.approval_store.upsert_approval", MagicMock())
         monkeypatch.setattr("core.db_engine.upsert_pending_approval", MagicMock())
@@ -812,6 +816,7 @@ class TestLinuxRepairRiskHandlers:
         assert result["pending_approval"] is True
         assert "alert_id" in result
 
+    @pytest.mark.asyncio
     async def test_handle_high_risk_db_failure(self, monkeypatch):
         monkeypatch.setattr("core.approval_store.upsert_approval", MagicMock())
         monkeypatch.setattr(
@@ -826,6 +831,7 @@ class TestLinuxRepairRiskHandlers:
 
 
 class TestLinuxRepairSSH:
+    @pytest.mark.asyncio
     async def test_run_ssh_command_success_with_password(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(return_value=MagicMock(stdout="ok", stderr="", exit_status=0))
         result = await linux_repair._run_ssh_command(
@@ -834,6 +840,7 @@ class TestLinuxRepairSSH:
         assert result["success"] is True
         assert result["output"] == "ok"
 
+    @pytest.mark.asyncio
     async def test_run_ssh_command_nonzero(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(
             return_value=MagicMock(stdout="out", stderr="err", exit_status=1)
@@ -844,6 +851,7 @@ class TestLinuxRepairSSH:
         assert result["success"] is False
         assert "err" in result["error"]
 
+    @pytest.mark.asyncio
     async def test_run_ssh_command_timeout(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(side_effect=asyncio.TimeoutError())
         result = await linux_repair._run_ssh_command(
@@ -852,6 +860,7 @@ class TestLinuxRepairSSH:
         assert result["success"] is False
         assert "timeout" in result["error"].lower()
 
+    @pytest.mark.asyncio
     async def test_run_ssh_command_connection_error(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(side_effect=ConnectionError("down"))
         result = await linux_repair._run_ssh_command(
@@ -860,6 +869,7 @@ class TestLinuxRepairSSH:
         assert result["success"] is False
         assert "Connection error" in result["error"]
 
+    @pytest.mark.asyncio
     async def test_run_ssh_command_generic_exception(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(side_effect=RuntimeError("boom"))
         result = await linux_repair._run_ssh_command(
@@ -867,6 +877,7 @@ class TestLinuxRepairSSH:
         )  # noqa: F841  # Variable for test verification
         assert result["success"] is False
 
+    @pytest.mark.asyncio
     async def test_run_ssh_command_close_exception(self, fake_asyncssh):
         fake_asyncssh.run = AsyncMock(return_value=MagicMock(stdout="ok", stderr="", exit_status=0))
         fake_asyncssh.close = AsyncMock(side_effect=RuntimeError("close"))
@@ -887,6 +898,7 @@ class TestLinuxRepairSSH:
         assert linux_repair._is_execution_success("TIMEOUT") is False
         assert linux_repair._is_execution_success("ERROR: x") is False
 
+    @pytest.mark.asyncio
     async def test_execute_ssh_command(self, monkeypatch):
         monkeypatch.setattr(
             linux_repair,
@@ -899,6 +911,7 @@ class TestLinuxRepairSSH:
         assert success is True
         assert output == "ok"
 
+    @pytest.mark.asyncio
     async def test_execute_ssh_command_exception(self, monkeypatch):
         monkeypatch.setattr(
             linux_repair, "_run_ssh_command", AsyncMock(side_effect=Exception("ssh"))
@@ -936,6 +949,7 @@ class TestLinuxRepairValidateAndBuild:
 
 
 class TestLinuxRepairExecute:
+    @pytest.mark.asyncio
     async def test_execute_repair_with_risk_check_blocked(self, monkeypatch):
         monkeypatch.setattr(
             linux_repair, "_handle_blocked_risk", AsyncMock(return_value={"blocked": True})
@@ -946,6 +960,7 @@ class TestLinuxRepairExecute:
         )
         assert result["blocked"] is True
 
+    @pytest.mark.asyncio
     async def test_execute_repair_with_risk_check_high(self, monkeypatch):
         monkeypatch.setattr(
             linux_repair,
@@ -958,6 +973,7 @@ class TestLinuxRepairExecute:
         )
         assert result["pending_approval"] is True
 
+    @pytest.mark.asyncio
     async def test_execute_repair_with_risk_check_low(self, monkeypatch, fake_sqlite):
         monkeypatch.setattr(
             linux_repair,
@@ -972,6 +988,7 @@ class TestLinuxRepairExecute:
         assert result["success"] is True
         assert result["output"] == "ok"
 
+    @pytest.mark.asyncio
     async def test_execute_repair_low_failure(self, monkeypatch, fake_sqlite):
         monkeypatch.setattr(
             linux_repair,
@@ -985,6 +1002,7 @@ class TestLinuxRepairExecute:
         )
         assert result["success"] is False
 
+    @pytest.mark.asyncio
     async def test_execute_linux_repair_validation_error(self):
         result = await linux_repair.execute_linux_repair(
             "h", "missing"
@@ -992,6 +1010,7 @@ class TestLinuxRepairExecute:
         assert result["success"] is False
         assert "Script not found" in result["error"]
 
+    @pytest.mark.asyncio
     async def test_execute_linux_repair_full(self, monkeypatch, fake_sqlite):
         monkeypatch.setattr(linux_repair, "LINUX_HOSTS", {"hosts": []})
         monkeypatch.setattr(
@@ -1008,6 +1027,7 @@ class TestLinuxRepairExecute:
         )  # noqa: F841  # Variable for test verification
         assert result["success"] is True
 
+    @pytest.mark.asyncio
     async def test_execute_linux_repair_exception(self, monkeypatch):
         monkeypatch.setattr(
             linux_repair, "analyze_command", lambda cmd: {"risk_level": RiskLevel.LOW}

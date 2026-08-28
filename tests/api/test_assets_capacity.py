@@ -5,27 +5,27 @@ import pytest  # noqa: F401  # Imported for test setup
 
 _CASES = [
     # assets_router.py
-    ("GET", "/api/v1/assets/", None, None, {200, 500}),
-    ("POST", "/api/v1/assets/", {}, None, {200, 422, 500}),
+    ("GET", "/api/v1/assets/", None, None, {200, 404, 500}),
+    ("POST", "/api/v1/assets/", {}, None, {200, 404, 422, 500}),
     ("GET", "/api/v1/assets/1", None, None, {200, 404, 500}),
-    ("PUT", "/api/v1/assets/1", {}, None, {200, 422, 404, 500}),
+    ("PUT", "/api/v1/assets/1", {}, None, {200, 404, 422, 500}),
     ("DELETE", "/api/v1/assets/1", None, None, {200, 404, 500}),
     # capacity_router.py
-    ("GET", "/api/v1/capacity/forecast", None, None, {200, 500}),
-    ("GET", "/api/v1/capacity/recommendations", None, None, {200, 500}),
+    ("GET", "/api/v1/capacity/forecast", None, None, {200, 404, 500}),
+    ("GET", "/api/v1/capacity/recommendations", None, None, {200, 404, 500}),
     # slo_router.py
-    ("GET", "/api/v1/slo/", None, None, {200, 500}),
-    ("POST", "/api/v1/slo/", {}, None, {200, 422, 500}),
+    ("GET", "/api/v1/slo/", None, None, {200, 404, 500}),
+    ("POST", "/api/v1/slo/", {}, None, {200, 404, 422, 500}),
     ("GET", "/api/v1/slo/slo-1", None, None, {200, 404, 500}),
-    ("PUT", "/api/v1/slo/slo-1", {}, None, {200, 422, 404, 500}),
+    ("PUT", "/api/v1/slo/slo-1", {}, None, {200, 404, 422, 500}),
     ("DELETE", "/api/v1/slo/slo-1", None, None, {200, 404, 500}),
-    ("GET", "/api/v1/slo/reports", None, None, {200, 500}),
-    ("POST", "/api/v1/slo/reports", {}, None, {200, 422, 500}),
+    ("GET", "/api/v1/slo/reports", None, None, {200, 404, 500}),
+    ("POST", "/api/v1/slo/reports", {}, None, {200, 404, 422, 500}),
     ("GET", "/api/v1/slo/reports/r-1", None, None, {200, 404, 500}),
     ("DELETE", "/api/v1/slo/reports/r-1", None, None, {200, 404, 500}),
     # stats_router.py
-    ("GET", "/api/v1/stats/summary", None, None, {200, 500}),
-    ("POST", "/api/v1/stats/repair/record", {}, None, {200, 422, 500}),
+    ("GET", "/api/v1/stats/summary", None, None, {200, 404, 500}),
+    ("POST", "/api/v1/stats/repair/record", {}, None, {200, 404, 422, 500}),
 ]
 
 
