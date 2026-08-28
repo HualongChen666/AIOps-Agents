@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """Global RBAC middleware: all non-public routes require a valid token;
-write methods additionally require operator or admin."""
+write methods additionally require operator or admin.
+Extended with ABAC support for fine-grained access control."""
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Request
@@ -11,6 +13,25 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import JSONResponse, Response
 
 from core.auth_service import decode_token
+from core.abac import ABACEngine, ActionType, ResourceType, Subject, Resource, Environment
+
+# Global ABAC engine instance (will be initialized during app startup)
+abac_engine: Optional[ABACEngine] = None
+
+# Sensitive operations that require ABAC evaluation
+SENSITIVE_OPERATIONS = {
+    "/api/v1/alerts/delete": ActionType.DELETE,
+    "/api/v1/auto-heal/execute": ActionType.EXECUTE,
+    "/api/v1/config/": ActionType.WRITE,
+    "/api/v1/policies/": ActionType.ADMIN,
+    "/api/v1/users/": ActionType.WRITE,
+    "/api/v1/workflows/execute": ActionType.EXECUTE,
+    "/api/v1/deployments/": ActionType.WRITE,
+    "/api/v1/tenants/": ActionType.ADMIN,
+    "/api/v1/secrets/": ActionType.ADMIN,
+    "/api/v1/audit/": ActionType.READ,
+}
+from core.abac import ABACEngine, ActionType, ResourceType, Subject, Resource, Environment
 
 PUBLIC_PREFIXES = {
     "/docs",
@@ -51,6 +72,91 @@ def _is_public(path: str) -> bool:
     return False
 
 
+def _is_sensitive_operation(path: str, method: str) -> tuple[bool, Optional[ActionType]]:
+    """
+    Check if the operation is sensitive and requires ABAC evaluation.
+    
+    Args:
+        path: Request path
+        method: HTTP method
+        
+    Returns:
+        Tuple of (is_sensitive, action_type)
+    """
+    lowered = path.lower()
+    for sensitive_path, action in SENSITIVE_OPERATIONS.items():
+        if lowered.startswith(sensitive_path):
+            return True, action
+    return False, None
+
+
+def _evaluate_abac_access(
+    request: Request,
+    action: ActionType,
+    resource_type: ResourceType
+) -> bool:
+    """
+    Evaluate ABAC access for the request.
+    
+    Args:
+        request: FastAPI request
+        action: Action being performed
+        resource_type: Type of resource being accessed
+        
+    Returns:
+        True if access is allowed, False otherwise
+    """
+    if abac_engine is None:
+        # ABAC engine not initialized, fall back to RBAC
+        return True
+    
+    try:
+        # Extract user information from token
+        user_data = request.state.user
+        
+        # Create ABAC subject
+        subject = Subject(
+            id=str(user_data.get("user_id", "unknown")),
+            type=user_data.get("type", "user"),
+            attributes={
+                "role": user_data.get("role", "viewer"),
+                "tenant_id": str(user_data.get("tenant_id", "default")),
+                "department": user_data.get("department", ""),
+                "clearance_level": user_data.get("clearance_level", 0),
+            },
+            roles=set(user_data.get("roles", [])),
+            groups=set(user_data.get("groups", []))
+        )
+        
+        # Create ABAC resource
+        resource = Resource(
+            id=request.url.path,
+            type=resource_type,
+            attributes={
+                "path": request.url.path,
+                "method": request.method,
+                "tenant_id": request.state.tenant_id,
+            }
+        )
+        
+        # Create ABAC environment
+        environment = Environment(attributes={
+            "time": datetime.utcnow().isoformat(),
+            "ip": request.client.host if request.client else "unknown",
+            "user_agent": request.headers.get("user-agent", ""),
+        })
+        
+        # Evaluate access
+        return abac_engine.evaluate(subject, resource, action, environment)
+        
+    except Exception as e:
+        # ABAC evaluation failed, fall back to deny
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"ABAC evaluation failed: {e}")
+        return False
+
+
 class RBACMiddleware(BaseHTTPMiddleware):
     """Enforce authentication and write-method role checks globally."""
 
@@ -88,6 +194,19 @@ class RBACMiddleware(BaseHTTPMiddleware):
         request.state.user = payload
         request.state.tenant_id = str(payload.get("tenant_id", "default"))
         request.state.role = str(payload.get("role", "viewer")).lower()
+
+        # Check for sensitive operations requiring ABAC evaluation
+        is_sensitive, action = _is_sensitive_operation(path, request.method)
+        if is_sensitive and action is not None:
+            # Determine resource type based on path
+            resource_type = ResourceType.ALERT if "alert" in path.lower() else ResourceType.CONFIGURATION
+            
+            # Evaluate ABAC access
+            if not _evaluate_abac_access(request, action, resource_type):
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Access denied by ABAC policy"},
+                )
 
         if request.method in WRITE_METHODS:
             role = request.state.role

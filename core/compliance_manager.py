@@ -1,577 +1,484 @@
 # -*- coding: utf-8 -*-
 """
-Compliance Management System (Phase 4)
-Enterprise-grade compliance management with regulatory frameworks and audit trails
+Compliance Management Module
+
+This module provides compliance management for enterprise deployments,
+including audit logging, policy execution, and compliance tracking.
 """
 
-import asyncio
-import importlib
-import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from collections import defaultdict, deque
 
 from loguru import logger
 
 
-class ComplianceFramework(Enum):
-    """Compliance framework types"""
-
-    GDPR = "gdpr"  # General Data Protection Regulation
-    HIPAA = "hipaa"  # Health Insurance Portability and Accountability Act
-    PCI_DSS = "pci_dss"  # Payment Card Industry Data Security Standard
-    SOC2 = "soc2"  # Service Organization Control 2
-    ISO27001 = "iso27001"  # ISO/IEC 27001
-    NIST = "nist"  # NIST Cybersecurity Framework
+class ComplianceStandard(Enum):
+    """Compliance standard enumeration"""
+    
+    SOC2 = "soc2"
+    GDPR = "gdpr"
+    ISO27001 = "iso27001"
+    HIPAA = "hipaa"
+    PCI_DSS = "pci_dss"
 
 
 class ComplianceStatus(Enum):
-    """Compliance status"""
-
+    """Compliance status enumeration"""
+    
     COMPLIANT = "compliant"
     NON_COMPLIANT = "non_compliant"
-    PARTIALLY_COMPLIANT = "partially_compliant"
-    PENDING_REVIEW = "pending_review"
-    UNKNOWN = "unknown"
+    PARTIAL = "partial"
+    PENDING = "pending"
+    EXEMPT = "exempt"
 
 
-class RiskLevel(Enum):
-    """Risk level for compliance violations"""
+class PolicyType(Enum):
+    """Policy type enumeration"""
+    
+    ACCESS_CONTROL = "access_control"
+    DATA_PROTECTION = "data_protection"
+    INCIDENT_RESPONSE = "incident_response"
+    CHANGE_MANAGEMENT = "change_management"
+    AUDIT_LOGGING = "audit_logging"
+    ENCRYPTION = "encryption"
+    PRIVACY = "privacy"
 
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
+
+class ActionType(Enum):
+    """Audit action type enumeration"""
+    
+    CREATE = "create"
+    READ = "read"
+    UPDATE = "update"
+    DELETE = "delete"
+    LOGIN = "login"
+    LOGOUT = "logout"
+    EXPORT = "export"
+    IMPORT = "import"
+    APPROVE = "approve"
+    REJECT = "reject"
+    EXECUTE = "execute"
 
 
 @dataclass
-class ComplianceRule:
-    """Compliance rule configuration"""
-
-    rule_id: str
-    rule_name: str
-    framework: ComplianceFramework
-    description: str
-    severity: RiskLevel = RiskLevel.MEDIUM
-    enabled: bool = True
-    check_frequency: int = 86400  # 24 hours
+class AuditLogEntry:
+    """Audit log entry"""
+    
+    id: str
+    tenant_id: str
+    user_id: str
+    action: ActionType
+    resource_type: str
+    resource_id: str
+    outcome: str  # success, failure, blocked
+    timestamp: datetime
+    ip_address: str
+    user_agent: str
     metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "id": self.id,
+            "tenant_id": self.tenant_id,
+            "user_id": self.user_id,
+            "action": self.action.value,
+            "resource_type": self.resource_type,
+            "resource_id": self.resource_id,
+            "outcome": self.outcome,
+            "timestamp": self.timestamp.isoformat(),
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
+            "metadata": self.metadata
+        }
+
+
+@dataclass
+class CompliancePolicy:
+    """Compliance policy definition"""
+    
+    id: str
+    name: str
+    standard: ComplianceStandard
+    policy_type: PolicyType
+    description: str
+    requirements: List[str]
+    enabled: bool = True
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "standard": self.standard.value,
+            "policy_type": self.policy_type.value,
+            "description": self.description,
+            "requirements": self.requirements,
+            "enabled": self.enabled,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat()
+        }
 
 
 @dataclass
 class ComplianceCheck:
     """Compliance check result"""
-
-    check_id: str
-    rule_id: str
+    
+    policy_id: str
+    policy_name: str
     status: ComplianceStatus
-    checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    findings: List[str] = field(default_factory=list)
-    recommendations: List[str] = field(default_factory=list)
-    evidence: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class ComplianceReport:
-    """Compliance report"""
-
-    report_id: str
-    framework: ComplianceFramework
-    period_start: datetime
-    period_end: datetime
-    overall_status: ComplianceStatus
-    total_checks: int = 0
-    passed_checks: int = 0
-    failed_checks: int = 0
-    checks: List[ComplianceCheck] = field(default_factory=list)
-    generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    findings: List[str]
+    evidence: Dict[str, Any]
+    checked_at: datetime
+    checked_by: str
+    next_check: datetime
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "policy_id": self.policy_id,
+            "policy_name": self.policy_name,
+            "status": self.status.value,
+            "findings": self.findings,
+            "evidence": self.evidence,
+            "checked_at": self.checked_at.isoformat(),
+            "checked_by": self.checked_by,
+            "next_check": self.next_check.isoformat()
+        }
 
 
 class ComplianceManager:
-    """Enterprise-grade compliance management system"""
-
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize compliance manager
-
-        Args:
-            config: Configuration dictionary
-        """
-        self.config = config or {}
-
-        # Compliance rules
-        self.compliance_rules: Dict[str, ComplianceRule] = {}
-        self._initialize_default_rules()
-
-        # Compliance checks history
-        self.check_history: List[ComplianceCheck] = []
-
-        # Compliance reports
-        self.compliance_reports: Dict[str, ComplianceReport] = {}
-
-        # Audit trail storage
-        self.audit_trail_dir = Path(self.config.get("audit_trail_dir", "./audit_trail"))
-        self.audit_trail_dir.mkdir(parents=True, exist_ok=True)
-
-        # Notification handlers
-        self.notification_handlers: List[Callable] = []
-
+    """Compliance management system"""
+    
+    def __init__(self):
+        """Initialize compliance manager"""
+        self.policies: Dict[str, CompliancePolicy] = {}
+        self.compliance_checks: Dict[str, List[ComplianceCheck]] = {}
+        self.audit_logs: deque = deque(maxlen=100000)  # Long-term storage
+        self.audit_index: Dict[str, Set[str]] = defaultdict(set)  # Index for fast lookup
+        
         # Configuration
-        self.auto_check_enabled = self.config.get("auto_check_enabled", True)
-        self.check_interval = self.config.get("check_interval", 86400)  # 24 hours
-
-        # Statistics
-        self.total_checks = 0
-        self.total_violations = 0
-
-        logger.info("Compliance manager initialized")
-
-    def _initialize_default_rules(self):
-        """Initialize default compliance rules"""
-        # GDPR rules
-        self.compliance_rules["gdpr_data_minimization"] = ComplianceRule(
-            rule_id="gdpr_data_minimization",
-            rule_name="GDPR Data Minimization",
-            framework=ComplianceFramework.GDPR,
-            description="Ensure only necessary personal data is collected and processed",
-            severity=RiskLevel.HIGH,
+        self.audit_retention_days = 365
+        self.compliance_check_interval = timedelta(days=30)
+        
+        # Initialize default policies
+        self._initialize_default_policies()
+    
+    def _initialize_default_policies(self):
+        """Initialize default compliance policies"""
+        # SOC2 policies
+        self.policies["soc2_access_control"] = CompliancePolicy(
+            id="soc2_access_control",
+            name="SOC2 Access Control",
+            standard=ComplianceStandard.SOC2,
+            policy_type=PolicyType.ACCESS_CONTROL,
+            description="Ensure proper access controls are in place",
+            requirements=[
+                "multi_factor_authentication",
+                "role_based_access_control",
+                "regular_access_reviews",
+                "least_privilege_principle"
+            ]
         )
-
-        self.compliance_rules["gdpr_consent_management"] = ComplianceRule(
-            rule_id="gdpr_consent_management",
-            rule_name="GDPR Consent Management",
-            framework=ComplianceFramework.GDPR,
-            description="Ensure proper consent collection and management",
-            severity=RiskLevel.CRITICAL,
+        
+        self.policies["soc2_incident_response"] = CompliancePolicy(
+            id="soc2_incident_response",
+            name="SOC2 Incident Response",
+            standard=ComplianceStandard.SOC2,
+            policy_type=PolicyType.INCIDENT_RESPONSE,
+            description="Ensure incident response procedures are defined",
+            requirements=[
+                "incident_detection_mechanisms",
+                "response_playbook",
+                "escalation_procedures",
+                "post_incident_review"
+            ]
         )
-
-        self.compliance_rules["gdpr_data_subject_rights"] = ComplianceRule(
-            rule_id="gdpr_data_subject_rights",
-            rule_name="GDPR Data Subject Rights",
-            framework=ComplianceFramework.GDPR,
-            description="Ensure data subject rights are implemented",
-            severity=RiskLevel.HIGH,
+        
+        # GDPR policies
+        self.policies["gdpr_data_protection"] = CompliancePolicy(
+            id="gdpr_data_protection",
+            name="GDPR Data Protection",
+            standard=ComplianceStandard.GDPR,
+            policy_type=PolicyType.DATA_PROTECTION,
+            description="Ensure personal data is protected",
+            requirements=[
+                "data_encryption_at_rest",
+                "data_encryption_in_transit",
+                "data_minimization",
+                "right_to_be_forgotten"
+            ]
         )
-
-        # HIPAA rules
-        self.compliance_rules["hipaa_phi_protection"] = ComplianceRule(
-            rule_id="hipaa_phi_protection",
-            rule_name="HIPAA PHI Protection",
-            framework=ComplianceFramework.HIPAA,
-            description="Ensure Protected Health Information is properly protected",
-            severity=RiskLevel.CRITICAL,
+        
+        self.policies["gdpr_audit_logging"] = CompliancePolicy(
+            id="gdpr_audit_logging",
+            name="GDPR Audit Logging",
+            standard=ComplianceStandard.GDPR,
+            policy_type=PolicyType.AUDIT_LOGGING,
+            description="Ensure comprehensive audit logging",
+            requirements=[
+                "audit_trail_for_all_actions",
+                "log_retention_policy",
+                "log_integrity_protection",
+                "regular_log_reviews"
+            ]
         )
-
-        self.compliance_rules["hipaa_access_control"] = ComplianceRule(
-            rule_id="hipaa_access_control",
-            rule_name="HIPAA Access Control",
-            framework=ComplianceFramework.HIPAA,
-            description="Ensure proper access controls for PHI",
-            severity=RiskLevel.HIGH,
+        
+        # ISO27001 policies
+        self.policies["iso27001_encryption"] = CompliancePolicy(
+            id="iso27001_encryption",
+            name="ISO27001 Encryption",
+            standard=ComplianceStandard.ISO27001,
+            policy_type=PolicyType.ENCRYPTION,
+            description="Ensure proper encryption standards",
+            requirements=[
+                "encryption_key_management",
+                "secure_cryptographic_algorithms",
+                "key_rotation_policy",
+                "encryption_at_rest_and_transit"
+            ]
         )
-
-        # PCI DSS rules
-        self.compliance_rules["pci_data_encryption"] = ComplianceRule(
-            rule_id="pci_data_encryption",
-            rule_name="PCI DSS Data Encryption",
-            framework=ComplianceFramework.PCI_DSS,
-            description="Ensure cardholder data is encrypted",
-            severity=RiskLevel.CRITICAL,
+        
+        logger.info(f"Initialized {len(self.policies)} default compliance policies")
+    
+    def add_policy(self, policy: CompliancePolicy) -> bool:
+        """Add a compliance policy"""
+        if policy.id in self.policies:
+            logger.warning(f"Policy already exists: {policy.id}")
+            return False
+        
+        self.policies[policy.id] = policy
+        logger.info(f"Added compliance policy: {policy.id}")
+        return True
+    
+    def get_policy(self, policy_id: str) -> Optional[CompliancePolicy]:
+        """Get a compliance policy"""
+        return self.policies.get(policy_id)
+    
+    def get_policies_by_standard(self, standard: ComplianceStandard) -> List[CompliancePolicy]:
+        """Get all policies for a compliance standard"""
+        return [p for p in self.policies.values() if p.standard == standard]
+    
+    def enable_policy(self, policy_id: str) -> bool:
+        """Enable a compliance policy"""
+        policy = self.get_policy(policy_id)
+        if not policy:
+            logger.error(f"Policy not found: {policy_id}")
+            return False
+        
+        policy.enabled = True
+        policy.updated_at = datetime.now()
+        logger.info(f"Enabled compliance policy: {policy_id}")
+        return True
+    
+    def disable_policy(self, policy_id: str) -> bool:
+        """Disable a compliance policy"""
+        policy = self.get_policy(policy_id)
+        if not policy:
+            logger.error(f"Policy not found: {policy_id}")
+            return False
+        
+        policy.enabled = False
+        policy.updated_at = datetime.now()
+        logger.info(f"Disabled compliance policy: {policy_id}")
+        return True
+    
+    def log_audit_event(
+        self,
+        tenant_id: str,
+        user_id: str,
+        action: ActionType,
+        resource_type: str,
+        resource_id: str,
+        outcome: str,
+        ip_address: str,
+        user_agent: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> AuditLogEntry:
+        """Log an audit event"""
+        import uuid
+        
+        entry = AuditLogEntry(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            user_id=user_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            outcome=outcome,
+            timestamp=datetime.now(),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            metadata=metadata or {}
         )
-
-        self.compliance_rules["pci_network_security"] = ComplianceRule(
-            rule_id="pci_network_security",
-            rule_name="PCI DSS Network Security",
-            framework=ComplianceFramework.PCI_DSS,
-            description="Ensure network security controls are in place",
-            severity=RiskLevel.HIGH,
-        )
-
-        # SOC 2 rules
-        self.compliance_rules["soc2_access_logging"] = ComplianceRule(
-            rule_id="soc2_access_logging",
-            rule_name="SOC 2 Access Logging",
-            framework=ComplianceFramework.SOC2,
-            description="Ensure comprehensive access logging",
-            severity=RiskLevel.MEDIUM,
-        )
-
-        self.compliance_rules["soc2_change_management"] = ComplianceRule(
-            rule_id="soc2_change_management",
-            rule_name="SOC 2 Change Management",
-            framework=ComplianceFramework.SOC2,
-            description="Ensure proper change management processes",
-            severity=RiskLevel.MEDIUM,
-        )
-
-        # ISO 27001 rules
-        self.compliance_rules["iso27001_asset_management"] = ComplianceRule(
-            rule_id="iso27001_asset_management",
-            rule_name="ISO 27001 Asset Management",
-            framework=ComplianceFramework.ISO27001,
-            description="Ensure proper asset management",
-            severity=RiskLevel.MEDIUM,
-        )
-
-        self.compliance_rules["iso27001_security_policy"] = ComplianceRule(
-            rule_id="iso27001_security_policy",
-            rule_name="ISO 27001 Security Policy",
-            framework=ComplianceFramework.ISO27001,
-            description="Ensure comprehensive security policy",
-            severity=RiskLevel.MEDIUM,
-        )
-
-        # NIST rules
-        self.compliance_rules["nist_identify"] = ComplianceRule(
-            rule_id="nist_identify",
-            rule_name="NIST Identify",
-            framework=ComplianceFramework.NIST,
-            description="Ensure proper asset identification",
-            severity=RiskLevel.MEDIUM,
-        )
-
-        self.compliance_rules["nist_protect"] = ComplianceRule(
-            rule_id="nist_protect",
-            rule_name="NIST Protect",
-            framework=ComplianceFramework.NIST,
-            description="Ensure proper security controls",
-            severity=RiskLevel.HIGH,
-        )
-
-        logger.info(f"Initialized {len(self.compliance_rules)} default compliance rules")
-
-    def register_rule(self, rule: ComplianceRule) -> None:
-        """
-        Register custom compliance rule
-
-        Args:
-            rule: Compliance rule
-        """
-        self.compliance_rules[rule.rule_id] = rule
-        logger.info(f"Registered compliance rule: {rule.rule_id}")
-
-    async def run_compliance_check(
-        self, rule_id: Optional[str] = None, framework: Optional[ComplianceFramework] = None
-    ) -> List[ComplianceCheck]:
-        """
-        Run compliance check
-
-        Args:
-            rule_id: Specific rule ID (optional)
-            framework: Framework to check (optional)
-
-        Returns:
-            List of compliance check results
-        """
-        checks = []
-
-        # Determine which rules to check
-        rules_to_check = []
-        if rule_id:
-            if rule_id in self.compliance_rules:
-                rules_to_check.append(self.compliance_rules[rule_id])
-        elif framework:
-            rules_to_check = [r for r in self.compliance_rules.values() if r.framework == framework]
-        else:
-            rules_to_check = [r for r in self.compliance_rules.values() if r.enabled]
-
-        # Run checks
-        for rule in rules_to_check:
-            check = await self._check_rule(rule)
-            checks.append(check)
-            self.check_history.append(check)
-            self.total_checks += 1
-
-            if check.status != ComplianceStatus.COMPLIANT:
-                self.total_violations += 1
-
-        # Notify handlers
-        await self._notify_violations(checks)
-
-        logger.info(f"Completed {len(checks)} compliance checks")
-
-        return checks
-
-    async def _check_rule(self, rule: ComplianceRule) -> ComplianceCheck:
-        """
-        Check individual compliance rule
-
-        Args:
-            rule: Compliance rule
-
-        Returns:
-            Compliance check result
-        """
-        check_id = f"check_{rule.rule_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-
-        try:
-            # Simulate compliance check
-            # In real implementation, would perform actual compliance checks
-            await asyncio.sleep(0.5)
-
-            # Simulate check result (random for demonstration)
-            _rand = importlib.import_module("random")
-            is_compliant = float(_rand.random()) > 0.3  # 70% chance of compliance
-
-            status = ComplianceStatus.COMPLIANT if is_compliant else ComplianceStatus.NON_COMPLIANT
-
-            findings = []
-            recommendations = []
-
-            if not is_compliant:
-                findings.append(f"Rule {rule.rule_name} violation detected")
-                recommendations.append(f"Address {rule.rule_name} requirements")
-
-            check = ComplianceCheck(
-                check_id=check_id,
-                rule_id=rule.rule_id,
-                status=status,
-                findings=findings,
-                recommendations=recommendations,
-                evidence={"checked_at": datetime.now(timezone.utc).isoformat()},
-            )
-
-            return check
-
-        except Exception as e:
-            logger.error(f"Compliance check failed for rule {rule.rule_id}: {e}")
+        
+        self.audit_logs.append(entry)
+        
+        # Update index
+        self.audit_index[tenant_id].add(entry.id)
+        self.audit_index[user_id].add(entry.id)
+        self.audit_index[resource_type].add(entry.id)
+        
+        return entry
+    
+    def get_audit_logs(
+        self,
+        tenant_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        resource_type: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100
+    ) -> List[AuditLogEntry]:
+        """Get audit logs with filters"""
+        filtered_logs = list(self.audit_logs)
+        
+        # Apply filters
+        if tenant_id:
+            filtered_logs = [log for log in filtered_logs if log.tenant_id == tenant_id]
+        
+        if user_id:
+            filtered_logs = [log for log in filtered_logs if log.user_id == user_id]
+        
+        if resource_type:
+            filtered_logs = [log for log in filtered_logs if log.resource_type == resource_type]
+        
+        if start_time:
+            filtered_logs = [log for log in filtered_logs if log.timestamp >= start_time]
+        
+        if end_time:
+            filtered_logs = [log for log in filtered_logs if log.timestamp <= end_time]
+        
+        # Sort by timestamp descending
+        filtered_logs.sort(key=lambda x: x.timestamp, reverse=True)
+        
+        # Apply limit
+        return filtered_logs[:limit]
+    
+    def run_compliance_check(
+        self,
+        policy_id: str,
+        checked_by: str
+    ) -> ComplianceCheck:
+        """Run a compliance check for a policy"""
+        policy = self.get_policy(policy_id)
+        if not policy:
+            raise ValueError(f"Policy not found: {policy_id}")
+        
+        if not policy.enabled:
             return ComplianceCheck(
-                check_id=check_id,
-                rule_id=rule.rule_id,
-                status=ComplianceStatus.UNKNOWN,
-                findings=[f"Check failed: {str(e)}"],
-                evidence={"error": str(e)},
+                policy_id=policy_id,
+                policy_name=policy.name,
+                status=ComplianceStatus.EXEMPT,
+                findings=["Policy is disabled"],
+                evidence={},
+                checked_at=datetime.now(),
+                checked_by=checked_by,
+                next_check=datetime.now() + self.compliance_check_interval
             )
-
-    async def generate_compliance_report(
-        self, framework: ComplianceFramework, period_start: datetime, period_end: datetime
-    ) -> ComplianceReport:
-        """
-        Generate compliance report
-
-        Args:
-            framework: Compliance framework
-            period_start: Report period start
-            period_end: Report period end
-
-        Returns:
-            Compliance report
-        """
-        report_id = (
-            f"report_{framework.value}_{period_start.strftime('%Y%m%d')}_"
-            f"{period_end.strftime('%Y%m%d')}"
+        
+        # Simulate compliance check
+        # In production, this would run actual checks against the system
+        findings = []
+        evidence = {}
+        
+        for requirement in policy.requirements:
+            # Simulate check (in production, this would be real checks)
+            # For now, we'll mark all as compliant
+            pass
+        
+        status = ComplianceStatus.COMPLIANT if not findings else ComplianceStatus.PARTIAL
+        
+        check = ComplianceCheck(
+            policy_id=policy_id,
+            policy_name=policy.name,
+            status=status,
+            findings=findings,
+            evidence=evidence,
+            checked_at=datetime.now(),
+            checked_by=checked_by,
+            next_check=datetime.now() + self.compliance_check_interval
         )
-
-        # Run compliance checks
-        checks = await self.run_compliance_check(framework=framework)
-
-        # Calculate overall status
-        passed = len([c for c in checks if c.status == ComplianceStatus.COMPLIANT])
-        failed = len([c for c in checks if c.status != ComplianceStatus.COMPLIANT])
-
-        if failed == 0:
-            overall_status = ComplianceStatus.COMPLIANT
-        elif passed > failed:
-            overall_status = ComplianceStatus.PARTIALLY_COMPLIANT
+        
+        # Store check result
+        if policy_id not in self.compliance_checks:
+            self.compliance_checks[policy_id] = []
+        
+        self.compliance_checks[policy_id].append(check)
+        
+        # Keep only last 100 checks per policy
+        if len(self.compliance_checks[policy_id]) > 100:
+            self.compliance_checks[policy_id] = self.compliance_checks[policy_id][-100:]
+        
+        logger.info(f"Completed compliance check for policy {policy_id}: {status.value}")
+        
+        return check
+    
+    def get_compliance_status(self, standard: Optional[ComplianceStandard] = None) -> Dict[str, Any]:
+        """Get overall compliance status"""
+        if standard:
+            policies = self.get_policies_by_standard(standard)
         else:
-            overall_status = ComplianceStatus.NON_COMPLIANT
-
-        report = ComplianceReport(
-            report_id=report_id,
-            framework=framework,
-            period_start=period_start,
-            period_end=period_end,
-            overall_status=overall_status,
-            total_checks=len(checks),
-            passed_checks=passed,
-            failed_checks=failed,
-            checks=checks,
-        )
-
-        self.compliance_reports[report_id] = report
-
-        # Save report
-        await self._save_report(report)
-
-        logger.info(f"Generated compliance report: {report_id}")
-
-        return report
-
-    async def _save_report(self, report: ComplianceReport) -> None:
-        """
-        Save compliance report
-
-        Args:
-            report: Compliance report
-        """
-        report_path = self.audit_trail_dir / f"{report.report_id}.json"
-
-        report_dict = {
-            "report_id": report.report_id,
-            "framework": report.framework.value,
-            "period_start": report.period_start.isoformat(),
-            "period_end": report.period_end.isoformat(),
-            "overall_status": report.overall_status.value,
-            "total_checks": report.total_checks,
-            "passed_checks": report.passed_checks,
-            "failed_checks": report.failed_checks,
-            "generated_at": report.generated_at.isoformat(),
-            "checks": [
-                {
-                    "check_id": check.check_id,
-                    "rule_id": check.rule_id,
-                    "status": check.status.value,
-                    "findings": check.findings,
-                    "recommendations": check.recommendations,
-                    "checked_at": check.checked_at.isoformat(),
-                }
-                for check in report.checks
-            ],
-        }
-
-        with open(report_path, "w") as f:
-            json.dump(report_dict, f, indent=2)
-
-        logger.info(f"Saved compliance report: {report_path}")
-
-    async def _notify_violations(self, checks: List[ComplianceCheck]) -> None:
-        """
-        Notify about compliance violations
-
-        Args:
-            checks: Compliance checks
-        """
-        violations = [c for c in checks if c.status != ComplianceStatus.COMPLIANT]
-
-        if not violations:
-            return
-
-        for handler in self.notification_handlers:
-            try:
-                if asyncio.iscoroutinefunction(handler):
-                    await handler(violations)
-                else:
-                    handler(violations)
-            except Exception as e:
-                logger.error(f"Notification handler failed: {e}")
-
-    def register_notification_handler(self, handler: Callable) -> None:
-        """
-        Register notification handler
-
-        Args:
-            handler: Handler function
-        """
-        self.notification_handlers.append(handler)
-        logger.info("Registered compliance notification handler")
-
-    def get_compliance_rules(
-        self, framework: Optional[ComplianceFramework] = None
-    ) -> Dict[str, Dict[str, Any]]:
-        """
-        Get compliance rules
-
-        Args:
-            framework: Filter by framework (optional)
-
-        Returns:
-            Compliance rules dictionary
-        """
-        rules = {}
-
-        for rule_id, rule in self.compliance_rules.items():
-            if framework and rule.framework != framework:
+            policies = list(self.policies.values())
+        
+        total_policies = len(policies)
+        compliant_policies = 0
+        partial_policies = 0
+        non_compliant_policies = 0
+        
+        for policy in policies:
+            if not policy.enabled:
                 continue
-
-            rules[rule_id] = {
-                "rule_id": rule.rule_id,
-                "rule_name": rule.rule_name,
-                "framework": rule.framework.value,
-                "description": rule.description,
-                "severity": rule.severity.value,
-                "enabled": rule.enabled,
-            }
-
-        return rules
-
-    def get_check_history(
-        self, rule_id: Optional[str] = None, limit: int = 100
-    ) -> List[Dict[str, Any]]:
-        """
-        Get check history
-
-        Args:
-            rule_id: Filter by rule ID (optional)
-            limit: Maximum number of records
-
-        Returns:
-            Check history
-        """
-        history = self.check_history[-limit:]
-
-        if rule_id:
-            history = [c for c in history if c.rule_id == rule_id]
-
-        return [
-            {
-                "check_id": check.check_id,
-                "rule_id": check.rule_id,
-                "status": check.status.value,
-                "checked_at": check.checked_at.isoformat(),
-                "findings": check.findings,
-                "recommendations": check.recommendations,
-            }
-            for check in history
-        ]
-
-    async def start_auto_check_loop(self) -> None:
-        """Start automatic compliance check loop"""
-        if not self.auto_check_enabled:
-            return
-
-        async def check_loop():
-            while True:
-                try:
-                    # Run compliance checks
-                    await self.run_compliance_check()
-
-                    await asyncio.sleep(self.check_interval)
-
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Auto check loop error: {e}")
-                    await asyncio.sleep(self.check_interval)
-
-        asyncio.create_task(check_loop())
-        logger.info("Auto compliance check loop started")
-
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get compliance statistics"""
+            
+            checks = self.compliance_checks.get(policy.id, [])
+            if not checks:
+                continue
+            
+            latest_check = checks[-1]
+            if latest_check.status == ComplianceStatus.COMPLIANT:
+                compliant_policies += 1
+            elif latest_check.status == ComplianceStatus.PARTIAL:
+                partial_policies += 1
+            else:
+                non_compliant_policies += 1
+        
         return {
-            "total_rules": len(self.compliance_rules),
-            "enabled_rules": len([r for r in self.compliance_rules.values() if r.enabled]),
-            "total_checks": self.total_checks,
-            "total_violations": self.total_violations,
-            "violation_rate": (
-                self.total_violations / self.total_checks if self.total_checks > 0 else 0.0
-            ),
-            "total_reports": len(self.compliance_reports),
+            "standard": standard.value if standard else "all",
+            "total_policies": total_policies,
+            "compliant_policies": compliant_policies,
+            "partial_policies": partial_policies,
+            "non_compliant_policies": non_compliant_policies,
+            "compliance_rate": (compliant_policies / total_policies * 100) if total_policies > 0 else 0
         }
+    
+    def purge_old_audit_logs(self, retention_days: Optional[int] = None):
+        """Purge audit logs older than retention period"""
+        retention = retention_days or self.audit_retention_days
+        cutoff_date = datetime.now() - timedelta(days=retention)
+        
+        original_count = len(self.audit_logs)
+        
+        # Remove old logs
+        self.audit_logs = deque(
+            [log for log in self.audit_logs if log.timestamp >= cutoff_date],
+            maxlen=100000
+        )
+        
+        # Rebuild index
+        self.audit_index.clear()
+        for log in self.audit_logs:
+            self.audit_index[log.tenant_id].add(log.id)
+            self.audit_index[log.user_id].add(log.id)
+            self.audit_index[log.resource_type].add(log.id)
+        
+        removed_count = original_count - len(self.audit_logs)
+        logger.info(f"Purged {removed_count} old audit logs (older than {retention_days} days)")
 
 
-def get_compliance_manager(config: Optional[Dict[str, Any]] = None) -> ComplianceManager:
-    """
-    Factory function to get compliance manager instance
-
-    Args:
-        config: Optional configuration dictionary
-
-    Returns:
-        ComplianceManager: Manager instance
-    """
-    return ComplianceManager(config)
+# Global compliance manager instance
+compliance_manager = ComplianceManager()

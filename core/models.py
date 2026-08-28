@@ -109,6 +109,13 @@ class Alert(Base):
 
     # 状态
     status = Column(String(20), default=AlertStatus.PENDING.value, nullable=False, index=True)
+    
+    # 复合索引
+    __table_args__ = (
+        Index("idx_alerts_level_status", "level", "status"),
+        Index("idx_alerts_detected_at", "detected_at"),
+        Index("idx_alerts_host_detected_at", "host", "detected_at"),
+    )
 
     # 主机信息
     host = Column(String(100), nullable=True, index=True)

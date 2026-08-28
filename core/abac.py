@@ -109,11 +109,12 @@ class ABACEngine:
         Initialize ABAC Engine
 
         Args:
-            postgres_storage: PostgreSQL storage instance
+            postgres_storage: PostgreSQL storage instance or SQLAlchemy session
         """
         self.storage = postgres_storage
         self._policies: Dict[str, Policy] = {}
         self._is_initialized = False
+        self._is_sqlalchemy = hasattr(postgres_storage, 'execute')  # Check if it's a SQLAlchemy session
 
         logger.info("ABAC Engine initialized")
 
@@ -188,26 +189,46 @@ class ABACEngine:
             ),
         ]
 
-        with self.storage.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(create_policies_table)
-                cursor.execute(create_policy_evaluations_table)
-
+        if self._is_sqlalchemy:
+            # Use SQLAlchemy session
+            try:
+                self.storage.execute(create_policies_table)
+                self.storage.execute(create_policy_evaluations_table)
                 for index in create_indexes:
-                    cursor.execute(index)
+                    self.storage.execute(index)
+                self.storage.commit()
+                logger.info("ABAC tables created successfully (SQLAlchemy)")
+            except Exception as e:
+                logger.error(f"Failed to create ABAC tables with SQLAlchemy: {e}")
+                self.storage.rollback()
+        else:
+            # Use traditional connection
+            with self.storage.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(create_policies_table)
+                    cursor.execute(create_policy_evaluations_table)
 
-                conn.commit()
-                logger.info("ABAC tables created successfully")
+                    for index in create_indexes:
+                        cursor.execute(index)
+
+                    conn.commit()
+                    logger.info("ABAC tables created successfully")
 
     def _load_policies(self) -> None:
         """Load policies from storage"""
-        policies_data = self.storage.execute_query(
+        query = (
             "SELECT id, name, description, enabled, effect, "
             "subject_conditions, resource_conditions, "
             "environment_conditions, actions, priority, created_at, updated_at "
             "FROM abac_policies WHERE enabled = TRUE "
             "ORDER BY priority DESC LIMIT 1000"
         )
+
+        if self._is_sqlalchemy:
+            policies_data = self.storage.execute(query)
+            policies_data = [dict(row._mapping) for row in policies_data]
+        else:
+            policies_data = self.storage.execute_query(query)
 
         self._policies = {}
         for policy_data in policies_data:
