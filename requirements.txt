@@ -76,7 +76,7 @@ slowapi>=0.1.9
 # Utilities
 python-dotenv>=1.0.0
 pytz>=2023.3
-pydantic[email]>=2.11.10
+pydantic[email]>=2.10.0
 openpyxl>=3.1.0
 
 # Build / packaging dependencies
