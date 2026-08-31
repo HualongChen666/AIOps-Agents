@@ -7,3 +7,4 @@ export { Table, TableHeader, TableBody, TableRow, TableCell, TableHead } from '.
 export { Textarea } from './textarea';
 export { Dialog } from './dialog';
 export { Progress } from './progress';
+export { Switch } from './switch';
