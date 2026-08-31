@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { useLoadingState, useToast } from '@/hooks/useEnhancements';
+import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
+import { CheckCircle, XCircle, RotateCcw, Play, Clock, AlertTriangle } from 'lucide-react';
 
 interface AuditEntry {
   timestamp: string;
@@ -96,12 +100,10 @@ function renderServices(services: string[]) {
 }
 
 export default function ChangeManagementPage() {
+  const queryClient = useQueryClient();
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ChangeRequest | null>(null);
-  const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -113,18 +115,31 @@ export default function ChangeManagementPage() {
     rollback_plan: '',
   });
 
-  const loadRequests = () => {
-    setLoading(true);
-    api
-      .get('/api/v1/change-management/requests')
-      .then((res) => setChangeRequests(res.data as ChangeRequest[]))
-      .catch((err) => console.error('加载变更请求失败', err))
-      .finally(() => setLoading(false));
-  };
+  // 🔧 使用 React Query 获取变更请求列表
+  const { data: changeRequests = [], isLoading, error, refetch } = useQuery<ChangeRequest[]>({
+    queryKey: ['change-requests'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/change-management/requests');
+      return resp.data as ChangeRequest[];
+    },
+    refetchInterval: 30000, // 30秒刷新
+  });
 
+  // 🔧 P1 Integration: 使用增强的加载状态
+  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(isLoading);
+
+  // 🔧 P1 Integration: 使用 toast 通知
+  const toast = useToast();
+  const showSuccess = toast.success;
+  const showError = toast.error;
+
+  // 🔧 处理错误
   useEffect(() => {
-    loadRequests();
-  }, []);
+    if (error) {
+      showError('加载变更请求失败');
+      setPageError(error as Error);
+    }
+  }, [error, showError, setPageError]);
 
   const openCreateDialog = () => {
     setForm({
@@ -140,10 +155,12 @@ export default function ChangeManagementPage() {
     setDialogOpen(true);
   };
 
-  const createRequest = async () => {
-    if (!form.title.trim() || !form.requester.trim()) return;
-    setCreating(true);
-    try {
+  // 🔧 使用 React Mutation 创建变更请求
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if (!form.title.trim() || !form.requester.trim()) {
+        throw new Error('标题和申请人为必填项');
+      }
       const res = await api.post('/api/v1/change-management/requests', {
         title: form.title.trim(),
         description: form.description.trim(),
@@ -157,14 +174,102 @@ export default function ChangeManagementPage() {
         implementation_plan: form.implementation_plan.trim(),
         rollback_plan: form.rollback_plan.trim(),
       });
-      setChangeRequests((prev) => [...prev, res.data as ChangeRequest]);
+      return res.data as ChangeRequest;
+    },
+    onSuccess: (data) => {
+      showSuccess('变更请求创建成功');
       setDialogOpen(false);
-    } catch (err) {
-      console.error('创建变更请求失败', err);
-    } finally {
-      setCreating(false);
-    }
+      queryClient.invalidateQueries({ queryKey: ['change-requests'] });
+    },
+    onError: (err: any) => {
+      const message = err.response?.data?.detail || err.message || '创建变更请求失败';
+      showError(message);
+    },
+  });
+
+  const createRequest = () => {
+    createMutation.mutate();
   };
+
+  // 🔧 提交变更请求
+  const submitMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/api/v1/change-management/requests/${id}/submit`);
+      return res.data as ChangeRequest;
+    },
+    onSuccess: () => {
+      showSuccess('变更请求已提交');
+      queryClient.invalidateQueries({ queryKey: ['change-requests'] });
+    },
+    onError: (err: any) => {
+      const message = err.response?.data?.detail || err.message || '提交失败';
+      showError(message);
+    },
+  });
+
+  // 🔧 审批变更请求
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/api/v1/change-management/requests/${id}/approve`);
+      return res.data as ChangeRequest;
+    },
+    onSuccess: () => {
+      showSuccess('变更请求已批准');
+      queryClient.invalidateQueries({ queryKey: ['change-requests'] });
+    },
+    onError: (err: any) => {
+      const message = err.response?.data?.detail || err.message || '审批失败';
+      showError(message);
+    },
+  });
+
+  // 🔧 拒绝变更请求
+  const rejectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/api/v1/change-management/requests/${id}/reject`);
+      return res.data as ChangeRequest;
+    },
+    onSuccess: () => {
+      showSuccess('变更请求已拒绝');
+      queryClient.invalidateQueries({ queryKey: ['change-requests'] });
+    },
+    onError: (err: any) => {
+      const message = err.response?.data?.detail || err.message || '拒绝失败';
+      showError(message);
+    },
+  });
+
+  // 🔧 实施变更请求
+  const implementMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/api/v1/change-management/requests/${id}/implement`);
+      return res.data as ChangeRequest;
+    },
+    onSuccess: () => {
+      showSuccess('变更已实施');
+      queryClient.invalidateQueries({ queryKey: ['change-requests'] });
+    },
+    onError: (err: any) => {
+      const message = err.response?.data?.detail || err.message || '实施失败';
+      showError(message);
+    },
+  });
+
+  // 🔧 回滚变更请求
+  const rollbackMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/api/v1/change-management/requests/${id}/rollback`);
+      return res.data as ChangeRequest;
+    },
+    onSuccess: () => {
+      showSuccess('变更已回滚');
+      queryClient.invalidateQueries({ queryKey: ['change-requests'] });
+    },
+    onError: (err: any) => {
+      const message = err.response?.data?.detail || err.message || '回滚失败';
+      showError(message);
+    },
+  });
 
   const filteredRequests = changeRequests.filter(
     (cr) => selectedStatus === 'all' || cr.status === selectedStatus
@@ -177,11 +282,52 @@ export default function ChangeManagementPage() {
   const implementedCount = changeRequests.filter((cr) => cr.status === 'implemented').length;
   const highRiskCount = changeRequests.filter((cr) => cr.risk_level === 'high').length;
 
+  // 🔧 P1 Integration: 加载状态
+  if (pageLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // 🔧 P1 Integration: 错误状态
+  if (pageError) {
+    return (
+      <ErrorBoundary fallback={
+        <EmptyState
+          title="加载失败"
+          description="无法加载变更请求数据，请稍后重试"
+          action={<Button onClick={() => refetch()}>重试</Button>}
+        />
+      }>
+        <EmptyState
+          title="加载失败"
+          description={pageError.message}
+          action={<Button onClick={() => refetch()}>重试</Button>}
+        />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">变更管理</h1>
-        <Button onClick={openCreateDialog}>创建变更请求</Button>
+        <div className="flex items-center gap-3">
+          <Clock className="h-8 w-8 text-[var(--accent-blue)]" />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">变更管理</h1>
+            <p className="text-sm text-gray-500">管理和跟踪系统变更请求</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => refetch()} variant="outline">
+            刷新
+          </Button>
+          <Button onClick={openCreateDialog}>
+            创建变更请求
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -269,9 +415,69 @@ export default function ChangeManagementPage() {
                   <TableCell>{cr.requester}</TableCell>
                   <TableCell className="text-sm text-gray-500">{cr.schedule || '—'}</TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedRequest(cr)}>
-                      查看详情
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSelectedRequest(cr)}>
+                        查看详情
+                      </Button>
+                      {cr.status === 'draft' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => submitMutation.mutate(cr.id)}
+                          disabled={submitMutation.isPending}
+                        >
+                          提交
+                        </Button>
+                      )}
+                      {(cr.status === 'pending' || cr.status === 'review') && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => approveMutation.mutate(cr.id)}
+                            disabled={approveMutation.isPending}
+                            className="text-green-600"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            批准
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => rejectMutation.mutate(cr.id)}
+                            disabled={rejectMutation.isPending}
+                            className="text-red-600"
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            拒绝
+                          </Button>
+                        </>
+                      )}
+                      {cr.status === 'approved' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => implementMutation.mutate(cr.id)}
+                          disabled={implementMutation.isPending}
+                          className="text-blue-600"
+                        >
+                          <Play className="h-4 w-4 mr-1" />
+                          实施
+                        </Button>
+                      )}
+                      {cr.status === 'implemented' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => rollbackMutation.mutate(cr.id)}
+                          disabled={rollbackMutation.isPending}
+                          className="text-orange-600"
+                        >
+                          <RotateCcw className="h-4 w-4 mr-1" />
+                          回滚
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -283,7 +489,12 @@ export default function ChangeManagementPage() {
       {selectedRequest && (
         <Card>
           <CardHeader>
-            <CardTitle>变更详情 - {selectedRequest.title}</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>变更详情 - {selectedRequest.title}</CardTitle>
+              <Button variant="outline" size="sm" onClick={() => setSelectedRequest(null)}>
+                关闭
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -338,6 +549,59 @@ export default function ChangeManagementPage() {
                   </li>
                 ))}
               </ul>
+            </div>
+            <div className="flex items-center gap-2 pt-4 border-t">
+              {selectedRequest.status === 'draft' && (
+                <Button
+                  onClick={() => {
+                    submitMutation.mutate(selectedRequest.id);
+                  }}
+                  disabled={submitMutation.isPending}
+                >
+                  提交变更请求
+                </Button>
+              )}
+              {(selectedRequest.status === 'pending' || selectedRequest.status === 'review') && (
+                <>
+                  <Button
+                    onClick={() => approveMutation.mutate(selectedRequest.id)}
+                    disabled={approveMutation.isPending}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    批准
+                  </Button>
+                  <Button
+                    onClick={() => rejectMutation.mutate(selectedRequest.id)}
+                    disabled={rejectMutation.isPending}
+                    variant="destructive"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    拒绝
+                  </Button>
+                </>
+              )}
+              {selectedRequest.status === 'approved' && (
+                <Button
+                  onClick={() => implementMutation.mutate(selectedRequest.id)}
+                  disabled={implementMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  实施变更
+                </Button>
+              )}
+              {selectedRequest.status === 'implemented' && (
+                <Button
+                  onClick={() => rollbackMutation.mutate(selectedRequest.id)}
+                  disabled={rollbackMutation.isPending}
+                  variant="outline"
+                  className="border-orange-600 text-orange-600 hover:bg-orange-50"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  回滚变更
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -418,8 +682,11 @@ export default function ChangeManagementPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
-            <Button onClick={createRequest} disabled={!form.title.trim() || !form.requester.trim() || creating}>
-              {creating ? '创建中...' : '创建'}
+            <Button
+              onClick={createRequest}
+              disabled={!form.title.trim() || !form.requester.trim() || createMutation.isPending}
+            >
+              {createMutation.isPending ? '创建中...' : '创建'}
             </Button>
           </DialogFooter>
         </DialogContent>

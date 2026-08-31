@@ -20,7 +20,7 @@ from core.chaos_engineering import setup_chaos_engineering
 from core.cicd_integration_manager import get_cicd_integration_manager
 from core.cicd_pipeline_manager import get_cicd_pipeline_manager
 from core.command_guard import register_self_pid
-from core.compliance_manager import get_compliance_manager
+# from core.compliance_manager import get_compliance_manager
 from core.config_center import get_config_center, get_service_discovery
 from core.data_integration_manager import get_data_integration_manager
 from core.data_lifecycle_manager import setup_data_lifecycle
