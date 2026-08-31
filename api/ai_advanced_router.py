@@ -3188,24 +3188,24 @@ async def create_retriever_config(
             "updated_at": config.updated_at.isoformat() if config.updated_at else "",
         }
     except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to create retriever config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-@router.delete("/retriever/configs/{config_id}", response_model=Dict[str, str])
-async def delete_retriever_config(
-    config_id: str,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> Dict[str, str]:
-    """Delete a retriever configuration"""
-    try:
-        config = db.query(AIRetrieverConfigDB).filter(
-            AIRetrieverConfigDB.id == config_id
-        ).first()
-
-        if not config:
+        # Try to use RAG engine if available
+        try:
+            from core.ai.rag.knowledge_base import KnowledgeBase
+            from core.ai.rag.vectorizer import VectorizationPipeline
+            # Create vectorization pipeline (using environment variables)
+            embedding_model = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-ada-002")
+            pipeline = VectorizationPipeline(model_name=embedding_model)
+            # Create knowledge base instance
+            kb_instance = KnowledgeBase(name=kb.kb_name, vectorization_pipeline=pipeline)
+            # Add document to knowledge base
+            await kb_instance.add_document(
+                document_id=doc_id,
+                content=content_str,
+                metadata={"filename": file.filename, "size": len(content)}
+            )
+            logger.info(f"Document {doc_id} added to knowledge base {kb_id} using RAG engine")
+        except Exception as e:
+            logger.warning(f"RAG engine not available, using fallback: {e}")
             raise HTTPException(status_code=404, detail="Retriever configuration not found")
 
         db.delete(config)
