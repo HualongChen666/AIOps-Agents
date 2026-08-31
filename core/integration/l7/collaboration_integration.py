@@ -275,6 +275,200 @@ class CollaborationIntegration:
             logger.error(f"Failed to send Teams approval card: {e}")
             return {"error": str(e)}
 
+    async def send_slack_file_upload(
+        self, file_path: str, channels: Optional[str] = None, filename: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Upload a file to Slack
+
+        Args:
+            file_path: Path to the file
+            channels: Target channels
+            filename: Custom filename
+
+        Returns:
+            Upload result
+        """
+        if not self.slack_enabled:
+            return {"error": "Slack not enabled"}
+
+        try:
+            target_channels = channels or self.slack_channel
+            upload_url = "https://slack.com/api/files.upload"
+            
+            with open(file_path, "rb") as f:
+                files = {"file": (filename or file_path.split("/")[-1], f)}
+                data = {
+                    "channels": target_channels,
+                    "initial_comment": "File uploaded from AIOps Agent"
+                }
+                
+                async with httpx.AsyncClient(
+                    headers={"Authorization": f"Bearer {self.slack_bot_token}"},
+                    timeout=60.0,
+                ) as client:
+                    response = await client.post(upload_url, data=data, files=files)
+                    response.raise_for_status()
+                    result = response.json()
+                    if not result.get("ok"):
+                        raise RuntimeError(result.get("error", "Slack file upload error"))
+
+            logger.info(f"Uploaded file to Slack: {file_path}")
+            return {
+                "success": True,
+                "file": result.get("file", {}),
+                "channels": target_channels,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to upload file to Slack: {e}")
+            return {"error": str(e)}
+
+    async def send_teams_file_upload(
+        self, file_path: str, filename: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Upload a file to Teams
+
+        Args:
+            file_path: Path to the file
+            filename: Custom filename
+
+        Returns:
+            Upload result
+        """
+        if not self.teams_enabled:
+            return {"error": "Teams not enabled"}
+
+        try:
+            card = {
+                "type": "message",
+                "attachments": [
+                    {
+                        "contentType": "application/vnd.microsoft.card.adaptive",
+                        "contentUrl": None,
+                        "content": {
+                            "$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
+                            "type": "AdaptiveCard",
+                            "version": "1.0",
+                            "body": [
+                                {
+                                    "type": "TextBlock",
+                                    "text": "File Upload",
+                                    "weight": "bolder",
+                                },
+                                {
+                                    "type": "TextBlock",
+                                    "text": f"File: {filename or file_path}",
+                                    "wrap": True,
+                                }
+                            ],
+                        },
+                    }
+                ],
+            }
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(self.teams_webhook, json=card)
+                response.raise_for_status()
+
+            logger.info(f"Sent file upload notification to Teams: {file_path}")
+            return {"success": True, "timestamp": datetime.now().isoformat()}
+
+        except Exception as e:
+            logger.error(f"Failed to send file upload to Teams: {e}")
+            return {"error": str(e)}
+
+    async def get_slack_channel_info(self, channel: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get information about a Slack channel
+
+        Args:
+            channel: Channel ID (overrides default)
+
+        Returns:
+            Channel information
+        """
+        if not self.slack_enabled:
+            return {"error": "Slack not enabled"}
+
+        try:
+            target_channel = channel or self.slack_channel
+            info_url = "https://slack.com/api/conversations.info"
+            
+            async with httpx.AsyncClient(
+                headers={
+                    "Authorization": f"Bearer {self.slack_bot_token}",
+                    "Content-Type": "application/json; charset=utf-8",
+                },
+                timeout=30.0,
+            ) as client:
+                response = await client.post(info_url, json={"channel": target_channel})
+                response.raise_for_status()
+                result = response.json()
+                if not result.get("ok"):
+                    raise RuntimeError(result.get("error", "Slack API error"))
+
+            channel_info = result.get("channel", {})
+            logger.info(f"Retrieved Slack channel info: {target_channel}")
+            return {
+                "id": channel_info.get("id", ""),
+                "name": channel_info.get("name", ""),
+                "is_channel": channel_info.get("is_channel", False),
+                "is_private": channel_info.get("is_private", False),
+                "members": channel_info.get("num_members", 0),
+                "topic": channel_info.get("topic", {}).get("value", ""),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get Slack channel info: {e}")
+            return {"error": str(e)}
+
+    async def get_slack_user_info(self, user_id: str) -> Dict[str, Any]:
+        """
+        Get information about a Slack user
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            User information
+        """
+        if not self.slack_enabled:
+            return {"error": "Slack not enabled"}
+
+        try:
+            users_url = "https://slack.com/api/users.info"
+            
+            async with httpx.AsyncClient(
+                headers={
+                    "Authorization": f"Bearer {self.slack_bot_token}",
+                    "Content-Type": "application/json; charset=utf-8",
+                },
+                timeout=30.0,
+            ) as client:
+                response = await client.post(users_url, json={"user": user_id})
+                response.raise_for_status()
+                result = response.json()
+                if not result.get("ok"):
+                    raise RuntimeError(result.get("error", "Slack API error"))
+
+            user_info = result.get("user", {})
+            logger.info(f"Retrieved Slack user info: {user_id}")
+            return {
+                "id": user_info.get("id", ""),
+                "name": user_info.get("real_name", ""),
+                "display_name": user_info.get("display_name", ""),
+                "email": user_info.get("profile", {}).get("email", ""),
+                "is_admin": user_info.get("is_admin", False),
+                "is_owner": user_info.get("is_owner", False),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get Slack user info: {e}")
+            return {"error": str(e)}
+
     async def notify_alert(
         self, alert_id: str, alert_data: Dict[str, Any], platforms: Optional[List[str]] = None
     ) -> Dict[str, Any]:

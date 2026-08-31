@@ -162,6 +162,148 @@ class ITSMIntegration:
             logger.error(f"Failed to update ServiceNow incident: {e}")
             return {"error": str(e)}
 
+    async def get_servicenow_incident(
+        self, incident_number: str
+    ) -> Dict[str, Any]:
+        """
+        Get an existing ServiceNow incident
+
+        Args:
+            incident_number: Incident number
+
+        Returns:
+            Incident details
+        """
+        if not self.servicenow_enabled:
+            return {"error": "ServiceNow not enabled"}
+
+        try:
+            base_url = (
+                self.servicenow_base_url
+                or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            )
+            async with httpx.AsyncClient(
+                auth=(self.servicenow_username, self.servicenow_password),
+                timeout=30.0,
+            ) as client:
+                response = await client.get(
+                    f"{base_url}/incident",
+                    params={
+                        "sysparm_query": f"number={incident_number}",
+                        "sysparm_limit": "1",
+                    },
+                )
+                response.raise_for_status()
+                results = response.json().get("result", [])
+                if not results:
+                    return {"error": "Incident not found"}
+                result = results[0]
+
+            logger.info(f"Retrieved ServiceNow incident: {incident_number}")
+            return {
+                "number": result.get("number", ""),
+                "title": result.get("short_description", ""),
+                "description": result.get("description", ""),
+                "status": result.get("state", ""),
+                "priority": result.get("priority", ""),
+                "severity": result.get("urgency", ""),
+                "assignment_group": result.get("assignment_group", ""),
+                "assigned_to": result.get("assigned_to", ""),
+                "created_at": result.get("sys_created_on", ""),
+                "updated_at": result.get("sys_updated_on", ""),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get ServiceNow incident: {e}")
+            return {"error": str(e)}
+
+    async def add_servicenow_comment(
+        self, incident_number: str, comment: str
+    ) -> Dict[str, Any]:
+        """
+        Add a comment to a ServiceNow incident
+
+        Args:
+            incident_number: Incident number
+            comment: Comment text
+
+        Returns:
+            Comment addition result
+        """
+        if not self.servicenow_enabled:
+            return {"error": "ServiceNow not enabled"}
+
+        try:
+            base_url = (
+                self.servicenow_base_url
+                or f"https://{self.servicenow_instance}.service-now.com/api/now/table"
+            )
+            async with httpx.AsyncClient(
+                auth=(self.servicenow_username, self.servicenow_password),
+                timeout=30.0,
+            ) as client:
+                lookup = await client.get(
+                    f"{base_url}/incident",
+                    params={
+                        "sysparm_query": f"number={incident_number}",
+                        "sysparm_limit": "1",
+                    },
+                )
+                lookup.raise_for_status()
+                results = lookup.json().get("result", [])
+                if not results:
+                    return {"error": "Incident not found"}
+                sys_id = results[0].get("sys_id")
+                
+                payload = {
+                    "table": "incident",
+                    "sys_id": sys_id,
+                    "comments": comment
+                }
+                response = await client.post(f"{base_url}/incident/{sys_id}", json=payload)
+                response.raise_for_status()
+
+            logger.info(f"Added comment to ServiceNow incident: {incident_number}")
+            return {
+                "number": incident_number,
+                "comment_added": True,
+                "comment": comment,
+                "added_at": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to add comment to ServiceNow incident: {e}")
+            return {"error": str(e)}
+
+    async def close_servicenow_incident(
+        self, incident_number: str, close_code: str, close_notes: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Close a ServiceNow incident
+
+        Args:
+            incident_number: Incident number
+            close_code: Close code
+            close_notes: Close notes
+
+        Returns:
+            Incident closure result
+        """
+        if not self.servicenow_enabled:
+            return {"error": "ServiceNow not enabled"}
+
+        try:
+            updates = {
+                "state": "Closed",
+                "close_code": close_code,
+                "close_notes": close_notes,
+            }
+            return await self.update_servicenow_incident(incident_number, updates)
+
+        except Exception as e:
+            logger.error(f"Failed to close ServiceNow incident: {e}")
+            return {"error": str(e)}
+
     async def create_jira_issue(
         self,
         summary: str,
@@ -261,6 +403,139 @@ class ITSMIntegration:
 
         except Exception as e:
             logger.error(f"Failed to update Jira issue: {e}")
+            return {"error": str(e)}
+
+    async def get_jira_issue(self, issue_key: str) -> Dict[str, Any]:
+        """
+        Get an existing Jira issue
+
+        Args:
+            issue_key: Issue key
+
+        Returns:
+            Issue details
+        """
+        if not self.jira_enabled:
+            return {"error": "Jira not enabled"}
+
+        try:
+            base_url = f"{self.jira_url.rstrip('/')}/rest/api/2/issue/{issue_key}"
+            async with httpx.AsyncClient(
+                auth=(self.jira_username, self.jira_api_token),
+                timeout=30.0,
+            ) as client:
+                response = await client.get(base_url)
+                response.raise_for_status()
+                result = response.json()
+
+            logger.info(f"Retrieved Jira issue: {issue_key}")
+            return {
+                "key": result.get("key", ""),
+                "summary": result.get("fields", {}).get("summary", ""),
+                "description": result.get("fields", {}).get("description", ""),
+                "status": result.get("fields", {}).get("status", {}).get("name", ""),
+                "priority": result.get("fields", {}).get("priority", {}).get("name", ""),
+                "issue_type": result.get("fields", {}).get("issuetype", {}).get("name", ""),
+                "assignee": result.get("fields", {}).get("assignee", {}).get("displayName", ""),
+                "created": result.get("fields", {}).get("created", ""),
+                "updated": result.get("fields", {}).get("updated", ""),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get Jira issue: {e}")
+            return {"error": str(e)}
+
+    async def add_jira_comment(self, issue_key: str, comment: str) -> Dict[str, Any]:
+        """
+        Add a comment to a Jira issue
+
+        Args:
+            issue_key: Issue key
+            comment: Comment text
+
+        Returns:
+            Comment addition result
+        """
+        if not self.jira_enabled:
+            return {"error": "Jira not enabled"}
+
+        try:
+            base_url = f"{self.jira_url.rstrip('/')}/rest/api/2/issue/{issue_key}/comment"
+            payload = {"body": comment}
+            async with httpx.AsyncClient(
+                auth=(self.jira_username, self.jira_api_token),
+                timeout=30.0,
+            ) as client:
+                response = await client.post(base_url, json=payload)
+                response.raise_for_status()
+                result = response.json()
+
+            logger.info(f"Added comment to Jira issue: {issue_key}")
+            return {
+                "key": issue_key,
+                "comment_added": True,
+                "comment_id": result.get("id", ""),
+                "added_at": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to add comment to Jira issue: {e}")
+            return {"error": str(e)}
+
+    async def transition_jira_issue(
+        self, issue_key: str, transition_name: str, comment: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Transition a Jira issue to a new status
+
+        Args:
+            issue_key: Issue key
+            transition_name: Transition name
+            comment: Optional comment
+
+        Returns:
+            Transition result
+        """
+        if not self.jira_enabled:
+            return {"error": "Jira not enabled"}
+
+        try:
+            base_url = f"{self.jira_url.rstrip('/')}/rest/api/2/issue/{issue_key}/transitions"
+            async with httpx.AsyncClient(
+                auth=(self.jira_username, self.jira_api_token),
+                timeout=30.0,
+            ) as client:
+                # Get available transitions
+                transitions_response = await client.get(base_url)
+                transitions_response.raise_for_status()
+                transitions = transitions_response.json().get("transitions", [])
+                
+                # Find the transition
+                transition = next(
+                    (t for t in transitions if t.get("name") == transition_name),
+                    None
+                )
+                if not transition:
+                    return {"error": f"Transition '{transition_name}' not found"}
+                
+                # Execute transition
+                payload = {"transition": {"id": transition.get("id")}}
+                if comment:
+                    payload.update({"update": [{"comment": [{"add": {"body": comment}}]}]})
+                
+                response = await client.post(base_url, json=payload)
+                response.raise_for_status()
+
+            logger.info(f"Transitioned Jira issue: {issue_key} to {transition_name}")
+            return {
+                "key": issue_key,
+                "transitioned": True,
+                "transition": transition_name,
+                "transitioned_at": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to transition Jira issue: {e}")
             return {"error": str(e)}
 
     async def sync_alert_to_itsm(
