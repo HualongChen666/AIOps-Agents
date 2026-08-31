@@ -1,37 +1,38 @@
 # AIOps Agent Dependencies
 # Core dependencies
-fastapi>=0.109.1
-uvicorn[standard]>=0.24.0
-pydantic>=2.4.0,<2.12.0
-pydantic-settings>=2.0.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0,<2.12.0
+pydantic-settings>=2.14.2
 
 # Database
-sqlalchemy>=2.0.35
-asyncpg>=0.30.0
+sqlalchemy>=2.0.52
+asyncpg>=0.31.0
 psycopg2-binary>=2.9.9
-alembic>=1.13.0
+alembic>=1.19.1
 
 # Redis
-redis>=5.2.0
+redis>=8.1.0
 hiredis>=3.0.0
 
 # Vector Database
-qdrant-client>=1.12.0
+qdrant-client>=1.19.0
 
 # Graph Database
 neo4j>=6.3.0
 
 # AI/ML
 openai>=3.6.0
-langchain>=1.3.18
-langchain-openai>=0.2.0
+langchain>=1.3.17
+langchain-openai>=1.6.0
 anthropic>=1.2.0
 sentence-transformers>=3.1.0
 nltk>=3.10.0
 torch>=2.13.0
+numpy>=2.5.2
 
 # Monitoring
-prometheus-client>=0.19.0
+prometheus-client>=0.26.0
 # Pin OpenTelemetry ecosystem to a consistent 1.44.0/0.65b0 set
 # opentelemetry-exporter-jaeger is deprecated; jaeger propagator is kept for context propagation
 opentelemetry-api==1.44.0
@@ -44,25 +45,28 @@ opentelemetry-exporter-otlp-proto-grpc==1.44.0
 opentelemetry-propagator-b3==1.44.0
 opentelemetry-propagator-jaeger==1.44.0
 protobuf>=6.33.5,<7.0
-wrapt>=1.16.0  # Prevent pip from selecting old wrapt source versions that fail on Python 3.12; updated to support latest OpenTelemetry (compatible with 2.x)
+wrapt>=2.3.0  # Prevent pip from selecting old wrapt source versions that fail on Python 3.12; updated to support latest OpenTelemetry (compatible with 2.x)
 # opentelemetry-instrumentation-kafka>=0.42b0  # Python 3.12 compatibility issue
 
 # Logging
-loguru>=0.7.0
-python-json-logger>=2.0.0
+loguru>=0.7.3
+python-json-logger>=4.2.0
 
 # HTTP
-httpx>=0.27.2
-aiohttp>=3.13.3
+httpx>=0.28.1
+aiohttp>=3.14.3
 grpcio>=1.83.1
 h2>=4.4.1
+urllib3>=2.6.0
+requests>=2.32.4
 
 # Authentication & encryption
-cryptography>=43.0.0
+cryptography>=50.0.1
 pyjwt[crypto]>=2.13.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.18
-authlib>=1.3.1
+authlib>=1.8.0
+ecdsa>=0.19.2
 
 # Rate Limiting
 slowapi>=0.1.9
@@ -72,58 +76,58 @@ slowapi>=0.1.9
 # Utilities
 python-dotenv>=1.0.0
 pytz>=2023.3
-pydantic[email]>=2.4.0
+pydantic[email]>=2.11.10
 openpyxl>=3.1.0
 
 # Build / packaging dependencies
-setuptools>=81.0.0,<82.0.0
+setuptools>=83.0.0
 
 # Testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-pytest-cov>=4.1.0
-pytest-xdist>=3.5.0
-pytest-timeout>=2.2.0
-pytest-benchmark>=4.0.0
-httpx>=0.27.2
-aiosqlite>=0.19.0
+pytest>=9.1.1
+pytest-asyncio>=1.4.0
+pytest-cov>=7.1.0
+pytest-xdist>=3.8.0
+pytest-timeout>=2.4.0
+pytest-benchmark>=5.3.0
+httpx>=0.28.1
+aiosqlite>=0.22.1
 
 # Performance Testing
-locust>=2.15.0
+locust>=2.46.4
 
 # Task Scheduling
-apscheduler>=3.10.0
+apscheduler>=3.11.3
 
 # Development
-black>=23.12.0
-flake8>=7.0.0
-isort>=5.13.0
-mypy>=1.7.0
-pre-commit>=3.6.0
-bandit>=1.7.6
-safety>=2.3.0
+black>=26.5.1
+flake8>=7.3.0
+isort>=5.13.0,<9.0.0
+mypy>=2.3.1
+pre-commit>=4.6.2
+bandit>=1.9.4
+safety>=3.8.1
 
 # Additional utilities
-tenacity>=8.2.0
-cachetools>=5.3.0
-orjson>=3.9.0
-watchdog>=3.0.0  # Configuration hot reload support
+tenacity>=9.1.4
+cachetools>=7.1.7
+orjson>=3.12.0
+watchdog>=6.0.0  # Configuration hot reload support
 
 # GraphQL
-strawberry-graphql>=0.219.0
+strawberry-graphql>=0.324.0
 
 # Docker
-docker>=7.1.0
+docker>=7.2.0
 
 # Data Analysis
-pandas>=2.2.0
+pandas>=3.0.5
 
 # Authentication
 pyotp>=2.10.0
 qrcode>=8.1.0
-Pillow>=11.3.0
+Pillow>=12.3.0
 
 # P0/P1/P2 Enterprise Enhancements
 playwright>=1.48.0  # E2E testing
 resource>=0.2.1  # Memory monitoring (Linux/Mac)
-psutil>=6.1.0  # Cross-platform resource monitoring
+psutil>=7.2.2  # Cross-platform resource monitoring
