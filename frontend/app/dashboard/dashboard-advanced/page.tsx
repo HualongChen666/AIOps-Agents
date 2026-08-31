@@ -13,7 +13,7 @@ import api from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLoadingState, useToast, useDebounce } from '@/hooks/useEnhancements';
 import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
-import { Layout, Settings, RefreshCw, Plus, Trash2, BarChart3, Table as TableIcon, Log, Alert as AlertIcon, Monitor, Move, Eye, EyeOff } from 'lucide-react';
+import { Layout, Settings, RefreshCw, Plus, Trash2, BarChart3, Table as TableIcon, Logs, AlertTriangle, Monitor, Move, Eye, EyeOff, TrendingUp, Activity, CheckCircle, XCircle, Cpu, HardDrive } from 'lucide-react';
 
 interface DashboardWidget {
   id: string;
@@ -42,9 +42,75 @@ interface DashboardLayout {
   created_by: string;
 }
 
+interface StatsSummary {
+  alerts: {
+    alerts: {
+      raw: number;
+      effective: number;
+    };
+    ingestion: {
+      total_points: number;
+      records: number;
+    };
+  };
+  repairs: {
+    total_repairs: number;
+    repairs: Array<{
+      repair_id: string;
+      success: boolean;
+      rule_name?: string;
+      script_key?: string;
+      platform?: string;
+      recorded_at: string;
+    }>;
+  };
+  systems: {
+    cpu_percent: number;
+    memory_percent: number;
+    timestamp: string;
+  };
+  from_cache: boolean;
+}
+
+interface RepairRecord {
+  repair_id: string;
+  success: boolean;
+  rule_name?: string;
+  script_key?: string;
+  platform?: string;
+  output?: string;
+  recorded_at: string;
+}
+
+// Helper functions for stats calculations
+function calculateNoiseReduction(raw: number, effective: number): number {
+  if (raw === 0) return 0;
+  return ((raw - effective) / raw) * 100;
+}
+
+function calculateHealRate(repairs: any[]): number {
+  if (!repairs || repairs.length === 0) return 0;
+  const successful = repairs.filter((r: any) => r.success).length;
+  return (successful / repairs.length) * 100;
+}
+
+function formatTimestamp(timestamp: string): string {
+  return new Date(timestamp).toLocaleString('zh-CN');
+}
+
+function getHealthStatus(cpu: number, memory: number): { status: string; color: string } {
+  if (cpu > 80 || memory > 80) {
+    return { status: '警告', color: 'bg-red-100 text-red-800' };
+  }
+  if (cpu > 60 || memory > 60) {
+    return { status: '注意', color: 'bg-yellow-100 text-yellow-800' };
+  }
+  return { status: '健康', color: 'bg-green-100 text-green-800' };
+}
+
 export default function DashboardAdvancedPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'widgets' | 'layouts'>('widgets');
+  const [activeTab, setActiveTab] = useState<'widgets' | 'layouts' | 'stats'>('widgets');
   const [selectedWidget, setSelectedWidget] = useState<DashboardWidget | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,6 +148,16 @@ export default function DashboardAdvancedPage() {
       return resp.data.layouts || resp.data || [];
     },
     refetchInterval: 120000,
+  });
+
+  // Fetch stats summary
+  const { data: statsSummary, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useQuery<StatsSummary>({
+    queryKey: ['stats-summary'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/stats/summary');
+      return resp.data;
+    },
+    refetchInterval: 30000,
   });
 
   // Create widget mutation
@@ -135,7 +211,10 @@ export default function DashboardAdvancedPage() {
       setPageError(widgetsError as Error);
       showError('Failed to load dashboard widgets');
     }
-  }, [widgetsError, setPageError, showError]);
+    if (statsError) {
+      showError('Failed to load stats data');
+    }
+  }, [widgetsError, statsError, setPageError, showError]);
 
   const filteredWidgets = dashboardWidgets?.filter((widget) => {
     if (typeFilter !== 'all' && widget.widget_type !== typeFilter) return false;
@@ -152,9 +231,9 @@ export default function DashboardAdvancedPage() {
       case 'table':
         return <TableIcon className="h-4 w-4" />;
       case 'log':
-        return <Log className="h-4 w-4" />;
+        return <Logs className="h-4 w-4" />;
       case 'alert':
-        return <AlertIcon className="h-4 w-4" />;
+        return <AlertTriangle className="h-4 w-4" />;
       case 'status':
         return <Monitor className="h-4 w-4" />;
       default:
@@ -241,7 +320,7 @@ export default function DashboardAdvancedPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="widgets">
             <Monitor className="h-4 w-4 mr-2" />
             小部件
@@ -249,6 +328,10 @@ export default function DashboardAdvancedPage() {
           <TabsTrigger value="layouts">
             <Layout className="h-4 w-4 mr-2" />
             布局
+          </TabsTrigger>
+          <TabsTrigger value="stats">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            统计数据
           </TabsTrigger>
         </TabsList>
 
@@ -441,6 +524,278 @@ export default function DashboardAdvancedPage() {
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="stats" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Alert Stats Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  告警统计
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : statsError ? (
+                  <div className="text-red-500 text-sm">加载失败</div>
+                ) : statsSummary ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">原始告警</span>
+                      <span className="text-2xl font-bold">{statsSummary.alerts?.alerts?.raw || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">有效告警</span>
+                      <span className="text-2xl font-bold text-blue-600">{statsSummary.alerts?.alerts?.effective || 0}</span>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">降噪效率</span>
+                        <span className="text-sm font-semibold text-green-600">
+                          {calculateNoiseReduction(
+                            statsSummary.alerts?.alerts?.raw || 0,
+                            statsSummary.alerts?.alerts?.effective || 0
+                          ).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {/* Repair Stats Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  修复统计
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : statsError ? (
+                  <div className="text-red-500 text-sm">加载失败</div>
+                ) : statsSummary ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">总修复数</span>
+                      <span className="text-2xl font-bold">{statsSummary.repairs?.total_repairs || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">成功修复</span>
+                      <span className="text-2xl font-bold text-green-600">
+                        {statsSummary.repairs?.repairs?.filter((r: any) => r.success).length || 0}
+                      </span>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">自愈成功率</span>
+                        <span className="text-sm font-semibold text-green-600">
+                          {calculateHealRate(statsSummary.repairs?.repairs || []).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {/* System Stats Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-blue-500" />
+                  系统状态
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : statsError ? (
+                  <div className="text-red-500 text-sm">加载失败</div>
+                ) : statsSummary ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600 flex items-center gap-1">
+                        <Cpu className="h-3 w-3" />
+                        CPU
+                      </span>
+                      <span className="text-2xl font-bold">{(statsSummary.systems?.cpu_percent || 0).toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600 flex items-center gap-1">
+                        <HardDrive className="h-3 w-3" />
+                        内存
+                      </span>
+                      <span className="text-2xl font-bold">{(statsSummary.systems?.memory_percent || 0).toFixed(1)}%</span>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <Badge className={getHealthStatus(
+                        statsSummary.systems?.cpu_percent || 0,
+                        statsSummary.systems?.memory_percent || 0
+                      ).color}>
+                        {getHealthStatus(
+                          statsSummary.systems?.cpu_percent || 0,
+                          statsSummary.systems?.memory_percent || 0
+                        ).status}
+                      </Badge>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {/* Ingestion Stats Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-purple-500" />
+                  数据采集
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : statsError ? (
+                  <div className="text-red-500 text-sm">加载失败</div>
+                ) : statsSummary ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">数据点总数</span>
+                      <span className="text-2xl font-bold">{statsSummary.alerts?.ingestion?.total_points || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">采集记录数</span>
+                      <span className="text-2xl font-bold text-purple-600">{statsSummary.alerts?.ingestion?.records || 0}</span>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">平均点数/记录</span>
+                        <span className="text-sm font-semibold">
+                          {statsSummary.alerts?.ingestion?.records > 0
+                            ? (statsSummary.alerts.ingestion.total_points / statsSummary.alerts.ingestion.records).toFixed(1)
+                            : '0'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Repair History Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Logs className="h-5 w-5" />
+                  修复记录历史
+                </span>
+                <Button onClick={() => refetchStats()} variant="outline" size="sm">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  刷新
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingSpinner />
+                </div>
+              ) : statsError ? (
+                <EmptyState
+                  title="加载失败"
+                  description="无法加载修复记录，请稍后重试"
+                  action={<Button onClick={() => refetchStats()}>重试</Button>}
+                />
+              ) : !statsSummary?.repairs?.repairs || statsSummary.repairs.repairs.length === 0 ? (
+                <EmptyState
+                  title="暂无修复记录"
+                  description="系统暂无修复操作记录"
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>修复ID</TableHead>
+                      <TableHead>规则名称</TableHead>
+                      <TableHead>脚本Key</TableHead>
+                      <TableHead>平台</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>记录时间</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {statsSummary.repairs.repairs.slice(0, 20).map((repair: RepairRecord) => (
+                      <TableRow key={repair.repair_id}>
+                        <TableCell className="font-mono text-sm">{repair.repair_id.slice(0, 8)}...</TableCell>
+                        <TableCell>{repair.rule_name || '-'}</TableCell>
+                        <TableCell>{repair.script_key || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{repair.platform || 'unknown'}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {repair.success ? (
+                            <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              成功
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-800 flex items-center gap-1">
+                              <XCircle className="h-3 w-3" />
+                              失败
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500">
+                          {formatTimestamp(repair.recorded_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Stats Info Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">统计信息</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">数据来源</span>
+                  <span className="font-medium">后端统计引擎</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">缓存状态</span>
+                  <span className="font-medium">
+                    {statsSummary?.from_cache ? (
+                      <Badge className="bg-blue-100 text-blue-800">已缓存</Badge>
+                    ) : (
+                      <Badge className="bg-gray-100 text-gray-800">实时</Badge>
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">刷新间隔</span>
+                  <span className="font-medium">30秒</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">API端点</span>
+                  <span className="font-mono text-xs">/api/v1/stats/summary</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
