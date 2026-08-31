@@ -401,6 +401,16 @@ class DocumentIndexJobResponse(BaseModel):
     created_at: str
 
 
+class DocumentResponse(BaseModel):
+    """Response model for knowledge base documents"""
+    id: str
+    kb_id: str
+    title: str
+    content: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+
+
 # Semantic Search Models
 class SearchRequest(BaseModel):
     config_id: str = Field(..., description="Config ID")
