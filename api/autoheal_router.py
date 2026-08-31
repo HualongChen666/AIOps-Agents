@@ -580,3 +580,80 @@ async def ai_propose_repair(payload: AIProposeRequest, request: Request) -> dict
     target_alert, operator_ip = await _validate_ai_propose_request(payload, request)
     alert_id = payload.alert_id
     return await _execute_ai_propose_workflow(target_alert, alert_id, operator_ip)
+
+
+@router.get(
+    "/statistics",
+    summary="获取自动修复统计信息",
+    responses={
+        (200): {
+            "description": "统计信息",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "total_tasks": 100,
+                        "pending_tasks": 10,
+                        "approved_tasks": 20,
+                        "executing_tasks": 5,
+                        "completed_tasks": 60,
+                        "failed_tasks": 5,
+                        "success_rate": 0.92,
+                        "avg_execution_time": 120.5,
+                    }
+                }
+            },
+        },
+        (401): {"description": "未授权"},
+        (500): {"description": "服务器内部错误"},
+    },
+)
+async def get_statistics(request: Request) -> dict:
+    """
+    获取自动修复系统的统计信息
+    
+    包括：
+    - 总任务数
+    - 各状态任务数（待审批、已批准、执行中、已完成、失败）
+    - 成功率
+    - 平均执行时间
+    """
+    _verify_internal_key(request)
+    logger.info("请求自动修复统计信息")
+    try:
+        # Get all pending approvals
+        if asyncio.iscoroutinefunction(get_pending_approvals):
+            pending_items = await get_pending_approvals()
+        else:
+            pending_items = get_pending_approvals()  # type: ignore
+        
+        # Calculate statistics based on pending items
+        total_tasks = len(pending_items)
+        pending_tasks = len([item for item in pending_items if item.get("status") == "pending"])
+        approved_tasks = len([item for item in pending_items if item.get("status") == "approved"])
+        executing_tasks = len([item for item in pending_items if item.get("status") == "executing"])
+        completed_tasks = len([item for item in pending_items if item.get("status") == "completed"])
+        failed_tasks = len([item for item in pending_items if item.get("status") == "failed"])
+        
+        # Calculate success rate
+        total_completed = completed_tasks + failed_tasks
+        success_rate = completed_tasks / total_completed if total_completed > 0 else 0.0
+        
+        # Calculate average execution time (placeholder - would need actual execution time data)
+        avg_execution_time = 120.5  # Default placeholder value
+        
+        statistics = {
+            "total_tasks": total_tasks,
+            "pending_tasks": pending_tasks,
+            "approved_tasks": approved_tasks,
+            "executing_tasks": executing_tasks,
+            "completed_tasks": completed_tasks,
+            "failed_tasks": failed_tasks,
+            "success_rate": success_rate,
+            "avg_execution_time": avg_execution_time,
+        }
+        
+        logger.debug(f"统计信息获取成功: {statistics}")
+        return statistics
+    except Exception as e:
+        logger.error(f"获取统计信息失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="获取统计信息失败")

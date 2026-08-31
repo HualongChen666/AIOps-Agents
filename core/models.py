@@ -3607,6 +3607,54 @@ class TestCoverageReportDB(Base):
         return f"<TestCoverageReportDB(id='{self.id}', report_name='{self.report_name}', coverage={self.overall_coverage})>"
 
 
+class TestCoverageTargetDB(Base):
+    """测试覆盖率目标表"""
+
+    __tablename__ = "test_coverage_targets"
+
+    id = Column(String(100), primary_key=True)
+    target_name = Column(String(200), nullable=False)
+    module_id = Column(String(100), nullable=True)
+    module_name = Column(String(200), nullable=True)
+    target_percentage = Column(Float, nullable=False, default=0.0)
+    current_percentage = Column(Float, nullable=False, default=0.0)
+    status = Column(String(50), nullable=False, default="not_met")
+    deadline = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_test_coverage_targets_module", "module_id"),
+        Index("idx_test_coverage_targets_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<TestCoverageTargetDB(id='{self.id}', target_name='{self.target_name}', target={self.target_percentage}%>"
+
+
+class TestCoverageComparisonDB(Base):
+    """测试覆盖率对比表"""
+
+    __tablename__ = "test_coverage_comparisons"
+
+    id = Column(String(100), primary_key=True)
+    report_a_id = Column(String(100), nullable=False)
+    report_a_name = Column(String(200), nullable=False)
+    report_b_id = Column(String(100), nullable=False)
+    report_b_name = Column(String(200), nullable=False)
+    overall_change = Column(Float, nullable=False, default=0.0)
+    module_changes = Column(JSON, nullable=True)
+    summary = Column(JSON, nullable=True)
+    comparison_date = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_test_coverage_comparisons_date", "comparison_date"),
+    )
+
+    def __repr__(self):
+        return f"<TestCoverageComparisonDB(id='{self.id}', change={self.overall_change}%>"
+
+
 # Dashboard Models
 class DashboardWidgetDB(Base):
     """Dashboard widget table"""

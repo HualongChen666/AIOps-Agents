@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLoadingState, useToast } from '@/hooks/useEnhancements';
@@ -120,6 +120,11 @@ export default function AutoHealPage() {
   const [scriptFormOpen, setScriptFormOpen] = useState(false);
   const [configFormOpen, setConfigFormOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<RepairConfiguration | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterRiskLevel, setFilterRiskLevel] = useState<string>('all');
+  const [filterDateRange, setFilterDateRange] = useState<string>('all');
+  const [historyDetailOpen, setHistoryDetailOpen] = useState(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<RepairHistoryItem | null>(null);
 
   const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(false);
   const toast = useToast();
@@ -380,7 +385,36 @@ export default function AutoHealPage() {
   // Handlers
   // ============================================================
 
-  const filteredTasks = healTasks?.filter((task) => task.status === selectedTab) || [];
+  const filteredTasks = healTasks?.filter((task) => {
+    const matchesStatus = task.status === selectedTab;
+    const matchesSearch = searchQuery === '' ||
+      task.alertTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      task.alertId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      task.healPlan.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRisk = filterRiskLevel === 'all' || task.riskLevel === filterRiskLevel;
+    return matchesStatus && matchesSearch && matchesRisk;
+  }) || [];
+
+  const filteredHistory = repairHistory?.filter((item) => {
+    const matchesSearch = searchQuery === '' ||
+      item.repair_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.target_resource.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  }) || [];
+
+  const filteredScripts = repairScripts?.filter((script) => {
+    const matchesSearch = searchQuery === '' ||
+      script.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      script.category.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  }) || [];
+
+  const filteredConfigs = repairConfigs?.filter((config) => {
+    const matchesSearch = searchQuery === '' ||
+      config.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      config.key.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  }) || [];
 
   const handleApprove = async () => {
     if (!selectedTask) return;
@@ -599,6 +633,35 @@ export default function AutoHealPage() {
 
         {/* Tasks Section */}
         <TabsContent value="tasks" className="space-y-4">
+          {/* Search and Filter Bar */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <Input
+                    placeholder="搜索告警、ID或修复方案..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Select
+                    value={filterRiskLevel}
+                    onChange={(e) => setFilterRiskLevel(e.target.value)}
+                    className="w-[150px]"
+                  >
+                    <option value="all">全部风险</option>
+                    <option value="low">低风险</option>
+                    <option value="medium">中风险</option>
+                    <option value="high">高风险</option>
+                    <option value="critical">严重风险</option>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Status Tabs */}
           <Card>
             <CardContent className="pt-6">
@@ -627,9 +690,14 @@ export default function AutoHealPage() {
           {/* Tasks Table */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                {selectedTab === 'pending' ? '待审批' : selectedTab === 'approved' ? '已批准' : selectedTab === 'executing' ? '执行中' : selectedTab === 'completed' ? '已完成' : '失败'}任务
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  {selectedTab === 'pending' ? '待审批' : selectedTab === 'approved' ? '已批准' : selectedTab === 'executing' ? '执行中' : selectedTab === 'completed' ? '已完成' : '失败'}任务
+                </div>
+                <div className="text-sm text-gray-500">
+                  显示 {filteredTasks.length} / {healTasks?.length || 0} 条记录
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -640,7 +708,8 @@ export default function AutoHealPage() {
               ) : filteredTasks.length === 0 ? (
                 <EmptyState
                   title="没有任务"
-                  description={`当前没有${selectedTab === 'pending' ? '待审批' : selectedTab === 'approved' ? '已批准' : selectedTab === 'executing' ? '执行中' : selectedTab === 'completed' ? '已完成' : '失败'}任务`}
+                  description={searchQuery || filterRiskLevel !== 'all' ? '没有匹配的任务，请调整搜索条件' : `当前没有${selectedTab === 'pending' ? '待审批' : selectedTab === 'approved' ? '已批准' : selectedTab === 'executing' ? '执行中' : selectedTab === 'completed' ? '已完成' : '失败'}任务`}
+                  action={searchQuery || filterRiskLevel !== 'all' ? <Button onClick={() => { setSearchQuery(''); setFilterRiskLevel('all'); }}>清除筛选</Button> : undefined}
                 />
               ) : (
                 <Table>
@@ -723,6 +792,18 @@ export default function AutoHealPage() {
 
         {/* Configuration Section */}
         <TabsContent value="config" className="space-y-4">
+          {/* Search Bar */}
+          <Card>
+            <CardContent className="pt-6">
+              <Input
+                placeholder="搜索配置名称、键或类别..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -740,10 +821,11 @@ export default function AutoHealPage() {
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
                 </div>
-              ) : !repairConfigs || repairConfigs.length === 0 ? (
+              ) : !filteredConfigs || filteredConfigs.length === 0 ? (
                 <EmptyState
                   title="暂无配置"
-                  description="还没有创建修复策略配置"
+                  description={searchQuery ? '没有匹配的配置' : '还没有创建修复策略配置'}
+                  action={searchQuery ? <Button onClick={() => setSearchQuery('')}>清除搜索</Button> : undefined}
                 />
               ) : (
                 <Table>
@@ -759,7 +841,7 @@ export default function AutoHealPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {repairConfigs.map((config) => (
+                    {filteredConfigs.map((config) => (
                       <TableRow key={config.id}>
                         <TableCell className="font-medium">{config.name}</TableCell>
                         <TableCell>{config.config_type}</TableCell>
@@ -820,46 +902,101 @@ export default function AutoHealPage() {
                   description="还没有修复效果评估数据"
                 />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {repairEffectiveness.map((effectiveness) => (
-                    <Card key={effectiveness.id}>
-                      <CardHeader>
-                        <CardTitle className="text-lg">{effectiveness.repair_type}</CardTitle>
+                <>
+                  {/* Summary Statistics */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">平均成功率</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-500">成功率</p>
-                            <p className="text-2xl font-bold text-green-600">{effectiveness.success_rate.toFixed(1)}%</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">平均修复时间</p>
-                            <p className="text-2xl font-bold text-blue-600">{effectiveness.avg_repair_time.toFixed(1)}s</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">总修复次数</p>
-                            <p className="text-2xl font-bold text-gray-900">{effectiveness.total_repairs}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">趋势</p>
-                            <Badge className={
-                              effectiveness.trend === 'improving' ? 'bg-green-100 text-green-800' :
-                                effectiveness.trend === 'degrading' ? 'bg-red-100 text-red-800' :
-                                  'bg-gray-100 text-gray-800'
-                            }>
-                              {effectiveness.trend === 'improving' ? '改善' :
-                                effectiveness.trend === 'degrading' ? '下降' : '稳定'}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="pt-4 border-t">
-                          <p className="text-sm text-gray-500">目标资源: {effectiveness.target_resource}</p>
-                          <p className="text-sm text-gray-500">最后评估: {new Date(effectiveness.last_evaluated).toLocaleString()}</p>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                          {(repairEffectiveness.reduce((sum, e) => sum + e.success_rate, 0) / repairEffectiveness.length).toFixed(1)}%
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">总修复次数</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {repairEffectiveness.reduce((sum, e) => sum + e.total_repairs, 0)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">平均修复时间</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {(repairEffectiveness.reduce((sum, e) => sum + e.avg_repair_time, 0) / repairEffectiveness.length).toFixed(1)}s
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600">改善趋势</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                          {repairEffectiveness.filter(e => e.trend === 'improving').length}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Effectiveness Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {repairEffectiveness.map((effectiveness) => (
+                      <Card key={effectiveness.id}>
+                        <CardHeader>
+                          <CardTitle className="text-lg">{effectiveness.repair_type}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-500">成功率</p>
+                              <p className="text-2xl font-bold text-green-600">{effectiveness.success_rate.toFixed(1)}%</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500">平均修复时间</p>
+                              <p className="text-2xl font-bold text-blue-600">{effectiveness.avg_repair_time.toFixed(1)}s</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500">总修复次数</p>
+                              <p className="text-2xl font-bold text-gray-900">{effectiveness.total_repairs}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500">成功/失败</p>
+                              <p className="text-sm font-medium">
+                                <span className="text-green-600">{effectiveness.successful_repairs}</span>
+                                <span className="text-gray-400"> / </span>
+                                <span className="text-red-600">{effectiveness.failed_repairs}</span>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="pt-4 border-t">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm text-gray-500">趋势</p>
+                              <Badge className={
+                                effectiveness.trend === 'improving' ? 'bg-green-100 text-green-800' :
+                                  effectiveness.trend === 'degrading' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
+                              }>
+                                {effectiveness.trend === 'improving' ? '改善' :
+                                  effectiveness.trend === 'degrading' ? '下降' : '稳定'}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-500">目标资源: {effectiveness.target_resource}</p>
+                            <p className="text-sm text-gray-500">最后评估: {new Date(effectiveness.last_evaluated).toLocaleString()}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -867,11 +1004,44 @@ export default function AutoHealPage() {
 
         {/* History Section */}
         <TabsContent value="history" className="space-y-4">
+          {/* Search and Filter Bar */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <Input
+                    placeholder="搜索修复类型或目标资源..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Select
+                    value={filterDateRange}
+                    onChange={(e) => setFilterDateRange(e.target.value)}
+                    className="w-[150px]"
+                  >
+                    <option value="all">全部时间</option>
+                    <option value="today">今天</option>
+                    <option value="week">本周</option>
+                    <option value="month">本月</option>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                修复历史分析
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  修复历史分析
+                </div>
+                <div className="text-sm text-gray-500">
+                  显示 {filteredHistory.length} / {repairHistory?.length || 0} 条记录
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -879,10 +1049,11 @@ export default function AutoHealPage() {
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
                 </div>
-              ) : !repairHistory || repairHistory.length === 0 ? (
+              ) : !filteredHistory || filteredHistory.length === 0 ? (
                 <EmptyState
                   title="暂无历史"
-                  description="还没有修复历史记录"
+                  description={searchQuery ? '没有匹配的历史记录' : '还没有修复历史记录'}
+                  action={searchQuery ? <Button onClick={() => setSearchQuery('')}>清除搜索</Button> : undefined}
                 />
               ) : (
                 <Table>
@@ -898,7 +1069,7 @@ export default function AutoHealPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {repairHistory.map((item) => (
+                    {filteredHistory.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-mono text-sm">{item.id}</TableCell>
                         <TableCell>{item.repair_type}</TableCell>
@@ -913,7 +1084,11 @@ export default function AutoHealPage() {
                         </TableCell>
                         <TableCell>{item.executed_by}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedHistoryItem(item); setHistoryDetailOpen(true); }}
+                          >
                             <FileText className="h-4 w-4 mr-1" />
                             详情
                           </Button>
@@ -929,6 +1104,18 @@ export default function AutoHealPage() {
 
         {/* Templates Section */}
         <TabsContent value="templates" className="space-y-4">
+          {/* Search Bar */}
+          <Card>
+            <CardContent className="pt-6">
+              <Input
+                placeholder="搜索脚本名称或类别..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -946,10 +1133,11 @@ export default function AutoHealPage() {
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
                 </div>
-              ) : !repairScripts || repairScripts.length === 0 ? (
+              ) : !filteredScripts || filteredScripts.length === 0 ? (
                 <EmptyState
                   title="暂无脚本"
-                  description="还没有创建修复脚本模板"
+                  description={searchQuery ? '没有匹配的脚本' : '还没有创建修复脚本模板'}
+                  action={searchQuery ? <Button onClick={() => setSearchQuery('')}>清除搜索</Button> : undefined}
                 />
               ) : (
                 <Table>
@@ -965,7 +1153,7 @@ export default function AutoHealPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {repairScripts.map((script) => (
+                    {filteredScripts.map((script) => (
                       <TableRow key={script.id}>
                         <TableCell className="font-medium">{script.name}</TableCell>
                         <TableCell>
@@ -1119,6 +1307,83 @@ export default function AutoHealPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* History Detail Dialog */}
+      {historyDetailOpen && selectedHistoryItem && (
+        <Dialog open={historyDetailOpen} onOpenChange={setHistoryDetailOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                修复历史详情
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">修复类型</label>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="font-medium">{selectedHistoryItem.repair_type}</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">目标资源</label>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="font-mono text-sm">{selectedHistoryItem.target_resource}</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">问题描述</label>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm">{selectedHistoryItem.issue_description}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                  <Badge className={selectedHistoryItem.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                    {selectedHistoryItem.status === 'success' ? '成功' : '失败'}
+                  </Badge>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">执行时间</label>
+                  <p className="text-sm text-gray-900">
+                    {selectedHistoryItem.duration ? `${selectedHistoryItem.duration}秒` : 'N/A'}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">开始时间</label>
+                  <p className="text-sm text-gray-500">
+                    {new Date(selectedHistoryItem.start_time).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">结束时间</label>
+                  <p className="text-sm text-gray-500">
+                    {new Date(selectedHistoryItem.end_time).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">执行者</label>
+                <p className="text-sm text-gray-900">{selectedHistoryItem.executed_by}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">详细信息</label>
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm whitespace-pre-wrap">{selectedHistoryItem.details}</p>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setHistoryDetailOpen(false)}>
+                关闭
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -1177,18 +1442,14 @@ function ConfigurationForm({ config, onSubmit, onCancel, isSubmitting }: Configu
         <div>
           <Label htmlFor="config_type">类型</Label>
           <Select
+            id="config_type"
             value={formData.config_type}
-            onValueChange={(value) => setFormData({ ...formData, config_type: value })}
+            onChange={(e) => setFormData({ ...formData, config_type: e.target.value })}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="global">全局</SelectItem>
-              <SelectItem value="platform">平台</SelectItem>
-              <SelectItem value="resource">资源</SelectItem>
-              <SelectItem value="script">脚本</SelectItem>
-            </SelectContent>
+            <option value="global">全局</option>
+            <option value="platform">平台</option>
+            <option value="resource">资源</option>
+            <option value="script">脚本</option>
           </Select>
         </div>
         <div>
@@ -1291,36 +1552,28 @@ function ScriptForm({ script, onSubmit, onCancel, isSubmitting }: ScriptFormProp
         <div>
           <Label htmlFor="language">语言</Label>
           <Select
+            id="language"
             value={formData.language}
-            onValueChange={(value) => setFormData({ ...formData, language: value })}
+            onChange={(e) => setFormData({ ...formData, language: e.target.value })}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bash">Bash</SelectItem>
-              <SelectItem value="python">Python</SelectItem>
-              <SelectItem value="powershell">PowerShell</SelectItem>
-              <SelectItem value="javascript">JavaScript</SelectItem>
-            </SelectContent>
+            <option value="bash">Bash</option>
+            <option value="python">Python</option>
+            <option value="powershell">PowerShell</option>
+            <option value="javascript">JavaScript</option>
           </Select>
         </div>
         <div>
           <Label htmlFor="platform">平台</Label>
           <Select
+            id="platform"
             value={formData.platform}
-            onValueChange={(value) => setFormData({ ...formData, platform: value })}
+            onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="linux">Linux</SelectItem>
-              <SelectItem value="windows">Windows</SelectItem>
-              <SelectItem value="macos">macOS</SelectItem>
-              <SelectItem value="docker">Docker</SelectItem>
-              <SelectItem value="kubernetes">Kubernetes</SelectItem>
-            </SelectContent>
+            <option value="linux">Linux</option>
+            <option value="windows">Windows</option>
+            <option value="macos">macOS</option>
+            <option value="docker">Docker</option>
+            <option value="kubernetes">Kubernetes</option>
           </Select>
         </div>
         <div>
@@ -1346,17 +1599,13 @@ function ScriptForm({ script, onSubmit, onCancel, isSubmitting }: ScriptFormProp
       <div>
         <Label htmlFor="status">状态</Label>
         <Select
+          id="status"
           value={formData.status}
-          onValueChange={(value) => setFormData({ ...formData, status: value })}
+          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
         >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">启用</SelectItem>
-            <SelectItem value="inactive">禁用</SelectItem>
-            <SelectItem value="deprecated">已弃用</SelectItem>
-          </SelectContent>
+          <option value="active">启用</option>
+          <option value="inactive">禁用</option>
+          <option value="deprecated">已弃用</option>
         </Select>
       </div>
       <DialogFooter>
