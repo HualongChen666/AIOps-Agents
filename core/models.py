@@ -2874,6 +2874,29 @@ class AIGraphNodeDB(Base):
         return f"<AIGraphNodeDB(id={self.id}, type='{self.node_type}')>"
 
 
+class AIGraphEdgeDB(Base):
+    """AI图边表"""
+
+    __tablename__ = "ai_graph_edges"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    source_node_id = Column(String(50), nullable=False)
+    target_node_id = Column(String(50), nullable=False)
+    edge_type = Column(String(50), nullable=False)
+    edge_data = Column(JSON, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    edge_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_graph_edges_source", "source_node_id"),
+        Index("idx_ai_graph_edges_target", "target_node_id"),
+        Index("idx_ai_graph_edges_type", "edge_type"),
+    )
+
+    def __repr__(self):
+        return f"<AIGraphEdgeDB(id={self.id}, source='{self.source_node_id}', target='{self.target_node_id}', type='{self.edge_type}')>"
+
+
 class AIKnowledgeBaseDB(Base):
     """AI知识库表"""
 
@@ -2956,6 +2979,152 @@ class AIRoutingRuleDB(Base):
 
     def __repr__(self):
         return f"<AIRoutingRuleDB(id={self.id}, name='{self.rule_name}', priority={self.priority})>"
+
+
+class AIVectorizerConfigDB(Base):
+    """AI向量化配置表"""
+
+    __tablename__ = "ai_vectorizer_configs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    config_name = Column(String(255), nullable=False)
+    embedding_model = Column(String(255), nullable=False)
+    dimensions = Column(Integer, nullable=False)
+    batch_size = Column(Integer, nullable=False, default=100)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    config_metadata = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_vectorizer_configs_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIVectorizerConfigDB(id={self.id}, name='{self.config_name}', model='{self.embedding_model}')>"
+
+
+class AIVectorizerJobDB(Base):
+    """AI向量化任务表"""
+
+    __tablename__ = "ai_vectorizer_jobs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    config_id = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    total_items = Column(Integer, nullable=False, default=0)
+    processed_items = Column(Integer, nullable=False, default=0)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    job_metadata = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_vectorizer_jobs_status", "status"),
+        Index("idx_ai_vectorizer_jobs_config_id", "config_id"),
+    )
+
+    def __repr__(self):
+        return f"<AIVectorizerJobDB(id={self.id}, config_id='{self.config_id}', status='{self.status}')>"
+
+
+class AICapabilityEvaluationDB(Base):
+    """AI模型能力评估结果表"""
+
+    __tablename__ = "ai_capability_evaluations"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    model_id = Column(String(255), nullable=False, index=True)
+    model_name = Column(String(255), nullable=False)
+    capabilities = Column(JSON, nullable=False)
+    overall_score = Column(Float, nullable=False)
+    evaluation_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_ai_capability_evaluations_model_id", "model_id"),
+        Index("idx_ai_capability_evaluations_overall_score", "overall_score"),
+    )
+
+    def __repr__(self):
+        return f"<AICapabilityEvaluationDB(id={self.id}, model='{self.model_name}', score={self.overall_score})>"
+
+
+class AIEvaluationTaskDB(Base):
+    """AI评估任务表"""
+
+    __tablename__ = "ai_evaluation_tasks"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    task_name = Column(String(255), nullable=False)
+    task_type = Column(String(50), nullable=False, index=True)
+    model_id = Column(String(255), nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    progress = Column(Float, nullable=False, default=0.0)
+    results = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    task_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_evaluation_tasks_type", "task_type"),
+        Index("idx_ai_evaluation_tasks_status", "status"),
+        Index("idx_ai_evaluation_tasks_model_id", "model_id"),
+    )
+
+    def __repr__(self):
+        return f"<AIEvaluationTaskDB(id={self.id}, name='{self.task_name}', status='{self.status}')>"
+
+
+class AIRetrieverConfigDB(Base):
+    """AI检索器配置表"""
+
+    __tablename__ = "ai_retriever_configs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    config_name = Column(String(255), nullable=False)
+    retriever_type = Column(String(50), nullable=False)
+    embedding_model = Column(String(255), nullable=False)
+    vector_store_config = Column(JSON, nullable=False)
+    retrieval_params = Column(JSON, nullable=False)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    config_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_retriever_configs_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIRetrieverConfigDB(id={self.id}, name='{self.config_name}', type='{self.retriever_type}')>"
+
+
+class AICrossLayerTrackingConfigDB(Base):
+    """跨层追踪配置表"""
+
+    __tablename__ = "ai_cross_layer_tracking_configs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    config_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    layers = Column(JSON, nullable=False, default=list)
+    sampling_rate = Column(Float, nullable=False, default=1.0)
+    retention_days = Column(Integer, nullable=False, default=30)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    config_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_cross_layer_tracking_enabled", "enabled"),
+        Index("idx_cross_layer_tracking_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AICrossLayerTrackingConfigDB(id={self.id}, name='{self.config_name}', enabled={self.enabled})>"
 
 
 # ==================== Collaboration Management Models ====================

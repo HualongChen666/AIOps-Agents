@@ -69,6 +69,8 @@ from api.ai_advanced_router import (
     TopologyAnalysisRequest,
     WorkflowCreate,
     router,
+    DocumentResponse,
+    DocumentListResponse,
 )
 from core.auth_db import SessionLocal
 
@@ -1221,6 +1223,101 @@ class TestRAGKnowledgeBase:
         """Test deleting non-existent knowledge base"""
         fake_id = str(uuid.uuid4())
         response = client.delete(f"/api/ai/rag-knowledge-base/bases/{fake_id}")
+        assert response.status_code == 404
+
+    def test_get_kb_documents_empty(self, client, sample_knowledge_base):
+        """Test getting documents from a knowledge base when empty"""
+        # First create a knowledge base
+        response = client.post(
+            "/api/ai/rag-knowledge-base/bases", json=sample_knowledge_base.dict()
+        )
+        assert response.status_code == 200
+        kb_id = response.json()["id"]
+
+        # Get documents (should be empty)
+        response = client.get(f"/api/ai/rag-knowledge-base/bases/{kb_id}/documents")
+        assert response.status_code == 200
+        data = response.json()
+        assert "documents" in data
+        assert data["total"] == 0
+        assert len(data["documents"]) == 0
+
+    def test_upload_kb_document(self, client, sample_knowledge_base):
+        """Test uploading a document to a knowledge base"""
+        # First create a knowledge base
+        response = client.post(
+            "/api/ai/rag-knowledge-base/bases", json=sample_knowledge_base.dict()
+        )
+        assert response.status_code == 200
+        kb_id = response.json()["id"]
+
+        # Upload a document
+        from io import BytesIO
+        file_content = b"This is a test document content for the knowledge base."
+        files = {"file": ("test.txt", BytesIO(file_content), "text/plain")}
+        response = client.post(
+            f"/api/ai/rag-knowledge-base/bases/{kb_id}/documents", files=files
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "id" in data
+        assert data["kb_id"] == kb_id
+        assert data["title"] == "test.txt"
+        assert data["status"] == "active"
+
+    def test_upload_kb_document_kb_not_found(self, client):
+        """Test uploading document to non-existent knowledge base"""
+        fake_id = str(uuid.uuid4())
+        from io import BytesIO
+        file_content = b"Test content"
+        files = {"file": ("test.txt", BytesIO(file_content), "text/plain")}
+        response = client.post(
+            f"/api/ai/rag-knowledge-base/bases/{fake_id}/documents", files=files
+        )
+        assert response.status_code == 404
+
+    def test_delete_kb_document(self, client, sample_knowledge_base):
+        """Test deleting a document from a knowledge base"""
+        # First create a knowledge base
+        response = client.post(
+            "/api/ai/rag-knowledge-base/bases", json=sample_knowledge_base.dict()
+        )
+        assert response.status_code == 200
+        kb_id = response.json()["id"]
+
+        # Upload a document
+        from io import BytesIO
+        file_content = b"This is a test document content for the knowledge base."
+        files = {"file": ("test.txt", BytesIO(file_content), "text/plain")}
+        response = client.post(
+            f"/api/ai/rag-knowledge-base/bases/{kb_id}/documents", files=files
+        )
+        assert response.status_code == 200
+        doc_id = response.json()["id"]
+
+        # Delete the document
+        response = client.delete(
+            f"/api/ai/rag-knowledge-base/bases/{kb_id}/documents/{doc_id}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert data["doc_id"] == doc_id
+
+    def test_delete_kb_document_not_found(self, client, sample_knowledge_base):
+        """Test deleting non-existent document"""
+        # First create a knowledge base
+        response = client.post(
+            "/api/ai/rag-knowledge-base/bases", json=sample_knowledge_base.dict()
+        )
+        assert response.status_code == 200
+        kb_id = response.json()["id"]
+
+        # Try to delete non-existent document
+        fake_doc_id = str(uuid.uuid4())
+        response = client.delete(
+            f"/api/ai/rag-knowledge-base/bases/{kb_id}/documents/{fake_doc_id}"
+        )
         assert response.status_code == 404
 
 
