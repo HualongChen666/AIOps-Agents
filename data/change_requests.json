@@ -862,5 +862,36 @@
         "message": "创建变更请求"
       }
     ]
+  },
+  "CR-2D34C3D2": {
+    "id": "CR-2D34C3D2",
+    "tenant_id": "default",
+    "title": "Test API Change",
+    "description": "Testing change creation via API",
+    "requester": "test_user",
+    "approver": "",
+    "status": "pending",
+    "risk_level": "medium",
+    "schedule": "2026-09-01 10:00",
+    "affected_services": [
+      "api-gateway",
+      "database"
+    ],
+    "implementation_plan": "Step 1: Update config, Step 2: Restart service",
+    "rollback_plan": "Step 1: Restore config, Step 2: Restart service",
+    "audit_log": [
+      {
+        "timestamp": "2026-08-31T06:46:15.193198+00:00",
+        "actor": "test_user",
+        "action": "created",
+        "message": "创建变更请求"
+      },
+      {
+        "timestamp": "2026-08-31T06:46:27.716415+00:00",
+        "actor": "test_user",
+        "action": "submit",
+        "message": "提交变更请求进入审批"
+      }
+    ]
   }
 }
