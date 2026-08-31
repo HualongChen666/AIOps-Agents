@@ -2938,6 +2938,28 @@ class AILoadBalancerConfigDB(Base):
         return f"<AILoadBalancerConfigDB(id={self.id}, name='{self.config_name}', strategy='{self.strategy}')>"
 
 
+class AIFusionConfigDB(Base):
+    """AI融合配置表"""
+
+    __tablename__ = "ai_fusion_configs"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    config_name = Column(String(255), nullable=False)
+    fusion_strategy = Column(String(50), nullable=False)
+    sources = Column(JSON, nullable=False)
+    weights = Column(JSON, nullable=True)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    config_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ai_fusion_configs_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AIFusionConfigDB(id={self.id}, name='{self.config_name}', strategy='{self.fusion_strategy}')>"
+
+
 class AICostSuggestionDB(Base):
     """AI成本建议表"""
 
