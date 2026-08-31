@@ -43,6 +43,9 @@ from fastapi.testclient import TestClient
 from api.ai_advanced_router import (
     AnalyzeRequest,
     CostSuggestionCreate,
+    CrossLayerTrackingConfigCreate,
+    CrossLayerTrackingConfigUpdate,
+    CrossLayerTrackingConfigResponse,
     DeepLearningModelCreate,
     DocumentIndexCreate,
     DSLDefinitionCreate,
@@ -937,6 +940,92 @@ class TestCrossLayerTracking:
             data = response.json()
             assert "traces" in data
             assert isinstance(data["traces"], list)
+
+    def test_get_cross_layer_tracking_configs(self, client):
+        """Test getting cross-layer tracking configurations"""
+        response = client.get("/api/ai/cross-layer-tracking/configs")
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            data = response.json()
+            assert "configs" in data
+            assert "total" in data
+            assert "limit" in data
+            assert "offset" in data
+            assert isinstance(data["configs"], list)
+
+    def test_get_cross_layer_tracking_configs_with_filter(self, client):
+        """Test getting cross-layer tracking configurations with enabled filter"""
+        response = client.get("/api/ai/cross-layer-tracking/configs?enabled=true")
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            data = response.json()
+            assert "configs" in data
+            assert isinstance(data["configs"], list)
+
+    def test_create_cross_layer_tracking_config(self, client):
+        """Test creating a cross-layer tracking configuration"""
+        config_data = {
+            "name": "test-config",
+            "description": "Test configuration",
+            "layers": ["application", "database"],
+            "sampling_rate": 0.5,
+            "retention_days": 30,
+            "enabled": True,
+        }
+        response = client.post("/api/ai/cross-layer-tracking/configs", json=config_data)
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            data = response.json()
+            assert "id" in data
+            assert data["name"] == "test-config"
+
+    def test_update_cross_layer_tracking_config(self, client):
+        """Test updating a cross-layer tracking configuration"""
+        # First create a config
+        create_data = {
+            "name": "test-config-update",
+            "description": "Test configuration for update",
+            "layers": ["application"],
+            "sampling_rate": 1.0,
+            "retention_days": 30,
+            "enabled": True,
+        }
+        create_response = client.post("/api/ai/cross-layer-tracking/configs", json=create_data)
+        
+        if create_response.status_code == 200:
+            config_id = create_response.json()["id"]
+            update_data = {
+                "name": "updated-config",
+                "enabled": False,
+            }
+            response = client.patch(f"/api/ai/cross-layer-tracking/configs/{config_id}", json=update_data)
+            assert response.status_code in (200, 404)
+            if response.status_code != 404:
+                data = response.json()
+                assert data["name"] == "updated-config"
+                assert data["enabled"] == False
+
+    def test_delete_cross_layer_tracking_config(self, client):
+        """Test deleting a cross-layer tracking configuration"""
+        # First create a config
+        create_data = {
+            "name": "test-config-delete",
+            "description": "Test configuration for deletion",
+            "layers": ["application"],
+            "sampling_rate": 1.0,
+            "retention_days": 30,
+            "enabled": True,
+        }
+        create_response = client.post("/api/ai/cross-layer-tracking/configs", json=create_data)
+        
+        if create_response.status_code == 200:
+            config_id = create_response.json()["id"]
+            response = client.delete(f"/api/ai/cross-layer-tracking/configs/{config_id}")
+            assert response.status_code in (200, 404)
+            if response.status_code != 404:
+                data = response.json()
+                assert "status" in data
+                assert data["status"] == "success"
 
 
 # ============================================================================
