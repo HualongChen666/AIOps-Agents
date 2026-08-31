@@ -118,6 +118,16 @@ const validateFrameworkConfiguration = async (id: string): Promise<ValidationRes
   return response.data
 }
 
+const createFrameworkConfiguration = async (data: Partial<TestFrameworkConfig>): Promise<TestFrameworkConfig> => {
+  const response = await api.post('/api/v1/test-framework/configurations', data)
+  return response.data
+}
+
+const deleteFrameworkConfiguration = async (id: string): Promise<void> => {
+  const response = await api.delete(`/api/v1/test-framework/configurations/${id}`)
+  return response.data
+}
+
 // Main Component
 export default function TestFrameworkAdvancedPage() {
   const queryClient = useQueryClient()
@@ -126,6 +136,21 @@ export default function TestFrameworkAdvancedPage() {
   const [selectedConfig, setSelectedConfig] = useState<TestFrameworkConfig | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editFormData, setEditFormData] = useState<Partial<TestFrameworkConfig>>({})
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [createFormData, setCreateFormData] = useState<Partial<TestFrameworkConfig>>({
+    enabled: true,
+    parallel_mode: 'none',
+    parallel_workers: 1,
+    timeout: 300,
+    retry_count: 0,
+    coverage_enabled: true,
+    coverage_threshold: 80,
+    reporting_enabled: true,
+    report_formats: ['html', 'json'],
+    test_paths: [],
+    exclude_patterns: [],
+    config: {},
+  })
 
   // Queries
   const { data: configurations, isLoading: configurationsLoading, error: configurationsError } = useQuery({
@@ -167,6 +192,45 @@ export default function TestFrameworkAdvancedPage() {
     },
   })
 
+  const createMutation = useMutation({
+    mutationFn: createFrameworkConfiguration,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['framework-configurations'] })
+      queryClient.invalidateQueries({ queryKey: ['framework-status'] })
+      toast.success('配置创建成功')
+      setIsCreateDialogOpen(false)
+      setCreateFormData({
+        enabled: true,
+        parallel_mode: 'none',
+        parallel_workers: 1,
+        timeout: 300,
+        retry_count: 0,
+        coverage_enabled: true,
+        coverage_threshold: 80,
+        reporting_enabled: true,
+        report_formats: ['html', 'json'],
+        test_paths: [],
+        exclude_patterns: [],
+        config: {},
+      })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '配置创建失败')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteFrameworkConfiguration,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['framework-configurations'] })
+      queryClient.invalidateQueries({ queryKey: ['framework-status'] })
+      toast.success('配置删除成功')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '配置删除失败')
+    },
+  })
+
   // Handlers
   const handleEditClick = (config: TestFrameworkConfig) => {
     setSelectedConfig(config)
@@ -193,6 +257,20 @@ export default function TestFrameworkAdvancedPage() {
     })
   }
 
+  const handleCreateConfig = () => {
+    if (!createFormData.id || !createFormData.framework || !createFormData.version) {
+      toast.error('请填写必填字段（ID、框架类型、版本）')
+      return
+    }
+    createMutation.mutate(createFormData)
+  }
+
+  const handleDeleteClick = (config: TestFrameworkConfig) => {
+    if (confirm(`确定要删除配置 "${config.id}" 吗？此操作不可恢复。`)) {
+      deleteMutation.mutate(config.id)
+    }
+  }
+
   if (configurationsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -216,12 +294,19 @@ export default function TestFrameworkAdvancedPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">测试框架高级配置</h1>
-        <Button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['framework-configurations', 'framework-status'] })}
-          variant="outline"
-        >
-          刷新
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+          >
+            创建配置
+          </Button>
+          <Button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['framework-configurations', 'framework-status'] })}
+            variant="outline"
+          >
+            刷新
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="configurations" className="space-y-4">
@@ -303,6 +388,14 @@ export default function TestFrameworkAdvancedPage() {
                         disabled={updateMutation.isPending}
                       >
                         {config.enabled ? '禁用' : '启用'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteClick(config)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        删除
                       </Button>
                     </div>
                   </div>
@@ -721,6 +814,211 @@ export default function TestFrameworkAdvancedPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>创建新配置</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="create-id">配置ID *</Label>
+              <Input
+                id="create-id"
+                value={createFormData.id ?? ''}
+                onChange={(e) => setCreateFormData({ ...createFormData, id: e.target.value })}
+                placeholder="例如: pytest-config"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="create-framework">框架类型 *</Label>
+              <Select
+                value={createFormData.framework}
+                onValueChange={(value) => setCreateFormData({ ...createFormData, framework: value })}
+              >
+                <SelectTrigger id="create-framework">
+                  <SelectValue placeholder="选择框架类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FRAMEWORK_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="create-version">版本 *</Label>
+              <Input
+                id="create-version"
+                value={createFormData.version ?? ''}
+                onChange={(e) => setCreateFormData({ ...createFormData, version: e.target.value })}
+                placeholder="例如: 7.4.0"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="create-enabled"
+                checked={createFormData.enabled ?? false}
+                onCheckedChange={(checked) => setCreateFormData({ ...createFormData, enabled: checked })}
+              />
+              <Label htmlFor="create-enabled">启用配置</Label>
+            </div>
+
+            <div>
+              <Label htmlFor="create-parallel-mode">并行模式</Label>
+              <Select
+                value={createFormData.parallel_mode}
+                onValueChange={(value) => setCreateFormData({ ...createFormData, parallel_mode: value })}
+              >
+                <SelectTrigger id="create-parallel-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PARALLEL_MODES.map((mode) => (
+                    <SelectItem key={mode.value} value={mode.value}>
+                      {mode.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="create-parallel-workers">并行工作数 (1-32)</Label>
+              <Input
+                id="create-parallel-workers"
+                type="number"
+                min="1"
+                max="32"
+                value={createFormData.parallel_workers ?? 1}
+                onChange={(e) => setCreateFormData({ ...createFormData, parallel_workers: parseInt(e.target.value) })}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="create-timeout">超时时间(秒) (1-3600)</Label>
+              <Input
+                id="create-timeout"
+                type="number"
+                min="1"
+                max="3600"
+                value={createFormData.timeout ?? 300}
+                onChange={(e) => setCreateFormData({ ...createFormData, timeout: parseInt(e.target.value) })}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="create-retry-count">重试次数 (0-5)</Label>
+              <Input
+                id="create-retry-count"
+                type="number"
+                min="0"
+                max="5"
+                value={createFormData.retry_count ?? 0}
+                onChange={(e) => setCreateFormData({ ...createFormData, retry_count: parseInt(e.target.value) })}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="create-coverage-enabled"
+                checked={createFormData.coverage_enabled ?? false}
+                onCheckedChange={(checked) => setCreateFormData({ ...createFormData, coverage_enabled: checked })}
+              />
+              <Label htmlFor="create-coverage-enabled">启用覆盖率</Label>
+            </div>
+
+            <div>
+              <Label htmlFor="create-coverage-threshold">覆盖率阈值 (%) (0-100)</Label>
+              <Input
+                id="create-coverage-threshold"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={createFormData.coverage_threshold ?? 80}
+                onChange={(e) => setCreateFormData({ ...createFormData, coverage_threshold: parseFloat(e.target.value) })}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="create-reporting-enabled"
+                checked={createFormData.reporting_enabled ?? false}
+                onCheckedChange={(checked) => setCreateFormData({ ...createFormData, reporting_enabled: checked })}
+              />
+              <Label htmlFor="create-reporting-enabled">启用报告</Label>
+            </div>
+
+            <div>
+              <Label>报告格式</Label>
+              <div className="mt-2 space-y-2">
+                {REPORT_FORMATS.map((format) => (
+                  <div key={format} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`create-format-${format}`}
+                      checked={(createFormData.report_formats ?? []).includes(format)}
+                      onChange={(e) => {
+                        const formats = createFormData.report_formats ?? []
+                        if (e.target.checked) {
+                          setCreateFormData({ ...createFormData, report_formats: [...formats, format] })
+                        } else {
+                          setCreateFormData({ ...createFormData, report_formats: formats.filter(f => f !== format) })
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`create-format-${format}`}>{format}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="create-test-paths">测试路径 (每行一个)</Label>
+              <Textarea
+                id="create-test-paths"
+                value={(createFormData.test_paths ?? []).join('\n')}
+                onChange={(e) => setCreateFormData({
+                  ...createFormData,
+                  test_paths: e.target.value.split('\n').filter(p => p.trim())
+                })}
+                rows={3}
+                placeholder="tests/unit&#10;tests/integration"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="create-exclude-patterns">排除模式 (每行一个)</Label>
+              <Textarea
+                id="create-exclude-patterns"
+                value={(createFormData.exclude_patterns ?? []).join('\n')}
+                onChange={(e) => setCreateFormData({
+                  ...createFormData,
+                  exclude_patterns: e.target.value.split('\n').filter(p => p.trim())
+                })}
+                rows={3}
+                placeholder="tests/e2e/*&#10;tests/performance/*"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                取消
+              </Button>
+              <Button onClick={handleCreateConfig} disabled={createMutation.isPending}>
+                {createMutation.isPending ? '创建中...' : '创建'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

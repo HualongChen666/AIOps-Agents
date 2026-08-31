@@ -21,6 +21,7 @@ from api.test_framework_advanced_router import (
     FrameworkType,
     ParallelMode,
     TestFrameworkConfig,
+    TestFrameworkConfigCreate,
     TestFrameworkConfigUpdate,
     _framework_configs,
     _init_framework_configs,
@@ -232,6 +233,71 @@ class TestFrameworkConfigurationEndpoints:
             data = response.json()
             assert data["enabled"] == False
         # parallel_workers should remain unchanged
+
+    def test_create_framework_configuration_success(self, client, clear_data):
+        """Test successful framework configuration creation"""
+        create_data = {
+            "id": "new-config",
+            "framework": "pytest",
+            "version": "8.0.0",
+            "enabled": True,
+            "parallel_mode": "processes",
+            "parallel_workers": 4,
+            "timeout": 300,
+            "retry_count": 1,
+            "coverage_enabled": True,
+            "coverage_threshold": 85.0,
+            "reporting_enabled": True,
+            "report_formats": ["html", "json"],
+            "test_paths": ["tests/unit"],
+            "exclude_patterns": [],
+            "config": {},
+        }
+        response = client.post("/api/v1/test-framework/configurations", json=create_data)
+        assert response.status_code == 201
+        data = response.json()
+        assert data["id"] == "new-config"
+        assert data["framework"] == "pytest"
+        assert data["version"] == "8.0.0"
+
+    def test_create_framework_configuration_duplicate_id(self, client, clear_data):
+        """Test framework configuration creation with duplicate ID"""
+        _init_framework_configs()
+        create_data = {
+            "id": "pytest-config",  # Duplicate ID
+            "framework": "pytest",
+            "version": "8.0.0",
+        }
+        response = client.post("/api/v1/test-framework/configurations", json=create_data)
+        assert response.status_code == 409
+        assert "already exists" in response.json()["detail"].lower()
+
+    def test_create_framework_configuration_validation(self, clear_data):
+        """Test framework configuration creation validation"""
+        with pytest.raises(Exception):
+            TestFrameworkConfigCreate(parallel_workers=0)
+
+        with pytest.raises(Exception):
+            TestFrameworkConfigCreate(timeout=0)
+
+        with pytest.raises(Exception):
+            TestFrameworkConfigCreate(coverage_threshold=101)
+
+    def test_delete_framework_configuration_success(self, client, clear_data):
+        """Test successful framework configuration deletion"""
+        _init_framework_configs()
+        response = client.delete("/api/v1/test-framework/configurations/pytest-config")
+        assert response.status_code == 204
+
+        # Verify deletion
+        response = client.get("/api/v1/test-framework/configurations/pytest-config")
+        assert response.status_code == 404
+
+    def test_delete_framework_configuration_not_found(self, client, clear_data):
+        """Test framework configuration deletion when not found"""
+        response = client.delete("/api/v1/test-framework/configurations/nonexistent")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
 
 # ============ Validation Endpoints Tests ============

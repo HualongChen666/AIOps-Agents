@@ -120,6 +120,26 @@ class TestFrameworkConfigUpdate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
+class TestFrameworkConfigCreate(BaseModel):
+    id: str = Field(..., min_length=1, max_length=100)
+    framework: FrameworkType
+    version: str = Field(..., min_length=1, max_length=50)
+    enabled: bool = True
+    config: Dict[str, Any] = Field(default_factory=dict)
+    test_paths: List[str] = Field(default_factory=list)
+    exclude_patterns: List[str] = Field(default_factory=list)
+    parallel_mode: ParallelMode = ParallelMode.NONE
+    parallel_workers: int = Field(default=1, ge=1, le=32)
+    timeout: int = Field(default=300, ge=1, le=3600)
+    retry_count: int = Field(default=0, ge=0, le=5)
+    coverage_enabled: bool = True
+    coverage_threshold: float = Field(default=80.0, ge=0, le=100)
+    reporting_enabled: bool = True
+    report_formats: List[str] = Field(default_factory=lambda: ["html", "json"])
+
+    model_config = {"extra": "ignore"}
+
+
 # ============ In-memory data storage ============
 _framework_configs: Dict[str, TestFrameworkConfig] = {}
 
@@ -321,6 +341,99 @@ async def validate_framework_configuration(
         validation_result["valid"] = False
 
     return validation_result
+
+
+@router.post(
+    "/configurations",
+    response_model=TestFrameworkConfig,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建框架配置",
+    responses={
+        (201): {"description": "框架配置创建成功"},
+        (400): {"description": "请求参数错误"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (409): {"description": "配置ID已存在"},
+    },
+)
+async def create_framework_configuration(
+    config_create: TestFrameworkConfigCreate,
+    request: Request,
+    current_user: UserInDB = Depends(get_current_user),
+) -> TestFrameworkConfig:
+    """创建新的测试框架配置"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
+        )
+
+    if config_create.id in _framework_configs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Configuration ID already exists"
+        )
+
+    new_config = TestFrameworkConfig(
+        id=config_create.id,
+        framework=config_create.framework,
+        version=config_create.version,
+        enabled=config_create.enabled,
+        config=config_create.config,
+        test_paths=config_create.test_paths,
+        exclude_patterns=config_create.exclude_patterns,
+        parallel_mode=config_create.parallel_mode,
+        parallel_workers=config_create.parallel_workers,
+        timeout=config_create.timeout,
+        retry_count=config_create.retry_count,
+        coverage_enabled=config_create.coverage_enabled,
+        coverage_threshold=config_create.coverage_threshold,
+        reporting_enabled=config_create.reporting_enabled,
+        report_formats=config_create.report_formats,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+        created_by=current_user.username,
+    )
+
+    _framework_configs[new_config.id] = new_config
+
+    logger.info(
+        f"Framework config created | config_id={new_config.id} | framework={new_config.framework.value} "
+        f"| user={current_user.username} | ip={get_client_ip(request)}"
+    )
+
+    return new_config
+
+
+@router.delete(
+    "/configurations/{id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除框架配置",
+    responses={
+        (204): {"description": "框架配置删除成功"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "配置不存在"},
+    },
+)
+async def delete_framework_configuration(
+    id: str,
+    request: Request,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """删除指定的框架配置"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
+        )
+
+    if id not in _framework_configs:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Configuration not found")
+
+    del _framework_configs[id]
+
+    logger.info(
+        f"Framework config deleted | config_id={id} | user={current_user.username} "
+        f"| ip={get_client_ip(request)}"
+    )
 
 
 @router.get(
