@@ -1,460 +1,582 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react';
-import api from '@/lib/api';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select } from '@/components/ui/select';
-import G6, { Graph } from '@antv/g6';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import api from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Search,
+  Network,
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  TrendingUp,
+  RefreshCw,
+  Zap,
+  Brain
+} from 'lucide-react';
 
-interface RootCauseNode {
-  id: string;
-  type: 'service' | 'metric' | 'alert';
+interface RootCauseHypothesis {
+  hypothesis_id: string;
+  root_cause: string;
+  confidence: number;
+  evidence: string[];
+  causal_path: string[];
+  impact_score: number;
+  verification_status: string;
+  verification_timestamp: string | null;
+  recommended_action: string;
+  requires_approval: boolean;
+  expected_observations: string[];
+  missing_data: string[];
+}
+
+interface HistoricalPattern {
+  pattern_id: string;
+  root_cause: string;
+  confidence: number;
+  frequency: number;
+  last_occurrence: string;
+  resolution_time_avg: number;
+  effectiveness_score: number;
+}
+
+interface TopologyNode {
+  node_id: string;
   name: string;
-  status: 'normal' | 'warning' | 'critical';
-  probability: number;
+  layer: string;
+  health_status: string;
+  dependencies: string[];
+  dependents: string[];
+  last_updated: string;
 }
 
-interface RootCausePath {
-  nodes: string[];
-  probability: number;
-  impact: number;
-}
-
-interface RootCauseReport {
-  id: string;
-  alertId: string;
-  possibleCauses: {
-    service: string;
-    probability: number;
-    description: string;
-    evidence: string[];
-  }[];
-  impactAnalysis: {
-    affectedServices: string[];
-    userImpact: string;
-    businessImpact: string;
+interface TopologyData {
+  status: string;
+  topology: {
+    total_nodes: number;
+    layers: Record<string, number>;
+    health_distribution: Record<string, number>;
   };
-  relatedMetrics: {
-    name: string;
-    value: number;
-    trend: 'up' | 'down' | 'stable';
-  }[];
+  nodes: Record<string, TopologyNode>;
 }
-
-interface Alert {
-  id: string;
-  title: string;
-  desc?: string;
-  metric?: string;
-  value?: number;
-  level?: string;
-}
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'critical':
-      return 'bg-red-100 text-red-800';
-    case 'warning':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'normal':
-      return 'bg-green-100 text-green-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
-}
-
-function getTrendIcon(trend: string) {
-  switch (trend) {
-    case 'up':
-      return '📈';
-    case 'down':
-      return '📉';
-    case 'stable':
-      return '➡️';
-    default:
-      return '➡️';
-  }
-}
-
-const RootCauseGraph: React.FC<{ nodes: RootCauseNode[]; paths: RootCausePath[] }> = ({ nodes, paths }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const graphRef = useRef<Graph | null>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    if (!graphRef.current) {
-      graphRef.current = new G6.Graph({
-        container: containerRef.current,
-        width: containerRef.current.offsetWidth,
-        height: containerRef.current.offsetHeight,
-        fitView: true,
-        fitViewPadding: 20,
-        defaultNode: {
-          type: 'circle',
-          size: 30,
-          style: { stroke: '#fff', lineWidth: 2 },
-          labelCfg: { style: { fill: '#000', fontSize: 12 } },
-        },
-        defaultEdge: {
-          style: { stroke: '#f97316', lineWidth: 2, endArrow: true },
-          labelCfg: { style: { fill: '#6b7280', fontSize: 10 } },
-        },
-        modes: {
-          default: ['drag-canvas', 'zoom-canvas', 'drag-node'],
-        },
-      });
-    }
-
-    const graph = graphRef.current;
-    const nodeMap = new Map<string, RootCauseNode>();
-    nodes.forEach((n) => nodeMap.set(n.id, n));
-    paths.forEach((p) =>
-      p.nodes.forEach((name) => {
-        if (!nodeMap.has(name)) {
-          nodeMap.set(name, { id: name, name, type: 'service', status: 'normal', probability: 0 });
-        }
-      })
-    );
-    const allNodes = Array.from(nodeMap.values());
-
-    const width = containerRef.current.offsetWidth || 600;
-    const height = containerRef.current.offsetHeight || 320;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 2 - 40;
-
-    const g6Nodes = allNodes.map((n, i) => {
-      const angle = allNodes.length > 1 ? (2 * Math.PI * i) / allNodes.length : 0;
-      const x = allNodes.length > 1 ? centerX + radius * Math.cos(angle) : centerX;
-      const y = allNodes.length > 1 ? centerY + radius * Math.sin(angle) : centerY;
-      const fill = n.type === 'alert' ? '#ef4444' : n.type === 'metric' ? '#22c55e' : '#3b82f6';
-      return { id: n.id, label: n.name, x, y, style: { fill } };
-    });
-
-    const edgeSet = new Set<string>();
-    const g6Edges: { source: string; target: string }[] = [];
-    paths.forEach((p) => {
-      for (let i = 1; i < p.nodes.length; i += 1) {
-        const key = `${p.nodes[i - 1]}->${p.nodes[i]}`;
-        if (!edgeSet.has(key)) {
-          edgeSet.add(key);
-          g6Edges.push({ source: p.nodes[i - 1], target: p.nodes[i] });
-        }
-      }
-    });
-
-    graph.changeData({ nodes: g6Nodes, edges: g6Edges });
-    graph.fitView();
-  }, [nodes, paths]);
-
-  if (nodes.length === 0) {
-    return (
-      <div className="h-80 bg-gray-50 rounded-lg flex items-center justify-center text-gray-500">
-        暂无根因数据
-      </div>
-    );
-  }
-
-  return <div ref={containerRef} className="h-80 bg-gray-50 rounded-lg" />;
-};
 
 export default function RootCausePage() {
   const [selectedAlert, setSelectedAlert] = useState<string>('');
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [alertsLoading, setAlertsLoading] = useState(false);
-  const [rootCauseReport, setRootCauseReport] = useState<RootCauseReport | null>(null);
-  const [rootCauseNodes, setRootCauseNodes] = useState<RootCauseNode[]>([]);
-  const [rootCausePaths, setRootCausePaths] = useState<RootCausePath[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [selectedHypothesis, setSelectedHypothesis] = useState<RootCauseHypothesis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  useEffect(() => {
-    const loadAlerts = async () => {
-      setAlertsLoading(true);
-      try {
-        const res = await api.get('/api/v1/alerts?limit=50');
-        const list: Alert[] = res.data?.alerts || [];
-        setAlerts(list);
-        if (list.length > 0) {
-          setSelectedAlert((prev) => (prev && list.find((a) => a.id === prev) ? prev : list[0].id));
-        }
-      } catch (err) {
-        console.error('加载告警失败', err);
-      } finally {
-        setAlertsLoading(false);
-      }
-    };
-    loadAlerts();
-  }, []);
+  // 获取拓扑结构
+  const { data: topologyData, isLoading: topologyLoading, error: topologyError, refetch: refetchTopology } = useQuery({
+    queryKey: ['root-cause-topology'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/root-cause/topology');
+      return resp.data as TopologyData;
+    },
+    refetchInterval: 60000,
+  });
 
-  useEffect(() => {
-    const fetchHypotheses = async () => {
-      try {
-        const res = await api.get('/api/v1/root-cause/hypotheses');
-        const hypotheses = res.data?.hypotheses || [];
-        applyHypotheses(hypotheses);
-      } catch {
-        // api interceptor already shows toast errors
-      }
-    };
-    fetchHypotheses();
-  }, []);
+  // 获取历史模式
+  const { data: patternsData, isLoading: patternsLoading, refetch: refetchPatterns } = useQuery({
+    queryKey: ['root-cause-patterns'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/root-cause/patterns?limit=20');
+      return resp.data;
+    },
+    refetchInterval: 120000,
+  });
 
-  const applyHypotheses = (hypotheses: any[]) => {
-    setRootCausePaths(
-      hypotheses.map((h: any) => ({
-        nodes: Array.isArray(h.causal_path) && h.causal_path.length > 0 ? h.causal_path : [h.root_cause],
-        probability: Math.round((h.confidence || 0) * 100),
-        impact: Math.round((h.impact_score || 0) * 100),
-      }))
-    );
+  // 获取活跃假设
+  const { data: hypothesesData, isLoading: hypothesesLoading, refetch: refetchHypotheses } = useQuery({
+    queryKey: ['root-cause-hypotheses'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/root-cause/hypotheses?limit=10');
+      return resp.data;
+    },
+    refetchInterval: 30000,
+  });
 
-    const nodeMap = new Map<string, RootCauseNode>();
-    hypotheses.forEach((h: any) => {
-      const confidence = Math.round((h.confidence || 0) * 100);
-      const upsert = (name: string) => {
-        const existing = nodeMap.get(name);
-        const probability = existing ? Math.max(existing.probability, confidence) : confidence;
-        const isMetric = /CPU|内存|使用率|响应时间|错误率|请求量|负载|metric/i.test(name);
-        const isAlert = /告警|alert|ALT-/i.test(name);
-        const type: RootCauseNode['type'] = isAlert ? 'alert' : isMetric ? 'metric' : 'service';
-        const status: RootCauseNode['status'] = probability >= 80 ? 'critical' : probability >= 50 ? 'warning' : 'normal';
-        nodeMap.set(name, { id: name, type, name, status, probability });
-      };
-      upsert(h.root_cause);
-      (h.causal_path || []).forEach(upsert);
-    });
-    setRootCauseNodes(Array.from(nodeMap.values()));
-  };
+  // 获取统计信息
+  const { data: statisticsData, refetch: refetchStatistics } = useQuery({
+    queryKey: ['root-cause-statistics'],
+    queryFn: async () => {
+      const resp = await api.get('/api/v1/root-cause/statistics');
+      return resp.data;
+    },
+    refetchInterval: 60000,
+  });
 
   const handleAnalyze = async () => {
-    const alert = alerts.find((a) => a.id === selectedAlert);
-    if (!alert) return;
-    setAnalyzing(true);
-    setAnalyzeError(null);
+    if (!selectedAlert) {
+      return;
+    }
+
+    setIsAnalyzing(true);
     try {
-      const res = await api.post('/api/v1/root-cause/analyze', {
-        alert: {
-          id: alert.id,
-          title: alert.title,
-          service: alert.metric || 'unknown',
-          value: alert.value,
-          level: alert.level,
-        },
-        metrics_data: {},
-        context: {},
-      });
-      const hypotheses = res.data?.hypotheses || [];
-      const total = hypotheses.length;
-      applyHypotheses(hypotheses);
-
-      const affectedServices = (Array.from(
-        new Set(hypotheses.flatMap((h: any) => h.causal_path || []).filter(Boolean))
-      ) as string[]).filter((s) => typeof s === 'string');
-      const maxConfidence = total
-        ? Math.round(Math.max(...hypotheses.map((h: any) => h.confidence || 0)) * 100)
-        : 0;
-
-      const report: RootCauseReport = {
-        id: `RCR-${alert.id}`,
-        alertId: res.data?.alert_id || alert.id,
-        possibleCauses: hypotheses.map((h: any) => ({
-          service: h.root_cause,
-          probability: Math.round((h.confidence || 0) * 100),
-          description: `${h.root_cause}${h.causal_path?.length ? ' → ' + h.causal_path.join(' → ') : ''}`,
-          evidence: Array.isArray(h.evidence) ? h.evidence : [],
-        })),
-        impactAnalysis: {
-          affectedServices,
-          userImpact: total
-            ? affectedServices.length
-              ? `识别出 ${affectedServices.length} 个受影响服务`
-              : '未识别到受影响服务'
-            : '—',
-          businessImpact: total ? `最高置信度：${maxConfidence}%` : '—',
-        },
-        relatedMetrics: [],
+      const alertData = {
+        id: selectedAlert,
+        title: 'Sample Alert',
+        description: 'Alert for root cause analysis',
+        severity: 'high',
+        timestamp: new Date().toISOString(),
       };
-      setRootCauseReport(report);
-    } catch (err: any) {
-      setAnalyzeError(err?.response?.data?.detail || '根因分析失败');
+
+      const metricsData = {
+        cpu_usage_percent: 85,
+        memory_usage_percent: 78,
+        error_rate: 0.05,
+        latency_ms: 250,
+      };
+
+      const resp = await api.post('/api/v1/root-cause/analyze', {
+        alert: alertData,
+        metrics_data: metricsData,
+        context: {
+          max_steps: 5,
+          execution_confidence_threshold: 0.75,
+          escalation_confidence_threshold: 0.60,
+        },
+      });
+
+      if (resp.data?.hypotheses && resp.data.hypotheses.length > 0) {
+        setSelectedHypothesis(resp.data.hypotheses[0]);
+      }
+
+      // 刷新数据
+      refetchHypotheses();
+      refetchTopology();
+    } catch (error: any) {
+      console.error('Root cause analysis failed:', error);
+      if (error.response?.status === 503) {
+        alert('根因智能引擎不可用，请检查后端服务配置');
+      } else {
+        alert('分析失败: ' + (error.response?.data?.detail || error.message));
+      }
     } finally {
-      setAnalyzing(false);
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleVerifyHypothesis = async (hypothesisId: string) => {
+    try {
+      const verificationData = {
+        affected_components: ['service-a', 'service-b'],
+        active_components: ['service-a', 'service-b', 'database'],
+        observed_symptoms: ['high_latency', 'error_spike'],
+        actual_impact: {
+          latency: 0.8,
+          error_rate: 0.7,
+        },
+      };
+
+      const resp = await api.post('/api/v1/root-cause/verify', {
+        hypothesis_id: hypothesisId,
+        verification_data: verificationData,
+      });
+
+      alert('验证完成: ' + resp.data.verification_result.verification_status);
+      refetchHypotheses();
+    } catch (error: any) {
+      console.error('Verification failed:', error);
+      alert('验证失败: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  const handleTopologyDiscovery = async () => {
+    try {
+      const metricsData = {
+        hosts: [
+          { hostname: 'host-1', health: 'healthy', metrics: { cpu: 45, memory: 60 } },
+          { hostname: 'host-2', health: 'unhealthy', metrics: { cpu: 92, memory: 88 } },
+        ],
+        services: [
+          { name: 'api-service', health: 'healthy', port: 8080 },
+          { name: 'db-service', health: 'unhealthy', port: 5432 },
+        ],
+      };
+
+      const resp = await api.post('/api/v1/root-cause/topology/discover', {
+        metrics_data: metricsData,
+        include_dependencies: true,
+      });
+
+      alert('拓扑发现完成: 发现 ' + resp.data.discovery_result.discovered_nodes + ' 个节点');
+      refetchTopology();
+    } catch (error: any) {
+      console.error('Topology discovery failed:', error);
+      alert('拓扑发现失败: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  const getVerificationStatusColor = (status: string) => {
+    switch (status) {
+      case 'verified':
+        return 'bg-green-500';
+      case 'partially_verified':
+        return 'bg-yellow-500';
+      case 'rejected':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  const getVerificationStatusText = (status: string) => {
+    switch (status) {
+      case 'verified':
+        return '已验证';
+      case 'partially_verified':
+        return '部分验证';
+      case 'rejected':
+        return '已拒绝';
+      default:
+        return '待验证';
+    }
+  };
+
+  const getHealthStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'healthy':
+        return 'text-green-500';
+      case 'unhealthy':
+        return 'text-red-500';
+      case 'degraded':
+        return 'text-yellow-500';
+      default:
+        return 'text-gray-500';
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">根因分析</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">根因分析</h1>
+          <p className="text-sm text-gray-500 mt-1">智能根因诊断与拓扑分析</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => refetchTopology()} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            刷新拓扑
+          </Button>
+          <Button onClick={handleTopologyDiscovery} variant="outline" size="sm">
+            <Network className="h-4 w-4 mr-2" />
+            拓扑发现
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-4 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">选择告警</label>
-              <Select value={selectedAlert} onChange={(e) => setSelectedAlert(e.target.value)}>
-                {alerts.map((alert) => (
-                  <option key={alert.id} value={alert.id}>
-                    {alert.title} {alert.metric ? `(${alert.metric})` : ''}
-                  </option>
-                ))}
-              </Select>
-              {alertsLoading && <p className="text-xs text-gray-500 mt-1">加载告警中…</p>}
-            </div>
-            <Button onClick={handleAnalyze} disabled={!selectedAlert || analyzing}>
-              {analyzing ? '分析中…' : '开始分析'}
-            </Button>
-          </div>
-          {analyzeError && <p className="text-sm text-red-600 mt-2">{analyzeError}</p>}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>根因图谱</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RootCauseGraph nodes={rootCauseNodes} paths={rootCausePaths} />
-          <div className="mt-4 flex gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500 rounded-full" />
-              <span>告警节点</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full" />
-              <span>服务节点</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full" />
-              <span>指标节点</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-1 bg-orange-500" />
-              <span>根因路径</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>根因路径</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {rootCausePaths.map((path, index) => (
-              <div key={index} className="p-4 border border-orange-200 bg-orange-50 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">路径 {index + 1}</span>
-                    <Badge className="bg-orange-100 text-orange-800">
-                      概率: {path.probability}%
-                    </Badge>
-                    <Badge className="bg-purple-100 text-purple-800">
-                      影响度: {path.impact}%
-                    </Badge>
-                  </div>
+      {/* 统计卡片 */}
+      {statisticsData && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">拓扑节点</p>
+                  <p className="text-2xl font-bold">{statisticsData.statistics?.topology_nodes || 0}</p>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  {path.nodes.map((node, i) => (
-                    <span key={i}>
-                      <span className="px-2 py-1 bg-white border border-gray-300 rounded">{node}</span>
-                      {i < path.nodes.length - 1 && <span className="text-gray-400 mx-1">→</span>}
-                    </span>
-                  ))}
-                </div>
+                <Network className="h-8 w-8 text-blue-500" />
               </div>
-            ))}
-            {rootCausePaths.length === 0 && (
-              <p className="text-sm text-gray-500">暂无根因路径数据</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">历史模式</p>
+                  <p className="text-2xl font-bold">{statisticsData.statistics?.historical_patterns || 0}</p>
+                </div>
+                <Activity className="h-8 w-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">活跃假设</p>
+                  <p className="text-2xl font-bold">{statisticsData.statistics?.active_hypotheses || 0}</p>
+                </div>
+                <Brain className="h-8 w-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">验证结果</p>
+                  <p className="text-2xl font-bold">{statisticsData.statistics?.verification_results || 0}</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {rootCauseReport && (
-        <Card>
-          <CardHeader>
-            <CardTitle>根因分析报告</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div>
-                <h4 className="font-medium mb-3">可能根因 (按概率排序)</h4>
-                <div className="space-y-3">
-                  {rootCauseReport.possibleCauses.map((cause, index) => (
-                    <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{cause.service}</span>
-                          <Badge className={cause.probability >= 80 ? 'bg-red-100 text-red-800' : cause.probability >= 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}>
-                            概率: {cause.probability}%
-                          </Badge>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{cause.description}</p>
-                      <div className="space-y-1">
-                        <p className="text-xs text-gray-500">证据:</p>
-                        {cause.evidence.map((evidence, i) => (
-                          <p key={i} className="text-sm text-gray-700 ml-2">• {evidence}</p>
-                        ))}
+      <Tabs defaultValue="analysis" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="analysis">根因分析</TabsTrigger>
+          <TabsTrigger value="topology">拓扑视图</TabsTrigger>
+          <TabsTrigger value="patterns">历史模式</TabsTrigger>
+          <TabsTrigger value="hypotheses">假设验证</TabsTrigger>
+        </TabsList>
+
+        {/* 根因分析标签页 */}
+        <TabsContent value="analysis" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                智能根因分析
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="输入告警ID或描述..."
+                  value={selectedAlert}
+                  onChange={(e) => setSelectedAlert(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleAnalyze}
+                  disabled={!selectedAlert || isAnalyzing}
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      分析中...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      开始分析
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {selectedHypothesis && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="font-semibold text-blue-900 mb-2">分析结果</h3>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">根因:</span> {selectedHypothesis.root_cause}
+                    </div>
+                    <div>
+                      <span className="font-medium">置信度:</span>
+                      <Badge className="ml-2">
+                        {(selectedHypothesis.confidence * 100).toFixed(1)}%
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="font-medium">推荐操作:</span> {selectedHypothesis.recommended_action}
+                    </div>
+                    <div>
+                      <span className="font-medium">因果路径:</span>
+                      <div className="mt-1 text-xs text-gray-600">
+                        {selectedHypothesis.causal_path.join(' → ')}
                       </div>
                     </div>
-                  ))}
+                    <div>
+                      <span className="font-medium">证据:</span>
+                      <ul className="mt-1 list-disc list-inside text-xs text-gray-600">
+                        {selectedHypothesis.evidence.map((evidence, idx) => (
+                          <li key={idx}>{evidence}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-              <div>
-                <h4 className="font-medium mb-3">影响范围分析</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <p className="text-sm text-gray-500 mb-1">受影响服务</p>
-                    <div className="flex flex-wrap gap-1">
-                      {rootCauseReport.impactAnalysis.affectedServices.map((service) => (
-                        <Badge key={service} variant="outline" className="text-xs">
-                          {service}
-                        </Badge>
+        {/* 拓扑视图标签页 */}
+        <TabsContent value="topology" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Network className="h-5 w-5" />
+                系统拓扑结构
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topologyLoading ? (
+                <div className="text-center text-gray-500 py-8">加载拓扑数据中...</div>
+              ) : topologyError ? (
+                <div className="text-center text-red-500 py-8">加载失败</div>
+              ) : topologyData ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="text-sm text-gray-600">总节点数</div>
+                      <div className="text-xl font-bold">{topologyData.topology.total_nodes}</div>
+                    </div>
+                    {Object.entries(topologyData.topology.layers).map(([layer, count]) => (
+                      <div key={layer} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-sm text-gray-600">{layer}</div>
+                        <div className="text-xl font-bold">{count}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">节点列表</h4>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {Object.values(topologyData.nodes).map((node) => (
+                        <div key={node.node_id} className="p-3 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium">{node.name}</div>
+                              <div className="text-sm text-gray-600">{node.layer}</div>
+                            </div>
+                            <div className={`text-sm font-medium ${getHealthStatusColor(node.health_status)}`}>
+                              {node.health_status}
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            依赖: {node.dependencies.length} | 依赖者: {node.dependents.length}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <p className="text-sm text-gray-500 mb-1">用户影响</p>
-                    <p className="text-sm">{rootCauseReport.impactAnalysis.userImpact}</p>
-                  </div>
-                  <div className="p-4 border border-gray-200 rounded-lg md:col-span-2">
-                    <p className="text-sm text-gray-500 mb-1">业务影响</p>
-                    <p className="text-sm">{rootCauseReport.impactAnalysis.businessImpact}</p>
-                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">暂无拓扑数据</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-              <div>
-                <h4 className="font-medium mb-3">相关指标趋势</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {rootCauseReport.relatedMetrics.map((metric) => (
-                    <div key={metric.name} className="p-4 border border-gray-200 rounded-lg">
-                      <p className="text-sm text-gray-500 mb-1">{metric.name}</p>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold">{metric.value}</span>
-                        <span className="text-lg">{getTrendIcon(metric.trend)}</span>
+        {/* 历史模式标签页 */}
+        <TabsContent value="patterns" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                历史模式匹配
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {patternsLoading ? (
+                <div className="text-center text-gray-500 py-8">加载历史模式中...</div>
+              ) : patternsData && patternsData.patterns?.length > 0 ? (
+                <div className="space-y-2">
+                  {patternsData.patterns.map((pattern: HistoricalPattern) => (
+                    <div key={pattern.pattern_id} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-medium">{pattern.root_cause}</div>
+                        <Badge>
+                          置信度: {(pattern.confidence * 100).toFixed(1)}%
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600">
+                        <div>频率: {pattern.frequency}</div>
+                        <div>平均解决时间: {pattern.resolution_time_avg.toFixed(1)}min</div>
+                        <div>有效性: {(pattern.effectiveness_score * 100).toFixed(1)}%</div>
+                        <div>最后发生: {new Date(pattern.last_occurrence).toLocaleDateString()}</div>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">暂无历史模式</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-              <div className="flex gap-2">
-                <Button>导出报告</Button>
-                <Button variant="outline">查看详情</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        {/* 假设验证标签页 */}
+        <TabsContent value="hypotheses" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5" />
+                根因假设验证
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hypothesesLoading ? (
+                <div className="text-center text-gray-500 py-8">加载假设中...</div>
+              ) : hypothesesData && hypothesesData.hypotheses?.length > 0 ? (
+                <div className="space-y-4">
+                  {hypothesesData.hypotheses.map((hypothesis: RootCauseHypothesis) => (
+                    <div key={hypothesis.hypothesis_id} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-medium">{hypothesis.root_cause}</div>
+                        <div className="flex items-center gap-2">
+                          <Badge>
+                            置信度: {(hypothesis.confidence * 100).toFixed(1)}%
+                          </Badge>
+                          <Badge className={getVerificationStatusColor(hypothesis.verification_status)}>
+                            {getVerificationStatusText(hypothesis.verification_status)}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-sm text-gray-600">
+                        <div className="mb-1">
+                          <span className="font-medium">推荐操作:</span> {hypothesis.recommended_action}
+                          {hypothesis.requires_approval && (
+                            <Badge variant="outline" className="ml-2">需要审批</Badge>
+                          )}
+                        </div>
+
+                        {hypothesis.expected_observations.length > 0 && (
+                          <div className="mt-2">
+                            <div className="font-medium text-xs">预期观察:</div>
+                            <ul className="list-disc list-inside text-xs mt-1">
+                              {hypothesis.expected_observations.map((obs, idx) => (
+                                <li key={idx}>{obs}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {hypothesis.missing_data.length > 0 && (
+                          <div className="mt-2">
+                            <div className="font-medium text-xs">缺失数据:</div>
+                            <ul className="list-disc list-inside text-xs mt-1">
+                              {hypothesis.missing_data.map((data, idx) => (
+                                <li key={idx}>{data}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleVerifyHypothesis(hypothesis.hypothesis_id)}
+                          disabled={hypothesis.verification_status === 'verified'}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          验证假设
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">暂无活跃假设</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

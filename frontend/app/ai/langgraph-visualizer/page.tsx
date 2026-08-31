@@ -64,7 +64,7 @@ export default function LangGraphVisualizerPage() {
 
   const handleGenerateVisualization = async (workflowId: string) => {
     try {
-      await api.post('/api/ai/langgraph-visualizer/generate', { workflow_id });
+      await api.post('/api/ai/langgraph-visualizer/generate', { workflow_id: workflowId });
       fetchData();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '生成可视化失败');
@@ -113,9 +113,8 @@ export default function LangGraphVisualizerPage() {
             {visualizations.map((viz) => (
               <div
                 key={viz.id}
-                className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                  selectedViz?.id === viz.id ? 'border-blue-500 bg-blue-50' : ''
-                }`}
+                className={`border rounded-lg p-4 cursor-pointer transition-colors ${selectedViz?.id === viz.id ? 'border-blue-500 bg-blue-50' : ''
+                  }`}
                 onClick={() => setSelectedViz(viz)}
               >
                 <div className="flex items-center justify-between mb-2">
