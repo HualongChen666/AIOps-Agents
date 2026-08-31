@@ -40,6 +40,17 @@ interface BusinessImpactAssessment {
   currentConversion: number;
   baselineConversion: number;
   conversionRateChange: number;
+  metrics?: {
+    errorRate: number;
+    responseTimeMs: number;
+    cpuUsage: number;
+    memoryUsage: number;
+    pagerank: number;
+  };
+  impactFactors?: {
+    priority: number;
+    health: number;
+  };
 }
 
 export default function BusinessImpactPage() {
@@ -342,6 +353,28 @@ export default function BusinessImpactPage() {
                 title="业务影响分数"
                 color={assessment.impactScore > 7 ? '#ef4444' : assessment.impactScore > 4 ? '#f59e0b' : '#10b981'}
               />
+
+              {/* 详细指标 */}
+              {assessment.metrics && (
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <label className="text-sm font-medium text-gray-700">错误率</label>
+                    <p className="text-lg font-bold text-gray-900">{(assessment.metrics.errorRate * 100).toFixed(2)}%</p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <label className="text-sm font-medium text-gray-700">响应时间</label>
+                    <p className="text-lg font-bold text-gray-900">{assessment.metrics.responseTimeMs.toFixed(0)}ms</p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <label className="text-sm font-medium text-gray-700">CPU使用率</label>
+                    <p className="text-lg font-bold text-gray-900">{assessment.metrics.cpuUsage.toFixed(1)}%</p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <label className="text-sm font-medium text-gray-700">内存使用率</label>
+                    <p className="text-lg font-bold text-gray-900">{assessment.metrics.memoryUsage.toFixed(1)}%</p>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
