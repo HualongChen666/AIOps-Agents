@@ -1049,7 +1049,184 @@ async def get_performance(
 
 
 # ============================================================
-# 8. Alternative Endpoints for Frontend Compatibility
+# 8. Service Dependencies Endpoints
+# ============================================================
+
+
+@router.get("/dependencies", summary="Get service dependencies")
+async def get_service_dependencies(
+    service: Optional[str] = Query(None, description="Filter by service name"),
+) -> Dict[str, Any]:
+    """
+    Get service dependency graph from trace data
+    """
+    logger.info(f"Fetching service dependencies for service: {service}")
+    try:
+        # Get all spans to build dependency graph
+        items = list(_spans.values())
+
+        if not items:
+            # Generate synthetic dependencies
+            service_names = _services()
+            dependencies = []
+            for i, svc in enumerate(service_names):
+                deps = service_names[(i + 1) % len(service_names): (i + 2) % len(service_names) + 1]
+                dependencies.append({
+                    "service": svc,
+                    "depends_on": deps,
+                    "call_count": 100 + i * 10,
+                    "avg_latency": 50.0 + i * 5.0,
+                    "error_rate": 0.01 + i * 0.001,
+                })
+            return {
+                "items": dependencies,
+                "total": len(dependencies),
+            }
+
+        # Build dependency graph from spans
+        dependency_map: Dict[str, Dict[str, Any]] = {}
+
+        for span in items:
+            src_service = span.get("service")
+            if not src_service:
+                continue
+
+            if src_service not in dependency_map:
+                dependency_map[src_service] = {
+                    "service": src_service,
+                    "depends_on": [],
+                    "call_count": 0,
+                    "total_latency": 0.0,
+                    "error_count": 0,
+                }
+
+            # Extract dependencies from tags or parent spans
+            if span.get("parent_id"):
+                parent_span = next(
+                    (s for s in items if s.get("span_id") == span.get("parent_id")),
+                    None,
+                )
+                if parent_span and parent_span.get("service") != src_service:
+                    dep_service = parent_span.get("service")
+                    if dep_service and dep_service not in dependency_map[src_service]["depends_on"]:
+                        dependency_map[src_service]["depends_on"].append(dep_service)
+
+            dependency_map[src_service]["call_count"] += 1
+            dependency_map[src_service]["total_latency"] += span.get("duration_ms", 0)
+            if span.get("status") == "error":
+                dependency_map[src_service]["error_count"] += 1
+
+        # Calculate averages
+        dependencies = []
+        for dep_data in dependency_map.values():
+            call_count = dep_data["call_count"]
+            dependencies.append({
+                "service": dep_data["service"],
+                "depends_on": dep_data["depends_on"],
+                "call_count": call_count,
+                "avg_latency": dep_data["total_latency"] / call_count if call_count > 0 else 0,
+                "error_rate": dep_data["error_count"] / call_count if call_count > 0 else 0,
+            })
+
+        # Filter by service if specified
+        if service:
+            dependencies = [d for d in dependencies if d["service"] == service]
+
+        return {
+            "items": dependencies,
+            "total": len(dependencies),
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch service dependencies: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch service dependencies: {str(e)}")
+
+
+# ============================================================
+# 9. Flame Graph Endpoints
+# ============================================================
+
+
+@router.get("/traces/{trace_id}/flamegraph", summary="Get flame graph for trace")
+async def get_trace_flamegraph(trace_id: str) -> Dict[str, Any]:
+    """
+    Get flame graph data for a specific trace
+    """
+    # Validate path parameter
+    trace_id = validate_path_param(trace_id, "trace_id")
+
+    logger.info(f"Fetching flame graph for trace: {trace_id}")
+    try:
+        # Get all spans for the trace
+        trace_spans = [s for s in _spans.values() if s.get("trace_id") == trace_id]
+
+        if not trace_spans:
+            # Generate synthetic flame graph
+            synthetic_trace = _generate_synthetic_trace(trace_id)
+            trace_spans = synthetic_trace["spans"]
+
+        # Build span tree
+        span_map: Dict[str, Dict[str, Any]] = {}
+        root_spans = []
+
+        # First pass: create all nodes
+        for span in trace_spans:
+            span_id = span.get("span_id")
+            node = {
+                "span_id": span_id,
+                "parent_id": span.get("parent_id"),
+                "service": span.get("service"),
+                "operation": span.get("operation"),
+                "start_time": span.get("start_time"),
+                "duration_ms": span.get("duration_ms", 0),
+                "self_duration_ms": span.get("duration_ms", 0),
+                "status": span.get("status", "ok"),
+                "depth": 0,
+                "children": [],
+                "tags": span.get("tags", {}),
+            }
+            span_map[span_id] = node
+
+        # Second pass: build tree structure and calculate self duration
+        for span in trace_spans:
+            span_id = span.get("span_id")
+            node = span_map.get(span_id)
+            if not node:
+                continue
+
+            parent_id = span.get("parent_id")
+            if parent_id and parent_id in span_map:
+                parent = span_map[parent_id]
+                parent["children"].append(node)
+                node["depth"] = parent["depth"] + 1
+                # Subtract child duration from parent self duration
+                parent["self_duration_ms"] -= span.get("duration_ms", 0)
+            else:
+                root_spans.append(node)
+
+        # Return the first root span as the flame graph root
+        if root_spans:
+            return root_spans[0]
+        else:
+            return {
+                "span_id": "root",
+                "parent_id": None,
+                "service": "unknown",
+                "operation": "root",
+                "start_time": _get_current_timestamp(),
+                "duration_ms": 0,
+                "self_duration_ms": 0,
+                "status": "ok",
+                "depth": 0,
+                "children": [],
+                "tags": {},
+            }
+    except Exception as e:
+        logger.error(f"Failed to fetch flame graph: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch flame graph: {str(e)}")
+
+
+# ============================================================
+# 10. Alternative Endpoints for Frontend Compatibility
 # ============================================================
 
 
@@ -1083,46 +1260,91 @@ async def get_trace_alt(trace_id: str = Path(..., description="Trace ID")) -> Di
 @router_v1.get("/traces", summary="List traces (V1)")
 async def list_traces_v1(
     service_name: Optional[str] = Query(None, description="Filter by service name"),
-    operation: Optional[str] = Query(None, description="Filter by operation"),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    min_duration: Optional[float] = Query(None, ge=0, description="Minimum duration in ms"),
-    max_duration: Optional[float] = Query(None, ge=0, description="Maximum duration in ms"),
+    query: Optional[str] = Query(None, description="Search query"),
     limit: int = Query(50, ge=1, le=500, description="Maximum results"),
 ) -> Dict[str, Any]:
-    """List traces with optional filters"""
-    return await list_traces(
-        service_name=service_name,
-        operation=operation,
-        status=status,
-        min_duration=min_duration,
-        max_duration=max_duration,
-        limit=limit,
-    )
+    """V1 endpoint for listing traces"""
+    return await list_traces(service_name=service_name, limit=limit)
+
+
+@router_v1.post("/traces", summary="Create trace (V1)")
+async def create_trace_v1(trace: TraceCreate, request: Request) -> Dict[str, Any]:
+    """V1 endpoint for creating traces"""
+    return await create_trace(trace, request)
 
 
 @router_v1.get("/traces/{trace_id}", summary="Get trace by ID (V1)")
-async def get_trace_v1(trace_id: str = Path(..., description="Trace ID")) -> Dict[str, Any]:
-    """Retrieve a specific trace by ID with full details"""
+async def get_trace_v1(trace_id: str) -> Dict[str, Any]:
+    """V1 endpoint for getting trace details"""
     return await get_trace(trace_id)
+
+
+@router_v1.patch("/traces/{trace_id}", summary="Update trace (V1)")
+async def update_trace_v1(
+    trace_id: str, trace_update: TraceUpdate, request: Request
+) -> Dict[str, Any]:
+    """V1 endpoint for updating traces"""
+    return await update_trace(trace_id, trace_update, request)
+
+
+@router_v1.delete("/traces/{trace_id}", summary="Delete trace (V1)")
+async def delete_trace_v1(trace_id: str) -> Dict[str, Any]:
+    """V1 endpoint for deleting traces"""
+    return await delete_trace(trace_id)
 
 
 @router_v1.get("/spans", summary="List spans (V1)")
 async def list_spans_v1(
     trace_id: Optional[str] = Query(None, description="Filter by trace ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
-    status: Optional[str] = Query(None, description="Filter by status"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
 ) -> Dict[str, Any]:
-    """List spans with optional filters"""
-    return await list_spans(trace_id=trace_id, service=service, status=status, limit=limit)
+    """V1 endpoint for listing spans"""
+    return await list_spans(trace_id=trace_id, service=service, limit=limit)
+
+
+@router_v1.post("/spans", summary="Create span (V1)")
+async def create_span_v1(span: SpanCreate, request: Request) -> Dict[str, Any]:
+    """V1 endpoint for creating spans"""
+    return await create_span(span, request)
+
+
+@router_v1.get("/spans/{span_id}", summary="Get span by ID (V1)")
+async def get_span_v1(span_id: str) -> Dict[str, Any]:
+    """V1 endpoint for getting span details"""
+    return await get_span(span_id)
+
+
+@router_v1.delete("/spans/{span_id}", summary="Delete span (V1)")
+async def delete_span_v1(span_id: str) -> Dict[str, Any]:
+    """V1 endpoint for deleting spans"""
+    return await delete_span(span_id)
 
 
 @router_v1.get("/services", summary="List services (V1)")
 async def list_services_v1(
     type: Optional[str] = Query(None, description="Filter by type")
 ) -> Dict[str, Any]:
-    """List all services with optional filtering"""
+    """V1 endpoint for listing services"""
     return await list_services(type=type)
+
+
+@router_v1.post("/services", summary="Create service (V1)")
+async def create_service_v1(service: ServiceCreate, request: Request) -> Dict[str, Any]:
+    """V1 endpoint for creating services"""
+    return await create_service(service, request)
+
+
+@router_v1.get("/services/{service_name}", summary="Get service by name (V1)")
+async def get_service_v1(service_name: str) -> Dict[str, Any]:
+    """V1 endpoint for getting service details"""
+    return await get_service(service_name)
+
+
+@router_v1.delete("/services/{service_name}", summary="Delete service (V1)")
+async def delete_service_v1(service_name: str) -> Dict[str, Any]:
+    """V1 endpoint for deleting services"""
+    return await delete_service(service_name)
 
 
 @router_v1.get("/operations", summary="List operations (V1)")
@@ -1130,26 +1352,42 @@ async def list_operations_v1(
     service: Optional[str] = Query(None, description="Filter by service"),
     type: Optional[str] = Query(None, description="Filter by type"),
 ) -> Dict[str, Any]:
-    """List all operations with optional filtering"""
+    """V1 endpoint for listing operations"""
     return await list_operations(service=service, type=type)
+
+
+@router_v1.post("/operations", summary="Create operation (V1)")
+async def create_operation_v1(operation: OperationCreate, request: Request) -> Dict[str, Any]:
+    """V1 endpoint for creating operations"""
+    return await create_operation(operation, request)
+
+
+@router_v1.delete("/operations/{op_id}", summary="Delete operation (V1)")
+async def delete_operation_v1(op_id: str) -> Dict[str, Any]:
+    """V1 endpoint for deleting operations"""
+    return await delete_operation(op_id)
 
 
 @router_v1.get("/analytics", summary="Get analytics data (V1)")
 async def get_analytics_v1(
     service: Optional[str] = Query(None, description="Filter by service"),
     metric_type: Optional[str] = Query(None, description="Filter by metric type"),
-    start_time: Optional[str] = Query(None, description="Start time in ISO format"),
-    end_time: Optional[str] = Query(None, description="End time in ISO format"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
 ) -> Dict[str, Any]:
-    """Retrieve analytics data with optional filtering"""
-    return await get_analytics(
-        service=service,
-        metric_type=metric_type,
-        start_time=start_time,
-        end_time=end_time,
-        limit=limit,
-    )
+    """V1 endpoint for getting analytics data"""
+    return await get_analytics(service=service, metric_type=metric_type, limit=limit)
+
+
+@router_v1.post("/analytics", summary="Create analytics data (V1)")
+async def create_analytics_v1(analytics: AnalyticsCreate, request: Request) -> Dict[str, Any]:
+    """V1 endpoint for creating analytics data"""
+    return await create_analytics(analytics, request)
+
+
+@router_v1.post("/search", summary="Search traces (V1)")
+async def search_traces_v1(search_request: SearchRequest) -> Dict[str, Any]:
+    """V1 endpoint for searching traces"""
+    return await search_traces(search_request)
 
 
 @router_v1.get("/performance", summary="Get performance metrics (V1)")
@@ -1159,7 +1397,19 @@ async def get_performance_v1(
     time_range: str = Query("1h", description="Time range: 1h, 6h, 24h, 7d"),
     granularity: str = Query("1m", description="Granularity: 1m, 5m, 15m, 1h"),
 ) -> Dict[str, Any]:
-    """Get performance metrics for traces"""
-    return await get_performance(
-        service=service, operation=operation, time_range=time_range, granularity=granularity
-    )
+    """V1 endpoint for getting performance metrics"""
+    return await get_performance(service=service, operation=operation, time_range=time_range, granularity=granularity)
+
+
+@router_v1.get("/dependencies", summary="Get service dependencies (V1)")
+async def get_service_dependencies_v1(
+    service: Optional[str] = Query(None, description="Filter by service name"),
+) -> Dict[str, Any]:
+    """V1 endpoint for getting service dependencies"""
+    return await get_service_dependencies(service=service)
+
+
+@router_v1.get("/traces/{trace_id}/flamegraph", summary="Get flame graph for trace (V1)")
+async def get_trace_flamegraph_v1(trace_id: str) -> Dict[str, Any]:
+    """V1 endpoint for getting flame graph data"""
+    return await get_trace_flamegraph(trace_id)
