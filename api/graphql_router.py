@@ -19,7 +19,6 @@ import config
 from core.auth_db import User, get_session
 from core.auth_service import get_current_user, require_roles
 from core.graphql_schema import graphql_app, schema as graphql_schema
-from core.graphql_engine import schema as graphql_engine_schema
 from core.interface.graphql.subscription import SubscriptionManager
 
 logger = logging.getLogger(__name__)
