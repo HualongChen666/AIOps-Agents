@@ -365,7 +365,6 @@ if ENABLE_ADDONS:
         from api.dashboard_advanced_router import router as dashboard_advanced_router
     if GRAPHQL_ENABLED:
         from api.graphql_router import router as graphql_router
-        from api.graphql_router import auth_router as graphql_auth_router
     if MCP_ENABLED:
         from api.mcp_router import router as mcp_router
     if I18N_ENABLED:
@@ -803,7 +802,6 @@ CORE_ROUTERS = [
     cost_router,
     cost_advanced_router,
     auth_router,
-    graphql_auth_router,
     settings_router,
     users_router,
     users_advanced_router,

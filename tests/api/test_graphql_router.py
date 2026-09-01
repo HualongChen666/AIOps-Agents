@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
-from httpx import AsyncClient
 
 from api.graphql_router import (
     _get_active_subscriptions,
@@ -163,11 +162,10 @@ class TestGetActiveSubscriptions:
 # API Endpoint Tests
 # ============================================================================
 
-@pytest.mark.asyncio
 class TestGetSubscriptionStatus:
     """测试获取订阅状态端点"""
 
-    async def test_get_subscription_status_success(self, client: AsyncClient):
+    def test_get_subscription_status_success(self, client):
         """测试成功获取订阅状态"""
         # Mock user
         mock_user = User(
@@ -180,7 +178,7 @@ class TestGetSubscriptionStatus:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.dict(os.environ, {"GRAPHQL_SUBSCRIPTION_ENABLED": "true"}):
-                response = await client.get("/api/graphql/graphql-subscription")
+                response = client.get("/api/graphql/graphql-subscription")
                 
                 assert response.status_code == status.HTTP_200_OK
                 data = response.json()
@@ -191,7 +189,7 @@ class TestGetSubscriptionStatus:
                 assert "available_subscription_types" in data
                 assert data["config"]["enabled"] is True
 
-    async def test_get_subscription_status_disabled(self, client: AsyncClient):
+    def test_get_subscription_status_disabled(self, client):
         """测试订阅功能禁用时的响应"""
         mock_user = User(
             id=1,
@@ -203,25 +201,24 @@ class TestGetSubscriptionStatus:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.dict(os.environ, {"GRAPHQL_SUBSCRIPTION_ENABLED": "false"}):
-                response = await client.get("/api/graphql/graphql-subscription")
+                response = client.get("/api/graphql/graphql-subscription")
                 
                 assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
                 assert "disabled" in response.json()["detail"].lower()
 
-    async def test_get_subscription_status_unauthorized(self, client: AsyncClient):
+    def test_get_subscription_status_unauthorized(self, client):
         """测试未授权访问"""
         with patch("api.graphql_router.get_current_user", side_effect=Exception("Unauthorized")):
-            response = await client.get("/api/graphql/graphql-subscription")
+            response = client.get("/api/graphql/graphql-subscription")
             
             # Should fail due to authentication
             assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_500_INTERNAL_SERVER_ERROR]
 
 
-@pytest.mark.asyncio
 class TestStartSubscriptions:
     """测试启动订阅服务端点"""
 
-    async def test_start_subscriptions_admin(self, client: AsyncClient):
+    def test_start_subscriptions_admin(self, client):
         """测试管理员启动订阅服务"""
         mock_user = User(
             id=1,
@@ -233,7 +230,7 @@ class TestStartSubscriptions:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.object(subscription_manager, "start_all", new_callable=AsyncMock):
-                response = await client.post("/api/graphql/graphql-subscription/start")
+                response = client.post("/api/graphql/graphql-subscription/start")
                 
                 assert response.status_code == status.HTTP_200_OK
                 data = response.json()
@@ -241,7 +238,7 @@ class TestStartSubscriptions:
                 assert "started_at" in data
                 assert data["started_by"] == "admin"
 
-    async def test_start_subscriptions_operator(self, client: AsyncClient):
+    def test_start_subscriptions_operator(self, client):
         """测试操作员启动订阅服务"""
         mock_user = User(
             id=1,
@@ -253,11 +250,11 @@ class TestStartSubscriptions:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.object(subscription_manager, "start_all", new_callable=AsyncMock):
-                response = await client.post("/api/graphql/graphql-subscription/start")
+                response = client.post("/api/graphql/graphql-subscription/start")
                 
                 assert response.status_code == status.HTTP_200_OK
 
-    async def test_start_subscriptions_viewer_forbidden(self, client: AsyncClient):
+    def test_start_subscriptions_viewer_forbidden(self, client):
         """测试查看者启动订阅服务被拒绝"""
         mock_user = User(
             id=1,
@@ -268,12 +265,12 @@ class TestStartSubscriptions:
         )
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
-            response = await client.post("/api/graphql/graphql-subscription/start")
+            response = client.post("/api/graphql/graphql-subscription/start")
             
             assert response.status_code == status.HTTP_403_FORBIDDEN
             assert "only operators and admins" in response.json()["detail"].lower()
 
-    async def test_start_subscriptions_failure(self, client: AsyncClient):
+    def test_start_subscriptions_failure(self, client):
         """测试启动失败"""
         mock_user = User(
             id=1,
@@ -285,16 +282,15 @@ class TestStartSubscriptions:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.object(subscription_manager, "start_all", new_callable=AsyncMock, side_effect=Exception("Failed")):
-                response = await client.post("/api/graphql/graphql-subscription/start")
+                response = client.post("/api/graphql/graphql-subscription/start")
                 
                 assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
-@pytest.mark.asyncio
 class TestStopSubscriptions:
     """测试停止订阅服务端点"""
 
-    async def test_stop_subscriptions_admin(self, client: AsyncClient):
+    def test_stop_subscriptions_admin(self, client):
         """测试管理员停止订阅服务"""
         mock_user = User(
             id=1,
@@ -306,7 +302,7 @@ class TestStopSubscriptions:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.object(subscription_manager, "stop_all", new_callable=AsyncMock):
-                response = await client.post("/api/graphql/graphql-subscription/stop")
+                response = client.post("/api/graphql/graphql-subscription/stop")
                 
                 assert response.status_code == status.HTTP_200_OK
                 data = response.json()
@@ -314,7 +310,7 @@ class TestStopSubscriptions:
                 assert "stopped_at" in data
                 assert data["stopped_by"] == "admin"
 
-    async def test_stop_subscriptions_operator(self, client: AsyncClient):
+    def test_stop_subscriptions_operator(self, client):
         """测试操作员停止订阅服务"""
         mock_user = User(
             id=1,
@@ -326,11 +322,11 @@ class TestStopSubscriptions:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.object(subscription_manager, "stop_all", new_callable=AsyncMock):
-                response = await client.post("/api/graphql/graphql-subscription/stop")
+                response = client.post("/api/graphql/graphql-subscription/stop")
                 
                 assert response.status_code == status.HTTP_200_OK
 
-    async def test_stop_subscriptions_viewer_forbidden(self, client: AsyncClient):
+    def test_stop_subscriptions_viewer_forbidden(self, client):
         """测试查看者停止订阅服务被拒绝"""
         mock_user = User(
             id=1,
@@ -341,12 +337,12 @@ class TestStopSubscriptions:
         )
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
-            response = await client.post("/api/graphql/graphql-subscription/stop")
+            response = client.post("/api/graphql/graphql-subscription/stop")
             
             assert response.status_code == status.HTTP_403_FORBIDDEN
             assert "only operators and admins" in response.json()["detail"].lower()
 
-    async def test_stop_subscriptions_failure(self, client: AsyncClient):
+    def test_stop_subscriptions_failure(self, client):
         """测试停止失败"""
         mock_user = User(
             id=1,
@@ -358,7 +354,7 @@ class TestStopSubscriptions:
         
         with patch("api.graphql_router.get_current_user", return_value=mock_user):
             with patch.object(subscription_manager, "stop_all", new_callable=AsyncMock, side_effect=Exception("Failed")):
-                response = await client.post("/api/graphql/graphql-subscription/stop")
+                response = client.post("/api/graphql/graphql-subscription/stop")
                 
                 assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
@@ -400,3 +396,96 @@ class TestSubscriptionManagerIntegration:
                 
                 await subscription_manager.stop_all()
                 mock_stop.assert_called_once()
+
+
+# ============================================================================
+# GraphQL Query Management Endpoint Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+class TestGraphQLQueryInfo:
+    """测试GraphQL查询信息端点"""
+
+    async def test_get_graphql_query_info_admin(self, client: AsyncClient):
+        """测试管理员获取GraphQL查询信息"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            response = await client.get("/api/graphql/graphql-query")
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["status"] == "success"
+            assert "data" in data
+            assert "query_configs" in data["data"]
+            assert "query_history" in data["data"]
+            assert "performance_stats" in data["data"]
+            assert "timestamp" in data
+
+    async def test_get_graphql_query_info_viewer(self, client: AsyncClient):
+        """测试普通用户获取GraphQL查询信息"""
+        mock_user = User(
+            id=2,
+            username="viewer",
+            password_hash="hashed",
+            role="viewer",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            response = await client.get("/api/graphql/graphql-query")
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["status"] == "success"
+
+    async def test_get_graphql_query_info_with_filters(self, client: AsyncClient):
+        """测试带过滤参数的GraphQL查询信息获取"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            response = await client.get(
+                "/api/graphql/graphql-query?limit=5&hours=12&config_id=test-config"
+            )
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["status"] == "success"
+
+    async def test_get_graphql_query_info_unauthorized(self, client: AsyncClient):
+        """测试未授权访问"""
+        with patch("api.graphql_router.get_current_user", side_effect=Exception("Unauthorized")):
+            response = await client.get("/api/graphql/graphql-query")
+            
+            # Should fail due to authentication
+            assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_500_INTERNAL_SERVER_ERROR]
+
+    async def test_get_graphql_query_info_invalid_limit(self, client: AsyncClient):
+        """测试无效的limit参数"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            # Test with invalid limit (should be validated by FastAPI)
+            response = await client.get("/api/graphql/graphql-query?limit=200")
+            
+            # FastAPI should reject invalid limit
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
