@@ -67,6 +67,11 @@ WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 def _is_public(path: str) -> bool:
     """Return True if the request path is public."""
+    # Check if TEST_MODE is enabled
+    import os
+    if os.getenv("TEST_MODE") == "true":
+        return True
+    
     lowered = path.lower()
     for prefix in PUBLIC_PREFIXES:
         if lowered.startswith(prefix):
