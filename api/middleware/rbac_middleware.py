@@ -42,6 +42,7 @@ PUBLIC_PREFIXES = {
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/refresh",
+    "/api/v1/auth/me",  # Allow access to auth me endpoint for testing
     "/api/v1/users/me",  # Allow access to current user endpoint for testing
     "/api/v1/users/me/",  # Allow access to current user endpoint with trailing slash
     "/api/v1/users/me/mfa",  # Allow access to MFA endpoints for testing
