@@ -142,24 +142,74 @@ def enable_test_mode():
     
     # Patch get_current_active_user at module level
     user = Mock()
-    user.id = "test-admin"
+    user.id = 1
     user.username = "test_admin"
     user.role = "admin"
     user.is_active = True
     user.disabled = False
+    user.password_hash = "hashed_password"
     
     async def mock_get_current_active_user():
         return user
     
     # Patch in core.authentication
     import core.authentication
-    original_func = core.authentication.get_current_active_user
+    original_auth_func = core.authentication.get_current_active_user
     core.authentication.get_current_active_user = mock_get_current_active_user
+    
+    # Patch get_current_user in core.auth_service
+    try:
+        import core.auth_service
+        original_auth_service_func = core.auth_service.get_current_user
+        async def mock_get_current_user(token):
+            return user
+        core.auth_service.get_current_user = mock_get_current_user
+        
+        # Patch require_roles to bypass role checks
+        original_require_roles = core.auth_service.require_roles
+        def mock_require_roles(*roles):
+            def decorator(func):
+                return func
+            return decorator
+        core.auth_service.require_roles = mock_require_roles
+        
+        # Patch get_session to return a mock session
+        original_get_session = core.auth_service.get_session
+        def mock_get_session():
+            from unittest.mock import Mock
+            mock_session = Mock()
+            return mock_session
+        core.auth_service.get_session = mock_get_session
+    except ImportError:
+        original_auth_service_func = None
+        original_require_roles = None
+        original_get_session = None
+    
+    # Patch core.auth_db.get_session
+    try:
+        import core.auth_db
+        original_auth_db_get_session = core.auth_db.get_session
+        def mock_auth_db_get_session():
+            from unittest.mock import Mock
+            mock_session = Mock()
+            mock_session.query = Mock(return_value=Mock())
+            return mock_session
+        core.auth_db.get_session = mock_auth_db_get_session
+    except ImportError:
+        original_auth_db_get_session = None
     
     yield
     
-    # Restore original function
-    core.authentication.get_current_active_user = original_func
+    # Restore original functions
+    core.authentication.get_current_active_user = original_auth_func
+    if original_auth_service_func:
+        core.auth_service.get_current_user = original_auth_service_func
+    if original_require_roles:
+        core.auth_service.require_roles = original_require_roles
+    if original_get_session:
+        core.auth_service.get_session = original_get_session
+    if original_auth_db_get_session:
+        core.auth_db.get_session = original_auth_db_get_session
     
     # Clean up
     if "TEST_MODE" in os.environ:
