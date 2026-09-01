@@ -251,6 +251,7 @@ enterprise_advanced_router: Any = None
 frontend_enhancement_router: Any = None
 frontend_advanced_router: Any = None
 i18n_router: Any = None
+i18n_router_append: Any = None
 localization_adapter_router: Any = None
 localization_resource_router: Any = None
 localization_advanced_router: Any = None
@@ -373,6 +374,7 @@ if ENABLE_ADDONS:
         from api.mcp_router import router as mcp_router
     if I18N_ENABLED:
         from api.i18n_router import router as i18n_router
+        from api.i18n_router_append import router as i18n_router_append
         from api.localization_adapter_router import router as localization_adapter_router
         from api.localization_resource_router import router as localization_resource_router
         from api.localization_advanced_router import router as localization_advanced_router
@@ -919,6 +921,7 @@ ADDON_ROUTERS = [
     (dashboard_advanced_router, PLUGINS_ENABLED),
     # I18n & Localization
     (i18n_router, I18N_ENABLED),
+    (i18n_router_append, I18N_ENABLED),
     (localization_resource_router, I18N_ENABLED),
     (localization_adapter_router, I18N_ENABLED),
     (localization_advanced_router, I18N_ENABLED),
