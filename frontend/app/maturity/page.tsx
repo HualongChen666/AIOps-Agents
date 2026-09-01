@@ -70,7 +70,7 @@ export default function MaturityPage() {
   const fetchMaturity = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/maturity/assess');
+      const res = await fetch('/api/maturity/assess');
       if (!res.ok) {
         throw new Error(`评估接口返回 ${res.status}`);
       }
