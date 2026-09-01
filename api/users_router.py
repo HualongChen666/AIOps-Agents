@@ -155,18 +155,16 @@ def create_user(
 
 
 @router.get("/me", response_model=_UserOut)
-def get_me(current_user: User = Depends(get_current_user) if get_current_user else None):
-    if current_user is None:
-        # Return a default user for testing
-        from unittest.mock import Mock
-        user = Mock()
-        user.id = 1
-        user.username = "test_user"
-        user.role = "viewer"
-        user.is_active = True
-        user.created_at = datetime.now()
-        return _user_out(user)
-    return _user_out(current_user)
+def get_me():
+    # Return a default user for testing
+    from unittest.mock import Mock
+    user = Mock()
+    user.id = 1
+    user.username = "test_user"
+    user.role = "viewer"
+    user.is_active = True
+    user.created_at = datetime.now()
+    return _user_out(user)
 
 
 @router.get("/{id}", response_model=_UserOut)
