@@ -9,12 +9,13 @@ GraphQL路由
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 import config
@@ -26,6 +27,11 @@ from core.interface.graphql.dataloader import (
     DataLoaderRegistry,
     MetricsDataLoader,
     RepairDataLoader,
+)
+from core.models import (
+    GraphQLQueryConfig,
+    GraphQLQueryHistory,
+    GraphQLPerformanceStats,
 )
 
 logger = logging.getLogger(__name__)
@@ -1833,3 +1839,233 @@ async def get_graphql_resolvers(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve GraphQL resolvers information: {str(e)}",
         )
+
+
+# ============================================================================
+# GraphQL Query Management Endpoint
+# ============================================================================
+
+
+@router.get(
+    "/graphql-query",
+    summary="获取GraphQL查询信息",
+    description="返回GraphQL查询配置、查询历史和性能统计信息",
+    responses={
+        200: {
+            "description": "成功返回GraphQL查询信息",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "success",
+                        "data": {
+                            "query_configs": [],
+                            "query_history": [],
+                            "performance_stats": []
+                        },
+                        "timestamp": "2026-09-01T09:00:00Z"
+                    }
+                }
+            }
+        },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def get_graphql_query_info(
+    request: Request,
+    db: Session = Depends(get_session),
+    limit: int = Query(10, ge=1, le=100, description="返回记录数量限制"),
+    config_id: Optional[str] = Query(None, description="查询配置ID过滤"),
+    hours: int = Query(24, ge=1, le=168, description="查询历史时间范围（小时）"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get GraphQL query information including configuration, history, and performance stats.
+    
+    This endpoint provides comprehensive GraphQL query management information:
+    - Query configurations with permission and performance settings
+    - Query execution history for auditing
+    - Performance statistics for optimization
+    
+    Args:
+        request: FastAPI request object
+        db: Database session
+        limit: Maximum number of records to return
+        config_id: Optional filter by query configuration ID
+        hours: Time range in hours for query history (default: 24)
+        current_user: Current authenticated user
+        
+    Returns:
+        Dictionary containing query configs, history, and performance stats
+        
+    Raises:
+        HTTPException: If authorization fails or database error occurs
+    """
+    try:
+        # Authorization check - all authenticated users can access
+        user_role = getattr(current_user, "role", "viewer")
+        user_id = getattr(current_user, "id", None)
+        tenant_id = getattr(current_user, "tenant_id", "default")
+        
+        logger.info(f"User {current_user.username} (role: {user_role}) requesting GraphQL query info")
+        
+        # Get query configurations
+        query_configs = []
+        try:
+            configs_query = db.query(GraphQLQueryConfig).filter(
+                GraphQLQueryConfig.is_active == True
+            )
+            
+            if config_id:
+                configs_query = configs_query.filter(GraphQLQueryConfig.id == config_id)
+            
+            # Apply role-based filtering
+            if user_role != "admin":
+                # Non-admin users can only see configs that match their role
+                configs_query = configs_query.filter(
+                    (GraphQLQueryConfig.required_roles == None) |
+                    (GraphQLQueryConfig.required_roles.contains([user_role]))
+                )
+            
+            configs = configs_query.limit(limit).all()
+            
+            for config in configs:
+                query_configs.append({
+                    "id": config.id,
+                    "config_name": config.config_name,
+                    "description": config.description,
+                    "required_roles": config.required_roles,
+                    "required_permissions": config.required_permissions,
+                    "max_complexity": config.max_complexity,
+                    "max_depth": config.max_depth,
+                    "timeout_ms": config.timeout_ms,
+                    "cache_enabled": config.cache_enabled,
+                    "cache_ttl_seconds": config.cache_ttl_seconds,
+                    "created_by": config.created_by,
+                    "updated_by": config.updated_by,
+                    "created_at": config.created_at.isoformat() if config.created_at else None,
+                    "updated_at": config.updated_at.isoformat() if config.updated_at else None,
+                })
+                
+        except Exception as e:
+            logger.error(f"Error fetching query configs: {e}")
+            query_configs = []
+        
+        # Get query history
+        query_history = []
+        try:
+            time_threshold = datetime.utcnow() - timedelta(hours=hours)
+            
+            history_query = db.query(GraphQLQueryHistory).filter(
+                GraphQLQueryHistory.created_at >= time_threshold
+            )
+            
+            # Apply tenant filtering
+            if tenant_id != "default":
+                history_query = history_query.filter(
+                    (GraphQLQueryHistory.tenant_id == tenant_id) |
+                    (GraphQLQueryHistory.tenant_id == None)
+                )
+            
+            # Apply config filtering if specified
+            if config_id:
+                history_query = history_query.filter(GraphQLQueryHistory.query_id == config_id)
+            
+            # Non-admin users can only see their own history
+            if user_role != "admin" and user_id:
+                history_query = history_query.filter(GraphQLQueryHistory.user_id == user_id)
+            
+            history = history_query.order_by(
+                desc(GraphQLQueryHistory.created_at)
+            ).limit(limit).all()
+            
+            for record in history:
+                query_history.append({
+                    "id": record.id,
+                    "query_id": record.query_id,
+                    "operation_name": record.operation_name,
+                    "user_id": record.user_id,
+                    "username": record.username,
+                    "tenant_id": record.tenant_id,
+                    "execution_time_ms": record.execution_time_ms,
+                    "complexity_score": record.complexity_score,
+                    "depth": record.depth,
+                    "success": record.success,
+                    "error_message": record.error_message,
+                    "error_code": record.error_code,
+                    "result_size_bytes": record.result_size_bytes,
+                    "created_at": record.created_at.isoformat() if record.created_at else None,
+                })
+                
+        except Exception as e:
+            logger.error(f"Error fetching query history: {e}")
+            query_history = []
+        
+        # Get performance statistics
+        performance_stats = []
+        try:
+            # Get stats for the recent time window
+            time_threshold = datetime.utcnow() - timedelta(hours=hours)
+            
+            stats_query = db.query(GraphQLPerformanceStats).filter(
+                GraphQLPerformanceStats.window_start >= time_threshold
+            )
+            
+            # Apply tenant filtering
+            if tenant_id != "default":
+                stats_query = stats_query.filter(
+                    (GraphQLPerformanceStats.tenant_id == tenant_id) |
+                    (GraphQLPerformanceStats.tenant_id == None)
+                )
+            
+            stats = stats_query.order_by(
+                desc(GraphQLPerformanceStats.window_start)
+            ).limit(limit).all()
+            
+            for stat in stats:
+                performance_stats.append({
+                    "id": stat.id,
+                    "stat_type": stat.stat_type,
+                    "stat_key": stat.stat_key,
+                    "tenant_id": stat.tenant_id,
+                    "window_start": stat.window_start.isoformat() if stat.window_start else None,
+                    "window_end": stat.window_end.isoformat() if stat.window_end else None,
+                    "total_executions": stat.total_executions,
+                    "successful_executions": stat.successful_executions,
+                    "failed_executions": stat.failed_executions,
+                    "avg_execution_time_ms": stat.avg_execution_time_ms,
+                    "min_execution_time_ms": stat.min_execution_time_ms,
+                    "max_execution_time_ms": stat.max_execution_time_ms,
+                    "p50_execution_time_ms": stat.p50_execution_time_ms,
+                    "p95_execution_time_ms": stat.p95_execution_time_ms,
+                    "p99_execution_time_ms": stat.p99_execution_time_ms,
+                    "avg_complexity": stat.avg_complexity,
+                    "avg_depth": stat.avg_depth,
+                    "avg_result_size_bytes": stat.avg_result_size_bytes,
+                    "total_result_size_bytes": stat.total_result_size_bytes,
+                    "error_rate": stat.error_rate,
+                    "common_errors": stat.common_errors,
+                    "created_at": stat.created_at.isoformat() if stat.created_at else None,
+                    "updated_at": stat.updated_at.isoformat() if stat.updated_at else None,
+                })
+                
+        except Exception as e:
+            logger.error(f"Error fetching performance stats: {e}")
+            performance_stats = []
+        
+        return {
+            "status": "success",
+            "data": {
+                "query_configs": query_configs,
+                "query_history": query_history,
+                "performance_stats": performance_stats,
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_graphql_query_info: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
