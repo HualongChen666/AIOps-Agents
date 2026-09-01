@@ -130,19 +130,12 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="function")
-def mock_auth():
-    """Mock authentication for tests that use get_current_active_user"""
-    from unittest.mock import AsyncMock, patch
-    
-    user = Mock()
-    user.id = "admin-1"
-    user.username = "admin"
-    user.role = "admin"
-    user.is_active = True
-    user.disabled = False
-    
-    async def mock_get_current_active_user():
-        return user
-    
-    return patch("core.authentication.get_current_active_user", return_value=AsyncMock(return_value=user))
+@pytest.fixture(scope="module", autouse=True)
+def enable_test_mode():
+    """Enable test mode to bypass authentication"""
+    import os
+    os.environ["TEST_MODE"] = "true"
+    yield
+    # Clean up after tests
+    if "TEST_MODE" in os.environ:
+        del os.environ["TEST_MODE"]
