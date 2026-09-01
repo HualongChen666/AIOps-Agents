@@ -216,6 +216,7 @@ apm_router: Any = None
 tracing_router: Any = None
 backup_router: Any = None
 enterprise_router: Any = None
+enterprise_router_append: Any = None
 batch_router: Any = None
 hitl_router: Any = None
 notify_router: Any = None
@@ -334,6 +335,7 @@ if ENABLE_ADDONS:
     if SECURITY_SCANNING_ENABLED:
         from api.backup_router import router as backup_router
         from api.enterprise_router import router as enterprise_router
+        from api.enterprise_router_append import router as enterprise_router_append
         from api.enterprise_advanced_router import router as enterprise_advanced_router
     if PLUGINS_ENABLED:
         from api.chaos_advanced_router import router as chaos_advanced_router
@@ -890,6 +892,7 @@ ADDON_ROUTERS = [
     (dashboard_advanced_router, INTEGRATIONS_ENABLED),
     # Security & Compliance Pack
     (enterprise_router, SECURITY_SCANNING_ENABLED),
+    (enterprise_router_append, SECURITY_SCANNING_ENABLED),
     (enterprise_advanced_router, SECURITY_SCANNING_ENABLED),
     (backup_router, SECURITY_SCANNING_ENABLED),
     # Infrastructure & Plugin Ecosystem Pack
