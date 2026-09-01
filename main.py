@@ -156,6 +156,7 @@ from api.linux_router import router as linux_router
 from api.macos_router import router as macos_router
 from api.maturity_router import router as maturity_router
 from api.repair_advanced_router import router as repair_advanced_router
+from api.repair_router_append import router as repair_router_append
 from api.repair_scripts_router import router as repair_scripts_router
 from api.settings_router import router as settings_router
 from api.slack_router import router as slack_router
@@ -803,6 +804,7 @@ CORE_ROUTERS = [
     docker_router,
     hardware_log_router,
     repair_advanced_router,
+    repair_router_append,
     repair_scripts_router,
     unified_repair_router,
     unified_repair_advanced_router,
