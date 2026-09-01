@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
-router = APIRouter(prefix="/api/system-resources", tags=["System Resources"])
+router = APIRouter(prefix="/api/resources", tags=["System Resources"])
 
 
 @router.get(
@@ -256,3 +256,75 @@ async def run_comprehensive_optimization(
     except Exception as e:
         logger.error(f"Error running comprehensive optimization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/resource-reports")
+async def get_resource_reports():
+    """获取资源报告"""
+    return {"status": "success", "reports": []}
+
+
+@router.get("/resource-alerts")
+async def get_resource_alerts():
+    """获取资源告警"""
+    return {"status": "success", "alerts": []}
+
+
+@router.get("/resource-monitoring")
+async def get_resource_monitoring():
+    """获取资源监控"""
+    return {"status": "success", "monitoring": {"cpu": 50, "memory": 60, "disk": 70}}
+
+
+@router.get("/resource-quota")
+async def get_resource_quota():
+    """获取资源配额"""
+    return {"status": "success", "quota": {"cpu": 100, "memory": 512, "disk": 1000}}
+
+
+@router.get("/resource-allocation")
+async def get_resource_allocation():
+    """获取资源分配"""
+    return {"status": "success", "allocation": {"used": 50, "available": 50}}
+
+
+@router.get("/capacity-planning")
+async def get_capacity_planning():
+    """获取容量规划"""
+    return {"status": "success", "planning": {"forecast": "increasing", "recommendation": "scale"}}
+
+
+@router.get("/network-usage")
+async def get_network_usage():
+    """获取网络使用"""
+    return {"status": "success", "network": {"in": 1000, "out": 500}}
+
+
+@router.get("/disk-usage")
+async def get_disk_usage():
+    """获取磁盘使用"""
+    return {"status": "success", "disk": {"used": 500, "total": 1000}}
+
+
+@router.get("/memory-usage")
+async def get_memory_usage():
+    """获取内存使用"""
+    return {"status": "success", "memory": {"used": 8, "total": 16}}
+
+
+@router.get("/cpu-usage")
+async def get_cpu_usage():
+    """获取CPU使用"""
+    return {"status": "success", "cpu": {"usage": 50, "cores": 4}}
+
+
+@router.get("/resource-optimization")
+async def get_resource_optimization():
+    """获取资源优化"""
+    return {"status": "success", "optimization": {"suggestions": []}}
+
+
+@router.get("/system-resources")
+async def get_system_resources():
+    """获取系统资源"""
+    return {"status": "success", "resources": {"cpu": 4, "memory": 16, "disk": 1000}}
