@@ -6,6 +6,7 @@ Provides shared fixtures for API endpoint testing
 
 import sys
 from pathlib import Path
+from unittest.mock import Mock, AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -45,6 +46,30 @@ def admin_headers():
     except Exception:
         # If auth service is not available, return empty headers
         return {}
+
+
+@pytest.fixture(scope="module")
+def admin_user():
+    """Mock admin user for authentication tests"""
+    user = Mock()
+    user.id = "admin-1"
+    user.username = "admin"
+    user.role = "admin"
+    user.is_active = True
+    user.disabled = False
+    return user
+
+
+@pytest.fixture(scope="module")
+def regular_user():
+    """Mock regular user for authentication tests"""
+    user = Mock()
+    user.id = "user-1"
+    user.username = "user"
+    user.role = "user"
+    user.is_active = True
+    user.disabled = False
+    return user
 
 
 @pytest.fixture(scope="module")
@@ -103,3 +128,21 @@ def event_loop():
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture(scope="function")
+def mock_auth():
+    """Mock authentication for tests that use get_current_active_user"""
+    from unittest.mock import AsyncMock, patch
+    
+    user = Mock()
+    user.id = "admin-1"
+    user.username = "admin"
+    user.role = "admin"
+    user.is_active = True
+    user.disabled = False
+    
+    async def mock_get_current_active_user():
+        return user
+    
+    return patch("core.authentication.get_current_active_user", return_value=AsyncMock(return_value=user))
