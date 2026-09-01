@@ -20,6 +20,7 @@ from api.graphql_router import (
     subscription_manager,
 )
 from core.auth_db import User
+from fastapi.testclient import TestClient
 
 
 # ============================================================================
@@ -195,3 +196,275 @@ class TestSubscriptionManagerIntegration:
                 
                 await subscription_manager.stop_all()
                 mock_stop.assert_called_once()
+
+
+# ============================================================================
+# GraphQL Query Management Endpoint Tests
+# ============================================================================
+
+
+class TestGraphQLQueryInfo:
+    """测试GraphQL查询信息端点"""
+
+    def test_get_graphql_query_info_admin(self, client: TestClient):
+        """测试管理员获取GraphQL查询信息"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            response = client.get("/api/graphql/graphql-query")
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["status"] == "success"
+            assert "data" in data
+            assert "query_configs" in data["data"]
+            assert "query_history" in data["data"]
+            assert "performance_stats" in data["data"]
+            assert "timestamp" in data
+
+    def test_get_graphql_query_info_viewer(self, client: TestClient):
+        """测试普通用户获取GraphQL查询信息"""
+        mock_user = User(
+            id=2,
+            username="viewer",
+            password_hash="hashed",
+            role="viewer",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            response = client.get("/api/graphql/graphql-query")
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["status"] == "success"
+
+    def test_get_graphql_query_info_with_filters(self, client: TestClient):
+        """测试带过滤参数的GraphQL查询信息获取"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            response = client.get(
+                "/api/graphql/graphql-query?limit=5&hours=12&config_id=test-config"
+            )
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["status"] == "success"
+
+    def test_get_graphql_query_info_unauthorized(self, client: TestClient):
+        """测试未授权访问"""
+        with patch("api.graphql_router.get_current_user", side_effect=Exception("Unauthorized")):
+            response = client.get("/api/graphql/graphql-query")
+            
+            # Should fail due to authentication
+            assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_500_INTERNAL_SERVER_ERROR]
+
+    def test_get_graphql_query_info_invalid_limit(self, client: TestClient):
+        """测试无效的limit参数"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.get_current_user", return_value=mock_user):
+            # Test with invalid limit (should be validated by FastAPI)
+            response = client.get("/api/graphql/graphql-query?limit=200")
+            
+            # FastAPI should reject invalid limit
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+# ============================================================================
+# GraphQL Resolvers Endpoint Tests
+# ============================================================================
+
+@pytest.mark.asyncio
+class TestGetGraphQLResolvers:
+    """测试获取GraphQL Resolvers信息端点"""
+
+    async def test_get_graphql_resolvers_admin(self, client: TestClient):
+        """测试管理员获取GraphQL Resolvers信息"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.require_roles", return_value=mock_user):
+            response = await client.get("/api/graphql/graphql-resolvers")
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert "resolvers" in data
+            assert "config" in data
+            assert "performance" in data
+            assert "timestamp" in data
+            assert isinstance(data["resolvers"], list)
+            assert len(data["resolvers"]) > 0
+
+    async def test_get_graphql_resolvers_operator(self, client: TestClient):
+        """测试操作员获取GraphQL Resolvers信息"""
+        mock_user = User(
+            id=1,
+            username="operator",
+            password_hash="hashed",
+            role="operator",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.require_roles", return_value=mock_user):
+            response = await client.get("/api/graphql/graphql-resolvers")
+            
+            assert response.status_code == status.HTTP_200_OK
+
+    async def test_get_graphql_resolvers_viewer(self, client: TestClient):
+        """测试查看者获取GraphQL Resolvers信息"""
+        mock_user = User(
+            id=1,
+            username="viewer",
+            password_hash="hashed",
+            role="viewer",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.require_roles", return_value=mock_user):
+            response = await client.get("/api/graphql/graphql-resolvers")
+            
+            assert response.status_code == status.HTTP_200_OK
+
+    async def test_get_graphql_resolvers_business(self, client: TestClient):
+        """测试业务用户获取GraphQL Resolvers信息"""
+        mock_user = User(
+            id=1,
+            username="business",
+            password_hash="hashed",
+            role="business",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.require_roles", return_value=mock_user):
+            response = await client.get("/api/graphql/graphql-resolvers")
+            
+            assert response.status_code == status.HTTP_200_OK
+
+    async def test_get_graphql_resolvers_unauthorized(self, client: TestClient):
+        """测试未授权访问"""
+        with patch("api.graphql_router.require_roles", side_effect=Exception("Unauthorized")):
+            response = await client.get("/api/graphql/graphql-resolvers")
+            
+            # Should fail due to authentication
+            assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_500_INTERNAL_SERVER_ERROR]
+
+    async def test_get_graphql_resolvers_structure(self, client: TestClient):
+        """测试响应结构"""
+        mock_user = User(
+            id=1,
+            username="admin",
+            password_hash="hashed",
+            role="admin",
+            is_active=True
+        )
+        
+        with patch("api.graphql_router.require_roles", return_value=mock_user):
+            response = await client.get("/api/graphql/graphql-resolvers")
+            
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            
+            # 验证resolvers结构
+            assert isinstance(data["resolvers"], list)
+            if len(data["resolvers"]) > 0:
+                resolver = data["resolvers"][0]
+                assert "name" in resolver
+                assert "description" in resolver
+                assert "methods" in resolver
+                assert "instance_available" in resolver
+                assert isinstance(resolver["methods"], list)
+            
+            # 验证config结构
+            config = data["config"]
+            assert "graphql_ide" in config
+            assert "path" in config
+            assert "max_complexity" in config
+            assert "max_depth" in config
+            assert "batch_enabled" in config
+            assert "subscriptions_enabled" in config
+            
+            # 验证performance结构
+            performance = data["performance"]
+            assert "total_resolvers" in performance
+            assert "total_methods" in performance
+            assert "avg_method_count" in performance
+            assert "schema_size_bytes" in performance
+            assert "estimated_response_time_ms" in performance
+            
+            # 验证timestamp
+            assert "timestamp" in data
+
+
+class TestGetResolverMethods:
+    """测试获取Resolver方法信息"""
+
+    def test_get_resolver_methods_metrics(self):
+        """测试获取MetricsResolver方法"""
+        from core.interface.graphql.resolvers import MetricsResolver
+        
+        methods = _get_resolver_methods(MetricsResolver)
+        assert isinstance(methods, list)
+        
+        if len(methods) > 0:
+            method = methods[0]
+            assert "name" in method
+            assert "description" in method
+            assert "parameters" in method
+            assert "return_type" in method
+            assert "is_async" in method
+
+    def test_get_resolver_methods_alert(self):
+        """测试获取AlertResolver方法"""
+        from core.interface.graphql.resolvers import AlertResolver
+        
+        methods = _get_resolver_methods(AlertResolver)
+        assert isinstance(methods, list)
+
+    def test_get_resolver_methods_process(self):
+        """测试获取ProcessResolver方法"""
+        from core.interface.graphql.resolvers import ProcessResolver
+        
+        methods = _get_resolver_methods(ProcessResolver)
+        assert isinstance(methods, list)
+
+    def test_get_resolver_methods_repair(self):
+        """测试获取RepairResolver方法"""
+        from core.interface.graphql.resolvers import RepairResolver
+        
+        methods = _get_resolver_methods(RepairResolver)
+        assert isinstance(methods, list)
+
+
+class TestGetSchemaSize:
+    """测试获取Schema大小"""
+
+    def test_get_schema_size(self):
+        """测试获取schema大小"""
+        size = _get_schema_size()
+        assert isinstance(size, int)
+        assert size >= 0

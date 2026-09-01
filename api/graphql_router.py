@@ -520,5 +520,262 @@ async def stop_subscriptions(
         )
 
 
+# ============================================================================
+# GraphQL Resolvers Information Endpoint
+# ============================================================================
+
+import inspect
+
+from core.interface.graphql.resolvers import (
+    AlertResolver,
+    MetricsResolver,
+    ProcessResolver,
+    RepairResolver,
+)
+
+
+class ResolverMethodInfo(BaseModel):
+    """Resolver方法信息"""
+
+    name: str
+    description: str
+    parameters: List[Dict[str, Any]]
+    return_type: str
+    is_async: bool
+
+
+class ResolverInfo(BaseModel):
+    """Resolver信息"""
+
+    name: str
+    description: str
+    methods: List[ResolverMethodInfo]
+    instance_available: bool
+
+
+class GraphQLConfig(BaseModel):
+    """GraphQL配置"""
+
+    graphql_ide: str
+    path: str
+    max_complexity: Optional[int] = None
+    max_depth: Optional[int] = None
+    batch_enabled: bool = False
+    subscriptions_enabled: bool = False
+
+
+class PerformanceStats(BaseModel):
+    """性能统计"""
+
+    total_resolvers: int
+    total_methods: int
+    avg_method_count: float
+    schema_size_bytes: int
+    estimated_response_time_ms: float
+
+
+class GraphQLResolversResponse(BaseModel):
+    """GraphQL Resolvers响应"""
+
+    resolvers: List[ResolverInfo]
+    config: GraphQLConfig
+    performance: PerformanceStats
+    timestamp: str
+
+
+def _get_resolver_methods(resolver_class: type) -> List[ResolverMethodInfo]:
+    """
+    获取Resolver类的方法信息
+
+    Args:
+        resolver_class: Resolver类
+
+    Returns:
+        方法信息列表
+    """
+    methods = []
+    for name, method in inspect.getmembers(resolver_class, predicate=inspect.ismethod):
+        if not name.startswith("_"):
+            try:
+                sig = inspect.signature(method)
+                parameters = []
+                for param_name, param in sig.parameters.items():
+                    if param_name != "self":
+                        parameters.append({
+                            "name": param_name,
+                            "type": str(param.annotation) if param.annotation != inspect.Parameter.empty else "Any",
+                            "default": str(param.default) if param.default != inspect.Parameter.empty else None,
+                        })
+
+                return_type = str(sig.return_annotation) if sig.return_annotation != inspect.Signature.empty else "Any"
+                is_async = inspect.iscoroutinefunction(method)
+
+                # 获取文档字符串
+                description = inspect.getdoc(method) or ""
+
+                methods.append(
+                    ResolverMethodInfo(
+                        name=name,
+                        description=description,
+                        parameters=parameters,
+                        return_type=return_type,
+                        is_async=is_async,
+                    )
+                )
+            except Exception as e:
+                logger.warning(f"Failed to inspect method {name}: {e}")
+                continue
+
+    return methods
+
+
+def _get_schema_size() -> int:
+    """
+    获取GraphQL schema大小（字节）
+
+    Returns:
+        Schema字符串的字节大小
+    """
+    try:
+        schema_str = str(graphql_app.schema)
+        return len(schema_str.encode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Failed to get schema size: {e}")
+        return 0
+
+
+def _estimate_response_time(resolver_count: int, method_count: int) -> float:
+    """
+    估算平均响应时间（毫秒）
+
+    基于resolver数量和方法数量进行估算
+
+    Args:
+        resolver_count: Resolver数量
+        method_count: 方法数量
+
+    Returns:
+        估算的响应时间（毫秒）
+    """
+    # 基础时间 + 每个resolver的时间 + 每个方法的时间
+    base_time = float(os.getenv("GRAPHQL_BASE_RESPONSE_TIME_MS", "10"))
+    per_resolver_time = float(os.getenv("GRAPHQL_PER_RESOLVER_TIME_MS", "2"))
+    per_method_time = float(os.getenv("GRAPHQL_PER_METHOD_TIME_MS", "0.5"))
+
+    estimated = base_time + (resolver_count * per_resolver_time) + (method_count * per_method_time)
+    return round(estimated, 2)
+
+
+@router.get("/graphql-resolvers", response_model=GraphQLResolversResponse)
+async def get_graphql_resolvers(
+    current_user: User = Depends(require_roles("admin", "operator", "viewer", "business")),
+) -> GraphQLResolversResponse:
+    """
+    获取GraphQL Resolvers列表、配置和性能统计
+
+    此端点提供关于GraphQL实现的详细信息，包括：
+    - 所有可用的Resolver类及其方法
+    - GraphQL配置信息
+    - 性能统计指标
+
+    需要认证：是
+    需要权限：viewer及以上
+
+    Args:
+        current_user: 当前认证用户
+
+    Returns:
+        GraphQLResolversResponse: 包含resolvers、配置和性能统计的响应
+
+    Raises:
+        HTTPException: 如果用户权限不足或获取信息失败
+    """
+    start_time = time.time()
+
+    try:
+        # 收集Resolver信息
+        resolver_classes = [
+            (MetricsResolver, "Resolver for system metrics"),
+            (AlertResolver, "Resolver for alerts"),
+            (ProcessResolver, "Resolver for process information"),
+            (RepairResolver, "Resolver for repair actions"),
+        ]
+
+        resolvers: List[ResolverInfo] = []
+        total_methods = 0
+
+        for resolver_class, description in resolver_classes:
+            try:
+                methods = _get_resolver_methods(resolver_class)
+                total_methods += len(methods)
+
+                # 检查是否可以实例化
+                instance_available = True
+                try:
+                    instance = resolver_class()
+                except Exception as e:
+                    logger.warning(f"Failed to instantiate {resolver_class.__name__}: {e}")
+                    instance_available = False
+
+                resolvers.append(
+                    ResolverInfo(
+                        name=resolver_class.__name__,
+                        description=description,
+                        methods=methods,
+                        instance_available=instance_available,
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Failed to process resolver {resolver_class.__name__}: {e}")
+                continue
+
+        # 获取配置信息
+        config = GraphQLConfig(
+            graphql_ide=getattr(graphql_app, "graphql_ide", "graphiql"),
+            path=getattr(graphql_app, "path", "/graphql"),
+            max_complexity=int(os.getenv("GRAPHQL_MAX_COMPLEXITY", "0")) or None,
+            max_depth=int(os.getenv("GRAPHQL_MAX_DEPTH", "0")) or None,
+            batch_enabled=os.getenv("GRAPHQL_BATCH_ENABLED", "false").lower() == "true",
+            subscriptions_enabled=os.getenv("GRAPHQL_SUBSCRIPTIONS_ENABLED", "false").lower() == "true",
+        )
+
+        # 计算性能统计
+        total_resolvers = len(resolvers)
+        avg_method_count = round(total_methods / total_resolvers, 2) if total_resolvers > 0 else 0.0
+        schema_size = _get_schema_size()
+        estimated_response_time = _estimate_response_time(total_resolvers, total_methods)
+
+        performance = PerformanceStats(
+            total_resolvers=total_resolvers,
+            total_methods=total_methods,
+            avg_method_count=avg_method_count,
+            schema_size_bytes=schema_size,
+            estimated_response_time_ms=estimated_response_time,
+        )
+
+        # 记录处理时间
+        processing_time_ms = (time.time() - start_time) * 1000
+        logger.info(
+            f"GraphQL resolvers info retrieved by user {current_user.username} "
+            f"in {processing_time_ms:.2f}ms"
+        )
+
+        return GraphQLResolversResponse(
+            resolvers=resolvers,
+            config=config,
+            performance=performance,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get GraphQL resolvers info: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve GraphQL resolvers information: {str(e)}",
+        )
+
+
 # 导出路由器以便在main.py中使用
 __all__ = ["router", "subscription_manager"]
