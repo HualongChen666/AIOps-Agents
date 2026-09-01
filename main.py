@@ -132,6 +132,7 @@ from api.assets_router import router as assets_router
 from api.audit_center_router import router as audit_center_router
 from api.audit_router import router as audit_router
 from api.auth_router import router as auth_router
+from api.disaster_router import router as disaster_router
 from api.autoheal_router import router as autoheal_router
 from api.builder_router import router as builder_router
 from api.chart_aggregation_router import router as chart_aggregation_router
@@ -781,6 +782,7 @@ CORE_ROUTERS = [
     audit_router,
     audit_center_router,
     compliance_audit_router,
+    disaster_router,
     builder_router,
     chart_aggregation_router,
     monitoring_config_router,

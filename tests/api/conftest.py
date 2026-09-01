@@ -26,9 +26,11 @@ def client():
         # If main app cannot be imported, create a minimal app for testing
         from fastapi import FastAPI
         from api.cost_router import router as cost_router
-        
+        from api.disaster_router import router as disaster_router
+
         app = FastAPI()
         app.include_router(cost_router)
+        app.include_router(disaster_router)
         with TestClient(app) as test_client:
             yield test_client
 
