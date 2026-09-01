@@ -22,7 +22,7 @@ from core.qdrant_service import (
     upsert_points,
 )
 
-router = APIRouter(prefix="/api/qdrant", tags=["qdrant"])
+router = APIRouter(prefix="/api/vector", tags=["qdrant"])
 
 
 class CreateCollectionRequest(BaseModel):
