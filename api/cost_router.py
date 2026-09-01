@@ -10,9 +10,25 @@
 """
 
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from core.cost_monitor import budget_status, collect_costs, forecast_costs
+from core.authentication import get_current_active_user
+from core.rbac import role_required
+from core.cost_monitor import (
+    budget_status,
+    collect_costs,
+    forecast_costs,
+    get_optimization_suggestions,
+    get_resource_costs,
+    get_llm_costs,
+    get_budget_management,
+    create_budget,
+    predict_costs,
+    get_cost_collection_status,
+    sync_cost_collection,
+    get_cost_monitoring,
+    generate_cost_report,
+)
 
 router = APIRouter(prefix="/api/cost", tags=["cost"])
 
@@ -36,7 +52,8 @@ router = APIRouter(prefix="/api/cost", tags=["cost"])
 )
 async def get_collect(
     start_date: str = Query(default=None, description="Start date in ISO format (YYYY-MM-DD)"),
-    end_date: str = Query(default=None, description="End date in ISO format (YYYY-MM-DD)")
+    end_date: str = Query(default=None, description="End date in ISO format (YYYY-MM-DD)"),
+    user=Depends(get_current_active_user),
 ):
     # Validate date format if provided
     if start_date:
@@ -77,7 +94,7 @@ async def get_collect(
         404: {"description": "预测数据不可用"},
     },
 )
-async def get_forecast(days: int = Query(default=None, description="Forecast horizon days")):
+async def get_forecast(days: int = Query(default=None, description="Forecast horizon days"), user=Depends(get_current_active_user)):
     days = days or 30
     
     # Validate days parameter
@@ -112,6 +129,149 @@ async def get_forecast(days: int = Query(default=None, description="Forecast hor
     },
 )
 async def get_budget(
-    detailed: bool = Query(default=False, description="Return detailed budget breakdown")
+    detailed: bool = Query(default=False, description="Return detailed budget breakdown"),
+    user=Depends(get_current_active_user),
 ):
     return budget_status(detailed=detailed)
+
+
+@router.get(
+    "/cost-optimization",
+    summary="成本优化建议",
+    responses={
+        200: {"description": "成本优化建议"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_cost_optimization(user=Depends(get_current_active_user)):
+    """获取成本优化建议"""
+    suggestions = get_optimization_suggestions()
+    return {"status": "success", "suggestions": suggestions}
+
+
+@router.get(
+    "/resource-cost",
+    summary="资源成本",
+    responses={
+        200: {"description": "资源成本数据"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_resource_cost(user=Depends(get_current_active_user)):
+    """获取资源成本数据"""
+    costs = get_resource_costs()
+    return {"status": "success", "resources": costs}
+
+
+@router.get(
+    "/llm-cost",
+    summary="LLM成本",
+    responses={
+        200: {"description": "LLM成本数据"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_llm_cost(user=Depends(get_current_active_user)):
+    """获取LLM成本数据"""
+    llm_costs = get_llm_costs()
+    return {"status": "success", "llm_costs": llm_costs}
+
+
+@router.get(
+    "/budget-management",
+    summary="预算管理",
+    responses={
+        200: {"description": "预算管理数据"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_budget_management(user=Depends(get_current_active_user)):
+    """获取预算管理数据"""
+    budgets = get_budget_management()
+    return {"status": "success", "budgets": budgets}
+
+
+@router.post(
+    "/budget-management",
+    summary="创建预算",
+    responses={
+        200: {"description": "预算创建成功"},
+        401: {"description": "未授权"},
+    },
+)
+async def create_budget_endpoint(budget_data: dict, user=Depends(role_required("admin"))):
+    """创建新预算"""
+    budget = create_budget(budget_data)
+    return {"status": "success", "budget": budget}
+
+
+@router.post(
+    "/cost-prediction",
+    summary="成本预测",
+    responses={
+        200: {"description": "成本预测结果"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_cost_prediction(data: dict, user=Depends(get_current_active_user)):
+    """获取成本预测"""
+    time_horizon = data.get("time_horizon", 30)
+    prediction = predict_costs(time_horizon)
+    return {"status": "success", "prediction": prediction}
+
+
+@router.get(
+    "/cost-collection",
+    summary="成本采集",
+    responses={
+        200: {"description": "成本采集状态"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_cost_collection(user=Depends(get_current_active_user)):
+    """获取成本采集状态"""
+    status = get_cost_collection_status()
+    return {"status": "success", "collection": status}
+
+
+@router.post(
+    "/cost-collection/{id}/sync",
+    summary="同步成本采集",
+    responses={
+        200: {"description": "同步成功"},
+        401: {"description": "未授权"},
+    },
+)
+async def sync_cost_collection_endpoint(id: str, user=Depends(role_required("admin"))):
+    """同步成本采集"""
+    result = sync_cost_collection(id)
+    return {"status": "success", "result": result}
+
+
+@router.get(
+    "/cost-monitoring",
+    summary="成本监控",
+    responses={
+        200: {"description": "成本监控数据"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_cost_monitoring(user=Depends(get_current_active_user)):
+    """获取成本监控数据"""
+    monitoring = get_cost_monitoring()
+    return {"status": "success", "monitoring": monitoring}
+
+
+@router.post(
+    "/cost-report",
+    summary="成本报告",
+    responses={
+        200: {"description": "成本报告"},
+        401: {"description": "未授权"},
+    },
+)
+async def get_cost_report(data: dict, user=Depends(get_current_active_user)):
+    """生成成本报告"""
+    period = data.get("period", "monthly")
+    report = generate_cost_report(period)
+    return {"status": "success", "report": report}
