@@ -11,6 +11,13 @@ from typing import List, Dict, Set, Optional
 from functools import wraps
 from fastapi import HTTPException, Depends
 
+try:
+    from core.authentication import get_current_active_user
+except ImportError:
+    # Fallback if authentication module not available
+    async def get_current_active_user():
+        return None
+
 
 class Permission(str, Enum):
     """权限枚举"""
@@ -182,3 +189,15 @@ def require_any_role(*required_roles: Role):
             return await func(*args, **kwargs)
         return wrapper
     return decorator
+
+
+def role_required(required_role: str):
+    """FastAPI依赖函数：检查用户角色"""
+    async def check_role(user=Depends(get_current_active_user)):
+        if not user or user.role != required_role:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Role denied: {required_role} required"
+            )
+        return user
+    return check_role
