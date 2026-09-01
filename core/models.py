@@ -4333,3 +4333,158 @@ class FrontendLocalizationDB(Base):
 
     def __repr__(self):
         return f"<FrontendLocalizationDB(id={self.id}, lang='{self.language_code}', key='{self.translation_key}')>"
+
+
+# ==================== GraphQL Models ====================
+
+
+class GraphQLQueryConfig(Base):
+    """GraphQL查询配置表"""
+
+    __tablename__ = "graphql_query_configs"
+
+    id = Column(String(100), primary_key=True)
+    
+    # 配置信息
+    config_name = Column(String(200), nullable=False, index=True)
+    query_template = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # 权限配置
+    required_roles = Column(JSON, nullable=True)  # List of roles allowed to execute
+    required_permissions = Column(JSON, nullable=True)  # List of permissions required
+    
+    # 性能配置
+    max_complexity = Column(Integer, nullable=True)
+    max_depth = Column(Integer, nullable=True)
+    timeout_ms = Column(Integer, nullable=True)
+    
+    # 缓存配置
+    cache_enabled = Column(Boolean, default=False, nullable=False)
+    cache_ttl_seconds = Column(Integer, nullable=True)
+    
+    # 状态
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    
+    # 创建和更新信息
+    created_by = Column(String(50), nullable=True)
+    updated_by = Column(String(50), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+    
+    # 索引
+    __table_args__ = (
+        Index("idx_graphql_query_configs_name", "config_name"),
+        Index("idx_graphql_query_configs_active", "is_active"),
+    )
+    
+    def __repr__(self):
+        return f"<GraphQLQueryConfig(id='{self.id}', name='{self.config_name}', active={self.is_active})>"
+
+
+class GraphQLQueryHistory(Base):
+    """GraphQL查询历史表"""
+
+    __tablename__ = "graphql_query_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # 查询信息
+    query_id = Column(String(100), nullable=True, index=True)  # Reference to GraphQLQueryConfig
+    query_string = Column(Text, nullable=False)
+    variables = Column(JSON, nullable=True)
+    operation_name = Column(String(100), nullable=True)
+    
+    # 执行信息
+    user_id = Column(Integer, nullable=True, index=True)
+    username = Column(String(50), nullable=True)
+    tenant_id = Column(String(50), nullable=True, index=True)
+    
+    # 性能信息
+    execution_time_ms = Column(Float, nullable=True)
+    complexity_score = Column(Integer, nullable=True)
+    depth = Column(Integer, nullable=True)
+    
+    # 结果信息
+    success = Column(Boolean, nullable=False, index=True)
+    error_message = Column(Text, nullable=True)
+    error_code = Column(String(50), nullable=True)
+    result_size_bytes = Column(Integer, nullable=True)
+    
+    # 请求信息
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
+    
+    # 索引
+    __table_args__ = (
+        Index("idx_graphql_query_history_query_id", "query_id"),
+        Index("idx_graphql_query_history_user_id", "user_id"),
+        Index("idx_graphql_query_history_tenant_id", "tenant_id"),
+        Index("idx_graphql_query_history_success", "success"),
+        Index("idx_graphql_query_history_created_at", "created_at"),
+    )
+    
+    def __repr__(self):
+        return f"<GraphQLQueryHistory(id={self.id}, success={self.success}, time_ms={self.execution_time_ms})>"
+
+
+class GraphQLPerformanceStats(Base):
+    """GraphQL性能统计表"""
+
+    __tablename__ = "graphql_performance_stats"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # 统计维度
+    stat_type = Column(String(50), nullable=False, index=True)  # query, field, operation
+    stat_key = Column(String(200), nullable=False, index=True)  # query name, field name, operation name
+    tenant_id = Column(String(50), nullable=True, index=True)
+    
+    # 时间窗口
+    window_start = Column(DateTime, nullable=False, index=True)
+    window_end = Column(DateTime, nullable=False, index=True)
+    
+    # 执行统计
+    total_executions = Column(Integer, nullable=False, default=0)
+    successful_executions = Column(Integer, nullable=False, default=0)
+    failed_executions = Column(Integer, nullable=False, default=0)
+    
+    # 性能统计
+    avg_execution_time_ms = Column(Float, nullable=True)
+    min_execution_time_ms = Column(Float, nullable=True)
+    max_execution_time_ms = Column(Float, nullable=True)
+    p50_execution_time_ms = Column(Float, nullable=True)
+    p95_execution_time_ms = Column(Float, nullable=True)
+    p99_execution_time_ms = Column(Float, nullable=True)
+    
+    # 复杂度统计
+    avg_complexity = Column(Float, nullable=True)
+    avg_depth = Column(Integer, nullable=True)
+    
+    # 数据量统计
+    avg_result_size_bytes = Column(Float, nullable=True)
+    total_result_size_bytes = Column(Integer, nullable=False, default=0)
+    
+    # 错误统计
+    error_rate = Column(Float, nullable=True)
+    common_errors = Column(JSON, nullable=True)  # Map of error_code -> count
+    
+    # 时间戳
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # 索引
+    __table_args__ = (
+        Index("idx_graphql_performance_stats_type_key", "stat_type", "stat_key"),
+        Index("idx_graphql_performance_stats_tenant", "tenant_id"),
+        Index("idx_graphql_performance_stats_window", "window_start", "window_end"),
+    )
+    
+    def __repr__(self):
+        return f"<GraphQLPerformanceStats(id={self.id}, type='{self.stat_type}', key='{self.stat_key}')>"
