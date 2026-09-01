@@ -16,8 +16,8 @@ from sqlalchemy import Index
 
 
 # revision identifiers
-revision = '012_add_performance_indexes'
-down_revision = '011_add_chaos_engineering_models'
+revision = '012'
+down_revision = '011'
 branch_labels = None
 depends_on = None
 
