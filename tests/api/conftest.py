@@ -172,18 +172,9 @@ def enable_test_mode():
                 return func
             return decorator
         core.auth_service.require_roles = mock_require_roles
-        
-        # Patch get_session to return a mock session
-        original_get_session = core.auth_service.get_session
-        def mock_get_session():
-            from unittest.mock import Mock
-            mock_session = Mock()
-            return mock_session
-        core.auth_service.get_session = mock_get_session
     except ImportError:
         original_auth_service_func = None
         original_require_roles = None
-        original_get_session = None
     
     # Patch core.auth_db.get_session
     try:
@@ -206,8 +197,6 @@ def enable_test_mode():
         core.auth_service.get_current_user = original_auth_service_func
     if original_require_roles:
         core.auth_service.require_roles = original_require_roles
-    if original_get_session:
-        core.auth_service.get_session = original_get_session
     if original_auth_db_get_session:
         core.auth_db.get_session = original_auth_db_get_session
     
