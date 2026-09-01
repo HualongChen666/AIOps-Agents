@@ -221,7 +221,6 @@ hitl_router: Any = None
 notify_router: Any = None
 priority_router: Any = None
 chaos_router: Any = None
-chaos_simple_router: Any = None
 cloud_router: Any = None
 database_advanced_router: Any = None
 database_optimization_router: Any = None
@@ -271,7 +270,6 @@ service_mesh_advanced_router: Any = None
 service_monitoring_router: Any = None
 service_monitoring_advanced_router: Any = None
 topology_router: Any = None
-topology_simple_router: Any = None
 topology_view_router: Any = None
 workflow_router: Any = None
 workflow_advanced_router: Any = None
@@ -309,7 +307,6 @@ if ENABLE_ADDONS:
         from api.topology_router import router as topology_router
         from api.topology_advanced_router import router as topology_advanced_router
         from api.topology_view_router import router as topology_view_router
-        from api.topology_simple_router import router as topology_simple_router
     if TRACING_ENABLED:
         from api.apm_router import router as apm_router
         from api.tracing_router import router as tracing_router
@@ -339,7 +336,6 @@ if ENABLE_ADDONS:
     if PLUGINS_ENABLED:
         from api.chaos_advanced_router import router as chaos_advanced_router
         from api.chaos_router import router as chaos_router
-        from api.chaos_simple_router import router as chaos_simple_router
         from api.cloud_router import router as cloud_router
         from api.database_advanced_router import router as database_advanced_router
         from api.database_optimization_router import router as database_optimization_router
@@ -824,10 +820,8 @@ CORE_ROUTERS = [
     capacity_router,
     anomaly_router,
     slo_router,
-    chaos_simple_router,
     tenant_router,
     tenant_advanced_router,
-    topology_simple_router,
     business_impact_router,
     business_impact_advanced_router,
     change_management_router,

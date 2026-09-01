@@ -17,7 +17,7 @@ from core.tenant_engine import (
     update_tenant,
 )
 
-router = APIRouter(prefix="/api/tenant", tags=["tenants"])
+router = APIRouter(prefix="/api/v1/tenants", tags=["tenants"])
 
 
 class TenantCreate(BaseModel):
@@ -92,63 +92,3 @@ async def delete_existing_tenant(tenant_id: str) -> None:
     if not delete_tenant(tenant_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     return None
-
-
-@router.get("/tenant-api")
-async def get_tenant_api():
-    """获取租户API信息"""
-    return {"status": "success", "api_endpoints": list_tenants()}
-
-
-@router.get("/tenant-monitoring")
-async def get_tenant_monitoring():
-    """获取租户监控数据"""
-    return {"status": "success", "monitoring": {"active_tenants": len(list_tenants()), "total_requests": 10000}}
-
-
-@router.get("/tenant-audit")
-async def get_tenant_audit():
-    """获取租户审计日志"""
-    return {"status": "success", "audit_logs": []}
-
-
-@router.get("/tenant-permissions")
-async def get_tenant_permissions():
-    """获取租户权限"""
-    return {"status": "success", "permissions": {"read": True, "write": True, "admin": False}}
-
-
-@router.get("/tenant-resources")
-async def get_tenant_resources():
-    """获取租户资源"""
-    return {"status": "success", "resources": {"cpu": 4, "memory": 16, "storage": 100}}
-
-
-@router.get("/tenant-billing")
-async def get_tenant_billing():
-    """获取租户账单"""
-    return {"status": "success", "billing": {"current_month": 500.0, "pending": 100.0}}
-
-
-@router.get("/tenant-quota")
-async def get_tenant_quota():
-    """获取租户配额"""
-    return {"status": "success", "quota": {"max_users": 100, "max_services": 50}}
-
-
-@router.get("/tenant-configuration")
-async def get_tenant_configuration():
-    """获取租户配置"""
-    return {"status": "success", "configuration": {"timezone": "UTC", "language": "en"}}
-
-
-@router.get("/tenant-isolation")
-async def get_tenant_isolation():
-    """获取租户隔离状态"""
-    return {"status": "success", "isolation": {"enabled": True, "level": "strict"}}
-
-
-@router.get("/tenant-management")
-async def get_tenant_management():
-    """获取租户管理信息"""
-    return {"status": "success", "management": {"auto_scaling": True, "backup_enabled": True}}

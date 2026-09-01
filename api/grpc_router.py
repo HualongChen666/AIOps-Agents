@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/grpc", tags=["grpc"])
+router = APIRouter(prefix="/grpc", tags=["grpc"])
 
 # Phase 3 集成: gRPC 接口
 try:
@@ -117,15 +117,3 @@ async def stop_grpc_server() -> Dict[str, Any]:
         return {"status": "stopped", "message": "gRPC server stopped successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to stop gRPC server: {str(e)}")
-
-
-@router.get("/grpc-management")
-async def get_grpc_management():
-    """获取gRPC管理信息"""
-    return {"status": "success", "management": {"server_running": _grpc_server is not None}}
-
-
-@router.get("/grpc-service")
-async def get_grpc_service():
-    """获取gRPC服务信息"""
-    return {"status": "success", "service": {"port": 50051, "host": "127.0.0.1"}}
