@@ -134,8 +134,33 @@ def event_loop():
 def enable_test_mode():
     """Enable test mode to bypass authentication"""
     import os
+    import sys
+    from unittest.mock import patch, Mock, AsyncMock
+    
+    # Set TEST_MODE environment variable
     os.environ["TEST_MODE"] = "true"
+    
+    # Patch get_current_active_user at module level
+    user = Mock()
+    user.id = "test-admin"
+    user.username = "test_admin"
+    user.role = "admin"
+    user.is_active = True
+    user.disabled = False
+    
+    async def mock_get_current_active_user():
+        return user
+    
+    # Patch in core.authentication
+    import core.authentication
+    original_func = core.authentication.get_current_active_user
+    core.authentication.get_current_active_user = mock_get_current_active_user
+    
     yield
-    # Clean up after tests
+    
+    # Restore original function
+    core.authentication.get_current_active_user = original_func
+    
+    # Clean up
     if "TEST_MODE" in os.environ:
         del os.environ["TEST_MODE"]
