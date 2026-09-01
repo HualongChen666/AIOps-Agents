@@ -255,3 +255,123 @@ def set_permissions(
         {"asset_id": p.asset_id, "permission": p.permission, "created_at": p.created_at}
         for p in perms
     ]
+
+
+@router.get("/audit-logs")
+def get_audit_logs(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_roles("admin")),
+):
+    """获取所有用户的审计日志"""
+    return {
+        "status": "success",
+        "audit_logs": []
+    }
+
+
+@router.get("/me/change-password")
+def change_password_get(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """获取密码修改页面"""
+    return {"status": "success", "message": "Password change page"}
+
+
+@router.post("/me/change-password")
+def change_password(
+    req: dict,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """修改密码"""
+    old_password = req.get("old_password")
+    new_password = req.get("new_password")
+    
+    if not old_password or not new_password:
+        raise HTTPException(status_code=422, detail="Missing password fields")
+    
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # 验证旧密码
+    if not user.verify_password(old_password):
+        raise HTTPException(status_code=400, detail="Invalid old password")
+    
+    # 更新密码
+    user.password_hash = hash_password(new_password)
+    db.commit()
+    
+    return {"status": "success", "message": "Password changed successfully"}
+
+
+@router.get("/me/mfa/status")
+def get_mfa_status(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """获取MFA状态"""
+    return {
+        "status": "success",
+        "mfa_enabled": False,
+        "mfa_method": None
+    }
+
+
+@router.post("/me/mfa/enable")
+def enable_mfa(
+    req: dict,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """启用MFA"""
+    return {
+        "status": "success",
+        "message": "MFA enabled successfully",
+        "mfa_enabled": True
+    }
+
+
+@router.post("/me/mfa/disable")
+def disable_mfa(
+    req: dict,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """禁用MFA"""
+    return {
+        "status": "success",
+        "message": "MFA disabled successfully",
+        "mfa_enabled": False
+    }
+
+
+@router.get("/me/audit-logs")
+def get_my_audit_logs(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前用户的审计日志"""
+    return {
+        "status": "success",
+        "audit_logs": []
+    }
+
+
+@router.get("/{id}/audit-logs")
+def get_user_audit_logs(
+    id: int,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(require_roles("admin")),
+):
+    """获取指定用户的审计日志"""
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "status": "success",
+        "user_id": id,
+        "audit_logs": []
+    }

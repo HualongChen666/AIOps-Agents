@@ -158,6 +158,7 @@ from api.maturity_router import router as maturity_router
 from api.repair_advanced_router import router as repair_advanced_router
 from api.repair_router_append import router as repair_router_append
 from api.repair_scripts_router import router as repair_scripts_router
+from api.approvals_router import router as approvals_router
 from api.settings_router import router as settings_router
 from api.slack_router import router as slack_router
 from api.slo_router import router as slo_router
@@ -806,6 +807,7 @@ CORE_ROUTERS = [
     repair_advanced_router,
     repair_router_append,
     repair_scripts_router,
+    approvals_router,
     unified_repair_router,
     unified_repair_advanced_router,
     unified_repair_advanced_router_v1,
