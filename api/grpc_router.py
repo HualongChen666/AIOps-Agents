@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/grpc", tags=["grpc"])
+router = APIRouter(prefix="/api/grpc", tags=["grpc"])
 
 # Phase 3 集成: gRPC 接口
 try:
