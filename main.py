@@ -273,6 +273,7 @@ service_mesh_advanced_router: Any = None
 service_monitoring_router: Any = None
 service_monitoring_advanced_router: Any = None
 topology_router: Any = None
+topology_simple_router: Any = None
 topology_view_router: Any = None
 workflow_router: Any = None
 workflow_advanced_router: Any = None
@@ -308,6 +309,7 @@ if ENABLE_ADDONS:
             router as service_monitoring_advanced_router,
         )
         from api.topology_router import router as topology_router
+        from api.topology_simple_router import router as topology_simple_router
         from api.topology_advanced_router import router as topology_advanced_router
         from api.topology_view_router import router as topology_view_router
     if TRACING_ENABLED:
@@ -858,6 +860,7 @@ ADDON_ROUTERS = [
     # Observability & Topology Pack
     (metrics_router, METRICS_ENABLED),
     (topology_router, TOPOLOGY_ENABLED),
+    (topology_simple_router, TOPOLOGY_ENABLED),
     (topology_advanced_router, TOPOLOGY_ENABLED),
     (topology_advanced_router_v1, TOPOLOGY_ENABLED),
     (topology_view_router, TOPOLOGY_ENABLED),
