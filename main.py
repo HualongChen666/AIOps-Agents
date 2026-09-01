@@ -221,6 +221,7 @@ hitl_router: Any = None
 notify_router: Any = None
 priority_router: Any = None
 chaos_router: Any = None
+chaos_simple_router: Any = None
 cloud_router: Any = None
 database_advanced_router: Any = None
 database_optimization_router: Any = None
@@ -336,6 +337,7 @@ if ENABLE_ADDONS:
     if PLUGINS_ENABLED:
         from api.chaos_advanced_router import router as chaos_advanced_router
         from api.chaos_router import router as chaos_router
+        from api.chaos_simple_router import router as chaos_simple_router
         from api.cloud_router import router as cloud_router
         from api.database_advanced_router import router as database_advanced_router
         from api.database_optimization_router import router as database_optimization_router
@@ -820,6 +822,7 @@ CORE_ROUTERS = [
     capacity_router,
     anomaly_router,
     slo_router,
+    chaos_simple_router,
     tenant_router,
     tenant_advanced_router,
     business_impact_router,
