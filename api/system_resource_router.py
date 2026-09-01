@@ -6,10 +6,12 @@ Provides API endpoints for system resource monitoring and optimization
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
-router = APIRouter(prefix="/api/system-resources", tags=["System Resources"])
+from core.authentication import get_current_active_user
+
+router = APIRouter(prefix="/api/resources", tags=["System Resources"])
 
 
 @router.get(
@@ -20,7 +22,7 @@ router = APIRouter(prefix="/api/system-resources", tags=["System Resources"])
         500: {"description": "获取失败"},
     },
 )
-async def get_optimization_status():
+async def get_optimization_status(user=Depends(get_current_active_user)):
     """
     Get current system resource optimization status
 
@@ -46,7 +48,7 @@ async def get_optimization_status():
         500: {"description": "获取失败"},
     },
 )
-async def get_resource_summary():
+async def get_resource_summary(user=Depends(get_current_active_user)):
     """
     Get comprehensive resource summary
 
@@ -72,7 +74,7 @@ async def get_resource_summary():
         500: {"description": "分析失败"},
     },
 )
-async def analyze_memory_usage():
+async def analyze_memory_usage(user=Depends(get_current_active_user)):
     """
     Analyze memory usage
 
@@ -98,7 +100,7 @@ async def analyze_memory_usage():
         500: {"description": "优化失败"},
     },
 )
-async def optimize_memory():
+async def optimize_memory(user=Depends(get_current_active_user)):
     """
     Optimize memory usage
 
@@ -124,7 +126,7 @@ async def optimize_memory():
         500: {"description": "分析失败"},
     },
 )
-async def analyze_cpu_usage():
+async def analyze_cpu_usage(user=Depends(get_current_active_user)):
     """
     Analyze CPU usage
 
@@ -150,7 +152,7 @@ async def analyze_cpu_usage():
         500: {"description": "优化失败"},
     },
 )
-async def optimize_cpu():
+async def optimize_cpu(user=Depends(get_current_active_user)):
     """
     Optimize CPU usage
 
@@ -176,7 +178,7 @@ async def optimize_cpu():
         500: {"description": "分析失败"},
     },
 )
-async def analyze_network_usage():
+async def analyze_network_usage(user=Depends(get_current_active_user)):
     """
     Analyze network usage
 
@@ -202,7 +204,7 @@ async def analyze_network_usage():
         500: {"description": "优化失败"},
     },
 )
-async def optimize_network():
+async def optimize_network(user=Depends(get_current_active_user)):
     """
     Optimize network usage
 
@@ -232,6 +234,7 @@ async def run_comprehensive_optimization(
     memory_optimization: bool = Query(True, description="Enable memory optimization"),
     cpu_optimization: bool = Query(True, description="Enable CPU optimization"),
     network_optimization: bool = Query(True, description="Enable network optimization"),
+    user=Depends(get_current_active_user),
 ):
     """
     Run comprehensive system resource optimization

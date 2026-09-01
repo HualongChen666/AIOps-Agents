@@ -6,10 +6,12 @@ Documentation API Router
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
-router = APIRouter(prefix="/api/documentation", tags=["Documentation"])
+from core.authentication import get_current_active_user
+
+router = APIRouter(prefix="/api/docs", tags=["Documentation"])
 
 
 @router.get(
@@ -31,7 +33,7 @@ router = APIRouter(prefix="/api/documentation", tags=["Documentation"])
         500: {"description": "获取失败"},
     },
 )
-async def get_documentation_status():
+async def get_documentation_status(user=Depends(get_current_active_user)):
     """Get documentation status"""
     try:
         from core.documentation_manager import get_documentation_manager
@@ -68,7 +70,7 @@ async def get_documentation_status():
         500: {"description": "获取失败"},
     },
 )
-async def list_documents(doc_type: Optional[str] = None, status: Optional[str] = None):
+async def list_documents(doc_type: Optional[str] = None, status: Optional[str] = None, user=Depends(get_current_active_user)):
     """List documents"""
     try:
         from core.documentation_manager import DocStatus, DocType, get_documentation_manager
@@ -116,6 +118,7 @@ async def create_document(
     content: str,
     author: Optional[str] = None,
     version: str = "1.0",
+    user=Depends(get_current_active_user),
 ):
     """Create a document"""
     try:
@@ -145,7 +148,7 @@ async def create_document(
         500: {"description": "获取失败"},
     },
 )
-async def get_document(doc_id: str):
+async def get_document(doc_id: str, user=Depends(get_current_active_user)):
     """Get document by ID"""
     try:
         from core.documentation_manager import get_documentation_manager
@@ -190,6 +193,7 @@ async def update_document(
     doc_id: str,
     content: Optional[str] = None,
     status: Optional[str] = None,
+    user=Depends(get_current_active_user),
 ):
     """Update document"""
     try:
@@ -218,7 +222,7 @@ async def update_document(
         500: {"description": "获取失败"},
     },
 )
-async def get_templates():
+async def get_templates(user=Depends(get_current_active_user)):
     """Get available documentation templates"""
     try:
         from core.documentation_manager import get_documentation_manager

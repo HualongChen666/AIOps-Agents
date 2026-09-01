@@ -6,9 +6,11 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from core.authentication import get_current_active_user
+from core.rbac import role_required
 from core.tenant_engine import (
     create_tenant,
     delete_tenant,
@@ -17,7 +19,7 @@ from core.tenant_engine import (
     update_tenant,
 )
 
-router = APIRouter(prefix="/api/v1/tenants", tags=["tenants"])
+router = APIRouter(prefix="/api/tenant", tags=["tenants"])
 
 
 class TenantCreate(BaseModel):
@@ -55,12 +57,12 @@ class TenantResponse(BaseModel):
 
 
 @router.get("/", response_model=List[TenantResponse])
-async def get_all_tenants() -> List[TenantResponse]:
+async def get_all_tenants(user=Depends(get_current_active_user)) -> List[TenantResponse]:
     return [TenantResponse(**asdict(t)) for t in list_tenants()]
 
 
 @router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
-async def create_new_tenant(payload: TenantCreate) -> TenantResponse:
+async def create_new_tenant(payload: TenantCreate, user=Depends(role_required("admin"))) -> TenantResponse:
     tenant = create_tenant(
         name=payload.name,
         plan=payload.plan,
@@ -71,7 +73,7 @@ async def create_new_tenant(payload: TenantCreate) -> TenantResponse:
 
 
 @router.get("/{tenant_id}", response_model=TenantResponse)
-async def get_one_tenant(tenant_id: str) -> TenantResponse:
+async def get_one_tenant(tenant_id: str, user=Depends(get_current_active_user)) -> TenantResponse:
     tenant = get_tenant(tenant_id)
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
@@ -79,7 +81,7 @@ async def get_one_tenant(tenant_id: str) -> TenantResponse:
 
 
 @router.put("/{tenant_id}", response_model=TenantResponse)
-async def update_existing_tenant(tenant_id: str, payload: TenantUpdate) -> TenantResponse:
+async def update_existing_tenant(tenant_id: str, payload: TenantUpdate, user=Depends(role_required("admin"))) -> TenantResponse:
     updates = payload.model_dump(exclude_unset=True)
     tenant = update_tenant(tenant_id, **updates)
     if not tenant:
@@ -88,7 +90,7 @@ async def update_existing_tenant(tenant_id: str, payload: TenantUpdate) -> Tenan
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_existing_tenant(tenant_id: str) -> None:
+async def delete_existing_tenant(tenant_id: str, user=Depends(role_required("admin"))) -> None:
     if not delete_tenant(tenant_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     return None
