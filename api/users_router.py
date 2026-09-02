@@ -376,8 +376,8 @@ def change_password(
 
 @router.get("/me/mfa/status")
 def get_mfa_status(
-    db: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session) if get_session else None,
+    current_user: User = Depends(get_current_user) if get_current_user else None,
 ):
     """获取MFA状态"""
     return {
@@ -417,8 +417,8 @@ def disable_mfa(
 
 @router.get("/me/audit-logs")
 def get_my_audit_logs(
-    db: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session) if get_session else None,
+    current_user: User = Depends(get_current_user) if get_current_user else None,
 ):
     """获取当前用户的审计日志"""
     return {
