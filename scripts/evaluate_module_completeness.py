@@ -20,19 +20,39 @@ sys.path.insert(0, str(project_root))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 需要评估的模块列表
+# 需要评估的模块列表（基于用户提供的30个模块）
 MODULES_TO_EVALUATE = [
-    "alerts_advanced_router",
-    "monitoring_advanced_router", 
-    "security_advanced_router",
-    "service_mesh_advanced_router",
-    "integration_router",
-    "workflow_router",
-    "users_unified_router",
-    "frontend_advanced_router",
-    "plugin_router",
-    "infrastructure_router",
-    "database_monitoring_router",
+    "alerts_advanced_router",           # Alerts（告警）
+    "monitoring_advanced_router",        # Monitoring（监控）
+    "security_advanced_router",          # Security（安全）
+    "cost_advanced_router",              # Cost（成本）
+    "capacity_advanced_router",          # Capacity（容量）
+    "slo_router",                       # SLO（SLO）
+    "topology_router",                  # Topology（拓扑）
+    "integration_router",               # Integration（集成）
+    "workflow_router",                  # Workflow（工作流）
+    "repair_advanced_router",            # Repair（修复）
+    "chaos_advanced_router",             # Chaos（混沌工程）
+    "plugin_router",                    # Plugin（插件）
+    "tenant_router",                    # Tenant（租户）
+    "users_unified_router",             # Users（用户）
+    "database_monitoring_router",       # Database（数据库）
+    "performance_optimization_router",  # Performance（性能）
+    "disaster_router",                  # Disaster（灾备）
+    "test_automation_advanced_router",  # Testing（测试）
+    "documentation_advanced_router",     # Docs（文档）
+    "service_mesh_advanced_router",     # Service-mesh（服务网格）
+    "assets_advanced_router",           # Resources（资源）
+    "realtime_advanced_router",         # Realtime（实时）
+    "qdrant_router",                    # Vector（向量）
+    "graphql_router",                   # GraphQL
+    "grpc_router",                      # gRPC
+    "i18n_router",                      # i18n（国际化）
+    "maturity_advanced_router",         # Maturity（成熟度）
+    "frontend_advanced_router",         # Frontend（前端）
+    "enterprise_advanced_router",       # Enterprise（企业）
+    "infrastructure_router",            # Infrastructure（基础设施）
+    "ai_advanced_router",               # AI模块
 ]
 
 class ModuleCompletenessEvaluator:
