@@ -30,10 +30,10 @@ logger = logging.getLogger(__name__)
 class ElasticsearchHit(BaseModel):
     """Elasticsearch文档命中"""
 
-    _index: str = Field(..., alias="_index", description="索引名称")
-    _id: str = Field(..., alias="_id", description="文档ID")
-    _score: float = Field(..., alias="_score", description="相关性得分")
-    _source: Dict[str, Any] = Field(..., alias="_source", description="文档源数据")
+    index: str = Field(..., alias="_index", description="索引名称")
+    id: str = Field(..., alias="_id", description="文档ID")
+    score: float = Field(..., alias="_score", description="相关性得分")
+    source: Dict[str, Any] = Field(..., alias="_source", description="文档源数据")
 
 
 class ElasticsearchSearchResult(BaseModel):
@@ -41,7 +41,7 @@ class ElasticsearchSearchResult(BaseModel):
 
     took: int = Field(..., description="查询耗时（毫秒）")
     timed_out: bool = Field(..., description="是否超时")
-    _shards: Dict[str, Any] = Field(..., alias="_shards", description="分片信息")
+    shards: Dict[str, Any] = Field(..., alias="_shards", description="分片信息")
     hits: Dict[str, Any] = Field(..., description="命中结果")
     total: int = Field(default=0, description="总命中数")
 
