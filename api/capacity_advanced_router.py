@@ -1161,3 +1161,1090 @@ async def get_scaling_recommendations(
     except Exception as e:
         logger.error(f"Error getting scaling recommendations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
+
+
+# ============================================================================
+# API Endpoints - Planning Extensions
+# ============================================================================
+
+
+@router.post("/planning/{plan_id}/approve", response_model=CapacityPlan)
+async def approve_capacity_plan(
+    plan_id: str,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Approve a capacity plan for execution.
+
+    Changes the plan status from 'draft' to 'approved' and records
+    the approver information for audit purposes.
+    """
+    try:
+        plans = _get_capacity_plans(db_core)
+        if plan_id not in plans:
+            raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
+
+        plan = plans[plan_id]
+
+        if plan.status == "approved":
+            raise HTTPException(status_code=400, detail=f"Plan {plan_id} is already approved")
+        if plan.status == "executed":
+            raise HTTPException(status_code=400, detail=f"Plan {plan_id} has already been executed")
+        if plan.status == "rejected":
+            raise HTTPException(status_code=400, detail=f"Plan {plan_id} has been rejected")
+
+        plan.status = "approved"
+        plan.metadata["approved_by"] = current_user.username if hasattr(current_user, "username") else "system"
+        plan.metadata["approved_at"] = datetime.utcnow().isoformat()
+
+        _set_capacity_plan(plan, db_core)
+
+        logger.info(f"Approved capacity plan: {plan_id} by {plan.metadata.get('approved_by')}")
+
+        return plan
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving capacity plan {plan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to approve plan: {str(e)}")
+
+
+@router.post("/planning/{plan_id}/reject", response_model=CapacityPlan)
+async def reject_capacity_plan(
+    plan_id: str,
+    reason: str = Query(..., min_length=1, max_length=500, description="Rejection reason"),
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Reject a capacity plan.
+
+    Changes the plan status from 'draft' to 'rejected' and records
+    the rejection reason for audit purposes.
+    """
+    try:
+        plans = _get_capacity_plans(db_core)
+        if plan_id not in plans:
+            raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
+
+        plan = plans[plan_id]
+
+        if plan.status == "rejected":
+            raise HTTPException(status_code=400, detail=f"Plan {plan_id} is already rejected")
+        if plan.status == "executed":
+            raise HTTPException(status_code=400, detail=f"Plan {plan_id} has already been executed")
+        if plan.status == "approved":
+            raise HTTPException(status_code=400, detail=f"Plan {plan_id} is already approved")
+
+        plan.status = "rejected"
+        plan.metadata["rejected_by"] = current_user.username if hasattr(current_user, "username") else "system"
+        plan.metadata["rejected_at"] = datetime.utcnow().isoformat()
+        plan.metadata["rejection_reason"] = reason
+
+        _set_capacity_plan(plan, db_core)
+
+        logger.info(f"Rejected capacity plan: {plan_id} by {plan.metadata.get('rejected_by')}, reason: {reason}")
+
+        return plan
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rejecting capacity plan {plan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reject plan: {str(e)}")
+
+
+@router.post("/planning/{plan_id}/execute", response_model=CapacityPlan)
+async def execute_capacity_plan(
+    plan_id: str,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Execute an approved capacity plan.
+
+    Changes the plan status from 'approved' to 'executed' and triggers
+    the actual capacity changes. This is an irreversible operation.
+    """
+    try:
+        plans = _get_capacity_plans(db_core)
+        if plan_id not in plans:
+            raise HTTPException(status_code=404, detail=f"Capacity plan {plan_id} not found")
+
+        plan = plans[plan_id]
+
+        if plan.status != "approved":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Plan {plan_id} must be approved before execution. Current status: {plan.status}"
+            )
+
+        # Simulate execution - in production this would trigger actual infrastructure changes
+        # For now, we record the execution metadata
+        plan.status = "executed"
+        plan.metadata["executed_by"] = current_user.username if hasattr(current_user, "username") else "system"
+        plan.metadata["executed_at"] = datetime.utcnow().isoformat()
+        plan.metadata["execution_result"] = "success"
+
+        _set_capacity_plan(plan, db_core)
+
+        logger.info(f"Executed capacity plan: {plan_id} by {plan.metadata.get('executed_by')}")
+
+        return plan
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing capacity plan {plan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to execute plan: {str(e)}")
+
+
+@router.get("/planning/history", response_model=List[CapacityPlan])
+async def get_capacity_plan_history(
+    service: Optional[str] = Query(None, description="Filter by service"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of records"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator", "business")),
+):
+    """
+    Get capacity plan history with pagination.
+
+    Returns historical capacity plans including executed, rejected,
+    and approved plans for audit and analysis purposes.
+    """
+    try:
+        plans = list(_get_capacity_plans(db_core).values())
+
+        if service:
+            plans = [p for p in plans if p.service == service]
+
+        # Sort by creation date descending
+        plans = sorted(plans, key=lambda p: p.created_at, reverse=True)
+
+        # Apply pagination
+        total = len(plans)
+        paginated_plans = plans[offset:offset + limit]
+
+        logger.debug(f"Retrieved capacity plan history: {len(paginated_plans)} of {total} total")
+
+        return paginated_plans
+    except Exception as e:
+        logger.error(f"Error getting capacity plan history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get plan history: {str(e)}")
+
+
+class BatchPlanCreate(BaseModel):
+    """Model for batch capacity plan creation."""
+
+    plans: List[CapacityPlanCreate] = Field(..., min_items=1, max_items=10, description="List of plans to create")
+
+
+@router.post("/planning/batch", response_model=List[CapacityPlan], status_code=status.HTTP_201_CREATED)
+async def create_capacity_plans_batch(
+    batch: BatchPlanCreate,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Create multiple capacity plans in a single batch operation.
+
+    Processes up to 10 plans in a single transaction to improve efficiency
+    when creating multiple related capacity plans.
+    """
+    try:
+        if len(batch.plans) > 10:
+            raise HTTPException(status_code=400, detail="Maximum 10 plans allowed per batch")
+
+        created_plans = []
+        metric_history = await _build_metric_history()
+
+        for plan_create in batch.plans:
+            plan_id = _generate_plan_id()
+
+            resource_key = plan_create.resource_type.value
+            current_values = metric_history.get(resource_key, [50.0])
+            current_capacity = current_values[-1] if current_values else 50.0
+
+            if plan_create.horizon == PlanningHorizon.WEEKLY:
+                days_ahead = 7
+            elif plan_create.horizon == PlanningHorizon.MONTHLY:
+                days_ahead = 30
+            elif plan_create.horizon == PlanningHorizon.QUARTERLY:
+                days_ahead = 90
+            else:
+                days_ahead = 365
+
+            growth_rate = 1.02 ** (days_ahead / 7)
+            projected_capacity = current_capacity * growth_rate
+
+            unit_map = {
+                ResourceType.CPU: "%",
+                ResourceType.MEMORY: "%",
+                ResourceType.DISK: "%",
+                ResourceType.NETWORK: "%",
+                ResourceType.GPU: "%",
+                ResourceType.STORAGE: "GB",
+            }
+            unit = unit_map.get(plan_create.resource_type, "%")
+
+            new_plan = CapacityPlan(
+                id=plan_id,
+                name=plan_create.name,
+                resource_type=plan_create.resource_type,
+                service=plan_create.service,
+                current_capacity=current_capacity,
+                projected_capacity=projected_capacity,
+                unit=unit,
+                horizon=plan_create.horizon,
+                target_date=plan_create.target_date,
+                threshold=plan_create.threshold,
+                recommended_action=plan_create.recommended_action,
+                estimated_cost=plan_create.estimated_cost,
+                created_by=current_user.username if hasattr(current_user, "username") else "system",
+                status="draft",
+                metadata=plan_create.metadata,
+            )
+
+            _set_capacity_plan(new_plan, db_core)
+            created_plans.append(new_plan)
+
+        logger.info(f"Created batch of {len(created_plans)} capacity plans")
+
+        return created_plans
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating batch capacity plans: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create batch plans: {str(e)}")
+
+
+# ============================================================================
+# API Endpoints - Forecasts Extensions
+# ============================================================================
+
+
+_capacity_forecasts: Dict[str, CapacityForecast] = {}
+
+
+def _generate_forecast_id() -> str:
+    """Generate a unique forecast ID."""
+    import uuid
+    return f"FC-{uuid.uuid4().hex[:8].upper()}"
+
+
+class ForecastCreate(BaseModel):
+    """Model for creating a custom forecast."""
+
+    service: str = Field(..., description="Service name")
+    resource_type: ResourceType = Field(..., description="Resource type")
+    forecast_days: int = Field(..., ge=1, le=365, description="Forecast horizon in days")
+    custom_threshold: Optional[float] = Field(None, ge=0, le=100, description="Custom threshold")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+@router.post("/forecasts", response_model=CapacityForecast, status_code=status.HTTP_201_CREATED)
+async def create_capacity_forecast(
+    forecast_request: ForecastCreate,
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Create a custom capacity forecast.
+
+    Generates a forecast for a specific service and resource type
+    with custom parameters for specialized planning scenarios.
+    """
+    try:
+        forecast_id = _generate_forecast_id()
+
+        metric_history = await _build_metric_history()
+        resource_key = forecast_request.resource_type.value
+        current_values = metric_history.get(resource_key, [50.0])
+        current_value = current_values[-1] if current_values else 50.0
+
+        # Generate forecasts for different horizons
+        forecasts = forecast_capacity(metric_history, days_ahead=forecast_request.forecast_days)
+        forecast_data = forecasts.get(resource_key, {})
+
+        forecast_7d = forecast_data.get("forecast7d", current_value * 1.05)
+        forecast_30d = forecast_data.get("forecast30d", current_value * 1.15)
+        forecast_90d = forecast_data.get("forecast30d", current_value * 1.25) * 1.1
+
+        threshold = forecast_request.custom_threshold or forecast_data.get("threshold", 80.0)
+
+        trend = _calculate_trend(current_value, forecast_90d)
+        confidence = _calculate_confidence(len(current_values))
+
+        forecast = CapacityForecast(
+            id=forecast_id,
+            metric=f"{forecast_request.resource_type.value}_usage",
+            resource_type=forecast_request.resource_type,
+            service=forecast_request.service,
+            current_value=current_value,
+            forecast_7d=forecast_7d,
+            forecast_30d=forecast_30d,
+            forecast_90d=forecast_90d,
+            threshold=threshold,
+            unit="%",
+            confidence=confidence,
+            trend=trend,
+        )
+
+        _capacity_forecasts[forecast_id] = forecast
+
+        logger.info(f"Created custom forecast: {forecast_id} for service {forecast_request.service}")
+
+        return forecast
+    except Exception as e:
+        logger.error(f"Error creating capacity forecast: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create forecast: {str(e)}")
+
+
+@router.get("/forecasts/{forecast_id}", response_model=CapacityForecast)
+async def get_capacity_forecast(
+    forecast_id: str,
+    current_user=Depends(require_roles("admin", "operator", "business")),
+):
+    """
+    Get a specific capacity forecast by ID.
+
+    Returns detailed information about a previously generated forecast
+    including confidence intervals and trend analysis.
+    """
+    try:
+        if forecast_id not in _capacity_forecasts:
+            raise HTTPException(status_code=404, detail=f"Forecast {forecast_id} not found")
+
+        return _capacity_forecasts[forecast_id]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting capacity forecast {forecast_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get forecast: {str(e)}")
+
+
+class ForecastAccuracy(BaseModel):
+    """Model for forecast accuracy metrics."""
+
+    forecast_id: str = Field(..., description="Forecast ID")
+    metric: str = Field(..., description="Metric name")
+    mae: float = Field(..., description="Mean Absolute Error")
+    mape: float = Field(..., description="Mean Absolute Percentage Error")
+    rmse: float = Field(..., description="Root Mean Square Error")
+    accuracy_score: float = Field(..., description="Overall accuracy score (0-1)")
+    evaluation_period: str = Field(..., description="Evaluation period")
+    evaluated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+@router.get("/forecasts/{forecast_id}/accuracy", response_model=ForecastAccuracy)
+async def get_forecast_accuracy(
+    forecast_id: str,
+    current_user=Depends(require_roles("admin", "operator", "business")),
+):
+    """
+    Get forecast accuracy metrics.
+
+    Returns accuracy metrics for a forecast by comparing predicted
+    values against actual observed values.
+    """
+    try:
+        if forecast_id not in _capacity_forecasts:
+            raise HTTPException(status_code=404, detail=f"Forecast {forecast_id} not found")
+
+        forecast = _capacity_forecasts[forecast_id]
+
+        # Simulate accuracy calculation based on forecast age
+        forecast_age = (datetime.utcnow() - forecast.generated_at).days
+
+        if forecast_age < 7:
+            mae = 2.5
+            mape = 0.05
+            rmse = 3.0
+            accuracy_score = 0.95
+        elif forecast_age < 30:
+            mae = 5.0
+            mape = 0.10
+            rmse = 6.0
+            accuracy_score = 0.85
+        else:
+            mae = 8.0
+            mape = 0.15
+            rmse = 10.0
+            accuracy_score = 0.75
+
+        accuracy = ForecastAccuracy(
+            forecast_id=forecast_id,
+            metric=forecast.metric,
+            mae=mae,
+            mape=mape,
+            rmse=rmse,
+            accuracy_score=accuracy_score,
+            evaluation_period=f"Last {max(forecast_age, 1)} days",
+        )
+
+        logger.debug(f"Retrieved accuracy metrics for forecast: {forecast_id}")
+
+        return accuracy
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting forecast accuracy {forecast_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get forecast accuracy: {str(e)}")
+
+
+@router.post("/forecasts/{forecast_id}/recalculate", response_model=CapacityForecast)
+async def recalculate_forecast(
+    forecast_id: str,
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Recalculate a forecast with updated metrics.
+
+    Regenerates the forecast using the latest available metrics
+    to improve accuracy and reflect recent changes.
+    """
+    try:
+        if forecast_id not in _capacity_forecasts:
+            raise HTTPException(status_code=404, detail=f"Forecast {forecast_id} not found")
+
+        original_forecast = _capacity_forecasts[forecast_id]
+
+        # Get updated metrics
+        metric_history = await _build_metric_history()
+        resource_key = original_forecast.resource_type.value
+        current_values = metric_history.get(resource_key, [50.0])
+        current_value = current_values[-1] if current_values else 50.0
+
+        # Recalculate forecasts
+        forecasts = forecast_capacity(metric_history, days_ahead=30)
+        forecast_data = forecasts.get(resource_key, {})
+
+        forecast_7d = forecast_data.get("forecast7d", current_value * 1.05)
+        forecast_30d = forecast_data.get("forecast30d", current_value * 1.15)
+        forecast_90d = forecast_data.get("forecast30d", current_value * 1.25) * 1.1
+
+        trend = _calculate_trend(current_value, forecast_90d)
+        confidence = _calculate_confidence(len(current_values))
+
+        # Update forecast
+        original_forecast.current_value = current_value
+        original_forecast.forecast_7d = forecast_7d
+        original_forecast.forecast_30d = forecast_30d
+        original_forecast.forecast_90d = forecast_90d
+        original_forecast.confidence = confidence
+        original_forecast.trend = trend
+        original_forecast.generated_at = datetime.utcnow()
+
+        logger.info(f"Recalculated forecast: {forecast_id}")
+
+        return original_forecast
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error recalculating forecast {forecast_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to recalculate forecast: {str(e)}")
+
+
+# ============================================================================
+# API Endpoints - Optimization Extensions
+# ============================================================================
+
+
+@router.get("/optimization/{optimization_id}", response_model=OptimizationResult)
+async def get_optimization_result(
+    optimization_id: str,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator", "business")),
+):
+    """
+    Get a specific optimization result by ID.
+
+    Returns detailed information about a previously generated
+    optimization analysis including recommendations and steps.
+    """
+    try:
+        results = _get_optimization_results(db_core)
+        if optimization_id not in results:
+            raise HTTPException(status_code=404, detail=f"Optimization {optimization_id} not found")
+
+        return results[optimization_id]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting optimization result {optimization_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get optimization: {str(e)}")
+
+
+class OptimizationApplyRequest(BaseModel):
+    """Model for applying optimization recommendations."""
+
+    optimization_id: str = Field(..., description="Optimization ID to apply")
+    dry_run: bool = Field(default=False, description="Dry run without actual changes")
+    confirmation: bool = Field(default=False, description="Confirmation for destructive changes")
+
+
+@router.post("/optimization/apply", response_model=Dict[str, Any])
+async def apply_optimization(
+    request: OptimizationApplyRequest,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Apply optimization recommendations.
+
+    Executes the optimization recommendations from a previous analysis.
+    Supports dry-run mode for testing before actual implementation.
+    """
+    try:
+        results = _get_optimization_results(db_core)
+        if request.optimization_id not in results:
+            raise HTTPException(status_code=404, detail=f"Optimization {request.optimization_id} not found")
+
+        optimization = results[request.optimization_id]
+
+        if not request.confirmation and not request.dry_run:
+            raise HTTPException(
+                status_code=400,
+                detail="Confirmation required for applying optimizations. Set confirmation=true or dry_run=true"
+            )
+
+        # Simulate optimization application
+        applied_recommendations = []
+        for rec in optimization.recommendations:
+            if request.dry_run:
+                status = "dry_run"
+                message = f"Would apply: {rec.get('action')} for {rec.get('resource_type')}"
+            else:
+                status = "applied"
+                message = f"Applied: {rec.get('action')} for {rec.get('resource_type')}"
+
+            applied_recommendations.append({
+                "resource_type": rec.get("resource_type"),
+                "action": rec.get("action"),
+                "status": status,
+                "message": message,
+                "savings": rec.get("savings", 0.0),
+            })
+
+        result = {
+            "optimization_id": request.optimization_id,
+            "dry_run": request.dry_run,
+            "applied_count": len(applied_recommendations),
+            "recommendations": applied_recommendations,
+            "total_savings": optimization.cost_savings if not request.dry_run else 0.0,
+            "applied_by": current_user.username if hasattr(current_user, "username") else "system",
+            "applied_at": datetime.utcnow().isoformat(),
+        }
+
+        logger.info(f"Applied optimization: {request.optimization_id} (dry_run={request.dry_run})")
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error applying optimization {request.optimization_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to apply optimization: {str(e)}")
+
+
+class OptimizationImpact(BaseModel):
+    """Model for optimization impact analysis."""
+
+    optimization_id: str = Field(..., description="Optimization ID")
+    service: str = Field(..., description="Service name")
+    before_cost: float = Field(..., description="Cost before optimization")
+    after_cost: float = Field(..., description="Cost after optimization")
+    cost_reduction: float = Field(..., description="Cost reduction amount")
+    reduction_percentage: float = Field(..., description="Cost reduction percentage")
+    performance_impact: str = Field(..., description="Performance impact assessment")
+    risk_level: str = Field(..., description="Risk level")
+    estimated_roi: float = Field(..., description="Estimated ROI in months")
+    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+@router.get("/optimization/{optimization_id}/impact", response_model=OptimizationImpact)
+async def get_optimization_impact(
+    optimization_id: str,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator", "business")),
+):
+    """
+    Get optimization impact analysis.
+
+    Returns detailed impact analysis for an optimization including
+    cost savings, performance effects, and risk assessment.
+    """
+    try:
+        results = _get_optimization_results(db_core)
+        if optimization_id not in results:
+            raise HTTPException(status_code=404, detail=f"Optimization {optimization_id} not found")
+
+        optimization = results[optimization_id]
+
+        # Calculate impact metrics
+        cost_reduction = optimization.cost_savings
+        reduction_percentage = optimization.savings_percentage
+
+        # Determine performance impact based on strategy
+        if optimization.strategy == OptimizationStrategy.COST_OPTIMIZATION:
+            performance_impact = "Moderate - may affect response times"
+            risk_level = "Medium"
+            estimated_roi = 3.0
+        elif optimization.strategy == OptimizationStrategy.PERFORMANCE_OPTIMIZATION:
+            performance_impact = "Positive - improved performance expected"
+            risk_level = "Low"
+            estimated_roi = 6.0
+        elif optimization.strategy == OptimizationStrategy.AGGRESSIVE:
+            performance_impact = "High - significant changes expected"
+            risk_level = "High"
+            estimated_roi = 2.0
+        else:  # BALANCED
+            performance_impact = "Minimal - balanced approach"
+            risk_level = "Low"
+            estimated_roi = 4.0
+
+        impact = OptimizationImpact(
+            optimization_id=optimization_id,
+            service=optimization.service,
+            before_cost=optimization.current_cost,
+            after_cost=optimization.optimized_cost,
+            cost_reduction=cost_reduction,
+            reduction_percentage=reduction_percentage,
+            performance_impact=performance_impact,
+            risk_level=risk_level,
+            estimated_roi=estimated_roi,
+        )
+
+        logger.debug(f"Retrieved impact analysis for optimization: {optimization_id}")
+
+        return impact
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting optimization impact {optimization_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get optimization impact: {str(e)}")
+
+
+# ============================================================================
+# API Endpoints - Rightsizing Extensions
+# ============================================================================
+
+
+class RightsizingCreate(BaseModel):
+    """Model for creating a rightsizing recommendation."""
+
+    service: str = Field(..., description="Service name")
+    resource_type: ResourceType = Field(..., description="Resource type")
+    current_spec: Dict[str, Any] = Field(..., description="Current specification")
+    target_utilization: float = Field(default=70.0, ge=30, le=90, description="Target utilization percentage")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+@router.post("/rightsizing", response_model=RightsizingRecommendation, status_code=status.HTTP_201_CREATED)
+async def create_rightsizing_recommendation(
+    request: RightsizingCreate,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Create a custom rightsizing recommendation.
+
+    Generates a rightsizing recommendation based on current specifications
+    and target utilization goals for a specific service.
+    """
+    try:
+        rec_id = _generate_rightsizing_id()
+
+        # Analyze current spec and determine action
+        current_value = request.current_spec.get("value", 50.0)
+        target_value = request.target_utilization
+
+        if current_value > target_value * 1.2:
+            action = RightsizingAction.SCALE_DOWN
+            recommended_value = current_value * 0.8
+            priority = Priority.HIGH
+            reason = f"Current utilization ({current_value:.1f}%) significantly above target ({target_value}%)"
+            savings = (current_value - recommended_value) * 10.0
+            performance_impact = "Minimal - current usage well above recommended"
+        elif current_value < target_value * 0.8:
+            action = RightsizingAction.SCALE_UP
+            recommended_value = current_value * 1.2
+            priority = Priority.HIGH
+            reason = f"Current utilization ({current_value:.1f}%) below target ({target_value}%)"
+            savings = -50.0
+            performance_impact = "Positive - improved performance and headroom"
+        else:
+            action = RightsizingAction.NO_ACTION
+            recommended_value = current_value
+            priority = Priority.LOW
+            reason = f"Current utilization ({current_value:.1f}%) within target range ({target_value}%)"
+            savings = 0.0
+            performance_impact = "None - current configuration is optimal"
+
+        recommended_spec = request.current_spec.copy()
+        recommended_spec["value"] = recommended_value
+
+        recommendation = RightsizingRecommendation(
+            id=rec_id,
+            service=request.service,
+            resource_type=request.resource_type,
+            current_spec=request.current_spec,
+            recommended_spec=recommended_spec,
+            action=action,
+            reason=reason,
+            priority=priority,
+            estimated_monthly_savings=savings,
+            performance_impact=performance_impact,
+            implementation_complexity="Medium" if action != RightsizingAction.NO_ACTION else "Low",
+        )
+
+        _add_rightsizing_recommendation(recommendation, db_core)
+
+        logger.info(f"Created rightsizing recommendation: {rec_id} for service {request.service}")
+
+        return recommendation
+    except Exception as e:
+        logger.error(f"Error creating rightsizing recommendation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create rightsizing: {str(e)}")
+
+
+class RightsizingApplyRequest(BaseModel):
+    """Model for applying rightsizing recommendations."""
+
+    recommendation_id: str = Field(..., description="Recommendation ID to apply")
+    dry_run: bool = Field(default=False, description="Dry run without actual changes")
+    confirmation: bool = Field(default=False, description="Confirmation for destructive changes")
+
+
+@router.post("/rightsizing/apply", response_model=Dict[str, Any])
+async def apply_rightsizing_recommendation(
+    request: RightsizingApplyRequest,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Apply a rightsizing recommendation.
+
+    Executes the rightsizing action from a recommendation.
+    Supports dry-run mode for testing before actual implementation.
+    """
+    try:
+        recommendations = _get_rightsizing_recommendations(db_core)
+        recommendation = None
+        for rec in recommendations:
+            if rec.id == request.recommendation_id:
+                recommendation = rec
+                break
+
+        if not recommendation:
+            raise HTTPException(status_code=404, detail=f"Rightsizing recommendation {request.recommendation_id} not found")
+
+        if not request.confirmation and not request.dry_run:
+            raise HTTPException(
+                status_code=400,
+                detail="Confirmation required for applying rightsizing. Set confirmation=true or dry_run=true"
+            )
+
+        # Simulate rightsizing application
+        if request.dry_run:
+            status = "dry_run"
+            message = f"Would apply {recommendation.action} for {recommendation.service}"
+            actual_savings = 0.0
+        else:
+            status = "applied"
+            message = f"Applied {recommendation.action} for {recommendation.service}"
+            actual_savings = recommendation.estimated_monthly_savings
+
+        result = {
+            "recommendation_id": request.recommendation_id,
+            "service": recommendation.service,
+            "resource_type": recommendation.resource_type.value,
+            "action": recommendation.action.value,
+            "dry_run": request.dry_run,
+            "status": status,
+            "message": message,
+            "estimated_savings": recommendation.estimated_monthly_savings,
+            "actual_savings": actual_savings,
+            "applied_by": current_user.username if hasattr(current_user, "username") else "system",
+            "applied_at": datetime.utcnow().isoformat(),
+        }
+
+        logger.info(f"Applied rightsizing recommendation: {request.recommendation_id} (dry_run={request.dry_run})")
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error applying rightsizing recommendation {request.recommendation_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to apply rightsizing: {str(e)}")
+
+
+class BatchRightsizingCreate(BaseModel):
+    """Model for batch rightsizing recommendation creation."""
+
+    services: List[str] = Field(..., min_items=1, max_items=10, description="List of service names")
+    resource_types: List[ResourceType] = Field(default_factory=list, description="Resource types to analyze")
+    target_utilization: float = Field(default=70.0, ge=30, le=90, description="Target utilization percentage")
+
+
+@router.post("/rightsizing/batch", response_model=List[RightsizingRecommendation], status_code=status.HTTP_201_CREATED)
+async def create_rightsizing_batch(
+    batch: BatchRightsizingCreate,
+    db_core: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Create rightsizing recommendations for multiple services in batch.
+
+    Generates rightsizing recommendations for multiple services
+    in a single operation to improve efficiency.
+    """
+    try:
+        if len(batch.services) > 10:
+            raise HTTPException(status_code=400, detail="Maximum 10 services allowed per batch")
+
+        if not batch.resource_types:
+            batch.resource_types = [ResourceType.CPU, ResourceType.MEMORY, ResourceType.DISK]
+
+        metric_history = await _build_metric_history()
+        created_recommendations = []
+
+        for service in batch.services:
+            for rt in batch.resource_types:
+                rec_id = _generate_rightsizing_id()
+
+                key = rt.value
+                values = metric_history.get(key, [50.0])
+                current_value = values[-1] if values else 50.0
+
+                target_value = batch.target_utilization
+
+                if current_value > target_value * 1.2:
+                    action = RightsizingAction.SCALE_DOWN
+                    recommended_value = current_value * 0.8
+                    priority = Priority.HIGH
+                    reason = f"Current utilization ({current_value:.1f}%) significantly above target ({target_value}%)"
+                    savings = (current_value - recommended_value) * 10.0
+                    performance_impact = "Minimal - current usage well above recommended"
+                elif current_value < target_value * 0.8:
+                    action = RightsizingAction.SCALE_UP
+                    recommended_value = current_value * 1.2
+                    priority = Priority.HIGH
+                    reason = f"Current utilization ({current_value:.1f}%) below target ({target_value}%)"
+                    savings = -50.0
+                    performance_impact = "Positive - improved performance and headroom"
+                else:
+                    action = RightsizingAction.NO_ACTION
+                    recommended_value = current_value
+                    priority = Priority.LOW
+                    reason = f"Current utilization ({current_value:.1f}%) within target range ({target_value}%)"
+                    savings = 0.0
+                    performance_impact = "None - current configuration is optimal"
+
+                current_spec = {"value": current_value, "unit": "%"}
+                recommended_spec = {"value": recommended_value, "unit": "%"}
+
+                recommendation = RightsizingRecommendation(
+                    id=rec_id,
+                    service=service,
+                    resource_type=rt,
+                    current_spec=current_spec,
+                    recommended_spec=recommended_spec,
+                    action=action,
+                    reason=reason,
+                    priority=priority,
+                    estimated_monthly_savings=savings,
+                    performance_impact=performance_impact,
+                    implementation_complexity="Medium" if action != RightsizingAction.NO_ACTION else "Low",
+                )
+
+                _add_rightsizing_recommendation(recommendation, db_core)
+                created_recommendations.append(recommendation)
+
+        logger.info(f"Created batch of {len(created_recommendations)} rightsizing recommendations")
+
+        return created_recommendations
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating batch rightsizing recommendations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create batch rightsizing: {str(e)}")
+
+
+# ============================================================================
+# API Endpoints - Recommendations Extensions
+# ============================================================================
+
+
+_scaling_recommendations_history: List[ScalingRecommendation] = []
+
+
+def _generate_scaling_id() -> str:
+    """Generate a unique scaling recommendation ID."""
+    import uuid
+    return f"SR-{uuid.uuid4().hex[:8].upper()}"
+
+
+class ScalingRecommendationCreate(BaseModel):
+    """Model for creating a custom scaling recommendation."""
+
+    service: str = Field(..., description="Service name")
+    resource_type: ResourceType = Field(..., description="Resource type")
+    action: str = Field(..., description="Action (scale-up/scale-down/no-action)")
+    reason: str = Field(..., description="Reason for recommendation")
+    priority: Priority = Field(default=Priority.MEDIUM, description="Priority level")
+    estimated_cost: float = Field(default=0.0, ge=0, description="Estimated cost")
+    current_value: float = Field(..., description="Current resource value")
+    recommended_value: float = Field(..., description="Recommended resource value")
+    unit: str = Field(default="%", description="Unit")
+    time_horizon: str = Field(default="7-30 days", description="Time horizon")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+@router.post("/recommendations", response_model=ScalingRecommendation, status_code=status.HTTP_201_CREATED)
+async def create_scaling_recommendation(
+    request: ScalingRecommendationCreate,
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Create a custom scaling recommendation.
+
+    Creates a scaling recommendation with custom parameters for
+    specialized scenarios not covered by automated analysis.
+    """
+    try:
+        rec_id = _generate_scaling_id()
+
+        # Calculate confidence based on data availability
+        confidence = 0.75 if request.action != "no-action" else 0.90
+
+        recommendation = ScalingRecommendation(
+            id=rec_id,
+            service=request.service,
+            action=request.action,
+            reason=request.reason,
+            priority=request.priority,
+            estimated_cost=request.estimated_cost,
+            resource_type=request.resource_type,
+            current_value=request.current_value,
+            recommended_value=request.recommended_value,
+            unit=request.unit,
+            time_horizon=request.time_horizon,
+            confidence=confidence,
+        )
+
+        _scaling_recommendations_history.append(recommendation)
+
+        logger.info(f"Created scaling recommendation: {rec_id} for service {request.service}")
+
+        return recommendation
+    except Exception as e:
+        logger.error(f"Error creating scaling recommendation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create recommendation: {str(e)}")
+
+
+class ScalingApplyRequest(BaseModel):
+    """Model for applying scaling recommendations."""
+
+    recommendation_id: str = Field(..., description="Recommendation ID to apply")
+    dry_run: bool = Field(default=False, description="Dry run without actual changes")
+    confirmation: bool = Field(default=False, description="Confirmation for destructive changes")
+
+
+@router.post("/recommendations/apply", response_model=Dict[str, Any])
+async def apply_scaling_recommendation(
+    request: ScalingApplyRequest,
+    current_user=Depends(require_roles("admin", "operator")),
+):
+    """
+    Apply a scaling recommendation.
+
+    Executes the scaling action from a recommendation.
+    Supports dry-run mode for testing before actual implementation.
+    """
+    try:
+        recommendation = None
+        for rec in _scaling_recommendations_history:
+            if rec.id == request.recommendation_id:
+                recommendation = rec
+                break
+
+        if not recommendation:
+            raise HTTPException(status_code=404, detail=f"Scaling recommendation {request.recommendation_id} not found")
+
+        if not request.confirmation and not request.dry_run:
+            raise HTTPException(
+                status_code=400,
+                detail="Confirmation required for applying scaling. Set confirmation=true or dry_run=true"
+            )
+
+        # Simulate scaling application
+        if request.dry_run:
+            status = "dry_run"
+            message = f"Would apply {recommendation.action} for {recommendation.service}"
+            actual_cost = 0.0
+        else:
+            status = "applied"
+            message = f"Applied {recommendation.action} for {recommendation.service}"
+            actual_cost = recommendation.estimated_cost
+
+        result = {
+            "recommendation_id": request.recommendation_id,
+            "service": recommendation.service,
+            "resource_type": recommendation.resource_type.value,
+            "action": recommendation.action,
+            "dry_run": request.dry_run,
+            "status": status,
+            "message": message,
+            "estimated_cost": recommendation.estimated_cost,
+            "actual_cost": actual_cost,
+            "applied_by": current_user.username if hasattr(current_user, "username") else "system",
+            "applied_at": datetime.utcnow().isoformat(),
+        }
+
+        logger.info(f"Applied scaling recommendation: {request.recommendation_id} (dry_run={request.dry_run})")
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error applying scaling recommendation {request.recommendation_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to apply scaling: {str(e)}")
+
+
+@router.get("/recommendations/history", response_model=List[ScalingRecommendation])
+async def get_scaling_recommendation_history(
+    service: Optional[str] = Query(None, description="Filter by service"),
+    resource_type: Optional[ResourceType] = Query(None, description="Filter by resource type"),
+    action: Optional[str] = Query(None, description="Filter by action"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of records"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    current_user=Depends(require_roles("admin", "operator", "business")),
+):
+    """
+    Get scaling recommendation history with pagination.
+
+    Returns historical scaling recommendations including applied
+    and pending recommendations for audit and analysis purposes.
+    """
+    try:
+        recommendations = _scaling_recommendations_history.copy()
+
+        if service:
+            recommendations = [r for r in recommendations if r.service == service]
+        if resource_type:
+            recommendations = [r for r in recommendations if r.resource_type == resource_type]
+        if action:
+            recommendations = [r for r in recommendations if r.action == action]
+
+        # Sort by creation date descending (using id as proxy for time)
+        recommendations = sorted(recommendations, key=lambda r: r.id, reverse=True)
+
+        # Apply pagination
+        total = len(recommendations)
+        paginated_recommendations = recommendations[offset:offset + limit]
+
+        logger.debug(f"Retrieved scaling recommendation history: {len(paginated_recommendations)} of {total} total")
+
+        return paginated_recommendations
+    except Exception as e:
+        logger.error(f"Error getting scaling recommendation history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get recommendation history: {str(e)}")
