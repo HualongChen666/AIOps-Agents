@@ -11,6 +11,8 @@ This module ensures that database operations are properly monitored with:
 - Alert threshold configuration
 - Baseline establishment
 - Real-time monitoring capabilities
+- JWT authentication and RBAC authorization
+- Rate limiting for API protection
 """
 
 import logging
@@ -18,11 +20,23 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from enum import Enum
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.db_engine import async_get_session
+from core.repositories.database_monitoring_repository import DatabaseMonitoringRepository
+from core.authentication import get_current_active_user
+from core.rbac import Permission, require_permission
+from core.rate_limiter import get_limiter
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/database-monitoring", tags=["数据库监控"])
+
+# Rate limiter
+limiter = get_limiter()
 
 
 # ============================================================================
@@ -118,120 +132,121 @@ class DatabaseMonitoringStatus(BaseModel):
 
 
 # ============================================================================
-# In-Memory Storage (for demo purposes)
-# ============================================================================
-
-_monitoring_config: DatabaseMonitoringConfig = DatabaseMonitoringConfig(
-    enabled=True,
-    collection_interval=60,
-    retention_days=30,
-    enable_realtime=True,
-    enable_slow_query_log=True,
-    slow_query_threshold=1.0,
-    enable_connection_monitoring=True,
-    max_connections_threshold=100,
-    enable_deadlock_detection=True
-)
-_metric_thresholds: Dict[str, DatabaseMetricThreshold] = {}
-_performance_baselines: Dict[str, DatabasePerformanceBaseline] = {}
-_alert_rules: Dict[str, DatabaseAlertRule] = {}
-_monitoring_status: DatabaseMonitoringStatus = DatabaseMonitoringStatus(
-    monitoring_enabled=True,
-    last_collection_time=datetime.utcnow(),
-    active_alerts=0,
-    total_metrics_collected=0,
-    database_health="healthy",
-    uptime_percentage=100.0
-)
-
-
-# ============================================================================
 # Helper Functions
 # ============================================================================
 
 
-def _initialize_default_thresholds():
+async def _initialize_default_thresholds(
+    repo: DatabaseMonitoringRepository, username: Optional[str] = None
+):
     """初始化默认的指标阈值"""
+    existing_thresholds = await repo.get_all_thresholds()
+    if existing_thresholds:
+        logger.info("Default thresholds already exist, skipping initialization")
+        return
+
     default_thresholds = [
-        DatabaseMetricThreshold(
-            metric_type=MetricType.QUERY_TIME,
-            warning_threshold=100.0,  # 100ms
-            critical_threshold=500.0,  # 500ms
-            enabled=True,
-            description="查询时间阈值"
-        ),
-        DatabaseMetricThreshold(
-            metric_type=MetricType.CONNECTION_COUNT,
-            warning_threshold=80.0,
-            critical_threshold=95.0,
-            enabled=True,
-            description="连接数阈值"
-        ),
-        DatabaseMetricThreshold(
-            metric_type=MetricType.CACHE_HIT_RATIO,
-            warning_threshold=0.8,
-            critical_threshold=0.5,
-            enabled=True,
-            description="缓存命中率阈值"
-        ),
-        DatabaseMetricThreshold(
-            metric_type=MetricType.SLOW_QUERY_COUNT,
-            warning_threshold=10.0,
-            critical_threshold=50.0,
-            enabled=True,
-            description="慢查询数量阈值"
-        ),
+        {
+            "metric_type": MetricType.QUERY_TIME.value,
+            "warning_threshold": 100.0,  # 100ms
+            "critical_threshold": 500.0,  # 500ms
+            "enabled": True,
+            "description": "查询时间阈值"
+        },
+        {
+            "metric_type": MetricType.CONNECTION_COUNT.value,
+            "warning_threshold": 80.0,
+            "critical_threshold": 95.0,
+            "enabled": True,
+            "description": "连接数阈值"
+        },
+        {
+            "metric_type": MetricType.CACHE_HIT_RATIO.value,
+            "warning_threshold": 0.8,
+            "critical_threshold": 0.5,
+            "enabled": True,
+            "description": "缓存命中率阈值"
+        },
+        {
+            "metric_type": MetricType.SLOW_QUERY_COUNT.value,
+            "warning_threshold": 10.0,
+            "critical_threshold": 50.0,
+            "enabled": True,
+            "description": "慢查询数量阈值"
+        },
     ]
 
-    for threshold in default_thresholds:
-        _metric_thresholds[threshold.metric_type.value] = threshold
+    for threshold_data in default_thresholds:
+        await repo.create_threshold(
+            metric_type=threshold_data["metric_type"],
+            warning_threshold=threshold_data["warning_threshold"],
+            critical_threshold=threshold_data["critical_threshold"],
+            enabled=threshold_data["enabled"],
+            description=threshold_data["description"],
+            created_by=username,
+        )
+    logger.info("Initialized default metric thresholds")
 
 
-def _initialize_default_alert_rules():
+async def _initialize_default_alert_rules(
+    repo: DatabaseMonitoringRepository, username: Optional[str] = None
+):
     """初始化默认的告警规则"""
+    existing_rules = await repo.get_all_alert_rules()
+    if existing_rules:
+        logger.info("Default alert rules already exist, skipping initialization")
+        return
+
     default_rules = [
-        DatabaseAlertRule(
-            rule_id="slow_query_alert",
-            rule_name="慢查询告警",
-            metric_type=MetricType.QUERY_TIME,
-            condition="query_time > 500",
-            severity=AlertSeverity.WARNING,
-            enabled=True,
-            notification_channels=["email", "slack"],
-            cooldown_minutes=5,
-            description="当查询时间超过500ms时触发告警"
-        ),
-        DatabaseAlertRule(
-            rule_id="connection_alert",
-            rule_name="连接数告警",
-            metric_type=MetricType.CONNECTION_COUNT,
-            condition="connection_count > 90",
-            severity=AlertSeverity.ERROR,
-            enabled=True,
-            notification_channels=["email", "slack"],
-            cooldown_minutes=10,
-            description="当连接数超过90时触发告警"
-        ),
-        DatabaseAlertRule(
-            rule_id="deadlock_alert",
-            rule_name="死锁告警",
-            metric_type=MetricType.DEADLOCK_COUNT,
-            condition="deadlock_count > 0",
-            severity=AlertSeverity.CRITICAL,
-            enabled=True,
-            notification_channels=["email", "slack", "pagerduty"],
-            cooldown_minutes=1,
-            description="当检测到死锁时立即触发告警"
-        ),
+        {
+            "rule_id": "slow_query_alert",
+            "rule_name": "慢查询告警",
+            "metric_type": MetricType.QUERY_TIME.value,
+            "condition": "query_time > 500",
+            "severity": AlertSeverity.WARNING.value,
+            "enabled": True,
+            "notification_channels": ["email", "slack"],
+            "cooldown_minutes": 5,
+            "description": "当查询时间超过500ms时触发告警"
+        },
+        {
+            "rule_id": "connection_alert",
+            "rule_name": "连接数告警",
+            "metric_type": MetricType.CONNECTION_COUNT.value,
+            "condition": "connection_count > 90",
+            "severity": AlertSeverity.ERROR.value,
+            "enabled": True,
+            "notification_channels": ["email", "slack"],
+            "cooldown_minutes": 10,
+            "description": "当连接数超过90时触发告警"
+        },
+        {
+            "rule_id": "deadlock_alert",
+            "rule_name": "死锁告警",
+            "metric_type": MetricType.DEADLOCK_COUNT.value,
+            "condition": "deadlock_count > 0",
+            "severity": AlertSeverity.CRITICAL.value,
+            "enabled": True,
+            "notification_channels": ["email", "slack", "pagerduty"],
+            "cooldown_minutes": 1,
+            "description": "当检测到死锁时立即触发告警"
+        },
     ]
 
-    for rule in default_rules:
-        _alert_rules[rule.rule_id] = rule
-
-
-# Initialize defaults
-_initialize_default_thresholds()
-_initialize_default_alert_rules()
+    for rule_data in default_rules:
+        await repo.create_alert_rule(
+            rule_id=rule_data["rule_id"],
+            rule_name=rule_data["rule_name"],
+            metric_type=rule_data["metric_type"],
+            condition=rule_data["condition"],
+            severity=rule_data["severity"],
+            enabled=rule_data["enabled"],
+            notification_channels=rule_data["notification_channels"],
+            cooldown_minutes=rule_data["cooldown_minutes"],
+            description=rule_data["description"],
+            created_by=username,
+        )
+    logger.info("Initialized default alert rules")
 
 
 # ============================================================================
@@ -240,121 +255,462 @@ _initialize_default_alert_rules()
 
 
 @router.get("/config", response_model=DatabaseMonitoringConfig)
-async def get_monitoring_config() -> DatabaseMonitoringConfig:
+@limiter.limit("60/minute")
+async def get_monitoring_config(
+    request,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabaseMonitoringConfig:
     """获取数据库监控配置"""
-    return _monitoring_config
+    repo = DatabaseMonitoringRepository(db)
+    config_db = await repo.get_config()
+
+    if not config_db:
+        # Create default config if none exists
+        config_db = await repo.create_config(
+            enabled=True,
+            collection_interval=60,
+            retention_days=30,
+            enable_realtime=True,
+            enable_slow_query_log=True,
+            slow_query_threshold=1.0,
+            enable_connection_monitoring=True,
+            max_connections_threshold=100,
+            enable_deadlock_detection=True,
+            updated_by=current_user.username if current_user else None,
+        )
+
+    return DatabaseMonitoringConfig(
+        enabled=config_db.enabled,
+        collection_interval=config_db.collection_interval,
+        retention_days=config_db.retention_days,
+        enable_realtime=config_db.enable_realtime,
+        enable_slow_query_log=config_db.enable_slow_query_log,
+        slow_query_threshold=config_db.slow_query_threshold,
+        enable_connection_monitoring=config_db.enable_connection_monitoring,
+        max_connections_threshold=config_db.max_connections_threshold,
+        enable_deadlock_detection=config_db.enable_deadlock_detection,
+    )
 
 
 @router.put("/config", response_model=DatabaseMonitoringConfig)
-async def update_monitoring_config(config: DatabaseMonitoringConfig) -> DatabaseMonitoringConfig:
+@limiter.limit("30/minute")
+@require_permission(Permission.SYSTEM_CONFIG)
+async def update_monitoring_config(
+    request,
+    config: DatabaseMonitoringConfig,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabaseMonitoringConfig:
     """更新数据库监控配置"""
-    global _monitoring_config
-    _monitoring_config = config
-    logger.info(f"Database monitoring configuration updated: {config}")
-    return _monitoring_config
+    repo = DatabaseMonitoringRepository(db)
+    config_db = await repo.get_config()
+
+    if not config_db:
+        # Create new config
+        config_db = await repo.create_config(
+            enabled=config.enabled,
+            collection_interval=config.collection_interval,
+            retention_days=config.retention_days,
+            enable_realtime=config.enable_realtime,
+            enable_slow_query_log=config.enable_slow_query_log,
+            slow_query_threshold=config.slow_query_threshold,
+            enable_connection_monitoring=config.enable_connection_monitoring,
+            max_connections_threshold=config.max_connections_threshold,
+            enable_deadlock_detection=config.enable_deadlock_detection,
+            updated_by=current_user.username if current_user else None,
+        )
+    else:
+        # Update existing config
+        config_db = await repo.update_config(
+            config_id=config_db.id,
+            enabled=config.enabled,
+            collection_interval=config.collection_interval,
+            retention_days=config.retention_days,
+            enable_realtime=config.enable_realtime,
+            enable_slow_query_log=config.enable_slow_query_log,
+            slow_query_threshold=config.slow_query_threshold,
+            enable_connection_monitoring=config.enable_connection_monitoring,
+            max_connections_threshold=config.max_connections_threshold,
+            enable_deadlock_detection=config.enable_deadlock_detection,
+            updated_by=current_user.username if current_user else None,
+        )
+
+    logger.info(f"Database monitoring configuration updated by {current_user.username if current_user else 'system'}")
+    return DatabaseMonitoringConfig(
+        enabled=config_db.enabled,
+        collection_interval=config_db.collection_interval,
+        retention_days=config_db.retention_days,
+        enable_realtime=config_db.enable_realtime,
+        enable_slow_query_log=config_db.enable_slow_query_log,
+        slow_query_threshold=config_db.slow_query_threshold,
+        enable_connection_monitoring=config_db.enable_connection_monitoring,
+        max_connections_threshold=config_db.max_connections_threshold,
+        enable_deadlock_detection=config_db.enable_deadlock_detection,
+    )
 
 
 @router.get("/thresholds", response_model=Dict[str, DatabaseMetricThreshold])
-async def get_metric_thresholds() -> Dict[str, DatabaseMetricThreshold]:
+@limiter.limit("60/minute")
+async def get_metric_thresholds(
+    request,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, DatabaseMetricThreshold]:
     """获取所有指标阈值"""
-    return _metric_thresholds
+    repo = DatabaseMonitoringRepository(db)
+    thresholds_db = await repo.get_all_thresholds()
+
+    # Initialize defaults if none exist
+    if not thresholds_db:
+        await _initialize_default_thresholds(repo, current_user.username if current_user else None)
+        thresholds_db = await repo.get_all_thresholds()
+
+    result = {}
+    for threshold_db in thresholds_db:
+        result[threshold_db.metric_type] = DatabaseMetricThreshold(
+            metric_type=MetricType(threshold_db.metric_type),
+            warning_threshold=threshold_db.warning_threshold,
+            critical_threshold=threshold_db.critical_threshold,
+            enabled=threshold_db.enabled,
+            description=threshold_db.description or "",
+        )
+    return result
 
 
 @router.put("/thresholds/{metric_type}", response_model=DatabaseMetricThreshold)
+@limiter.limit("30/minute")
+@require_permission(Permission.SYSTEM_CONFIG)
 async def update_metric_threshold(
+    request,
     metric_type: str,
-    threshold: DatabaseMetricThreshold
+    threshold: DatabaseMetricThreshold,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
 ) -> DatabaseMetricThreshold:
     """更新特定指标的阈值"""
-    if metric_type not in _metric_thresholds:
+    repo = DatabaseMonitoringRepository(db)
+    threshold_db = await repo.get_threshold_by_metric_type(metric_type)
+
+    if not threshold_db:
         raise HTTPException(status_code=404, detail=f"Metric type {metric_type} not found")
 
-    _metric_thresholds[metric_type] = threshold
-    logger.info(f"Metric threshold updated for {metric_type}: {threshold}")
-    return threshold
+    updated = await repo.update_threshold(
+        threshold_id=threshold_db.id,
+        warning_threshold=threshold.warning_threshold,
+        critical_threshold=threshold.critical_threshold,
+        enabled=threshold.enabled,
+        description=threshold.description,
+    )
+
+    logger.info(f"Metric threshold updated for {metric_type} by {current_user.username if current_user else 'system'}")
+    return DatabaseMetricThreshold(
+        metric_type=MetricType(updated.metric_type),
+        warning_threshold=updated.warning_threshold,
+        critical_threshold=updated.critical_threshold,
+        enabled=updated.enabled,
+        description=updated.description or "",
+    )
 
 
 @router.get("/baselines", response_model=Dict[str, DatabasePerformanceBaseline])
-async def get_performance_baselines() -> Dict[str, DatabasePerformanceBaseline]:
+@limiter.limit("60/minute")
+async def get_performance_baselines(
+    request,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, DatabasePerformanceBaseline]:
     """获取所有性能基线"""
-    return _performance_baselines
+    repo = DatabaseMonitoringRepository(db)
+    baselines_db = await repo.get_all_baselines()
+
+    result = {}
+    for baseline_db in baselines_db:
+        result[baseline_db.baseline_name] = DatabasePerformanceBaseline(
+            baseline_name=baseline_db.baseline_name,
+            established_at=baseline_db.established_at,
+            avg_query_time=baseline_db.avg_query_time,
+            p95_query_time=baseline_db.p95_query_time,
+            p99_query_time=baseline_db.p99_query_time,
+            avg_connection_count=baseline_db.avg_connection_count,
+            peak_connection_count=baseline_db.peak_connection_count,
+            cache_hit_ratio=baseline_db.cache_hit_ratio,
+            database_size_mb=baseline_db.database_size_mb,
+            description=baseline_db.description or "",
+        )
+    return result
 
 
 @router.post("/baselines", response_model=DatabasePerformanceBaseline)
-async def create_performance_baseline(baseline: DatabasePerformanceBaseline) -> DatabasePerformanceBaseline:
+@limiter.limit("30/minute")
+@require_permission(Permission.WRITE)
+async def create_performance_baseline(
+    request,
+    baseline: DatabasePerformanceBaseline,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabasePerformanceBaseline:
     """创建新的性能基线"""
-    if baseline.baseline_name in _performance_baselines:
+    repo = DatabaseMonitoringRepository(db)
+    existing = await repo.get_baseline_by_name(baseline.baseline_name)
+
+    if existing:
         raise HTTPException(status_code=400, detail=f"Baseline {baseline.baseline_name} already exists")
 
-    _performance_baselines[baseline.baseline_name] = baseline
-    logger.info(f"Performance baseline created: {baseline.baseline_name}")
-    return baseline
+    baseline_db = await repo.create_baseline(
+        baseline_name=baseline.baseline_name,
+        avg_query_time=baseline.avg_query_time,
+        p95_query_time=baseline.p95_query_time,
+        p99_query_time=baseline.p99_query_time,
+        avg_connection_count=baseline.avg_connection_count,
+        peak_connection_count=baseline.peak_connection_count,
+        cache_hit_ratio=baseline.cache_hit_ratio,
+        database_size_mb=baseline.database_size_mb,
+        description=baseline.description,
+        created_by=current_user.username if current_user else None,
+    )
+
+    logger.info(f"Performance baseline created: {baseline.baseline_name} by {current_user.username if current_user else 'system'}")
+    return DatabasePerformanceBaseline(
+        baseline_name=baseline_db.baseline_name,
+        established_at=baseline_db.established_at,
+        avg_query_time=baseline_db.avg_query_time,
+        p95_query_time=baseline_db.p95_query_time,
+        p99_query_time=baseline_db.p99_query_time,
+        avg_connection_count=baseline_db.avg_connection_count,
+        peak_connection_count=baseline_db.peak_connection_count,
+        cache_hit_ratio=baseline_db.cache_hit_ratio,
+        database_size_mb=baseline_db.database_size_mb,
+        description=baseline_db.description or "",
+    )
 
 
 @router.get("/baselines/{baseline_name}", response_model=DatabasePerformanceBaseline)
-async def get_performance_baseline(baseline_name: str) -> DatabasePerformanceBaseline:
+@limiter.limit("60/minute")
+async def get_performance_baseline(
+    request,
+    baseline_name: str,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabasePerformanceBaseline:
     """获取特定的性能基线"""
-    if baseline_name not in _performance_baselines:
+    repo = DatabaseMonitoringRepository(db)
+    baseline_db = await repo.get_baseline_by_name(baseline_name)
+
+    if not baseline_db:
         raise HTTPException(status_code=404, detail=f"Baseline {baseline_name} not found")
 
-    return _performance_baselines[baseline_name]
+    return DatabasePerformanceBaseline(
+        baseline_name=baseline_db.baseline_name,
+        established_at=baseline_db.established_at,
+        avg_query_time=baseline_db.avg_query_time,
+        p95_query_time=baseline_db.p95_query_time,
+        p99_query_time=baseline_db.p99_query_time,
+        avg_connection_count=baseline_db.avg_connection_count,
+        peak_connection_count=baseline_db.peak_connection_count,
+        cache_hit_ratio=baseline_db.cache_hit_ratio,
+        database_size_mb=baseline_db.database_size_mb,
+        description=baseline_db.description or "",
+    )
 
 
 @router.get("/alert-rules", response_model=Dict[str, DatabaseAlertRule])
-async def get_alert_rules() -> Dict[str, DatabaseAlertRule]:
+@limiter.limit("60/minute")
+async def get_alert_rules(
+    request,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, DatabaseAlertRule]:
     """获取所有告警规则"""
-    return _alert_rules
+    repo = DatabaseMonitoringRepository(db)
+    rules_db = await repo.get_all_alert_rules()
+
+    # Initialize defaults if none exist
+    if not rules_db:
+        await _initialize_default_alert_rules(repo, current_user.username if current_user else None)
+        rules_db = await repo.get_all_alert_rules()
+
+    result = {}
+    for rule_db in rules_db:
+        result[rule_db.rule_id] = DatabaseAlertRule(
+            rule_id=rule_db.rule_id,
+            rule_name=rule_db.rule_name,
+            metric_type=MetricType(rule_db.metric_type),
+            condition=rule_db.condition,
+            severity=AlertSeverity(rule_db.severity),
+            enabled=rule_db.enabled,
+            notification_channels=rule_db.notification_channels or [],
+            cooldown_minutes=rule_db.cooldown_minutes,
+            description=rule_db.description or "",
+        )
+    return result
 
 
 @router.post("/alert-rules", response_model=DatabaseAlertRule)
-async def create_alert_rule(rule: DatabaseAlertRule) -> DatabaseAlertRule:
+@limiter.limit("30/minute")
+@require_permission(Permission.WRITE)
+async def create_alert_rule(
+    request,
+    rule: DatabaseAlertRule,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabaseAlertRule:
     """创建新的告警规则"""
-    if rule.rule_id in _alert_rules:
+    repo = DatabaseMonitoringRepository(db)
+    existing = await repo.get_alert_rule_by_id(rule.rule_id)
+
+    if existing:
         raise HTTPException(status_code=400, detail=f"Alert rule {rule.rule_id} already exists")
 
-    _alert_rules[rule.rule_id] = rule
-    logger.info(f"Alert rule created: {rule.rule_id}")
-    return rule
+    rule_db = await repo.create_alert_rule(
+        rule_id=rule.rule_id,
+        rule_name=rule.rule_name,
+        metric_type=rule.metric_type.value,
+        condition=rule.condition,
+        severity=rule.severity.value,
+        enabled=rule.enabled,
+        notification_channels=rule.notification_channels,
+        cooldown_minutes=rule.cooldown_minutes,
+        description=rule.description,
+        created_by=current_user.username if current_user else None,
+    )
+
+    logger.info(f"Alert rule created: {rule.rule_id} by {current_user.username if current_user else 'system'}")
+    return DatabaseAlertRule(
+        rule_id=rule_db.rule_id,
+        rule_name=rule_db.rule_name,
+        metric_type=MetricType(rule_db.metric_type),
+        condition=rule_db.condition,
+        severity=AlertSeverity(rule_db.severity),
+        enabled=rule_db.enabled,
+        notification_channels=rule_db.notification_channels or [],
+        cooldown_minutes=rule_db.cooldown_minutes,
+        description=rule_db.description or "",
+    )
 
 
 @router.put("/alert-rules/{rule_id}", response_model=DatabaseAlertRule)
-async def update_alert_rule(rule_id: str, rule: DatabaseAlertRule) -> DatabaseAlertRule:
+@limiter.limit("30/minute")
+@require_permission(Permission.WRITE)
+async def update_alert_rule(
+    request,
+    rule_id: str,
+    rule: DatabaseAlertRule,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabaseAlertRule:
     """更新告警规则"""
-    if rule_id not in _alert_rules:
+    repo = DatabaseMonitoringRepository(db)
+    existing = await repo.get_alert_rule_by_id(rule_id)
+
+    if not existing:
         raise HTTPException(status_code=404, detail=f"Alert rule {rule_id} not found")
 
-    _alert_rules[rule_id] = rule
-    logger.info(f"Alert rule updated: {rule_id}")
-    return rule
+    updated = await repo.update_alert_rule(
+        rule_id=rule_id,
+        rule_name=rule.rule_name,
+        metric_type=rule.metric_type.value,
+        condition=rule.condition,
+        severity=rule.severity.value,
+        enabled=rule.enabled,
+        notification_channels=rule.notification_channels,
+        cooldown_minutes=rule.cooldown_minutes,
+        description=rule.description,
+        updated_by=current_user.username if current_user else None,
+    )
+
+    logger.info(f"Alert rule updated: {rule_id} by {current_user.username if current_user else 'system'}")
+    return DatabaseAlertRule(
+        rule_id=updated.rule_id,
+        rule_name=updated.rule_name,
+        metric_type=MetricType(updated.metric_type),
+        condition=updated.condition,
+        severity=AlertSeverity(updated.severity),
+        enabled=updated.enabled,
+        notification_channels=updated.notification_channels or [],
+        cooldown_minutes=updated.cooldown_minutes,
+        description=updated.description or "",
+    )
 
 
 @router.delete("/alert-rules/{rule_id}")
-async def delete_alert_rule(rule_id: str) -> Dict[str, str]:
+@limiter.limit("30/minute")
+@require_permission(Permission.DELETE)
+async def delete_alert_rule(
+    request,
+    rule_id: str,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, str]:
     """删除告警规则"""
-    if rule_id not in _alert_rules:
+    repo = DatabaseMonitoringRepository(db)
+    existing = await repo.get_alert_rule_by_id(rule_id)
+
+    if not existing:
         raise HTTPException(status_code=404, detail=f"Alert rule {rule_id} not found")
 
-    del _alert_rules[rule_id]
-    logger.info(f"Alert rule deleted: {rule_id}")
+    await repo.delete_alert_rule(rule_id)
+    logger.info(f"Alert rule deleted: {rule_id} by {current_user.username if current_user else 'system'}")
     return {"message": f"Alert rule {rule_id} deleted successfully"}
 
 
 @router.get("/status", response_model=DatabaseMonitoringStatus)
-async def get_monitoring_status() -> DatabaseMonitoringStatus:
+@limiter.limit("60/minute")
+async def get_monitoring_status(
+    request,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabaseMonitoringStatus:
     """获取数据库监控状态"""
-    # Update last collection time
-    _monitoring_status.last_collection_time = datetime.utcnow()
-    return _monitoring_status
+    repo = DatabaseMonitoringRepository(db)
+    status_db = await repo.get_status()
+
+    if not status_db:
+        # Create default status if none exists
+        status_db = await repo.create_status(
+            monitoring_enabled=True,
+            active_alerts=0,
+            total_metrics_collected=0,
+            database_health="healthy",
+            uptime_percentage=100.0,
+        )
+    else:
+        # Update last collection time
+        status_db = await repo.update_status(
+            status_id=status_db.id,
+            last_collection_time=datetime.utcnow(),
+        )
+
+    return DatabaseMonitoringStatus(
+        monitoring_enabled=status_db.monitoring_enabled,
+        last_collection_time=status_db.last_collection_time,
+        active_alerts=status_db.active_alerts,
+        total_metrics_collected=status_db.total_metrics_collected,
+        database_health=status_db.database_health,
+        uptime_percentage=status_db.uptime_percentage,
+    )
 
 
 @router.post("/establish-baseline")
-async def establish_current_baseline(baseline_name: str) -> DatabasePerformanceBaseline:
+@limiter.limit("10/minute")
+@require_permission(Permission.WRITE)
+async def establish_current_baseline(
+    request,
+    baseline_name: str,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> DatabasePerformanceBaseline:
     """基于当前性能数据建立基线"""
     # In a real implementation, this would collect actual performance metrics
     # For now, we create a baseline with sample data
-    baseline = DatabasePerformanceBaseline(
+    repo = DatabaseMonitoringRepository(db)
+    existing = await repo.get_baseline_by_name(baseline_name)
+
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Baseline {baseline_name} already exists")
+
+    baseline_db = await repo.create_baseline(
         baseline_name=baseline_name,
-        established_at=datetime.utcnow(),
         avg_query_time=45.0,  # Sample data
         p95_query_time=120.0,
         p99_query_time=250.0,
@@ -362,19 +718,38 @@ async def establish_current_baseline(baseline_name: str) -> DatabasePerformanceB
         peak_connection_count=65,
         cache_hit_ratio=0.92,
         database_size_mb=1024.0,
-        description=f"Baseline established on {datetime.utcnow().isoformat()}"
+        description=f"Baseline established on {datetime.utcnow().isoformat()}",
+        created_by=current_user.username if current_user else None,
     )
 
-    _performance_baselines[baseline_name] = baseline
-    logger.info(f"Performance baseline established: {baseline_name}")
-    return baseline
+    logger.info(f"Performance baseline established: {baseline_name} by {current_user.username if current_user else 'system'}")
+    return DatabasePerformanceBaseline(
+        baseline_name=baseline_db.baseline_name,
+        established_at=baseline_db.established_at,
+        avg_query_time=baseline_db.avg_query_time,
+        p95_query_time=baseline_db.p95_query_time,
+        p99_query_time=baseline_db.p99_query_time,
+        avg_connection_count=baseline_db.avg_connection_count,
+        peak_connection_count=baseline_db.peak_connection_count,
+        cache_hit_ratio=baseline_db.cache_hit_ratio,
+        database_size_mb=baseline_db.database_size_mb,
+        description=baseline_db.description or "",
+    )
 
 
 @router.get("/health")
-async def get_database_health() -> Dict[str, Any]:
+@limiter.limit("60/minute")
+async def get_database_health(
+    request,
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user)
+) -> Dict[str, Any]:
     """获取数据库健康状态"""
+    repo = DatabaseMonitoringRepository(db)
+    status_db = await repo.get_status()
+
     return {
-        "status": "healthy",
+        "status": status_db.database_health if status_db else "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "metrics": {
             "query_time_ms": 45.0,
@@ -385,7 +760,7 @@ async def get_database_health() -> Dict[str, Any]:
             "deadlock_count": 0
         },
         "alerts": {
-            "active": 0,
+            "active": status_db.active_alerts if status_db else 0,
             "last_24h": 0
         }
     }

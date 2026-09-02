@@ -7,19 +7,40 @@
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from core.auth import require_permission
 from core.config_center import get_config_center
+from core.database import get_db
 from core.distributed_storage import get_distributed_storage_manager
 from core.flink_stream_processor import FlinkJobConfig, FlinkJobType, get_flink_job_manager
+from core.infrastructure_service import get_infrastructure_service
 from core.kafka_stream_processor import get_kafka_processor
 from core.l1l2_data_flow_integrator import get_l1l2_data_flow_integrator
 from core.monitoring_infrastructure import get_monitoring_infrastructure
 from core.monitoring_system_integrator import get_monitoring_system_integrator
+from core.rate_limiter import get_advanced_rate_limiter
 
 _logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/infrastructure", tags=["Infrastructure"])
+
+# Rate limiter instance
+_rate_limiter = get_advanced_rate_limiter()
+
+
+async def check_rate_limit_middleware(request: Request):
+    """Rate limiting middleware for infrastructure endpoints"""
+    client_id = request.client.host if request.client else "unknown"
+    is_allowed, error_message = await _rate_limiter.check_rate_limit_advanced(
+        key=client_id, limit=100, window=60, algorithm="sliding_window"
+    )
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=error_message or "Rate limit exceeded",
+        )
 
 
 class KafkaMessageRequest(BaseModel):
@@ -198,17 +219,21 @@ class MonitoringSummaryResponse(BaseModel):
         (500): {"description": "发送失败"},
     },
 )
-async def send_kafka_message(request: KafkaMessageRequest):
+async def send_kafka_message(
+    request: KafkaMessageRequest,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("infrastructure", "create")),
+    __=Depends(check_rate_limit_middleware),
+):
     """发送Kafka消息"""
     try:
-        kafka_processor = get_kafka_processor()
-        success = kafka_processor.send_message(
+        infrastructure_service = get_infrastructure_service(db)
+        result = infrastructure_service.kafka.send_message(
             topic=request.topic, key=request.key, value=request.value, headers=request.headers
         )
-        if success:
-            return KafkaMessageResponse(success=True, message="Message sent successfully")
-        else:
-            return KafkaMessageResponse(success=False, message="Failed to send message")
+        return KafkaMessageResponse(
+            success=result["success"], message=f"Message sent: {result['message_id']}"
+        )
     except Exception as e:
         _logger.error(f"Error sending Kafka message: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -233,23 +258,18 @@ async def send_kafka_message(request: KafkaMessageRequest):
         (500): {"description": "获取失败"},
     },
 )
-async def get_kafka_status():
+async def get_kafka_status(
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("infrastructure", "read")),
+    __=Depends(check_rate_limit_middleware),
+):
     """获取Kafka状态（基于真实本地缓存/发送的消息）"""
-    kafka_processor = get_kafka_processor()
-    messages: list = []
     try:
-        messages = kafka_processor.get_cached_messages()
+        infrastructure_service = get_infrastructure_service(db)
+        return infrastructure_service.kafka.get_status()
     except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
-        logging.warning("读取Kafka缓存消息失败", exc_info=True)
-
-    topics = sorted({getattr(msg, "topic", "") for msg in messages if getattr(msg, "topic", "")})
-
-    return {
-        "connected": bool(getattr(kafka_processor, "producer", None) is not None),
-        "total_messages": len(messages),
-        "topics": topics,
-    }
+        _logger.error(f"Error getting Kafka status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post(
@@ -272,24 +292,20 @@ async def get_kafka_status():
         (500): {"description": "创建失败"},
     },
 )
-async def create_flink_job(request: FlinkJobRequest):
+async def create_flink_job(
+    request: FlinkJobRequest,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("infrastructure", "create")),
+    __=Depends(check_rate_limit_middleware),
+):
     """创建Flink作业"""
     try:
-        job_type_enum = FlinkJobType.METRICS_AGGREGATION
-        for t in FlinkJobType:
-            if t.value == request.job_type:
-                job_type_enum = t
-                break
-        config = FlinkJobConfig(
-            job_name=request.job_name,
-            job_type=job_type_enum,
-            parallelism=request.parallelism,
+        infrastructure_service = get_infrastructure_service(db)
+        result = infrastructure_service.flink.create_job(
+            job_name=request.job_name, job_type=request.job_type, parallelism=request.parallelism
         )
-        job = get_flink_job_manager().create_job(config)
         return FlinkJobResponse(
-            job_name=job.config.job_name,
-            job_type=job.config.job_type.value,
-            status="created",
+            job_name=result["job_name"], job_type=result["job_type"], status=result["status"]
         )
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid job_type: {request.job_type}")
@@ -326,13 +342,15 @@ async def create_flink_job(request: FlinkJobRequest):
         (500): {"description": "获取失败"},
     },
 )
-async def list_flink_jobs():
+async def list_flink_jobs(
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("infrastructure", "read")),
+    __=Depends(check_rate_limit_middleware),
+):
     """列出Flink作业"""
     try:
-        flink_manager = get_flink_job_manager()
-        jobs = []
-        for job_name, job in flink_manager.jobs.items():
-            jobs.append(flink_manager.get_job_status(job_name))
+        infrastructure_service = get_infrastructure_service(db)
+        jobs = infrastructure_service.flink.list_jobs()
         return {"jobs": jobs}
     except Exception as e:
         _logger.error(f"Error listing Flink jobs: {e}")
@@ -390,19 +408,21 @@ async def get_storage_health():
     summary="设置配置",
     responses={(200): {"description": "配置设置结果"}, (500): {"description": "设置失败"}},
 )
-async def set_config(request: ConfigItemRequest):
+async def set_config(
+    request: ConfigItemRequest,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("infrastructure", "create")),
+    __=Depends(check_rate_limit_middleware),
+):
     """设置配置"""
     try:
-        config_center = get_config_center()
-        success = config_center.set_config(
+        infrastructure_service = get_infrastructure_service(db)
+        result = infrastructure_service.config.set_config(
             key=request.key, value=request.value, metadata=request.metadata
         )
-        if success:
-            item = config_center.get_config_item(request.key)
-            version = item.version if item else 0
-            return ConfigItemResponse(key=request.key, value=request.value, version=version)
-        else:
-            raise HTTPException(status_code=500, detail="Failed to set config")
+        return ConfigItemResponse(
+            key=result["key"], value=result["value"], version=result["version"]
+        )
     except Exception as e:
         _logger.error(f"Error setting config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -413,12 +433,21 @@ async def set_config(request: ConfigItemRequest):
     summary="获取配置",
     responses={(200): {"description": "配置值"}, (500): {"description": "获取失败"}},
 )
-async def get_config(key: str):
+async def get_config(
+    key: str,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("infrastructure", "read")),
+    __=Depends(check_rate_limit_middleware),
+):
     """获取配置"""
     try:
-        config_center = get_config_center()
-        value = config_center.get_config(key)
-        return {"key": key, "value": value}
+        infrastructure_service = get_infrastructure_service(db)
+        result = infrastructure_service.config.get_config(key)
+        if not result:
+            raise HTTPException(status_code=404, detail="Config not found")
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         _logger.error(f"Error getting config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -429,11 +458,15 @@ async def get_config(key: str):
     summary="获取所有配置",
     responses={(200): {"description": "所有配置"}, (500): {"description": "获取失败"}},
 )
-async def get_all_configs():
+async def get_all_configs(
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("infrastructure", "read")),
+    __=Depends(check_rate_limit_middleware),
+):
     """获取所有配置"""
     try:
-        config_center = get_config_center()
-        configs = config_center.get_all_configs()
+        infrastructure_service = get_infrastructure_service(db)
+        configs = infrastructure_service.config.get_all_configs()
         return {"configs": configs}
     except Exception as e:
         _logger.error(f"Error getting all configs: {e}")

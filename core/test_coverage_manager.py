@@ -60,45 +60,27 @@ class TestCoverageManager:
         """
         self.config = config or {}
 
-        # Module coverage data
-        self.module_coverage: Dict[str, ModuleCoverage] = {}
-
-        # Coverage thresholds
-        self.coverage_thresholds: Dict[str, CoverageThreshold] = {}
+        # Repository (set via set_repository method)
+        self._repository = None
 
         # Configuration
         self.default_threshold = self.config.get("default_threshold", 80.0)
         self.auto_track_coverage = self.config.get("auto_track_coverage", False)
 
-        # Statistics
-        self.total_modules = 0
-        self.average_coverage = 0.0
-
-        # Initialize default thresholds
-        self._initialize_default_thresholds()
-
         logger.info("Test coverage manager initialized")
 
-    def _initialize_default_thresholds(self) -> None:
-        """Initialize default coverage thresholds"""
-        self.coverage_thresholds["core"] = CoverageThreshold(
-            module_type="core", minimum_coverage=70.0, target_coverage=80.0
-        )
+    def set_repository(self, repository):
+        """
+        Set the repository for database operations
 
-        self.coverage_thresholds["integration"] = CoverageThreshold(
-            module_type="integration", minimum_coverage=65.0, target_coverage=75.0
-        )
-
-        self.coverage_thresholds["ai"] = CoverageThreshold(
-            module_type="ai", minimum_coverage=60.0, target_coverage=70.0
-        )
-
-        self.coverage_thresholds["api"] = CoverageThreshold(
-            module_type="api", minimum_coverage=75.0, target_coverage=85.0
-        )
+        Args:
+            repository: TestRepository instance
+        """
+        self._repository = repository
+        logger.info("Repository set for test coverage manager")
 
     def add_module_coverage(
-        self, module_id: str, module_name: str, total_lines: int, covered_lines: int
+        self, module_id: str, module_name: str, total_lines: int, covered_lines: int, module_type: str = "core"
     ) -> bool:
         """
         Add module coverage data
@@ -108,62 +90,32 @@ class TestCoverageManager:
             module_name: Module name
             total_lines: Total lines of code
             covered_lines: Covered lines by tests
+            module_type: Module type
 
         Returns:
             True if added, False otherwise
         """
+        if not self._repository:
+            logger.error("Repository not set")
+            return False
+
         if total_lines == 0:
             logger.error(f"Total lines cannot be zero for module {module_id}")
             return False
 
-        coverage_percentage = (covered_lines / total_lines) * 100.0
-        coverage_level = self._calculate_coverage_level(coverage_percentage)
-
-        module_coverage = ModuleCoverage(
-            module_id=module_id,
-            module_name=module_name,
-            total_lines=total_lines,
-            covered_lines=covered_lines,
-            coverage_percentage=coverage_percentage,
-            coverage_level=coverage_level,
-            last_updated=datetime.now(timezone.utc),
-        )
-
-        self.module_coverage[module_id] = module_coverage
-        self.total_modules += 1
-        self._update_average_coverage()
-
-        logger.info(f"Added module coverage: {module_id} ({coverage_percentage:.2f}%)")
-
-        return True
-
-    def _calculate_coverage_level(self, percentage: float) -> CoverageLevel:
-        """
-        Calculate coverage level from percentage
-
-        Args:
-            percentage: Coverage percentage
-
-        Returns:
-            Coverage level
-        """
-        if percentage >= 90.0:
-            return CoverageLevel.EXCELLENT
-        elif percentage >= 80.0:
-            return CoverageLevel.GOOD
-        elif percentage >= 70.0:
-            return CoverageLevel.ACCEPTABLE
-        else:
-            return CoverageLevel.NEEDS_IMPROVEMENT
-
-    def _update_average_coverage(self) -> None:
-        """Update average coverage"""
-        if not self.module_coverage:
-            self.average_coverage = 0.0
-            return
-
-        total_percentage = sum(mc.coverage_percentage for mc in self.module_coverage.values())
-        self.average_coverage = total_percentage / len(self.module_coverage)
+        try:
+            self._repository.create_or_update_coverage(
+                module_id=module_id,
+                module_name=module_name,
+                module_type=module_type,
+                total_lines=total_lines,
+                covered_lines=covered_lines,
+            )
+            logger.info(f"Added module coverage: {module_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error adding module coverage {module_id}: {e}")
+            return False
 
     def get_module_coverage(self, module_id: str) -> Optional[ModuleCoverage]:
         """
@@ -175,7 +127,27 @@ class TestCoverageManager:
         Returns:
             Module coverage data or None
         """
-        return self.module_coverage.get(module_id)
+        if not self._repository:
+            logger.error("Repository not set")
+            return None
+
+        try:
+            coverage_db = self._repository.get_coverage(module_id)
+            if not coverage_db:
+                return None
+
+            return ModuleCoverage(
+                module_id=coverage_db.module_id,
+                module_name=coverage_db.module_name,
+                total_lines=coverage_db.total_lines,
+                covered_lines=coverage_db.covered_lines,
+                coverage_percentage=coverage_db.coverage_percentage,
+                coverage_level=CoverageLevel(coverage_db.coverage_level),
+                last_updated=coverage_db.last_updated,
+            )
+        except Exception as e:
+            logger.error(f"Error getting module coverage {module_id}: {e}")
+            return None
 
     def check_coverage_threshold(self, module_id: str, module_type: str) -> Dict[str, Any]:
         """
@@ -188,37 +160,54 @@ class TestCoverageManager:
         Returns:
             Threshold check result
         """
-        module_coverage = self.get_module_coverage(module_id)
-
-        if not module_coverage:
+        if not self._repository:
+            logger.error("Repository not set")
             return {
                 "module_id": module_id,
                 "meets_threshold": False,
-                "reason": "Module coverage not found",
+                "reason": "Repository not set",
             }
 
-        threshold = self.coverage_thresholds.get(module_type)
+        try:
+            module_coverage = self.get_module_coverage(module_id)
 
-        if not threshold:
-            threshold = CoverageThreshold(
-                module_type="default",
-                minimum_coverage=self.default_threshold,
-                target_coverage=self.default_threshold,
-            )
+            if not module_coverage:
+                return {
+                    "module_id": module_id,
+                    "meets_threshold": False,
+                    "reason": "Module coverage not found",
+                }
 
-        meets_minimum = module_coverage.coverage_percentage >= threshold.minimum_coverage
-        meets_target = module_coverage.coverage_percentage >= threshold.target_coverage
+            threshold_db = self._repository.get_coverage_threshold(module_type)
 
-        return {
-            "module_id": module_id,
-            "module_type": module_type,
-            "current_coverage": module_coverage.coverage_percentage,
-            "minimum_coverage": threshold.minimum_coverage,
-            "target_coverage": threshold.target_coverage,
-            "meets_minimum": meets_minimum,
-            "meets_target": meets_target,
-            "coverage_level": module_coverage.coverage_level.value,
-        }
+            if not threshold_db:
+                # Use default threshold
+                minimum_coverage = self.default_threshold
+                target_coverage = self.default_threshold
+            else:
+                minimum_coverage = threshold_db.minimum_coverage
+                target_coverage = threshold_db.target_coverage
+
+            meets_minimum = module_coverage.coverage_percentage >= minimum_coverage
+            meets_target = module_coverage.coverage_percentage >= target_coverage
+
+            return {
+                "module_id": module_id,
+                "module_type": module_type,
+                "current_coverage": module_coverage.coverage_percentage,
+                "minimum_coverage": minimum_coverage,
+                "target_coverage": target_coverage,
+                "meets_minimum": meets_minimum,
+                "meets_target": meets_target,
+                "coverage_level": module_coverage.coverage_level.value,
+            }
+        except Exception as e:
+            logger.error(f"Error checking coverage threshold for {module_id}: {e}")
+            return {
+                "module_id": module_id,
+                "meets_threshold": False,
+                "reason": str(e),
+            }
 
     def get_coverage_summary(self) -> Dict[str, Any]:
         """
@@ -227,26 +216,25 @@ class TestCoverageManager:
         Returns:
             Coverage summary
         """
-        modules_by_level = {
-            level.value: len(
-                [mc for mc in self.module_coverage.values() if mc.coverage_level == level]
-            )
-            for level in CoverageLevel
-        }
+        if self._repository:
+            try:
+                return self._repository.get_coverage_statistics()
+            except Exception as e:
+                logger.error(f"Error getting coverage statistics from repository: {e}")
 
+        # Fallback to default values
         return {
-            "total_modules": self.total_modules,
-            "average_coverage": self.average_coverage,
-            "modules_by_level": modules_by_level,
-            "total_lines": sum(mc.total_lines for mc in self.module_coverage.values()),
-            "total_covered_lines": sum(mc.covered_lines for mc in self.module_coverage.values()),
-            "thresholds": {
-                module_type: {
-                    "minimum": threshold.minimum_coverage,
-                    "target": threshold.target_coverage,
-                }
-                for module_type, threshold in self.coverage_thresholds.items()
+            "total_modules": 0,
+            "average_coverage": 0.0,
+            "modules_by_level": {
+                "excellent": 0,
+                "good": 0,
+                "acceptable": 0,
+                "needs_improvement": 0,
             },
+            "total_lines": 0,
+            "total_covered_lines": 0,
+            "thresholds": {},
         }
 
     def get_coverage_report(self) -> Dict[str, Any]:
@@ -256,47 +244,70 @@ class TestCoverageManager:
         Returns:
             Coverage report
         """
-        modules_below_threshold = []
+        if not self._repository:
+            logger.error("Repository not set")
+            return {
+                "summary": self.get_coverage_summary(),
+                "modules_below_threshold": [],
+                "recommendations": [],
+            }
 
-        for module_id, module_coverage in self.module_coverage.items():
-            # Check against default threshold
-            if module_coverage.coverage_percentage < self.default_threshold:
-                modules_below_threshold.append(
-                    {
-                        "module_id": module_id,
-                        "module_name": module_coverage.module_name,
-                        "coverage": module_coverage.coverage_percentage,
-                        "level": module_coverage.coverage_level.value,
-                    }
-                )
+        try:
+            coverages = self._repository.get_all_coverages()
+            modules_below_threshold = []
 
-        return {
-            "summary": self.get_coverage_summary(),
-            "modules_below_threshold": modules_below_threshold,
-            "recommendations": self._generate_recommendations(),
-        }
+            for coverage in coverages:
+                # Check against default threshold
+                if coverage.coverage_percentage < self.default_threshold:
+                    modules_below_threshold.append(
+                        {
+                            "module_id": coverage.module_id,
+                            "module_name": coverage.module_name,
+                            "coverage": coverage.coverage_percentage,
+                            "level": coverage.coverage_level,
+                        }
+                    )
 
-    def _generate_recommendations(self) -> List[str]:
+            return {
+                "summary": self.get_coverage_summary(),
+                "modules_below_threshold": modules_below_threshold,
+                "recommendations": self._generate_recommendations(coverages),
+            }
+        except Exception as e:
+            logger.error(f"Error generating coverage report: {e}")
+            return {
+                "summary": self.get_coverage_summary(),
+                "modules_below_threshold": [],
+                "recommendations": [],
+            }
+
+    def _generate_recommendations(self, coverages: List) -> List[str]:
         """
         Generate coverage improvement recommendations
+
+        Args:
+            coverages: List of coverage objects
 
         Returns:
             List of recommendations
         """
         recommendations = []
 
-        if self.average_coverage < 70.0:
+        if not coverages:
+            return recommendations
+
+        avg_coverage = sum(c.coverage_percentage for c in coverages) / len(coverages)
+
+        if avg_coverage < 70.0:
             recommendations.append(
-                "Overall coverage is below 70%. Focus on increasing test coverage for critical modules."  # noqa: E501
+                "Overall coverage is below 70%. Focus on increasing test coverage for critical modules."
             )
-        elif self.average_coverage < 80.0:
+        elif avg_coverage < 80.0:
             recommendations.append(
                 "Overall coverage is below 80%. Continue adding tests to reach the target."
             )
 
-        modules_below_target = [
-            mc for mc in self.module_coverage.values() if mc.coverage_percentage < 80.0
-        ]
+        modules_below_target = [c for c in coverages if c.coverage_percentage < 80.0]
 
         if modules_below_target:
             recommendations.append(

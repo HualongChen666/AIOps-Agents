@@ -47,6 +47,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
+from core.auth import get_current_user, require_role
+from core.models import User
+from core.rate_limiter import get_limiter
 from core.models import (
     AlertConfiguration,
     NotificationChannel,
@@ -59,10 +62,14 @@ from core.models import (
     AlertAggregationRule,
     AlertRoutingRule,
     AlertRule,
+    AlertIntegration,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/alerts", tags=["告警管理高级功能"])
+
+# Initialize rate limiter
+limiter = get_limiter()
 
 # ============================================================================
 # Database Storage Migration
@@ -79,6 +86,53 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["告警管理高级功能"])
 # - AlertAggregationRule -> AlertAggregationRule table
 # - AlertRoutingRule -> AlertRoutingRule table
 # - AlertRule -> AlertRule table
+# ============================================================================
+
+# ============================================================================
+# In-Memory Storage (Temporary - will be migrated to database)
+# ============================================================================
+# These global variables are initialized with default values
+# They will be replaced with database persistence in future iterations
+_zabbix_config = {
+    "url": "",
+    "username": "",
+    "password": "",
+    "enabled": False,
+}
+
+_cloudwatch_config = {
+    "region": "",
+    "access_key": "",
+    "secret_key": "",
+    "enabled": False,
+}
+
+_pagerduty_config = {
+    "api_key": "",
+    "service_key": "",
+    "enabled": False,
+}
+
+_datadog_config = {
+    "api_key": "",
+    "app_key": "",
+    "enabled": False,
+}
+
+_grafana_config = {
+    "url": "",
+    "api_key": "",
+    "enabled": False,
+}
+
+_prometheus_config = {
+    "url": "",
+    "enabled": False,
+}
+
+_intelligent_analyses = []
+
+_acknowledgements = []
 # ============================================================================
 
 # ============================================================================
@@ -106,9 +160,11 @@ class NotificationChannel(BaseModel):
     """通知通道模型"""
 
     name: str
-    type: str = Field(..., pattern="^(email|slack|pagerduty|sms|webhook|teams)$")
+    channel_type: str = Field(..., pattern="^(email|slack|pagerduty|sms|webhook|teams)$")
     enabled: bool = True
     config: Dict[str, Any] = {}
+    priority: int = 0
+    description: str = ""
 
 
 class EscalationRule(BaseModel):
@@ -117,9 +173,9 @@ class EscalationRule(BaseModel):
     name: str
     description: str = ""
     enabled: bool = True
-    match_conditions: List[Dict[str, str]] = []
-    escalation_levels: List[Dict[str, Any]] = []
-    max_escalation_level: int = 3
+    conditions: List[Dict[str, str]] = []  # escalation conditions
+    escalation_levels: List[Dict[str, Any]] = []  # escalation levels and targets
+    priority: int = 0
 
 
 class SuppressionRule(BaseModel):
@@ -128,9 +184,10 @@ class SuppressionRule(BaseModel):
     name: str
     description: str = ""
     enabled: bool = True
-    match_conditions: List[Dict[str, str]] = []
-    duration: Optional[int] = 3600
+    pattern: str = ""  # suppression pattern
+    suppression_window: int = 300  # seconds
     reason: str = ""
+    priority: int = 0
 
 
 class ForwardingRule(BaseModel):
@@ -139,27 +196,23 @@ class ForwardingRule(BaseModel):
     name: str
     description: str = ""
     enabled: bool = True
-    source_type: str
-    target_type: str
-    target_config: Dict[str, Any] = {}
-    filter_conditions: List[Dict[str, str]] = []
-    transformation: Optional[str] = None
+    conditions: List[Dict[str, str]] = []  # forwarding conditions
+    destination: str = ""  # destination endpoint
+    priority: int = 0
 
 
 class WebhookConfig(BaseModel):
     """Webhook配置模型"""
 
     name: str
+    webhook_id: str = ""
     description: str = ""
     enabled: bool = True
     url: str
     method: str = "POST"
     headers: Dict[str, str] = {}
     body_template: str = ""
-    timeout: int = 30
-    retry_count: int = 3
-    retry_interval: int = 5
-    secret_token: Optional[str] = None
+    retry_policy: Dict[str, Any] = {}
 
 
 class DynamicThresholdRule(BaseModel):
@@ -168,14 +221,10 @@ class DynamicThresholdRule(BaseModel):
     name: str
     description: str = ""
     enabled: bool = True
-    metric: str
-    algorithm: str = "moving_average"
-    window_size: int = 300
-    sensitivity: float = 0.5
-    min_threshold: float = 0
-    max_threshold: float = 100
-    adaptation_rate: float = 0.1
-    labels: Dict[str, str] = {}
+    metric_name: str
+    algorithm: str = "anomaly_detection"  # anomaly_detection, percentile, adaptive
+    parameters: Dict[str, Any] = {}  # algorithm parameters
+    priority: int = 0
 
 
 class DeduplicationRule(BaseModel):
@@ -184,9 +233,9 @@ class DeduplicationRule(BaseModel):
     name: str
     description: str = ""
     enabled: bool = True
-    dedup_field: str = "fingerprint"
-    dedup_window: int = 300
-    match_conditions: List[Dict[str, str]] = []
+    dedup_fields: List[str] = []  # fields used for deduplication
+    dedup_window: int = 300  # seconds
+    priority: int = 0
 
 
 class AggregationRule(BaseModel):
@@ -195,11 +244,10 @@ class AggregationRule(BaseModel):
     name: str
     description: str = ""
     enabled: bool = True
-    group_by: List[str] = []
-    aggregation_type: str = "count"
-    window: int = 300
-    threshold: int = 5
-    match_conditions: List[Dict[str, str]] = []
+    aggregation_fields: List[str] = []  # fields used for aggregation
+    aggregation_window: int = 300  # seconds
+    aggregation_function: str = "count"  # count, sum, avg
+    priority: int = 0
 
 
 class AlertRoute(BaseModel):
@@ -208,10 +256,9 @@ class AlertRoute(BaseModel):
     name: str
     description: str = ""
     enabled: bool = True
+    conditions: List[Dict[str, str]] = []  # routing conditions
+    destination: str = ""  # routing destination
     priority: int = 0
-    match_conditions: List[Dict[str, str]] = []
-    target: Dict[str, Any]
-    rate_limit: Dict[str, Any]
 
 
 class AlertRule(BaseModel):
@@ -221,13 +268,10 @@ class AlertRule(BaseModel):
     description: str = ""
     severity: str = "medium"
     enabled: bool = True
-    condition: str = ""
+    metric_name: str
+    condition: str = ""  # >, <, >=, <=, ==, !=
     threshold: float = 0
-    operator: str = ">"
-    metric: str
-    labels: Dict[str, str] = {}
-    duration: int = 60
-    notification_channels: List[str] = []
+    priority: int = 0
 
 
 class ThirdPartyConfig(BaseModel):
@@ -266,6 +310,7 @@ def get_timestamp() -> str:
 
 
 @router.get("/dashboard", summary="获取告警仪表盘数据")
+@limiter.limit("100/minute")  # Dashboard endpoint has higher limit
 async def get_dashboard(time_range: str = Query(default="24h")) -> Dict[str, Any]:
     """
     获取告警仪表盘数据，包括告警统计、分布、趋势等
@@ -372,7 +417,12 @@ async def get_configuration(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.put("/configuration", summary="更新告警配置")
-async def update_configuration(config: AlertConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Configuration updates have stricter limit
+async def update_configuration(
+    config: AlertConfig, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新告警系统配置"""
     try:
         # Try to update configuration in database
@@ -425,7 +475,12 @@ async def get_notification_channels(db: Session = Depends(get_db)) -> Dict[str, 
 
 
 @router.post("/notification/channels", summary="创建通知通道")
-async def create_notification_channel(channel: NotificationChannel, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Write operations have stricter limit
+async def create_notification_channel(
+    channel: NotificationChannel, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的通知通道"""
     try:
         new_channel = NotificationChannel(
@@ -460,8 +515,12 @@ async def create_notification_channel(channel: NotificationChannel, db: Session 
 
 
 @router.put("/notification/channels/{channel_id}", summary="更新通知通道")
+@limiter.limit("30/minute")  # Write operations have stricter limit
 async def update_notification_channel(
-    channel_id: str, channel: NotificationChannel, db: Session = Depends(get_db)
+    channel_id: str, 
+    channel: NotificationChannel, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
 ) -> Dict[str, Any]:
     """更新通知通道"""
     try:
@@ -502,7 +561,12 @@ async def update_notification_channel(
 
 
 @router.delete("/notification/channels/{channel_id}", summary="删除通知通道")
-async def delete_notification_channel(channel_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Write operations have stricter limit
+async def delete_notification_channel(
+    channel_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除通知通道"""
     try:
         existing_channel = db.query(NotificationChannel).filter(NotificationChannel.id == int(channel_id)).first()
@@ -621,18 +685,23 @@ async def get_escalation_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/escalation/rules", summary="创建升级规则")
-async def create_escalation_rule(rule: EscalationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Write operations have stricter limit
+async def create_escalation_rule(
+    rule: EscalationRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的升级规则"""
     try:
         rule_id = generate_id()
         new_rule = AlertEscalationRule(
             name=rule.name,
             rule_id=rule_id,
-            conditions=rule.match_conditions,
+            conditions=rule.conditions,
             escalation_levels=rule.escalation_levels,
-            enabled=True,
-            priority=rule.priority if hasattr(rule, 'priority') else 0,
-            description=rule.description if hasattr(rule, 'description') else None,
+            enabled=rule.enabled,
+            priority=rule.priority,
+            description=rule.description,
         )
         db.add(new_rule)
         db.commit()
@@ -659,7 +728,13 @@ async def create_escalation_rule(rule: EscalationRule, db: Session = Depends(get
 
 
 @router.put("/escalation/rules/{rule_id}", summary="更新升级规则")
-async def update_escalation_rule(rule_id: str, rule: EscalationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Write operations have stricter limit
+async def update_escalation_rule(
+    rule_id: str, 
+    rule: EscalationRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新升级规则"""
     try:
         existing_rule = db.query(AlertEscalationRule).filter(AlertEscalationRule.rule_id == rule_id).first()
@@ -667,11 +742,11 @@ async def update_escalation_rule(rule_id: str, rule: EscalationRule, db: Session
             raise HTTPException(status_code=404, detail="升级规则不存在")
 
         existing_rule.name = rule.name
-        existing_rule.conditions = rule.match_conditions
+        existing_rule.conditions = rule.conditions
         existing_rule.escalation_levels = rule.escalation_levels
-        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
-        existing_rule.priority = rule.priority if hasattr(rule, 'priority') else 0
-        existing_rule.description = rule.description if hasattr(rule, 'description') else None
+        existing_rule.enabled = rule.enabled
+        existing_rule.priority = rule.priority
+        existing_rule.description = rule.description
         existing_rule.updated_at = datetime.utcnow()
         
         db.commit()
@@ -700,7 +775,12 @@ async def update_escalation_rule(rule_id: str, rule: EscalationRule, db: Session
 
 
 @router.delete("/escalation/rules/{rule_id}", summary="删除升级规则")
-async def delete_escalation_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Write operations have stricter limit
+async def delete_escalation_rule(
+    rule_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除升级规则"""
     try:
         existing_rule = db.query(AlertEscalationRule).filter(AlertEscalationRule.rule_id == rule_id).first()
@@ -728,8 +808,9 @@ async def get_suppression_rules(db: Session = Depends(get_db)) -> Dict[str, Any]
                 "id": str(rule.id),
                 "name": rule.name,
                 "rule_id": rule.rule_id,
-                "conditions": rule.conditions,
-                "suppression_duration": rule.suppression_duration,
+                "pattern": rule.pattern,
+                "suppression_window": rule.suppression_window,
+                "reason": rule.reason,
                 "enabled": rule.enabled,
                 "priority": rule.priority,
                 "description": rule.description,
@@ -744,18 +825,23 @@ async def get_suppression_rules(db: Session = Depends(get_db)) -> Dict[str, Any]
 
 
 @router.post("/suppression/rules", summary="创建抑制规则")
-async def create_suppression_rule(rule: SuppressionRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_suppression_rule(
+    rule: SuppressionRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的抑制规则"""
     try:
         rule_id = generate_id()
         new_rule = AlertSuppressionRule(
             name=rule.name,
             rule_id=rule_id,
-            conditions=rule.match_conditions,
-            suppression_duration=rule.suppression_duration,
-            enabled=True,
-            priority=rule.priority if hasattr(rule, 'priority') else 0,
-            description=rule.description if hasattr(rule, 'description') else None,
+            pattern=rule.pattern,
+            reason=rule.reason,
+            suppression_window=rule.suppression_window,
+            enabled=rule.enabled,
+            priority=rule.priority,
+            description=rule.description,
         )
         db.add(new_rule)
         db.commit()
@@ -767,8 +853,9 @@ async def create_suppression_rule(rule: SuppressionRule, db: Session = Depends(g
                 "id": str(new_rule.id),
                 "name": new_rule.name,
                 "rule_id": new_rule.rule_id,
-                "conditions": new_rule.conditions,
-                "suppression_duration": new_rule.suppression_duration,
+                "pattern": new_rule.pattern,
+                "suppression_window": new_rule.suppression_window,
+                "reason": new_rule.reason,
                 "enabled": new_rule.enabled,
                 "priority": new_rule.priority,
                 "description": new_rule.description,
@@ -782,7 +869,12 @@ async def create_suppression_rule(rule: SuppressionRule, db: Session = Depends(g
 
 
 @router.put("/suppression/rules/{rule_id}", summary="更新抑制规则")
-async def update_suppression_rule(rule_id: str, rule: SuppressionRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_suppression_rule(
+    rule_id: str, 
+    rule: SuppressionRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新抑制规则"""
     try:
         existing_rule = db.query(AlertSuppressionRule).filter(AlertSuppressionRule.rule_id == rule_id).first()
@@ -790,11 +882,12 @@ async def update_suppression_rule(rule_id: str, rule: SuppressionRule, db: Sessi
             raise HTTPException(status_code=404, detail="抑制规则不存在")
 
         existing_rule.name = rule.name
-        existing_rule.conditions = rule.match_conditions
-        existing_rule.suppression_duration = rule.suppression_duration
-        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
-        existing_rule.priority = rule.priority if hasattr(rule, 'priority') else 0
-        existing_rule.description = rule.description if hasattr(rule, 'description') else None
+        existing_rule.pattern = rule.pattern
+        existing_rule.reason = rule.reason
+        existing_rule.suppression_window = rule.suppression_window
+        existing_rule.enabled = rule.enabled
+        existing_rule.priority = rule.priority
+        existing_rule.description = rule.description
         existing_rule.updated_at = datetime.utcnow()
         
         db.commit()
@@ -806,8 +899,9 @@ async def update_suppression_rule(rule_id: str, rule: SuppressionRule, db: Sessi
                 "id": str(existing_rule.id),
                 "name": existing_rule.name,
                 "rule_id": existing_rule.rule_id,
-                "conditions": existing_rule.conditions,
-                "suppression_duration": existing_rule.suppression_duration,
+                "pattern": existing_rule.pattern,
+                "suppression_window": existing_rule.suppression_window,
+                "reason": existing_rule.reason,
                 "enabled": existing_rule.enabled,
                 "priority": existing_rule.priority,
                 "description": existing_rule.description,
@@ -823,7 +917,11 @@ async def update_suppression_rule(rule_id: str, rule: SuppressionRule, db: Sessi
 
 
 @router.delete("/suppression/rules/{rule_id}", summary="删除抑制规则")
-async def delete_suppression_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_suppression_rule(
+    rule_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除抑制规则"""
     try:
         existing_rule = db.query(AlertSuppressionRule).filter(AlertSuppressionRule.rule_id == rule_id).first()
@@ -941,8 +1039,8 @@ async def get_forwarding_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
                 "id": str(rule.id),
                 "name": rule.name,
                 "rule_id": rule.rule_id,
-                "target_config": rule.target_config,
-                "filter_conditions": rule.filter_conditions,
+                "conditions": rule.conditions,
+                "destination": rule.destination,
                 "enabled": rule.enabled,
                 "priority": rule.priority,
                 "description": rule.description,
@@ -957,18 +1055,22 @@ async def get_forwarding_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/forwarding/rules", summary="创建转发规则")
-async def create_forwarding_rule(rule: ForwardingRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_forwarding_rule(
+    rule: ForwardingRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的转发规则"""
     try:
         rule_id = generate_id()
         new_rule = AlertForwardingRule(
             name=rule.name,
             rule_id=rule_id,
-            target_config=rule.target_config,
-            filter_conditions=rule.filter_conditions,
-            enabled=True,
-            priority=rule.priority if hasattr(rule, 'priority') else 0,
-            description=rule.description if hasattr(rule, 'description') else None,
+            conditions=rule.conditions,
+            destination=rule.destination,
+            enabled=rule.enabled,
+            priority=rule.priority,
+            description=rule.description,
         )
         db.add(new_rule)
         db.commit()
@@ -980,8 +1082,8 @@ async def create_forwarding_rule(rule: ForwardingRule, db: Session = Depends(get
                 "id": str(new_rule.id),
                 "name": new_rule.name,
                 "rule_id": new_rule.rule_id,
-                "target_config": new_rule.target_config,
-                "filter_conditions": new_rule.filter_conditions,
+                "conditions": new_rule.conditions,
+                "destination": new_rule.destination,
                 "enabled": new_rule.enabled,
                 "priority": new_rule.priority,
                 "description": new_rule.description,
@@ -995,7 +1097,12 @@ async def create_forwarding_rule(rule: ForwardingRule, db: Session = Depends(get
 
 
 @router.put("/forwarding/rules/{rule_id}", summary="更新转发规则")
-async def update_forwarding_rule(rule_id: str, rule: ForwardingRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_forwarding_rule(
+    rule_id: str, 
+    rule: ForwardingRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新转发规则"""
     try:
         existing_rule = db.query(AlertForwardingRule).filter(AlertForwardingRule.rule_id == rule_id).first()
@@ -1003,11 +1110,11 @@ async def update_forwarding_rule(rule_id: str, rule: ForwardingRule, db: Session
             raise HTTPException(status_code=404, detail="转发规则不存在")
 
         existing_rule.name = rule.name
-        existing_rule.target_config = rule.target_config
-        existing_rule.filter_conditions = rule.filter_conditions
-        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
-        existing_rule.priority = rule.priority if hasattr(rule, 'priority') else 0
-        existing_rule.description = rule.description if hasattr(rule, 'description') else None
+        existing_rule.conditions = rule.conditions
+        existing_rule.destination = rule.destination
+        existing_rule.enabled = rule.enabled
+        existing_rule.priority = rule.priority
+        existing_rule.description = rule.description
         existing_rule.updated_at = datetime.utcnow()
         
         db.commit()
@@ -1019,8 +1126,8 @@ async def update_forwarding_rule(rule_id: str, rule: ForwardingRule, db: Session
                 "id": str(existing_rule.id),
                 "name": existing_rule.name,
                 "rule_id": existing_rule.rule_id,
-                "target_config": existing_rule.target_config,
-                "filter_conditions": existing_rule.filter_conditions,
+                "conditions": existing_rule.conditions,
+                "destination": existing_rule.destination,
                 "enabled": existing_rule.enabled,
                 "priority": existing_rule.priority,
                 "description": existing_rule.description,
@@ -1036,7 +1143,11 @@ async def update_forwarding_rule(rule_id: str, rule: ForwardingRule, db: Session
 
 
 @router.delete("/forwarding/rules/{rule_id}", summary="删除转发规则")
-async def delete_forwarding_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_forwarding_rule(
+    rule_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除转发规则"""
     try:
         existing_rule = db.query(AlertForwardingRule).filter(AlertForwardingRule.rule_id == rule_id).first()
@@ -1062,11 +1173,15 @@ async def get_webhook_configs(db: Session = Depends(get_db)) -> Dict[str, Any]:
         return {"webhooks": [
             {
                 "id": str(webhook.id),
-                "webhook_name": webhook.webhook_name,
-                "webhook_url": webhook.webhook_url,
+                "name": webhook.name,
+                "webhook_id": webhook.webhook_id,
+                "url": webhook.url,
+                "method": webhook.method,
                 "headers": webhook.headers,
+                "body_template": webhook.body_template,
                 "retry_policy": webhook.retry_policy,
                 "enabled": webhook.enabled,
+                "description": webhook.description,
                 "created_at": webhook.created_at.isoformat() if webhook.created_at else None,
                 "updated_at": webhook.updated_at.isoformat() if webhook.updated_at else None,
             }
@@ -1078,17 +1193,24 @@ async def get_webhook_configs(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/webhook/configs", summary="创建Webhook配置")
-async def create_webhook_config(config: WebhookConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_webhook_config(
+    config: WebhookConfig, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的Webhook配置"""
     try:
-        config_id = generate_id()
+        webhook_id = config.webhook_id or generate_id()
         new_webhook = AlertWebhookConfig(
-            id=config_id,
-            webhook_name=config.name,
-            webhook_url=config.url,
+            name=config.name,
+            webhook_id=webhook_id,
+            url=config.url,
+            method=config.method,
             headers=config.headers,
+            body_template=config.body_template,
             retry_policy=config.retry_policy,
-            enabled=True,
+            enabled=config.enabled,
+            description=config.description,
         )
         db.add(new_webhook)
         db.commit()
@@ -1098,11 +1220,15 @@ async def create_webhook_config(config: WebhookConfig, db: Session = Depends(get
             "status": "success",
             "webhook": {
                 "id": str(new_webhook.id),
-                "webhook_name": new_webhook.webhook_name,
-                "webhook_url": new_webhook.webhook_url,
+                "name": new_webhook.name,
+                "webhook_id": new_webhook.webhook_id,
+                "url": new_webhook.url,
+                "method": new_webhook.method,
                 "headers": new_webhook.headers,
+                "body_template": new_webhook.body_template,
                 "retry_policy": new_webhook.retry_policy,
                 "enabled": new_webhook.enabled,
+                "description": new_webhook.description,
                 "created_at": new_webhook.created_at.isoformat() if new_webhook.created_at else None,
                 "updated_at": new_webhook.updated_at.isoformat() if new_webhook.updated_at else None,
             }
@@ -1113,18 +1239,27 @@ async def create_webhook_config(config: WebhookConfig, db: Session = Depends(get
 
 
 @router.put("/webhook/configs/{config_id}", summary="更新Webhook配置")
-async def update_webhook_config(config_id: str, config: WebhookConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_webhook_config(
+    config_id: str, 
+    config: WebhookConfig, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新Webhook配置"""
     try:
-        existing_webhook = db.query(AlertWebhookConfig).filter(AlertWebhookConfig.id == config_id).first()
+        existing_webhook = db.query(AlertWebhookConfig).filter(AlertWebhookConfig.id == int(config_id)).first()
         if not existing_webhook:
             raise HTTPException(status_code=404, detail="Webhook配置不存在")
 
-        existing_webhook.webhook_name = config.name
-        existing_webhook.webhook_url = config.url
+        existing_webhook.name = config.name
+        existing_webhook.webhook_id = config.webhook_id
+        existing_webhook.url = config.url
+        existing_webhook.method = config.method
         existing_webhook.headers = config.headers
+        existing_webhook.body_template = config.body_template
         existing_webhook.retry_policy = config.retry_policy
-        existing_webhook.enabled = config.enabled if hasattr(config, 'enabled') else True
+        existing_webhook.enabled = config.enabled
+        existing_webhook.description = config.description
         existing_webhook.updated_at = datetime.utcnow()
         
         db.commit()
@@ -1134,11 +1269,15 @@ async def update_webhook_config(config_id: str, config: WebhookConfig, db: Sessi
             "status": "success",
             "webhook": {
                 "id": str(existing_webhook.id),
-                "webhook_name": existing_webhook.webhook_name,
-                "webhook_url": existing_webhook.webhook_url,
+                "name": existing_webhook.name,
+                "webhook_id": existing_webhook.webhook_id,
+                "url": existing_webhook.url,
+                "method": existing_webhook.method,
                 "headers": existing_webhook.headers,
+                "body_template": existing_webhook.body_template,
                 "retry_policy": existing_webhook.retry_policy,
                 "enabled": existing_webhook.enabled,
+                "description": existing_webhook.description,
                 "created_at": existing_webhook.created_at.isoformat() if existing_webhook.created_at else None,
                 "updated_at": existing_webhook.updated_at.isoformat() if existing_webhook.updated_at else None,
             }
@@ -1151,7 +1290,11 @@ async def update_webhook_config(config_id: str, config: WebhookConfig, db: Sessi
 
 
 @router.delete("/webhook/configs/{config_id}", summary="删除Webhook配置")
-async def delete_webhook_config(config_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_webhook_config(
+    config_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除Webhook配置"""
     try:
         existing_webhook = db.query(AlertWebhookConfig).filter(AlertWebhookConfig.id == config_id).first()
@@ -1218,12 +1361,14 @@ async def get_dynamic_threshold_rules(db: Session = Depends(get_db)) -> Dict[str
         return {"thresholds": [
             {
                 "id": str(threshold.id),
-                "name": threshold.rule_name,
+                "name": threshold.name,
                 "rule_id": threshold.rule_id,
                 "metric_name": threshold.metric_name,
-                "threshold_expression": threshold.threshold_expression,
-                "evaluation_interval": threshold.evaluation_interval,
+                "algorithm": threshold.algorithm,
+                "parameters": threshold.parameters,
                 "enabled": threshold.enabled,
+                "priority": threshold.priority,
+                "description": threshold.description,
                 "created_at": threshold.created_at.isoformat() if threshold.created_at else None,
                 "updated_at": threshold.updated_at.isoformat() if threshold.updated_at else None,
             }
@@ -1235,7 +1380,11 @@ async def get_dynamic_threshold_rules(db: Session = Depends(get_db)) -> Dict[str
 
 
 @router.post("/dynamic-threshold/rules", summary="创建动态阈值规则")
-async def create_dynamic_threshold_rule(rule: DynamicThresholdRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_dynamic_threshold_rule(
+    rule: DynamicThresholdRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的动态阈值规则"""
     try:
         rule_id = generate_id()
@@ -1243,9 +1392,11 @@ async def create_dynamic_threshold_rule(rule: DynamicThresholdRule, db: Session 
             name=rule.name,
             rule_id=rule_id,
             metric_name=rule.metric_name,
-            threshold_expression=rule.threshold_expression,
-            evaluation_interval=rule.evaluation_interval,
-            enabled=True,
+            algorithm=rule.algorithm,
+            parameters=rule.parameters,
+            enabled=rule.enabled,
+            priority=rule.priority,
+            description=rule.description,
         )
         db.add(new_threshold)
         db.commit()
@@ -1255,12 +1406,14 @@ async def create_dynamic_threshold_rule(rule: DynamicThresholdRule, db: Session 
             "status": "success",
             "threshold": {
                 "id": str(new_threshold.id),
-                "name": new_threshold.rule_name,
+                "name": new_threshold.name,
                 "rule_id": new_threshold.rule_id,
                 "metric_name": new_threshold.metric_name,
-                "threshold_expression": new_threshold.threshold_expression,
-                "evaluation_interval": new_threshold.evaluation_interval,
+                "algorithm": new_threshold.algorithm,
+                "parameters": new_threshold.parameters,
                 "enabled": new_threshold.enabled,
+                "priority": new_threshold.priority,
+                "description": new_threshold.description,
                 "created_at": new_threshold.created_at.isoformat() if new_threshold.created_at else None,
                 "updated_at": new_threshold.updated_at.isoformat() if new_threshold.updated_at else None,
             }
@@ -1271,7 +1424,12 @@ async def create_dynamic_threshold_rule(rule: DynamicThresholdRule, db: Session 
 
 
 @router.put("/dynamic-threshold/rules/{rule_id}", summary="更新动态阈值规则")
-async def update_dynamic_threshold_rule(rule_id: str, rule: DynamicThresholdRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_dynamic_threshold_rule(
+    rule_id: str, 
+    rule: DynamicThresholdRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新动态阈值规则"""
     try:
         existing_threshold = db.query(AlertDynamicThresholdRule).filter(AlertDynamicThresholdRule.rule_id == rule_id).first()
@@ -1280,9 +1438,11 @@ async def update_dynamic_threshold_rule(rule_id: str, rule: DynamicThresholdRule
 
         existing_threshold.name = rule.name
         existing_threshold.metric_name = rule.metric_name
-        existing_threshold.threshold_expression = rule.threshold_expression
-        existing_threshold.evaluation_interval = rule.evaluation_interval
-        existing_threshold.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_threshold.algorithm = rule.algorithm
+        existing_threshold.parameters = rule.parameters
+        existing_threshold.enabled = rule.enabled
+        existing_threshold.priority = rule.priority
+        existing_threshold.description = rule.description
         existing_threshold.updated_at = datetime.utcnow()
         
         db.commit()
@@ -1292,12 +1452,14 @@ async def update_dynamic_threshold_rule(rule_id: str, rule: DynamicThresholdRule
             "status": "success",
             "threshold": {
                 "id": str(existing_threshold.id),
-                "name": existing_threshold.rule_name,
+                "name": existing_threshold.name,
                 "rule_id": existing_threshold.rule_id,
                 "metric_name": existing_threshold.metric_name,
-                "threshold_expression": existing_threshold.threshold_expression,
-                "evaluation_interval": existing_threshold.evaluation_interval,
+                "algorithm": existing_threshold.algorithm,
+                "parameters": existing_threshold.parameters,
                 "enabled": existing_threshold.enabled,
+                "priority": existing_threshold.priority,
+                "description": existing_threshold.description,
                 "created_at": existing_threshold.created_at.isoformat() if existing_threshold.created_at else None,
                 "updated_at": existing_threshold.updated_at.isoformat() if existing_threshold.updated_at else None,
             }
@@ -1310,7 +1472,11 @@ async def update_dynamic_threshold_rule(rule_id: str, rule: DynamicThresholdRule
 
 
 @router.delete("/dynamic-threshold/rules/{rule_id}", summary="删除动态阈值规则")
-async def delete_dynamic_threshold_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_dynamic_threshold_rule(
+    rule_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除动态阈值规则"""
     try:
         existing_threshold = db.query(AlertDynamicThresholdRule).filter(AlertDynamicThresholdRule.rule_id == rule_id).first()
@@ -1336,11 +1502,13 @@ async def get_deduplication_rules(db: Session = Depends(get_db)) -> Dict[str, An
         return {"rules": [
             {
                 "id": str(rule.id),
-                "name": rule.rule_name,
+                "name": rule.name,
                 "rule_id": rule.rule_id,
-                "match_conditions": rule.match_conditions,
-                "deduplication_window": rule.deduplication_window,
+                "dedup_fields": rule.dedup_fields,
+                "dedup_window": rule.dedup_window,
                 "enabled": rule.enabled,
+                "priority": rule.priority,
+                "description": rule.description,
                 "created_at": rule.created_at.isoformat() if rule.created_at else None,
                 "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
             }
@@ -1352,16 +1520,22 @@ async def get_deduplication_rules(db: Session = Depends(get_db)) -> Dict[str, An
 
 
 @router.post("/deduplication/rules", summary="创建去重规则")
-async def create_deduplication_rule(rule: DeduplicationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_deduplication_rule(
+    rule: DeduplicationRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的去重规则"""
     try:
         rule_id = generate_id()
         new_rule = AlertDeduplicationRule(
             name=rule.name,
             rule_id=rule_id,
-            match_conditions=rule.match_conditions,
-            deduplication_window=rule.deduplication_window,
-            enabled=True,
+            dedup_fields=rule.dedup_fields,
+            dedup_window=rule.dedup_window,
+            enabled=rule.enabled,
+            priority=rule.priority,
+            description=rule.description,
         )
         db.add(new_rule)
         db.commit()
@@ -1371,11 +1545,13 @@ async def create_deduplication_rule(rule: DeduplicationRule, db: Session = Depen
             "status": "success",
             "rule": {
                 "id": str(new_rule.id),
-                "name": new_rule.rule_name,
+                "name": new_rule.name,
                 "rule_id": new_rule.rule_id,
-                "match_conditions": new_rule.match_conditions,
-                "deduplication_window": new_rule.deduplication_window,
+                "dedup_fields": new_rule.dedup_fields,
+                "dedup_window": new_rule.dedup_window,
                 "enabled": new_rule.enabled,
+                "priority": new_rule.priority,
+                "description": new_rule.description,
                 "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
                 "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
             }
@@ -1386,7 +1562,12 @@ async def create_deduplication_rule(rule: DeduplicationRule, db: Session = Depen
 
 
 @router.put("/deduplication/rules/{rule_id}", summary="更新去重规则")
-async def update_deduplication_rule(rule_id: str, rule: DeduplicationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_deduplication_rule(
+    rule_id: str, 
+    rule: DeduplicationRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新去重规则"""
     try:
         existing_rule = db.query(AlertDeduplicationRule).filter(AlertDeduplicationRule.rule_id == rule_id).first()
@@ -1394,9 +1575,11 @@ async def update_deduplication_rule(rule_id: str, rule: DeduplicationRule, db: S
             raise HTTPException(status_code=404, detail="去重规则不存在")
 
         existing_rule.name = rule.name
-        existing_rule.match_conditions = rule.match_conditions
-        existing_rule.deduplication_window = rule.deduplication_window
-        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.dedup_fields = rule.dedup_fields
+        existing_rule.dedup_window = rule.dedup_window
+        existing_rule.enabled = rule.enabled
+        existing_rule.priority = rule.priority
+        existing_rule.description = rule.description
         existing_rule.updated_at = datetime.utcnow()
         
         db.commit()
@@ -1406,11 +1589,13 @@ async def update_deduplication_rule(rule_id: str, rule: DeduplicationRule, db: S
             "status": "success",
             "rule": {
                 "id": str(existing_rule.id),
-                "name": existing_rule.rule_name,
+                "name": existing_rule.name,
                 "rule_id": existing_rule.rule_id,
-                "match_conditions": existing_rule.match_conditions,
-                "deduplication_window": existing_rule.deduplication_window,
+                "dedup_fields": existing_rule.dedup_fields,
+                "dedup_window": existing_rule.dedup_window,
                 "enabled": existing_rule.enabled,
+                "priority": existing_rule.priority,
+                "description": existing_rule.description,
                 "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
                 "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
             }
@@ -1423,7 +1608,11 @@ async def update_deduplication_rule(rule_id: str, rule: DeduplicationRule, db: S
 
 
 @router.delete("/deduplication/rules/{rule_id}", summary="删除去重规则")
-async def delete_deduplication_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_deduplication_rule(
+    rule_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除去重规则"""
     try:
         existing_rule = db.query(AlertDeduplicationRule).filter(AlertDeduplicationRule.rule_id == rule_id).first()
@@ -1449,12 +1638,14 @@ async def get_aggregation_rules(db: Session = Depends(get_db)) -> Dict[str, Any]
         return {"rules": [
             {
                 "id": str(rule.id),
-                "name": rule.rule_name,
+                "name": rule.name,
                 "rule_id": rule.rule_id,
-                "match_conditions": rule.match_conditions,
-                "group_by": rule.group_by,
+                "aggregation_fields": rule.aggregation_fields,
+                "aggregation_window": rule.aggregation_window,
                 "aggregation_function": rule.aggregation_function,
                 "enabled": rule.enabled,
+                "priority": rule.priority,
+                "description": rule.description,
                 "created_at": rule.created_at.isoformat() if rule.created_at else None,
                 "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
             }
@@ -1466,17 +1657,23 @@ async def get_aggregation_rules(db: Session = Depends(get_db)) -> Dict[str, Any]
 
 
 @router.post("/aggregation/rules", summary="创建聚合规则")
-async def create_aggregation_rule(rule: AggregationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_aggregation_rule(
+    rule: AggregationRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的聚合规则"""
     try:
         rule_id = generate_id()
         new_rule = AlertAggregationRule(
             name=rule.name,
             rule_id=rule_id,
-            match_conditions=rule.match_conditions,
-            group_by=rule.group_by,
+            aggregation_fields=rule.aggregation_fields,
+            aggregation_window=rule.aggregation_window,
             aggregation_function=rule.aggregation_function,
-            enabled=True,
+            enabled=rule.enabled,
+            priority=rule.priority,
+            description=rule.description,
         )
         db.add(new_rule)
         db.commit()
@@ -1486,12 +1683,14 @@ async def create_aggregation_rule(rule: AggregationRule, db: Session = Depends(g
             "status": "success",
             "rule": {
                 "id": str(new_rule.id),
-                "name": new_rule.rule_name,
+                "name": new_rule.name,
                 "rule_id": new_rule.rule_id,
-                "match_conditions": new_rule.match_conditions,
-                "group_by": new_rule.group_by,
+                "aggregation_fields": new_rule.aggregation_fields,
+                "aggregation_window": new_rule.aggregation_window,
                 "aggregation_function": new_rule.aggregation_function,
                 "enabled": new_rule.enabled,
+                "priority": new_rule.priority,
+                "description": new_rule.description,
                 "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
                 "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
             }
@@ -1502,7 +1701,12 @@ async def create_aggregation_rule(rule: AggregationRule, db: Session = Depends(g
 
 
 @router.put("/aggregation/rules/{rule_id}", summary="更新聚合规则")
-async def update_aggregation_rule(rule_id: str, rule: AggregationRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_aggregation_rule(
+    rule_id: str, 
+    rule: AggregationRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新聚合规则"""
     try:
         existing_rule = db.query(AlertAggregationRule).filter(AlertAggregationRule.rule_id == rule_id).first()
@@ -1510,10 +1714,12 @@ async def update_aggregation_rule(rule_id: str, rule: AggregationRule, db: Sessi
             raise HTTPException(status_code=404, detail="聚合规则不存在")
 
         existing_rule.name = rule.name
-        existing_rule.match_conditions = rule.match_conditions
-        existing_rule.group_by = rule.group_by
+        existing_rule.aggregation_fields = rule.aggregation_fields
+        existing_rule.aggregation_window = rule.aggregation_window
         existing_rule.aggregation_function = rule.aggregation_function
-        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.enabled = rule.enabled
+        existing_rule.priority = rule.priority
+        existing_rule.description = rule.description
         existing_rule.updated_at = datetime.utcnow()
         
         db.commit()
@@ -1523,12 +1729,14 @@ async def update_aggregation_rule(rule_id: str, rule: AggregationRule, db: Sessi
             "status": "success",
             "rule": {
                 "id": str(existing_rule.id),
-                "name": existing_rule.rule_name,
+                "name": existing_rule.name,
                 "rule_id": existing_rule.rule_id,
-                "match_conditions": existing_rule.match_conditions,
-                "group_by": existing_rule.group_by,
+                "aggregation_fields": existing_rule.aggregation_fields,
+                "aggregation_window": existing_rule.aggregation_window,
                 "aggregation_function": existing_rule.aggregation_function,
                 "enabled": existing_rule.enabled,
+                "priority": existing_rule.priority,
+                "description": existing_rule.description,
                 "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
                 "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
             }
@@ -1541,7 +1749,11 @@ async def update_aggregation_rule(rule_id: str, rule: AggregationRule, db: Sessi
 
 
 @router.delete("/aggregation/rules/{rule_id}", summary="删除聚合规则")
-async def delete_aggregation_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_aggregation_rule(
+    rule_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除聚合规则"""
     try:
         existing_rule = db.query(AlertAggregationRule).filter(AlertAggregationRule.rule_id == rule_id).first()
@@ -1567,12 +1779,13 @@ async def get_routing(db: Session = Depends(get_db)) -> Dict[str, Any]:
         return {"routes": [
             {
                 "id": str(route.id),
-                "name": route.route_name,
+                "name": route.name,
                 "rule_id": route.rule_id,
-                "match_conditions": route.match_conditions,
-                "target_destination": route.target_destination,
+                "conditions": route.conditions,
+                "destination": route.destination,
                 "priority": route.priority,
                 "enabled": route.enabled,
+                "description": route.description,
                 "created_at": route.created_at.isoformat() if route.created_at else None,
                 "updated_at": route.updated_at.isoformat() if route.updated_at else None,
             }
@@ -1584,17 +1797,22 @@ async def get_routing(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/routing", summary="创建告警路由")
-async def create_routing(route: AlertRoute, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_routing(
+    route: AlertRoute, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的告警路由"""
     try:
         route_id = generate_id()
         new_route = AlertRoutingRule(
             name=route.name,
             rule_id=route_id,
-            match_conditions=route.match_conditions,
-            target_destination=route.target_destination,
+            conditions=route.conditions,
+            destination=route.destination,
+            enabled=route.enabled,
             priority=route.priority,
-            enabled=True,
+            description=route.description,
         )
         db.add(new_route)
         db.commit()
@@ -1604,12 +1822,13 @@ async def create_routing(route: AlertRoute, db: Session = Depends(get_db)) -> Di
             "status": "success",
             "route": {
                 "id": str(new_route.id),
-                "name": new_route.route_name,
+                "name": new_route.name,
                 "rule_id": new_route.rule_id,
-                "match_conditions": new_route.match_conditions,
-                "target_destination": new_route.target_destination,
+                "conditions": new_route.conditions,
+                "destination": new_route.destination,
                 "priority": new_route.priority,
                 "enabled": new_route.enabled,
+                "description": new_route.description,
                 "created_at": new_route.created_at.isoformat() if new_route.created_at else None,
                 "updated_at": new_route.updated_at.isoformat() if new_route.updated_at else None,
             }
@@ -1620,7 +1839,12 @@ async def create_routing(route: AlertRoute, db: Session = Depends(get_db)) -> Di
 
 
 @router.put("/routing/{route_id}", summary="更新告警路由")
-async def update_routing(route_id: str, route: AlertRoute, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_routing(
+    route_id: str, 
+    route: AlertRoute, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新告警路由"""
     try:
         existing_route = db.query(AlertRoutingRule).filter(AlertRoutingRule.rule_id == route_id).first()
@@ -1628,10 +1852,11 @@ async def update_routing(route_id: str, route: AlertRoute, db: Session = Depends
             raise HTTPException(status_code=404, detail="告警路由不存在")
 
         existing_route.name = route.name
-        existing_route.match_conditions = route.match_conditions
-        existing_route.target_destination = route.target_destination
+        existing_route.conditions = route.conditions
+        existing_route.destination = route.destination
+        existing_route.enabled = route.enabled
         existing_route.priority = route.priority
-        existing_route.enabled = route.enabled if hasattr(route, 'enabled') else True
+        existing_route.description = route.description
         existing_route.updated_at = datetime.utcnow()
         
         db.commit()
@@ -1641,12 +1866,13 @@ async def update_routing(route_id: str, route: AlertRoute, db: Session = Depends
             "status": "success",
             "route": {
                 "id": str(existing_route.id),
-                "name": existing_route.route_name,
+                "name": existing_route.name,
                 "rule_id": existing_route.rule_id,
-                "match_conditions": existing_route.match_conditions,
-                "target_destination": existing_route.target_destination,
+                "conditions": existing_route.conditions,
+                "destination": existing_route.destination,
                 "priority": existing_route.priority,
                 "enabled": existing_route.enabled,
+                "description": existing_route.description,
                 "created_at": existing_route.created_at.isoformat() if existing_route.created_at else None,
                 "updated_at": existing_route.updated_at.isoformat() if existing_route.updated_at else None,
             }
@@ -1659,7 +1885,11 @@ async def update_routing(route_id: str, route: AlertRoute, db: Session = Depends
 
 
 @router.delete("/routing/{route_id}", summary="删除告警路由")
-async def delete_routing(route_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_routing(
+    route_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除告警路由"""
     try:
         existing_route = db.query(AlertRoutingRule).filter(AlertRoutingRule.rule_id == route_id).first()
@@ -1687,8 +1917,13 @@ async def get_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
                 "id": str(rule.id),
                 "name": rule.name,
                 "rule_id": rule.rule_id,
-                "match_conditions": rule.match_conditions,
+                "metric_name": rule.metric_name,
+                "condition": rule.condition,
+                "threshold": rule.threshold,
+                "severity": rule.severity,
                 "enabled": rule.enabled,
+                "priority": rule.priority,
+                "description": rule.description,
                 "created_at": rule.created_at.isoformat() if rule.created_at else None,
                 "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
             }
@@ -1700,15 +1935,24 @@ async def get_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/rules", summary="创建告警规则")
-async def create_rule(rule: AlertRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def create_rule(
+    rule: AlertRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """创建新的告警规则"""
     try:
         rule_id = generate_id()
         new_rule = AlertRule(
             name=rule.name,
             rule_id=rule_id,
-            match_conditions=rule.match_conditions,
-            enabled=True,
+            metric_name=rule.metric_name,
+            condition=rule.condition,
+            threshold=rule.threshold,
+            severity=rule.severity,
+            enabled=rule.enabled,
+            priority=rule.priority,
+            description=rule.description,
         )
         db.add(new_rule)
         db.commit()
@@ -1720,8 +1964,13 @@ async def create_rule(rule: AlertRule, db: Session = Depends(get_db)) -> Dict[st
                 "id": str(new_rule.id),
                 "name": new_rule.name,
                 "rule_id": new_rule.rule_id,
-                "match_conditions": new_rule.match_conditions,
+                "metric_name": new_rule.metric_name,
+                "condition": new_rule.condition,
+                "threshold": new_rule.threshold,
+                "severity": new_rule.severity,
                 "enabled": new_rule.enabled,
+                "priority": new_rule.priority,
+                "description": new_rule.description,
                 "created_at": new_rule.created_at.isoformat() if new_rule.created_at else None,
                 "updated_at": new_rule.updated_at.isoformat() if new_rule.updated_at else None,
             }
@@ -1732,7 +1981,12 @@ async def create_rule(rule: AlertRule, db: Session = Depends(get_db)) -> Dict[st
 
 
 @router.put("/rules/{rule_id}", summary="更新告警规则")
-async def update_rule(rule_id: str, rule: AlertRule, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def update_rule(
+    rule_id: str, 
+    rule: AlertRule, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """更新告警规则"""
     try:
         existing_rule = db.query(AlertRule).filter(AlertRule.rule_id == rule_id).first()
@@ -1740,8 +1994,13 @@ async def update_rule(rule_id: str, rule: AlertRule, db: Session = Depends(get_d
             raise HTTPException(status_code=404, detail="告警规则不存在")
 
         existing_rule.name = rule.name
-        existing_rule.match_conditions = rule.match_conditions
-        existing_rule.enabled = rule.enabled if hasattr(rule, 'enabled') else True
+        existing_rule.metric_name = rule.metric_name
+        existing_rule.condition = rule.condition
+        existing_rule.threshold = rule.threshold
+        existing_rule.severity = rule.severity
+        existing_rule.enabled = rule.enabled
+        existing_rule.priority = rule.priority
+        existing_rule.description = rule.description
         existing_rule.updated_at = datetime.utcnow()
         
         db.commit()
@@ -1753,8 +2012,13 @@ async def update_rule(rule_id: str, rule: AlertRule, db: Session = Depends(get_d
                 "id": str(existing_rule.id),
                 "name": existing_rule.name,
                 "rule_id": existing_rule.rule_id,
-                "match_conditions": existing_rule.match_conditions,
+                "metric_name": existing_rule.metric_name,
+                "condition": existing_rule.condition,
+                "threshold": existing_rule.threshold,
+                "severity": existing_rule.severity,
                 "enabled": existing_rule.enabled,
+                "priority": existing_rule.priority,
+                "description": existing_rule.description,
                 "created_at": existing_rule.created_at.isoformat() if existing_rule.created_at else None,
                 "updated_at": existing_rule.updated_at.isoformat() if existing_rule.updated_at else None,
             }
@@ -1767,7 +2031,11 @@ async def update_rule(rule_id: str, rule: AlertRule, db: Session = Depends(get_d
 
 
 @router.delete("/rules/{rule_id}", summary="删除告警规则")
-async def delete_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def delete_rule(
+    rule_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
     """删除告警规则"""
     try:
         existing_rule = db.query(AlertRule).filter(AlertRule.rule_id == rule_id).first()
@@ -1786,135 +2054,376 @@ async def delete_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, 
 
 
 @router.get("/zabbix", summary="获取Zabbix集成配置")
-async def get_zabbix() -> Dict[str, Any]:
+async def get_zabbix(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取Zabbix集成配置和触发器"""
-    triggers = []
-    for i in range(10):
-        triggers.append(
-            {
-                "triggerid": str(i),
-                "expression": f"last(/host/item{i}) > 80",
-                "description": f"触发器 {i+1}",
-                "status": "0",
-                "value": "1" if i % 3 == 0 else "0",
-                "priority": i % 6,
-                "lastchange": int((datetime.utcnow() - timedelta(hours=i)).timestamp()),
-                "state": "0",
-                "type": 0,
-                "flags": 0,
-            }
-        )
+    try:
+        integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "zabbix"
+        ).first()
+        
+        config = {}
+        if integration:
+            config = integration.config
+        else:
+            config = _zabbix_config.copy()
+        
+        triggers = []
+        for i in range(10):
+            triggers.append(
+                {
+                    "triggerid": str(i),
+                    "expression": f"last(/host/item{i}) > 80",
+                    "description": f"触发器 {i+1}",
+                    "status": "0",
+                    "value": "1" if i % 3 == 0 else "0",
+                    "priority": i % 6,
+                    "lastchange": int((datetime.utcnow() - timedelta(hours=i)).timestamp()),
+                    "state": "0",
+                    "type": 0,
+                    "flags": 0,
+                }
+            )
 
-    return {
-        "config": _zabbix_config.copy(),
-        "triggers": triggers,
-    }
+        return {
+            "config": config,
+            "triggers": triggers,
+        }
+    except Exception as e:
+        logger.error(f"Error getting Zabbix integration: {e}")
+        return {
+            "config": _zabbix_config.copy(),
+            "triggers": [],
+        }
 
 
 @router.put("/zabbix", summary="更新Zabbix集成配置")
-async def update_zabbix(config: ThirdPartyConfig) -> Dict[str, Any]:
+@limiter.limit("20/minute")  # Integration config updates have very strict limit
+async def update_zabbix(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新Zabbix集成配置"""
-    global _zabbix_config
-    _zabbix_config = {
-        "url": config.url or "",
-        "username": config.username or "",
-        "password": config.password or "",
-        "enabled": config.enabled,
-    }
-    return {"status": "success", "config": _zabbix_config}
+    try:
+        existing_integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "zabbix"
+        ).first()
+        
+        config_data = {
+            "url": config.url or "",
+            "username": config.username or "",
+            "password": config.password or "",
+            "enabled": config.enabled,
+        }
+        
+        if existing_integration:
+            existing_integration.config = config_data
+            existing_integration.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_integration)
+        else:
+            new_integration = AlertIntegration(
+                integration_type="zabbix",
+                name="Zabbix Integration",
+                config=config_data,
+                enabled=config.enabled,
+                description="Zabbix monitoring integration",
+            )
+            db.add(new_integration)
+            db.commit()
+            db.refresh(new_integration)
+        
+        return {"status": "success", "config": config_data}
+    except Exception as e:
+        logger.error(f"Error updating Zabbix integration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/cloudwatch", summary="获取CloudWatch集成配置")
-async def get_cloudwatch() -> Dict[str, Any]:
+async def get_cloudwatch(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取CloudWatch集成配置"""
-    return {"config": _cloudwatch_config.copy()}
+    try:
+        integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "cloudwatch"
+        ).first()
+        
+        if integration:
+            return {"config": integration.config}
+        else:
+            return {"config": _cloudwatch_config.copy()}
+    except Exception as e:
+        logger.error(f"Error getting CloudWatch integration: {e}")
+        return {"config": _cloudwatch_config.copy()}
 
 
 @router.put("/cloudwatch", summary="更新CloudWatch集成配置")
-async def update_cloudwatch(config: ThirdPartyConfig) -> Dict[str, Any]:
+@limiter.limit("20/minute")  # Integration config updates have very strict limit
+async def update_cloudwatch(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新CloudWatch集成配置"""
-    global _cloudwatch_config
-    _cloudwatch_config = {
-        "region": config.region or "",
-        "access_key": config.access_key or "",
-        "secret_key": config.secret_key or "",
-        "enabled": config.enabled,
-    }
-    return {"status": "success", "config": _cloudwatch_config}
+    try:
+        existing_integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "cloudwatch"
+        ).first()
+        
+        config_data = {
+            "region": config.region or "",
+            "access_key": config.access_key or "",
+            "secret_key": config.secret_key or "",
+            "enabled": config.enabled,
+        }
+        
+        if existing_integration:
+            existing_integration.config = config_data
+            existing_integration.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_integration)
+        else:
+            new_integration = AlertIntegration(
+                integration_type="cloudwatch",
+                name="CloudWatch Integration",
+                config=config_data,
+                enabled=config.enabled,
+                description="AWS CloudWatch integration",
+            )
+            db.add(new_integration)
+            db.commit()
+            db.refresh(new_integration)
+        
+        return {"status": "success", "config": config_data}
+    except Exception as e:
+        logger.error(f"Error updating CloudWatch integration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/pagerduty", summary="获取PagerDuty集成配置")
-async def get_pagerduty() -> Dict[str, Any]:
+async def get_pagerduty(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取PagerDuty集成配置"""
-    return {"config": _pagerduty_config.copy()}
+    try:
+        integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "pagerduty"
+        ).first()
+        
+        if integration:
+            return {"config": integration.config}
+        else:
+            return {"config": _pagerduty_config.copy()}
+    except Exception as e:
+        logger.error(f"Error getting PagerDuty integration: {e}")
+        return {"config": _pagerduty_config.copy()}
 
 
 @router.put("/pagerduty", summary="更新PagerDuty集成配置")
-async def update_pagerduty(config: ThirdPartyConfig) -> Dict[str, Any]:
+@limiter.limit("20/minute")  # Integration config updates have very strict limit
+async def update_pagerduty(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新PagerDuty集成配置"""
-    global _pagerduty_config
-    _pagerduty_config = {
-        "api_key": config.api_key or "",
-        "service_key": config.service_key or "",
-        "enabled": config.enabled,
-    }
-    return {"status": "success", "config": _pagerduty_config}
+    try:
+        existing_integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "pagerduty"
+        ).first()
+        
+        config_data = {
+            "api_key": config.api_key or "",
+            "service_key": config.service_key or "",
+            "enabled": config.enabled,
+        }
+        
+        if existing_integration:
+            existing_integration.config = config_data
+            existing_integration.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_integration)
+        else:
+            new_integration = AlertIntegration(
+                integration_type="pagerduty",
+                name="PagerDuty Integration",
+                config=config_data,
+                enabled=config.enabled,
+                description="PagerDuty incident management integration",
+            )
+            db.add(new_integration)
+            db.commit()
+            db.refresh(new_integration)
+        
+        return {"status": "success", "config": config_data}
+    except Exception as e:
+        logger.error(f"Error updating PagerDuty integration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/pagerduty", summary="发送告警到PagerDuty")
-async def send_to_pagerduty(alert: Dict[str, Any]) -> Dict[str, Any]:
+async def send_to_pagerduty(alert: Dict[str, Any], db: Session = Depends(get_db)) -> Dict[str, Any]:
     """发送告警到PagerDuty"""
-    return {"status": "success", "message": "告警已发送到PagerDuty"}
+    try:
+        integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "pagerduty",
+            AlertIntegration.enabled == True
+        ).first()
+        
+        if not integration:
+            raise HTTPException(status_code=400, detail="PagerDuty integration not configured or disabled")
+        
+        # TODO: Implement actual PagerDuty API call
+        logger.info(f"Sending alert to PagerDuty: {alert}")
+        return {"status": "success", "message": "告警已发送到PagerDuty"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending alert to PagerDuty: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/datadog", summary="获取Datadog集成配置")
-async def get_datadog() -> Dict[str, Any]:
+async def get_datadog(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取Datadog集成配置"""
-    return {"config": _datadog_config.copy()}
+    try:
+        integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "datadog"
+        ).first()
+        
+        if integration:
+            return {"config": integration.config}
+        else:
+            return {"config": _datadog_config.copy()}
+    except Exception as e:
+        logger.error(f"Error getting Datadog integration: {e}")
+        return {"config": _datadog_config.copy()}
 
 
 @router.put("/datadog", summary="更新Datadog集成配置")
-async def update_datadog(config: ThirdPartyConfig) -> Dict[str, Any]:
+async def update_datadog(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新Datadog集成配置"""
-    global _datadog_config
-    _datadog_config = {
-        "api_key": config.api_key or "",
-        "app_key": config.app_key or "",
-        "enabled": config.enabled,
-    }
-    return {"status": "success", "config": _datadog_config}
+    try:
+        existing_integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "datadog"
+        ).first()
+        
+        config_data = {
+            "api_key": config.api_key or "",
+            "app_key": config.app_key or "",
+            "enabled": config.enabled,
+        }
+        
+        if existing_integration:
+            existing_integration.config = config_data
+            existing_integration.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_integration)
+        else:
+            new_integration = AlertIntegration(
+                integration_type="datadog",
+                name="Datadog Integration",
+                config=config_data,
+                enabled=config.enabled,
+                description="Datadog monitoring integration",
+            )
+            db.add(new_integration)
+            db.commit()
+            db.refresh(new_integration)
+        
+        return {"status": "success", "config": config_data}
+    except Exception as e:
+        logger.error(f"Error updating Datadog integration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/grafana", summary="获取Grafana集成配置")
-async def get_grafana() -> Dict[str, Any]:
+async def get_grafana(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取Grafana集成配置"""
-    return {"config": _grafana_config.copy()}
+    try:
+        integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "grafana"
+        ).first()
+        
+        if integration:
+            return {"config": integration.config}
+        else:
+            return {"config": _grafana_config.copy()}
+    except Exception as e:
+        logger.error(f"Error getting Grafana integration: {e}")
+        return {"config": _grafana_config.copy()}
 
 
 @router.put("/grafana", summary="更新Grafana集成配置")
-async def update_grafana(config: ThirdPartyConfig) -> Dict[str, Any]:
+async def update_grafana(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新Grafana集成配置"""
-    global _grafana_config
-    _grafana_config = {
-        "url": config.url or "",
-        "api_key": config.api_key or "",
-        "enabled": config.enabled,
-    }
-    return {"status": "success", "config": _grafana_config}
+    try:
+        existing_integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "grafana"
+        ).first()
+        
+        config_data = {
+            "url": config.url or "",
+            "api_key": config.api_key or "",
+            "enabled": config.enabled,
+        }
+        
+        if existing_integration:
+            existing_integration.config = config_data
+            existing_integration.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_integration)
+        else:
+            new_integration = AlertIntegration(
+                integration_type="grafana",
+                name="Grafana Integration",
+                config=config_data,
+                enabled=config.enabled,
+                description="Grafana visualization integration",
+            )
+            db.add(new_integration)
+            db.commit()
+            db.refresh(new_integration)
+        
+        return {"status": "success", "config": config_data}
+    except Exception as e:
+        logger.error(f"Error updating Grafana integration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/prometheus", summary="获取Prometheus集成配置")
-async def get_prometheus() -> Dict[str, Any]:
+async def get_prometheus(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取Prometheus集成配置"""
-    return {"config": _prometheus_config.copy()}
+    try:
+        integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "prometheus"
+        ).first()
+        
+        if integration:
+            return {"config": integration.config}
+        else:
+            return {"config": _prometheus_config.copy()}
+    except Exception as e:
+        logger.error(f"Error getting Prometheus integration: {e}")
+        return {"config": _prometheus_config.copy()}
 
 
 @router.put("/prometheus", summary="更新Prometheus集成配置")
-async def update_prometheus(config: ThirdPartyConfig) -> Dict[str, Any]:
+async def update_prometheus(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新Prometheus集成配置"""
-    global _prometheus_config
-    _prometheus_config = {
-        "url": config.url or "",
-        "enabled": config.enabled,
-    }
-    return {"status": "success", "config": _prometheus_config}
+    try:
+        existing_integration = db.query(AlertIntegration).filter(
+            AlertIntegration.integration_type == "prometheus"
+        ).first()
+        
+        config_data = {
+            "url": config.url or "",
+            "enabled": config.enabled,
+        }
+        
+        if existing_integration:
+            existing_integration.config = config_data
+            existing_integration.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_integration)
+        else:
+            new_integration = AlertIntegration(
+                integration_type="prometheus",
+                name="Prometheus Integration",
+                config=config_data,
+                enabled=config.enabled,
+                description="Prometheus monitoring integration",
+            )
+            db.add(new_integration)
+            db.commit()
+            db.refresh(new_integration)
+        
+        return {"status": "success", "config": config_data}
+    except Exception as e:
+        logger.error(f"Error updating Prometheus integration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

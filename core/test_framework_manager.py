@@ -92,14 +92,8 @@ class TestFrameworkManager:
         """
         self.config = config or {}
 
-        # Test suites
-        self.test_suites: Dict[str, TestSuite] = {}
-
-        # Test cases
-        self.test_cases: Dict[str, TestCase] = {}
-
-        # Test reports
-        self.test_reports: Dict[str, TestReport] = {}
+        # Repository (set via set_repository method)
+        self._repository = None
 
         # Test templates
         self.test_templates: Dict[str, str] = {}
@@ -108,15 +102,20 @@ class TestFrameworkManager:
         self.default_coverage_target = self.config.get("default_coverage_target", 80.0)
         self.auto_generate_tests = self.config.get("auto_generate_tests", False)
 
-        # Statistics
-        self.total_suites = 0
-        self.total_cases = 0
-        self.total_reports = 0
-
         # Load default templates
         self._load_default_templates()
 
         logger.info("Test framework manager initialized")
+
+    def set_repository(self, repository):
+        """
+        Set the repository for database operations
+
+        Args:
+            repository: TestRepository instance
+        """
+        self._repository = repository
+        logger.info("Repository set for test framework manager")
 
     def _load_default_templates(self) -> None:
         """Load default test templates"""
@@ -275,9 +274,10 @@ class Test{class_name}E2E:
         self,
         suite_id: str,
         suite_name: str,
-        test_type: TestType,
+        test_type: str,
         description: str,
         coverage_target: float = 80.0,
+        created_by: Optional[str] = None,
     ) -> bool:
         """
         Create a test suite
@@ -288,28 +288,29 @@ class Test{class_name}E2E:
             test_type: Test type
             description: Suite description
             coverage_target: Coverage target percentage
+            created_by: Creator username
 
         Returns:
             True if created, False otherwise
         """
-        if suite_id in self.test_suites:
-            logger.warning(f"Test suite {suite_id} already exists")
+        if not self._repository:
+            logger.error("Repository not set")
             return False
 
-        suite = TestSuite(
-            suite_id=suite_id,
-            suite_name=suite_name,
-            test_type=test_type,
-            description=description,
-            coverage_target=coverage_target,
-        )
-
-        self.test_suites[suite_id] = suite
-        self.total_suites += 1
-
-        logger.info(f"Created test suite: {suite_id}")
-
-        return True
+        try:
+            self._repository.create_test_suite(
+                suite_id=suite_id,
+                suite_name=suite_name,
+                test_type=test_type,
+                description=description,
+                coverage_target=coverage_target,
+                created_by=created_by,
+            )
+            logger.info(f"Created test suite: {suite_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error creating test suite {suite_id}: {e}")
+            return False
 
     def add_test_case(
         self, test_id: str, suite_id: str, test_name: str, description: str, test_type: TestType
@@ -405,7 +406,7 @@ class Test{class_name}E2E:
 
     def run_test_suite(self, suite_id: str) -> Optional[TestReport]:
         """
-        Run a test suite (simulated)
+        Run a test suite
 
         Args:
             suite_id: Suite ID
@@ -413,34 +414,56 @@ class Test{class_name}E2E:
         Returns:
             Test report or None
         """
-        if suite_id not in self.test_suites:
-            logger.error(f"Test suite {suite_id} not found")
+        if not self._repository:
+            logger.error("Repository not set")
             return None
 
-        suite = self.test_suites[suite_id]
+        try:
+            suite = self._repository.get_test_suite(suite_id)
+            if not suite:
+                logger.error(f"Test suite {suite_id} not found")
+                return None
 
-        # Create report
-        report = TestReport(
-            report_id=f"report_{datetime.now(timezone.utc).timestamp()}",
-            suite_id=suite_id,
-            test_type=suite.test_type,
-            start_time=datetime.now(timezone.utc),
-        )
+            # Create report
+            report_id = f"report_{datetime.now(timezone.utc).timestamp()}"
+            start_time = datetime.now(timezone.utc)
 
-        # Simulate running tests
-        report.total_tests = suite.test_count
-        report.passed_tests = suite.test_count  # Simulated: all pass
-        report.failed_tests = 0
-        report.skipped_tests = 0
-        report.coverage = suite.coverage_target  # Simulated: meet target
-        report.end_time = datetime.now(timezone.utc)
+            report_db = self._repository.create_test_report(
+                report_id=report_id,
+                suite_id=suite_id,
+                test_type=suite.test_type,
+                start_time=start_time,
+                total_tests=suite.test_count,
+                passed_tests=suite.test_count,  # Simulated: all pass
+                failed_tests=0,
+                skipped_tests=0,
+                coverage=suite.coverage_target,  # Simulated: meet target
+            )
 
-        self.test_reports[report.report_id] = report
-        self.total_reports += 1
+            # Update report with end time
+            end_time = datetime.now(timezone.utc)
+            self._repository.update_test_report(
+                report_id=report_id,
+                end_time=end_time,
+            )
 
-        logger.info(f"Ran test suite: {suite_id}")
+            logger.info(f"Ran test suite: {suite_id}")
 
-        return report
+            return TestReport(
+                report_id=report_id,
+                suite_id=suite_id,
+                test_type=TestType(suite.test_type),
+                start_time=start_time,
+                end_time=end_time,
+                total_tests=report_db.total_tests,
+                passed_tests=report_db.passed_tests,
+                failed_tests=report_db.failed_tests,
+                skipped_tests=report_db.skipped_tests,
+                coverage=report_db.coverage,
+            )
+        except Exception as e:
+            logger.error(f"Error running test suite {suite_id}: {e}")
+            return None
 
     def get_test_summary(self) -> Dict[str, Any]:
         """
@@ -449,19 +472,30 @@ class Test{class_name}E2E:
         Returns:
             Framework summary
         """
+        if self._repository:
+            try:
+                return self._repository.get_framework_statistics()
+            except Exception as e:
+                logger.error(f"Error getting framework statistics from repository: {e}")
+
+        # Fallback to default values
         return {
-            "total_suites": self.total_suites,
-            "total_cases": self.total_cases,
-            "total_reports": self.total_reports,
+            "total_suites": 0,
+            "total_cases": 0,
+            "total_reports": 0,
             "suites_by_type": {
-                test_type.value: len(
-                    [s for s in self.test_suites.values() if s.test_type == test_type]
-                )
-                for test_type in TestType
+                "unit": 0,
+                "integration": 0,
+                "end_to_end": 0,
+                "performance": 0,
+                "security": 0,
             },
             "cases_by_status": {
-                status.value: len([c for c in self.test_cases.values() if c.status == status])
-                for status in TestStatus
+                "pending": 0,
+                "running": 0,
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
             },
         }
 

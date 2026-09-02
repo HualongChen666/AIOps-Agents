@@ -24,14 +24,14 @@ All endpoints use real business logic from core modules.
 
 import asyncio
 import logging
-import random
 import statistics
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.collector import collect_all, get_top_processes
 from core.log_collector import (
@@ -42,9 +42,21 @@ from core.log_collector import (
 )
 from core.metrics_exporter import MetricsExporter
 from core.metrics_history import METRICS_HISTORY as metrics_history
+from core.db_engine import async_get_session
+from core.authentication import get_current_active_user
+from core.rbac import Permission, require_permission
+from core.rate_limiter import get_limiter
+from core.repositories.monitoring_repository import MonitoringRepository
+from core.prometheus_client import get_prometheus_client
+from core.loki_client import get_loki_client
+from core.tempo_client import get_tempo_client
+from core.elasticsearch_client import get_elasticsearch_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/monitoring", tags=["监控高级功能"])
+
+# Rate limiter
+limiter = get_limiter()
 
 # ============================================================
 # Pydantic Models for Request/Response Validation
@@ -128,8 +140,12 @@ class MonitoringConfig(BaseModel):
         500: {"description": "获取失败"},
     },
 )
+@limiter.limit("60/minute")
 async def get_log_alerting(
+    request: Request,
     status: str = Query(default="all", pattern="^(all|active|inactive)$"),
+    db: AsyncSession = Depends(async_get_session),
+    current_user = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """
     获取日志告警规则和统计信息
@@ -140,52 +156,28 @@ async def get_log_alerting(
     Returns:
         包含规则统计和规则列表的字典
     """
-    logger.info(f"请求日志告警数据 | status={status}")
+    logger.info(f"请求日志告警数据 | status={status} user={current_user.username if current_user else 'anonymous'}")
 
     try:
-        # 模拟告警规则数据
-        all_rules = [
-            {
-                "id": "rule-001",
-                "name": "API错误率告警",
-                "pattern": "ERROR.*API",
-                "severity": "critical",
-                "status": "active",
-                "triggered_count": 1523,
-                "last_triggered": (datetime.now() - timedelta(minutes=5)).isoformat(),
-                "notification_channels": ["email", "slack"],
-            },
-            {
-                "id": "rule-002",
-                "name": "数据库连接失败",
-                "pattern": "database.*connection.*failed",
-                "severity": "critical",
-                "status": "active",
-                "triggered_count": 89,
-                "last_triggered": (datetime.now() - timedelta(hours=2)).isoformat(),
-                "notification_channels": ["email"],
-            },
-            {
-                "id": "rule-003",
-                "name": "内存使用率告警",
-                "pattern": "memory.*usage.*>.*90%",
-                "severity": "warning",
-                "status": "inactive",
-                "triggered_count": 45,
-                "last_triggered": (datetime.now() - timedelta(days=1)).isoformat(),
-                "notification_channels": ["slack"],
-            },
-            {
-                "id": "rule-004",
-                "name": "磁盘空间告警",
-                "pattern": "disk.*space.*low",
-                "severity": "warning",
-                "status": "active",
-                "triggered_count": 234,
-                "last_triggered": (datetime.now() - timedelta(minutes=30)).isoformat(),
-                "notification_channels": ["email", "slack"],
-            },
-        ]
+        repo = MonitoringRepository(db)
+
+        # 从数据库获取告警规则
+        severity_filter = None if status == "all" else status
+        all_rules_db = await repo.get_all_alert_rules(severity=severity_filter)
+
+        # 转换为响应格式
+        all_rules = []
+        for rule in all_rules_db:
+            all_rules.append({
+                "id": rule.rule_id,
+                "name": rule.rule_name,
+                "pattern": rule.pattern,
+                "severity": rule.severity,
+                "status": rule.status,
+                "triggered_count": rule.triggered_count,
+                "last_triggered": rule.last_triggered.isoformat() if rule.last_triggered else None,
+                "notification_channels": rule.notification_channels or [],
+            })
 
         # 根据状态过滤
         filtered_rules = (

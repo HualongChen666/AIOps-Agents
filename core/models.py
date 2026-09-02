@@ -109,13 +109,6 @@ class Alert(Base):
 
     # 状态
     status = Column(String(20), default=AlertStatus.PENDING.value, nullable=False, index=True)
-    
-    # 复合索引
-    __table_args__ = (
-        Index("idx_alerts_level_status", "level", "status"),
-        Index("idx_alerts_detected_at", "detected_at"),
-        Index("idx_alerts_host_detected_at", "host", "detected_at"),
-    )
 
     # 主机信息
     host = Column(String(100), nullable=True, index=True)
@@ -142,8 +135,9 @@ class Alert(Base):
 
     # 索引
     __table_args__ = (
-        Index("idx_alerts_detected_at", "detected_at"),
         Index("idx_alerts_level_status", "level", "status"),
+        Index("idx_alerts_detected_at", "detected_at"),
+        Index("idx_alerts_host_detected_at", "host", "detected_at"),
         Index("idx_alerts_host_level", "host", "level"),
     )
 
@@ -1277,6 +1271,166 @@ class InfrastructureProvisioningTaskDB(Base):
 
     def __repr__(self):
         return f"<InfrastructureProvisioningTaskDB(id='{self.id}', name='{self.name}', status='{self.status}')>"
+
+
+class InfrastructureKafkaMessageDB(Base):
+    """Kafka消息记录表"""
+
+    __tablename__ = "infrastructure_kafka_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    topic = Column(String(200), nullable=False, index=True)
+    key = Column(String(500), nullable=False)
+    value = Column(JSON, nullable=False)
+    headers = Column(JSON, nullable=True)
+    status = Column(String(20), default="sent", nullable=False, index=True)  # sent, failed, pending
+    error_message = Column(Text, nullable=True)
+    sent_at = Column(DateTime(), server_default=func.now(), index=True)
+    created_at = Column(DateTime(), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_infrastructure_kafka_topic", "topic"),
+        Index("idx_infrastructure_kafka_status", "status"),
+        Index("idx_infrastructure_kafka_sent_at", "sent_at"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureKafkaMessageDB(id={self.id}, topic='{self.topic}', status='{self.status}')>"
+
+
+class InfrastructureFlinkJobDB(Base):
+    """Flink作业记录表"""
+
+    __tablename__ = "infrastructure_flink_jobs"
+
+    id = Column(String(100), primary_key=True)
+    job_name = Column(String(200), nullable=False, unique=True, index=True)
+    job_type = Column(String(50), nullable=False, index=True)  # metrics_aggregation, anomaly_detection, etc.
+    parallelism = Column(Integer, default=2, nullable=False)
+    status = Column(String(20), default="created", nullable=False, index=True)  # created, running, stopped, failed
+    config = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    started_at = Column(DateTime(), nullable=True)
+    stopped_at = Column(DateTime(), nullable=True)
+
+    __table_args__ = (
+        Index("idx_infrastructure_flink_job_name", "job_name"),
+        Index("idx_infrastructure_flink_job_type", "job_type"),
+        Index("idx_infrastructure_flink_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureFlinkJobDB(id='{self.id}', name='{self.job_name}', status='{self.status}')>"
+
+
+class InfrastructureStorageDB(Base):
+    """存储配置记录表"""
+
+    __tablename__ = "infrastructure_storage"
+
+    id = Column(String(100), primary_key=True)
+    storage_type = Column(String(50), nullable=False, index=True)  # s3, minio, local
+    endpoint = Column(String(500), nullable=False)
+    bucket_name = Column(String(200), nullable=False)
+    access_key = Column(String(200), nullable=False)
+    secret_key = Column(String(200), nullable=False)  # Should be encrypted in production
+    region = Column(String(50), nullable=True)
+    status = Column(String(20), default="active", nullable=False, index=True)
+    config = Column(JSON, nullable=True)
+    health_status = Column(String(20), default="unknown", nullable=False)  # healthy, unhealthy, unknown
+    last_health_check = Column(DateTime(), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_infrastructure_storage_type", "storage_type"),
+        Index("idx_infrastructure_storage_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureStorageDB(id='{self.id}', type='{self.storage_type}', status='{self.status}')>"
+
+
+class InfrastructureConfigDB(Base):
+    """配置中心记录表"""
+
+    __tablename__ = "infrastructure_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(200), unique=True, nullable=False, index=True)
+    value = Column(JSON, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
+    config_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
+    category = Column(String(50), nullable=True, index=True)
+    is_sensitive = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index("idx_infrastructure_config_key", "key"),
+        Index("idx_infrastructure_config_category", "category"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureConfigDB(id={self.id}, key='{self.key}', version={self.version})>"
+
+
+class InfrastructureDataFlowDB(Base):
+    """数据流记录表"""
+
+    __tablename__ = "infrastructure_data_flows"
+
+    id = Column(String(100), primary_key=True)
+    flow_name = Column(String(200), nullable=False, unique=True, index=True)
+    flow_type = Column(String(50), nullable=False, index=True)  # l1l2, streaming, batch
+    status = Column(String(20), default="stopped", nullable=False, index=True)  # running, stopped, error
+    total_processed = Column(Integer, default=0, nullable=False)
+    total_analyzed = Column(Integer, default=0, nullable=False)
+    total_errors = Column(Integer, default=0, nullable=False)
+    avg_processing_time_ms = Column(Float, default=0.0, nullable=False)
+    config = Column(JSON, nullable=True)
+    started_at = Column(DateTime(), nullable=True)
+    stopped_at = Column(DateTime(), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_infrastructure_data_flow_name", "flow_name"),
+        Index("idx_infrastructure_data_flow_type", "flow_type"),
+        Index("idx_infrastructure_data_flow_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureDataFlowDB(id='{self.id}', name='{self.flow_name}', status='{self.status}')>"
+
+
+class InfrastructureMonitoringDB(Base):
+    """监控基础设施记录表"""
+
+    __tablename__ = "infrastructure_monitoring"
+
+    id = Column(String(100), primary_key=True)
+    component_name = Column(String(200), nullable=False, unique=True, index=True)
+    component_type = Column(String(50), nullable=False, index=True)  # prometheus, grafana, loki, tempo
+    status = Column(String(20), default="active", nullable=False, index=True)
+    endpoint = Column(String(500), nullable=True)
+    config = Column(JSON, nullable=True)
+    health_status = Column(String(20), default="unknown", nullable=False)
+    last_health_check = Column(DateTime(), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_infrastructure_monitoring_name", "component_name"),
+        Index("idx_infrastructure_monitoring_type", "component_type"),
+        Index("idx_infrastructure_monitoring_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<InfrastructureMonitoringDB(id='{self.id}', name='{self.component_name}', status='{self.status}')>"
 
 
 # ==================== ITSM Models ====================
@@ -4235,106 +4389,6 @@ class EnterpriseSettingsDB(Base):
         return f"<EnterpriseSettingsDB(id={self.id}, key='{self.setting_key}')>"
 
 
-# Frontend Models
-class FrontendComponentDB(Base):
-    """Frontend component table"""
-
-    __tablename__ = "frontend_components"
-
-    id = Column(String(50), primary_key=True, nullable=False)
-    name = Column(String(200), nullable=False, index=True)
-    type = Column(String(50), nullable=False, index=True)
-    category = Column(String(50), nullable=False, index=True)
-    description = Column(Text, nullable=False)
-    props = Column(JSON, nullable=True)
-    code = Column(Text, nullable=False)
-    dependencies = Column(JSON, nullable=True)
-    is_public = Column(Boolean, nullable=False, default=False, index=True)
-    status = Column(String(50), nullable=False, default="active", index=True)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    __table_args__ = (
-        Index("idx_frontend_components_name", "name"),
-        Index("idx_frontend_components_type", "type"),
-        Index("idx_frontend_components_category", "category"),
-        Index("idx_frontend_components_public", "is_public"),
-        Index("idx_frontend_components_status", "status"),
-    )
-
-    def __repr__(self):
-        return f"<FrontendComponentDB(id={self.id}, name='{self.name}', type='{self.type}')>"
-
-
-class FrontendThemeDB(Base):
-    """Frontend theme table"""
-
-    __tablename__ = "frontend_themes"
-
-    id = Column(String(50), primary_key=True, nullable=False)
-    name = Column(String(200), nullable=False)
-    base_theme = Column(String(50), nullable=False, default="light", index=True)
-    colors = Column(JSON, nullable=False)
-    fonts = Column(JSON, nullable=True)
-    spacing = Column(JSON, nullable=True)
-    is_default = Column(Boolean, nullable=False, default=False, index=True)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    __table_args__ = (
-        Index("idx_frontend_themes_name", "name"),
-        Index("idx_frontend_themes_base", "base_theme"),
-        Index("idx_frontend_themes_default", "is_default"),
-    )
-
-    def __repr__(self):
-        return f"<FrontendThemeDB(id={self.id}, name='{self.name}', base='{self.base_theme}')>"
-
-
-class FrontendLayoutDB(Base):
-    """Frontend layout table"""
-
-    __tablename__ = "frontend_layouts"
-
-    id = Column(String(50), primary_key=True, nullable=False)
-    name = Column(String(200), nullable=False)
-    layout_type = Column(String(50), nullable=False, default="grid")
-    structure = Column(JSON, nullable=False)
-    is_default = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    __table_args__ = (
-        Index("idx_frontend_layouts_name", "name"),
-        Index("idx_frontend_layouts_type", "layout_type"),
-    )
-
-    def __repr__(self):
-        return f"<FrontendLayoutDB(id={self.id}, name='{self.name}', type='{self.layout_type}')>"
-
-
-class FrontendLocalizationDB(Base):
-    """Frontend localization table"""
-
-    __tablename__ = "frontend_localizations"
-
-    id = Column(String(50), primary_key=True, nullable=False)
-    language_code = Column(String(10), nullable=False, index=True)
-    translation_key = Column(String(200), nullable=False, index=True)
-    translation_value = Column(Text, nullable=False)
-    context = Column(String(100), nullable=True)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    __table_args__ = (
-        Index("idx_frontend_localizations_language", "language_code"),
-        Index("idx_frontend_localizations_key", "translation_key"),
-        Index("idx_frontend_localizations_unique", "language_code", "translation_key", unique=True),
-    )
-
-    def __repr__(self):
-        return f"<FrontendLocalizationDB(id={self.id}, lang='{self.language_code}', key='{self.translation_key}')>"
-
-
 # ==================== GraphQL Models ====================
 
 
@@ -4488,3 +4542,2457 @@ class GraphQLPerformanceStats(Base):
     
     def __repr__(self):
         return f"<GraphQLPerformanceStats(id={self.id}, type='{self.stat_type}', key='{self.stat_key}')>"
+
+
+# ==================== Service Mesh Models ====================
+
+
+class MeshConfiguration(Base):
+    """Service Mesh Configuration Table"""
+
+    __tablename__ = "mesh_configurations"
+
+    id = Column(String(100), primary_key=True)
+
+    # Configuration details
+    name = Column(String(200), nullable=False, index=True)
+    mesh_type = Column(String(50), nullable=False, index=True)  # istio, linkerd, consul
+    namespace = Column(String(100), nullable=False)
+    profile = Column(String(50), nullable=False)
+
+    # Feature flags
+    auto_injection_enabled = Column(Boolean, nullable=False)
+    mtls_enabled = Column(Boolean, nullable=False)
+
+    # Resource configuration
+    resource_limits = Column(JSON, nullable=True)
+
+    # Status
+    status = Column(String(20), nullable=False, index=True)  # active, inactive, error
+    mesh_id = Column(String(100), nullable=False, index=True)
+
+    # Metadata
+    config_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_mesh_configurations_name", "name"),
+        Index("idx_mesh_configurations_mesh_type", "mesh_type"),
+        Index("idx_mesh_configurations_status", "status"),
+        Index("idx_mesh_configurations_mesh_id", "mesh_id"),
+    )
+
+    def __repr__(self):
+        return f"<MeshConfiguration(id='{self.id}', name='{self.name}', mesh_type='{self.mesh_type}')>"
+
+
+class TrafficRule(Base):
+    """Service Mesh Traffic Rule Table"""
+
+    __tablename__ = "traffic_rules"
+
+    id = Column(String(100), primary_key=True)
+
+    # Rule details
+    name = Column(String(200), nullable=False, index=True)
+    service_name = Column(String(200), nullable=False, index=True)
+
+    # Traffic configuration
+    match_conditions = Column(JSON, nullable=False)
+    destination = Column(JSON, nullable=False)
+    weight = Column(Integer, nullable=False)  # 0-100
+    timeout_seconds = Column(Integer, nullable=False)
+
+    # Advanced features
+    retry_policy = Column(JSON, nullable=True)
+    fault_injection = Column(JSON, nullable=True)
+
+    # Status
+    enabled = Column(Boolean, nullable=False, index=True)
+
+    # Metadata
+    rule_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_traffic_rules_name", "name"),
+        Index("idx_traffic_rules_service_name", "service_name"),
+        Index("idx_traffic_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<TrafficRule(id='{self.id}', name='{self.name}', service='{self.service_name}')>"
+
+
+class SecurityPolicy(Base):
+    """Service Mesh Security Policy Table"""
+
+    __tablename__ = "security_policies"
+
+    id = Column(String(100), primary_key=True)
+
+    # Policy details
+    name = Column(String(200), nullable=False, index=True)
+    policy_type = Column(String(50), nullable=False, index=True)  # authentication, authorization, security
+    target_service = Column(String(200), nullable=False, index=True)
+
+    # mTLS configuration
+    mtls_mode = Column(String(20), nullable=False)  # STRICT, PERMISSIVE, DISABLE
+
+    # Principal management
+    allowed_principals = Column(JSON, nullable=True)  # List of allowed principals
+    denied_principals = Column(JSON, nullable=True)  # List of denied principals
+
+    # JWT validation
+    jwt_validation = Column(JSON, nullable=True)
+
+    # Status
+    enabled = Column(Boolean, nullable=False, index=True)
+
+    # Metadata
+    policy_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_security_policies_name", "name"),
+        Index("idx_security_policies_policy_type", "policy_type"),
+        Index("idx_security_policies_target_service", "target_service"),
+        Index("idx_security_policies_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<SecurityPolicy(id='{self.id}', name='{self.name}', type='{self.policy_type}')>"
+
+
+class ObservabilityConfig(Base):
+    """Service Mesh Observability Configuration Table"""
+
+    __tablename__ = "observability_configs"
+
+    id = Column(String(100), primary_key=True)
+
+    # Configuration details
+    name = Column(String(200), nullable=False, index=True)
+
+    # Feature flags
+    tracing_enabled = Column(Boolean, nullable=False)
+    metrics_enabled = Column(Boolean, nullable=False)
+    access_logging_enabled = Column(Boolean, nullable=False)
+
+    # Sampling configuration
+    sampling_rate = Column(Float, nullable=False)  # 0.0-1.0
+
+    # Integration flags
+    prometheus_enabled = Column(Boolean, nullable=False)
+    grafana_enabled = Column(Boolean, nullable=False)
+
+    # Status
+    enabled = Column(Boolean, nullable=False, index=True)
+
+    # Metadata
+    config_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_observability_configs_name", "name"),
+        Index("idx_observability_configs_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<ObservabilityConfig(id='{self.id}', name='{self.name}')>"
+
+
+class Policy(Base):
+    """Service Mesh Generic Policy Table"""
+
+    __tablename__ = "policies"
+
+    id = Column(String(100), primary_key=True)
+
+    # Policy details
+    name = Column(String(200), nullable=False, index=True)
+    policy_type = Column(String(50), nullable=False, index=True)
+    target_service = Column(String(200), nullable=False, index=True)
+
+    # Policy rules
+    rules = Column(JSON, nullable=False)
+
+    # Status
+    enabled = Column(Boolean, nullable=False, index=True)
+
+    # Metadata
+    policy_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_policies_name", "name"),
+        Index("idx_policies_policy_type", "policy_type"),
+        Index("idx_policies_target_service", "target_service"),
+        Index("idx_policies_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<Policy(id='{self.id}', name='{self.name}', type='{self.policy_type}')>"
+
+
+# ==================== Integration Ecosystem Models ====================
+
+
+class IntegrationDB(Base):
+    """Integration configuration table for the integration ecosystem"""
+
+    __tablename__ = "integrations"
+
+    id = Column(String(100), primary_key=True)
+    
+    # Integration identification
+    integration_type = Column(String(50), nullable=False, index=True)  # monitoring, cloud, cicd, itsm, notification, webhook, custom
+    name = Column(String(200), nullable=False, index=True)
+    
+    # Configuration
+    config = Column(JSON, nullable=False)  # Integration-specific configuration
+    
+    # Status
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    status = Column(String(20), default="inactive", nullable=False, index=True)  # active, inactive, error, configuring
+    
+    # Testing information
+    last_tested = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    
+    # Metadata
+    integration_metadata = Column(JSON, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_integrations_type", "integration_type"),
+        Index("idx_integrations_name", "name"),
+        Index("idx_integrations_enabled", "enabled"),
+        Index("idx_integrations_status", "status"),
+        Index("idx_integrations_created_at", "created_at"),
+    )
+    
+    def __repr__(self):
+        return f"<IntegrationDB(id='{self.id}', type='{self.integration_type}', name='{self.name}', status='{self.status}')>"
+
+
+class WebhookDB(Base):
+    """Webhook registration table for the integration ecosystem"""
+
+    __tablename__ = "webhooks"
+
+    id = Column(String(100), primary_key=True)
+    
+    # Webhook identification
+    source = Column(String(100), nullable=False, index=True)  # Source system identifier
+    event_type = Column(String(100), nullable=False, index=True)  # Type of events to receive
+    endpoint = Column(String(500), nullable=False)  # Webhook endpoint URL
+    
+    # Security
+    secret = Column(String(255), nullable=True)  # Webhook secret for signature validation
+    
+    # Status
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    
+    # Metadata
+    webhook_metadata = Column(JSON, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_webhooks_source", "source"),
+        Index("idx_webhooks_event_type", "event_type"),
+        Index("idx_webhooks_enabled", "enabled"),
+        Index("idx_webhooks_created_at", "created_at"),
+    )
+    
+    def __repr__(self):
+        return f"<WebhookDB(id='{self.id}', source='{self.source}', event_type='{self.event_type}', enabled={self.enabled})>"
+
+
+class WebhookEventDB(Base):
+    """Webhook event history table for the integration ecosystem"""
+
+    __tablename__ = "webhook_events"
+
+    id = Column(String(100), primary_key=True)
+    
+    # Event identification
+    webhook_id = Column(String(100), nullable=False, index=True)  # Reference to WebhookDB
+    source = Column(String(100), nullable=False, index=True)
+    event_type = Column(String(100), nullable=False, index=True)
+    
+    # Event data
+    payload = Column(JSON, nullable=False)  # Event payload
+    
+    # Processing status
+    processed = Column(Boolean, default=False, nullable=False, index=True)
+    retry_count = Column(Integer, default=0, nullable=False)
+    
+    # Processing result
+    processing_result = Column(JSON, nullable=True)  # Processing result details
+    error_message = Column(Text, nullable=True)
+    
+    # Timestamps
+    timestamp = Column(DateTime, server_default=func.now(), nullable=False, index=True)
+    processed_at = Column(DateTime, nullable=True)
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_webhook_events_webhook_id", "webhook_id"),
+        Index("idx_webhook_events_source", "source"),
+        Index("idx_webhook_events_event_type", "event_type"),
+        Index("idx_webhook_events_processed", "processed"),
+        Index("idx_webhook_events_timestamp", "timestamp"),
+    )
+    
+    def __repr__(self):
+        return f"<WebhookEventDB(id='{self.id}', webhook_id='{self.webhook_id}', processed={self.processed})>"
+
+
+class IntegrationNotificationChannelDB(Base):
+    """Notification channel table for the integration ecosystem"""
+
+    __tablename__ = "integration_notification_channels"
+
+    id = Column(String(100), primary_key=True)
+    
+    # Channel identification
+    name = Column(String(200), nullable=False, unique=True, index=True)
+    channel_type = Column(String(50), nullable=False, index=True)  # slack, teams, dingtalk, wechat, email, webhook
+    
+    # Channel configuration
+    config = Column(JSON, nullable=False)  # Channel-specific configuration
+    
+    # Status
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)  # Higher priority = used first
+    
+    # Description
+    description = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_integration_notification_channels_name", "name"),
+        Index("idx_integration_notification_channels_type", "channel_type"),
+        Index("idx_integration_notification_channels_enabled", "enabled"),
+    )
+    
+    def __repr__(self):
+        return f"<IntegrationNotificationChannelDB(id='{self.id}', name='{self.name}', type='{self.channel_type}', enabled={self.enabled})>"
+
+
+class IntegrationNotificationMessageDB(Base):
+    """Notification message table for the integration ecosystem"""
+
+    __tablename__ = "integration_notification_messages"
+
+    id = Column(String(100), primary_key=True)
+    
+    # Message identification
+    channel_id = Column(String(100), nullable=False, index=True)  # Reference to IntegrationNotificationChannelDB
+    recipient = Column(String(255), nullable=False)
+    
+    # Message content
+    subject = Column(String(500), nullable=False)
+    body = Column(Text, nullable=False)
+    priority = Column(String(20), default="normal", nullable=False)  # normal, high, urgent
+    
+    # Processing status
+    sent = Column(Boolean, default=False, nullable=False, index=True)
+    error = Column(Text, nullable=True)
+    
+    # Timestamps
+    timestamp = Column(DateTime, server_default=func.now(), nullable=False, index=True)
+    sent_at = Column(DateTime, nullable=True)
+    
+    # Metadata
+    message_metadata = Column(JSON, nullable=True)
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_integration_notification_messages_channel_id", "channel_id"),
+        Index("idx_integration_notification_messages_sent", "sent"),
+        Index("idx_integration_notification_messages_timestamp", "timestamp"),
+    )
+    
+    def __repr__(self):
+        return f"<IntegrationNotificationMessageDB(id='{self.id}', channel_id='{self.channel_id}', sent={self.sent})>"
+
+
+# ============================================================================
+# Database Monitoring Models
+# ============================================================================
+
+
+class DatabaseMetricThresholdDB(Base):
+    """数据库指标阈值配置表"""
+
+    __tablename__ = "database_metric_thresholds"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    metric_type = Column(String(50), unique=True, nullable=False, index=True)  # query_time, connection_count, etc.
+    warning_threshold = Column(Float, nullable=False)
+    critical_threshold = Column(Float, nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_database_metric_thresholds_metric_type", "metric_type"),
+        Index("idx_database_metric_thresholds_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseMetricThresholdDB(id={self.id}, metric_type='{self.metric_type}', enabled={self.enabled})>"
+
+
+class DatabaseMonitoringConfigDB(Base):
+    """数据库监控配置表"""
+
+    __tablename__ = "database_monitoring_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    collection_interval = Column(Integer, default=60, nullable=False)  # seconds
+    retention_days = Column(Integer, default=30, nullable=False)
+    enable_realtime = Column(Boolean, default=True, nullable=False)
+    enable_slow_query_log = Column(Boolean, default=True, nullable=False)
+    slow_query_threshold = Column(Float, default=1.0, nullable=False)  # seconds
+    enable_connection_monitoring = Column(Boolean, default=True, nullable=False)
+    max_connections_threshold = Column(Integer, default=100, nullable=False)
+    enable_deadlock_detection = Column(Boolean, default=True, nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_by = Column(String(50), nullable=True)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_database_monitoring_configs_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseMonitoringConfigDB(id={self.id}, enabled={self.enabled}, collection_interval={self.collection_interval})>"
+
+
+class DatabasePerformanceBaselineDB(Base):
+    """数据库性能基线表"""
+
+    __tablename__ = "database_performance_baselines"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    baseline_name = Column(String(200), unique=True, nullable=False, index=True)
+    established_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
+    avg_query_time = Column(Float, nullable=False)  # milliseconds
+    p95_query_time = Column(Float, nullable=False)  # milliseconds
+    p99_query_time = Column(Float, nullable=False)  # milliseconds
+    avg_connection_count = Column(Float, nullable=False)
+    peak_connection_count = Column(Integer, nullable=False)
+    cache_hit_ratio = Column(Float, nullable=False)
+    database_size_mb = Column(Float, nullable=False)
+    description = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_database_performance_baselines_name", "baseline_name"),
+        Index("idx_database_performance_baselines_established_at", "established_at"),
+    )
+
+    def __repr__(self):
+        return f"<DatabasePerformanceBaselineDB(id={self.id}, baseline_name='{self.baseline_name}')>"
+
+
+class DatabaseAlertRuleDB(Base):
+    """数据库告警规则表"""
+
+    __tablename__ = "database_alert_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    rule_name = Column(String(200), nullable=False, index=True)
+    metric_type = Column(String(50), nullable=False, index=True)  # query_time, connection_count, etc.
+    condition = Column(Text, nullable=False)  # e.g., "query_time > 500"
+    severity = Column(String(20), nullable=False, index=True)  # info, warning, error, critical
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    notification_channels = Column(JSON, nullable=True)  # List of channels: ["email", "slack"]
+    cooldown_minutes = Column(Integer, default=5, nullable=False)
+    description = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    updated_by = Column(String(50), nullable=True)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_database_alert_rules_rule_id", "rule_id"),
+        Index("idx_database_alert_rules_metric_type", "metric_type"),
+        Index("idx_database_alert_rules_severity", "severity"),
+        Index("idx_database_alert_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseAlertRuleDB(id={self.id}, rule_id='{self.rule_id}', enabled={self.enabled})>"
+
+
+class DatabaseMonitoringStatusDB(Base):
+    """数据库监控状态表"""
+
+    __tablename__ = "database_monitoring_status"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    monitoring_enabled = Column(Boolean, default=True, nullable=False, index=True)
+    last_collection_time = Column(DateTime, nullable=True, index=True)
+    active_alerts = Column(Integer, default=0, nullable=False)
+    total_metrics_collected = Column(Integer, default=0, nullable=False)
+    database_health = Column(String(20), default="healthy", nullable=False)  # healthy, degraded, critical
+    uptime_percentage = Column(Float, default=100.0, nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_database_monitoring_status_enabled", "monitoring_enabled"),
+        Index("idx_database_monitoring_status_last_collection", "last_collection_time"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseMonitoringStatusDB(id={self.id}, monitoring_enabled={self.monitoring_enabled}, health='{self.database_health}')>"
+
+
+# ==================== Security Management Models ====================
+
+
+class SecurityKey(Base):
+    """密钥管理表"""
+
+    __tablename__ = "security_keys"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    key_type = Column(String(50), nullable=False, index=True)  # api_key, secret_key, jwt, ssh, certificate
+    algorithm = Column(String(50), nullable=False, default="RSA")
+    key_size = Column(Integer, nullable=False, default=2048)
+    
+    # 加密存储的密钥值
+    encrypted_key_value = Column(Text, nullable=False)
+    encrypted_key_iv = Column(String(100), nullable=False)
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, inactive, expired, revoked
+    auto_renew = Column(Boolean, default=False, nullable=False)
+    
+    # 时间信息
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    expires_at = Column(DateTime(), nullable=True, index=True)
+    last_rotated_at = Column(DateTime(), nullable=True)
+    last_used_at = Column(DateTime(), nullable=True)
+    
+    # 使用信息
+    usage = Column(JSON, nullable=True)  # List of usage contexts
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_security_keys_name", "name"),
+        Index("idx_security_keys_type", "key_type"),
+        Index("idx_security_keys_status", "status"),
+        Index("idx_security_keys_expires_at", "expires_at"),
+    )
+
+    def __repr__(self):
+        return f"<SecurityKey(id='{self.id}', name='{self.name}', type='{self.key_type}', status='{self.status}')>"
+
+
+class MfaMethod(Base):
+    """MFA方法表"""
+
+    __tablename__ = "mfa_methods"
+
+    id = Column(String(100), primary_key=True)
+    method_type = Column(String(50), nullable=False, index=True)  # totp, sms, email, hardware_token, biometric
+    name = Column(String(128), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # 配置
+    config = Column(JSON, nullable=False)  # Method-specific configuration
+    secret = Column(Text, nullable=True)  # Encrypted secret for TOTP
+    
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    required = Column(Boolean, default=False, nullable=False)
+    priority = Column(Integer, default=1, nullable=False)  # 1-10
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_mfa_methods_type", "method_type"),
+        Index("idx_mfa_methods_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<MfaMethod(id='{self.id}', type='{self.method_type}', name='{self.name}', enabled={self.enabled})>"
+
+
+class AbacPolicy(Base):
+    """ABAC策略表"""
+
+    __tablename__ = "abac_policies"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    effect = Column(String(20), nullable=False, default="allow")  # allow, deny
+    
+    # 策略条件
+    subjects = Column(JSON, nullable=True)  # Subject conditions
+    resources = Column(JSON, nullable=True)  # Resource conditions
+    actions = Column(JSON, nullable=True)  # Action conditions
+    environment = Column(JSON, nullable=True)  # Environment conditions
+    
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_abac_policies_name", "name"),
+        Index("idx_abac_policies_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<AbacPolicy(id='{self.id}', name='{self.name}', effect='{self.effect}', enabled={self.enabled})>"
+
+
+class RbacRole(Base):
+    """RBAC角色表"""
+
+    __tablename__ = "rbac_roles"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, unique=True, index=True)
+    description = Column(Text, nullable=True)
+    
+    # 权限
+    permissions = Column(JSON, nullable=False)  # List of permissions
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, inactive
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_rbac_roles_name", "name"),
+        Index("idx_rbac_roles_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<RbacRole(id='{self.id}', name='{self.name}', status='{self.status}')>"
+
+
+class RateLimitRule(Base):
+    """速率限制规则表"""
+
+    __tablename__ = "rate_limit_rules"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    endpoint = Column(String(256), nullable=False, index=True)
+    
+    # 限制配置
+    limit = Column(Integer, nullable=False)  # Requests per window
+    window_seconds = Column(Integer, default=60, nullable=False)  # Time window in seconds
+    burst_limit = Column(Integer, nullable=True)  # Burst limit
+    
+    # 策略
+    strategy = Column(String(50), default="fixed_window", nullable=False)  # fixed_window, sliding_window, token_bucket
+    
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_rate_limit_rules_name", "name"),
+        Index("idx_rate_limit_rules_endpoint", "endpoint"),
+        Index("idx_rate_limit_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<RateLimitRule(id='{self.id}', name='{self.name}', endpoint='{self.endpoint}', limit={self.limit})>"
+
+
+class HttpsCertificate(Base):
+    """HTTPS证书表"""
+
+    __tablename__ = "https_certificates"
+
+    id = Column(String(100), primary_key=True)
+    domain = Column(String(256), nullable=False, index=True)
+    
+    # 证书信息
+    certificate_pem = Column(Text, nullable=False)
+    private_key_encrypted = Column(Text, nullable=False)
+    private_key_iv = Column(String(100), nullable=False)
+    issuer = Column(String(256), nullable=True)
+    algorithm = Column(String(50), nullable=False, default="RSA")
+    
+    # 有效期
+    issued_at = Column(DateTime(), nullable=False)
+    expires_at = Column(DateTime(), nullable=False, index=True)
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="valid", index=True)  # valid, expired, revoked
+    auto_renew = Column(Boolean, default=False, nullable=False)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_https_certificates_domain", "domain"),
+        Index("idx_https_certificates_status", "status"),
+        Index("idx_https_certificates_expires_at", "expires_at"),
+    )
+
+    def __repr__(self):
+        return f"<HttpsCertificate(id='{self.id}', domain='{self.domain}', status='{self.status}')>"
+
+
+class SnapshotEncryption(Base):
+    """快照加密表"""
+
+    __tablename__ = "snapshot_encryptions"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    source = Column(String(256), nullable=False)
+    
+    # 加密信息
+    encryption_algorithm = Column(String(50), nullable=False, default="AES-256")
+    key_id = Column(String(100), nullable=True)  # Reference to SecurityKey
+    
+    # 快照数据
+    pre_state_encrypted = Column(Text, nullable=False)
+    pre_state_iv = Column(String(100), nullable=False)
+    post_state_encrypted = Column(Text, nullable=True)
+    post_state_iv = Column(String(100), nullable=True)
+    rollback_plan = Column(Text, nullable=True)
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, archived
+    
+    # 保留策略
+    retention_days = Column(Integer, nullable=False, default=7)
+    expires_at = Column(DateTime(), nullable=False, index=True)
+    completed_at = Column(DateTime(), nullable=True)
+    
+    # 错误信息
+    error_message = Column(Text, nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_snapshot_encryptions_name", "name"),
+        Index("idx_snapshot_encryptions_status", "status"),
+        Index("idx_snapshot_encryptions_expires_at", "expires_at"),
+    )
+
+    def __repr__(self):
+        return f"<SnapshotEncryption(id='{self.id}', name='{self.name}', status='{self.status}')>"
+
+
+class DataEncryptionKey(Base):
+    """数据加密密钥表"""
+
+    __tablename__ = "data_encryption_keys"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    
+    # 密钥信息
+    key_encrypted = Column(Text, nullable=False)
+    key_iv = Column(String(100), nullable=False)
+    algorithm = Column(String(50), nullable=False, default="AES-256")
+    key_size = Column(Integer, nullable=False, default=256)
+    
+    # 用途
+    purpose = Column(String(50), nullable=False)  # database, file, field
+    scope = Column(String(256), nullable=True)  # Specific scope (e.g., table name)
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, disabled, rotated
+    
+    # 轮换
+    rotation_enabled = Column(Boolean, default=False, nullable=False)
+    rotation_interval_days = Column(Integer, nullable=True)
+    last_rotated_at = Column(DateTime(), nullable=True)
+    next_rotation_at = Column(DateTime(), nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_data_encryption_keys_name", "name"),
+        Index("idx_data_encryption_keys_status", "status"),
+        Index("idx_data_encryption_keys_purpose", "purpose"),
+    )
+
+    def __repr__(self):
+        return f"<DataEncryptionKey(id='{self.id}', name='{self.name}', purpose='{self.purpose}', status='{self.status}')>"
+
+
+class PrivacySubject(Base):
+    """隐私主体表"""
+
+    __tablename__ = "privacy_subjects"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    subject_type = Column(String(50), nullable=False, index=True)  # user, customer
+    
+    # 隐私信息
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    identifier = Column(String(255), nullable=True)  # Unique identifier
+    
+    # 同意
+    consent_level = Column(String(20), nullable=False, default="partial")  # full, partial, none
+    consent_given_at = Column(DateTime(), nullable=True)
+    consent_updated_at = Column(DateTime(), nullable=True)
+    
+    # 数据处理
+    data_categories = Column(JSON, nullable=True)  # List of data categories
+    processing_purposes = Column(JSON, nullable=True)  # List of purposes
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_privacy_subjects_name", "name"),
+        Index("idx_privacy_subjects_type", "subject_type"),
+    )
+
+    def __repr__(self):
+        return f"<PrivacySubject(id='{self.id}', name='{self.name}', type='{self.subject_type}')>"
+
+
+class CompliancePolicy(Base):
+    """合规策略表"""
+
+    __tablename__ = "compliance_policies"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    framework = Column(String(50), nullable=False, index=True)  # GDPR, HIPAA, SOC2, ISO27001
+    
+    # 策略内容
+    description = Column(Text, nullable=False)
+    requirements = Column(JSON, nullable=False)  # List of requirements
+    controls = Column(JSON, nullable=True)  # List of controls
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, inactive
+    
+    # 审计
+    last_audit_date = Column(DateTime(), nullable=True)
+    next_audit_date = Column(DateTime(), nullable=True)
+    audit_frequency_days = Column(Integer, nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_compliance_policies_name", "name"),
+        Index("idx_compliance_policies_framework", "framework"),
+        Index("idx_compliance_policies_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CompliancePolicy(id='{self.id}', name='{self.name}', framework='{self.framework}', status='{self.status}')>"
+
+
+class ComplianceStandard(Base):
+    """合规检查标准表"""
+
+    __tablename__ = "compliance_standards"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    category = Column(String(50), nullable=False, default="general")
+    
+    # 标准内容
+    description = Column(Text, nullable=False)
+    check_criteria = Column(JSON, nullable=False)  # Check criteria
+    severity = Column(String(20), nullable=False, default="medium")  # low, medium, high, critical
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, inactive
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_compliance_standards_name", "name"),
+        Index("idx_compliance_standards_category", "category"),
+        Index("idx_compliance_standards_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ComplianceStandard(id='{self.id}', name='{self.name}', category='{self.category}', status='{self.status}')>"
+
+
+class DatabaseSecurityInstance(Base):
+    """数据库安全实例表"""
+
+    __tablename__ = "database_security_instances"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    instance_type = Column(String(50), nullable=False, index=True)  # postgresql, mysql
+    host = Column(String(256), nullable=False)
+    port = Column(Integer, nullable=True)
+    
+    # 安全配置
+    encryption_enabled = Column(Boolean, default=False, nullable=False)
+    ssl_enabled = Column(Boolean, default=False, nullable=False)
+    audit_enabled = Column(Boolean, default=False, nullable=False)
+    
+    # 访问控制
+    allowed_ips = Column(JSON, nullable=True)  # List of allowed IPs
+    allowed_users = Column(JSON, nullable=True)  # List of allowed users
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, inactive
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_database_security_instances_name", "name"),
+        Index("idx_database_security_instances_type", "instance_type"),
+        Index("idx_database_security_instances_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<DatabaseSecurityInstance(id='{self.id}', name='{self.name}', type='{self.instance_type}', status='{self.status}')>"
+
+
+class ApiSecurityEndpoint(Base):
+    """API安全端点表"""
+
+    __tablename__ = "api_security_endpoints"
+
+    id = Column(String(100), primary_key=True)
+    path = Column(String(256), nullable=False, index=True)
+    method = Column(String(10), nullable=False)  # GET, POST, PUT, DELETE, etc.
+    
+    # 安全配置
+    authentication_required = Column(Boolean, default=True, nullable=False)
+    authorization_required = Column(Boolean, default=True, nullable=False)
+    rate_limit_enabled = Column(Boolean, default=True, nullable=False)
+    rate_limit_rule_id = Column(String(100), nullable=True)
+    
+    # 访问控制
+    allowed_roles = Column(JSON, nullable=True)  # List of allowed roles
+    allowed_permissions = Column(JSON, nullable=True)  # List of required permissions
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, disabled
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_api_security_endpoints_path", "path"),
+        Index("idx_api_security_endpoints_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ApiSecurityEndpoint(id='{self.id}', path='{self.path}', method='{self.method}', status='{self.status}')>"
+
+
+class InputValidationRule(Base):
+    """输入验证规则表"""
+
+    __tablename__ = "input_validation_rules"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    field = Column(String(128), nullable=False, index=True)
+    
+    # 验证规则
+    validation_type = Column(String(50), nullable=False)  # regex, length, type, range, custom
+    validation_pattern = Column(String(500), nullable=True)  # Regex pattern
+    min_length = Column(Integer, nullable=True)
+    max_length = Column(Integer, nullable=True)
+    min_value = Column(Float, nullable=True)
+    max_value = Column(Float, nullable=True)
+    allowed_values = Column(JSON, nullable=True)  # List of allowed values
+    
+    # 错误处理
+    error_message = Column(Text, nullable=True)
+    error_code = Column(String(50), nullable=True)
+    
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    priority = Column(Integer, default=0, nullable=False)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_input_validation_rules_name", "name"),
+        Index("idx_input_validation_rules_field", "field"),
+        Index("idx_input_validation_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<InputValidationRule(id='{self.id}', name='{self.name}', field='{self.field}', enabled={self.enabled})>"
+
+
+class PenetrationTestProject(Base):
+    """渗透测试项目表"""
+
+    __tablename__ = "penetration_test_projects"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    target = Column(String(256), nullable=False)
+    
+    # 测试配置
+    test_type = Column(String(50), nullable=False)  # black_box, white_box, gray_box
+    scope = Column(JSON, nullable=True)  # Test scope
+    methodology = Column(String(50), nullable=True)  # OWASP, NIST, custom
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="scheduled", index=True)  # scheduled, in_progress, completed, cancelled
+    start_date = Column(DateTime(), nullable=True)
+    end_date = Column(DateTime(), nullable=True)
+    
+    # 结果
+    findings = Column(JSON, nullable=True)  # List of findings
+    risk_score = Column(Float, nullable=True)  # Overall risk score
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_penetration_test_projects_name", "name"),
+        Index("idx_penetration_test_projects_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<PenetrationTestProject(id='{self.id}', name='{self.name}', status='{self.status}')>"
+
+
+class SecurityTest(Base):
+    """安全测试表"""
+
+    __tablename__ = "security_tests"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    test_type = Column(String(50), nullable=False, index=True)  # sast, dast, sca, dependency_check
+    
+    # 测试配置
+    target = Column(String(256), nullable=True)
+    parameters = Column(JSON, nullable=True)  # Test parameters
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="pending", index=True)  # pending, running, completed, failed
+    started_at = Column(DateTime(), nullable=True)
+    completed_at = Column(DateTime(), nullable=True)
+    
+    # 结果
+    results = Column(JSON, nullable=True)  # Test results
+    vulnerabilities_found = Column(Integer, default=0, nullable=False)
+    critical_count = Column(Integer, default=0, nullable=False)
+    high_count = Column(Integer, default=0, nullable=False)
+    medium_count = Column(Integer, default=0, nullable=False)
+    low_count = Column(Integer, default=0, nullable=False)
+    
+    # 错误
+    error_message = Column(Text, nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_security_tests_name", "name"),
+        Index("idx_security_tests_type", "test_type"),
+        Index("idx_security_tests_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<SecurityTest(id='{self.id}', name='{self.name}', type='{self.test_type}', status='{self.status}')>"
+
+
+class VulnerabilityTicket(Base):
+    """漏洞工单表"""
+
+    __tablename__ = "vulnerability_tickets"
+
+    id = Column(String(100), primary_key=True)
+    title = Column(String(128), nullable=False, index=True)
+    
+    # 漏洞信息
+    cve_id = Column(String(50), nullable=True, index=True)
+    severity = Column(String(20), nullable=False, index=True)  # low, medium, high, critical
+    cvss_score = Column(Float, nullable=True)
+    description = Column(Text, nullable=False)
+    
+    # 受影响资源
+    affected_components = Column(JSON, nullable=True)  # List of affected components
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="open", index=True)  # open, in_progress, resolved, closed
+    assigned_to = Column(String(50), nullable=True)
+    
+    # 修复
+    fix_status = Column(String(20), nullable=True)  # not_started, in_progress, completed, verified
+    fix_description = Column(Text, nullable=True)
+    
+    # 时间信息
+    detected_at = Column(DateTime(), nullable=False, index=True)
+    resolved_at = Column(DateTime(), nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_vulnerability_tickets_title", "title"),
+        Index("idx_vulnerability_tickets_severity", "severity"),
+        Index("idx_vulnerability_tickets_status", "status"),
+        Index("idx_vulnerability_tickets_cve_id", "cve_id"),
+        Index("idx_vulnerability_tickets_detected_at", "detected_at"),
+    )
+
+    def __repr__(self):
+        return f"<VulnerabilityTicket(id='{self.id}', title='{self.title}', severity='{self.severity}', status='{self.status}')>"
+
+
+class ThreatIntelligence(Base):
+    """威胁情报表"""
+
+    __tablename__ = "threat_intelligence"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(128), nullable=False, index=True)
+    threat_type = Column(String(50), nullable=False, index=True)  # malware, exploit, phishing, ddos
+    
+    # 威胁信息
+    description = Column(Text, nullable=False)
+    indicators = Column(JSON, nullable=True)  # IOCs (Indicators of Compromise)
+    source = Column(String(256), nullable=True)
+    
+    # 严重程度
+    severity = Column(String(20), nullable=False, default="medium")  # low, medium, high, critical
+    confidence = Column(Float, nullable=False)  # 0-1
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="active", index=True)  # active, expired, false_positive
+    
+    # 时间信息
+    first_seen = Column(DateTime(), nullable=True)
+    last_seen = Column(DateTime(), nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_threat_intelligence_name", "name"),
+        Index("idx_threat_intelligence_type", "threat_type"),
+        Index("idx_threat_intelligence_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<ThreatIntelligence(id='{self.id}', name='{self.name}', type='{self.threat_type}', status='{self.status}')>"
+
+
+class VulnerabilityScan(Base):
+    """漏洞扫描表"""
+
+    __tablename__ = "vulnerability_scans"
+
+    id = Column(String(100), primary_key=True)
+    target = Column(String(256), nullable=False, index=True)
+    scan_type = Column(String(50), nullable=False)  # full, quick, custom
+    
+    # 扫描配置
+    parameters = Column(JSON, nullable=True)  # Scan parameters
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="pending", index=True)  # pending, running, completed, failed
+    started_at = Column(DateTime(), nullable=True)
+    completed_at = Column(DateTime(), nullable=True)
+    
+    # 结果
+    results = Column(JSON, nullable=True)  # Scan results
+    vulnerabilities_found = Column(Integer, default=0, nullable=False)
+    
+    # 错误
+    error_message = Column(Text, nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_vulnerability_scans_target", "target"),
+        Index("idx_vulnerability_scans_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<VulnerabilityScan(id='{self.id}', target='{self.target}', status='{self.status}')>"
+
+
+class AuditReport(Base):
+    """审计报告表"""
+
+    __tablename__ = "audit_reports"
+
+    id = Column(String(100), primary_key=True)
+    title = Column(String(128), nullable=False, index=True)
+    report_type = Column(String(50), nullable=False)  # security, compliance, access
+    
+    # 报告内容
+    description = Column(Text, nullable=True)
+    findings = Column(JSON, nullable=True)  # List of findings
+    recommendations = Column(JSON, nullable=True)  # List of recommendations
+    
+    # 范围
+    scope = Column(JSON, nullable=True)  # Audit scope
+    time_range_start = Column(DateTime(), nullable=True)
+    time_range_end = Column(DateTime(), nullable=True)
+    
+    # 状态
+    status = Column(String(20), nullable=False, default="draft", index=True)  # draft, published, archived
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    published_at = Column(DateTime(), nullable=True)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_audit_reports_title", "title"),
+        Index("idx_audit_reports_type", "report_type"),
+        Index("idx_audit_reports_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<AuditReport(id='{self.id}', title='{self.title}', type='{self.report_type}', status='{self.status}')>"
+
+
+class SecurityOperationRecord(Base):
+    """安全操作记录表"""
+
+    __tablename__ = "security_operation_records"
+
+    id = Column(String(100), primary_key=True)
+    operation = Column(String(100), nullable=False, index=True)  # deploy, configure, delete, etc.
+    
+    # 操作详情
+    operation_type = Column(String(50), nullable=False)  # manual, automated, system
+    target_resource = Column(String(256), nullable=True)
+    parameters = Column(JSON, nullable=True)
+    
+    # 执行信息
+    executor = Column(String(50), nullable=True)  # User or system
+    result = Column(String(20), nullable=False)  # success, failure, partial
+    output = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    
+    # 时间戳
+    timestamp = Column(DateTime(), server_default=func.now(), nullable=False, index=True)
+    duration_ms = Column(Integer, nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_security_operation_records_operation", "operation"),
+        Index("idx_security_operation_records_timestamp", "timestamp"),
+    )
+
+    def __repr__(self):
+        return f"<SecurityOperationRecord(id='{self.id}', operation='{self.operation}', result='{self.result}')>"
+
+
+class CommandRewriteRule(Base):
+    """命令改写规则表"""
+
+    __tablename__ = "command_rewrite_rules"
+
+    id = Column(String(100), primary_key=True)
+    pattern = Column(String(256), nullable=False, index=True)
+    replacement = Column(String(256), nullable=False)
+    
+    # 规则配置
+    description = Column(Text, nullable=True)
+    priority = Column(Integer, default=0, nullable=False)
+    
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    
+    # 统计
+    usage_count = Column(Integer, default=0, nullable=False)
+    last_used_at = Column(DateTime(), nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_command_rewrite_rules_pattern", "pattern"),
+        Index("idx_command_rewrite_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<CommandRewriteRule(id='{self.id}', pattern='{self.pattern}', enabled={self.enabled})>"
+
+
+class CommandGuardRule(Base):
+    """命令管控规则表"""
+
+    __tablename__ = "command_guard_rules"
+
+    id = Column(String(100), primary_key=True)
+    command = Column(String(256), nullable=False, index=True)
+    pattern = Column(String(256), nullable=False)
+    
+    # 规则配置
+    severity = Column(String(20), nullable=False, default="high")  # critical, high, medium, low
+    action = Column(String(20), nullable=False, default="block")  # block, warn, allow
+    description = Column(Text, nullable=True)
+    
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    
+    # 统计
+    trigger_count = Column(Integer, default=0, nullable=False)
+    last_triggered_at = Column(DateTime(), nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_command_guard_rules_command", "command"),
+        Index("idx_command_guard_rules_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<CommandGuardRule(id='{self.id}', command='{self.command}', enabled={self.enabled})>"
+
+
+# ==================== Frontend Models ====================
+
+
+class FrontendComponent(Base):
+    """前端组件表"""
+
+    __tablename__ = "frontend_components"
+
+    id = Column(String(100), primary_key=True)
+
+    # 组件信息
+    name = Column(String(200), nullable=False, index=True)
+    type = Column(String(50), nullable=False, index=True)
+    category = Column(String(50), nullable=True, index=True)
+    description = Column(Text, nullable=True)
+
+    # 组件配置
+    props = Column(JSON, nullable=True)
+    code = Column(Text, nullable=False)
+    dependencies = Column(JSON, nullable=True)  # List of strings
+
+    # 访问控制
+    is_public = Column(Boolean, default=False, nullable=False)
+    created_by = Column(String(50), nullable=True)  # user_id
+
+    # 状态
+    status = Column(String(20), default="active", nullable=False, index=True)  # active, deprecated, archived
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_frontend_components_name", "name"),
+        Index("idx_frontend_components_type", "type"),
+        Index("idx_frontend_components_category", "category"),
+        Index("idx_frontend_components_status", "status"),
+        Index("idx_frontend_components_created_by", "created_by"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendComponent(id='{self.id}', name='{self.name}', type='{self.type}')>"
+
+
+class FrontendTheme(Base):
+    """前端主题表"""
+
+    __tablename__ = "frontend_themes"
+
+    id = Column(String(100), primary_key=True)
+
+    # 主题信息
+    name = Column(String(200), nullable=False, index=True)
+    base_theme = Column(String(20), nullable=False, index=True)  # light, dark, auto
+    description = Column(Text, nullable=True)
+
+    # 主题配置
+    colors = Column(JSON, nullable=False)
+    fonts = Column(JSON, nullable=True)
+    spacing = Column(JSON, nullable=True)
+
+    # 访问控制
+    is_default = Column(Boolean, default=False, nullable=False)
+    is_public = Column(Boolean, default=False, nullable=False)
+    created_by = Column(String(50), nullable=True)  # user_id
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_frontend_themes_name", "name"),
+        Index("idx_frontend_themes_base_theme", "base_theme"),
+        Index("idx_frontend_themes_is_default", "is_default"),
+        Index("idx_frontend_themes_created_by", "created_by"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendTheme(id='{self.id}', name='{self.name}', base_theme='{self.base_theme}')>"
+
+
+class FrontendLayout(Base):
+    """前端布局表"""
+
+    __tablename__ = "frontend_layouts"
+
+    id = Column(String(100), primary_key=True)
+
+    # 布局信息
+    name = Column(String(200), nullable=False, index=True)
+    type = Column(String(50), nullable=False, index=True)  # dashboard, page, modal
+    description = Column(Text, nullable=True)
+
+    # 布局配置
+    structure = Column(JSON, nullable=False)
+    breakpoints = Column(JSON, nullable=True)
+
+    # 访问控制
+    is_default = Column(Boolean, default=False, nullable=False)
+    is_public = Column(Boolean, default=False, nullable=False)
+    created_by = Column(String(50), nullable=True)  # user_id
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_frontend_layouts_name", "name"),
+        Index("idx_frontend_layouts_type", "type"),
+        Index("idx_frontend_layouts_is_default", "is_default"),
+        Index("idx_frontend_layouts_created_by", "created_by"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendLayout(id='{self.id}', name='{self.name}', type='{self.type}')>"
+
+
+class FrontendUserPreference(Base):
+    """前端用户偏好表"""
+
+    __tablename__ = "frontend_user_preferences"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 用户关联
+    user_id = Column(String(50), nullable=False, unique=True, index=True)
+
+    # 偏好设置
+    theme = Column(String(20), default="auto", nullable=False)  # light, dark, auto
+    language = Column(String(10), default="zh-CN", nullable=False)
+    timezone = Column(String(50), default="UTC", nullable=False)
+    date_format = Column(String(20), default="YYYY-MM-DD", nullable=False)
+    time_format = Column(String(20), default="HH:mm:ss", nullable=False)
+    view_mode = Column(String(20), default="grid", nullable=False)  # grid, list, compact, detailed
+
+    # 通知设置
+    notifications_enabled = Column(Boolean, default=True, nullable=False)
+    notification_sound = Column(Boolean, default=False, nullable=False)
+    auto_refresh_interval = Column(Integer, default=30, nullable=False)  # seconds
+
+    # 自定义配置
+    dashboard_layout = Column(JSON, nullable=True)
+    custom_colors = Column(JSON, nullable=True)
+    accessibility_settings = Column(JSON, nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_frontend_user_preferences_user_id", "user_id"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendUserPreference(id={self.id}, user_id='{self.user_id}', theme='{self.theme}')>"
+
+
+class FrontendDashboardWidget(Base):
+    """前端仪表板小部件表"""
+
+    __tablename__ = "frontend_dashboard_widgets"
+
+    id = Column(String(100), primary_key=True)
+
+    # 仪表板关联
+    dashboard_id = Column(String(100), nullable=False, index=True)
+
+    # 小部件信息
+    widget_id = Column(String(100), nullable=False, index=True)
+    widget_type = Column(String(50), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+
+    # 小部件配置
+    position = Column(JSON, nullable=False)  # {x, y, width, height}
+    config = Column(JSON, nullable=True)
+    data_source = Column(String(200), nullable=True)
+    refresh_interval = Column(Integer, default=30, nullable=False)  # seconds
+
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False)
+
+    # 创建者
+    created_by = Column(String(50), nullable=True)  # user_id
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_frontend_dashboard_widgets_dashboard_id", "dashboard_id"),
+        Index("idx_frontend_dashboard_widgets_widget_id", "widget_id"),
+        Index("idx_frontend_dashboard_widgets_widget_type", "widget_type"),
+        Index("idx_frontend_dashboard_widgets_created_by", "created_by"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendDashboardWidget(id='{self.id}', dashboard_id='{self.dashboard_id}', widget_type='{self.widget_type}')>"
+
+
+class FrontendReportTemplate(Base):
+    """前端报告模板表"""
+
+    __tablename__ = "frontend_report_templates"
+
+    id = Column(String(100), primary_key=True)
+
+    # 模板信息
+    name = Column(String(200), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+
+    # 数据源配置
+    data_sources = Column(JSON, nullable=False)  # List of strings
+    filters = Column(JSON, nullable=True)
+    visualization_config = Column(JSON, nullable=True)
+
+    # 输出配置
+    format = Column(String(20), default="pdf", nullable=False)  # pdf, html, csv
+    schedule = Column(String(100), nullable=True)  # cron expression
+
+    # 创建者
+    created_by = Column(String(50), nullable=True)  # user_id
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_frontend_report_templates_name", "name"),
+        Index("idx_frontend_report_templates_created_by", "created_by"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendReportTemplate(id='{self.id}', name='{self.name}', format='{self.format}')>"
+
+
+class FrontendLocalization(Base):
+    """前端本地化表"""
+
+    __tablename__ = "frontend_localizations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 语言代码
+    language = Column(String(10), nullable=False, index=True)  # en-US, zh-CN
+
+    # 翻译键值对
+    translation_key = Column(String(200), nullable=False, index=True)
+    translation_value = Column(Text, nullable=False)
+
+    # 元数据
+    context = Column(String(100), nullable=True)  # Optional context for translation
+    created_by = Column(String(50), nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 唯一约束
+    __table_args__ = (
+        Index("idx_frontend_localizations_language", "language"),
+        Index("idx_frontend_localizations_translation_key", "translation_key"),
+    )
+
+    def __repr__(self):
+        return f"<FrontendLocalization(id={self.id}, language='{self.language}', key='{self.translation_key}')>"
+
+
+# ==================== Monitoring Models ====================
+
+
+class MonitoringAlertRule(Base):
+    """监控告警规则表"""
+
+    __tablename__ = "monitoring_alert_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rule_id = Column(String(100), unique=True, nullable=False, index=True)
+    rule_name = Column(String(200), nullable=False, index=True)
+
+    # 规则配置
+    pattern = Column(String(500), nullable=False)  # 匹配模式
+    severity = Column(String(20), nullable=False, index=True)  # critical, warning, info
+    status = Column(String(20), default="active", nullable=False, index=True)  # active, inactive
+
+    # 触发统计
+    triggered_count = Column(Integer, default=0, nullable=False)
+    last_triggered = Column(DateTime(), nullable=True)
+
+    # 通知配置
+    notification_channels = Column(JSON, nullable=True)  # List of channels
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_alert_rules_rule_id", "rule_id"),
+        Index("idx_monitoring_alert_rules_name", "rule_name"),
+        Index("idx_monitoring_alert_rules_severity", "severity"),
+        Index("idx_monitoring_alert_rules_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringAlertRule(id={self.id}, rule_id='{self.rule_id}', name='{self.rule_name}')>"
+
+
+class MonitoringLogPattern(Base):
+    """监控日志模式表"""
+
+    __tablename__ = "monitoring_log_patterns"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pattern_id = Column(String(100), unique=True, nullable=False, index=True)
+
+    # 模式配置
+    pattern = Column(String(500), nullable=False)
+    severity = Column(String(20), nullable=False, index=True)  # error, warning, info
+
+    # 统计信息
+    count = Column(Integer, default=0, nullable=False)
+    frequency = Column(Float, default=0.0, nullable=False)  # 每分钟出现次数
+
+    # 时间信息
+    first_seen = Column(DateTime(), server_default=func.now(), nullable=False)
+    last_seen = Column(DateTime(), server_default=func.now(), nullable=False)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_log_patterns_pattern_id", "pattern_id"),
+        Index("idx_monitoring_log_patterns_severity", "severity"),
+        Index("idx_monitoring_log_patterns_last_seen", "last_seen"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringLogPattern(id={self.id}, pattern_id='{self.pattern_id}', severity='{self.severity}')>"
+
+
+class MonitoringTrace(Base):
+    """监控追踪表"""
+
+    __tablename__ = "monitoring_traces"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trace_id = Column(String(100), unique=True, nullable=False, index=True)
+
+    # 追踪信息
+    service = Column(String(100), nullable=False, index=True)
+    start_time = Column(DateTime(), nullable=False, index=True)
+    duration_ms = Column(Integer, nullable=False)
+    span_count = Column(Integer, nullable=False)
+    root_span = Column(String(100), nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_traces_trace_id", "trace_id"),
+        Index("idx_monitoring_traces_service", "service"),
+        Index("idx_monitoring_traces_start_time", "start_time"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringTrace(id={self.id}, trace_id='{self.trace_id}', service='{self.service}')>"
+
+
+class MonitoringServiceCall(Base):
+    """监控服务调用表"""
+
+    __tablename__ = "monitoring_service_calls"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 调用信息
+    from_service = Column(String(100), nullable=False, index=True)
+    to_service = Column(String(100), nullable=False, index=True)
+
+    # 统计信息
+    call_count = Column(Integer, default=0, nullable=False)
+    avg_latency_ms = Column(Float, default=0.0, nullable=False)
+    error_rate = Column(Float, default=0.0, nullable=False)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_service_calls_from", "from_service"),
+        Index("idx_monitoring_service_calls_to", "to_service"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringServiceCall(id={self.id}, from='{self.from_service}', to='{self.to_service}')>"
+
+
+class MonitoringMetric(Base):
+    """监控指标表"""
+
+    __tablename__ = "monitoring_metrics"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 指标信息
+    metric_name = Column(String(100), nullable=False, index=True)
+    metric_type = Column(String(50), nullable=False)  # counter, gauge, histogram, summary
+    value = Column(Float, nullable=False)
+
+    # 标签
+    labels = Column(JSON, nullable=True)
+
+    # 时间戳
+    timestamp = Column(DateTime(), server_default=func.now(), index=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_metrics_name", "metric_name"),
+        Index("idx_monitoring_metrics_timestamp", "timestamp"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringMetric(id={self.id}, name='{self.metric_name}', value={self.value})>"
+
+
+class MonitoringIntegration(Base):
+    """监控集成配置表"""
+
+    __tablename__ = "monitoring_integrations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    integration_id = Column(String(100), unique=True, nullable=False, index=True)
+    integration_name = Column(String(200), nullable=False)
+
+    # 集成类型
+    integration_type = Column(String(50), nullable=False, index=True)  # prometheus, loki, tempo, elasticsearch, victoriametrics
+
+    # 集成配置
+    config = Column(JSON, nullable=False)  # URL, credentials, etc.
+
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    health_status = Column(String(20), default="unknown", nullable=False)  # healthy, unhealthy, unknown
+    last_health_check = Column(DateTime(), nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_integrations_id", "integration_id"),
+        Index("idx_monitoring_integrations_type", "integration_type"),
+        Index("idx_monitoring_integrations_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringIntegration(id={self.id}, type='{self.integration_type}', name='{self.integration_name}')>"
+
+
+class MonitoringDashboard(Base):
+    """监控仪表板表"""
+
+    __tablename__ = "monitoring_dashboards"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    dashboard_id = Column(String(100), unique=True, nullable=False, index=True)
+    dashboard_name = Column(String(200), nullable=False)
+
+    # 仪表板配置
+    panels = Column(JSON, nullable=False)  # Panel configurations
+    refresh_interval = Column(String(20), default="30s", nullable=False)  # 30s, 1m, 5m
+    time_range = Column(String(20), default="1h", nullable=False)  # 1h, 24h, 7d
+
+    # 状态
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_dashboards_id", "dashboard_id"),
+        Index("idx_monitoring_dashboards_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringDashboard(id={self.id}, dashboard_id='{self.dashboard_id}', name='{self.dashboard_name}')>"
+
+
+class MonitoringAnomaly(Base):
+    """监控异常表"""
+
+    __tablename__ = "monitoring_anomalies"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    anomaly_id = Column(String(100), unique=True, nullable=False, index=True)
+
+    # 异常信息
+    metric_name = Column(String(100), nullable=False, index=True)
+    service_name = Column(String(100), nullable=False, index=True)
+    anomaly_score = Column(Float, nullable=False)
+    expected_value = Column(Float, nullable=False)
+    actual_value = Column(Float, nullable=False)
+
+    # 状态
+    is_anomaly = Column(Boolean, nullable=False, index=True)
+    status = Column(String(20), default="active", nullable=False)  # active, resolved, ignored
+
+    # 时间戳
+    detected_at = Column(DateTime(), server_default=func.now(), index=True)
+    resolved_at = Column(DateTime(), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_monitoring_anomalies_id", "anomaly_id"),
+        Index("idx_monitoring_anomalies_metric", "metric_name"),
+        Index("idx_monitoring_anomalies_service", "service_name"),
+        Index("idx_monitoring_anomalies_detected_at", "detected_at"),
+    )
+
+    def __repr__(self):
+        return f"<MonitoringAnomaly(id={self.id}, anomaly_id='{self.anomaly_id}', score={self.anomaly_score})>"
+
+
+# ==================== Testing Framework Models (New) ====================
+
+
+class TestingSuiteDB(Base):
+    """测试套件表（Testing Framework专用）"""
+
+    __tablename__ = "testing_suites"
+
+    id = Column(String(100), primary_key=True)
+    suite_id = Column(String(100), unique=True, nullable=False, index=True)
+    suite_name = Column(String(200), nullable=False)
+    test_type = Column(String(50), nullable=False, index=True)  # unit, integration, end_to_end, performance, security
+    description = Column(Text, nullable=True)
+    test_count = Column(Integer, default=0, nullable=False)
+    coverage_target = Column(Float, default=80.0, nullable=False)
+    status = Column(String(20), default="active", nullable=False, index=True)  # active, archived
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_suites_suite_id", "suite_id"),
+        Index("idx_testing_suites_test_type", "test_type"),
+        Index("idx_testing_suites_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<TestingSuiteDB(id='{self.id}', suite_id='{self.suite_id}', name='{self.suite_name}')>"
+
+
+class TestingCaseDB(Base):
+    """测试用例表（Testing Framework专用）"""
+
+    __tablename__ = "testing_cases"
+
+    id = Column(String(100), primary_key=True)
+    test_id = Column(String(100), unique=True, nullable=False, index=True)
+    suite_id = Column(String(100), nullable=False, index=True)
+    test_name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    test_type = Column(String(50), nullable=False, index=True)
+    status = Column(String(20), default="pending", nullable=False, index=True)  # pending, running, passed, failed, skipped
+    duration = Column(Float, default=0.0, nullable=False)
+    error_message = Column(Text, nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    executed_at = Column(DateTime(), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_cases_test_id", "test_id"),
+        Index("idx_testing_cases_suite_id", "suite_id"),
+        Index("idx_testing_cases_test_type", "test_type"),
+        Index("idx_testing_cases_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<TestingCaseDB(id='{self.id}', test_id='{self.test_id}', name='{self.test_name}')>"
+
+
+class TestingReportDB(Base):
+    """测试报告表（Testing Framework专用）"""
+
+    __tablename__ = "testing_reports"
+
+    id = Column(String(100), primary_key=True)
+    report_id = Column(String(100), unique=True, nullable=False, index=True)
+    suite_id = Column(String(100), nullable=False, index=True)
+    test_type = Column(String(50), nullable=False, index=True)
+    start_time = Column(DateTime(), nullable=False, index=True)
+    end_time = Column(DateTime(), nullable=True)
+    total_tests = Column(Integer, default=0, nullable=False)
+    passed_tests = Column(Integer, default=0, nullable=False)
+    failed_tests = Column(Integer, default=0, nullable=False)
+    skipped_tests = Column(Integer, default=0, nullable=False)
+    coverage = Column(Float, default=0.0, nullable=False)
+    duration_sec = Column(Float, nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_reports_report_id", "report_id"),
+        Index("idx_testing_reports_suite_id", "suite_id"),
+        Index("idx_testing_reports_test_type", "test_type"),
+        Index("idx_testing_reports_start_time", "start_time"),
+    )
+
+    def __repr__(self):
+        return f"<TestingReportDB(id='{self.id}', report_id='{self.report_id}', suite_id='{self.suite_id}')>"
+
+
+class TestingCoverageDB(Base):
+    """测试覆盖率表（Testing Framework专用）"""
+
+    __tablename__ = "testing_coverages"
+
+    id = Column(String(100), primary_key=True)
+    module_id = Column(String(100), unique=True, nullable=False, index=True)
+    module_name = Column(String(200), nullable=False)
+    module_type = Column(String(50), nullable=False, index=True)  # core, integration, ai, api
+    total_lines = Column(Integer, nullable=False)
+    covered_lines = Column(Integer, nullable=False)
+    coverage_percentage = Column(Float, nullable=False)
+    coverage_level = Column(String(50), nullable=False, index=True)  # excellent, good, acceptable, needs_improvement
+
+    # 时间戳
+    last_updated = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(), server_default=func.now())
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_coverages_module_id", "module_id"),
+        Index("idx_testing_coverages_module_type", "module_type"),
+        Index("idx_testing_coverages_coverage_level", "coverage_level"),
+    )
+
+    def __repr__(self):
+        return f"<TestingCoverageDB(id='{self.id}', module_id='{self.module_id}', coverage={self.coverage_percentage}%)>"
+
+
+class TestingCoverageThresholdDB(Base):
+    """覆盖率阈值配置表（Testing Framework专用）"""
+
+    __tablename__ = "testing_coverage_thresholds"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    module_type = Column(String(50), unique=True, nullable=False, index=True)
+    minimum_coverage = Column(Float, nullable=False)
+    target_coverage = Column(Float, nullable=False)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_coverage_thresholds_module_type", "module_type"),
+    )
+
+    def __repr__(self):
+        return f"<TestingCoverageThresholdDB(id={self.id}, module_type='{self.module_type}', min={self.minimum_coverage}%)"
+
+
+class TestingAutomationJobDB(Base):
+    """自动化任务表（Testing Framework专用）"""
+
+    __tablename__ = "testing_automation_jobs"
+
+    id = Column(String(100), primary_key=True)
+    job_id = Column(String(100), unique=True, nullable=False, index=True)
+    job_name = Column(String(200), nullable=False)
+    job_type = Column(String(50), nullable=False, index=True)
+    status = Column(String(20), default="idle", nullable=False, index=True)  # idle, running, completed, failed, cancelled
+    trigger_type = Column(String(50), default="manual", nullable=False)  # manual, scheduled, webhook
+    start_time = Column(DateTime(), nullable=True, index=True)
+    end_time = Column(DateTime(), nullable=True)
+    duration_sec = Column(Float, nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_automation_jobs_job_id", "job_id"),
+        Index("idx_testing_automation_jobs_job_type", "job_type"),
+        Index("idx_testing_automation_jobs_status", "status"),
+        Index("idx_testing_automation_jobs_start_time", "start_time"),
+    )
+
+    def __repr__(self):
+        return f"<TestingAutomationJobDB(id='{self.id}', job_id='{self.job_id}', status='{self.status}')>"
+
+
+class TestingCICDPipelineConfigDB(Base):
+    """CI/CD流水线配置表（Testing Framework专用）"""
+
+    __tablename__ = "testing_cicd_pipeline_configs"
+
+    id = Column(String(100), primary_key=True)
+    config_id = Column(String(100), unique=True, nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    platform = Column(String(50), nullable=False, index=True)  # github_actions, gitlab_ci, jenkins
+    config_content = Column(Text, nullable=False)  # YAML/JSON配置内容
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_cicd_pipeline_configs_config_id", "config_id"),
+        Index("idx_testing_cicd_pipeline_configs_platform", "platform"),
+        Index("idx_testing_cicd_pipeline_configs_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<TestingCICDPipelineConfigDB(id='{self.id}', config_id='{self.config_id}', platform='{self.platform}')>"
+
+
+class TestingNotificationConfigDB(Base):
+    """测试通知配置表（Testing Framework专用）"""
+
+    __tablename__ = "testing_notification_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    config_name = Column(String(200), unique=True, nullable=False, index=True)
+    enabled = Column(Boolean, default=False, nullable=False)
+    on_success = Column(Boolean, default=True, nullable=False)
+    on_failure = Column(Boolean, default=True, nullable=False)
+    channels = Column(JSON, nullable=False)  # List of channels: email, slack, webhook
+
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(50), nullable=True)
+
+    # 元数据
+    meta_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_testing_notification_configs_name", "config_name"),
+    )
+
+    def __repr__(self):
+        return f"<TestingNotificationConfigDB(id={self.id}, name='{self.config_name}', enabled={self.enabled})>"
+
+
+# ==================== Plugin System Models ====================
+
+
+class PluginStatus(str, Enum):
+    """插件状态枚举"""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    ERROR = "error"
+    LOADING = "loading"
+
+
+class Plugin(Base):
+    """插件主表"""
+
+    __tablename__ = "plugins"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False, unique=True, index=True)
+    version = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    author = Column(String(200), nullable=True)
+    
+    # 插件类型
+    plugin_type = Column(String(50), nullable=False, index=True)  # collector, analyzer, executor, storage, notifier
+    
+    # 插件状态
+    status = Column(String(20), default=PluginStatus.INACTIVE.value, nullable=False, index=True)
+    
+    # 插件配置
+    config_schema = Column(JSON, nullable=True)  # 配置模式定义
+    default_config = Column(JSON, nullable=True)  # 默认配置
+    
+    # 依赖关系
+    dependencies = Column(JSON, nullable=True)  # 依赖的其他插件
+    
+    # 插件文件信息
+    file_path = Column(String(500), nullable=True)
+    entry_point = Column(String(200), nullable=True)  # 入口函数
+    
+    # 元数据
+    plugin_metadata = Column(JSON, nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    installed_at = Column(DateTime(), nullable=True)
+    last_loaded_at = Column(DateTime(), nullable=True)
+    
+    # 创建者
+    created_by = Column(String(50), nullable=True)
+    
+    # 索引
+    __table_args__ = (
+        Index("idx_plugins_name", "name"),
+        Index("idx_plugins_type", "plugin_type"),
+        Index("idx_plugins_status", "status"),
+        Index("idx_plugins_version", "version"),
+    )
+    
+    def __repr__(self):
+        return f"<Plugin(id='{self.id}', name='{self.name}', version='{self.version}', status='{self.status}')>"
+
+
+class PluginExecution(Base):
+    """插件执行记录表"""
+
+    __tablename__ = "plugin_executions"
+
+    id = Column(String(100), primary_key=True)
+    plugin_id = Column(String(100), nullable=False, index=True)
+    plugin_name = Column(String(200), nullable=False, index=True)
+    
+    # 执行信息
+    execution_type = Column(String(50), nullable=False)  # collect, execute, analyze
+    trigger_type = Column(String(50), nullable=False)  # manual, scheduled, event
+    
+    # 执行参数
+    input_data = Column(JSON, nullable=True)
+    config = Column(JSON, nullable=True)
+    
+    # 执行结果
+    output_data = Column(JSON, nullable=True)
+    success = Column(Boolean, nullable=False, index=True)
+    error_message = Column(Text, nullable=True)
+    error_traceback = Column(Text, nullable=True)
+    
+    # 性能指标
+    duration_ms = Column(Float, nullable=True)
+    memory_usage_mb = Column(Float, nullable=True)
+    
+    # 时间戳
+    started_at = Column(DateTime(), nullable=False, index=True)
+    completed_at = Column(DateTime(), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    
+    # 执行者
+    executed_by = Column(String(50), nullable=True)  # 用户名或system
+    
+    # 元数据
+    execution_metadata = Column(JSON, nullable=True)
+    
+    # 索引
+    __table_args__ = (
+        Index("idx_plugin_executions_plugin_id", "plugin_id"),
+        Index("idx_plugin_executions_plugin_name", "plugin_name"),
+        Index("idx_plugin_executions_success", "success"),
+        Index("idx_plugin_executions_started_at", "started_at"),
+        Index("idx_plugin_executions_execution_type", "execution_type"),
+    )
+    
+    def __repr__(self):
+        return f"<PluginExecution(id='{self.id}', plugin_name='{self.plugin_name}', success={self.success})>"
+
+
+class PluginConfig(Base):
+    """插件配置表"""
+
+    __tablename__ = "plugin_configs"
+
+    id = Column(String(100), primary_key=True)
+    plugin_id = Column(String(100), nullable=False, unique=True, index=True)
+    plugin_name = Column(String(200), nullable=False, index=True)
+    
+    # 配置内容
+    config_data = Column(JSON, nullable=False)
+    config_version = Column(Integer, default=1, nullable=False)
+    
+    # 配置状态
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    
+    # 配置描述
+    description = Column(Text, nullable=True)
+    
+    # 时间戳
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # 更新者
+    updated_by = Column(String(50), nullable=True)
+    
+    # 元数据
+    config_metadata = Column(JSON, nullable=True)
+    
+    # 索引
+    __table_args__ = (
+        Index("idx_plugin_configs_plugin_id", "plugin_id"),
+        Index("idx_plugin_configs_plugin_name", "plugin_name"),
+        Index("idx_plugin_configs_is_active", "is_active"),
+    )
+    
+    def __repr__(self):
+        return f"<PluginConfig(id='{self.id}', plugin_name='{self.plugin_name}', active={self.is_active})>"

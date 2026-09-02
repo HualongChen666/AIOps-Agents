@@ -17,8 +17,11 @@ API endpoints for comprehensive integration ecosystem including:
 import logging
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
+
+from core.auth import get_current_user, check_rate_limit, require_permission
+from core.models import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/integration", tags=["集成生态"])
@@ -201,13 +204,23 @@ class IntegrationQueryRequest(BaseModel):
             },
         },
         (400): {"description": "无效的集成类型"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
         (503): {"description": "集成管理器不可用"},
     },
 )
-async def register_integration(request: IntegrationRegistrationRequest) -> dict[str, Any]:
+async def register_integration(
+    request: IntegrationRegistrationRequest,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "create")),
+) -> dict[str, Any]:
     """
     注册新的集成
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=30)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     try:
@@ -271,15 +284,24 @@ async def register_integration(request: IntegrationRegistrationRequest) -> dict[
             },
         },
         (400): {"description": "无效的参数"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
         (503): {"description": "集成管理器不可用"},
     },
 )
 async def list_integrations(
-    integration_type: Optional[str] = None, status: Optional[str] = None
+    integration_type: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
 ) -> dict[str, Any]:
     """
     获取所有集成列表
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     integrations: List[Any] = list(integration_manager.integrations.values())
@@ -316,12 +338,25 @@ async def list_integrations(
 @router.post(
     "/test/{integration_id}",
     summary="测试集成",
-    responses={(200): {"description": "测试结果"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "测试结果"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def test_integration(integration_id: str) -> dict[str, Any]:
+async def test_integration(
+    integration_id: str,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
+) -> dict[str, Any]:
     """
     测试指定集成的连接
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=30)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     result: dict[str, Any] = await integration_manager.test_integration(integration_id)
@@ -333,14 +368,24 @@ async def test_integration(integration_id: str) -> dict[str, Any]:
     summary="删除集成",
     responses={
         (200): {"description": "删除成功"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
         (404): {"description": "集成不存在"},
+        (429): {"description": "请求过于频繁"},
         (503): {"description": "集成管理器不可用"},
     },
 )
-async def delete_integration(integration_id: str) -> dict[str, Any]:
+async def delete_integration(
+    integration_id: str,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "delete")),
+) -> dict[str, Any]:
     """
     删除指定的集成
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=30)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     if integration_id not in integration_manager.integrations:
@@ -352,12 +397,25 @@ async def delete_integration(integration_id: str) -> dict[str, Any]:
 @router.post(
     "/notification/send",
     summary="发送通知",
-    responses={(200): {"description": "发送成功"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "发送成功"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def send_notification(request: NotificationRequest) -> dict[str, Any]:
+async def send_notification(
+    request: NotificationRequest,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "execute")),
+) -> dict[str, Any]:
     """
     通过指定渠道发送通知
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     message = await integration_manager.send_notification(
@@ -383,12 +441,24 @@ async def send_notification(request: NotificationRequest) -> dict[str, Any]:
 @router.get(
     "/notification/channels",
     summary="获取通知渠道",
-    responses={(200): {"description": "通知渠道列表"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "通知渠道列表"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def get_notification_channels() -> dict[str, Any]:
+async def get_notification_channels(
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
+) -> dict[str, Any]:
     """
     获取所有通知渠道
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     channels = [
@@ -401,12 +471,25 @@ async def get_notification_channels() -> dict[str, Any]:
 @router.post(
     "/webhook/register",
     summary="注册Webhook",
-    responses={(200): {"description": "注册成功"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "注册成功"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def register_webhook(request: WebhookRegistrationRequest) -> dict[str, Any]:
+async def register_webhook(
+    request: WebhookRegistrationRequest,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "create")),
+) -> dict[str, Any]:
     """
     注册Webhook端点
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=30)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     webhook_id = await integration_manager.register_webhook(
@@ -421,14 +504,27 @@ async def register_webhook(request: WebhookRegistrationRequest) -> dict[str, Any
 @router.post(
     "/webhook/handle",
     summary="处理Webhook事件",
-    responses={(200): {"description": "处理结果"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "处理结果"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
 async def handle_webhook(
-    webhook_id: str, payload: dict[str, Any], signature: Optional[str] = None
+    webhook_id: str,
+    payload: dict[str, Any],
+    signature: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "execute")),
 ) -> dict[str, Any]:
     """
     处理传入的Webhook事件
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=100)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     result = await integration_manager.handle_webhook(
@@ -440,12 +536,24 @@ async def handle_webhook(
 @router.get(
     "/webhooks",
     summary="获取Webhook列表",
-    responses={(200): {"description": "Webhook列表"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "Webhook列表"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def list_webhooks() -> dict[str, Any]:
+async def list_webhooks(
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
+) -> dict[str, Any]:
     """
     获取所有注册的Webhook
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     webhooks = [
@@ -465,12 +573,25 @@ async def list_webhooks() -> dict[str, Any]:
 @router.post(
     "/prometheus/query",
     summary="查询Prometheus指标",
-    responses={(200): {"description": "查询结果"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "查询结果"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def query_prometheus_metrics(request: PrometheusQueryRequest) -> dict[str, Any]:
+async def query_prometheus_metrics(
+    request: PrometheusQueryRequest,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
+) -> dict[str, Any]:
     """
     查询Prometheus指标
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     result = await integration_manager.query_prometheus_metrics(
@@ -482,12 +603,25 @@ async def query_prometheus_metrics(request: PrometheusQueryRequest) -> dict[str,
 @router.post(
     "/jenkins/trigger",
     summary="触发Jenkins任务",
-    responses={(200): {"description": "触发结果"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "触发结果"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def trigger_jenkins_job(request: JenkinsJobRequest) -> dict[str, Any]:
+async def trigger_jenkins_job(
+    request: JenkinsJobRequest,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "execute")),
+) -> dict[str, Any]:
     """
     触发Jenkins构建任务
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=30)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     result = await integration_manager.trigger_jenkins_job(
@@ -501,12 +635,25 @@ async def trigger_jenkins_job(request: JenkinsJobRequest) -> dict[str, Any]:
 @router.post(
     "/jira/issue",
     summary="创建Jira问题",
-    responses={(200): {"description": "创建结果"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "创建结果"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def create_jira_issue(request: JiraIssueRequest) -> dict[str, Any]:
+async def create_jira_issue(
+    request: JiraIssueRequest,
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "execute")),
+) -> dict[str, Any]:
     """
     创建Jira问题
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=30)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     result = await integration_manager.create_jira_issue(
@@ -522,12 +669,24 @@ async def create_jira_issue(request: JiraIssueRequest) -> dict[str, Any]:
 @router.get(
     "/templates",
     summary="获取集成模板",
-    responses={(200): {"description": "集成模板"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "集成模板"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def get_integration_templates() -> dict[str, Any]:
+async def get_integration_templates(
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
+) -> dict[str, Any]:
     """
     获取可用的集成模板
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     templates = {}
@@ -544,12 +703,24 @@ async def get_integration_templates() -> dict[str, Any]:
 @router.get(
     "/summary",
     summary="获取集成摘要",
-    responses={(200): {"description": "集成摘要"}, (503): {"description": "集成管理器不可用"}},
+    responses={
+        (200): {"description": "集成摘要"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
+        (503): {"description": "集成管理器不可用"},
+    },
 )
-async def get_integration_summary() -> dict[str, Any]:
+async def get_integration_summary(
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
+) -> dict[str, Any]:
     """
     获取集成生态的摘要信息
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     summary = integration_manager.get_integration_summary()
@@ -559,10 +730,15 @@ async def get_integration_summary() -> dict[str, Any]:
 @router.get(
     "/types", summary="获取支持的集成类型", responses={(200): {"description": "集成类型列表"}}
 )
-async def get_integration_types() -> dict[str, Any]:
+async def get_integration_types(
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     """
     获取支持的集成类型列表
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     integration_types = [t.value for t in IntegrationType]
     return {"status": "success", "integration_types": integration_types}
 
@@ -572,15 +748,24 @@ async def get_integration_types() -> dict[str, Any]:
     summary="获取Webhook事件",
     responses={
         (200): {"description": "Webhook事件列表"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (429): {"description": "请求过于频繁"},
         (503): {"description": "集成管理器不可用"},
     },
 )
 async def get_webhook_events(
-    processed: bool = Query(default=False), limit: int = Query(default=50, ge=1, le=200)
+    processed: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    _permission_check: User = Depends(require_permission("integration", "read")),
 ) -> dict[str, Any]:
     """
     获取Webhook事件历史
     """
+    # Check rate limit
+    check_rate_limit(current_user.username, requests_per_minute=60)
+    
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     events = integration_manager.webhook_events

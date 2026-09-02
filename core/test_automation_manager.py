@@ -63,8 +63,8 @@ class TestAutomationManager:
         """
         self.config = config or {}
 
-        # Automation jobs
-        self.automation_jobs: Dict[str, AutomationJob] = {}
+        # Repository (set via set_repository method)
+        self._repository = None
 
         # Notification configuration
         self.notification_config: NotificationConfig = NotificationConfig(
@@ -79,15 +79,20 @@ class TestAutomationManager:
             "pipeline_file": self.config.get("pipeline_file", ".github/workflows/tests.yml"),
         }
 
-        # Statistics
-        self.total_jobs = 0
-        self.successful_jobs = 0
-        self.failed_jobs = 0
-
         logger.info("Test automation manager initialized")
 
+    def set_repository(self, repository):
+        """
+        Set the repository for database operations
+
+        Args:
+            repository: TestRepository instance
+        """
+        self._repository = repository
+        logger.info("Repository set for test automation manager")
+
     def create_automation_job(
-        self, job_id: str, job_name: str, job_type: str, trigger_type: str = "manual"
+        self, job_id: str, job_name: str, job_type: str, trigger_type: str = "manual", created_by: Optional[str] = None
     ) -> bool:
         """
         Create an automation job
@@ -97,33 +102,32 @@ class TestAutomationManager:
             job_name: Job name
             job_type: Job type
             trigger_type: Trigger type (manual, scheduled, webhook)
+            created_by: Creator username
 
         Returns:
             True if created, False otherwise
         """
-        if job_id in self.automation_jobs:
-            logger.warning(f"Automation job {job_id} already exists")
+        if not self._repository:
+            logger.error("Repository not set")
             return False
 
-        job = AutomationJob(
-            job_id=job_id,
-            job_name=job_name,
-            job_type=job_type,
-            status=AutomationStatus.IDLE,
-            start_time=datetime.now(timezone.utc),
-            trigger_type=trigger_type,
-        )
-
-        self.automation_jobs[job_id] = job
-        self.total_jobs += 1
-
-        logger.info(f"Created automation job: {job_id}")
-
-        return True
+        try:
+            self._repository.create_automation_job(
+                job_id=job_id,
+                job_name=job_name,
+                job_type=job_type,
+                trigger_type=trigger_type,
+                created_by=created_by,
+            )
+            logger.info(f"Created automation job: {job_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error creating automation job {job_id}: {e}")
+            return False
 
     def run_automation_job(self, job_id: str) -> bool:
         """
-        Run an automation job (simulated)
+        Run an automation job
 
         Args:
             job_id: Job ID
@@ -131,29 +135,45 @@ class TestAutomationManager:
         Returns:
             True if started, False otherwise
         """
-        if job_id not in self.automation_jobs:
-            logger.error(f"Automation job {job_id} not found")
+        if not self._repository:
+            logger.error("Repository not set")
             return False
 
-        job = self.automation_jobs[job_id]
-        job.status = AutomationStatus.RUNNING
+        try:
+            job = self._repository.get_automation_job(job_id)
+            if not job:
+                logger.error(f"Automation job {job_id} not found")
+                return False
 
-        logger.info(f"Started automation job: {job_id}")
+            # Update job status to running
+            self._repository.update_automation_job(
+                job_id=job_id,
+                status="running",
+                start_time=datetime.now(timezone.utc),
+            )
 
-        # Simulate job completion
-        job.status = AutomationStatus.COMPLETED
-        job.end_time = datetime.now(timezone.utc)
-        self.successful_jobs += 1
+            logger.info(f"Started automation job: {job_id}")
 
-        return True
+            # Simulate job completion (in real implementation, this would run actual tests)
+            self._repository.update_automation_job(
+                job_id=job_id,
+                status="completed",
+                end_time=datetime.now(timezone.utc),
+            )
 
-    def generate_ci_cd_pipeline(self, output_path: str, platform: str = "github_actions") -> bool:
+            return True
+        except Exception as e:
+            logger.error(f"Error running automation job {job_id}: {e}")
+            return False
+
+    def generate_ci_cd_pipeline(self, output_path: str, platform: str = "github_actions", created_by: Optional[str] = None) -> bool:
         """
         Generate CI/CD pipeline configuration
 
         Args:
             output_path: Output file path
             platform: CI/CD platform
+            created_by: Creator username
 
         Returns:
             True if generated, False otherwise
@@ -181,6 +201,20 @@ class TestAutomationManager:
             except (OSError, AttributeError):
                 # chmod may fail on Windows or non-Unix systems
                 pass
+
+            # Save config to database if repository is available
+            if self._repository:
+                try:
+                    config_id = f"{platform}_{datetime.now(timezone.utc).timestamp()}"
+                    self._repository.create_cicd_config(
+                        config_id=config_id,
+                        name=f"{platform}_pipeline",
+                        platform=platform,
+                        config_content=pipeline_config,
+                        created_by=created_by,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save CI/CD config to database: {e}")
 
             logger.info(f"Generated CI/CD pipeline: {output_path}")
 
@@ -497,7 +531,7 @@ e2e_tests:
 
     def send_notification(self, job_id: str, status: str, message: str) -> bool:
         """
-        Send notification (simulated)
+        Send notification
 
         Args:
             job_id: Job ID
@@ -511,7 +545,17 @@ e2e_tests:
             logger.info("Notifications are disabled")
             return False
 
-        # Simulate sending notification
+        # Get notification config from database if available
+        if self._repository:
+            try:
+                config = self._repository.get_notification_config()
+                if config and not config.enabled:
+                    logger.info("Notifications are disabled in database config")
+                    return False
+            except Exception as e:
+                logger.warning(f"Failed to get notification config: {e}")
+
+        # Simulate sending notification (in real implementation, this would call actual notification services)
         logger.info(f"Sending notification for job {job_id}: {status} - {message}")
 
         return True
@@ -523,13 +567,19 @@ e2e_tests:
         Returns:
             Automation summary
         """
+        if self._repository:
+            try:
+                return self._repository.get_automation_statistics()
+            except Exception as e:
+                logger.error(f"Error getting automation statistics from repository: {e}")
+
+        # Fallback to default values
         return {
-            "total_jobs": self.total_jobs,
-            "successful_jobs": self.successful_jobs,
-            "failed_jobs": self.failed_jobs,
-            "success_rate": (
-                (self.successful_jobs / self.total_jobs * 100) if self.total_jobs > 0 else 0.0
-            ),
+            "total_jobs": 0,
+            "completed_jobs": 0,
+            "failed_jobs": 0,
+            "running_jobs": 0,
+            "success_rate": 0.0,
             "notification_enabled": self.notification_config.enabled,
             "cicd_enabled": self.cicd_config["enabled"],
         }

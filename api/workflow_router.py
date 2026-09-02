@@ -17,19 +17,16 @@ import os
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Path, Request
+from fastapi import APIRouter, HTTPException, Path, Request, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from core.workflow.engine import WorkflowExecutor, parse_json_workflow
 from core.workflow_engine import (
-    WORKFLOW_DEFINITIONS,
-    create_workflow_definition,
-    delete_workflow_definition,
-    get_workflow_definitions,
     simulate_workflow_stream,
-    update_workflow_definition,
 )
+from core.workflow_repository import get_workflow_repository
+from core.auth import get_current_user, require_permission, check_rate_limit
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/workflows", tags=["工作流"])
@@ -125,7 +122,8 @@ _SSE_HEARTBEAT_INTERVAL_SEC = 30
 
 # ============================================================
 # 接口1:获取所有工作流定义
-# 🔧 WR6 [P2]:返回深拷贝
+# 🔧 Workflow完整性修复:使用数据库持久化替代内存存储
+# 🔧 安全修复:添加JWT认证和RBAC权限检查
 # ============================================================
 @router.get(
     "/definitions",
@@ -146,26 +144,46 @@ _SSE_HEARTBEAT_INTERVAL_SEC = 30
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "服务器内部错误"},
     },
 )
-def list_workflows() -> dict[str, Any]:
+def list_workflows(
+    request: Request,
+    current_user = Depends(require_permission("workflow", "read"))
+) -> dict[str, Any]:
     """
     返回所有工作流的元数据
     对应前端:工作流选择器按钮 + 底部详情栏数据
 
-    注意:普通 def,FastAPI 自动放入线程池执行
-    🔧 WR6 [P2]:返回深拷贝,防止前端修改污染原数据
+    🔧 Workflow完整性修复:从数据库读取工作流定义
+    🔧 安全修复:添加速率限制
     """
+    # 🔧 速率限制:60/minute
+    identifier = current_user.username if current_user else request.client.host
+    check_rate_limit(identifier, requests_per_minute=60)
+    
     logger.info("请求工作流定义列表")
     try:
-        definitions = get_workflow_definitions()
-        # 🔧 WR6:深拷贝防污染
-        # 注意:get_workflow_definitions 内部已做深拷贝(workflow_engine 修订版)
-        # 此处再加一层作为防御
-        definitions_safe = copy.deepcopy(definitions)
-        logger.debug(f"工作流定义返回成功,共 {len(definitions_safe)} 个")
-        return definitions_safe
+        repo = get_workflow_repository()
+        workflows = repo.list_workflow_definitions(status="active")
+        
+        # 转换为前端期望的格式
+        definitions = {}
+        for wf in workflows:
+            definitions[wf.id] = {
+                "key": wf.id,
+                "name": wf.name,
+                "description": wf.description or "",
+                "nodes": wf.definition.get("nodes", len(wf.definition.get("steps", []))),
+                "time": wf.definition.get("time", "N/A"),
+                "rate": wf.definition.get("rate", "N/A"),
+                "steps": wf.definition.get("steps", []),
+            }
+        
+        logger.debug(f"工作流定义返回成功,共 {len(definitions)} 个")
+        return definitions
     except Exception as e:
         logger.error(f"工作流定义获取失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"工作流定义获取失败: {str(e)[:200]}")
@@ -200,21 +218,26 @@ async def simulate_workflow(wf_key: str, request: Request):
       data: {"type": "heartbeat",       "ts": "10:30:00", ...}      🔧 WR4
       data: {"type": "error",           "msg": "...", ...}
 
+    🔧 Workflow完整性修复:从数据库验证工作流存在性
     🔧 WR1 [P1]:操作人 IP 审计
     🔧 WR5 [P2]:Semaphore 满时立即返回 503,而非等待
+    🔧 安全修复:添加速率限制
     """
     # 🔧 WR1:操作人 IP
     operator_ip = request.client.host if request.client else "unknown"
+    
+    # 🔧 速率限制:30/minute
+    check_rate_limit(operator_ip, requests_per_minute=30)
 
-    # 提前校验 wf_key,非法 key 在建立 SSE 前返回 404
-    # SSE 连接建立后 HTTP 状态码锁定为 200,无法再改
-    if wf_key not in WORKFLOW_DEFINITIONS:
-        valid_keys = list(WORKFLOW_DEFINITIONS.keys())
+    # 🔧 Workflow完整性修复:从数据库验证工作流存在性
+    repo = get_workflow_repository()
+    workflow = repo.get_workflow_definition(wf_key)
+    if not workflow:
         logger.warning(
             f"工作流仿真请求失败 | operator={operator_ip} | "
-            f"未知 wf_key='{wf_key}',合法值: {valid_keys}"
+            f"未知 wf_key='{wf_key}'"
         )
-        raise HTTPException(status_code=404, detail=f"未知工作流 '{wf_key}',合法值: {valid_keys}")
+        raise HTTPException(status_code=404, detail=f"未知工作流 '{wf_key}'")
 
     # 🔧 WR5 [P2]:Semaphore 满时立即返回 503
     # 非阻塞尝试获取(立即返回),防止 SSE 连接长时间挂起
@@ -375,17 +398,35 @@ def _to_engine_dict(data: WorkflowCreate | WorkflowUpdate) -> dict[str, Any]:
     summary="获取单个工作流定义",
     responses={
         200: {"description": "工作流定义"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         404: {"description": "工作流不存在"},
     },
 )
 def get_workflow(
+    request: Request,
     wf_key: str = Path(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$"),
+    current_user = Depends(require_permission("workflow", "read"))
 ) -> dict[str, Any]:
     """获取单个工作流定义详情"""
-    definitions = get_workflow_definitions()
-    if wf_key not in definitions:
+    # 🔧 速率限制:60/minute
+    identifier = current_user.username if current_user else request.client.host
+    check_rate_limit(identifier, requests_per_minute=60)
+    
+    repo = get_workflow_repository()
+    workflow = repo.get_workflow_definition(wf_key)
+    if not workflow:
         raise HTTPException(status_code=404, detail=f"工作流 '{wf_key}' 不存在")
-    return definitions[wf_key]
+    
+    return {
+        "key": workflow.id,
+        "name": workflow.name,
+        "description": workflow.description or "",
+        "nodes": workflow.definition.get("nodes", len(workflow.definition.get("steps", []))),
+        "time": workflow.definition.get("time", "N/A"),
+        "rate": workflow.definition.get("rate", "N/A"),
+        "steps": workflow.definition.get("steps", []),
+    }
 
 
 @router.post(
@@ -395,13 +436,41 @@ def get_workflow(
     responses={
         201: {"description": "创建成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
     },
 )
-def create_workflow(body: WorkflowCreate) -> dict[str, Any]:
+def create_workflow(
+    request: Request,
+    body: WorkflowCreate,
+    current_user = Depends(require_permission("workflow", "create"))
+) -> dict[str, Any]:
     """新增一个工作流定义,创建后可立即被仿真执行"""
+    # 🔧 速率限制:20/minute
+    identifier = current_user.username if current_user else request.client.host
+    check_rate_limit(identifier, requests_per_minute=20)
+    
     try:
+        repo = get_workflow_repository()
         payload = _to_engine_dict(body)
-        return create_workflow_definition(body.wf_key, payload)
+        
+        workflow = repo.create_workflow_definition(
+            wf_key=body.wf_key,
+            name=body.name,
+            description=body.description,
+            definition=payload,
+            created_by=current_user.username if current_user else "system",
+        )
+        
+        return {
+            "key": workflow.id,
+            "name": workflow.name,
+            "description": workflow.description or "",
+            "nodes": workflow.definition.get("nodes", len(workflow.definition.get("steps", []))),
+            "time": workflow.definition.get("time", "N/A"),
+            "rate": workflow.definition.get("rate", "N/A"),
+            "steps": workflow.definition.get("steps", []),
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -412,19 +481,44 @@ def create_workflow(body: WorkflowCreate) -> dict[str, Any]:
     responses={
         200: {"description": "更新成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         404: {"description": "工作流不存在"},
     },
 )
 def update_workflow(
+    request: Request,
     body: WorkflowUpdate,
     wf_key: str = Path(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$"),
+    current_user = Depends(require_permission("workflow", "update"))
 ) -> dict[str, Any]:
     """更新指定工作流定义"""
+    # 🔧 速率限制:20/minute
+    identifier = current_user.username if current_user else request.client.host
+    check_rate_limit(identifier, requests_per_minute=20)
+    
     try:
+        repo = get_workflow_repository()
         payload = _to_engine_dict(body)
         if not payload:
             raise HTTPException(status_code=400, detail="请求体不能为空")
-        return update_workflow_definition(wf_key, payload)
+        
+        workflow = repo.update_workflow_definition(
+            wf_key=wf_key,
+            name=body.name,
+            description=body.description,
+            definition=payload,
+        )
+        
+        return {
+            "key": workflow.id,
+            "name": workflow.name,
+            "description": workflow.description or "",
+            "nodes": workflow.definition.get("nodes", len(workflow.definition.get("steps", []))),
+            "time": workflow.definition.get("time", "N/A"),
+            "rate": workflow.definition.get("rate", "N/A"),
+            "steps": workflow.definition.get("steps", []),
+        }
     except ValueError as exc:
         raise HTTPException(
             status_code=404 if "不存在" in str(exc) else 400, detail=str(exc)
@@ -436,15 +530,24 @@ def update_workflow(
     summary="删除工作流定义",
     responses={
         200: {"description": "删除成功"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         404: {"description": "工作流不存在"},
     },
 )
 def delete_workflow(
+    request: Request,
     wf_key: str = Path(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$"),
+    current_user = Depends(require_permission("workflow", "delete"))
 ) -> dict[str, str]:
     """删除指定工作流定义"""
+    # 🔧 速率限制:10/minute
+    identifier = current_user.username if current_user else request.client.host
+    check_rate_limit(identifier, requests_per_minute=10)
+    
     try:
-        delete_workflow_definition(wf_key)
+        repo = get_workflow_repository()
+        repo.delete_workflow_definition(wf_key)
         return {"detail": f"工作流 '{wf_key}' 已删除"}
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

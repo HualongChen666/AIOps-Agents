@@ -1,33 +1,28 @@
 # -*- coding: utf-8 -*-
 # core/user_service.py
-# 🔧 P0-18: 真实的用户数据库服务
-# 替换authentication.py中的假内存数据库为真实的PostgreSQL数据库操作
+# 🔧 用户服务层 - 使用Repository层实现数据库持久化
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import delete, select, update
-
-from core.db_engine import AsyncSessionLocal
 from core.models import User
+from core.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
 
 class UserService:
-    """用户服务类 - 处理用户数据库操作"""
+    """用户服务类 - 处理用户业务逻辑"""
 
     @staticmethod
     async def get_user_by_username(username: str) -> Optional[User]:
         """根据用户名获取用户"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.username == username)
-                result = await session.execute(stmt)
-                return cast(Optional[User], result.scalar_one_or_none())
+            async with UserRepository() as user_repo:
+                return await user_repo.get_by_username(username)
         except Exception as e:
             logger.error(f"获取用户失败 | username={username}: {e}", exc_info=True)
             return None
@@ -36,10 +31,8 @@ class UserService:
     async def get_user_by_email(email: str) -> Optional[User]:
         """根据邮箱获取用户"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.email == email)
-                result = await session.execute(stmt)
-                return cast(Optional[User], result.scalar_one_or_none())
+            async with UserRepository() as user_repo:
+                return await user_repo.get_by_email(email)
         except Exception as e:
             logger.error(f"获取用户失败 | email={email}: {e}", exc_info=True)
             return None
@@ -48,10 +41,8 @@ class UserService:
     async def get_user_by_id(user_id: int) -> Optional[User]:
         """根据ID获取用户"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.id == user_id)
-                result = await session.execute(stmt)
-                return cast(Optional[User], result.scalar_one_or_none())
+            async with UserRepository() as user_repo:
+                return await user_repo.get_by_id(user_id)
         except Exception as e:
             logger.error(f"获取用户失败 | user_id={user_id}: {e}", exc_info=True)
             return None
@@ -67,34 +58,18 @@ class UserService:
     ) -> Optional[User]:
         """创建新用户"""
         try:
-            async with AsyncSessionLocal() as session:
-                # 检查用户名是否已存在
-                existing = await UserService.get_user_by_username(username)
-                if existing:
-                    logger.warning(f"用户名已存在 | username={username}")
-                    return None
-
-                # 检查邮箱是否已存在
-                if email:
-                    existing_email = await UserService.get_user_by_email(email)
-                    if existing_email:
-                        logger.warning(f"邮箱已存在 | email={email}")
-                        return None
-
-                new_user = User(
+            async with UserRepository() as user_repo:
+                return await user_repo.create(
                     username=username,
                     hashed_password=hashed_password,
                     email=email,
                     full_name=full_name,
                     role=role,
                     disabled=disabled,
-                    mfa_enabled=False,
                 )
-                session.add(new_user)
-                await session.commit()
-                await session.refresh(new_user)
-                logger.info(f"✅ 用户创建成功 | username={username} | id={new_user.id}")
-                return new_user
+        except ValueError as e:
+            logger.warning(f"创建用户失败（业务逻辑） | username={username}: {e}")
+            return None
         except Exception as e:
             logger.error(f"创建用户失败 | username={username}: {e}", exc_info=True)
             return None
@@ -109,34 +84,23 @@ class UserService:
     ) -> bool:
         """更新用户信息"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.username == username)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-
+            async with UserRepository() as user_repo:
+                user = await user_repo.get_by_username(username)
                 if not user:
                     logger.warning(f"用户不存在 | username={username}")
                     return False
 
-                update_data: Dict[str, Any] = {}
-                if email is not None:
-                    update_data["email"] = email
-                if full_name is not None:
-                    update_data["full_name"] = full_name
-                if role is not None:
-                    update_data["role"] = role
-                if disabled is not None:
-                    update_data["disabled"] = disabled
-
-                if update_data:
-                    update_stmt = (
-                        update(User).where(User.username == username).values(**update_data)
-                    )
-                    await session.execute(update_stmt)
-                    await session.commit()
-                    logger.info(f"✅ 用户信息更新成功 | username={username}")
-                    return True
-                return False
+                updated_user = await user_repo.update(
+                    user_id=user.id,
+                    email=email,
+                    full_name=full_name,
+                    role=role,
+                    disabled=disabled,
+                )
+                return updated_user is not None
+        except ValueError as e:
+            logger.warning(f"更新用户失败（业务逻辑） | username={username}: {e}")
+            return False
         except Exception as e:
             logger.error(f"更新用户失败 | username={username}: {e}", exc_info=True)
             return False
@@ -145,19 +109,13 @@ class UserService:
     async def update_password(username: str, hashed_password: str) -> bool:
         """更新用户密码"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.username == username)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-
+            async with UserRepository() as user_repo:
+                user = await user_repo.get_by_username(username)
                 if not user:
                     logger.warning(f"用户不存在 | username={username}")
                     return False
 
-                user.hashed_password = hashed_password  # type: ignore[assignment]
-                await session.commit()
-                logger.info(f"✅ 用户密码更新成功 | username={username}")
-                return True
+                return await user_repo.update_password(user.id, hashed_password)
         except Exception as e:
             logger.error(f"更新用户密码失败 | username={username}: {e}", exc_info=True)
             return False
@@ -166,17 +124,13 @@ class UserService:
     async def delete_user(username: str) -> bool:
         """删除用户"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = delete(User).where(User.username == username)
-                result = await session.execute(stmt)
-                await session.commit()
-                # In SQLAlchemy 2.0, use cursor.rowcount from the underlying connection
-                count = result.rowcount if hasattr(result, "rowcount") else 0
-                if count > 0:
-                    logger.info(f"✅ 用户删除成功 | username={username}")
-                    return True
-                logger.warning(f"用户不存在 | username={username}")
-                return False
+            async with UserRepository() as user_repo:
+                user = await user_repo.get_by_username(username)
+                if not user:
+                    logger.warning(f"用户不存在 | username={username}")
+                    return False
+
+                return await user_repo.delete(user.id)
         except Exception as e:
             logger.error(f"删除用户失败 | username={username}: {e}", exc_info=True)
             return False
@@ -185,10 +139,8 @@ class UserService:
     async def list_users(limit: int = 100, offset: int = 0) -> List[User]:
         """列出所有用户"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).offset(offset).limit(limit)
-                result = await session.execute(stmt)
-                return cast(List[User], list(result.scalars().all()))
+            async with UserRepository() as user_repo:
+                return await user_repo.list_users(limit=limit, offset=offset)
         except Exception as e:
             logger.error(f"获取用户列表失败: {e}", exc_info=True)
             return []
@@ -197,16 +149,12 @@ class UserService:
     async def update_last_login(username: str) -> bool:
         """更新用户最后登录时间"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.username == username)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
+            async with UserRepository() as user_repo:
+                user = await user_repo.get_by_username(username)
+                if not user:
+                    return False
 
-                if user:
-                    user.last_login_at = datetime.now()  # type: ignore[assignment]
-                    await session.commit()
-                    return True
-                return False
+                return await user_repo.update_last_login(user.id)
         except Exception as e:
             logger.error(f"更新最后登录时间失败 | username={username}: {e}", exc_info=True)
             return False
@@ -215,23 +163,13 @@ class UserService:
     async def enable_mfa(username: str, secret: str, recovery_codes: List[str]) -> bool:
         """启用多因素认证"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.username == username)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-
+            async with UserRepository() as user_repo:
+                user = await user_repo.get_by_username(username)
                 if not user:
                     logger.warning(f"用户不存在 | username={username}")
                     return False
 
-                import json
-
-                user.mfa_enabled = True  # type: ignore[assignment]
-                user.mfa_secret = secret  # type: ignore[assignment]
-                user.recovery_codes = json.dumps(recovery_codes)  # type: ignore[assignment]
-                await session.commit()
-                logger.info(f"✅ MFA已启用 | username={username}")
-                return True
+                return await user_repo.enable_mfa(user.id, secret, recovery_codes)
         except Exception as e:
             logger.error(f"启用MFA失败 | username={username}: {e}", exc_info=True)
             return False
@@ -240,21 +178,13 @@ class UserService:
     async def disable_mfa(username: str) -> bool:
         """禁用多因素认证"""
         try:
-            async with AsyncSessionLocal() as session:
-                stmt = select(User).where(User.username == username)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-
+            async with UserRepository() as user_repo:
+                user = await user_repo.get_by_username(username)
                 if not user:
                     logger.warning(f"用户不存在 | username={username}")
                     return False
 
-                user.mfa_enabled = False  # type: ignore[assignment]
-                user.mfa_secret = None  # type: ignore[assignment]
-                user.recovery_codes = None  # type: ignore[assignment]
-                await session.commit()
-                logger.info(f"✅ MFA已禁用 | username={username}")
-                return True
+                return await user_repo.disable_mfa(user.id)
         except Exception as e:
             logger.error(f"禁用MFA失败 | username={username}: {e}", exc_info=True)
             return False

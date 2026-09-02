@@ -2,6 +2,7 @@
 """
 安全管理高级API路由
 实现25个安全管理相关的API端点
+使用数据库持久化存储
 """
 
 import logging
@@ -9,10 +10,13 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.command_guard import analyze_command, get_audit_log
+from core.database import get_db
+from core.repositories.security_repository import SecurityRepository
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/security", tags=["安全管理高级API"])
@@ -33,39 +37,9 @@ def _verify_access(request: Request, x_internal_key: Optional[str] = None) -> No
         raise HTTPException(status_code=403, detail="仅供本地调用")
 
 
-# Data stores
-_keys_store: Dict[str, Dict] = {}
-_mfa_methods: Dict[str, Dict] = {}
-_abac_policies: Dict[str, Dict] = {}
-_rbac_roles: Dict[str, Dict] = {}
-_rate_limit_rules: Dict[str, Dict] = {}
-_certificates: List[Dict] = []
-_snapshots: List[Dict] = []
-_data_keys: List[Dict] = []
-_privacy_subjects: List[Dict] = []
-_compliance_policies: List[Dict] = []
-_compliance_standards: List[Dict] = []
-_database_instances: List[Dict] = []
-_api_endpoints: List[Dict] = []
-_input_validation_rules: List[Dict] = []
-_penetration_projects: List[Dict] = []
-_security_tests: List[Dict] = []
-_vulnerability_tickets: List[Dict] = []
-_threat_intel: List[Dict] = []
-_vulnerability_scans: List[Dict] = []
-_audit_reports: List[Dict] = []
-_operation_records: List[Dict] = []
-_command_rewrite_rules: Dict[str, Dict] = {}
-_command_guard_rules: Dict[str, Dict] = {}
-
-
-def _init_data(store, sample_data):
-    if not store:
-        if isinstance(store, dict):
-            for item in sample_data:
-                store[item["id"]] = item
-        else:
-            store.extend(sample_data)
+def _get_repository(db: Session) -> SecurityRepository:
+    """获取Security Repository实例"""
+    return SecurityRepository(db)
 
 
 # 1. Key Management
@@ -83,57 +57,108 @@ class KeyUpdateRequest(BaseModel):
 
 
 @router.get("/key-management/keys")
-async def get_keys(status: Optional[str] = None) -> Dict[str, Any]:
-    _init_data(
-        _keys_store,
-        [
+async def get_keys(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    keys = repo.get_keys(status=status)
+    return {
+        "keys": [
             {
-                "id": str(uuid.uuid4()),
-                "name": "Sample Key",
-                "type": "api_key",
-                "status": "active",
-                "createdAt": datetime.now().isoformat(),
+                "id": k.id,
+                "name": k.name,
+                "type": k.key_type,
+                "algorithm": k.algorithm,
+                "keySize": k.key_size,
+                "status": k.status,
+                "createdAt": k.created_at.isoformat() if k.created_at else None,
+                "expiresAt": k.expires_at.isoformat() if k.expires_at else None,
+                "lastRotated": k.last_rotated_at.isoformat() if k.last_rotated_at else None,
+                "lastUsed": k.last_used_at.isoformat() if k.last_used_at else None,
+                "autoRenew": k.auto_renew,
+                "usage": k.usage,
             }
+            for k in keys
         ],
-    )
-    keys = list(_keys_store.values())
-    if status:
-        keys = [k for k in keys if k.get("status") == status]
-    return {"keys": keys, "total": len(keys)}
+        "total": len(keys),
+    }
 
 
 @router.post("/key-management/keys")
-async def create_key(req: KeyCreateRequest) -> Dict[str, Any]:
-    key_id = str(uuid.uuid4())
-    now = datetime.now()
-    new_key = {
-        "id": key_id,
-        "name": req.name,
-        "type": req.type,
-        "algorithm": req.algorithm,
-        "keySize": req.keySize,
-        "status": "active",
-        "createdAt": now.isoformat(),
-        "expiresAt": (now + timedelta(days=365)).isoformat(),
-        "lastRotated": now.isoformat(),
-        "lastUsed": None,
-        "usage": req.usage,
-    }
-    _keys_store[key_id] = new_key
+async def create_key(
+    req: KeyCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    # Generate encrypted key value (in production, use proper encryption)
+    import secrets
+    import os
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.backends import default_backend
+    
+    # Generate a random key
+    key_value = secrets.token_urlsafe(32)
+    
+    # Encrypt the key (simplified - in production use proper key management)
+    encryption_key = os.getenv("ENCRYPTION_KEY", "default-encryption-key-32-bytes-long!!")
+    iv = os.urandom(16)
+    cipher = Cipher(algorithms.AES(encryption_key[:32].encode()), modes.CFB(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    encrypted_key = encryptor.update(key_value.encode()) + encryptor.finalize()
+    
+    key = repo.create_key(
+        name=req.name,
+        key_type=req.type,
+        algorithm=req.algorithm,
+        key_size=req.keySize,
+        encrypted_key_value=encrypted_key.hex(),
+        encrypted_key_iv=iv.hex(),
+        usage=req.usage,
+    )
+    
     logger.info(f"创建密钥: {req.name}")
-    return new_key
+    return {
+        "id": key.id,
+        "name": key.name,
+        "type": key.key_type,
+        "algorithm": key.algorithm,
+        "keySize": key.key_size,
+        "status": key.status,
+        "createdAt": key.created_at.isoformat() if key.created_at else None,
+        "expiresAt": key.expires_at.isoformat() if key.expires_at else None,
+        "lastRotated": key.last_rotated_at.isoformat() if key.last_rotated_at else None,
+        "lastUsed": key.last_used_at.isoformat() if key.last_used_at else None,
+        "autoRenew": key.auto_renew,
+        "usage": key.usage,
+    }
 
 
 @router.patch("/key-management/keys/{key_id}")
-async def update_key(key_id: str, req: KeyUpdateRequest) -> Dict[str, Any]:
-    if key_id not in _keys_store:
+async def update_key(
+    key_id: str,
+    req: KeyUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    key = repo.update_key(key_id, status=req.status, auto_renew=req.autoRenew)
+    if not key:
         raise HTTPException(status_code=404, detail="密钥不存在")
-    if req.status is not None:
-        _keys_store[key_id]["status"] = req.status
-    if req.autoRenew is not None:
-        _keys_store[key_id]["autoRenew"] = req.autoRenew
     logger.info(f"更新密钥: {key_id}")
-    return _keys_store[key_id]
+    return {
+        "id": key.id,
+        "name": key.name,
+        "type": key.key_type,
+        "algorithm": key.algorithm,
+        "keySize": key.key_size,
+        "status": key.status,
+        "createdAt": key.created_at.isoformat() if key.created_at else None,
+        "expiresAt": key.expires_at.isoformat() if key.expires_at else None,
+        "lastRotated": key.last_rotated_at.isoformat() if key.last_rotated_at else None,
+        "lastUsed": key.last_used_at.isoformat() if key.last_used_at else None,
+        "autoRenew": key.auto_renew,
+        "usage": key.usage,
+    }
 
 
 # 2. MFA
@@ -150,49 +175,71 @@ class MfaMethodUpdateRequest(BaseModel):
 
 
 @router.get("/mfa/methods")
-async def get_mfa_methods() -> Dict[str, Any]:
-    _init_data(
-        _mfa_methods,
-        [
+async def get_mfa_methods(
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    methods = repo.get_mfa_methods()
+    return {
+        "methods": [
             {
-                "id": str(uuid.uuid4()),
-                "type": "totp",
-                "name": "TOTP",
-                "enabled": True,
-                "required": True,
+                "id": m.id,
+                "type": m.method_type,
+                "name": m.name,
+                "description": m.description,
+                "enabled": m.enabled,
+                "required": m.required,
+                "priority": m.priority,
             }
-        ],
-    )
-    return {"methods": list(_mfa_methods.values())}
+            for m in methods
+        ]
+    }
 
 
 @router.post("/mfa/methods")
-async def create_mfa_method(req: MfaMethodCreateRequest) -> Dict[str, Any]:
-    method_id = str(uuid.uuid4())
-    new_method = {
-        "id": method_id,
-        "type": req.type,
-        "name": req.name,
-        "description": req.description,
-        "enabled": True,
-        "required": False,
-        "priority": req.priority,
-    }
-    _mfa_methods[method_id] = new_method
+async def create_mfa_method(
+    req: MfaMethodCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    method = repo.create_mfa_method(
+        method_type=req.type,
+        name=req.name,
+        description=req.description,
+        priority=req.priority,
+    )
     logger.info(f"创建MFA方法: {req.name}")
-    return new_method
+    return {
+        "id": method.id,
+        "type": method.method_type,
+        "name": method.name,
+        "description": method.description,
+        "enabled": method.enabled,
+        "required": method.required,
+        "priority": method.priority,
+    }
 
 
 @router.patch("/mfa/methods/{method_id}")
-async def update_mfa_method(method_id: str, req: MfaMethodUpdateRequest) -> Dict[str, Any]:
-    if method_id not in _mfa_methods:
+async def update_mfa_method(
+    method_id: str,
+    req: MfaMethodUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    method = repo.update_mfa_method(method_id, enabled=req.enabled, required=req.required)
+    if not method:
         raise HTTPException(status_code=404, detail="MFA方法不存在")
-    if req.enabled is not None:
-        _mfa_methods[method_id]["enabled"] = req.enabled
-    if req.required is not None:
-        _mfa_methods[method_id]["required"] = req.required
     logger.info(f"更新MFA方法: {method_id}")
-    return _mfa_methods[method_id]
+    return {
+        "id": method.id,
+        "type": method.method_type,
+        "name": method.name,
+        "description": method.description,
+        "enabled": method.enabled,
+        "required": method.required,
+        "priority": method.priority,
+    }
 
 
 # 3. ABAC
@@ -208,45 +255,80 @@ class AbacPolicyUpdateRequest(BaseModel):
 
 
 @router.get("/abac/policies")
-async def get_abac_policies() -> Dict[str, Any]:
-    _init_data(
-        _abac_policies,
-        [{"id": str(uuid.uuid4()), "name": "Admin Policy", "effect": "allow", "enabled": True}],
-    )
-    return {"policies": list(_abac_policies.values()), "total": len(_abac_policies)}
+async def get_abac_policies(
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    policies = repo.get_abac_policies()
+    return {
+        "policies": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "effect": p.effect,
+                "resources": p.resources,
+                "actions": p.actions,
+                "enabled": p.enabled,
+            }
+            for p in policies
+        ],
+        "total": len(policies),
+    }
 
 
 @router.post("/abac/policies")
-async def create_abac_policy(req: AbacPolicyCreateRequest) -> Dict[str, Any]:
-    policy_id = str(uuid.uuid4())
-    new_policy = {
-        "id": policy_id,
-        "name": req.name,
-        "effect": req.effect,
-        "resources": req.resources,
-        "actions": req.actions,
-        "enabled": True,
-    }
-    _abac_policies[policy_id] = new_policy
+async def create_abac_policy(
+    req: AbacPolicyCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    policy = repo.create_abac_policy(
+        name=req.name,
+        effect=req.effect,
+        resources=req.resources,
+        actions=req.actions,
+    )
     logger.info(f"创建ABAC策略: {req.name}")
-    return new_policy
+    return {
+        "id": policy.id,
+        "name": policy.name,
+        "effect": policy.effect,
+        "resources": policy.resources,
+        "actions": policy.actions,
+        "enabled": policy.enabled,
+    }
 
 
 @router.patch("/abac/policies/{policy_id}")
-async def update_abac_policy(policy_id: str, req: AbacPolicyUpdateRequest) -> Dict[str, Any]:
-    if policy_id not in _abac_policies:
+async def update_abac_policy(
+    policy_id: str,
+    req: AbacPolicyUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    policy = repo.update_abac_policy(policy_id, enabled=req.enabled)
+    if not policy:
         raise HTTPException(status_code=404, detail="策略不存在")
-    if req.enabled is not None:
-        _abac_policies[policy_id]["enabled"] = req.enabled
     logger.info(f"更新ABAC策略: {policy_id}")
-    return _abac_policies[policy_id]
+    return {
+        "id": policy.id,
+        "name": policy.name,
+        "effect": policy.effect,
+        "resources": policy.resources,
+        "actions": policy.actions,
+        "enabled": policy.enabled,
+    }
 
 
 @router.delete("/abac/policies/{policy_id}")
-async def delete_abac_policy(policy_id: str) -> Dict[str, Any]:
-    if policy_id not in _abac_policies:
+async def delete_abac_policy(
+    policy_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    success = repo.delete_abac_policy(policy_id)
+    if not success:
         raise HTTPException(status_code=404, detail="策略不存在")
-    del _abac_policies[policy_id]
     logger.info(f"删除ABAC策略: {policy_id}")
     return {"success": True}
 
@@ -262,43 +344,72 @@ class RbacRoleUpdateRequest(BaseModel):
 
 
 @router.get("/rbac/roles")
-async def get_rbac_roles() -> Dict[str, Any]:
-    _init_data(
-        _rbac_roles,
-        [{"id": str(uuid.uuid4()), "name": "Admin", "permissions": ["*"], "status": "active"}],
-    )
-    return {"roles": list(_rbac_roles.values()), "total": len(_rbac_roles)}
+async def get_rbac_roles(
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    roles = repo.get_rbac_roles()
+    return {
+        "roles": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "permissions": r.permissions,
+                "status": r.status,
+            }
+            for r in roles
+        ],
+        "total": len(roles),
+    }
 
 
 @router.post("/rbac/roles")
-async def create_rbac_role(req: RbacRoleCreateRequest) -> Dict[str, Any]:
-    role_id = str(uuid.uuid4())
-    new_role = {
-        "id": role_id,
-        "name": req.name,
-        "permissions": req.permissions,
-        "status": "active",
-    }
-    _rbac_roles[role_id] = new_role
+async def create_rbac_role(
+    req: RbacRoleCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    role = repo.create_rbac_role(
+        name=req.name,
+        permissions=req.permissions,
+    )
     logger.info(f"创建RBAC角色: {req.name}")
-    return new_role
+    return {
+        "id": role.id,
+        "name": role.name,
+        "permissions": role.permissions,
+        "status": role.status,
+    }
 
 
 @router.patch("/rbac/roles/{role_id}")
-async def update_rbac_role(role_id: str, req: RbacRoleUpdateRequest) -> Dict[str, Any]:
-    if role_id not in _rbac_roles:
+async def update_rbac_role(
+    role_id: str,
+    req: RbacRoleUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    role = repo.update_rbac_role(role_id, status=req.status)
+    if not role:
         raise HTTPException(status_code=404, detail="角色不存在")
-    if req.status is not None:
-        _rbac_roles[role_id]["status"] = req.status
     logger.info(f"更新RBAC角色: {role_id}")
-    return _rbac_roles[role_id]
+    return {
+        "id": role.id,
+        "name": role.name,
+        "permissions": role.permissions,
+        "status": role.status,
+    }
 
 
 @router.delete("/rbac/roles/{role_id}")
-async def delete_rbac_role(role_id: str) -> Dict[str, Any]:
-    if role_id not in _rbac_roles:
+async def delete_rbac_role(
+    role_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    success = repo.delete_rbac_role(role_id)
+    if not success:
         raise HTTPException(status_code=404, detail="角色不存在")
-    del _rbac_roles[role_id]
     logger.info(f"删除RBAC角色: {role_id}")
     return {"success": True}
 
@@ -315,52 +426,82 @@ class RateLimitRuleUpdateRequest(BaseModel):
 
 
 @router.get("/rate-limit/rules")
-async def get_rate_limit_rules() -> Dict[str, Any]:
-    _init_data(
-        _rate_limit_rules,
-        [
+async def get_rate_limit_rules(
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rules = repo.get_rate_limit_rules()
+    return {
+        "rules": [
             {
-                "id": str(uuid.uuid4()),
-                "name": "API Limit",
-                "endpoint": "/api/*",
-                "limit": 1000,
-                "enabled": True,
+                "id": r.id,
+                "name": r.name,
+                "endpoint": r.endpoint,
+                "limit": r.limit,
+                "windowSeconds": r.window_seconds,
+                "strategy": r.strategy,
+                "enabled": r.enabled,
             }
+            for r in rules
         ],
-    )
-    return {"rules": list(_rate_limit_rules.values()), "total": len(_rate_limit_rules)}
+        "total": len(rules),
+    }
 
 
 @router.post("/rate-limit/rules")
-async def create_rate_limit_rule(req: RateLimitRuleCreateRequest) -> Dict[str, Any]:
-    rule_id = str(uuid.uuid4())
-    new_rule = {
-        "id": rule_id,
-        "name": req.name,
-        "endpoint": req.endpoint,
-        "limit": req.limit,
-        "enabled": True,
-    }
-    _rate_limit_rules[rule_id] = new_rule
+async def create_rate_limit_rule(
+    req: RateLimitRuleCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rule = repo.create_rate_limit_rule(
+        name=req.name,
+        endpoint=req.endpoint,
+        limit=req.limit,
+    )
     logger.info(f"创建速率限制规则: {req.name}")
-    return new_rule
+    return {
+        "id": rule.id,
+        "name": rule.name,
+        "endpoint": rule.endpoint,
+        "limit": rule.limit,
+        "windowSeconds": rule.window_seconds,
+        "strategy": rule.strategy,
+        "enabled": rule.enabled,
+    }
 
 
 @router.patch("/rate-limit/rules/{rule_id}")
-async def update_rate_limit_rule(rule_id: str, req: RateLimitRuleUpdateRequest) -> Dict[str, Any]:
-    if rule_id not in _rate_limit_rules:
+async def update_rate_limit_rule(
+    rule_id: str,
+    req: RateLimitRuleUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rule = repo.update_rate_limit_rule(rule_id, enabled=req.enabled)
+    if not rule:
         raise HTTPException(status_code=404, detail="规则不存在")
-    if req.enabled is not None:
-        _rate_limit_rules[rule_id]["enabled"] = req.enabled
     logger.info(f"更新速率限制规则: {rule_id}")
-    return _rate_limit_rules[rule_id]
+    return {
+        "id": rule.id,
+        "name": rule.name,
+        "endpoint": rule.endpoint,
+        "limit": rule.limit,
+        "windowSeconds": rule.window_seconds,
+        "strategy": rule.strategy,
+        "enabled": rule.enabled,
+    }
 
 
 @router.delete("/rate-limit/rules/{rule_id}")
-async def delete_rate_limit_rule(rule_id: str) -> Dict[str, Any]:
-    if rule_id not in _rate_limit_rules:
+async def delete_rate_limit_rule(
+    rule_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    success = repo.delete_rate_limit_rule(rule_id)
+    if not success:
         raise HTTPException(status_code=404, detail="规则不存在")
-    del _rate_limit_rules[rule_id]
     logger.info(f"删除速率限制规则: {rule_id}")
     return {"success": True}
 
@@ -376,31 +517,91 @@ class CertificateUpdateRequest(BaseModel):
 
 
 @router.get("/https/certificates")
-async def get_certificates() -> Dict[str, Any]:
-    _init_data(
-        _certificates, [{"id": str(uuid.uuid4()), "domain": "example.com", "status": "valid"}]
-    )
-    return {"certificates": _certificates, "total": len(_certificates)}
+async def get_certificates(
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    certs = repo.get_https_certificates()
+    return {
+        "certificates": [
+            {
+                "id": c.id,
+                "domain": c.domain,
+                "status": c.status,
+                "algorithm": c.algorithm,
+                "issuer": c.issuer,
+                "issuedAt": c.issued_at.isoformat() if c.issued_at else None,
+                "expiresAt": c.expires_at.isoformat() if c.expires_at else None,
+                "autoRenew": c.auto_renew,
+            }
+            for c in certs
+        ],
+        "total": len(certs),
+    }
 
 
 @router.post("/https/certificates")
-async def create_certificate(req: CertificateCreateRequest) -> Dict[str, Any]:
-    cert_id = str(uuid.uuid4())
-    new_cert = {"id": cert_id, "domain": req.domain, "status": "valid"}
-    _certificates.append(new_cert)
+async def create_certificate(
+    req: CertificateCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    # In production, generate real certificate
+    import os
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.backends import default_backend
+    
+    # Generate placeholder certificate data
+    cert_pem = f"-----BEGIN CERTIFICATE-----\nPLACEHOLDER CERTIFICATE FOR {req.domain}\n-----END CERTIFICATE-----"
+    
+    # Encrypt private key
+    encryption_key = os.getenv("ENCRYPTION_KEY", "default-encryption-key-32-bytes-long!!")
+    iv = os.urandom(16)
+    cipher = Cipher(algorithms.AES(encryption_key[:32].encode()), modes.CFB(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    private_key_encrypted = encryptor.update(b"placeholder_private_key") + encryptor.finalize()
+    
+    cert = repo.create_https_certificate(
+        domain=req.domain,
+        certificate_pem=cert_pem,
+        private_key_encrypted=private_key_encrypted.hex(),
+        private_key_iv=iv.hex(),
+        algorithm=req.algorithm,
+    )
     logger.info(f"创建SSL证书: {req.domain}")
-    return new_cert
+    return {
+        "id": cert.id,
+        "domain": cert.domain,
+        "status": cert.status,
+        "algorithm": cert.algorithm,
+        "issuer": cert.issuer,
+        "issuedAt": cert.issued_at.isoformat() if cert.issued_at else None,
+        "expiresAt": cert.expires_at.isoformat() if cert.expires_at else None,
+        "autoRenew": cert.auto_renew,
+    }
 
 
 @router.patch("/https/certificates/{cert_id}")
-async def update_certificate(cert_id: str, req: CertificateUpdateRequest) -> Dict[str, Any]:
-    for cert in _certificates:
-        if cert["id"] == cert_id:
-            if req.autoRenew is not None:
-                cert["autoRenew"] = req.autoRenew
-            logger.info(f"更新SSL证书: {cert_id}")
-            return cert
-    raise HTTPException(status_code=404, detail="证书不存在")
+async def update_certificate(
+    cert_id: str,
+    req: CertificateUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    cert = repo.update_https_certificate(cert_id, auto_renew=req.autoRenew)
+    if not cert:
+        raise HTTPException(status_code=404, detail="证书不存在")
+    logger.info(f"更新SSL证书: {cert_id}")
+    return {
+        "id": cert.id,
+        "domain": cert.domain,
+        "status": cert.status,
+        "algorithm": cert.algorithm,
+        "issuer": cert.issuer,
+        "issuedAt": cert.issued_at.isoformat() if cert.issued_at else None,
+        "expiresAt": cert.expires_at.isoformat() if cert.expires_at else None,
+        "autoRenew": cert.auto_renew,
+    }
 
 
 # 7. Snapshot Encryption

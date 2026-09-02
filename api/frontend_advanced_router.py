@@ -8,29 +8,35 @@ Advanced API endpoints for frontend enhancements including:
 - Theme management (CRUD)
 - Layout management (CRUD)
 - Localization management
+
+Features:
+- Database persistence via Repository pattern
+- JWT authentication
+- RBAC authorization
+- Rate limiting
 """
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from loguru import logger
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.database import get_db
+from core.repositories.frontend_repository_impl import FrontendRepositoryImpl
+from api.middleware.auth_middleware import get_current_active_user
+from api.middleware.rbac_auth_middleware import require_permission
+from core.models import User
 
 router = APIRouter(prefix="/api/v1/frontend", tags=["前端增强"])
 
-# Try to import frontend enhancement manager
-try:
-    from core.frontend_enhancement import (
-        ThemeType,
-        frontend_enhancement_manager,
-    )
-
-    FRONTEND_AVAILABLE = True
-except ImportError:
-    FRONTEND_AVAILABLE = False
-    logger.warning("Frontend enhancement manager not available")
+# Rate limiting configuration
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+limiter = Limiter(key_func=get_remote_address)
 
 
 # Pydantic Models
@@ -183,19 +189,10 @@ class LocalizationUpdate(BaseModel):
     }
 
 
-# In-memory storage
-components: Dict[str, Dict[str, Any]] = {}
-themes: Dict[str, Dict[str, Any]] = {}
-layouts: Dict[str, Dict[str, Any]] = {}
-localization: Dict[str, Dict[str, str]] = {
-    "en-US": {
-        "welcome": "Welcome",
-        "dashboard": "Dashboard",
-        "settings": "Settings",
-        "logout": "Logout",
-    },
-    "zh-CN": {"welcome": "欢迎", "dashboard": "仪表板", "settings": "设置", "logout": "退出"},
-}
+# Repository dependency
+async def get_frontend_repository(db: AsyncSession = Depends(get_db)) -> FrontendRepositoryImpl:
+    """获取Frontend Repository实例"""
+    return FrontendRepositoryImpl(session=db)
 
 
 @router.get(
@@ -203,9 +200,12 @@ localization: Dict[str, Dict[str, str]] = {
     summary="列出所有组件",
     responses={
         200: {"description": "组件列表"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
+@limiter.limit("100/minute")
 async def list_components(
     type: Optional[str] = Query(None, description="按组件类型过滤"),
     category: Optional[str] = Query(None, description="按分类过滤"),
@@ -213,33 +213,30 @@ async def list_components(
     status: Optional[str] = Query(None, description="按状态过滤"),
     limit: int = Query(default=100, ge=1, le=500, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    current_user: User = Depends(require_permission("components:read")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
 ) -> Dict[str, Any]:
     """
     获取组件列表，支持过滤和分页
     """
     try:
-        filtered_components = list(components.values())
-
-        # Apply filters
+        filters = {}
         if type:
-            filtered_components = [c for c in filtered_components if c.get("type") == type]
+            filters["type"] = type
         if category:
-            filtered_components = [c for c in filtered_components if c.get("category") == category]
+            filters["category"] = category
         if is_public is not None:
-            filtered_components = [
-                c for c in filtered_components if c.get("is_public") == is_public
-            ]
+            filters["is_public"] = is_public
         if status:
-            filtered_components = [c for c in filtered_components if c.get("status") == status]
+            filters["status"] = status
 
-        # Apply pagination
-        total = len(filtered_components)
-        paginated_components = filtered_components[offset : offset + limit]
+        components = await repo.list_components(filters=filters, limit=limit, offset=offset)
+        total = await repo.count_components(filters=filters)
 
         return {
             "status": "success",
             "data": {
-                "components": paginated_components,
+                "components": components,
                 "total": total,
                 "limit": limit,
                 "offset": offset,
@@ -257,11 +254,18 @@ async def list_components(
     responses={
         201: {"description": "组件创建成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "创建失败"},
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_component(request: ComponentCreate) -> Dict[str, Any]:
+@limiter.limit("20/minute")
+async def create_component(
+    request: ComponentCreate,
+    current_user: User = Depends(require_permission("components:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     创建新组件
     """
@@ -269,13 +273,9 @@ async def create_component(request: ComponentCreate) -> Dict[str, Any]:
         # Generate component_id if not provided
         component_id = request.component_id or f"comp-{uuid4().hex[:8]}"
 
-        # Check if component already exists
-        if component_id in components:
-            raise HTTPException(status_code=400, detail="组件ID已存在")
-
-        # Create component
-        component = {
-            "component_id": component_id,
+        # Create component data
+        component_data = {
+            "id": component_id,
             "name": request.name,
             "type": request.type,
             "category": request.category,
@@ -285,11 +285,11 @@ async def create_component(request: ComponentCreate) -> Dict[str, Any]:
             "dependencies": request.dependencies or [],
             "is_public": request.is_public,
             "status": "active",
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_by": current_user.username,
         }
 
-        components[component_id] = component
+        created_id = await repo.create_component(component_data)
+        component = await repo.get_component(created_id)
 
         return {"status": "success", "data": component, "timestamp": datetime.utcnow().isoformat()}
     except HTTPException:
@@ -304,16 +304,23 @@ async def create_component(request: ComponentCreate) -> Dict[str, Any]:
     summary="获取组件详情",
     responses={
         200: {"description": "组件详情"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         404: {"description": "组件未找到"},
         500: {"description": "获取失败"},
     },
 )
-async def get_component(component_id: str) -> Dict[str, Any]:
+@limiter.limit("100/minute")
+async def get_component(
+    component_id: str,
+    current_user: User = Depends(require_permission("components:read")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     根据ID获取组件详情
     """
     try:
-        component = components.get(component_id)
+        component = await repo.get_component(component_id)
         if not component:
             raise HTTPException(status_code=404, detail="组件未找到")
 
@@ -332,36 +339,43 @@ async def get_component(component_id: str) -> Dict[str, Any]:
         200: {"description": "组件更新成功"},
         404: {"description": "组件未找到"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "更新失败"},
     },
 )
-async def update_component(component_id: str, request: ComponentUpdate) -> Dict[str, Any]:
+@limiter.limit("50/minute")
+async def update_component(
+    component_id: str,
+    request: ComponentUpdate,
+    current_user: User = Depends(require_permission("components:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     更新组件信息
     """
     try:
-        component = components.get(component_id)
-        if not component:
+        updates = {}
+        if request.name is not None:
+            updates["name"] = request.name
+        if request.description is not None:
+            updates["description"] = request.description
+        if request.props is not None:
+            updates["props"] = request.props
+        if request.code is not None:
+            updates["code"] = request.code
+        if request.dependencies is not None:
+            updates["dependencies"] = request.dependencies
+        if request.is_public is not None:
+            updates["is_public"] = request.is_public
+        if request.status is not None:
+            updates["status"] = request.status
+
+        success = await repo.update_component(component_id, updates)
+        if not success:
             raise HTTPException(status_code=404, detail="组件未找到")
 
-        # Update fields
-        if request.name is not None:
-            component["name"] = request.name
-        if request.description is not None:
-            component["description"] = request.description
-        if request.props is not None:
-            component["props"].update(request.props)
-        if request.code is not None:
-            component["code"] = request.code
-        if request.dependencies is not None:
-            component["dependencies"] = request.dependencies
-        if request.is_public is not None:
-            component["is_public"] = request.is_public
-        if request.status is not None:
-            component["status"] = request.status
-
-        component["updated_at"] = datetime.utcnow().isoformat()
-
+        component = await repo.get_component(component_id)
         return {"status": "success", "data": component, "timestamp": datetime.utcnow().isoformat()}
     except HTTPException:
         raise
@@ -376,20 +390,24 @@ async def update_component(component_id: str, request: ComponentUpdate) -> Dict[
     responses={
         200: {"description": "组件删除成功"},
         404: {"description": "组件未找到"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "删除失败"},
     },
 )
-async def delete_component(component_id: str) -> Dict[str, Any]:
+@limiter.limit("20/minute")
+async def delete_component(
+    component_id: str,
+    current_user: User = Depends(require_permission("components:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     删除组件
     """
     try:
-        component = components.get(component_id)
-        if not component:
+        success = await repo.delete_component(component_id)
+        if not success:
             raise HTTPException(status_code=404, detail="组件未找到")
-
-        # Delete component
-        del components[component_id]
 
         return {
             "status": "success",
@@ -408,51 +426,37 @@ async def delete_component(component_id: str) -> Dict[str, Any]:
     summary="列出所有主题",
     responses={
         200: {"description": "主题列表"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
+@limiter.limit("100/minute")
 async def list_themes(
     base_theme: Optional[str] = Query(None, description="按基础主题过滤"),
     is_default: Optional[bool] = Query(None, description="是否为默认主题"),
     limit: int = Query(default=100, ge=1, le=500, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    current_user: User = Depends(require_permission("themes:read")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
 ) -> Dict[str, Any]:
     """
     获取主题列表，支持过滤和分页
     """
     try:
-        filtered_themes = list(themes.values())
-
-        # Apply filters
+        filters = {}
         if base_theme:
-            filtered_themes = [t for t in filtered_themes if t.get("base_theme") == base_theme]
+            filters["base_theme"] = base_theme
         if is_default is not None:
-            filtered_themes = [t for t in filtered_themes if t.get("is_default") == is_default]
+            filters["is_default"] = is_default
 
-        # Apply pagination
-        total = len(filtered_themes)
-        paginated_themes = filtered_themes[offset : offset + limit]
-
-        # Add built-in themes from frontend enhancement manager if available
-        built_in_themes = []
-        if FRONTEND_AVAILABLE:
-            for theme_type in ThemeType:
-                config = frontend_enhancement_manager.get_theme_config(theme_type)
-                built_in_themes.append(
-                    {
-                        "theme_id": f"builtin-{theme_type.value}",
-                        "name": f"Built-in {theme_type.value.title()}",
-                        "base_theme": theme_type.value,
-                        "colors": config,
-                        "is_builtin": True,
-                    }
-                )
+        themes = await repo.list_themes(filters=filters, limit=limit, offset=offset)
+        total = await repo.count_themes(filters=filters)
 
         return {
             "status": "success",
             "data": {
-                "themes": paginated_themes,
-                "built_in_themes": built_in_themes,
+                "themes": themes,
                 "total": total,
                 "limit": limit,
                 "offset": offset,
@@ -470,49 +474,37 @@ async def list_themes(
     responses={
         201: {"description": "主题创建成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "创建失败"},
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_theme(request: ThemeCreate) -> Dict[str, Any]:
+@limiter.limit("20/minute")
+async def create_theme(
+    request: ThemeCreate,
+    current_user: User = Depends(require_permission("themes:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     创建新主题
     """
     try:
-        # Generate theme_id if not provided
         theme_id = request.theme_id or f"theme-{uuid4().hex[:8]}"
 
-        # Check if theme already exists
-        if theme_id in themes:
-            raise HTTPException(status_code=400, detail="主题ID已存在")
-
-        # Create theme
-        theme = {
-            "theme_id": theme_id,
+        theme_data = {
+            "id": theme_id,
             "name": request.name,
             "base_theme": request.base_theme,
             "colors": request.colors,
             "fonts": request.fonts or {},
             "spacing": request.spacing or {},
             "is_default": request.is_default,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_by": current_user.username,
         }
 
-        themes[theme_id] = theme
-
-        # Add to frontend enhancement manager if available
-        if FRONTEND_AVAILABLE:
-            try:
-                base_theme_enum = ThemeType(request.base_theme)
-                frontend_enhancement_manager.create_custom_theme(
-                    theme_id=theme_id,
-                    name=request.name,
-                    colors=request.colors,
-                    base_theme=base_theme_enum,
-                )
-            except ValueError:
-                pass  # Ignore if base_theme is invalid
+        created_id = await repo.create_theme(theme_data)
+        theme = await repo.get_theme(created_id)
 
         return {"status": "success", "data": theme, "timestamp": datetime.utcnow().isoformat()}
     except HTTPException:
@@ -527,35 +519,37 @@ async def create_theme(request: ThemeCreate) -> Dict[str, Any]:
     summary="列出所有布局",
     responses={
         200: {"description": "布局列表"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
+@limiter.limit("100/minute")
 async def list_layouts(
     type: Optional[str] = Query(None, description="按布局类型过滤"),
     is_default: Optional[bool] = Query(None, description="是否为默认布局"),
     limit: int = Query(default=100, ge=1, le=500, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
+    current_user: User = Depends(require_permission("layouts:read")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
 ) -> Dict[str, Any]:
     """
     获取布局列表，支持过滤和分页
     """
     try:
-        filtered_layouts = list(layouts.values())
-
-        # Apply filters
+        filters = {}
         if type:
-            filtered_layouts = [l for l in filtered_layouts if l.get("type") == type]
+            filters["type"] = type
         if is_default is not None:
-            filtered_layouts = [l for l in filtered_layouts if l.get("is_default") == is_default]
+            filters["is_default"] = is_default
 
-        # Apply pagination
-        total = len(filtered_layouts)
-        paginated_layouts = filtered_layouts[offset : offset + limit]
+        layouts = await repo.list_layouts(filters=filters, limit=limit, offset=offset)
+        total = await repo.count_layouts(filters=filters)
 
         return {
             "status": "success",
             "data": {
-                "layouts": paginated_layouts,
+                "layouts": layouts,
                 "total": total,
                 "limit": limit,
                 "offset": offset,
@@ -573,35 +567,36 @@ async def list_layouts(
     responses={
         201: {"description": "布局创建成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未认证"},
+        403: {"description": "权限不足"},
         500: {"description": "创建失败"},
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_layout(request: LayoutCreate) -> Dict[str, Any]:
+@limiter.limit("20/minute")
+async def create_layout(
+    request: LayoutCreate,
+    current_user: User = Depends(require_permission("layouts:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     创建新布局
     """
     try:
-        # Generate layout_id if not provided
         layout_id = request.layout_id or f"layout-{uuid4().hex[:8]}"
 
-        # Check if layout already exists
-        if layout_id in layouts:
-            raise HTTPException(status_code=400, detail="布局ID已存在")
-
-        # Create layout
-        layout = {
-            "layout_id": layout_id,
+        layout_data = {
+            "id": layout_id,
             "name": request.name,
             "type": request.type,
             "structure": request.structure,
             "breakpoints": request.breakpoints or {},
             "is_default": request.is_default,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_by": current_user.username,
         }
 
-        layouts[layout_id] = layout
+        created_id = await repo.create_layout(layout_data)
+        layout = await repo.get_layout(created_id)
 
         return {"status": "success", "data": layout, "timestamp": datetime.utcnow().isoformat()}
     except HTTPException:

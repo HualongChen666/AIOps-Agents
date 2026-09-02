@@ -14,6 +14,7 @@ from core.api_error import (
 from core.api_governance import setup_api_governance
 from core.api_performance_optimizer import get_api_performance_optimizer
 from core.api_response_middleware import setup_api_response_middleware
+from core.middleware.rate_limit_middleware import rate_limit_middleware
 from core.audit_integration_manager import get_audit_integration_manager
 from core.business_metrics import setup_business_metrics
 from core.chaos_engineering import setup_chaos_engineering
@@ -146,6 +147,7 @@ from api.compliance_audit_router import router as compliance_audit_router
 from api.cost_advanced_router import router as cost_advanced_router
 from api.cost_router import router as cost_router
 from api.monitoring_config_router import router as monitoring_config_router
+from api.database_monitoring_router import router as database_monitoring_router
 from api.performance_optimization_router import router as performance_optimization_router
 from api.performance_router import router as performance_router
 from api.guard_router import router as guard_router
@@ -184,8 +186,7 @@ from api.unified_repair_advanced_router import (
     router_v1 as unified_repair_advanced_router_v1,
 )
 from api.unified_repair_router import router as unified_repair_router
-from api.users_router import router as users_router
-from api.users_advanced_router import router as users_advanced_router
+from api.users_unified_router import router as users_unified_router
 from api.vulnerability_router import router as vulnerability_router
 from api.websocket_router import router as websocket_router
 from api.windows_repair_router import router as windows_repair_router
@@ -692,6 +693,9 @@ app.add_exception_handler(
 # Apply API response middleware for unified format
 setup_api_response_middleware(app)
 
+# Apply rate limit middleware
+app.middleware("http")(rate_limit_middleware)
+
 # 🔧 P0 Security: Add input validation middleware
 add_input_validation_middleware(app)
 
@@ -801,6 +805,7 @@ CORE_ROUTERS = [
     builder_router,
     chart_aggregation_router,
     monitoring_config_router,
+    database_monitoring_router,
     performance_optimization_router,
     performance_router,
     health_router,
@@ -824,8 +829,7 @@ CORE_ROUTERS = [
     cost_advanced_router,
     auth_router,
     settings_router,
-    users_router,
-    users_advanced_router,
+    users_unified_router,
     assets_router,
     sso_router,
     slack_router,

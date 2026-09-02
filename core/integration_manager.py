@@ -21,7 +21,16 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, cast
 
 from loguru import logger
+from sqlalchemy.orm import Session
 
+from core.database import get_db
+from core.integration_repository import (
+    IntegrationRepository,
+    WebhookRepository,
+    WebhookEventRepository,
+    NotificationChannelRepository,
+    NotificationMessageRepository,
+)
 from core.observability_query import (
     DEFAULT_MAX_PROMQL_SAMPLES,
     QueryCache,
@@ -147,25 +156,27 @@ class IntegrationManager:
     Comprehensive integration manager for AIOps Agent
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, db: Optional[Session] = None):
         """
         Initialize integration manager
 
         Args:
             config: Configuration dictionary
+            db: Database session
         """
         self.config = config or {}
+        self.db = db
 
-        # Integration storage
+        # Integration storage (moved to database)
         self.integrations: Dict[str, IntegrationConfig] = {}
         self.integration_templates: Dict[str, Dict[str, Any]] = {}
 
-        # Webhook management
+        # Webhook management (moved to database)
         self.webhooks: Dict[str, Dict[str, Any]] = {}
         self.webhook_events: List[WebhookEvent] = []
         self.webhook_secret = self.config.get("webhook_secret", "default_secret_change_me")
 
-        # Notification channels
+        # Notification channels (moved to database)
         self.notification_channels: Dict[str, Dict[str, Any]] = {}
         self.notification_queue: List[NotificationMessage] = []
 
@@ -180,8 +191,9 @@ class IntegrationManager:
         # Initialize integration templates
         self._initialize_integration_templates()
 
-        # Initialize notification channels
-        self._initialize_notification_channels()
+        # Initialize notification channels from database if available
+        if self.db:
+            self._load_notification_channels_from_db()
 
         logger.info("Integration Manager initialized")
 
@@ -338,6 +350,28 @@ class IntegrationManager:
 
         logger.info(f"Initialized {len(self.notification_channels)} notification channels")
 
+    def _load_notification_channels_from_db(self) -> None:
+        """Load notification channels from database"""
+        if not self.db:
+            return
+
+        try:
+            channel_repo = NotificationChannelRepository(self.db)
+            channels = channel_repo.get_all(enabled=True)
+
+            for channel in channels:
+                self.notification_channels[channel.name] = {
+                    "name": channel.name,
+                    "type": channel.channel_type,
+                    "config": channel.config,
+                    "enabled": channel.enabled,
+                    "id": channel.id,
+                }
+
+            logger.info(f"Loaded {len(channels)} notification channels from database")
+        except Exception as e:
+            logger.error(f"Failed to load notification channels from database: {e}")
+
     async def register_integration(
         self,
         integration_type: IntegrationType,
@@ -357,10 +391,6 @@ class IntegrationManager:
         Returns:
             IntegrationConfig
         """
-        integration_id = (
-            f"{integration_type.value}_{name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        )
-
         # Validate config against template if available
         template_key = name.lower().replace(" ", "_")
         if template_key in self.integration_templates:
@@ -374,6 +404,60 @@ class IntegrationManager:
             merged_config = {**default_config, **config}
         else:
             merged_config = config
+
+        # Save to database if available
+        if self.db:
+            try:
+                integration_repo = IntegrationRepository(self.db)
+                integration_db = integration_repo.create(
+                    integration_type=integration_type.value,
+                    name=name,
+                    config=merged_config,
+                    enabled=enabled,
+                )
+
+                integration_id = integration_db.id
+                integration = IntegrationConfig(
+                    integration_id=integration_id,
+                    integration_type=integration_type,
+                    name=name,
+                    config=merged_config,
+                    enabled=enabled,
+                    status=IntegrationStatus.CONFIGURING,
+                )
+
+                # Test the integration
+                test_result = await self.test_integration(integration_id)
+                if test_result["success"]:
+                    integration.status = IntegrationStatus.ACTIVE
+                    integration.last_tested = datetime.now()
+                    integration_repo.update(
+                        integration_id,
+                        status="active",
+                        last_tested=datetime.now(),
+                    )
+                else:
+                    integration.status = IntegrationStatus.ERROR
+                    integration.last_error = test_result["error"]
+                    integration_repo.update(
+                        integration_id,
+                        status="error",
+                        last_error=test_result["error"],
+                    )
+
+                # Update in-memory cache
+                self.integrations[integration_id] = integration
+
+                logger.info(f"Registered integration: {integration_id}")
+                return integration
+            except Exception as e:
+                logger.error(f"Failed to register integration in database: {e}")
+                # Fall back to in-memory storage
+
+        # Fallback to in-memory storage
+        integration_id = (
+            f"{integration_type.value}_{name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        )
 
         integration = IntegrationConfig(
             integration_id=integration_id,
@@ -428,6 +512,28 @@ class IntegrationManager:
         Returns:
             Test result
         """
+        # Try to load from database if not in memory
+        if integration_id not in self.integrations and self.db:
+            try:
+                integration_repo = IntegrationRepository(self.db)
+                integration_db = integration_repo.get_by_id(integration_id)
+                if integration_db:
+                    # Convert to IntegrationConfig
+                    from core.integration_manager import IntegrationStatus
+                    integration = IntegrationConfig(
+                        integration_id=integration_db.id,
+                        integration_type=IntegrationType(integration_db.integration_type),
+                        name=integration_db.name,
+                        config=integration_db.config,
+                        enabled=integration_db.enabled,
+                        status=IntegrationStatus(integration_db.status),
+                        last_tested=integration_db.last_tested,
+                        last_error=integration_db.last_error,
+                    )
+                    self.integrations[integration_id] = integration
+            except Exception as e:
+                logger.error(f"Failed to load integration from database: {e}")
+
         if integration_id not in self.integrations:
             return {"success": False, "error": "Integration not found"}
 
@@ -1009,6 +1115,40 @@ class IntegrationManager:
 
     def get_integration_summary(self) -> Dict[str, Any]:
         """Get summary of all integrations"""
+        # Load from database if available
+        if self.db:
+            try:
+                integration_repo = IntegrationRepository(self.db)
+                webhook_repo = WebhookRepository(self.db)
+                webhook_event_repo = WebhookEventRepository(self.db)
+                
+                total_integrations = integration_repo.count()
+                active_integrations = integration_repo.count(status="active")
+                
+                integrations_by_type = {}
+                for integration_type in IntegrationType:
+                    integrations_by_type[integration_type.value] = integration_repo.count(
+                        integration_type=integration_type.value
+                    )
+                
+                webhooks_registered = len(webhook_repo.get_all())
+                webhook_events = webhook_event_repo.get_all()
+                webhook_events_processed = len([e for e in webhook_events if e.processed])
+                
+                return {
+                    "total_integrations": total_integrations,
+                    "active_integrations": active_integrations,
+                    "integrations_by_type": integrations_by_type,
+                    "webhooks_registered": webhooks_registered,
+                    "notification_channels": len(self.notification_channels),
+                    "pending_notifications": len(self.notification_queue),
+                    "webhook_events_processed": webhook_events_processed,
+                }
+            except Exception as e:
+                logger.error(f"Failed to get integration summary from database: {e}")
+                # Fall back to in-memory summary
+
+        # Fallback to in-memory summary
         return {
             "total_integrations": len(self.integrations),
             "active_integrations": sum(
@@ -1027,5 +1167,5 @@ class IntegrationManager:
         }
 
 
-# Global instance
+# Global instance (without database session - will be initialized with db in main app)
 integration_manager = IntegrationManager()
