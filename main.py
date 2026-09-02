@@ -293,6 +293,7 @@ if ENABLE_ADDONS:
         from api.root_cause_router import router as root_cause_router
         from api.root_cause_advanced_router import router as root_cause_advanced_router
     if RAG_ENABLED:
+        from api.knowledge_base_router import router as knowledge_base_router
         from api.qdrant_router import router as qdrant_router
         from api.rag_history_router import router as rag_history_router
         from api.rag_router import router as rag_router
@@ -870,6 +871,7 @@ ADDON_ROUTERS = [
     (rag_router, RAG_ENABLED),
     (rag_history_router, RAG_ENABLED),
     (qdrant_router, RAG_ENABLED),
+    (knowledge_base_router, RAG_ENABLED),
     # Observability & Topology Pack
     (metrics_router, METRICS_ENABLED),
     (topology_router, TOPOLOGY_ENABLED),

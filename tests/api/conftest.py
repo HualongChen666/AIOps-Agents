@@ -84,11 +84,13 @@ def client():
         from api.users_router import router as users_router
         from api.cost_router import router as cost_router
         from api.disaster_router import router as disaster_router
+        from api.knowledge_base_router import router as knowledge_base_router
 
         app = FastAPI()
         app.include_router(users_router)
         app.include_router(cost_router)
         app.include_router(disaster_router)
+        app.include_router(knowledge_base_router)
         with TestClient(app) as test_client:
             yield test_client
     finally:
