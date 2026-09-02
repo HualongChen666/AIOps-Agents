@@ -13,7 +13,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
+from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -22,12 +23,15 @@ from core.api_response_standard import (
     create_error_response,
     create_success_response,
 )
+from core.auth import check_rate_limit, get_current_user, require_permission
 from core.auth_db import get_session
+from core.database import get_db
 from core.models import (
     PluginListingDB,
     PluginReviewDB,
     PluginCategoryDB,
     InstalledPluginDB,
+    User,
 )
 from core.cache_manager import cache_manager, cache_key_generator
 
@@ -104,6 +108,8 @@ def _now() -> str:
     summary="获取插件列表",
     responses={
         200: {"description": "成功获取插件列表"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "服务器错误"},
     },
 )
@@ -113,12 +119,23 @@ async def get_plugin_listings(
     enabled: Optional[bool] = Query(None, description="按启用状态筛选"),
     limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ) -> Dict[str, Any]:
     """
     获取插件市场列表
 
     支持按分类、质量、启用状态筛选，支持分页。
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin marketplace listings requested by user {current_user.username} from {client_ip}")
+    
     try:
         # 生成缓存键
         cache_key = cache_key_generator(
@@ -204,15 +221,30 @@ async def get_plugin_listings(
     responses={
         201: {"description": "插件上传成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "服务器错误"},
     },
 )
-async def upload_plugin(request: PluginListingRequest) -> Dict[str, Any]:
+async def upload_plugin(
+    request: PluginListingRequest,
+    current_user: User = Depends(require_permission("plugin", "create")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> Dict[str, Any]:
     """
     上传新插件到市场
 
     创建新的插件列表项，等待审核。
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin upload requested by user {current_user.username} from {client_ip}")
+    
     try:
         db = get_session()
         try:
@@ -279,15 +311,31 @@ async def upload_plugin(request: PluginListingRequest) -> Dict[str, Any]:
     responses={
         201: {"description": "评论添加成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "服务器错误"},
     },
 )
-async def add_plugin_review(plugin_id: str, request: PluginReviewRequest) -> Dict[str, Any]:
+async def add_plugin_review(
+    plugin_id: str,
+    request: PluginReviewRequest,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> Dict[str, Any]:
     """
     为插件添加评论
 
     用户可以对插件进行评分和评论。
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin review addition requested by user {current_user.username} from {client_ip}")
+    
     try:
         db = get_session()
         try:
@@ -347,15 +395,31 @@ async def add_plugin_review(plugin_id: str, request: PluginReviewRequest) -> Dic
     responses={
         201: {"description": "插件安装成功"},
         400: {"description": "请求参数错误"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "服务器错误"},
     },
 )
-async def install_plugin(plugin_id: str, request: PluginInstallRequest) -> Dict[str, Any]:
+async def install_plugin(
+    plugin_id: str,
+    request: PluginInstallRequest,
+    current_user: User = Depends(require_permission("plugin", "execute")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> Dict[str, Any]:
     """
     安装插件
 
     将插件安装到系统中。
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin installation requested by user {current_user.username} from {client_ip}")
+    
     try:
         db = get_session()
         try:
@@ -422,6 +486,8 @@ async def install_plugin(plugin_id: str, request: PluginInstallRequest) -> Dict[
     summary="获取已安装插件列表",
     responses={
         200: {"description": "成功获取已安装插件列表"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "服务器错误"},
     },
 )
@@ -429,12 +495,23 @@ async def get_installed_plugins(
     enabled: Optional[bool] = Query(None, description="按启用状态筛选"),
     limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ) -> Dict[str, Any]:
     """
     获取已安装插件列表
 
     支持按启用状态筛选，支持分页。
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Installed plugins list requested by user {current_user.username} from {client_ip}")
+    
     try:
         db = get_session()
         try:
@@ -483,16 +560,31 @@ async def get_installed_plugins(
     summary="卸载插件",
     responses={
         200: {"description": "插件卸载成功"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         404: {"description": "插件未安装"},
         500: {"description": "服务器错误"},
     },
 )
-async def uninstall_plugin(plugin_id: str) -> Dict[str, Any]:
+async def uninstall_plugin(
+    plugin_id: str,
+    current_user: User = Depends(require_permission("plugin", "execute")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+) -> Dict[str, Any]:
     """
     卸载插件
 
     从系统中卸载插件。
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin uninstallation requested by user {current_user.username} from {client_ip}")
+    
     try:
         db = get_session()
         try:

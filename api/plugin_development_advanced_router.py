@@ -12,9 +12,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
+
+from core.auth import check_rate_limit, get_current_user, require_permission
+from core.database import get_db
+from core.models import User
 
 router = APIRouter(prefix="/api/v1/plugin/development", tags=["Plugin Development Advanced"])
 
@@ -471,7 +476,12 @@ def _sanitize_class_name(name: str) -> str:
 
 # Scaffold Endpoint
 @router.post("/scaffolds", response_model=ScaffoldResponse, summary="Create plugin scaffold")
-async def create_scaffold(request: ScaffoldRequest) -> ScaffoldResponse:
+async def create_scaffold(
+    request: ScaffoldRequest,
+    current_user: User = Depends(require_permission("plugin", "create")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> ScaffoldResponse:
     """
     Create a new plugin scaffold from template
 
@@ -481,6 +491,14 @@ async def create_scaffold(request: ScaffoldRequest) -> ScaffoldResponse:
     Returns:
         Scaffold creation result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin scaffold creation requested by user {current_user.username} from {client_ip}")
+    
     try:
         # Generate plugin ID
         plugin_id = str(uuid4())
@@ -592,7 +610,12 @@ __all__ = ["{class_name}"]
 
 # Validate Endpoint
 @router.post("/validate", response_model=ValidateResponse, summary="Validate plugin code")
-async def validate_plugin(request: ValidateRequest) -> ValidateResponse:
+async def validate_plugin(
+    request: ValidateRequest,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> ValidateResponse:
     """
     Validate plugin code for syntax and structure
 
@@ -602,6 +625,14 @@ async def validate_plugin(request: ValidateRequest) -> ValidateResponse:
     Returns:
         Validation result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin validation requested by user {current_user.username} from {client_ip}")
+    
     try:
         errors = []
         warnings = []
@@ -654,7 +685,12 @@ async def validate_plugin(request: ValidateRequest) -> ValidateResponse:
 
 # Test Endpoint
 @router.post("/test", response_model=TestResponse, summary="Test plugin code")
-async def test_plugin(request: TestRequest) -> TestResponse:
+async def test_plugin(
+    request: TestRequest,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> TestResponse:
     """
     Test plugin code with test data
 
@@ -664,6 +700,14 @@ async def test_plugin(request: TestRequest) -> TestResponse:
     Returns:
         Test result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin test requested by user {current_user.username} from {client_ip}")
+    
     try:
         test_results = []
 
@@ -772,7 +816,12 @@ async def test_plugin(request: TestRequest) -> TestResponse:
 
 # Build Endpoint
 @router.post("/build", response_model=BuildResponse, summary="Build plugin")
-async def build_plugin(request: BuildRequest) -> BuildResponse:
+async def build_plugin(
+    request: BuildRequest,
+    current_user: User = Depends(require_permission("plugin", "update")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> BuildResponse:
     """
     Build plugin from source
 
@@ -782,6 +831,14 @@ async def build_plugin(request: BuildRequest) -> BuildResponse:
     Returns:
         Build result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin build requested by user {current_user.username} from {client_ip}")
+    
     try:
         plugin_path = Path(request.plugin_path)
 
@@ -841,7 +898,12 @@ async def build_plugin(request: BuildRequest) -> BuildResponse:
 
 # Package Endpoint
 @router.post("/package", response_model=PackageResponse, summary="Package plugin")
-async def package_plugin(request: PackageRequest) -> PackageResponse:
+async def package_plugin(
+    request: PackageRequest,
+    current_user: User = Depends(require_permission("plugin", "update")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+) -> PackageResponse:
     """
     Package plugin for distribution
 
@@ -851,6 +913,14 @@ async def package_plugin(request: PackageRequest) -> PackageResponse:
     Returns:
         Package result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin packaging requested by user {current_user.username} from {client_ip}")
+    
     try:
         plugin_path = Path(request.plugin_path)
 

@@ -7,8 +7,13 @@ Provides API endpoints for plugin development tools
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
+from sqlalchemy.orm import Session
+
+from core.auth import check_rate_limit, get_current_user, require_permission
+from core.database import get_db
+from core.models import User
 
 router = APIRouter(prefix="/api/plugin-sdk", tags=["Plugin SDK"])
 
@@ -29,16 +34,30 @@ router = APIRouter(prefix="/api/plugin-sdk", tags=["Plugin SDK"])
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
-async def get_sdk_status():
+async def get_sdk_status(
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get plugin SDK status
 
     Returns:
         SDK status
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"SDK status requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_development_sdk import get_plugin_sdk
 
@@ -66,16 +85,30 @@ async def get_sdk_status():
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
-async def get_available_templates():
+async def get_available_templates(
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get available plugin templates
 
     Returns:
         List of available templates
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin templates requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_development_sdk import get_plugin_sdk
 
@@ -112,6 +145,8 @@ async def get_available_templates():
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "生成失败"},
     },
 )
@@ -122,6 +157,9 @@ async def generate_plugin_package(
     version: str = "1.0.0",
     author: str = "Unknown",
     custom_config: Optional[Dict[str, Any]] = None,
+    current_user: User = Depends(require_permission("plugin", "create")),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """
     Generate plugin package from template
@@ -137,6 +175,14 @@ async def generate_plugin_package(
     Returns:
         Generated plugin package
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin package generation requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_development_sdk import get_plugin_sdk
 
@@ -173,6 +219,8 @@ async def generate_plugin_package(
     summary="生成插件代码",
     responses={
         200: {"description": "生成结果"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "生成失败"},
     },
 )
@@ -182,6 +230,9 @@ async def generate_plugin_code(
     class_name: str,
     version: str = "1.0.0",
     author: str = "Unknown",
+    current_user: User = Depends(require_permission("plugin", "create")),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """
     Generate plugin code from template
@@ -196,6 +247,14 @@ async def generate_plugin_code(
     Returns:
         Generated plugin code
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin code generation requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_development_sdk import get_plugin_sdk
 
@@ -228,11 +287,17 @@ async def generate_plugin_code(
     summary="生成插件配置",
     responses={
         200: {"description": "生成结果"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "生成失败"},
     },
 )
 async def generate_plugin_config(
-    template_type: str, custom_config: Optional[Dict[str, Any]] = None
+    template_type: str,
+    custom_config: Optional[Dict[str, Any]] = None,
+    current_user: User = Depends(require_permission("plugin", "create")),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """
     Generate plugin configuration from template
@@ -244,6 +309,14 @@ async def generate_plugin_config(
     Returns:
         Generated configuration
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin config generation requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_development_sdk import get_plugin_sdk
 

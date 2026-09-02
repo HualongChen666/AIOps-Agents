@@ -8,17 +8,19 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
+from core.auth import check_rate_limit, get_current_user, require_permission
 from core.database import get_db
 from core.models import (
     PluginListingDB,
     PluginReviewDB,
     PluginCategoryDB,
     InstalledPluginDB,
+    User,
 )
 
 router = APIRouter(prefix="/api/v1/plugin/marketplace", tags=["Plugin Marketplace Advanced"])
@@ -171,7 +173,9 @@ async def get_plugin_listings(
         "updated_at", description="Sort field (name, rating, download_count, updated_at)"
     ),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    current_user: User = Depends(require_permission("plugin", "read")),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """
     Get all plugin listings with optional filtering and sorting
@@ -186,6 +190,14 @@ async def get_plugin_listings(
     Returns:
         List of plugin listings
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin marketplace listings requested by user {current_user.username} from {client_ip}")
+    
     try:
         # Try to get listings from database
         query = db.query(PluginListingDB).filter(PluginListingDB.enabled == True)
@@ -254,7 +266,12 @@ async def get_plugin_listings(
 @router.get(
     "/plugins/{plugin_id}", response_model=PluginListingResponse, summary="Get a plugin by ID"
 )
-async def get_plugin(plugin_id: str, db: Session = Depends(get_db)):
+async def get_plugin(
+    plugin_id: str,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get a plugin listing by ID
 
@@ -264,6 +281,14 @@ async def get_plugin(plugin_id: str, db: Session = Depends(get_db)):
     Returns:
         Plugin listing data
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin details requested by user {current_user.username} from {client_ip}")
+    
     try:
         # Search by listing ID or plugin_id
         plugin_listing = db.query(PluginListingDB).filter(
@@ -305,7 +330,13 @@ async def get_plugin(plugin_id: str, db: Session = Depends(get_db)):
 @router.post(
     "/plugins/{plugin_id}/install", response_model=InstallResponse, summary="Install a plugin"
 )
-async def install_plugin(plugin_id: str, request: InstallRequest, db: Session = Depends(get_db)):
+async def install_plugin(
+    plugin_id: str,
+    request: InstallRequest,
+    current_user: User = Depends(require_permission("plugin", "execute")),
+    db: Session = Depends(get_db),
+    request_obj: Request = None,
+):
     """
     Install a plugin from the marketplace
 
@@ -316,6 +347,14 @@ async def install_plugin(plugin_id: str, request: InstallRequest, db: Session = 
     Returns:
         Installation result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request_obj.client.host if request_obj else "unknown"
+    logger.info(f"Plugin installation requested by user {current_user.username} from {client_ip}")
+    
     try:
         # Find the plugin
         plugin_listing = db.query(PluginListingDB).filter(
@@ -370,7 +409,12 @@ async def install_plugin(plugin_id: str, request: InstallRequest, db: Session = 
 
 
 @router.post("/plugins/{plugin_id}/uninstall", summary="Uninstall a plugin")
-async def uninstall_plugin(plugin_id: str, db: Session = Depends(get_db)):
+async def uninstall_plugin(
+    plugin_id: str,
+    current_user: User = Depends(require_permission("plugin", "execute")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Uninstall a plugin
 
@@ -380,6 +424,14 @@ async def uninstall_plugin(plugin_id: str, db: Session = Depends(get_db)):
     Returns:
         Uninstallation result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin uninstallation requested by user {current_user.username} from {client_ip}")
+    
     try:
         # Find the plugin
         plugin_listing = db.query(PluginListingDB).filter(
@@ -415,13 +467,25 @@ async def uninstall_plugin(plugin_id: str, db: Session = Depends(get_db)):
 
 # Category Endpoints
 @router.get("/categories", response_model=List[CategoryResponse], summary="Get all categories")
-async def get_categories(db: Session = Depends(get_db)):
+async def get_categories(
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get all plugin categories
 
     Returns:
         List of categories
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin categories requested by user {current_user.username} from {client_ip}")
+    
     try:
         categories = db.query(PluginCategoryDB).all()
         return [
@@ -445,7 +509,9 @@ async def get_reviews(
     plugin_id: Optional[str] = Query(None, description="Filter by plugin ID"),
     rating: Optional[int] = Query(None, ge=1, le=5, description="Filter by rating"),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    current_user: User = Depends(require_permission("plugin", "read")),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """
     Get all reviews with optional filtering
@@ -458,6 +524,14 @@ async def get_reviews(
     Returns:
         List of reviews
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin reviews requested by user {current_user.username} from {client_ip}")
+    
     try:
         query = db.query(PluginReviewDB)
 
@@ -490,7 +564,12 @@ async def get_reviews(
 
 
 @router.post("/reviews", response_model=ReviewResponse, summary="Create a review")
-async def create_review(review: ReviewCreate, db: Session = Depends(get_db)):
+async def create_review(
+    review: ReviewCreate,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Create a new review for a plugin
 
@@ -500,6 +579,14 @@ async def create_review(review: ReviewCreate, db: Session = Depends(get_db)):
     Returns:
         Created review
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin review creation requested by user {current_user.username} from {client_ip}")
+    
     try:
         # Find the plugin
         plugin_listing = db.query(PluginListingDB).filter(
@@ -548,7 +635,13 @@ async def create_review(review: ReviewCreate, db: Session = Depends(get_db)):
     response_model=List[ReviewResponse],
     summary="Get reviews for a plugin",
 )
-async def get_plugin_reviews(plugin_id: str, limit: int = Query(50, ge=1, le=100), db: Session = Depends(get_db)):
+async def get_plugin_reviews(
+    plugin_id: str,
+    limit: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get all reviews for a specific plugin
 
@@ -559,6 +652,14 @@ async def get_plugin_reviews(plugin_id: str, limit: int = Query(50, ge=1, le=100
     Returns:
         List of reviews for the plugin
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin reviews for {plugin_id} requested by user {current_user.username} from {client_ip}")
+    
     try:
         reviews = db.query(PluginReviewDB).filter(PluginReviewDB.plugin_id == plugin_id).limit(limit).all()
 

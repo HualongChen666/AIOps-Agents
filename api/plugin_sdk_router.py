@@ -7,8 +7,13 @@ Provides API endpoints for plugin system management
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from loguru import logger
+from sqlalchemy.orm import Session
+
+from core.auth import check_rate_limit, get_current_user, require_permission
+from core.database import get_db
+from core.models import User
 
 router = APIRouter(prefix="/api/plugin-system", tags=["Plugin System"])
 
@@ -29,16 +34,30 @@ router = APIRouter(prefix="/api/plugin-system", tags=["Plugin System"])
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
-async def get_system_status():
+async def get_system_status(
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get plugin system status
 
     Returns:
         Plugin system status
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin system status requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import get_plugin_system_manager
 
@@ -71,6 +90,8 @@ async def get_system_status():
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "定义失败"},
     },
 )
@@ -80,6 +101,9 @@ async def define_plugin_interface(
     methods: List[Dict[str, Any]] = Body([]),
     events: List[Dict[str, Any]] = Body([]),
     configuration: Optional[Dict[str, Any]] = Body(None),
+    current_user: User = Depends(require_permission("plugin", "create")),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """
     Define plugin interface specification
@@ -94,6 +118,14 @@ async def define_plugin_interface(
     Returns:
         Interface specification
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin interface definition requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import get_plugin_system_manager
 
@@ -142,10 +174,17 @@ async def define_plugin_interface(
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
-async def get_interface_spec(interface_type: str):
+async def get_interface_spec(
+    interface_type: str,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get plugin interface specification for a type
 
@@ -155,6 +194,14 @@ async def get_interface_spec(interface_type: str):
     Returns:
         Interface specification
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin interface spec requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import get_plugin_system_manager
 
@@ -189,6 +236,8 @@ async def get_interface_spec(interface_type: str):
                 }
             },
         },
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "注册失败"},
     },
 )
@@ -200,6 +249,9 @@ async def register_plugin(
     author: str,
     plugin_type: str,
     dependencies: Optional[Dict[str, Any]] = None,
+    current_user: User = Depends(require_permission("plugin", "create")),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """
     Register plugin metadata
@@ -216,6 +268,14 @@ async def register_plugin(
     Returns:
         Registration result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin registration requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import (
             PluginMetadata,
@@ -252,10 +312,17 @@ async def register_plugin(
     summary="启用插件",
     responses={
         200: {"description": "启用结果"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "启用失败"},
     },
 )
-async def enable_plugin(plugin_id: str):
+async def enable_plugin(
+    plugin_id: str,
+    current_user: User = Depends(require_permission("plugin", "update")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Enable plugin
 
@@ -265,6 +332,14 @@ async def enable_plugin(plugin_id: str):
     Returns:
         Enable result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin enable requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import get_plugin_system_manager
 
@@ -287,10 +362,17 @@ async def enable_plugin(plugin_id: str):
     summary="禁用插件",
     responses={
         200: {"description": "禁用结果"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "禁用失败"},
     },
 )
-async def disable_plugin(plugin_id: str):
+async def disable_plugin(
+    plugin_id: str,
+    current_user: User = Depends(require_permission("plugin", "update")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Disable plugin
 
@@ -300,6 +382,14 @@ async def disable_plugin(plugin_id: str):
     Returns:
         Disable result
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=30)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin disable requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import get_plugin_system_manager
 
@@ -322,10 +412,18 @@ async def disable_plugin(plugin_id: str):
     summary="列出插件",
     responses={
         200: {"description": "插件列表"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         500: {"description": "获取失败"},
     },
 )
-async def list_plugins(plugin_type: Optional[str] = None, status: Optional[str] = None):
+async def list_plugins(
+    plugin_type: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     List plugins
 
@@ -336,6 +434,14 @@ async def list_plugins(plugin_type: Optional[str] = None, status: Optional[str] 
     Returns:
         List of plugins
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin list requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import PluginStatus, PluginType, get_plugin_system_manager
 
@@ -361,11 +467,18 @@ async def list_plugins(plugin_type: Optional[str] = None, status: Optional[str] 
     summary="获取插件信息",
     responses={
         200: {"description": "插件信息"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
         404: {"description": "插件未找到"},
         500: {"description": "获取失败"},
     },
 )
-async def get_plugin_info(plugin_id: str):
+async def get_plugin_info(
+    plugin_id: str,
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     """
     Get plugin information
 
@@ -375,6 +488,14 @@ async def get_plugin_info(plugin_id: str):
     Returns:
         Plugin information
     """
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin info requested by user {current_user.username} from {client_ip}")
+    
     try:
         from core.plugin_system_manager import get_plugin_system_manager
 

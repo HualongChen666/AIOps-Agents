@@ -148,8 +148,17 @@ def get_plugin_api(
     plugin_id: str,
     current_user: User = Depends(require_permission("plugin", "read")),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> PluginResponse:
     """获取插件详情。需要plugin:read权限。"""
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin details requested by user {current_user.username} from {client_ip}")
+    
     service = get_plugin_service(db)
     plugin = service.get_plugin(plugin_id)
     
@@ -279,8 +288,17 @@ def run_plugin(
 def get_plugin_stats(
     current_user: User = Depends(require_permission("plugin", "read")),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> PluginStatsResponse:
     """获取插件统计信息。需要plugin:read权限。"""
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin stats requested by user {current_user.username} from {client_ip}")
+    
     service = get_plugin_service(db)
     stats = service.get_stats()
     return stats
@@ -302,8 +320,17 @@ def list_plugin_executions(
     offset: int = Query(0, ge=0, description="偏移量"),
     current_user: User = Depends(require_permission("plugin", "read")),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> PluginExecutionListResponse:
     """获取插件执行记录。需要plugin:read权限。"""
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin executions requested by user {current_user.username} from {client_ip}")
+    
     service = get_plugin_service(db)
     executions = service.list_executions(
         plugin_id=plugin_id,
@@ -331,8 +358,17 @@ def get_plugin_config(
     plugin_id: str,
     current_user: User = Depends(require_permission("plugin", "read")),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> PluginConfigResponse:
     """获取插件配置。需要plugin:read权限。"""
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin config requested by user {current_user.username} from {client_ip}")
+    
     service = get_plugin_service(db)
     config = service.get_config_by_plugin_id(plugin_id)
     
