@@ -1482,3 +1482,953 @@ async def get_root_cause_trends(
     except Exception as e:
         logger.error(f"获取根因趋势失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取根因趋势失败: {str(e)}")
+
+
+# ==================== New API Endpoints (8 additional endpoints) ====================
+
+
+class BatchEvidenceCreate(BaseModel):
+    """批量创建根因证据请求"""
+
+    hypothesis_id: str = Field(..., description="假设ID")
+    evidence_list: List[Dict[str, Any]] = Field(..., description="证据列表")
+    batch_size: int = Field(default=20, ge=1, le=100, description="批处理大小")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "hypothesis_id": "HYP-001",
+                "evidence_list": [
+                    {
+                        "evidence_type": "metrics",
+                        "evidence_data": {"cpu_usage": 95},
+                        "description": "CPU使用率异常",
+                        "strength": 0.9,
+                    }
+                ],
+                "batch_size": 20,
+            }
+        }
+    }
+
+
+@router.post("/evidence/batch", summary="批量创建根因证据")
+async def batch_create_evidence(
+    request: BatchEvidenceCreate, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    批量创建根因证据
+
+    支持对单个假设批量添加证据，自动分批处理以避免速率限制
+    """
+    try:
+        # 验证假设是否存在
+        hypothesis = (
+            db.query(RootCauseHypothesis)
+            .filter(RootCauseHypothesis.id == request.hypothesis_id)
+            .first()
+        )
+        if not hypothesis:
+            raise HTTPException(status_code=404, detail=f"假设 {request.hypothesis_id} 不存在")
+
+        evidence_list = request.evidence_list
+        batch_size = request.batch_size
+        total_evidence = len(evidence_list)
+        results = []
+        errors = []
+
+        logger.info(
+            f"开始批量创建证据: {total_evidence} 个证据, 假设ID: {request.hypothesis_id}, 批大小: {batch_size}"
+        )
+
+        # 验证证据类型
+        valid_types = ["metrics", "logs", "traces", "events", "config", "network"]
+
+        # 分批处理
+        for i in range(0, total_evidence, batch_size):
+            batch = evidence_list[i : i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (total_evidence + batch_size - 1) // batch_size
+
+            logger.info(f"处理批次 {batch_num}/{total_batches}, 大小: {len(batch)}")
+
+            for evidence_data in batch:
+                try:
+                    evidence_type = evidence_data.get("evidence_type")
+                    if evidence_type not in valid_types:
+                        errors.append(
+                            {
+                                "index": i,
+                                "error": f"无效的证据类型: {evidence_type}",
+                            }
+                        )
+                        continue
+
+                    new_evidence = RootCauseEvidence(
+                        hypothesis_id=request.hypothesis_id,
+                        evidence_type=evidence_type,
+                        evidence_data=evidence_data.get("evidence_data", {}),
+                        description=evidence_data.get("description"),
+                        strength=evidence_data.get("strength", 0.5),
+                        meta_data=request.meta_data,
+                    )
+
+                    db.add(new_evidence)
+                    results.append(
+                        {
+                            "evidence_id": new_evidence.id,
+                            "evidence_type": evidence_type,
+                            "status": "created",
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"创建证据失败: {e}")
+                    errors.append({"index": i, "error": str(e)})
+
+            # 每批次后提交，避免事务过大
+            db.commit()
+
+        logger.info(f"批量创建证据完成: 成功 {len(results)}, 失败 {len(errors)}")
+
+        return {
+            "status": "success",
+            "hypothesis_id": request.hypothesis_id,
+            "total_evidence": total_evidence,
+            "successful": len(results),
+            "failed": len(errors),
+            "results": results,
+            "errors": errors,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"批量创建证据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量创建证据失败: {str(e)}")
+
+
+@router.get("/statistics", summary="获取根因分析统计信息")
+async def get_root_cause_statistics(
+    days: int = Query(default=30, ge=1, le=365, description="统计天数"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    获取根因分析的统计信息
+
+    包括假设、实验、证据和结论的数量统计
+    """
+    try:
+        from datetime import timedelta
+
+        start_date = datetime.utcnow() - timedelta(days=days)
+
+        # 统计假设数量
+        total_hypotheses = db.query(RootCauseHypothesis).count()
+        recent_hypotheses = (
+            db.query(RootCauseHypothesis)
+            .filter(RootCauseHypothesis.created_at >= start_date)
+            .count()
+        )
+
+        # 统计实验数量
+        total_experiments = db.query(RootCauseExperiment).count()
+        recent_experiments = (
+            db.query(RootCauseExperiment)
+            .filter(RootCauseExperiment.created_at >= start_date)
+            .count()
+        )
+
+        # 统计证据数量
+        total_evidence = db.query(RootCauseEvidence).count()
+        recent_evidence = (
+            db.query(RootCauseEvidence)
+            .filter(RootCauseEvidence.collected_at >= start_date)
+            .count()
+        )
+
+        # 统计结论数量
+        total_conclusions = db.query(RootCauseConclusion).count()
+        recent_conclusions = (
+            db.query(RootCauseConclusion)
+            .filter(RootCauseConclusion.created_at >= start_date)
+            .count()
+        )
+
+        # 统计验证状态分布
+        hypothesis_status_distribution = {}
+        for status in ["pending", "verified", "rejected"]:
+            count = (
+                db.query(RootCauseHypothesis)
+                .filter(RootCauseHypothesis.verification_status == status)
+                .count()
+            )
+            hypothesis_status_distribution[status] = count
+
+        # 统计实验状态分布
+        experiment_status_distribution = {}
+        for status in ["pending", "running", "completed", "failed"]:
+            count = (
+                db.query(RootCauseExperiment)
+                .filter(RootCauseExperiment.status == status)
+                .count()
+            )
+            experiment_status_distribution[status] = count
+
+        logger.info(f"根因统计信息获取完成: 时间范围 {days} 天")
+
+        return {
+            "status": "success",
+            "statistics_period_days": days,
+            "hypotheses": {
+                "total": total_hypotheses,
+                "recent": recent_hypotheses,
+                "status_distribution": hypothesis_status_distribution,
+            },
+            "experiments": {
+                "total": total_experiments,
+                "recent": recent_experiments,
+                "status_distribution": experiment_status_distribution,
+            },
+            "evidence": {
+                "total": total_evidence,
+                "recent": recent_evidence,
+            },
+            "conclusions": {
+                "total": total_conclusions,
+                "recent": recent_conclusions,
+            },
+        }
+    except Exception as e:
+        logger.error(f"获取根因统计信息失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取根因统计信息失败: {str(e)}")
+
+
+class HypothesisVerificationRequest(BaseModel):
+    """验证根因假设请求"""
+
+    hypothesis_id: str = Field(..., description="假设ID")
+    verification_method: str = Field(..., description="验证方法 (manual, automated, experimental)")
+    verification_data: Dict[str, Any] = Field(..., description="验证数据")
+    verifier: Optional[str] = Field(None, description="验证者")
+    notes: Optional[str] = Field(None, description="备注")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "hypothesis_id": "HYP-001",
+                "verification_method": "experimental",
+                "verification_data": {"experiment_id": "EXP-001", "result": "success"},
+                "verifier": "admin",
+                "notes": "通过实验验证",
+            }
+        }
+    }
+
+
+@router.post("/hypotheses/{hypothesis_id}/verify", summary="验证根因假设")
+async def verify_hypothesis(
+    hypothesis_id: str, request: HypothesisVerificationRequest, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    验证根因假设
+
+    支持手动、自动和实验验证三种方式
+    """
+    try:
+        # 验证假设是否存在
+        hypothesis = (
+            db.query(RootCauseHypothesis).filter(RootCauseHypothesis.id == hypothesis_id).first()
+        )
+        if not hypothesis:
+            raise HTTPException(status_code=404, detail=f"假设 {hypothesis_id} 不存在")
+
+        # 验证验证方法
+        valid_methods = ["manual", "automated", "experimental"]
+        if request.verification_method not in valid_methods:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无效的验证方法: {request.verification_method}, 必须是 {valid_methods}",
+            )
+
+        # 根据验证方法更新假设状态
+        verification_result = request.verification_data.get("result", "pending")
+        if verification_result == "success":
+            hypothesis.verification_status = "verified"
+            hypothesis.status = "confirmed"
+        elif verification_result == "failed":
+            hypothesis.verification_status = "rejected"
+            hypothesis.status = "rejected"
+        else:
+            hypothesis.verification_status = "pending"
+
+        hypothesis.verification_timestamp = datetime.utcnow()
+
+        # 更新元数据
+        if hypothesis.meta_data is None:
+            hypothesis.meta_data = {}
+        hypothesis.meta_data["verification"] = {
+            "method": request.verification_method,
+            "verifier": request.verifier,
+            "notes": request.notes,
+            "data": request.verification_data,
+        }
+
+        db.commit()
+        db.refresh(hypothesis)
+
+        logger.info(f"验证根因假设成功: {hypothesis_id}, 方法: {request.verification_method}")
+
+        return {
+            "status": "success",
+            "hypothesis_id": hypothesis_id,
+            "verification_status": hypothesis.verification_status,
+            "verification_method": request.verification_method,
+            "verification_timestamp": hypothesis.verification_timestamp.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"验证根因假设失败: {e}")
+        raise HTTPException(status_code=500, detail=f"验证根因假设失败: {str(e)}")
+
+
+class ConclusionFinalizeRequest(BaseModel):
+    """最终确认根因结论请求"""
+
+    conclusion_id: str = Field(..., description="结论ID")
+    reviewer: str = Field(..., description="审核人")
+    review_notes: Optional[str] = Field(None, description="审核备注")
+    approved: bool = Field(..., description="是否批准")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "conclusion_id": "CON-001",
+                "reviewer": "admin",
+                "review_notes": "审核通过",
+                "approved": True,
+            }
+        }
+    }
+
+
+@router.post("/conclusions/{conclusion_id}/finalize", summary="最终确认根因结论")
+async def finalize_conclusion(
+    conclusion_id: str, request: ConclusionFinalizeRequest, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    最终确认根因结论
+
+    将结论状态从draft更新为finalized或rejected
+    """
+    try:
+        # 验证结论是否存在
+        conclusion = (
+            db.query(RootCauseConclusion).filter(RootCauseConclusion.id == conclusion_id).first()
+        )
+        if not conclusion:
+            raise HTTPException(status_code=404, detail=f"结论 {conclusion_id} 不存在")
+
+        # 检查当前状态
+        if conclusion.status != "draft":
+            raise HTTPException(
+                status_code=400, detail=f"结论状态为 {conclusion.status}, 只能确认draft状态的结论"
+            )
+
+        # 更新结论状态
+        if request.approved:
+            conclusion.status = "finalized"
+        else:
+            conclusion.status = "rejected"
+
+        # 更新元数据
+        if conclusion.meta_data is None:
+            conclusion.meta_data = {}
+        conclusion.meta_data["review"] = {
+            "reviewer": request.reviewer,
+            "notes": request.review_notes,
+            "approved": request.approved,
+            "reviewed_at": datetime.utcnow().isoformat(),
+        }
+
+        if request.meta_data:
+            conclusion.meta_data.update(request.meta_data)
+
+        db.commit()
+        db.refresh(conclusion)
+
+        logger.info(f"最终确认根因结论成功: {conclusion_id}, 状态: {conclusion.status}")
+
+        return {
+            "status": "success",
+            "conclusion_id": conclusion_id,
+            "final_status": conclusion.status,
+            "reviewer": request.reviewer,
+            "reviewed_at": conclusion.updated_at.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"最终确认根因结论失败: {e}")
+        raise HTTPException(status_code=500, detail=f"最终确认根因结论失败: {str(e)}")
+
+
+class RootCauseEvidenceUpdate(BaseModel):
+    """更新根因证据请求"""
+
+    evidence_type: Optional[str] = Field(None, description="证据类型")
+    evidence_data: Optional[Dict[str, Any]] = Field(None, description="证据数据")
+    description: Optional[str] = Field(None, description="描述")
+    strength: Optional[float] = Field(None, ge=0, le=1, description="证据强度")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {"extra": "ignore"}
+
+
+@router.patch(
+    "/evidence/{evidence_id}",
+    response_model=RootCauseEvidenceResponse,
+    summary="更新根因证据",
+)
+async def update_root_cause_evidence(
+    evidence_id: int, evidence_update: RootCauseEvidenceUpdate, db: Session = Depends(get_db)
+) -> RootCauseEvidenceResponse:
+    """
+    更新根因证据
+
+    支持部分更新
+    """
+    try:
+        evidence = (
+            db.query(RootCauseEvidence).filter(RootCauseEvidence.id == evidence_id).first()
+        )
+        if not evidence:
+            raise HTTPException(status_code=404, detail=f"证据 {evidence_id} 不存在")
+
+        # 更新字段
+        update_data = evidence_update.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(evidence, field, value)
+
+        db.commit()
+        db.refresh(evidence)
+
+        logger.info(f"更新根因证据成功: {evidence_id}")
+
+        return RootCauseEvidenceResponse(
+            id=evidence.id,
+            hypothesis_id=evidence.hypothesis_id,
+            evidence_type=evidence.evidence_type,
+            evidence_data=evidence.evidence_data,
+            description=evidence.description,
+            strength=evidence.strength,
+            collected_at=evidence.collected_at.isoformat() if evidence.collected_at else "",
+            meta_data=evidence.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新根因证据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新根因证据失败: {str(e)}")
+
+
+class BatchExperimentCreate(BaseModel):
+    """批量创建根因实验请求"""
+
+    experiments: List[Dict[str, Any]] = Field(..., description="实验列表")
+    batch_size: int = Field(default=10, ge=1, le=50, description="批处理大小")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "experiments": [
+                    {
+                        "hypothesis_id": "HYP-001",
+                        "experiment_type": "verification",
+                        "description": "验证数据库连接池",
+                        "parameters": {"action": "increase_pool_size"},
+                    }
+                ],
+                "batch_size": 10,
+            }
+        }
+    }
+
+
+@router.post("/experiments/batch", summary="批量创建根因实验")
+async def batch_create_experiments(
+    request: BatchExperimentCreate, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    批量创建根因实验
+
+    支持对多个假设批量创建实验，自动分批处理以避免速率限制
+    """
+    try:
+        experiments = request.experiments
+        batch_size = request.batch_size
+        total_experiments = len(experiments)
+        results = []
+        errors = []
+
+        logger.info(f"开始批量创建实验: {total_experiments} 个实验, 批大小: {batch_size}")
+
+        # 验证实验类型
+        valid_types = ["verification", "mitigation"]
+
+        # 分批处理
+        for i in range(0, total_experiments, batch_size):
+            batch = experiments[i : i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (total_experiments + batch_size - 1) // batch_size
+
+            logger.info(f"处理批次 {batch_num}/{total_batches}, 大小: {len(batch)}")
+
+            for exp_data in batch:
+                try:
+                    hypothesis_id = exp_data.get("hypothesis_id")
+                    experiment_type = exp_data.get("experiment_type")
+
+                    # 验证假设是否存在
+                    hypothesis = (
+                        db.query(RootCauseHypothesis)
+                        .filter(RootCauseHypothesis.id == hypothesis_id)
+                        .first()
+                    )
+                    if not hypothesis:
+                        errors.append(
+                            {
+                                "index": i,
+                                "hypothesis_id": hypothesis_id,
+                                "error": f"假设 {hypothesis_id} 不存在",
+                            }
+                        )
+                        continue
+
+                    # 验证实验类型
+                    if experiment_type not in valid_types:
+                        errors.append(
+                            {
+                                "index": i,
+                                "hypothesis_id": hypothesis_id,
+                                "error": f"无效的实验类型: {experiment_type}",
+                            }
+                        )
+                        continue
+
+                    # 创建实验
+                    exp_id = f"EXP-{uuid.uuid4().hex[:8].upper()}"
+                    new_experiment = RootCauseExperiment(
+                        id=exp_id,
+                        hypothesis_id=hypothesis_id,
+                        experiment_type=experiment_type,
+                        description=exp_data.get("description"),
+                        parameters=exp_data.get("parameters", {}),
+                        status="pending",
+                        meta_data=request.meta_data,
+                        created_by="system",
+                    )
+
+                    db.add(new_experiment)
+                    results.append(
+                        {
+                            "experiment_id": exp_id,
+                            "hypothesis_id": hypothesis_id,
+                            "experiment_type": experiment_type,
+                            "status": "created",
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"创建实验失败: {e}")
+                    errors.append(
+                        {
+                            "index": i,
+                            "hypothesis_id": exp_data.get("hypothesis_id", "unknown"),
+                            "error": str(e),
+                        }
+                    )
+
+            # 每批次后提交，避免事务过大
+            db.commit()
+
+        logger.info(f"批量创建实验完成: 成功 {len(results)}, 失败 {len(errors)}")
+
+        return {
+            "status": "success",
+            "total_experiments": total_experiments,
+            "successful": len(results),
+            "failed": len(errors),
+            "results": results,
+            "errors": errors,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"批量创建实验失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量创建实验失败: {str(e)}")
+
+
+class RootCauseAnalysisExportRequest(BaseModel):
+    """导出根因分析请求"""
+
+    alert_id: Optional[str] = Field(None, description="告警ID")
+    conclusion_id: Optional[str] = Field(None, description="结论ID")
+    export_format: str = Field(default="json", description="导出格式 (json, csv)")
+    include_evidence: bool = Field(default=True, description="是否包含证据")
+    include_experiments: bool = Field(default=True, description="是否包含实验")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "alert_id": "ALT-001",
+                "export_format": "json",
+                "include_evidence": True,
+                "include_experiments": True,
+            }
+        }
+    }
+
+
+@router.post("/export", summary="导出根因分析")
+async def export_root_cause_analysis(
+    request: RootCauseAnalysisExportRequest, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    导出根因分析结果
+
+    支持按告警ID或结论ID导出完整的根因分析数据
+    """
+    try:
+        export_data = {
+            "export_timestamp": datetime.utcnow().isoformat(),
+            "export_format": request.export_format,
+        }
+
+        # 根据alert_id或conclusion_id查询
+        if request.conclusion_id:
+            conclusion = (
+                db.query(RootCauseConclusion)
+                .filter(RootCauseConclusion.id == request.conclusion_id)
+                .first()
+            )
+            if not conclusion:
+                raise HTTPException(status_code=404, detail=f"结论 {request.conclusion_id} 不存在")
+
+            export_data["conclusion"] = {
+                "id": conclusion.id,
+                "alert_id": conclusion.alert_id,
+                "root_cause": conclusion.root_cause,
+                "summary": conclusion.summary,
+                "detailed_analysis": conclusion.detailed_analysis,
+                "confidence": conclusion.confidence,
+                "verified_hypothesis_id": conclusion.verified_hypothesis_id,
+                "recommended_actions": conclusion.recommended_actions,
+                "status": conclusion.status,
+                "created_at": conclusion.created_at.isoformat() if conclusion.created_at else "",
+                "updated_at": conclusion.updated_at.isoformat() if conclusion.updated_at else "",
+            }
+
+            # 查询相关假设
+            if conclusion.verified_hypothesis_id:
+                hypothesis = (
+                    db.query(RootCauseHypothesis)
+                    .filter(RootCauseHypothesis.id == conclusion.verified_hypothesis_id)
+                    .first()
+                )
+                if hypothesis:
+                    export_data["hypothesis"] = {
+                        "id": hypothesis.id,
+                        "alert_id": hypothesis.alert_id,
+                        "root_cause": hypothesis.root_cause,
+                        "description": hypothesis.description,
+                        "confidence": hypothesis.confidence,
+                        "impact_score": hypothesis.impact_score,
+                        "evidence": hypothesis.evidence,
+                        "causal_path": hypothesis.causal_path,
+                        "verification_status": hypothesis.verification_status,
+                        "status": hypothesis.status,
+                    }
+
+                    # 包含证据
+                    if request.include_evidence:
+                        evidence_list = (
+                            db.query(RootCauseEvidence)
+                            .filter(RootCauseEvidence.hypothesis_id == hypothesis.id)
+                            .all()
+                        )
+                        export_data["evidence"] = [
+                            {
+                                "id": ev.id,
+                                "evidence_type": ev.evidence_type,
+                                "evidence_data": ev.evidence_data,
+                                "description": ev.description,
+                                "strength": ev.strength,
+                                "collected_at": ev.collected_at.isoformat() if ev.collected_at else "",
+                            }
+                            for ev in evidence_list
+                        ]
+
+                    # 包含实验
+                    if request.include_experiments:
+                        experiment_list = (
+                            db.query(RootCauseExperiment)
+                            .filter(RootCauseExperiment.hypothesis_id == hypothesis.id)
+                            .all()
+                        )
+                        export_data["experiments"] = [
+                            {
+                                "id": exp.id,
+                                "experiment_type": exp.experiment_type,
+                                "description": exp.description,
+                                "parameters": exp.parameters,
+                                "result": exp.result,
+                                "success": exp.success,
+                                "conclusion": exp.conclusion,
+                                "status": exp.status,
+                                "started_at": exp.started_at.isoformat() if exp.started_at else None,
+                                "completed_at": (
+                                    exp.completed_at.isoformat() if exp.completed_at else None
+                                ),
+                            }
+                            for exp in experiment_list
+                        ]
+
+        elif request.alert_id:
+            # 查询该告警的所有假设
+            hypotheses = (
+                db.query(RootCauseHypothesis)
+                .filter(RootCauseHypothesis.alert_id == request.alert_id)
+                .all()
+            )
+
+            export_data["alert_id"] = request.alert_id
+            export_data["hypotheses"] = []
+
+            for hypothesis in hypotheses:
+                hyp_data = {
+                    "id": hypothesis.id,
+                    "root_cause": hypothesis.root_cause,
+                    "description": hypothesis.description,
+                    "confidence": hypothesis.confidence,
+                    "impact_score": hypothesis.impact_score,
+                    "evidence": hypothesis.evidence,
+                    "causal_path": hypothesis.causal_path,
+                    "verification_status": hypothesis.verification_status,
+                    "status": hypothesis.status,
+                }
+
+                # 包含证据
+                if request.include_evidence:
+                    evidence_list = (
+                        db.query(RootCauseEvidence)
+                        .filter(RootCauseEvidence.hypothesis_id == hypothesis.id)
+                        .all()
+                    )
+                    hyp_data["evidence"] = [
+                        {
+                            "id": ev.id,
+                            "evidence_type": ev.evidence_type,
+                            "evidence_data": ev.evidence_data,
+                            "description": ev.description,
+                            "strength": ev.strength,
+                            "collected_at": ev.collected_at.isoformat() if ev.collected_at else "",
+                        }
+                        for ev in evidence_list
+                    ]
+
+                # 包含实验
+                if request.include_experiments:
+                    experiment_list = (
+                        db.query(RootCauseExperiment)
+                        .filter(RootCauseExperiment.hypothesis_id == hypothesis.id)
+                        .all()
+                    )
+                    hyp_data["experiments"] = [
+                        {
+                            "id": exp.id,
+                            "experiment_type": exp.experiment_type,
+                            "description": exp.description,
+                            "parameters": exp.parameters,
+                            "result": exp.result,
+                            "success": exp.success,
+                            "conclusion": exp.conclusion,
+                            "status": exp.status,
+                            "started_at": exp.started_at.isoformat() if exp.started_at else None,
+                            "completed_at": (
+                                exp.completed_at.isoformat() if exp.completed_at else None
+                            ),
+                        }
+                        for exp in experiment_list
+                    ]
+
+                export_data["hypotheses"].append(hyp_data)
+
+            # 查询该告警的结论
+            conclusions = (
+                db.query(RootCauseConclusion)
+                .filter(RootCauseConclusion.alert_id == request.alert_id)
+                .all()
+            )
+            export_data["conclusions"] = [
+                {
+                    "id": concl.id,
+                    "root_cause": concl.root_cause,
+                    "summary": concl.summary,
+                    "detailed_analysis": concl.detailed_analysis,
+                    "confidence": concl.confidence,
+                    "verified_hypothesis_id": concl.verified_hypothesis_id,
+                    "recommended_actions": concl.recommended_actions,
+                    "status": concl.status,
+                    "created_at": concl.created_at.isoformat() if concl.created_at else "",
+                }
+                for concl in conclusions
+            ]
+        else:
+            raise HTTPException(
+                status_code=400, detail="必须提供 alert_id 或 conclusion_id 参数"
+            )
+
+        logger.info(f"导出根因分析成功: 格式 {request.export_format}")
+
+        return {"status": "success", "export_data": export_data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"导出根因分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f"导出根因分析失败: {str(e)}")
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+
+    resource_type: str = Field(..., description="资源类型 (hypotheses, experiments, evidence, conclusions)")
+    resource_ids: List[str] = Field(..., description="资源ID列表")
+    batch_size: int = Field(default=20, ge=1, le=100, description="批处理大小")
+    confirm: bool = Field(default=False, description="确认删除")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "resource_type": "hypotheses",
+                "resource_ids": ["HYP-001", "HYP-002"],
+                "batch_size": 20,
+                "confirm": True,
+            }
+        }
+    }
+
+
+@router.post("/batch-delete", summary="批量删除资源")
+async def batch_delete_resources(
+    request: BatchDeleteRequest, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    批量删除根因分析资源
+
+    支持批量删除假设、实验、证据和结论，自动分批处理以避免速率限制
+    """
+    try:
+        # 验证确认标志
+        if not request.confirm:
+            raise HTTPException(
+                status_code=400, detail="必须设置 confirm=True 才能执行批量删除"
+            )
+
+        # 验证资源类型
+        valid_types = ["hypotheses", "experiments", "evidence", "conclusions"]
+        if request.resource_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无效的资源类型: {request.resource_type}, 必须是 {valid_types}",
+            )
+
+        resource_ids = request.resource_ids
+        batch_size = request.batch_size
+        total_resources = len(resource_ids)
+        results = []
+        errors = []
+
+        logger.info(
+            f"开始批量删除: {request.resource_type}, {total_resources} 个资源, 批大小: {batch_size}"
+        )
+
+        # 根据资源类型选择模型
+        if request.resource_type == "hypotheses":
+            model = RootCauseHypothesis
+        elif request.resource_type == "experiments":
+            model = RootCauseExperiment
+        elif request.resource_type == "evidence":
+            model = RootCauseEvidence
+        else:  # conclusions
+            model = RootCauseConclusion
+
+        # 分批处理
+        for i in range(0, total_resources, batch_size):
+            batch = resource_ids[i : i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (total_resources + batch_size - 1) // batch_size
+
+            logger.info(f"处理批次 {batch_num}/{total_batches}, 大小: {len(batch)}")
+
+            for resource_id in batch:
+                try:
+                    # 对于evidence，ID是整数类型
+                    if request.resource_type == "evidence":
+                        try:
+                            resource_id_int = int(resource_id)
+                            resource = (
+                                db.query(model).filter(model.id == resource_id_int).first()
+                            )
+                        except ValueError:
+                            errors.append(
+                                {"resource_id": resource_id, "error": "无效的ID格式"}
+                            )
+                            continue
+                    else:
+                        resource = db.query(model).filter(model.id == resource_id).first()
+
+                    if not resource:
+                        errors.append(
+                            {"resource_id": resource_id, "error": "资源不存在"}
+                        )
+                        continue
+
+                    db.delete(resource)
+                    results.append(
+                        {
+                            "resource_id": resource_id,
+                            "resource_type": request.resource_type,
+                            "status": "deleted",
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"删除资源 {resource_id} 失败: {e}")
+                    errors.append({"resource_id": resource_id, "error": str(e)})
+
+            # 每批次后提交，避免事务过大
+            db.commit()
+
+        logger.info(f"批量删除完成: 成功 {len(results)}, 失败 {len(errors)}")
+
+        return {
+            "status": "success",
+            "resource_type": request.resource_type,
+            "total_resources": total_resources,
+            "successful": len(results),
+            "failed": len(errors),
+            "results": results,
+            "errors": errors,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"批量删除失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}")
