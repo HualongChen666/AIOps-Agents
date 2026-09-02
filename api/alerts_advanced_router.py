@@ -63,6 +63,7 @@ from core.models import (
     AlertRoutingRule,
     AlertRule,
     AlertIntegration,
+    AlertAcknowledgement as AlertAcknowledgementDB,
 )
 
 logger = logging.getLogger(__name__)
@@ -287,6 +288,15 @@ class ThirdPartyConfig(BaseModel):
     access_key: Optional[str] = ""
     secret_key: Optional[str] = ""
     enabled: bool = False
+
+
+class AlertAcknowledgementRequest(BaseModel):
+    """告警确认请求模型"""
+
+    alert_id: str
+    acknowledged_by: str
+    comment: Optional[str] = ""
+    status: str = "acknowledged"
 
 
 # ============================================================================
@@ -651,9 +661,109 @@ async def get_correlation() -> Dict[str, Any]:
 
 
 @router.get("/acknowledgements", summary="获取告警确认记录")
-async def get_acknowledgements() -> Dict[str, Any]:
+async def get_acknowledgements(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取告警确认记录"""
-    return {"acknowledgements": list(_acknowledgements)}
+    try:
+        acknowledgements = db.query(AlertAcknowledgementDB).order_by(
+            AlertAcknowledgementDB.acknowledged_at.desc()
+        ).limit(100).all()
+        return {"acknowledgements": [
+            {
+                "id": str(ack.id),
+                "alert_id": ack.alert_id,
+                "acknowledged_by": ack.acknowledged_by,
+                "acknowledged_at": ack.acknowledged_at.isoformat() if ack.acknowledged_at else None,
+                "comment": ack.comment,
+                "status": ack.status,
+            }
+            for ack in acknowledgements
+        ]}
+    except Exception as e:
+        logger.error(f"Error getting acknowledgements: {e}")
+        return {"acknowledgements": []}
+
+
+@router.post("/acknowledgements", summary="创建告警确认记录")
+async def create_acknowledgement(
+    acknowledgement: AlertAcknowledgementRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """创建新的告警确认记录"""
+    try:
+        new_acknowledgement = AlertAcknowledgementDB(
+            alert_id=acknowledgement.alert_id,
+            acknowledged_by=acknowledgement.acknowledged_by,
+            comment=acknowledgement.comment,
+            status=acknowledgement.status,
+        )
+        db.add(new_acknowledgement)
+        db.commit()
+        db.refresh(new_acknowledgement)
+
+        logger.info(
+            f"Alert acknowledged: alert_id={acknowledgement.alert_id}, "
+            f"by={acknowledgement.acknowledged_by}, status={acknowledgement.status}"
+        )
+
+        return {
+            "status": "success",
+            "acknowledgement": {
+                "id": str(new_acknowledgement.id),
+                "alert_id": new_acknowledgement.alert_id,
+                "acknowledged_by": new_acknowledgement.acknowledged_by,
+                "acknowledged_at": new_acknowledgement.acknowledged_at.isoformat() if new_acknowledgement.acknowledged_at else None,
+                "comment": new_acknowledgement.comment,
+                "status": new_acknowledgement.status,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error creating acknowledgement: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/acknowledgements/{ack_id}", summary="更新告警确认记录")
+async def update_acknowledgement(
+    ack_id: str,
+    acknowledgement: AlertAcknowledgementRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
+    """更新告警确认记录"""
+    try:
+        existing_ack = db.query(AlertAcknowledgementDB).filter(
+            AlertAcknowledgementDB.id == int(ack_id)
+        ).first()
+        if not existing_ack:
+            raise HTTPException(status_code=404, detail="告警确认记录不存在")
+
+        existing_ack.comment = acknowledgement.comment
+        existing_ack.status = acknowledgement.status
+
+        db.commit()
+        db.refresh(existing_ack)
+
+        logger.info(
+            f"Alert acknowledgement updated: id={ack_id}, "
+            f"status={acknowledgement.status}"
+        )
+
+        return {
+            "status": "success",
+            "acknowledgement": {
+                "id": str(existing_ack.id),
+                "alert_id": existing_ack.alert_id,
+                "acknowledged_by": existing_ack.acknowledged_by,
+                "acknowledged_at": existing_ack.acknowledged_at.isoformat() if existing_ack.acknowledged_at else None,
+                "comment": existing_ack.comment,
+                "status": existing_ack.status,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating acknowledgement: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/escalation/rules", summary="获取升级规则列表")
@@ -1304,26 +1414,6 @@ async def delete_webhook_config(
     except Exception as e:
         logger.error(f"Error deleting webhook config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/dynamic-threshold/rules", summary="获取动态阈值规则列表")
-async def get_intelligent_analysis() -> Dict[str, Any]:
-    """获取智能分析结果"""
-    return {
-        "analyses": list(_intelligent_analyses),
-        "stats": {
-            "total_analyses": len(_intelligent_analyses),
-            "successful_analyses": len(
-                [a for a in _intelligent_analyses if a.get("status") == "completed"]
-            ),
-            "failed_analyses": len(
-                [a for a in _intelligent_analyses if a.get("status") == "failed"]
-            ),
-            "avg_confidence": 0.78,
-            "pattern_count": 15,
-            "root_cause_count": 8,
-        },
-    }
 
 
 @router.post("/intelligent-analysis", summary="运行智能分析")
