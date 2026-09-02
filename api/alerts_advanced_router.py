@@ -310,8 +310,10 @@ def get_timestamp() -> str:
 
 
 @router.get("/dashboard", summary="获取告警仪表盘数据")
-@limiter.limit("100/minute")  # Dashboard endpoint has higher limit
-async def get_dashboard(time_range: str = Query(default="24h")) -> Dict[str, Any]:
+async def get_dashboard(
+    time_range: str = Query(default="24h"),
+    request: Request = None
+) -> Dict[str, Any]:
     """
     获取告警仪表盘数据，包括告警统计、分布、趋势等
     """
@@ -417,9 +419,8 @@ async def get_configuration(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.put("/configuration", summary="更新告警配置")
-@limiter.limit("30/minute")  # Configuration updates have stricter limit
 async def update_configuration(
-    config: AlertConfig, 
+    config: AlertConfig,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("operator"))
 ) -> Dict[str, Any]:

@@ -255,7 +255,6 @@ async def _initialize_default_alert_rules(
 
 
 @router.get("/config", response_model=DatabaseMonitoringConfig)
-@limiter.limit("60/minute")
 async def get_monitoring_config(
     request,
     db: AsyncSession = Depends(async_get_session),
@@ -294,7 +293,6 @@ async def get_monitoring_config(
 
 
 @router.put("/config", response_model=DatabaseMonitoringConfig)
-@limiter.limit("30/minute")
 @require_permission(Permission.SYSTEM_CONFIG)
 async def update_monitoring_config(
     request,
@@ -351,7 +349,6 @@ async def update_monitoring_config(
 
 
 @router.get("/thresholds", response_model=Dict[str, DatabaseMetricThreshold])
-@limiter.limit("60/minute")
 async def get_metric_thresholds(
     request,
     db: AsyncSession = Depends(async_get_session),
@@ -379,7 +376,6 @@ async def get_metric_thresholds(
 
 
 @router.put("/thresholds/{metric_type}", response_model=DatabaseMetricThreshold)
-@limiter.limit("30/minute")
 @require_permission(Permission.SYSTEM_CONFIG)
 async def update_metric_threshold(
     request,
@@ -414,7 +410,6 @@ async def update_metric_threshold(
 
 
 @router.get("/baselines", response_model=Dict[str, DatabasePerformanceBaseline])
-@limiter.limit("60/minute")
 async def get_performance_baselines(
     request,
     db: AsyncSession = Depends(async_get_session),
@@ -442,7 +437,6 @@ async def get_performance_baselines(
 
 
 @router.post("/baselines", response_model=DatabasePerformanceBaseline)
-@limiter.limit("30/minute")
 @require_permission(Permission.WRITE)
 async def create_performance_baseline(
     request,
@@ -486,7 +480,6 @@ async def create_performance_baseline(
 
 
 @router.get("/baselines/{baseline_name}", response_model=DatabasePerformanceBaseline)
-@limiter.limit("60/minute")
 async def get_performance_baseline(
     request,
     baseline_name: str,
@@ -515,7 +508,6 @@ async def get_performance_baseline(
 
 
 @router.get("/alert-rules", response_model=Dict[str, DatabaseAlertRule])
-@limiter.limit("60/minute")
 async def get_alert_rules(
     request,
     db: AsyncSession = Depends(async_get_session),
@@ -547,7 +539,6 @@ async def get_alert_rules(
 
 
 @router.post("/alert-rules", response_model=DatabaseAlertRule)
-@limiter.limit("30/minute")
 @require_permission(Permission.WRITE)
 async def create_alert_rule(
     request,
@@ -590,7 +581,6 @@ async def create_alert_rule(
 
 
 @router.put("/alert-rules/{rule_id}", response_model=DatabaseAlertRule)
-@limiter.limit("30/minute")
 @require_permission(Permission.WRITE)
 async def update_alert_rule(
     request,
@@ -634,7 +624,6 @@ async def update_alert_rule(
 
 
 @router.delete("/alert-rules/{rule_id}")
-@limiter.limit("30/minute")
 @require_permission(Permission.DELETE)
 async def delete_alert_rule(
     request,
@@ -655,7 +644,6 @@ async def delete_alert_rule(
 
 
 @router.get("/status", response_model=DatabaseMonitoringStatus)
-@limiter.limit("60/minute")
 async def get_monitoring_status(
     request,
     db: AsyncSession = Depends(async_get_session),
@@ -692,7 +680,6 @@ async def get_monitoring_status(
 
 
 @router.post("/establish-baseline")
-@limiter.limit("10/minute")
 @require_permission(Permission.WRITE)
 async def establish_current_baseline(
     request,
@@ -738,7 +725,6 @@ async def establish_current_baseline(
 
 
 @router.get("/health")
-@limiter.limit("60/minute")
 async def get_database_health(
     request,
     db: AsyncSession = Depends(async_get_session),

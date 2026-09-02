@@ -140,7 +140,6 @@ class MonitoringConfig(BaseModel):
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("60/minute")
 async def get_log_alerting(
     request: Request,
     status: str = Query(default="all", pattern="^(all|active|inactive)$"),

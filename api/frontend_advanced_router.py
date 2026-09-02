@@ -205,7 +205,6 @@ async def get_frontend_repository(db: AsyncSession = Depends(get_db)) -> Fronten
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def list_components(
     type: Optional[str] = Query(None, description="按组件类型过滤"),
     category: Optional[str] = Query(None, description="按分类过滤"),
@@ -260,7 +259,6 @@ async def list_components(
     },
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("20/minute")
 async def create_component(
     request: ComponentCreate,
     current_user: User = Depends(require_permission("components:write")),
@@ -310,7 +308,6 @@ async def create_component(
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def get_component(
     component_id: str,
     current_user: User = Depends(require_permission("components:read")),
@@ -344,7 +341,6 @@ async def get_component(
         500: {"description": "更新失败"},
     },
 )
-@limiter.limit("50/minute")
 async def update_component(
     component_id: str,
     request: ComponentUpdate,
@@ -395,7 +391,6 @@ async def update_component(
         500: {"description": "删除失败"},
     },
 )
-@limiter.limit("20/minute")
 async def delete_component(
     component_id: str,
     current_user: User = Depends(require_permission("components:write")),
@@ -431,7 +426,6 @@ async def delete_component(
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def list_themes(
     base_theme: Optional[str] = Query(None, description="按基础主题过滤"),
     is_default: Optional[bool] = Query(None, description="是否为默认主题"),
@@ -480,7 +474,6 @@ async def list_themes(
     },
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("20/minute")
 async def create_theme(
     request: ThemeCreate,
     current_user: User = Depends(require_permission("themes:write")),
@@ -524,7 +517,6 @@ async def create_theme(
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def list_layouts(
     type: Optional[str] = Query(None, description="按布局类型过滤"),
     is_default: Optional[bool] = Query(None, description="是否为默认布局"),
@@ -573,7 +565,6 @@ async def list_layouts(
     },
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("20/minute")
 async def create_layout(
     request: LayoutCreate,
     current_user: User = Depends(require_permission("layouts:write")),

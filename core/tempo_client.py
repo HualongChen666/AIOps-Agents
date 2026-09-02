@@ -497,9 +497,9 @@ class TempoClient:
 
     async def get_slow_traces(
         self,
-        threshold_ms: float = 1000,
         start: datetime,
         end: datetime,
+        threshold_ms: float = 1000,
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
         """
