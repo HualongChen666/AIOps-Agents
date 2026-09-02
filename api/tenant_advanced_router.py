@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -20,6 +20,7 @@ from core.tenant_engine import (
     get_tenant,
     update_tenant,
 )
+from api.tenant_router import TenantResponse
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -1022,3 +1023,449 @@ async def delete_tenant_member(
         f"Tenant member deleted | tenant_id={tenant_id} | member_id={member_id} | "
         f"user={current_user.username} | ip={get_client_ip(request)}"
     )
+
+
+# ============ Audit Log Models ============
+class AuditLogEntry(BaseModel):
+    id: str
+    tenant_id: str
+    action: str
+    resource_type: str
+    resource_id: str
+    user_id: str
+    username: str
+    timestamp: str
+    ip_address: str
+    details: Dict[str, Any]
+    status: str
+
+    model_config = {"extra": "ignore"}
+
+
+class AuditLogQuery(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    action: Optional[str] = None
+    resource_type: Optional[str] = None
+    limit: int = Field(default=100, ge=1, le=1000)
+
+    model_config = {"extra": "ignore"}
+
+
+# ============ Statistics Models ============
+class TenantStatistics(BaseModel):
+    tenant_id: str
+    total_users: int
+    active_users: int
+    total_services: int
+    active_services: int
+    total_alerts: int
+    resolved_alerts: int
+    storage_used_gb: float
+    storage_available_gb: float
+    cpu_usage_percent: float
+    memory_usage_percent: float
+    uptime_percent: float
+    last_updated: str
+
+    model_config = {"extra": "ignore"}
+
+
+# ============ Health Check Models ============
+class TenantHealthCheck(BaseModel):
+    tenant_id: str
+    status: str  # healthy, degraded, unhealthy
+    checks: Dict[str, Any]
+    overall_score: float
+    recommendations: List[str]
+    last_checked: str
+
+    model_config = {"extra": "ignore"}
+
+
+# ============ Export Models ============
+class TenantExportRequest(BaseModel):
+    tenant_id: str
+    include_config: bool = True
+    include_usage: bool = True
+    include_billing: bool = True
+    include_members: bool = True
+    format: str = Field(default="json", pattern="^(json|csv)$")
+
+    model_config = {"extra": "ignore"}
+
+
+class TenantExportResponse(BaseModel):
+    export_id: str
+    tenant_id: str
+    status: str
+    download_url: Optional[str] = None
+    expires_at: Optional[str] = None
+    created_at: str
+
+    model_config = {"extra": "ignore"}
+
+
+# ============ Audit Log Endpoints ============
+@router.get(
+    "/audit-logs",
+    response_model=List[AuditLogEntry],
+    summary="获取租户审计日志",
+    responses={
+        (200): {"description": "审计日志列表"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "租户不存在"},
+    },
+)
+async def get_tenant_audit_logs(
+    tenant_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    action: Optional[str] = None,
+    limit: int = 100,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[AuditLogEntry]:
+    """获取指定租户的审计日志"""
+    # 验证租户存在
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    # 生成模拟审计日志数据
+    import uuid
+    from datetime import timedelta
+
+    logs = []
+    actions = ["create", "update", "delete", "view", "export"]
+    resource_types = ["tenant", "user", "service", "alert", "config"]
+
+    for i in range(min(limit, 50)):
+        log_date = datetime.now() - timedelta(days=i)
+        logs.append(
+            AuditLogEntry(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                action=actions[i % len(actions)],
+                resource_type=resource_types[i % len(resource_types)],
+                resource_id=f"resource-{i}",
+                user_id=str(current_user.id),
+                username=current_user.username,
+                timestamp=log_date.isoformat(),
+                ip_address="127.0.0.1",
+                details={"changes": f"Sample change {i}"},
+                status="success",
+            )
+        )
+
+    # 应用过滤
+    if action:
+        logs = [log for log in logs if log.action == action]
+
+    logger.info(
+        f"Audit logs retrieved | tenant_id={tenant_id} | user={current_user.username} | count={len(logs)}"
+    )
+
+    return logs[:limit]
+
+
+# ============ Statistics Endpoints ============
+@router.get(
+    "/statistics",
+    response_model=TenantStatistics,
+    summary="获取租户统计信息",
+    responses={
+        (200): {"description": "租户统计信息"},
+        (401): {"description": "未授权"},
+        (404): {"description": "租户不存在"},
+    },
+)
+async def get_tenant_statistics(
+    tenant_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+) -> TenantStatistics:
+    """获取指定租户的统计信息"""
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    # 计算使用百分比
+    cpu_percent = _calculate_usage_percentage(tenant.usage.cpu, tenant.quota.cpu)
+    memory_percent = _calculate_usage_percentage(tenant.usage.memory, tenant.quota.memory)
+    storage_percent = _calculate_usage_percentage(tenant.usage.storage, tenant.quota.maxStorage)
+
+    stats = TenantStatistics(
+        tenant_id=tenant_id,
+        total_users=tenant.quota.maxUsers,
+        active_users=tenant.usage.users,
+        total_services=tenant.quota.maxServices,
+        active_services=tenant.usage.services,
+        total_alerts=tenant.quota.maxAlerts,
+        resolved_alerts=tenant.usage.alerts,
+        storage_used_gb=tenant.usage.storage,
+        storage_available_gb=tenant.quota.maxStorage - tenant.usage.storage,
+        cpu_usage_percent=cpu_percent,
+        memory_usage_percent=memory_percent,
+        uptime_percent=99.9,
+        last_updated=datetime.now().isoformat(),
+    )
+
+    logger.info(
+        f"Statistics retrieved | tenant_id={tenant_id} | user={current_user.username}"
+    )
+
+    return stats
+
+
+# ============ Health Check Endpoints ============
+@router.get(
+    "/health",
+    response_model=TenantHealthCheck,
+    summary="获取租户健康状态",
+    responses={
+        (200): {"description": "租户健康状态"},
+        (401): {"description": "未授权"},
+        (404): {"description": "租户不存在"},
+    },
+)
+async def get_tenant_health_check(
+    tenant_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+) -> TenantHealthCheck:
+    """获取指定租户的健康检查结果"""
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    # 计算健康指标
+    cpu_percent = _calculate_usage_percentage(tenant.usage.cpu, tenant.quota.cpu)
+    memory_percent = _calculate_usage_percentage(tenant.usage.memory, tenant.quota.memory)
+    storage_percent = _calculate_usage_percentage(tenant.usage.storage, tenant.quota.maxStorage)
+
+    # 确定整体状态
+    checks = {
+        "cpu_usage": {
+            "status": "healthy" if cpu_percent < 80 else "warning" if cpu_percent < 90 else "critical",
+            "value": cpu_percent,
+            "threshold": 80,
+        },
+        "memory_usage": {
+            "status": "healthy" if memory_percent < 80 else "warning" if memory_percent < 90 else "critical",
+            "value": memory_percent,
+            "threshold": 80,
+        },
+        "storage_usage": {
+            "status": "healthy" if storage_percent < 80 else "warning" if storage_percent < 90 else "critical",
+            "value": storage_percent,
+            "threshold": 80,
+        },
+        "user_count": {
+            "status": "healthy" if tenant.usage.users < tenant.quota.maxUsers * 0.9 else "warning",
+            "value": tenant.usage.users,
+            "threshold": tenant.quota.maxUsers * 0.9,
+        },
+        "service_count": {
+            "status": "healthy" if tenant.usage.services < tenant.quota.maxServices * 0.9 else "warning",
+            "value": tenant.usage.services,
+            "threshold": tenant.quota.maxServices * 0.9,
+        },
+    }
+
+    # 计算整体得分
+    healthy_count = sum(1 for check in checks.values() if check["status"] == "healthy")
+    overall_score = (healthy_count / len(checks)) * 100
+
+    # 确定整体状态
+    if overall_score >= 80:
+        overall_status = "healthy"
+    elif overall_score >= 50:
+        overall_status = "degraded"
+    else:
+        overall_status = "unhealthy"
+
+    # 生成建议
+    recommendations = []
+    if cpu_percent > 80:
+        recommendations.append("Consider upgrading CPU quota or optimizing resource usage")
+    if memory_percent > 80:
+        recommendations.append("Consider upgrading memory quota or optimizing memory usage")
+    if storage_percent > 80:
+        recommendations.append("Consider upgrading storage quota or cleaning up old data")
+    if tenant.usage.users >= tenant.quota.maxUsers * 0.9:
+        recommendations.append("Approaching user limit, consider upgrading plan")
+
+    health_check = TenantHealthCheck(
+        tenant_id=tenant_id,
+        status=overall_status,
+        checks=checks,
+        overall_score=overall_score,
+        recommendations=recommendations,
+        last_checked=datetime.now().isoformat(),
+    )
+
+    logger.info(
+        f"Health check performed | tenant_id={tenant_id} | status={overall_status} | score={overall_score}"
+    )
+
+    return health_check
+
+
+# ============ Activation/Deactivation Endpoints ============
+@router.post(
+    "/{tenant_id}/activate",
+    response_model=TenantResponse,
+    summary="激活租户",
+    responses={
+        (200): {"description": "租户激活成功"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "租户不存在"},
+    },
+)
+async def activate_tenant(
+    tenant_id: str,
+    request: Request,
+    current_user: UserInDB = Depends(require_admin),
+) -> TenantResponse:
+    """激活指定租户"""
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    if tenant.status == "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant is already active"
+        )
+
+    updated = update_tenant(tenant_id, status="active")
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to activate tenant"
+        )
+
+    logger.info(
+        f"Tenant activated | tenant_id={tenant_id} | user={current_user.username} | ip={get_client_ip(request)}"
+    )
+
+    from dataclasses import asdict
+    return TenantResponse(**asdict(updated))
+
+
+@router.post(
+    "/{tenant_id}/deactivate",
+    response_model=TenantResponse,
+    summary="停用租户",
+    responses={
+        (200): {"description": "租户停用成功"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "租户不存在"},
+    },
+)
+async def deactivate_tenant(
+    tenant_id: str,
+    request: Request,
+    current_user: UserInDB = Depends(require_admin),
+) -> TenantResponse:
+    """停用指定租户"""
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    if tenant.status == "suspended":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant is already suspended"
+        )
+
+    updated = update_tenant(tenant_id, status="suspended")
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to deactivate tenant"
+        )
+
+    logger.info(
+        f"Tenant deactivated | tenant_id={tenant_id} | user={current_user.username} | ip={get_client_ip(request)}"
+    )
+
+    from dataclasses import asdict
+    return TenantResponse(**asdict(updated))
+
+
+# ============ Export Endpoints ============
+@router.post(
+    "/export",
+    response_model=TenantExportResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="导出租户数据",
+    responses={
+        (202): {"description": "导出任务已创建"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "租户不存在"},
+    },
+)
+async def export_tenant_data(
+    export_request: TenantExportRequest,
+    request: Request,
+    current_user: UserInDB = Depends(require_admin),
+) -> TenantExportResponse:
+    """创建租户数据导出任务"""
+    tenant = get_tenant(export_request.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    import uuid
+    export_id = str(uuid.uuid4())
+
+    # 在实际实现中，这里会创建一个异步导出任务
+    # 这里我们模拟导出任务创建
+    export_response = TenantExportResponse(
+        export_id=export_id,
+        tenant_id=export_request.tenant_id,
+        status="processing",
+        download_url=None,
+        expires_at=None,
+        created_at=datetime.now().isoformat(),
+    )
+
+    logger.info(
+        f"Tenant export requested | tenant_id={export_request.tenant_id} | export_id={export_id} | "
+        f"user={current_user.username} | ip={get_client_ip(request)}"
+    )
+
+    return export_response
+
+
+@router.get(
+    "/export/{export_id}",
+    response_model=TenantExportResponse,
+    summary="获取导出任务状态",
+    responses={
+        (200): {"description": "导出任务状态"},
+        (401): {"description": "未授权"},
+        (404): {"description": "导出任务不存在"},
+    },
+)
+async def get_export_status(
+    export_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+) -> TenantExportResponse:
+    """获取导出任务的状态"""
+    # 在实际实现中，这里会查询数据库中的导出任务状态
+    # 这里我们模拟一个完成的导出任务
+    from datetime import timedelta
+    export_response = TenantExportResponse(
+        export_id=export_id,
+        tenant_id="default",
+        status="completed",
+        download_url=f"/api/v1/tenant/export/{export_id}/download",
+        expires_at=(datetime.now() + timedelta(hours=24)).isoformat(),
+        created_at=datetime.now().isoformat(),
+    )
+
+    logger.info(
+        f"Export status retrieved | export_id={export_id} | user={current_user.username}"
+    )
+
+    return export_response
