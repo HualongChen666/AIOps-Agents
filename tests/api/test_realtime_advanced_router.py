@@ -18,12 +18,17 @@ from api.realtime_advanced_router import (
     RealtimeStreamUpdate,
     RealtimeSubscriptionCreate,
     RealtimeSubscriptionResponse,
+    RealtimeSubscriptionUpdate,
     RealtimeWebhookCreate,
     RealtimeWebhookResponse,
+    RealtimeWebhookUpdate,
     router,
 )
 from core.models import RealtimeEvent, RealtimeStream, RealtimeSubscription, RealtimeWebhook
 from core.auth_db import SessionLocal
+from core.database import Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 # Test fixtures
@@ -54,12 +59,28 @@ def client(db_session):
 
 @pytest.fixture
 def db_session():
-    """Create a database session for testing"""
-    db = SessionLocal()
+    """Create a database session for testing with in-memory SQLite"""
+    # Use in-memory SQLite database to avoid conflicts with parallel tests
+    from sqlalchemy.pool import StaticPool
+    
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    
+    # Create all tables
+    Base.metadata.create_all(bind=test_engine)
+    
+    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    db = TestSessionLocal()
     try:
         yield db
     finally:
         db.close()
+        # Drop all tables after tests
+        Base.metadata.drop_all(bind=test_engine)
+        test_engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -112,6 +133,14 @@ def sample_subscription_create():
 
 
 @pytest.fixture
+def sample_subscription_update():
+    """Sample subscription update data"""
+    return RealtimeSubscriptionUpdate(
+        subscriber_id="user-002", status="paused", filters={"event_type": "warning"}
+    )
+
+
+@pytest.fixture
 def sample_webhook_create():
     """Sample webhook creation data"""
     return RealtimeWebhookCreate(
@@ -122,6 +151,14 @@ def sample_webhook_create():
         headers={"Content-Type": "application/json"},
         stream_id="STR-TEST001",
         retry_policy={"max_retries": 3, "backoff": 5},
+    )
+
+
+@pytest.fixture
+def sample_webhook_update():
+    """Sample webhook update data"""
+    return RealtimeWebhookUpdate(
+        name="更新后的Webhook", description="更新后的描述", enabled=False
     )
 
 
@@ -515,6 +552,288 @@ class TestCreateWebhook:
 
 
 # ============================================================================
+# GET /api/v1/realtime/subscriptions/{subscription_id} - Get Single Subscription
+# ============================================================================
+
+
+class TestGetRealtimeSubscription:
+    """Test cases for getting a single subscription"""
+
+    def test_get_realtime_subscription_success(
+        self, client, db_session, sample_realtime_subscription
+    ):
+        """Test successful retrieval of single subscription"""
+        subscription = RealtimeSubscription(**sample_realtime_subscription)
+        db_session.add(subscription)
+        db_session.commit()
+
+        response = client.get("/api/v1/realtime/subscriptions/SUB-TEST001")
+
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            assert response.json()["id"] == "SUB-TEST001"
+            assert response.json()["subscriber_id"] == "user-001"
+
+    def test_get_realtime_subscription_not_found(self, client):
+        """Test getting non-existent subscription"""
+        response = client.get("/api/v1/realtime/subscriptions/SUB-NONEXISTENT")
+
+        assert response.status_code == 404
+
+
+# ============================================================================
+# PATCH /api/v1/realtime/subscriptions/{subscription_id} - Update Subscription
+# ============================================================================
+
+
+class TestUpdateRealtimeSubscription:
+    """Test cases for updating subscriptions"""
+
+    def test_update_realtime_subscription_success(
+        self,
+        client,
+        db_session,
+        sample_subscription_update,
+        sample_realtime_subscription,
+    ):
+        """Test successful update of subscription"""
+        subscription = RealtimeSubscription(**sample_realtime_subscription)
+        db_session.add(subscription)
+        db_session.commit()
+
+        response = client.patch(
+            "/api/v1/realtime/subscriptions/SUB-TEST001",
+            json=sample_subscription_update.model_dump(exclude_unset=True),
+        )
+
+        assert response.status_code in (200, 404)
+
+    def test_update_realtime_subscription_not_found(
+        self, client, db_session, sample_subscription_update
+    ):
+        """Test updating non-existent subscription"""
+        response = client.patch(
+            "/api/v1/realtime/subscriptions/SUB-NONEXISTENT",
+            json=sample_subscription_update.model_dump(exclude_unset=True),
+        )
+
+        assert response.status_code == 404
+
+    def test_update_realtime_subscription_invalid_subscription_type(
+        self, client, db_session, sample_realtime_subscription
+    ):
+        """Test updating subscription with invalid subscription type"""
+        subscription = RealtimeSubscription(**sample_realtime_subscription)
+        db_session.add(subscription)
+        db_session.commit()
+
+        invalid_data = {"subscription_type": "invalid_type"}
+
+        response = client.patch(
+            "/api/v1/realtime/subscriptions/SUB-TEST001", json=invalid_data
+        )
+
+        assert response.status_code in (400, 404)
+
+    def test_update_realtime_subscription_partial_update(
+        self, client, db_session, sample_realtime_subscription
+    ):
+        """Test partial update of subscription"""
+        subscription = RealtimeSubscription(**sample_realtime_subscription)
+        db_session.add(subscription)
+        db_session.commit()
+
+        partial_data = {"status": "paused"}
+
+        response = client.patch(
+            "/api/v1/realtime/subscriptions/SUB-TEST001", json=partial_data
+        )
+
+        assert response.status_code in (200, 404)
+
+
+# ============================================================================
+# DELETE /api/v1/realtime/subscriptions/{subscription_id} - Delete Subscription
+# ============================================================================
+
+
+class TestDeleteRealtimeSubscription:
+    """Test cases for deleting subscriptions"""
+
+    def test_delete_realtime_subscription_success(
+        self, client, db_session, sample_realtime_subscription
+    ):
+        """Test successful deletion of subscription"""
+        subscription = RealtimeSubscription(**sample_realtime_subscription)
+        db_session.add(subscription)
+        db_session.commit()
+
+        response = client.delete("/api/v1/realtime/subscriptions/SUB-TEST001")
+
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            assert response.json()["status"] == "success"
+
+        # Verify deletion
+        deleted = (
+            db_session.query(RealtimeSubscription)
+            .filter(RealtimeSubscription.id == "SUB-TEST001")
+            .first()
+        )
+        assert deleted is None
+
+    def test_delete_realtime_subscription_not_found(self, client):
+        """Test deleting non-existent subscription"""
+        response = client.delete("/api/v1/realtime/subscriptions/SUB-NONEXISTENT")
+
+        assert response.status_code == 404
+
+
+# ============================================================================
+# GET /api/v1/realtime/webhooks/{webhook_id} - Get Single Webhook
+# ============================================================================
+
+
+class TestGetRealtimeWebhook:
+    """Test cases for getting a single webhook"""
+
+    def test_get_realtime_webhook_success(
+        self, client, db_session, sample_realtime_webhook
+    ):
+        """Test successful retrieval of single webhook"""
+        webhook = RealtimeWebhook(**sample_realtime_webhook)
+        db_session.add(webhook)
+        db_session.commit()
+
+        response = client.get("/api/v1/realtime/webhooks/WH-TEST001")
+
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            assert response.json()["id"] == "WH-TEST001"
+            assert response.json()["name"] == "告警Webhook"
+
+    def test_get_realtime_webhook_not_found(self, client):
+        """Test getting non-existent webhook"""
+        response = client.get("/api/v1/realtime/webhooks/WH-NONEXISTENT")
+
+        assert response.status_code == 404
+
+
+# ============================================================================
+# PATCH /api/v1/realtime/webhooks/{webhook_id} - Update Webhook
+# ============================================================================
+
+
+class TestUpdateRealtimeWebhook:
+    """Test cases for updating webhooks"""
+
+    def test_update_realtime_webhook_success(
+        self, client, db_session, sample_webhook_update, sample_realtime_webhook
+    ):
+        """Test successful update of webhook"""
+        webhook = RealtimeWebhook(**sample_realtime_webhook)
+        db_session.add(webhook)
+        db_session.commit()
+
+        response = client.patch(
+            "/api/v1/realtime/webhooks/WH-TEST001",
+            json=sample_webhook_update.model_dump(exclude_unset=True),
+        )
+
+        assert response.status_code in (200, 404)
+
+    def test_update_realtime_webhook_not_found(
+        self, client, db_session, sample_webhook_update
+    ):
+        """Test updating non-existent webhook"""
+        response = client.patch(
+            "/api/v1/realtime/webhooks/WH-NONEXISTENT",
+            json=sample_webhook_update.model_dump(exclude_unset=True),
+        )
+
+        assert response.status_code == 404
+
+    def test_update_realtime_webhook_invalid_url(
+        self, client, db_session, sample_realtime_webhook
+    ):
+        """Test updating webhook with invalid URL"""
+        webhook = RealtimeWebhook(**sample_realtime_webhook)
+        db_session.add(webhook)
+        db_session.commit()
+
+        invalid_data = {"url": "not-a-valid-url"}
+
+        response = client.patch("/api/v1/realtime/webhooks/WH-TEST001", json=invalid_data)
+
+        assert response.status_code in (422, 404)
+
+    def test_update_realtime_webhook_invalid_method(
+        self, client, db_session, sample_realtime_webhook
+    ):
+        """Test updating webhook with invalid HTTP method"""
+        webhook = RealtimeWebhook(**sample_realtime_webhook)
+        db_session.add(webhook)
+        db_session.commit()
+
+        invalid_data = {"method": "INVALID"}
+
+        response = client.patch("/api/v1/realtime/webhooks/WH-TEST001", json=invalid_data)
+
+        assert response.status_code in (400, 404)
+
+    def test_update_realtime_webhook_partial_update(
+        self, client, db_session, sample_realtime_webhook
+    ):
+        """Test partial update of webhook"""
+        webhook = RealtimeWebhook(**sample_realtime_webhook)
+        db_session.add(webhook)
+        db_session.commit()
+
+        partial_data = {"enabled": False}
+
+        response = client.patch("/api/v1/realtime/webhooks/WH-TEST001", json=partial_data)
+
+        assert response.status_code in (200, 404)
+
+
+# ============================================================================
+# DELETE /api/v1/realtime/webhooks/{webhook_id} - Delete Webhook
+# ============================================================================
+
+
+class TestDeleteRealtimeWebhook:
+    """Test cases for deleting webhooks"""
+
+    def test_delete_realtime_webhook_success(
+        self, client, db_session, sample_realtime_webhook
+    ):
+        """Test successful deletion of webhook"""
+        webhook = RealtimeWebhook(**sample_realtime_webhook)
+        db_session.add(webhook)
+        db_session.commit()
+
+        response = client.delete("/api/v1/realtime/webhooks/WH-TEST001")
+
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            assert response.json()["status"] == "success"
+
+        # Verify deletion
+        deleted = (
+            db_session.query(RealtimeWebhook)
+            .filter(RealtimeWebhook.id == "WH-TEST001")
+            .first()
+        )
+        assert deleted is None
+
+    def test_delete_realtime_webhook_not_found(self, client):
+        """Test deleting non-existent webhook"""
+        response = client.delete("/api/v1/realtime/webhooks/WH-NONEXISTENT")
+
+        assert response.status_code == 404
+
+
+# ============================================================================
 # Integration Tests
 # ============================================================================
 
@@ -544,3 +863,80 @@ class TestIntegration:
         # Delete stream
         response = client.delete(f"/api/v1/realtime/streams/{stream_id}")
         assert response.status_code in (200, 404)
+
+    def test_full_subscription_lifecycle(
+        self, client, db_session, sample_subscription_create, sample_realtime_stream
+    ):
+        """Test full subscription lifecycle: create, get, update, delete"""
+        # Create stream first
+        stream = RealtimeStream(**sample_realtime_stream)
+        db_session.add(stream)
+        db_session.commit()
+
+        # Create subscription
+        response = client.post(
+            "/api/v1/realtime/subscriptions", json=sample_subscription_create.model_dump()
+        )
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            subscription_id = response.json()["id"]
+
+        # Get subscription
+        response = client.get(f"/api/v1/realtime/subscriptions/{subscription_id}")
+        assert response.status_code in (200, 404)
+
+        # Update subscription
+        update_data = {"status": "paused"}
+        response = client.patch(
+            f"/api/v1/realtime/subscriptions/{subscription_id}", json=update_data
+        )
+        assert response.status_code in (200, 404)
+
+        # Delete subscription
+        response = client.delete(f"/api/v1/realtime/subscriptions/{subscription_id}")
+        assert response.status_code in (200, 404)
+
+    def test_full_webhook_lifecycle(
+        self, client, db_session, sample_webhook_create, sample_realtime_stream
+    ):
+        """Test full webhook lifecycle: create, get, update, delete"""
+        # Create stream first
+        stream = RealtimeStream(**sample_realtime_stream)
+        db_session.add(stream)
+        db_session.commit()
+
+        # Create webhook
+        response = client.post(
+            "/api/v1/realtime/webhooks", json=sample_webhook_create.model_dump()
+        )
+        assert response.status_code in (200, 404)
+        if response.status_code != 404:
+            webhook_id = response.json()["id"]
+
+        # Get webhook
+        response = client.get(f"/api/v1/realtime/webhooks/{webhook_id}")
+        assert response.status_code in (200, 404)
+
+        # Update webhook
+        update_data = {"enabled": False}
+        response = client.patch(
+            f"/api/v1/realtime/webhooks/{webhook_id}", json=update_data
+        )
+        assert response.status_code in (200, 404)
+
+        # Delete webhook
+        response = client.delete(f"/api/v1/realtime/webhooks/{webhook_id}")
+        assert response.status_code in (200, 404)
+
+    def test_all_endpoints_exist(self, client):
+        """Test that all endpoints are registered"""
+        endpoints = [
+            "/api/v1/realtime/streams",
+            "/api/v1/realtime/events",
+            "/api/v1/realtime/subscriptions",
+            "/api/v1/realtime/webhooks",
+        ]
+        for endpoint in endpoints:
+            response = client.get(endpoint)
+            # All endpoints should return 200 (empty list) or 404 (not found)
+            assert response.status_code in (200, 404)

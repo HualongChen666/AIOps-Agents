@@ -176,6 +176,35 @@ class RealtimeWebhookResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RealtimeSubscriptionUpdate(BaseModel):
+    """更新订阅请求"""
+
+    subscriber_id: Optional[str] = Field(None, description="订阅者ID")
+    subscription_type: Optional[str] = Field(None, description="订阅类型")
+    filters: Optional[Dict[str, Any]] = Field(None, description="过滤条件")
+    status: Optional[str] = Field(None, description="订阅状态")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {"extra": "ignore"}
+
+
+class RealtimeWebhookUpdate(BaseModel):
+    """更新Webhook请求"""
+
+    name: Optional[str] = Field(None, description="Webhook名称")
+    description: Optional[str] = Field(None, description="Webhook描述")
+    url: Optional[str] = Field(None, description="Webhook URL")
+    method: Optional[str] = Field(None, description="HTTP方法")
+    headers: Optional[Dict[str, str]] = Field(None, description="HTTP头")
+    body_template: Optional[str] = Field(None, description="请求体模板")
+    stream_id: Optional[str] = Field(None, description="关联流ID")
+    enabled: Optional[bool] = Field(None, description="是否启用")
+    retry_policy: Optional[Dict[str, Any]] = Field(None, description="重试策略")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {"extra": "ignore"}
+
+
 # ==================== API Endpoints ====================
 
 
@@ -676,3 +705,277 @@ async def create_realtime_webhook(webhook: RealtimeWebhookCreate, db: Session = 
         db.rollback()
         logger.error(f"创建Webhook失败: {e}")
         raise HTTPException(status_code=500, detail=f"创建Webhook失败: {str(e)}")
+
+
+@router.get(
+    "/subscriptions/{subscription_id}",
+    response_model=RealtimeSubscriptionResponse,
+    summary="获取单个订阅",
+)
+async def get_realtime_subscription(
+    subscription_id: str, db: Session = Depends(get_db)
+) -> RealtimeSubscriptionResponse:
+    """
+    根据ID获取单个订阅
+    """
+    try:
+        subscription = (
+            db.query(RealtimeSubscription)
+            .filter(RealtimeSubscription.id == subscription_id)
+            .first()
+        )
+        if not subscription:
+            raise HTTPException(status_code=404, detail=f"订阅 {subscription_id} 不存在")
+
+        return RealtimeSubscriptionResponse(
+            id=subscription.id,
+            stream_id=subscription.stream_id,
+            subscriber_id=subscription.subscriber_id,
+            subscription_type=subscription.subscription_type,
+            filters=subscription.filters,
+            status=subscription.status,
+            created_at=subscription.created_at.isoformat() if subscription.created_at else "",
+            updated_at=subscription.updated_at.isoformat() if subscription.updated_at else "",
+            meta_data=subscription.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取订阅失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取订阅失败: {str(e)}")
+
+
+@router.patch(
+    "/subscriptions/{subscription_id}",
+    response_model=RealtimeSubscriptionResponse,
+    summary="更新订阅",
+)
+async def update_realtime_subscription(
+    subscription_id: str,
+    subscription_update: RealtimeSubscriptionUpdate,
+    db: Session = Depends(get_db),
+) -> RealtimeSubscriptionResponse:
+    """
+    更新订阅
+
+    支持部分更新
+    """
+    try:
+        subscription = (
+            db.query(RealtimeSubscription)
+            .filter(RealtimeSubscription.id == subscription_id)
+            .first()
+        )
+        if not subscription:
+            raise HTTPException(status_code=404, detail=f"订阅 {subscription_id} 不存在")
+
+        # 更新字段
+        update_data = subscription_update.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(subscription, field, value)
+
+        # 验证订阅类型
+        if subscription_update.subscription_type is not None:
+            valid_types = ["sse", "websocket"]
+            if subscription.subscription_type not in valid_types:
+                raise HTTPException(
+                    status_code=400, detail=f"无效的订阅类型: {subscription.subscription_type}"
+                )
+
+        db.commit()
+        db.refresh(subscription)
+
+        logger.info(f"更新订阅成功: {subscription_id}")
+
+        return RealtimeSubscriptionResponse(
+            id=subscription.id,
+            stream_id=subscription.stream_id,
+            subscriber_id=subscription.subscriber_id,
+            subscription_type=subscription.subscription_type,
+            filters=subscription.filters,
+            status=subscription.status,
+            created_at=subscription.created_at.isoformat() if subscription.created_at else "",
+            updated_at=subscription.updated_at.isoformat() if subscription.updated_at else "",
+            meta_data=subscription.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新订阅失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新订阅失败: {str(e)}")
+
+
+@router.delete("/subscriptions/{subscription_id}", summary="删除订阅")
+async def delete_realtime_subscription(
+    subscription_id: str, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    删除订阅
+    """
+    try:
+        subscription = (
+            db.query(RealtimeSubscription)
+            .filter(RealtimeSubscription.id == subscription_id)
+            .first()
+        )
+        if not subscription:
+            raise HTTPException(status_code=404, detail=f"订阅 {subscription_id} 不存在")
+
+        db.delete(subscription)
+        db.commit()
+
+        logger.info(f"删除订阅成功: {subscription_id}")
+
+        return {"status": "success", "message": f"订阅 {subscription_id} 已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除订阅失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除订阅失败: {str(e)}")
+
+
+@router.get(
+    "/webhooks/{webhook_id}", response_model=RealtimeWebhookResponse, summary="获取单个Webhook"
+)
+async def get_realtime_webhook(
+    webhook_id: str, db: Session = Depends(get_db)
+) -> RealtimeWebhookResponse:
+    """
+    根据ID获取单个Webhook
+    """
+    try:
+        webhook = (
+            db.query(RealtimeWebhook).filter(RealtimeWebhook.id == webhook_id).first()
+        )
+        if not webhook:
+            raise HTTPException(status_code=404, detail=f"Webhook {webhook_id} 不存在")
+
+        return RealtimeWebhookResponse(
+            id=webhook.id,
+            name=webhook.name,
+            description=webhook.description,
+            url=webhook.url,
+            method=webhook.method,
+            headers=webhook.headers,
+            body_template=webhook.body_template,
+            stream_id=webhook.stream_id,
+            enabled=webhook.enabled,
+            retry_policy=webhook.retry_policy,
+            created_at=webhook.created_at.isoformat() if webhook.created_at else "",
+            updated_at=webhook.updated_at.isoformat() if webhook.updated_at else "",
+            created_by=webhook.created_by,
+            meta_data=webhook.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取Webhook失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取Webhook失败: {str(e)}")
+
+
+@router.patch(
+    "/webhooks/{webhook_id}", response_model=RealtimeWebhookResponse, summary="更新Webhook"
+)
+async def update_realtime_webhook(
+    webhook_id: str, webhook_update: RealtimeWebhookUpdate, db: Session = Depends(get_db)
+) -> RealtimeWebhookResponse:
+    """
+    更新Webhook
+
+    支持部分更新
+    """
+    try:
+        webhook = (
+            db.query(RealtimeWebhook).filter(RealtimeWebhook.id == webhook_id).first()
+        )
+        if not webhook:
+            raise HTTPException(status_code=404, detail=f"Webhook {webhook_id} 不存在")
+
+        # 更新字段
+        update_data = webhook_update.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(webhook, field, value)
+
+        # 验证URL格式（如果更新了URL）
+        if webhook_update.url is not None:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(webhook.url)
+            if not parsed.scheme or not parsed.netloc:
+                raise HTTPException(status_code=422, detail="无效的URL格式")
+
+        # 验证流是否存在（如果更新了stream_id）
+        if webhook_update.stream_id is not None:
+            stream = (
+                db.query(RealtimeStream)
+                .filter(RealtimeStream.id == webhook.stream_id)
+                .first()
+            )
+            if not stream:
+                raise HTTPException(status_code=404, detail=f"流 {webhook.stream_id} 不存在")
+
+        # 验证HTTP方法（如果更新了method）
+        if webhook_update.method is not None:
+            valid_methods = ["GET", "POST", "PUT", "DELETE"]
+            if webhook.method not in valid_methods:
+                raise HTTPException(
+                    status_code=400, detail=f"无效的HTTP方法: {webhook.method}, 必须是 {valid_methods}"
+                )
+
+        db.commit()
+        db.refresh(webhook)
+
+        logger.info(f"更新Webhook成功: {webhook_id}")
+
+        return RealtimeWebhookResponse(
+            id=webhook.id,
+            name=webhook.name,
+            description=webhook.description,
+            url=webhook.url,
+            method=webhook.method,
+            headers=webhook.headers,
+            body_template=webhook.body_template,
+            stream_id=webhook.stream_id,
+            enabled=webhook.enabled,
+            retry_policy=webhook.retry_policy,
+            created_at=webhook.created_at.isoformat() if webhook.created_at else "",
+            updated_at=webhook.updated_at.isoformat() if webhook.updated_at else "",
+            created_by=webhook.created_by,
+            meta_data=webhook.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新Webhook失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新Webhook失败: {str(e)}")
+
+
+@router.delete("/webhooks/{webhook_id}", summary="删除Webhook")
+async def delete_realtime_webhook(
+    webhook_id: str, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    删除Webhook
+    """
+    try:
+        webhook = (
+            db.query(RealtimeWebhook).filter(RealtimeWebhook.id == webhook_id).first()
+        )
+        if not webhook:
+            raise HTTPException(status_code=404, detail=f"Webhook {webhook_id} 不存在")
+
+        db.delete(webhook)
+        db.commit()
+
+        logger.info(f"删除Webhook成功: {webhook_id}")
+
+        return {"status": "success", "message": f"Webhook {webhook_id} 已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除Webhook失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除Webhook失败: {str(e)}")

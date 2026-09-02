@@ -20,6 +20,9 @@ from api.realtime_router import (
 )
 from core.models import RealtimeEvent, RealtimeStream, RealtimeSubscription, RealtimeWebhook
 from core.auth_db import SessionLocal
+from core.database import Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 # Test fixtures
@@ -50,12 +53,28 @@ def client(db_session):
 
 @pytest.fixture
 def db_session():
-    """Create a database session for testing"""
-    db = SessionLocal()
+    """Create a database session for testing with in-memory SQLite"""
+    # Use in-memory SQLite database to avoid conflicts with parallel tests
+    from sqlalchemy.pool import StaticPool
+    
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    
+    # Create all tables
+    Base.metadata.create_all(bind=test_engine)
+    
+    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    db = TestSessionLocal()
     try:
         yield db
     finally:
         db.close()
+        # Drop all tables after tests
+        Base.metadata.drop_all(bind=test_engine)
+        test_engine.dispose()
 
 
 @pytest.fixture(autouse=True)
