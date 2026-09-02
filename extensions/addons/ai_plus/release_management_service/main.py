@@ -13,10 +13,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
 try:
-    try:
-    from .config import
-except ImportError:
-    from config import Config
+    from .config import Config
     from .deployment_manager import DeploymentManager, DeploymentInfo
     from .grpc.server import ReleaseManagementRPCServer
     from .release_builder import ReleaseBuilder, BuildInfo
