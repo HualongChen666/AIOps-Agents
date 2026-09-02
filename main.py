@@ -203,6 +203,7 @@ from config import (
     METRICS_ENABLED,
     PLUGINS_ENABLED,
     RAG_ENABLED,
+    RELEASE_MANAGEMENT_ENABLED,
     SECURITY_SCANNING_ENABLED,
     TOPOLOGY_ENABLED,
     TRACING_ENABLED,
@@ -333,6 +334,8 @@ if ENABLE_ADDONS:
         from api.workflow_router import router as workflow_router
         from api.workflow_advanced_router import router as workflow_advanced_router
         from api.workflow_visualization_router import router as workflow_visualization_router
+    if RELEASE_MANAGEMENT_ENABLED:
+        from api.release_management_router import router as release_management_router
     if INTEGRATIONS_ENABLED:
         from api.dashboard_router import router as dashboard_router
         from api.dashboard_advanced_router import router as dashboard_advanced_router
@@ -582,6 +585,9 @@ except ImportError:
 # 新增 Teams 路由
 from api.docker_router import router as docker_router
 from api.hardware_log_router import router as hardware_log_router
+
+# Release Management Router (conditionally loaded)
+release_management_router: Any = None
 
 # windows_repair_router 与 unified_repair_router 共存，提供平台级独立入口
 # 新增统一修复路由（替代各平台独立修复路由）
@@ -896,6 +902,7 @@ ADDON_ROUTERS = [
     (workflow_router, WORKFLOW_ENABLED),
     (workflow_advanced_router, WORKFLOW_ENABLED),
     (workflow_visualization_router, WORKFLOW_ENABLED),
+    (release_management_router, RELEASE_MANAGEMENT_ENABLED),
     (hitl_router, INCIDENT_RESPONSE_ENABLED),
     (priority_router, INCIDENT_RESPONSE_ENABLED),
     (priority_advanced_router, INCIDENT_RESPONSE_ENABLED),

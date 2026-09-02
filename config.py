@@ -119,6 +119,7 @@ LOG_AGGREGATION_ENABLED: bool = _safe_bool("LOG_AGGREGATION_ENABLED", default=Tr
 # SRE Operations Pack
 INCIDENT_RESPONSE_ENABLED: bool = _safe_bool("INCIDENT_RESPONSE_ENABLED", default=True)
 WORKFLOW_ENABLED: bool = _safe_bool("WORKFLOW_ENABLED", default=True)
+RELEASE_MANAGEMENT_ENABLED: bool = _safe_bool("RELEASE_MANAGEMENT_ENABLED", default=True)
 
 # Multi-Cloud & Integrations Pack
 INTEGRATIONS_ENABLED: bool = _safe_bool("INTEGRATIONS_ENABLED", default=True)
