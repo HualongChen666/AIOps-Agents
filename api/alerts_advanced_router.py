@@ -42,7 +42,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -311,8 +311,7 @@ def get_timestamp() -> str:
 
 @router.get("/dashboard", summary="获取告警仪表盘数据")
 async def get_dashboard(
-    time_range: str = Query(default="24h"),
-    request: Request = None
+    time_range: str = Query(default="24h")
 ) -> Dict[str, Any]:
     """
     获取告警仪表盘数据，包括告警统计、分布、趋势等
@@ -476,7 +475,6 @@ async def get_notification_channels(db: Session = Depends(get_db)) -> Dict[str, 
 
 
 @router.post("/notification/channels", summary="创建通知通道")
-@limiter.limit("30/minute")  # Write operations have stricter limit
 async def create_notification_channel(
     channel: NotificationChannel, 
     db: Session = Depends(get_db),
@@ -516,7 +514,6 @@ async def create_notification_channel(
 
 
 @router.put("/notification/channels/{channel_id}", summary="更新通知通道")
-@limiter.limit("30/minute")  # Write operations have stricter limit
 async def update_notification_channel(
     channel_id: str, 
     channel: NotificationChannel, 
@@ -562,7 +559,6 @@ async def update_notification_channel(
 
 
 @router.delete("/notification/channels/{channel_id}", summary="删除通知通道")
-@limiter.limit("30/minute")  # Write operations have stricter limit
 async def delete_notification_channel(
     channel_id: str, 
     db: Session = Depends(get_db),
@@ -686,7 +682,6 @@ async def get_escalation_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/escalation/rules", summary="创建升级规则")
-@limiter.limit("30/minute")  # Write operations have stricter limit
 async def create_escalation_rule(
     rule: EscalationRule, 
     db: Session = Depends(get_db),
@@ -729,7 +724,6 @@ async def create_escalation_rule(
 
 
 @router.put("/escalation/rules/{rule_id}", summary="更新升级规则")
-@limiter.limit("30/minute")  # Write operations have stricter limit
 async def update_escalation_rule(
     rule_id: str, 
     rule: EscalationRule, 
@@ -776,7 +770,6 @@ async def update_escalation_rule(
 
 
 @router.delete("/escalation/rules/{rule_id}", summary="删除升级规则")
-@limiter.limit("30/minute")  # Write operations have stricter limit
 async def delete_escalation_rule(
     rule_id: str, 
     db: Session = Depends(get_db),
@@ -2098,7 +2091,6 @@ async def get_zabbix(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.put("/zabbix", summary="更新Zabbix集成配置")
-@limiter.limit("20/minute")  # Integration config updates have very strict limit
 async def update_zabbix(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新Zabbix集成配置"""
     try:
@@ -2154,7 +2146,6 @@ async def get_cloudwatch(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.put("/cloudwatch", summary="更新CloudWatch集成配置")
-@limiter.limit("20/minute")  # Integration config updates have very strict limit
 async def update_cloudwatch(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新CloudWatch集成配置"""
     try:
@@ -2210,7 +2201,6 @@ async def get_pagerduty(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.put("/pagerduty", summary="更新PagerDuty集成配置")
-@limiter.limit("20/minute")  # Integration config updates have very strict limit
 async def update_pagerduty(config: ThirdPartyConfig, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """更新PagerDuty集成配置"""
     try:

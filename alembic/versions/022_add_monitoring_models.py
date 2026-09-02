@@ -30,7 +30,7 @@ from sqlalchemy import inspect
 
 # revision identifiers
 revision = '022'
-down_revision = '021'
+down_revision = '021a'
 branch_labels = None
 depends_on = None
 

@@ -21,7 +21,7 @@ def upgrade():
     # Create change_approvals table
     op.create_table(
         'change_approvals',
-        sa.Column('id', sa.String(20), nullable=False),
+        sa.Column('id', sa.String(20), nullable=False, primary_key=True),
         sa.Column('request_id', sa.String(50), nullable=False),
         sa.Column('approver', sa.String(255), nullable=False),
         sa.Column('status', sa.String(50), nullable=False, server_default='pending'),
@@ -31,12 +31,11 @@ def upgrade():
         sa.Index('idx_change_approvals_request_id', 'request_id'),
         sa.Index('idx_change_approvals_status', 'status'),
     )
-    op.create_primary_key('pk_change_approvals', 'change_approvals', ['id'])
 
     # Create change_schedules table
     op.create_table(
         'change_schedules',
-        sa.Column('id', sa.String(20), nullable=False),
+        sa.Column('id', sa.String(20), nullable=False, primary_key=True),
         sa.Column('request_id', sa.String(50), nullable=False),
         sa.Column('scheduled_start', sa.DateTime(), nullable=False),
         sa.Column('scheduled_end', sa.DateTime(), nullable=False),
@@ -47,12 +46,11 @@ def upgrade():
         sa.Index('idx_change_schedules_request_id', 'request_id'),
         sa.Index('idx_change_schedules_status', 'status'),
     )
-    op.create_primary_key('pk_change_schedules', 'change_schedules', ['id'])
 
     # Create change_rollback_plans table
     op.create_table(
         'change_rollback_plans',
-        sa.Column('id', sa.String(20), nullable=False),
+        sa.Column('id', sa.String(20), nullable=False, primary_key=True),
         sa.Column('request_id', sa.String(50), nullable=False),
         sa.Column('rollback_steps', sa.JSON(), nullable=False),
         sa.Column('data_consistency_checks', sa.JSON(), nullable=False),
@@ -64,7 +62,6 @@ def upgrade():
         sa.Index('idx_change_rollback_plans_request_id', 'request_id'),
         sa.Index('idx_change_rollback_plans_status', 'status'),
     )
-    op.create_primary_key('pk_change_rollback_plans', 'change_rollback_plans', ['id'])
 
 
 def downgrade():

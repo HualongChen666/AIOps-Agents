@@ -21,7 +21,7 @@ def upgrade():
     # Create cost_budgets table
     op.create_table(
         'cost_budgets',
-        sa.Column('id', sa.String(50), nullable=False),
+        sa.Column('id', sa.String(50), nullable=False, primary_key=True),
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('service', sa.String(255), nullable=False),
         sa.Column('amount', sa.Float(), nullable=False),
@@ -36,12 +36,11 @@ def upgrade():
         sa.Index('idx_cost_budgets_service', 'service'),
         sa.Index('idx_cost_budgets_status', 'status'),
     )
-    op.create_primary_key('pk_cost_budgets', 'cost_budgets', ['id'])
 
     # Create cost_optimizations table
     op.create_table(
         'cost_optimizations',
-        sa.Column('id', sa.String(50), nullable=False),
+        sa.Column('id', sa.String(50), nullable=False, primary_key=True),
         sa.Column('service', sa.String(255), nullable=False),
         sa.Column('optimization_type', sa.String(50), nullable=False),
         sa.Column('potential_savings', sa.Float(), nullable=False),
@@ -54,12 +53,11 @@ def upgrade():
         sa.Index('idx_cost_optimizations_priority', 'priority'),
         sa.Index('idx_cost_optimizations_status', 'status'),
     )
-    op.create_primary_key('pk_cost_optimizations', 'cost_optimizations', ['id'])
 
     # Create cost_anomalies table
     op.create_table(
         'cost_anomalies',
-        sa.Column('id', sa.String(50), nullable=False),
+        sa.Column('id', sa.String(50), nullable=False, primary_key=True),
         sa.Column('service', sa.String(255), nullable=False),
         sa.Column('anomaly_type', sa.String(50), nullable=False),
         sa.Column('detected_at', sa.DateTime(), nullable=False),
@@ -73,12 +71,11 @@ def upgrade():
         sa.Index('idx_cost_anomalies_severity', 'severity'),
         sa.Index('idx_cost_anomalies_status', 'status'),
     )
-    op.create_primary_key('pk_cost_anomalies', 'cost_anomalies', ['id'])
 
     # Create cost_alerts table
     op.create_table(
         'cost_alerts',
-        sa.Column('id', sa.String(50), nullable=False),
+        sa.Column('id', sa.String(50), nullable=False, primary_key=True),
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('alert_type', sa.String(50), nullable=False),
         sa.Column('threshold', sa.Float(), nullable=False),
@@ -91,12 +88,11 @@ def upgrade():
         sa.Index('idx_cost_alerts_service', 'service'),
         sa.Index('idx_cost_alerts_status', 'status'),
     )
-    op.create_primary_key('pk_cost_alerts', 'cost_alerts', ['id'])
 
     # Create cost_reports table
     op.create_table(
         'cost_reports',
-        sa.Column('id', sa.String(50), nullable=False),
+        sa.Column('id', sa.String(50), nullable=False, primary_key=True),
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('report_type', sa.String(50), nullable=False),
         sa.Column('period_start', sa.DateTime(), nullable=False),
@@ -109,7 +105,6 @@ def upgrade():
         sa.Index('idx_cost_reports_type', 'report_type'),
         sa.Index('idx_cost_reports_status', 'status'),
     )
-    op.create_primary_key('pk_cost_reports', 'cost_reports', ['id'])
 
 
 def downgrade():

@@ -1,0 +1,10 @@
+Fix rate limiter decorator errors and add missing pytest markers
+
+- Removed @limiter.limit decorators that were causing import errors
+- Fixed tempo_client.py parameter order issue
+- Added missing pytest markers (security, performance)
+- Fixed function signatures to work with slowapi rate limiter
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

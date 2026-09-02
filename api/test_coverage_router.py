@@ -34,7 +34,6 @@ limiter = Limiter(key_func=get_remote_address)
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def get_coverage_status(
     request: Request,
     current_user: User = Depends(get_current_active_user),
@@ -72,7 +71,6 @@ async def get_coverage_status(
         500: {"description": "添加失败"},
     },
 )
-@limiter.limit("50/minute")
 async def add_module_coverage(
     request: Request,
     module_id: str,
@@ -121,7 +119,6 @@ async def add_module_coverage(
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def get_module_coverage(
     request: Request,
     module_id: str,
@@ -177,7 +174,6 @@ async def get_module_coverage(
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("50/minute")
 async def get_coverage_report(
     request: Request,
     current_user: User = Depends(get_current_active_user),

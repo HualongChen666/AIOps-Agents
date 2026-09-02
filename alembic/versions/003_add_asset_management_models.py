@@ -21,19 +21,18 @@ def upgrade():
     # Create asset_inventory_metadata table
     op.create_table(
         'asset_inventory_metadata',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False, primary_key=True),
         sa.Column('asset_id', sa.Integer(), nullable=False),
         sa.Column('inventory_metadata', sa.JSON(), nullable=False),
         sa.Column('created_at', sa.DateTime(), server_default=func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False),
         sa.Index('idx_asset_inventory_metadata_asset_id', 'asset_id'),
     )
-    op.create_primary_key('pk_asset_inventory_metadata', 'asset_inventory_metadata', ['id'])
 
     # Create asset_relationships table
     op.create_table(
         'asset_relationships',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False, primary_key=True),
         sa.Column('source_id', sa.Integer(), nullable=False),
         sa.Column('target_id', sa.Integer(), nullable=False),
         sa.Column('relationship_type', sa.String(50), nullable=False),
@@ -44,12 +43,11 @@ def upgrade():
         sa.Index('idx_asset_relationships_target_id', 'target_id'),
         sa.Index('idx_asset_relationships_type', 'relationship_type'),
     )
-    op.create_primary_key('pk_asset_relationships', 'asset_relationships', ['id'])
 
     # Create asset_lifecycles table
     op.create_table(
         'asset_lifecycles',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False, primary_key=True),
         sa.Column('asset_id', sa.Integer(), nullable=False),
         sa.Column('stage', sa.String(50), nullable=False),
         sa.Column('start_date', sa.DateTime(), nullable=True),
@@ -62,12 +60,11 @@ def upgrade():
         sa.Index('idx_asset_lifecycles_stage', 'stage'),
         sa.Index('idx_asset_lifecycles_status', 'status'),
     )
-    op.create_primary_key('pk_asset_lifecycles', 'asset_lifecycles', ['id'])
 
     # Create asset_dependencies table
     op.create_table(
         'asset_dependencies',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False, primary_key=True),
         sa.Column('asset_id', sa.Integer(), nullable=False),
         sa.Column('dependency_type', sa.String(50), nullable=False),
         sa.Column('dependency_details', sa.JSON(), nullable=False),
@@ -78,7 +75,6 @@ def upgrade():
         sa.Index('idx_asset_dependencies_type', 'dependency_type'),
         sa.Index('idx_asset_dependencies_criticality', 'criticality'),
     )
-    op.create_primary_key('pk_asset_dependencies', 'asset_dependencies', ['id'])
 
 
 def downgrade():

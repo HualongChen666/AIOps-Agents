@@ -27,7 +27,7 @@ from sqlalchemy import inspect
 
 
 # revision identifiers
-revision = '021'
+revision = '021a'
 down_revision = '020'
 branch_labels = None
 depends_on = None

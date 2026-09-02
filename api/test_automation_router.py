@@ -34,7 +34,6 @@ limiter = Limiter(key_func=get_remote_address)
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def get_automation_status(
     request: Request,
     current_user: User = Depends(get_current_active_user),
@@ -72,7 +71,6 @@ async def get_automation_status(
         500: {"description": "创建失败"},
     },
 )
-@limiter.limit("50/minute")
 async def create_automation_job(
     request: Request,
     job_id: str,
@@ -122,7 +120,6 @@ async def create_automation_job(
         500: {"description": "运行失败"},
     },
 )
-@limiter.limit("30/minute")
 async def run_automation_job(
     request: Request,
     job_id: str,
@@ -167,7 +164,6 @@ async def run_automation_job(
         500: {"description": "生成失败"},
     },
 )
-@limiter.limit("20/minute")
 async def generate_cicd_pipeline(
     request: Request,
     output_path: str,
@@ -213,7 +209,6 @@ async def generate_cicd_pipeline(
         500: {"description": "生成失败"},
     },
 )
-@limiter.limit("20/minute")
 async def generate_test_report(
     request: Request,
     report_type: str = "html",
@@ -259,7 +254,6 @@ async def generate_test_report(
         500: {"description": "发送失败"},
     },
 )
-@limiter.limit("30/minute")
 async def send_notification(
     request: Request,
     job_id: str,

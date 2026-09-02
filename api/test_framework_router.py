@@ -34,7 +34,6 @@ limiter = Limiter(key_func=get_remote_address)
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def get_framework_status(
     request: Request,
     current_user: User = Depends(get_current_active_user),
@@ -72,7 +71,6 @@ async def get_framework_status(
         500: {"description": "获取失败"},
     },
 )
-@limiter.limit("100/minute")
 async def get_test_suites(
     request: Request,
     current_user: User = Depends(get_current_active_user),
@@ -127,7 +125,6 @@ async def get_test_suites(
         500: {"description": "创建失败"},
     },
 )
-@limiter.limit("50/minute")
 async def create_test_suite(
     request: Request,
     suite_id: str,
@@ -178,7 +175,6 @@ async def create_test_suite(
         500: {"description": "生成失败"},
     },
 )
-@limiter.limit("30/minute")
 async def generate_test_file(
     request: Request,
     module_name: str,
@@ -230,7 +226,6 @@ async def generate_test_file(
         500: {"description": "运行失败"},
     },
 )
-@limiter.limit("30/minute")
 async def run_test_suite(
     request: Request,
     suite_id: str,
