@@ -2687,6 +2687,292 @@ class CostReportDB(Base):
         return f"<CostReportDB(id={self.id}, name='{self.name}', type='{self.report_type}')>"
 
 
+# ==================== Capacity Planning Extended Models ====================
+
+
+class CapacityForecastDB(Base):
+    """容量预测表"""
+
+    __tablename__ = "capacity_forecasts"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    forecast_type = Column(String(50), nullable=False)
+    current_value = Column(Float, nullable=False)
+    forecast_7d = Column(Float, nullable=False)
+    forecast_30d = Column(Float, nullable=False)
+    forecast_90d = Column(Float, nullable=False)
+    threshold = Column(Float, nullable=False)
+    unit = Column(String(50), nullable=False)
+    confidence = Column(Float, nullable=False)
+    trend = Column(String(50), nullable=False)
+    forecast_data = Column(JSON, nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    forecast_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_forecasts_service", "service"),
+        Index("idx_capacity_forecasts_resource_type", "resource_type"),
+        Index("idx_capacity_forecasts_forecast_type", "forecast_type"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityForecastDB(id={self.id}, service='{self.service}', type='{self.resource_type}')>"
+
+
+class CapacityThresholdDB(Base):
+    """容量阈值表"""
+
+    __tablename__ = "capacity_thresholds"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    warning_threshold = Column(Float, nullable=False)
+    critical_threshold = Column(Float, nullable=False)
+    alert_enabled = Column(Boolean, nullable=False, default=True)
+    notification_channels = Column(JSON, nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    threshold_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_thresholds_service", "service"),
+        Index("idx_capacity_thresholds_resource_type", "resource_type"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityThresholdDB(id={self.id}, service='{self.service}', type='{self.resource_type}')>"
+
+
+class CapacityAlertDB(Base):
+    """容量告警表"""
+
+    __tablename__ = "capacity_alerts"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    alert_type = Column(String(50), nullable=False)
+    severity = Column(String(50), nullable=False, index=True)
+    current_value = Column(Float, nullable=False)
+    threshold_value = Column(Float, nullable=False)
+    message = Column(Text, nullable=False)
+    status = Column(String(50), nullable=False, default="open", index=True)
+    acknowledged_by = Column(String(255), nullable=True)
+    acknowledged_at = Column(DateTime(), nullable=True)
+    resolved_at = Column(DateTime(), nullable=True)
+    created_at = Column(DateTime(), server_default=func.now())
+    alert_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_alerts_service", "service"),
+        Index("idx_capacity_alerts_resource_type", "resource_type"),
+        Index("idx_capacity_alerts_severity", "severity"),
+        Index("idx_capacity_alerts_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityAlertDB(id={self.id}, service='{self.service}', type='{self.resource_type}')>"
+
+
+class CapacityScenarioDB(Base):
+    """容量场景表"""
+
+    __tablename__ = "capacity_scenarios"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    scenario_type = Column(String(50), nullable=False)
+    services = Column(JSON, nullable=False)
+    growth_factors = Column(JSON, nullable=False)
+    time_horizon = Column(Integer, nullable=False)
+    baseline_metrics = Column(JSON, nullable=False)
+    projected_metrics = Column(JSON, nullable=False)
+    created_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    status = Column(String(50), nullable=False, default="draft", index=True)
+    scenario_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_scenarios_type", "scenario_type"),
+        Index("idx_capacity_scenarios_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityScenarioDB(id={self.id}, name='{self.name}', type='{self.scenario_type}')>"
+
+
+class CapacitySimulationDB(Base):
+    """容量模拟表"""
+
+    __tablename__ = "capacity_simulations"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    scenario_id = Column(String(50), nullable=False, index=True)
+    simulation_type = Column(String(50), nullable=False)
+    parameters = Column(JSON, nullable=False)
+    results = Column(JSON, nullable=False)
+    resource_requirements = Column(JSON, nullable=False)
+    cost_impact = Column(Float, nullable=False)
+    performance_impact = Column(JSON, nullable=False)
+    risk_assessment = Column(Text, nullable=False)
+    created_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    simulation_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_simulations_scenario", "scenario_id"),
+        Index("idx_capacity_simulations_type", "simulation_type"),
+    )
+
+    def __repr__(self):
+        return f"<CapacitySimulationDB(id={self.id}, scenario_id='{self.scenario_id}')>"
+
+
+class CapacityResourcePoolDB(Base):
+    """资源池表"""
+
+    __tablename__ = "capacity_resource_pools"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    pool_type = Column(String(50), nullable=False)
+    total_capacity = Column(Float, nullable=False)
+    allocated_capacity = Column(Float, nullable=False)
+    available_capacity = Column(Float, nullable=False)
+    unit = Column(String(50), nullable=False)
+    services = Column(JSON, nullable=False)
+    allocation_policy = Column(String(50), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    pool_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_resource_pools_type", "pool_type"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityResourcePoolDB(id={self.id}, name='{self.name}', type='{self.pool_type}')>"
+
+
+class CapacityReservationDB(Base):
+    """资源预留表"""
+
+    __tablename__ = "capacity_reservations"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    pool_id = Column(String(50), nullable=False, index=True)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False)
+    reserved_amount = Column(Float, nullable=False)
+    unit = Column(String(50), nullable=False)
+    start_date = Column(DateTime(), nullable=False)
+    end_date = Column(DateTime(), nullable=False)
+    purpose = Column(Text, nullable=False)
+    status = Column(String(50), nullable=False, default="active", index=True)
+    created_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    reservation_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_reservations_pool", "pool_id"),
+        Index("idx_capacity_reservations_service", "service"),
+        Index("idx_capacity_reservations_status", "status"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityReservationDB(id={self.id}, service='{self.service}', pool_id='{self.pool_id}')>"
+
+
+class CapacityUtilizationDB(Base):
+    """资源利用率表"""
+
+    __tablename__ = "capacity_utilization"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    timestamp = Column(DateTime(), nullable=False, index=True)
+    utilization_percent = Column(Float, nullable=False)
+    peak_utilization = Column(Float, nullable=False)
+    average_utilization = Column(Float, nullable=False)
+    min_utilization = Column(Float, nullable=False)
+    sample_count = Column(Integer, nullable=False)
+    utilization_data = Column(JSON, nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_capacity_utilization_service", "service"),
+        Index("idx_capacity_utilization_resource_type", "resource_type"),
+        Index("idx_capacity_utilization_timestamp", "timestamp"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityUtilizationDB(id={self.id}, service='{self.service}', type='{self.resource_type}')>"
+
+
+class CapacityTrendDB(Base):
+    """趋势分析表"""
+
+    __tablename__ = "capacity_trends"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    trend_type = Column(String(50), nullable=False)
+    period_start = Column(DateTime(), nullable=False)
+    period_end = Column(DateTime(), nullable=False)
+    growth_rate = Column(Float, nullable=False)
+    trend_direction = Column(String(50), nullable=False)
+    confidence = Column(Float, nullable=False)
+    seasonal_pattern = Column(JSON, nullable=False)
+    anomaly_flags = Column(JSON, nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    trend_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_trends_service", "service"),
+        Index("idx_capacity_trends_resource_type", "resource_type"),
+        Index("idx_capacity_trends_type", "trend_type"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityTrendDB(id={self.id}, service='{self.service}', type='{self.resource_type}')>"
+
+
+class CapacityBenchmarkDB(Base):
+    """基准测试表"""
+
+    __tablename__ = "capacity_benchmarks"
+
+    id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    benchmark_type = Column(String(50), nullable=False)
+    service = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False)
+    baseline_metrics = Column(JSON, nullable=False)
+    target_metrics = Column(JSON, nullable=False)
+    current_metrics = Column(JSON, nullable=False)
+    compliance_score = Column(Float, nullable=False)
+    last_assessment = Column(DateTime(), nullable=False)
+    next_assessment = Column(DateTime(), nullable=True)
+    created_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime(), server_default=func.now())
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    benchmark_metadata = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_capacity_benchmarks_service", "service"),
+        Index("idx_capacity_benchmarks_type", "benchmark_type"),
+    )
+
+    def __repr__(self):
+        return f"<CapacityBenchmarkDB(id={self.id}, name='{self.name}', service='{self.service}')>"
+
+
 # ==================== Change Management Models ====================
 
 

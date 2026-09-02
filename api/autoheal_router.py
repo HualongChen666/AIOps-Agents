@@ -2,12 +2,42 @@
 import asyncio
 import logging
 from typing import Any, Optional, cast
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query, Depends
 from pydantic import BaseModel, Field, field_validator
 
 from config import INTERNAL_API_KEY
 from core.auto_heal import get_pending_approvals
+from api.common import get_client_ip, handle_service_error
+
+# Import self-healing module
+try:
+    from modules.high_availability.self_healing import (
+        create_self_healing_engine,
+        FailureType,
+        RemediationAction,
+        SelfHealingPolicy,
+        FailureEvent,
+        RemediationResult,
+    )
+    SELF_HEALING_AVAILABLE = True
+except ImportError as e:
+    SELF_HEALING_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Self-healing module not available: {e}")
+
+# Global self-healing engine instance
+_self_healing_engine = None
+
+def get_self_healing_engine():
+    """Get or create the self-healing engine instance."""
+    global _self_healing_engine
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Self-healing module not available")
+    if _self_healing_engine is None:
+        _self_healing_engine = create_self_healing_engine()
+    return _self_healing_engine
 
 
 def _verify_internal_key(request: Request) -> None:
@@ -610,7 +640,7 @@ async def ai_propose_repair(payload: AIProposeRequest, request: Request) -> dict
 async def get_statistics(request: Request) -> dict:
     """
     获取自动修复系统的统计信息
-    
+
     包括：
     - 总任务数
     - 各状态任务数（待审批、已批准、执行中、已完成、失败）
@@ -625,7 +655,7 @@ async def get_statistics(request: Request) -> dict:
             pending_items = await get_pending_approvals()
         else:
             pending_items = get_pending_approvals()  # type: ignore
-        
+
         # Calculate statistics based on pending items
         total_tasks = len(pending_items)
         pending_tasks = len([item for item in pending_items if item.get("status") == "pending"])
@@ -633,14 +663,14 @@ async def get_statistics(request: Request) -> dict:
         executing_tasks = len([item for item in pending_items if item.get("status") == "executing"])
         completed_tasks = len([item for item in pending_items if item.get("status") == "completed"])
         failed_tasks = len([item for item in pending_items if item.get("status") == "failed"])
-        
+
         # Calculate success rate
         total_completed = completed_tasks + failed_tasks
         success_rate = completed_tasks / total_completed if total_completed > 0 else 0.0
-        
+
         # Calculate average execution time (placeholder - would need actual execution time data)
         avg_execution_time = 120.5  # Default placeholder value
-        
+
         statistics = {
             "total_tasks": total_tasks,
             "pending_tasks": pending_tasks,
@@ -651,9 +681,1248 @@ async def get_statistics(request: Request) -> dict:
             "success_rate": success_rate,
             "avg_execution_time": avg_execution_time,
         }
-        
+
         logger.debug(f"统计信息获取成功: {statistics}")
         return statistics
     except Exception as e:
         logger.error(f"获取统计信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取统计信息失败")
+
+
+# ----------------------------------------------------------------------
+# 7️⃣ 策略管理端点 (4个)
+# ----------------------------------------------------------------------
+
+
+class CreatePolicyRequest(BaseModel):
+    """创建自愈策略请求"""
+    id: str = Field(..., min_length=1, max_length=128, description="策略ID")
+    name: str = Field(..., min_length=1, max_length=256, description="策略名称")
+    failure_type: str = Field(..., description="故障类型")
+    remediation_actions: list[str] = Field(..., min_items=1, description="修复动作列表")
+    conditions: dict[str, Any] = Field(default_factory=dict, description="触发条件")
+    enabled: bool = Field(default=True, description="是否启用")
+    max_attempts: int = Field(default=3, ge=1, le=10, description="最大尝试次数")
+    cooldown_seconds: int = Field(default=300, ge=0, le=86400, description="冷却时间(秒)")
+
+    @field_validator("failure_type")
+    @classmethod
+    def validate_failure_type(cls, v: str) -> str:
+        valid_types = [ft.value for ft in FailureType]
+        if v not in valid_types:
+            raise ValueError(f"无效的故障类型，必须是: {', '.join(valid_types)}")
+        return v
+
+    @field_validator("remediation_actions")
+    @classmethod
+    def validate_remediation_actions(cls, v: list[str]) -> list[str]:
+        valid_actions = [ra.value for ra in RemediationAction]
+        for action in v:
+            if action not in valid_actions:
+                raise ValueError(f"无效的修复动作: {action}，必须是: {', '.join(valid_actions)}")
+        return v
+
+    model_config = {"extra": "ignore"}
+
+
+@router.post(
+    "/policies",
+    summary="创建自愈策略",
+    responses={
+        200: {"description": "策略创建成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def create_policy(payload: CreatePolicyRequest, request: Request) -> dict:
+    """创建新的自愈策略"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"创建自愈策略 | operator={operator_ip} | policy_id={payload.id}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        # 检查策略是否已存在
+        if payload.id in engine.policies:
+            raise HTTPException(status_code=400, detail=f"策略ID {payload.id} 已存在")
+
+        # 创建策略
+        policy = SelfHealingPolicy(
+            id=payload.id,
+            name=payload.name,
+            failure_type=FailureType(payload.failure_type),
+            remediation_actions=[RemediationAction(a) for a in payload.remediation_actions],
+            conditions=payload.conditions,
+            enabled=payload.enabled,
+            max_attempts=payload.max_attempts,
+            cooldown_seconds=payload.cooldown_seconds,
+        )
+
+        engine.add_policy(policy)
+
+        logger.info(f"策略创建成功 | policy_id={payload.id} | name={payload.name}")
+        return {
+            "success": True,
+            "policy_id": policy.id,
+            "name": policy.name,
+            "message": "策略创建成功",
+        }
+    except ValueError as e:
+        logger.error(f"策略参数验证失败: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"创建策略失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建策略失败: {str(e)}")
+
+
+@router.get(
+    "/policies",
+    summary="获取所有自愈策略",
+    responses={
+        200: {"description": "策略列表"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def list_policies(request: Request) -> dict:
+    """获取所有自愈策略"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info("获取所有自愈策略")
+
+    try:
+        engine = get_self_healing_engine()
+
+        policies = []
+        for policy in engine.policies.values():
+            policies.append(
+                {
+                    "id": policy.id,
+                    "name": policy.name,
+                    "failure_type": policy.failure_type.value,
+                    "remediation_actions": [a.value for a in policy.remediation_actions],
+                    "conditions": policy.conditions,
+                    "enabled": policy.enabled,
+                    "max_attempts": policy.max_attempts,
+                    "cooldown_seconds": policy.cooldown_seconds,
+                }
+            )
+
+        logger.debug(f"获取策略成功，共 {len(policies)} 个")
+        return {"total": len(policies), "items": policies}
+    except Exception as e:
+        logger.error(f"获取策略列表失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取策略列表失败: {str(e)}")
+
+
+@router.get(
+    "/policies/{policy_id}",
+    summary="获取单个自愈策略",
+    responses={
+        200: {"description": "策略详情"},
+        401: {"description": "未授权"},
+        404: {"description": "策略不存在"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def get_policy(policy_id: str, request: Request) -> dict:
+    """获取指定ID的自愈策略"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info(f"获取自愈策略 | policy_id={policy_id}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        if policy_id not in engine.policies:
+            raise HTTPException(status_code=404, detail=f"策略 {policy_id} 不存在")
+
+        policy = engine.policies[policy_id]
+
+        return {
+            "id": policy.id,
+            "name": policy.name,
+            "failure_type": policy.failure_type.value,
+            "remediation_actions": [a.value for a in policy.remediation_actions],
+            "conditions": policy.conditions,
+            "enabled": policy.enabled,
+            "max_attempts": policy.max_attempts,
+            "cooldown_seconds": policy.cooldown_seconds,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取策略失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取策略失败: {str(e)}")
+
+
+@router.delete(
+    "/policies/{policy_id}",
+    summary="删除自愈策略",
+    responses={
+        200: {"description": "策略删除成功"},
+        401: {"description": "未授权"},
+        404: {"description": "策略不存在"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def delete_policy(policy_id: str, request: Request) -> dict:
+    """删除指定的自愈策略"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.warning(f"删除自愈策略 | operator={operator_ip} | policy_id={policy_id}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        if policy_id not in engine.policies:
+            raise HTTPException(status_code=404, detail=f"策略 {policy_id} 不存在")
+
+        engine.remove_policy(policy_id)
+
+        logger.info(f"策略删除成功 | policy_id={policy_id}")
+        return {"success": True, "policy_id": policy_id, "message": "策略删除成功"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除策略失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除策略失败: {str(e)}")
+
+
+# ----------------------------------------------------------------------
+# 8️⃣ 故障管理端点 (5个)
+# ----------------------------------------------------------------------
+
+
+class DetectFailureRequest(BaseModel):
+    """检测故障请求"""
+    failure_type: str = Field(..., description="故障类型")
+    component: str = Field(..., min_length=1, max_length=256, description="组件名称")
+    severity: str = Field(..., description="严重程度: low, medium, high, critical")
+    description: str = Field(..., min_length=1, max_length=1024, description="故障描述")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="元数据")
+
+    @field_validator("failure_type")
+    @classmethod
+    def validate_failure_type(cls, v: str) -> str:
+        valid_types = [ft.value for ft in FailureType]
+        if v not in valid_types:
+            raise ValueError(f"无效的故障类型，必须是: {', '.join(valid_types)}")
+        return v
+
+    @field_validator("severity")
+    @classmethod
+    def validate_severity(cls, v: str) -> str:
+        valid_severities = ["low", "medium", "high", "critical"]
+        if v not in valid_severities:
+            raise ValueError(f"无效的严重程度，必须是: {', '.join(valid_severities)}")
+        return v
+
+    model_config = {"extra": "ignore"}
+
+
+@router.post(
+    "/failures/detect",
+    summary="检测故障",
+    responses={
+        200: {"description": "故障检测成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def detect_failure(payload: DetectFailureRequest, request: Request) -> dict:
+    """检测并记录故障"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"检测故障 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure_event = engine.detect_failure(
+            failure_type=FailureType(payload.failure_type),
+            component=payload.component,
+            severity=payload.severity,
+            description=payload.description,
+            metadata=payload.metadata,
+        )
+
+        logger.info(f"故障检测成功 | failure_id={failure_event.id}")
+        return {
+            "success": True,
+            "failure_id": failure_event.id,
+            "failure_type": failure_event.failure_type.value,
+            "component": failure_event.component,
+            "severity": failure_event.severity,
+            "detected_at": failure_event.detected_at,
+        }
+    except ValueError as e:
+        logger.error(f"故障参数验证失败: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"检测故障失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"检测故障失败: {str(e)}")
+
+
+@router.get(
+    "/failures",
+    summary="获取故障历史",
+    responses={
+        200: {"description": "故障历史列表"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def list_failures(
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=1000, description="返回数量限制"),
+    offset: int = Query(default=0, ge=0, description="偏移量"),
+) -> dict:
+    """获取故障历史记录"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info(f"获取故障历史 | limit={limit} | offset={offset}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failures = [f.to_dict() for f in engine.failure_history]
+        failures.reverse()  # 最新的在前
+
+        total = len(failures)
+        paginated_failures = failures[offset : offset + limit]
+
+        logger.debug(f"获取故障历史成功，共 {total} 条，返回 {len(paginated_failures)} 条")
+        return {
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "items": paginated_failures,
+        }
+    except Exception as e:
+        logger.error(f"获取故障历史失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取故障历史失败: {str(e)}")
+
+
+@router.get(
+    "/failures/{failure_id}",
+    summary="获取故障详情",
+    responses={
+        200: {"description": "故障详情"},
+        401: {"description": "未授权"},
+        404: {"description": "故障不存在"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def get_failure(failure_id: str, request: Request) -> dict:
+    """获取指定ID的故障详情"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info(f"获取故障详情 | failure_id={failure_id}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure = next((f for f in engine.failure_history if f.id == failure_id), None)
+        if failure is None:
+            raise HTTPException(status_code=404, detail=f"故障 {failure_id} 不存在")
+
+        return failure.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取故障详情失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取故障详情失败: {str(e)}")
+
+
+@router.post(
+    "/failures/{failure_id}/heal",
+    summary="触发自愈",
+    responses={
+        200: {"description": "自愈触发成功"},
+        401: {"description": "未授权"},
+        404: {"description": "故障不存在"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def trigger_healing(failure_id: str, request: Request) -> dict:
+    """对指定故障触发自愈"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"触发自愈 | operator={operator_ip} | failure_id={failure_id}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure = next((f for f in engine.failure_history if f.id == failure_id), None)
+        if failure is None:
+            raise HTTPException(status_code=404, detail=f"故障 {failure_id} 不存在")
+
+        results = engine.trigger_self_healing(failure)
+
+        logger.info(f"自愈触发成功 | failure_id={failure_id} | actions={len(results)}")
+        return {
+            "success": True,
+            "failure_id": failure_id,
+            "remediation_count": len(results),
+            "remediations": [r.to_dict() for r in results],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"触发自愈失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"触发自愈失败: {str(e)}")
+
+
+@router.post(
+    "/failures/{failure_id}/verify",
+    summary="验证修复效果",
+    responses={
+        200: {"description": "验证完成"},
+        401: {"description": "未授权"},
+        404: {"description": "故障不存在"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def verify_remediation(failure_id: str, request: Request) -> dict:
+    """验证指定故障的修复效果"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info(f"验证修复效果 | failure_id={failure_id}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure = next((f for f in engine.failure_history if f.id == failure_id), None)
+        if failure is None:
+            raise HTTPException(status_code=404, detail=f"故障 {failure_id} 不存在")
+
+        verified = engine.verify_remediation(failure)
+
+        logger.info(f"修复验证完成 | failure_id={failure_id} | verified={verified}")
+        return {
+            "success": True,
+            "failure_id": failure_id,
+            "verified": verified,
+            "message": "修复验证成功" if verified else "修复验证失败",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"验证修复失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"验证修复失败: {str(e)}")
+
+
+# ----------------------------------------------------------------------
+# 9️⃣ 修复动作端点 (7个)
+# ----------------------------------------------------------------------
+
+
+class ExecuteActionRequest(BaseModel):
+    """执行修复动作请求"""
+    component: str = Field(..., min_length=1, max_length=256, description="组件名称")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="元数据")
+
+    model_config = {"extra": "ignore"}
+
+
+@router.post(
+    "/actions/restart",
+    summary="重启服务",
+    responses={
+        200: {"description": "重启成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def action_restart(payload: ExecuteActionRequest, request: Request) -> dict:
+    """执行重启服务动作"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"执行重启服务 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        # 创建临时故障事件用于执行动作
+        failure_event = FailureEvent(
+            id=f"manual-{int(datetime.now().timestamp())}",
+            failure_type=FailureType.SERVICE_DOWN,
+            component=payload.component,
+            severity="medium",
+            description=f"手动重启服务: {payload.component}",
+            metadata=payload.metadata,
+        )
+
+        success, message = engine._handle_restart(failure_event)
+
+        logger.info(f"重启服务完成 | component={payload.component} | success={success}")
+        return {
+            "success": success,
+            "action": "restart_service",
+            "component": payload.component,
+            "message": message,
+        }
+    except Exception as e:
+        logger.error(f"重启服务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"重启服务失败: {str(e)}")
+
+
+@router.post(
+    "/actions/scale-up",
+    summary="扩容",
+    responses={
+        200: {"description": "扩容成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def action_scale_up(payload: ExecuteActionRequest, request: Request) -> dict:
+    """执行扩容动作"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"执行扩容 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure_event = FailureEvent(
+            id=f"manual-{int(datetime.now().timestamp())}",
+            failure_type=FailureType.HIGH_LATENCY,
+            component=payload.component,
+            severity="medium",
+            description=f"手动扩容: {payload.component}",
+            metadata=payload.metadata,
+        )
+
+        success, message = engine._handle_scale_up(failure_event)
+
+        logger.info(f"扩容完成 | component={payload.component} | success={success}")
+        return {
+            "success": success,
+            "action": "scale_up",
+            "component": payload.component,
+            "message": message,
+        }
+    except Exception as e:
+        logger.error(f"扩容失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"扩容失败: {str(e)}")
+
+
+@router.post(
+    "/actions/scale-down",
+    summary="缩容",
+    responses={
+        200: {"description": "缩容成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def action_scale_down(payload: ExecuteActionRequest, request: Request) -> dict:
+    """执行缩容动作"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"执行缩容 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure_event = FailureEvent(
+            id=f"manual-{int(datetime.now().timestamp())}",
+            failure_type=FailureType.RESOURCE_EXHAUSTION,
+            component=payload.component,
+            severity="medium",
+            description=f"手动缩容: {payload.component}",
+            metadata=payload.metadata,
+        )
+
+        success, message = engine._handle_scale_down(failure_event)
+
+        logger.info(f"缩容完成 | component={payload.component} | success={success}")
+        return {
+            "success": success,
+            "action": "scale_down",
+            "component": payload.component,
+            "message": message,
+        }
+    except Exception as e:
+        logger.error(f"缩容失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"缩容失败: {str(e)}")
+
+
+@router.post(
+    "/actions/rollback",
+    summary="回滚",
+    responses={
+        200: {"description": "回滚成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def action_rollback(payload: ExecuteActionRequest, request: Request) -> dict:
+    """执行回滚动作"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"执行回滚 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure_event = FailureEvent(
+            id=f"manual-{int(datetime.now().timestamp())}",
+            failure_type=FailureType.HIGH_ERROR_RATE,
+            component=payload.component,
+            severity="high",
+            description=f"手动回滚: {payload.component}",
+            metadata=payload.metadata,
+        )
+
+        success, message = engine._handle_rollback(failure_event)
+
+        logger.info(f"回滚完成 | component={payload.component} | success={success}")
+        return {
+            "success": success,
+            "action": "rollback",
+            "component": payload.component,
+            "message": message,
+        }
+    except Exception as e:
+        logger.error(f"回滚失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"回滚失败: {str(e)}")
+
+
+@router.post(
+    "/actions/clear-cache",
+    summary="清空缓存",
+    responses={
+        200: {"description": "清空缓存成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def action_clear_cache(payload: ExecuteActionRequest, request: Request) -> dict:
+    """执行清空缓存动作"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"执行清空缓存 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure_event = FailureEvent(
+            id=f"manual-{int(datetime.now().timestamp())}",
+            failure_type=FailureType.DATA_INCONSISTENCY,
+            component=payload.component,
+            severity="medium",
+            description=f"手动清空缓存: {payload.component}",
+            metadata=payload.metadata,
+        )
+
+        success, message = engine._handle_clear_cache(failure_event)
+
+        logger.info(f"清空缓存完成 | component={payload.component} | success={success}")
+        return {
+            "success": success,
+            "action": "clear_cache",
+            "component": payload.component,
+            "message": message,
+        }
+    except Exception as e:
+        logger.error(f"清空缓存失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"清空缓存失败: {str(e)}")
+
+
+@router.post(
+    "/actions/rebalance",
+    summary="重新平衡",
+    responses={
+        200: {"description": "重新平衡成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def action_rebalance(payload: ExecuteActionRequest, request: Request) -> dict:
+    """执行重新平衡动作"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"执行重新平衡 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure_event = FailureEvent(
+            id=f"manual-{int(datetime.now().timestamp())}",
+            failure_type=FailureType.NETWORK_PARTITION,
+            component=payload.component,
+            severity="medium",
+            description=f"手动重新平衡: {payload.component}",
+            metadata=payload.metadata,
+        )
+
+        success, message = engine._handle_rebalance(failure_event)
+
+        logger.info(f"重新平衡完成 | component={payload.component} | success={success}")
+        return {
+            "success": success,
+            "action": "rebalance",
+            "component": payload.component,
+            "message": message,
+        }
+    except Exception as e:
+        logger.error(f"重新平衡失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"重新平衡失败: {str(e)}")
+
+
+@router.post(
+    "/actions/isolate",
+    summary="隔离组件",
+    responses={
+        200: {"description": "隔离成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def action_isolate(payload: ExecuteActionRequest, request: Request) -> dict:
+    """执行隔离组件动作"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.warning(f"执行隔离组件 | operator={operator_ip} | component={payload.component}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        failure_event = FailureEvent(
+            id=f"manual-{int(datetime.now().timestamp())}",
+            failure_type=FailureType.SERVICE_DOWN,
+            component=payload.component,
+            severity="critical",
+            description=f"手动隔离组件: {payload.component}",
+            metadata=payload.metadata,
+        )
+
+        success, message = engine._handle_isolate(failure_event)
+
+        logger.info(f"隔离组件完成 | component={payload.component} | success={success}")
+        return {
+            "success": success,
+            "action": "isolate",
+            "component": payload.component,
+            "message": message,
+        }
+    except Exception as e:
+        logger.error(f"隔离组件失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"隔离组件失败: {str(e)}")
+
+
+# ----------------------------------------------------------------------
+# 🔟 批量操作端点 (3个)
+# ----------------------------------------------------------------------
+
+
+class BatchDetectFailuresRequest(BaseModel):
+    """批量检测故障请求"""
+    failures: list[DetectFailureRequest] = Field(..., min_items=1, max_items=50, description="故障列表")
+
+    model_config = {"extra": "ignore"}
+
+
+@router.post(
+    "/batch/detect-failures",
+    summary="批量检测故障",
+    responses={
+        200: {"description": "批量检测成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def batch_detect_failures(payload: BatchDetectFailuresRequest, request: Request) -> dict:
+    """批量检测并记录故障"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"批量检测故障 | operator={operator_ip} | count={len(payload.failures)}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        results = []
+        batch_size = 10  # 分批处理，避免速率限制
+
+        for i in range(0, len(payload.failures), batch_size):
+            batch = payload.failures[i : i + batch_size]
+            for failure_req in batch:
+                try:
+                    failure_event = engine.detect_failure(
+                        failure_type=FailureType(failure_req.failure_type),
+                        component=failure_req.component,
+                        severity=failure_req.severity,
+                        description=failure_req.description,
+                        metadata=failure_req.metadata,
+                    )
+                    results.append(
+                        {
+                            "success": True,
+                            "failure_id": failure_event.id,
+                            "component": failure_event.component,
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"检测单个故障失败: {e}")
+                    results.append(
+                        {
+                            "success": False,
+                            "component": failure_req.component,
+                            "error": str(e),
+                        }
+                    )
+
+        success_count = sum(1 for r in results if r["success"])
+        logger.info(f"批量检测完成 | total={len(results)} | success={success_count}")
+
+        return {
+            "success": True,
+            "total": len(results),
+            "success_count": success_count,
+            "failure_count": len(results) - success_count,
+            "results": results,
+        }
+    except Exception as e:
+        logger.error(f"批量检测故障失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"批量检测故障失败: {str(e)}")
+
+
+class BatchHealFailuresRequest(BaseModel):
+    """批量触发自愈请求"""
+    failure_ids: list[str] = Field(..., min_items=1, max_items=50, description="故障ID列表")
+
+    model_config = {"extra": "ignore"}
+
+
+@router.post(
+    "/batch/heal-failures",
+    summary="批量触发自愈",
+    responses={
+        200: {"description": "批量自愈成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def batch_heal_failures(payload: BatchHealFailuresRequest, request: Request) -> dict:
+    """批量触发自愈"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"批量触发自愈 | operator={operator_ip} | count={len(payload.failure_ids)}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        results = []
+        batch_size = 10  # 分批处理，避免速率限制
+
+        for i in range(0, len(payload.failure_ids), batch_size):
+            batch = payload.failure_ids[i : i + batch_size]
+            for failure_id in batch:
+                try:
+                    failure = next((f for f in engine.failure_history if f.id == failure_id), None)
+                    if failure is None:
+                        results.append(
+                            {
+                                "success": False,
+                                "failure_id": failure_id,
+                                "error": "故障不存在",
+                            }
+                        )
+                        continue
+
+                    remediation_results = engine.trigger_self_healing(failure)
+                    results.append(
+                        {
+                            "success": True,
+                            "failure_id": failure_id,
+                            "remediation_count": len(remediation_results),
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"触发单个自愈失败: {e}")
+                    results.append(
+                        {
+                            "success": False,
+                            "failure_id": failure_id,
+                            "error": str(e),
+                        }
+                    )
+
+        success_count = sum(1 for r in results if r["success"])
+        logger.info(f"批量自愈完成 | total={len(results)} | success={success_count}")
+
+        return {
+            "success": True,
+            "total": len(results),
+            "success_count": success_count,
+            "failure_count": len(results) - success_count,
+            "results": results,
+        }
+    except Exception as e:
+        logger.error(f"批量触发自愈失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"批量触发自愈失败: {str(e)}")
+
+
+class BatchVerifyRemediationsRequest(BaseModel):
+    """批量验证修复请求"""
+    failure_ids: list[str] = Field(..., min_items=1, max_items=50, description="故障ID列表")
+
+    model_config = {"extra": "ignore"}
+
+
+@router.post(
+    "/batch/verify-remediations",
+    summary="批量验证修复",
+    responses={
+        200: {"description": "批量验证成功"},
+        400: {"description": "参数错误"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def batch_verify_remediations(payload: BatchVerifyRemediationsRequest, request: Request) -> dict:
+    """批量验证修复效果"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info(f"批量验证修复 | count={len(payload.failure_ids)}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        results = []
+        batch_size = 10  # 分批处理，避免速率限制
+
+        for i in range(0, len(payload.failure_ids), batch_size):
+            batch = payload.failure_ids[i : i + batch_size]
+            for failure_id in batch:
+                try:
+                    failure = next((f for f in engine.failure_history if f.id == failure_id), None)
+                    if failure is None:
+                        results.append(
+                            {
+                                "success": False,
+                                "failure_id": failure_id,
+                                "error": "故障不存在",
+                            }
+                        )
+                        continue
+
+                    verified = engine.verify_remediation(failure)
+                    results.append(
+                        {
+                            "success": True,
+                            "failure_id": failure_id,
+                            "verified": verified,
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"验证单个修复失败: {e}")
+                    results.append(
+                        {
+                            "success": False,
+                            "failure_id": failure_id,
+                            "error": str(e),
+                        }
+                    )
+
+        success_count = sum(1 for r in results if r["success"])
+        verified_count = sum(1 for r in results if r.get("verified", False))
+        logger.info(f"批量验证完成 | total={len(results)} | success={success_count} | verified={verified_count}")
+
+        return {
+            "success": True,
+            "total": len(results),
+            "success_count": success_count,
+            "verified_count": verified_count,
+            "results": results,
+        }
+    except Exception as e:
+        logger.error(f"批量验证修复失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"批量验证修复失败: {str(e)}")
+
+
+# ----------------------------------------------------------------------
+# 1️⃣1️⃣ 监控和健康端点 (4个)
+# ----------------------------------------------------------------------
+
+
+@router.get(
+    "/health",
+    summary="自愈引擎健康检查",
+    responses={
+        200: {"description": "健康检查通过"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def health_check(request: Request) -> dict:
+    """检查自愈引擎健康状态"""
+    _verify_internal_key(request)
+
+    logger.info("自愈引擎健康检查")
+
+    try:
+        if not SELF_HEALING_AVAILABLE:
+            return {
+                "status": "unavailable",
+                "message": "自愈模块不可用",
+                "available": False,
+            }
+
+        engine = get_self_healing_engine()
+        stats = engine.get_statistics()
+
+        return {
+            "status": "healthy",
+            "message": "自愈引擎运行正常",
+            "available": True,
+            "statistics": stats,
+        }
+    except Exception as e:
+        logger.error(f"健康检查失败: {e}", exc_info=True)
+        return {
+            "status": "unhealthy",
+            "message": f"健康检查失败: {str(e)}",
+            "available": False,
+        }
+
+
+@router.get(
+    "/remediations",
+    summary="获取修复历史",
+    responses={
+        200: {"description": "修复历史列表"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def list_remediations(
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=1000, description="返回数量限制"),
+    offset: int = Query(default=0, ge=0, description="偏移量"),
+) -> dict:
+    """获取修复历史记录"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info(f"获取修复历史 | limit={limit} | offset={offset}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        remediations = [r.to_dict() for r in engine.remediation_history]
+        remediations.reverse()  # 最新的在前
+
+        total = len(remediations)
+        paginated_remediations = remediations[offset : offset + limit]
+
+        logger.debug(f"获取修复历史成功，共 {total} 条，返回 {len(paginated_remediations)} 条")
+        return {
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "items": paginated_remediations,
+        }
+    except Exception as e:
+        logger.error(f"获取修复历史失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取修复历史失败: {str(e)}")
+
+
+@router.get(
+    "/cooldowns",
+    summary="获取冷却期状态",
+    responses={
+        200: {"description": "冷却期状态"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def list_cooldowns(request: Request) -> dict:
+    """获取所有策略的冷却期状态"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info("获取冷却期状态")
+
+    try:
+        engine = get_self_healing_engine()
+
+        cooldowns = []
+        now = datetime.now()
+
+        for policy_id, cooldown_end in engine.cooldowns.items():
+            remaining_seconds = (cooldown_end - now).total_seconds()
+            cooldowns.append(
+                {
+                    "policy_id": policy_id,
+                    "cooldown_end": cooldown_end.isoformat(),
+                    "remaining_seconds": max(0, remaining_seconds),
+                    "in_cooldown": now < cooldown_end,
+                }
+            )
+
+        logger.debug(f"获取冷却期状态成功，共 {len(cooldowns)} 个")
+        return {"total": len(cooldowns), "items": cooldowns}
+    except Exception as e:
+        logger.error(f"获取冷却期状态失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取冷却期状态失败: {str(e)}")
+
+
+@router.post(
+    "/cooldowns/{policy_id}/clear",
+    summary="清除冷却期",
+    responses={
+        200: {"description": "冷却期清除成功"},
+        401: {"description": "未授权"},
+        404: {"description": "策略不存在"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def clear_cooldown(policy_id: str, request: Request) -> dict:
+    """清除指定策略的冷却期"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    operator_ip = request.client.host if request.client else "unknown"
+    logger.info(f"清除冷却期 | operator={operator_ip} | policy_id={policy_id}")
+
+    try:
+        engine = get_self_healing_engine()
+
+        if policy_id not in engine.policies:
+            raise HTTPException(status_code=404, detail=f"策略 {policy_id} 不存在")
+
+        if policy_id in engine.cooldowns:
+            del engine.cooldowns[policy_id]
+            logger.info(f"冷却期已清除 | policy_id={policy_id}")
+        else:
+            logger.info(f"策略无冷却期 | policy_id={policy_id}")
+
+        return {
+            "success": True,
+            "policy_id": policy_id,
+            "message": "冷却期清除成功",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"清除冷却期失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"清除冷却期失败: {str(e)}")
+
+
+@router.get(
+    "/engine-status",
+    summary="获取引擎状态",
+    responses={
+        200: {"description": "引擎状态"},
+        401: {"description": "未授权"},
+        503: {"description": "自愈模块不可用"},
+    },
+)
+async def get_engine_status(request: Request) -> dict:
+    """获取自愈引擎的详细状态"""
+    _verify_internal_key(request)
+    if not SELF_HEALING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="自愈模块不可用")
+
+    logger.info("获取引擎状态")
+
+    try:
+        engine = get_self_healing_engine()
+
+        stats = engine.get_statistics()
+
+        # 获取冷却期信息
+        cooldown_info = []
+        now = datetime.now()
+        for policy_id, cooldown_end in engine.cooldowns.items():
+            remaining_seconds = (cooldown_end - now).total_seconds()
+            cooldown_info.append(
+                {
+                    "policy_id": policy_id,
+                    "remaining_seconds": max(0, remaining_seconds),
+                }
+            )
+
+        return {
+            "status": "running",
+            "available": True,
+            "statistics": stats,
+            "policies_count": len(engine.policies),
+            "active_policies_count": len([p for p in engine.policies.values() if p.enabled]),
+            "failures_count": len(engine.failure_history),
+            "remediations_count": len(engine.remediation_history),
+            "cooldowns_count": len(engine.cooldowns),
+            "cooldowns": cooldown_info,
+        }
+    except Exception as e:
+        logger.error(f"获取引擎状态失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取引擎状态失败: {str(e)}")

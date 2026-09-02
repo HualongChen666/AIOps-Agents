@@ -1001,3 +1001,484 @@ async def create_root_cause_conclusion(
         db.rollback()
         logger.error(f"创建根因结论失败: {e}")
         raise HTTPException(status_code=500, detail=f"创建根因结论失败: {str(e)}")
+
+
+@router.get(
+    "/conclusions/{conclusion_id}",
+    response_model=RootCauseConclusionResponse,
+    summary="获取单个根因结论",
+)
+async def get_root_cause_conclusion(conclusion_id: str, db: Session = Depends(get_db)) -> RootCauseConclusionResponse:
+    """
+    根据ID获取单个根因结论
+    """
+    try:
+        conclusion = (
+            db.query(RootCauseConclusion).filter(RootCauseConclusion.id == conclusion_id).first()
+        )
+        if not conclusion:
+            raise HTTPException(status_code=404, detail=f"结论 {conclusion_id} 不存在")
+
+        return RootCauseConclusionResponse(
+            id=conclusion.id,
+            alert_id=conclusion.alert_id,
+            root_cause=conclusion.root_cause,
+            summary=conclusion.summary,
+            detailed_analysis=conclusion.detailed_analysis,
+            confidence=conclusion.confidence,
+            verified_hypothesis_id=conclusion.verified_hypothesis_id,
+            recommended_actions=conclusion.recommended_actions,
+            status=conclusion.status,
+            created_at=conclusion.created_at.isoformat() if conclusion.created_at else "",
+            updated_at=conclusion.updated_at.isoformat() if conclusion.updated_at else "",
+            created_by=conclusion.created_by,
+            meta_data=conclusion.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取根因结论失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取根因结论失败: {str(e)}")
+
+
+class RootCauseConclusionUpdate(BaseModel):
+    """更新根因结论请求"""
+
+    root_cause: Optional[str] = Field(None, description="根因")
+    summary: Optional[str] = Field(None, description="总结")
+    detailed_analysis: Optional[str] = Field(None, description="详细分析")
+    confidence: Optional[float] = Field(None, ge=0, le=1, description="置信度")
+    verified_hypothesis_id: Optional[str] = Field(None, description="已验证的假设ID")
+    recommended_actions: Optional[List[str]] = Field(None, description="推荐操作")
+    status: Optional[str] = Field(None, description="结论状态")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {"extra": "ignore"}
+
+
+@router.patch(
+    "/conclusions/{conclusion_id}",
+    response_model=RootCauseConclusionResponse,
+    summary="更新根因结论",
+)
+async def update_root_cause_conclusion(
+    conclusion_id: str, conclusion_update: RootCauseConclusionUpdate, db: Session = Depends(get_db)
+) -> RootCauseConclusionResponse:
+    """
+    更新根因结论
+
+    支持部分更新
+    """
+    try:
+        conclusion = (
+            db.query(RootCauseConclusion).filter(RootCauseConclusion.id == conclusion_id).first()
+        )
+        if not conclusion:
+            raise HTTPException(status_code=404, detail=f"结论 {conclusion_id} 不存在")
+
+        # 更新字段
+        update_data = conclusion_update.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(conclusion, field, value)
+
+        db.commit()
+        db.refresh(conclusion)
+
+        logger.info(f"更新根因结论成功: {conclusion_id}")
+
+        return RootCauseConclusionResponse(
+            id=conclusion.id,
+            alert_id=conclusion.alert_id,
+            root_cause=conclusion.root_cause,
+            summary=conclusion.summary,
+            detailed_analysis=conclusion.detailed_analysis,
+            confidence=conclusion.confidence,
+            verified_hypothesis_id=conclusion.verified_hypothesis_id,
+            recommended_actions=conclusion.recommended_actions,
+            status=conclusion.status,
+            created_at=conclusion.created_at.isoformat() if conclusion.created_at else "",
+            updated_at=conclusion.updated_at.isoformat() if conclusion.updated_at else "",
+            created_by=conclusion.created_by,
+            meta_data=conclusion.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新根因结论失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新根因结论失败: {str(e)}")
+
+
+@router.delete("/conclusions/{conclusion_id}", summary="删除根因结论")
+async def delete_root_cause_conclusion(conclusion_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    删除根因结论
+    """
+    try:
+        conclusion = (
+            db.query(RootCauseConclusion).filter(RootCauseConclusion.id == conclusion_id).first()
+        )
+        if not conclusion:
+            raise HTTPException(status_code=404, detail=f"结论 {conclusion_id} 不存在")
+
+        db.delete(conclusion)
+        db.commit()
+
+        logger.info(f"删除根因结论成功: {conclusion_id}")
+
+        return {"status": "success", "message": f"结论 {conclusion_id} 已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除根因结论失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除根因结论失败: {str(e)}")
+
+
+class RootCauseEvidenceCreate(BaseModel):
+    """创建根因证据请求"""
+
+    hypothesis_id: str = Field(..., description="假设ID")
+    evidence_type: str = Field(..., description="证据类型 (metrics, logs, traces, events)")
+    evidence_data: Dict[str, Any] = Field(..., description="证据数据")
+    description: Optional[str] = Field(None, description="描述")
+    strength: float = Field(..., ge=0, le=1, description="证据强度 (0-1)")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "hypothesis_id": "HYP-001",
+                "evidence_type": "metrics",
+                "evidence_data": {"cpu_usage": 95, "memory_usage": 80},
+                "description": "CPU和内存使用率异常",
+                "strength": 0.9,
+            }
+        }
+    }
+
+
+@router.post("/evidence", response_model=RootCauseEvidenceResponse, summary="创建根因证据")
+async def create_root_cause_evidence(
+    evidence: RootCauseEvidenceCreate, db: Session = Depends(get_db)
+) -> RootCauseEvidenceResponse:
+    """
+    创建新的根因证据
+
+    证据用于支持根因假设
+    """
+    try:
+        # 验证假设是否存在
+        hypothesis = (
+            db.query(RootCauseHypothesis).filter(RootCauseHypothesis.id == evidence.hypothesis_id).first()
+        )
+        if not hypothesis:
+            raise HTTPException(status_code=404, detail=f"假设 {evidence.hypothesis_id} 不存在")
+
+        # 验证证据类型
+        valid_types = ["metrics", "logs", "traces", "events", "config", "network"]
+        if evidence.evidence_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无效的证据类型: {evidence.evidence_type}, 必须是 {valid_types}",
+            )
+
+        # 创建证据
+        new_evidence = RootCauseEvidence(
+            hypothesis_id=evidence.hypothesis_id,
+            evidence_type=evidence.evidence_type,
+            evidence_data=evidence.evidence_data,
+            description=evidence.description,
+            strength=evidence.strength,
+            meta_data=evidence.meta_data,
+        )
+
+        db.add(new_evidence)
+        db.commit()
+        db.refresh(new_evidence)
+
+        logger.info(f"创建根因证据成功: {new_evidence.id}")
+
+        return RootCauseEvidenceResponse(
+            id=new_evidence.id,
+            hypothesis_id=new_evidence.hypothesis_id,
+            evidence_type=new_evidence.evidence_type,
+            evidence_data=new_evidence.evidence_data,
+            description=new_evidence.description,
+            strength=new_evidence.strength,
+            collected_at=new_evidence.collected_at.isoformat() if new_evidence.collected_at else "",
+            meta_data=new_evidence.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"创建根因证据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"创建根因证据失败: {str(e)}")
+
+
+@router.get(
+    "/evidence/{evidence_id}",
+    response_model=RootCauseEvidenceResponse,
+    summary="获取单个根因证据",
+)
+async def get_root_cause_evidence(evidence_id: int, db: Session = Depends(get_db)) -> RootCauseEvidenceResponse:
+    """
+    根据ID获取单个根因证据
+    """
+    try:
+        evidence = (
+            db.query(RootCauseEvidence).filter(RootCauseEvidence.id == evidence_id).first()
+        )
+        if not evidence:
+            raise HTTPException(status_code=404, detail=f"证据 {evidence_id} 不存在")
+
+        return RootCauseEvidenceResponse(
+            id=evidence.id,
+            hypothesis_id=evidence.hypothesis_id,
+            evidence_type=evidence.evidence_type,
+            evidence_data=evidence.evidence_data,
+            description=evidence.description,
+            strength=evidence.strength,
+            collected_at=evidence.collected_at.isoformat() if evidence.collected_at else "",
+            meta_data=evidence.meta_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取根因证据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取根因证据失败: {str(e)}")
+
+
+@router.delete("/evidence/{evidence_id}", summary="删除根因证据")
+async def delete_root_cause_evidence(evidence_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    删除根因证据
+    """
+    try:
+        evidence = (
+            db.query(RootCauseEvidence).filter(RootCauseEvidence.id == evidence_id).first()
+        )
+        if not evidence:
+            raise HTTPException(status_code=404, detail=f"证据 {evidence_id} 不存在")
+
+        db.delete(evidence)
+        db.commit()
+
+        logger.info(f"删除根因证据成功: {evidence_id}")
+
+        return {"status": "success", "message": f"证据 {evidence_id} 已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除根因证据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除根因证据失败: {str(e)}")
+
+
+class BatchAnalysisRequest(BaseModel):
+    """批量根因分析请求"""
+
+    alerts: List[Dict[str, Any]] = Field(..., description="告警列表")
+    batch_size: int = Field(default=10, ge=1, le=50, description="批处理大小")
+    timeout: int = Field(default=300, ge=60, le=600, description="超时时间（秒）")
+    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "alerts": [
+                    {"id": "ALT-001", "title": "高CPU使用率", "level": "critical"},
+                    {"id": "ALT-002", "title": "高内存使用率", "level": "warning"},
+                ],
+                "batch_size": 10,
+                "timeout": 300,
+            }
+        }
+    }
+
+
+@router.post("/batch-analyze", summary="批量根因分析")
+async def batch_analyze_root_causes(
+    request: BatchAnalysisRequest, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    批量执行根因分析
+
+    支持对多个告警进行批量根因分析，自动分批处理以避免速率限制
+    """
+    try:
+        alerts = request.alerts
+        batch_size = request.batch_size
+        total_alerts = len(alerts)
+        results = []
+        errors = []
+
+        logger.info(f"开始批量根因分析: {total_alerts} 个告警, 批大小: {batch_size}")
+
+        # 分批处理
+        for i in range(0, total_alerts, batch_size):
+            batch = alerts[i : i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (total_alerts + batch_size - 1) // batch_size
+
+            logger.info(f"处理批次 {batch_num}/{total_batches}, 大小: {len(batch)}")
+
+            for alert in batch:
+                try:
+                    alert_id = alert.get("id", f"unknown-{i}")
+                    metrics_data = alert.get("metrics_data", {})
+                    context = alert.get("context", {})
+
+                    # 简单的根因分析逻辑
+                    hypotheses = []
+                    if metrics_data.get("cpu_usage", 0) > 90:
+                        hypotheses.append(
+                            {
+                                "root_cause": "CPU使用率过高",
+                                "description": "CPU使用率超过90%",
+                                "confidence": 0.8,
+                                "impact_score": 0.9,
+                                "evidence": [f"CPU使用率: {metrics_data.get('cpu_usage')}%"],
+                                "causal_path": ["应用服务", "CPU"],
+                            }
+                        )
+
+                    if metrics_data.get("memory_usage", 0) > 90:
+                        hypotheses.append(
+                            {
+                                "root_cause": "内存使用率过高",
+                                "description": "内存使用率超过90%",
+                                "confidence": 0.75,
+                                "impact_score": 0.85,
+                                "evidence": [f"内存使用率: {metrics_data.get('memory_usage')}%"],
+                                "causal_path": ["应用服务", "内存"],
+                            }
+                        )
+
+                    # 保存假设到数据库
+                    saved_hypotheses = []
+                    for hyp in hypotheses:
+                        hyp_id = f"HYP-{uuid.uuid4().hex[:8].upper()}"
+                        new_hypothesis = RootCauseHypothesis(
+                            id=hyp_id,
+                            alert_id=alert_id,
+                            root_cause=hyp["root_cause"],
+                            description=hyp["description"],
+                            confidence=hyp["confidence"],
+                            impact_score=hyp["impact_score"],
+                            evidence=hyp["evidence"],
+                            causal_path=hyp["causal_path"],
+                            verification_status="pending",
+                            status="active",
+                            meta_data=request.meta_data,
+                            created_by="system",
+                        )
+                        db.add(new_hypothesis)
+                        saved_hypotheses.append(
+                            {
+                                "hypothesis_id": hyp_id,
+                                "root_cause": hyp["root_cause"],
+                                "confidence": hyp["confidence"],
+                            }
+                        )
+
+                    results.append(
+                        {
+                            "alert_id": alert_id,
+                            "status": "success",
+                            "hypotheses": saved_hypotheses,
+                            "total_hypotheses": len(hypotheses),
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"分析告警 {alert.get('id', 'unknown')} 失败: {e}")
+                    errors.append({"alert_id": alert.get("id", "unknown"), "error": str(e)})
+
+            # 每批次后提交，避免事务过大
+            db.commit()
+
+        logger.info(f"批量根因分析完成: 成功 {len(results)}, 失败 {len(errors)}")
+
+        return {
+            "status": "success",
+            "total_alerts": total_alerts,
+            "successful": len(results),
+            "failed": len(errors),
+            "results": results,
+            "errors": errors,
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"批量根因分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量根因分析失败: {str(e)}")
+
+
+@router.get("/trends", summary="获取根因趋势分析")
+async def get_root_cause_trends(
+    days: int = Query(default=30, ge=1, le=365, description="分析天数"),
+    limit: int = Query(default=20, ge=1, le=100, description="返回数量限制"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    获取根因趋势分析
+
+    基于历史数据分析根因出现频率和趋势
+    """
+    try:
+        from datetime import timedelta
+
+        start_date = datetime.utcnow() - timedelta(days=days)
+
+        # 查询指定时间范围内的结论
+        conclusions = (
+            db.query(RootCauseConclusion)
+            .filter(RootCauseConclusion.created_at >= start_date)
+            .all()
+        )
+
+        # 统计根因频率
+        root_cause_counts: Dict[str, int] = {}
+        for conclusion in conclusions:
+            root_cause = conclusion.root_cause
+            root_cause_counts[root_cause] = root_cause_counts.get(root_cause, 0) + 1
+
+        # 按频率排序
+        sorted_root_causes = sorted(
+            root_cause_counts.items(), key=lambda x: x[1], reverse=True
+        )[:limit]
+
+        # 计算趋势
+        trends = []
+        for root_cause, count in sorted_root_causes:
+            # 获取该根因的结论
+            related_conclusions = [
+                c for c in conclusions if c.root_cause == root_cause
+            ]
+
+            # 计算平均置信度
+            avg_confidence = sum(c.confidence for c in related_conclusions) / len(
+                related_conclusions
+            ) if related_conclusions else 0
+
+            trends.append(
+                {
+                    "root_cause": root_cause,
+                    "frequency": count,
+                    "percentage": (count / len(conclusions) * 100) if conclusions else 0,
+                    "avg_confidence": round(avg_confidence, 2),
+                    "total_conclusions": len(related_conclusions),
+                }
+            )
+
+        logger.info(f"根因趋势分析完成: {len(trends)} 个趋势, 时间范围: {days} 天")
+
+        return {
+            "status": "success",
+            "analysis_period_days": days,
+            "total_conclusions": len(conclusions),
+            "trends": trends,
+        }
+    except Exception as e:
+        logger.error(f"获取根因趋势失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取根因趋势失败: {str(e)}")
