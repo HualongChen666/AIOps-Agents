@@ -24,6 +24,7 @@ All endpoints use real business logic from core modules.
 
 import asyncio
 import logging
+import random
 import statistics
 import time
 from datetime import datetime, timedelta
