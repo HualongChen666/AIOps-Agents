@@ -1,0 +1,576 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AIOps SRE Agent Complete 7-Layer Architecture",
+    "output": "aiops-sre-agent-detailed-7layer-architecture.html",
+    "quality_profile": "standard"
+  },
+  "components": [
+    {
+      "id": "layer0-frontend",
+      "type": "frontend",
+      "label": "Layer 0: Presentation",
+      "sublabel": "Next.js Dashboard",
+      "pos": [
+        50,
+        30
+      ],
+      "size": [
+        180,
+        60
+      ],
+      "tag": "Client"
+    },
+    {
+      "id": "layer1-gateway",
+      "type": "backend",
+      "label": "Layer 1: API Gateway",
+      "sublabel": "Kong/APISIX/Envoy",
+      "pos": [
+        50,
+        130
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "Gateway"
+    },
+    {
+      "id": "auth-service",
+      "type": "security",
+      "label": "Auth Service",
+      "sublabel": "OAuth2/JWT/MFA",
+      "pos": [
+        300,
+        130
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "layer2-business",
+      "type": "backend",
+      "label": "Layer 2: Business Logic",
+      "sublabel": "FastAPI Microservices",
+      "pos": [
+        50,
+        250
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "Services"
+    },
+    {
+      "id": "alert-service",
+      "type": "backend",
+      "label": "Alert Service",
+      "sublabel": "Alert Engine",
+      "pos": [
+        300,
+        250
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "repair-service",
+      "type": "backend",
+      "label": "Repair Service",
+      "sublabel": "Auto Heal",
+      "pos": [
+        300,
+        310
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "layer3-ai",
+      "type": "backend",
+      "label": "Layer 3: AI Engine",
+      "sublabel": "LLM/RAG/Agent",
+      "pos": [
+        50,
+        370
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "AI"
+    },
+    {
+      "id": "llm-router",
+      "type": "backend",
+      "label": "LLM Router",
+      "sublabel": "Multi-Model",
+      "pos": [
+        300,
+        370
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "rag-service",
+      "type": "backend",
+      "label": "RAG Service",
+      "sublabel": "Vector Search",
+      "pos": [
+        300,
+        430
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "layer4-data",
+      "type": "backend",
+      "label": "Layer 4: Data Access",
+      "sublabel": "ORM/CDC/Stream",
+      "pos": [
+        50,
+        490
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "Data"
+    },
+    {
+      "id": "cache-service",
+      "type": "database",
+      "label": "Cache Service",
+      "sublabel": "Redis Strategy",
+      "pos": [
+        300,
+        490
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "vector-retrieval",
+      "type": "database",
+      "label": "Vector Retrieval",
+      "sublabel": "Qdrant",
+      "pos": [
+        300,
+        550
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "layer5-storage",
+      "type": "database",
+      "label": "Layer 5: Storage",
+      "sublabel": "Multi-Database",
+      "pos": [
+        50,
+        610
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "Storage"
+    },
+    {
+      "id": "postgresql",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Primary DB",
+      "pos": [
+        300,
+        610
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "redis-cluster",
+      "type": "database",
+      "label": "Redis Cluster",
+      "sublabel": "Cache Cluster",
+      "pos": [
+        300,
+        670
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "layer6-integration",
+      "type": "cloud",
+      "label": "Layer 6: Integration",
+      "sublabel": "External Systems",
+      "pos": [
+        50,
+        730
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "Integration"
+    },
+    {
+      "id": "monitoring-tools",
+      "type": "backend",
+      "label": "Monitoring Tools",
+      "sublabel": "Prometheus/Datadog",
+      "pos": [
+        300,
+        730
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "cloud-platforms",
+      "type": "cloud",
+      "label": "Cloud Platforms",
+      "sublabel": "AWS/Azure/GCP",
+      "pos": [
+        300,
+        790
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "layer7-observability",
+      "type": "backend",
+      "label": "Layer 7: Observability",
+      "sublabel": "Monitoring/Logging",
+      "pos": [
+        50,
+        850
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "Observability"
+    },
+    {
+      "id": "metrics-collector",
+      "type": "backend",
+      "label": "Metrics Collector",
+      "sublabel": "Prometheus",
+      "pos": [
+        300,
+        850
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "log-aggregator",
+      "type": "backend",
+      "label": "Log Aggregator",
+      "sublabel": "Loki/ELK",
+      "pos": [
+        300,
+        910
+      ],
+      "size": [
+        120,
+        50
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Presentation Layer",
+      "wraps": [
+        "layer0-frontend"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Gateway Layer",
+      "wraps": [
+        "layer1-gateway",
+        "auth-service"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Business Logic Layer",
+      "wraps": [
+        "layer2-business",
+        "alert-service",
+        "repair-service"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "AI Engine Layer",
+      "wraps": [
+        "layer3-ai",
+        "llm-router",
+        "rag-service"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Data Access Layer",
+      "wraps": [
+        "layer4-data",
+        "cache-service",
+        "vector-retrieval"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Storage Layer",
+      "wraps": [
+        "layer5-storage",
+        "postgresql",
+        "redis-cluster"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Integration Layer",
+      "wraps": [
+        "layer6-integration",
+        "monitoring-tools",
+        "cloud-platforms"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Observability Layer",
+      "wraps": [
+        "layer7-observability",
+        "metrics-collector",
+        "log-aggregator"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "frontend-to-gateway",
+      "from": "layer0-frontend",
+      "to": "layer1-gateway",
+      "variant": "emphasis"
+    },
+    {
+      "id": "gateway-to-auth",
+      "from": "layer1-gateway",
+      "to": "auth-service",
+      "variant": "security"
+    },
+    {
+      "id": "gateway-to-business",
+      "from": "layer1-gateway",
+      "to": "layer2-business"
+    },
+    {
+      "id": "business-to-alert",
+      "from": "layer2-business",
+      "to": "alert-service"
+    },
+    {
+      "id": "business-to-repair",
+      "from": "layer2-business",
+      "to": "repair-service"
+    },
+    {
+      "id": "business-to-ai",
+      "from": "layer2-business",
+      "to": "layer3-ai"
+    },
+    {
+      "id": "ai-to-llm",
+      "from": "layer3-ai",
+      "to": "llm-router"
+    },
+    {
+      "id": "ai-to-rag",
+      "from": "layer3-ai",
+      "to": "rag-service"
+    },
+    {
+      "id": "ai-to-data",
+      "from": "layer3-ai",
+      "to": "layer4-data"
+    },
+    {
+      "id": "data-to-cache",
+      "from": "layer4-data",
+      "to": "cache-service"
+    },
+    {
+      "id": "data-to-vector",
+      "from": "layer4-data",
+      "to": "vector-retrieval"
+    },
+    {
+      "id": "data-to-storage",
+      "from": "layer4-data",
+      "to": "layer5-storage"
+    },
+    {
+      "id": "storage-to-pg",
+      "from": "layer5-storage",
+      "to": "postgresql"
+    },
+    {
+      "id": "storage-to-redis",
+      "from": "layer5-storage",
+      "to": "redis-cluster"
+    },
+    {
+      "id": "integration-to-monitoring",
+      "from": "layer6-integration",
+      "to": "monitoring-tools"
+    },
+    {
+      "id": "integration-to-cloud",
+      "from": "layer6-integration",
+      "to": "cloud-platforms"
+    },
+    {
+      "id": "integration-to-observability",
+      "from": "layer6-integration",
+      "to": "layer7-observability"
+    },
+    {
+      "id": "observability-to-metrics",
+      "from": "layer7-observability",
+      "to": "metrics-collector"
+    },
+    {
+      "id": "observability-to-logs",
+      "from": "layer7-observability",
+      "to": "log-aggregator"
+    },
+    {
+      "id": "alert-to-observability",
+      "from": "alert-service",
+      "to": "layer7-observability",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Layer 0: Presentation",
+      "items": [
+        "Next.js React Dashboard",
+        "Real-time Monitoring UI",
+        "User Interaction Interface"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Layer 1: API Gateway",
+      "items": [
+        "Kong/APISIX/Envoy Gateway",
+        "OAuth2/JWT/MFA Authentication",
+        "Rate Limiting & Circuit Breaker",
+        "Load Balancing & Routing"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Layer 2: Business Logic",
+      "items": [
+        "Alert Service & Engine",
+        "Auto Repair Service",
+        "Topology Service",
+        "Workflow Orchestration",
+        "Audit & Compliance"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Layer 3: AI Engine",
+      "items": [
+        "LLM Router (Multi-Model)",
+        "RAG Service",
+        "Agent Orchestrator",
+        "Knowledge Graph (Neo4j)",
+        "Causal Analysis"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Layer 4: Data Access",
+      "items": [
+        "ORM/DAO Layer",
+        "Cache Strategy (Redis)",
+        "Vector Retrieval (Qdrant)",
+        "Data Sync (Kafka/CDC)",
+        "Stream Processing"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Layer 5: Storage",
+      "items": [
+        "PostgreSQL Cluster",
+        "Redis Cluster",
+        "Qdrant Vector DB",
+        "ClickHouse OLAP",
+        "Elasticsearch Logs"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Layer 6: Integration",
+      "items": [
+        "Monitoring Tools Integration",
+        "Cloud Platforms (AWS/Azure/GCP)",
+        "Notification Services",
+        "ITSM Integration",
+        "CI/CD Integration"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Layer 7: Observability",
+      "items": [
+        "Metrics Collection (Prometheus)",
+        "Log Aggregation (Loki/ELK)",
+        "Distributed Tracing (OpenTelemetry)",
+        "APM & Performance Monitoring",
+        "Alert Management"
+      ]
+    }
+  ]
+}

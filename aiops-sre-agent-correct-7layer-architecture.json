@@ -1,0 +1,839 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AIOps SRE Agent Correct 7-Layer Architecture",
+    "output": "aiops-sre-agent-correct-7layer-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "monitoring-systems",
+      "type": "cloud",
+      "label": "Monitoring Systems",
+      "sublabel": "Prometheus/Grafana/Datadog/Zabbix/CloudWatch",
+      "pos": [
+        50,
+        30
+      ],
+      "size": [
+        300,
+        60
+      ],
+      "tag": "External"
+    },
+    {
+      "id": "l1-stream-processing",
+      "type": "backend",
+      "label": "L1: Real-time Stream Processing",
+      "sublabel": "Kafka/Flink/Event Bus",
+      "pos": [
+        50,
+        150
+      ],
+      "size": [
+        300,
+        80
+      ],
+      "tag": "L1"
+    },
+    {
+      "id": "kafka-stream",
+      "type": "messagebus",
+      "label": "Kafka Stream",
+      "sublabel": "Stream Processing",
+      "pos": [
+        400,
+        150
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "flink-jobs",
+      "type": "backend",
+      "label": "Flink Jobs",
+      "sublabel": "Job Management",
+      "pos": [
+        400,
+        210
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "event-bus",
+      "type": "messagebus",
+      "label": "Event Bus",
+      "sublabel": "Event Processing",
+      "pos": [
+        400,
+        270
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "l1l2-integrator",
+      "type": "backend",
+      "label": "L1L2DataFlowIntegrator",
+      "sublabel": "Data Flow Integration",
+      "pos": [
+        50,
+        270
+      ],
+      "size": [
+        300,
+        50
+      ]
+    },
+    {
+      "id": "l2-analysis",
+      "type": "backend",
+      "label": "L2: Analysis Layer",
+      "sublabel": "Causal Graph/AI Inference/Anomaly Detection",
+      "pos": [
+        50,
+        370
+      ],
+      "size": [
+        300,
+        80
+      ],
+      "tag": "L2"
+    },
+    {
+      "id": "causal-graph",
+      "type": "backend",
+      "label": "Causal Graph",
+      "sublabel": "Graph Analysis",
+      "pos": [
+        400,
+        370
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "ai-inference",
+      "type": "backend",
+      "label": "AI Inference",
+      "sublabel": "ML Models",
+      "pos": [
+        400,
+        430
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "anomaly-detection",
+      "type": "backend",
+      "label": "Anomaly Detection",
+      "sublabel": "Pattern Recognition",
+      "pos": [
+        400,
+        490
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "l2l3-integrator",
+      "type": "backend",
+      "label": "L2L3WorkflowIntegrator",
+      "sublabel": "Workflow Integration",
+      "pos": [
+        50,
+        490
+      ],
+      "size": [
+        300,
+        50
+      ]
+    },
+    {
+      "id": "l3-processing",
+      "type": "backend",
+      "label": "L3: Processing Layer",
+      "sublabel": "Workflow Engine/State Machine/DSL Engine",
+      "pos": [
+        50,
+        590
+      ],
+      "size": [
+        300,
+        80
+      ],
+      "tag": "L3"
+    },
+    {
+      "id": "workflow-engine",
+      "type": "backend",
+      "label": "Workflow Engine",
+      "sublabel": "Orchestration",
+      "pos": [
+        400,
+        590
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "state-machine",
+      "type": "backend",
+      "label": "State Machine",
+      "sublabel": "State Management",
+      "pos": [
+        400,
+        650
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "dsl-engine",
+      "type": "backend",
+      "label": "DSL Engine",
+      "sublabel": "DSL Execution",
+      "pos": [
+        400,
+        710
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "l3l4-integrator",
+      "type": "backend",
+      "label": "L3L4StorageIntegrator",
+      "sublabel": "Storage Integration",
+      "pos": [
+        50,
+        710
+      ],
+      "size": [
+        300,
+        50
+      ]
+    },
+    {
+      "id": "l4-storage",
+      "type": "database",
+      "label": "L4: Storage Layer",
+      "sublabel": "PostgreSQL/Redis/Qdrant",
+      "pos": [
+        50,
+        810
+      ],
+      "size": [
+        300,
+        80
+      ],
+      "tag": "L4"
+    },
+    {
+      "id": "postgresql",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Primary DB",
+      "pos": [
+        400,
+        810
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "redis-cache",
+      "type": "database",
+      "label": "Redis Cache",
+      "sublabel": "Cache Layer",
+      "pos": [
+        400,
+        870
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "qdrant-vector",
+      "type": "database",
+      "label": "Qdrant Vector",
+      "sublabel": "Vector DB",
+      "pos": [
+        400,
+        930
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "l4l5-integrator",
+      "type": "backend",
+      "label": "L4L5DataIntegrator",
+      "sublabel": "Data Integration",
+      "pos": [
+        50,
+        930
+      ],
+      "size": [
+        300,
+        50
+      ]
+    },
+    {
+      "id": "l5-knowledge",
+      "type": "backend",
+      "label": "L5: Knowledge Layer",
+      "sublabel": "Knowledge Graph/RAG/Vector Store",
+      "pos": [
+        50,
+        1030
+      ],
+      "size": [
+        300,
+        80
+      ],
+      "tag": "L5"
+    },
+    {
+      "id": "knowledge-graph",
+      "type": "backend",
+      "label": "Knowledge Graph",
+      "sublabel": "Graph DB",
+      "pos": [
+        400,
+        1030
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "rag-retrieval",
+      "type": "backend",
+      "label": "RAG Retrieval",
+      "sublabel": "Vector Search",
+      "pos": [
+        400,
+        1090
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "vector-store",
+      "type": "database",
+      "label": "Vector Store",
+      "sublabel": "Embeddings",
+      "pos": [
+        400,
+        1150
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "l5l6-integrator",
+      "type": "backend",
+      "label": "L5L6ExecutionIntegrator",
+      "sublabel": "Execution Integration",
+      "pos": [
+        50,
+        1150
+      ],
+      "size": [
+        300,
+        50
+      ]
+    },
+    {
+      "id": "l6-execution",
+      "type": "backend",
+      "label": "L6: Execution Layer",
+      "sublabel": "Command Guard/Approval Gate/Saga Engine",
+      "pos": [
+        50,
+        1250
+      ],
+      "size": [
+        300,
+        80
+      ],
+      "tag": "L6"
+    },
+    {
+      "id": "command-guard",
+      "type": "security",
+      "label": "Command Guard",
+      "sublabel": "Safety Checks",
+      "pos": [
+        400,
+        1250
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "approval-gate",
+      "type": "security",
+      "label": "Approval Gate",
+      "sublabel": "HITL Approval",
+      "pos": [
+        400,
+        1310
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "saga-engine",
+      "type": "backend",
+      "label": "Saga Engine",
+      "sublabel": "Distributed Transactions",
+      "pos": [
+        400,
+        1370
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "l6l7-integrator",
+      "type": "backend",
+      "label": "L6L7FrontendIntegrator",
+      "sublabel": "Frontend Integration",
+      "pos": [
+        50,
+        1370
+      ],
+      "size": [
+        300,
+        50
+      ]
+    },
+    {
+      "id": "l7-integration",
+      "type": "frontend",
+      "label": "L7: Integration Layer",
+      "sublabel": "Frontend UI/API Gateway/Third-party",
+      "pos": [
+        50,
+        1470
+      ],
+      "size": [
+        300,
+        80
+      ],
+      "tag": "L7"
+    },
+    {
+      "id": "frontend-ui",
+      "type": "frontend",
+      "label": "Frontend UI",
+      "sublabel": "React Dashboard",
+      "pos": [
+        400,
+        1470
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "api-gateway",
+      "type": "backend",
+      "label": "API Gateway",
+      "sublabel": "Kong/APISIX",
+      "pos": [
+        400,
+        1530
+      ],
+      "size": [
+        120,
+        50
+      ]
+    },
+    {
+      "id": "third-party",
+      "type": "cloud",
+      "label": "Third-party",
+      "sublabel": "External Integrations",
+      "pos": [
+        400,
+        1590
+      ],
+      "size": [
+        120,
+        50
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Monitoring Systems",
+      "wraps": [
+        "monitoring-systems"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L1: Stream Processing Layer",
+      "wraps": [
+        "l1-stream-processing",
+        "kafka-stream",
+        "flink-jobs",
+        "event-bus"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L2: Analysis Layer",
+      "wraps": [
+        "l2-analysis",
+        "causal-graph",
+        "ai-inference",
+        "anomaly-detection"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L3: Processing Layer",
+      "wraps": [
+        "l3-processing",
+        "workflow-engine",
+        "state-machine",
+        "dsl-engine"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L4: Storage Layer",
+      "wraps": [
+        "l4-storage",
+        "postgresql",
+        "redis-cache",
+        "qdrant-vector"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L5: Knowledge Layer",
+      "wraps": [
+        "l5-knowledge",
+        "knowledge-graph",
+        "rag-retrieval",
+        "vector-store"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L6: Execution Layer",
+      "wraps": [
+        "l6-execution",
+        "command-guard",
+        "approval-gate",
+        "saga-engine"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L7: Integration Layer",
+      "wraps": [
+        "l7-integration",
+        "frontend-ui",
+        "api-gateway",
+        "third-party"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "monitoring-to-l1",
+      "from": "monitoring-systems",
+      "to": "l1-stream-processing",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l1-to-kafka",
+      "from": "l1-stream-processing",
+      "to": "kafka-stream"
+    },
+    {
+      "id": "l1-to-flink",
+      "from": "l1-stream-processing",
+      "to": "flink-jobs"
+    },
+    {
+      "id": "l1-to-event-bus",
+      "from": "l1-stream-processing",
+      "to": "event-bus"
+    },
+    {
+      "id": "l1-to-l1l2",
+      "from": "l1-stream-processing",
+      "to": "l1l2-integrator"
+    },
+    {
+      "id": "l1l2-to-l2",
+      "from": "l1l2-integrator",
+      "to": "l2-analysis",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l2-to-causal",
+      "from": "l2-analysis",
+      "to": "causal-graph"
+    },
+    {
+      "id": "l2-to-ai",
+      "from": "l2-analysis",
+      "to": "ai-inference"
+    },
+    {
+      "id": "l2-to-anomaly",
+      "from": "l2-analysis",
+      "to": "anomaly-detection"
+    },
+    {
+      "id": "l2-to-l2l3",
+      "from": "l2-analysis",
+      "to": "l2l3-integrator"
+    },
+    {
+      "id": "l2l3-to-l3",
+      "from": "l2l3-integrator",
+      "to": "l3-processing",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l3-to-workflow",
+      "from": "l3-processing",
+      "to": "workflow-engine"
+    },
+    {
+      "id": "l3-to-state-machine",
+      "from": "l3-processing",
+      "to": "state-machine"
+    },
+    {
+      "id": "l3-to-dsl",
+      "from": "l3-processing",
+      "to": "dsl-engine"
+    },
+    {
+      "id": "l3-to-l3l4",
+      "from": "l3-processing",
+      "to": "l3l4-integrator"
+    },
+    {
+      "id": "l3l4-to-l4",
+      "from": "l3l4-integrator",
+      "to": "l4-storage",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l4-to-postgresql",
+      "from": "l4-storage",
+      "to": "postgresql"
+    },
+    {
+      "id": "l4-to-redis",
+      "from": "l4-storage",
+      "to": "redis-cache"
+    },
+    {
+      "id": "l4-to-qdrant",
+      "from": "l4-storage",
+      "to": "qdrant-vector"
+    },
+    {
+      "id": "l4-to-l4l5",
+      "from": "l4-storage",
+      "to": "l4l5-integrator"
+    },
+    {
+      "id": "l4l5-to-l5",
+      "from": "l4l5-integrator",
+      "to": "l5-knowledge",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l5-to-knowledge-graph",
+      "from": "l5-knowledge",
+      "to": "knowledge-graph"
+    },
+    {
+      "id": "l5-to-rag",
+      "from": "l5-knowledge",
+      "to": "rag-retrieval"
+    },
+    {
+      "id": "l5-to-vector-store",
+      "from": "l5-knowledge",
+      "to": "vector-store"
+    },
+    {
+      "id": "l5-to-l5l6",
+      "from": "l5-knowledge",
+      "to": "l5l6-integrator"
+    },
+    {
+      "id": "l5l6-to-l6",
+      "from": "l5l6-integrator",
+      "to": "l6-execution",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l6-to-command-guard",
+      "from": "l6-execution",
+      "to": "command-guard"
+    },
+    {
+      "id": "l6-to-approval-gate",
+      "from": "l6-execution",
+      "to": "approval-gate"
+    },
+    {
+      "id": "l6-to-saga",
+      "from": "l6-execution",
+      "to": "saga-engine"
+    },
+    {
+      "id": "l6-to-l6l7",
+      "from": "l6-execution",
+      "to": "l6l7-integrator"
+    },
+    {
+      "id": "l6l7-to-l7",
+      "from": "l6l7-integrator",
+      "to": "l7-integration",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l7-to-frontend",
+      "from": "l7-integration",
+      "to": "frontend-ui"
+    },
+    {
+      "id": "l7-to-api-gateway",
+      "from": "l7-integration",
+      "to": "api-gateway"
+    },
+    {
+      "id": "l7-to-third-party",
+      "from": "l7-integration",
+      "to": "third-party"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "L1: Stream Processing",
+      "items": [
+        "Kafka stream processing",
+        "Flink job management",
+        "Event bus processing",
+        "Real-time data ingestion"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "L2: Analysis",
+      "items": [
+        "Causal graph analysis",
+        "AI inference and prediction",
+        "Anomaly detection",
+        "Pattern recognition"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "L3: Processing",
+      "items": [
+        "Workflow orchestration",
+        "State machine management",
+        "DSL execution engine",
+        "Business logic processing"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "L4: Storage",
+      "items": [
+        "Multi-backend storage",
+        "PostgreSQL relational data",
+        "Redis caching layer",
+        "Qdrant vector storage"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "L5: Knowledge",
+      "items": [
+        "Knowledge graphs",
+        "RAG retrieval systems",
+        "Vector stores",
+        "Intelligent decision making"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "L6: Execution",
+      "items": [
+        "Command execution guards",
+        "Safety checks",
+        "Approval gates (HITL)",
+        "Saga coordination"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "L7: Integration",
+      "items": [
+        "Frontend UI presentation",
+        "API gateway routing",
+        "Third-party integrations",
+        "User interfaces"
+      ]
+    }
+  ]
+}

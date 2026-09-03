@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AIOps SRE Agent Closed-Loop Architecture",
+    "output": "aiops-sre-agent-closed-loop-architecture.html",
+    "quality_profile": "standard",
+    "animation": "trace"
+  },
+  "components": [
+    {
+      "id": "monitoring-systems",
+      "type": "cloud",
+      "label": "Monitoring",
+      "sublabel": "Prometheus/Grafana",
+      "pos": [
+        50,
+        50
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "tag": "External"
+    },
+    {
+      "id": "l1-alert-ingestion",
+      "type": "backend",
+      "label": "L1: Alert",
+      "sublabel": "Parser/Normalizer",
+      "pos": [
+        180,
+        50
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "tag": "L1"
+    },
+    {
+      "id": "l2-ai-analysis",
+      "type": "backend",
+      "label": "L2+L5: AI",
+      "sublabel": "LLM/RAG/KG",
+      "pos": [
+        310,
+        50
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "tag": "AI"
+    },
+    {
+      "id": "l6-approval-safety",
+      "type": "security",
+      "label": "L6: Approval",
+      "sublabel": "Approval/Risk/Guard",
+      "pos": [
+        440,
+        50
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "tag": "L6"
+    },
+    {
+      "id": "l6-execution-repair",
+      "type": "backend",
+      "label": "L6: Execution",
+      "sublabel": "Repair/Saga/Rollback",
+      "pos": [
+        570,
+        50
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "tag": "L6"
+    },
+    {
+      "id": "l4-l5-audit-learning",
+      "type": "backend",
+      "label": "L4+L5: Audit",
+      "sublabel": "Audit/Knowledge/Model",
+      "pos": [
+        700,
+        50
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "tag": "L4L5"
+    },
+    {
+      "id": "l5-knowledge-base",
+      "type": "database",
+      "label": "L5: Knowledge",
+      "sublabel": "Vector/Experience",
+      "pos": [
+        830,
+        50
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "tag": "L5"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Monitoring Systems",
+      "wraps": [
+        "monitoring-systems"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L1: Alert Ingestion",
+      "wraps": [
+        "l1-alert-ingestion"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L2+L5: AI Analysis",
+      "wraps": [
+        "l2-ai-analysis"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L6: Approval & Safety",
+      "wraps": [
+        "l6-approval-safety"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L6: Execution & Repair",
+      "wraps": [
+        "l6-execution-repair"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L4+L5: Audit & Learning",
+      "wraps": [
+        "l4-l5-audit-learning"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "L5: Knowledge Base",
+      "wraps": [
+        "l5-knowledge-base"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "monitoring-to-l1",
+      "from": "monitoring-systems",
+      "to": "l1-alert-ingestion",
+      "variant": "emphasis"
+    },
+    {
+      "id": "l1-to-l2",
+      "from": "l1-alert-ingestion",
+      "to": "l2-ai-analysis"
+    },
+    {
+      "id": "l2-to-approval",
+      "from": "l2-ai-analysis",
+      "to": "l6-approval-safety"
+    },
+    {
+      "id": "approval-to-execution",
+      "from": "l6-approval-safety",
+      "to": "l6-execution-repair",
+      "variant": "emphasis"
+    },
+    {
+      "id": "execution-to-audit",
+      "from": "l6-execution-repair",
+      "to": "l4-l5-audit-learning"
+    },
+    {
+      "id": "audit-to-knowledge",
+      "from": "l4-l5-audit-learning",
+      "to": "l5-knowledge-base"
+    },
+    {
+      "id": "knowledge-to-ai",
+      "from": "l5-knowledge-base",
+      "to": "l2-ai-analysis",
+      "variant": "dashed",
+      "via": [
+        [
+          880,
+          180
+        ],
+        [
+          360,
+          180
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "L1: Alert Ingestion",
+      "items": [
+        "Alert Parser",
+        "Normalizer",
+        "Classifier",
+        "Webhook processing"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "L2+L5: AI Analysis",
+      "items": [
+        "LLM Analysis",
+        "RAG Retrieval",
+        "Knowledge Graph Reasoning",
+        "Root cause analysis"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "L6: Approval & Safety",
+      "items": [
+        "Approval Gate",
+        "Risk Engine",
+        "Command Guard",
+        "Multi-level approval"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "L6: Execution & Repair",
+      "items": [
+        "Repair Engine",
+        "Saga Coordination",
+        "Rollback capabilities",
+        "Safe execution"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "L4+L5: Audit & Learning",
+      "items": [
+        "Audit Trail",
+        "Knowledge Acquisition",
+        "Model Update",
+        "Compliance tracking"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "L5: Knowledge Base",
+      "items": [
+        "Vector Store",
+        "Experience Database",
+        "Feedback Loop",
+        "Continuous improvement"
+      ]
+    }
+  ]
+}

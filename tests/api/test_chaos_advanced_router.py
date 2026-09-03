@@ -20,6 +20,7 @@ from api.chaos_advanced_router import (
     SafetyCheckRequest,
     SeverityEnum,
     UpdateExperimentRequest,
+    UpdateScenarioRequest,
     _generate_id,
     _now,
     router,
@@ -59,12 +60,14 @@ def cleanup_database(db_session):
     db_session.query(ChaosScenarioDB).delete()
     db_session.query(ChaosExperimentDB).delete()
     db_session.commit()
+    db_session.flush()  # Ensure changes are flushed
     yield
     # Clean up after test
     db_session.query(ChaosFaultDB).delete()
     db_session.query(ChaosScenarioDB).delete()
     db_session.query(ChaosExperimentDB).delete()
     db_session.commit()
+    db_session.flush()  # Ensure changes are flushed
 
 
 @pytest.fixture
@@ -106,10 +109,9 @@ def sample_scenario():
         "id": "SCN-12345678",
         "name": "生产环境压力测试场景",
         "description": "模拟生产环境高负载情况",
-        "fault_types": ["network_latency", "cpu_overload"],
-        "target_services": ["api-service", "database-service"],
-        "duration_seconds": 300,
-        "auto_rollback": True,
+        "experiments": [],
+        "enabled": True,
+        "schedule": "0 2 * * *",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -120,7 +122,9 @@ def sample_fault():
     """Sample fault data"""
     return {
         "id": "FLT-12345678",
+        "name": "数据库连接超时",
         "fault_type": "database_error",
+        "description": "模拟数据库连接超时",
         "target": "database-service",
         "parameters": {"timeout_ms": 30000},
         "severity": "high",
@@ -473,72 +477,200 @@ class TestScenarioEndpoints:
         # Use a unique ID to avoid conflicts
         unique_id = _generate_id("SCN")
         sample_scenario["id"] = unique_id
-        
-        # Create scenario in database
+
+        # Create scenario in database with new schema
         scenario = ChaosScenarioDB(
             id=sample_scenario["id"],
             name=sample_scenario["name"],
             description=sample_scenario["description"],
-            fault_types=sample_scenario["fault_types"],
-            target_services=sample_scenario["target_services"],
-            duration_seconds=sample_scenario["duration_seconds"],
-            auto_rollback=sample_scenario["auto_rollback"],
+            experiments=sample_scenario["experiments"],
+            enabled=sample_scenario["enabled"],
+            schedule=sample_scenario["schedule"],
         )
         db_session.add(scenario)
         db_session.commit()
 
         response = client.get("/api/v1/chaos/scenarios")
-        assert response.status_code in (200, 404)
-        if response.status_code != 404:
-            data = response.json()
-        # Just verify the response structure is valid
-            assert "success" in data
-        # API might return error due to model attribute issues
-        if data.get("success"):
-            assert "data" in data
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "data" in data
 
-    def test_create_scenario_success(self, client, db_session):
+    def test_create_scenario_success(self, client, db_session, sample_experiment):
         """Test creating a scenario successfully"""
+        # First create an experiment to reference
+        unique_exp_id = _generate_id("EXP")
+        sample_experiment["id"] = unique_exp_id
+        experiment = ChaosExperimentDB(
+            id=sample_experiment["id"],
+            name=sample_experiment["name"],
+            description=sample_experiment["description"],
+            experiment_type=sample_experiment["experiment_type"],
+            parameters=sample_experiment["parameters"],
+            severity=sample_experiment["severity"],
+            tags=sample_experiment["tags"],
+            status=sample_experiment["status"],
+        )
+        db_session.add(experiment)
+        db_session.commit()
+
         request_data = {
             "name": "测试场景",
             "description": "这是一个测试场景",
-            "fault_types": ["network_latency"],
-            "target_services": ["api-service"],
-            "duration_seconds": 60,
-            "auto_rollback": True,
+            "experiments": [unique_exp_id],
+            "enabled": True,
+            "schedule": "0 2 * * *",
         }
 
         response = client.post("/api/v1/chaos/scenarios", json=request_data)
-        # Scenario creation might fail due to validation, just verify response
-        assert response.status_code in [200, 201, 422]
-        if response.status_code in [200, 201]:
-            data = response.json()
-            assert data["success"] is True
-            assert "id" in data["data"]
+        assert response.status_code in [200, 201]
+        data = response.json()
+        assert data["success"] is True
+        assert "id" in data["data"]
 
     def test_create_scenario_invalid_experiment(self, client):
         """Test creating scenario with invalid experiment"""
         request_data = {
             "name": "测试场景",
-            "fault_types": [],  # Empty fault types might be accepted
-            "target_services": [],
+            "experiments": ["NONEXISTENT"],
+            "enabled": True,
         }
 
         response = client.post("/api/v1/chaos/scenarios", json=request_data)
-        # API might accept empty arrays or require validation
-        # Just verify the response is valid
-        assert response.status_code in [200, 201, 422]
+        assert response.status_code in [200, 201]
+        data = response.json()
+        assert data["success"] is False
 
     def test_create_scenario_validation_error(self, client):
         """Test creating scenario with validation error"""
         request_data = {
             "name": "",  # Empty name should fail validation
-            "fault_types": [],
+            "experiments": [],
         }
 
         response = client.post("/api/v1/chaos/scenarios", json=request_data)
-        # Should fail validation
-        assert response.status_code in (422, 404)
+        assert response.status_code == 422
+
+    def test_get_scenario_success(self, client, db_session, sample_scenario):
+        """Test getting a specific scenario"""
+        # Use a unique ID to avoid conflicts
+        unique_id = _generate_id("SCN")
+        sample_scenario["id"] = unique_id
+
+        # Create scenario in database with new schema
+        scenario = ChaosScenarioDB(
+            id=sample_scenario["id"],
+            name=sample_scenario["name"],
+            description=sample_scenario["description"],
+            experiments=[],
+            enabled=True,
+            schedule=None,
+        )
+        db_session.add(scenario)
+        db_session.commit()
+
+        response = client.get(f"/api/v1/chaos/scenarios/{sample_scenario['id']}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["id"] == sample_scenario["id"]
+
+    def test_get_scenario_not_found(self, client):
+        """Test getting a non-existent scenario"""
+        response = client.get("/api/v1/chaos/scenarios/NONEXISTENT")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+
+    def test_update_scenario_success(self, client, db_session, sample_scenario):
+        """Test updating a scenario"""
+        # Use a unique ID to avoid conflicts
+        unique_id = _generate_id("SCN")
+        sample_scenario["id"] = unique_id
+
+        # Create scenario in database with new schema
+        scenario = ChaosScenarioDB(
+            id=sample_scenario["id"],
+            name=sample_scenario["name"],
+            description=sample_scenario["description"],
+            experiments=[],
+            enabled=True,
+            schedule=None,
+        )
+        db_session.add(scenario)
+        db_session.commit()
+
+        update_data = {
+            "name": "更新后的场景名称",
+            "description": "更新后的描述",
+        }
+        response = client.patch(
+            f"/api/v1/chaos/scenarios/{sample_scenario['id']}", json=update_data
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["name"] == update_data["name"]
+
+    def test_delete_scenario_success(self, client, db_session, sample_scenario):
+        """Test deleting a scenario"""
+        # Use a unique ID to avoid conflicts
+        unique_id = _generate_id("SCN")
+        sample_scenario["id"] = unique_id
+
+        # Create scenario in database with new schema
+        scenario = ChaosScenarioDB(
+            id=sample_scenario["id"],
+            name=sample_scenario["name"],
+            description=sample_scenario["description"],
+            experiments=[],
+            enabled=True,
+            schedule=None,
+        )
+        db_session.add(scenario)
+        db_session.commit()
+
+        response = client.delete(f"/api/v1/chaos/scenarios/{sample_scenario['id']}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+    def test_run_scenario_success(self, client, db_session, sample_scenario, sample_experiment, mock_chaos_engine):
+        """Test running a scenario"""
+        # Create experiment
+        unique_exp_id = _generate_id("EXP")
+        sample_experiment["id"] = unique_exp_id
+        experiment = ChaosExperimentDB(
+            id=sample_experiment["id"],
+            name=sample_experiment["name"],
+            description=sample_experiment["description"],
+            experiment_type=sample_experiment["experiment_type"],
+            parameters=sample_experiment["parameters"],
+            severity=sample_experiment["severity"],
+            tags=sample_experiment["tags"],
+            status=sample_experiment["status"],
+        )
+        db_session.add(experiment)
+        db_session.commit()
+
+        # Create scenario
+        unique_id = _generate_id("SCN")
+        scenario = ChaosScenarioDB(
+            id=unique_id,
+            name=sample_scenario["name"],
+            description=sample_scenario["description"],
+            experiments=[unique_exp_id],
+            enabled=True,
+            schedule=None,
+        )
+        db_session.add(scenario)
+        db_session.commit()
+
+        with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
+            response = client.post(f"/api/v1/chaos/scenarios/{unique_id}/run")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
 
 
 # Fault endpoints tests
@@ -617,29 +749,149 @@ class TestFaultEndpoints:
     def test_create_fault_success(self, client, db_session):
         """Test creating a fault successfully"""
         request_data = {
+            "name": "测试故障",
             "fault_type": "network_latency",
-            "target": "api-service",
-            "parameters": {"delay_ms": 100},
+            "description": "这是一个测试故障",
+            "parameters": {"delay_ms": 100, "target": "api-service"},
             "severity": "low",
+            "recovery_strategy": "retry_with_backoff",
         }
 
         response = client.post("/api/v1/chaos/faults", json=request_data)
-        # Fault creation might fail due to validation, just verify response
-        assert response.status_code in [200, 201, 422]
-        if response.status_code in [200, 201]:
-            data = response.json()
-            assert data["success"] is True
-            assert "id" in data["data"]
+        assert response.status_code in [200, 201]
+        data = response.json()
+        assert data["success"] is True
+        assert "id" in data["data"]
 
     def test_create_fault_validation_error(self, client):
         """Test creating fault with validation error"""
         request_data = {
-            "fault_type": "",  # Empty fault type should fail validation
-            "target": "",
+            "name": "",  # Empty name should fail validation
+            "fault_type": "",
         }
 
         response = client.post("/api/v1/chaos/faults", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code == 422
+
+    def test_get_fault_success(self, client, db_session, sample_fault):
+        """Test getting a specific fault"""
+        # Use a unique ID to avoid conflicts
+        unique_id = _generate_id("FLT")
+        sample_fault["id"] = unique_id
+
+        # Create fault in database with new schema
+        fault = ChaosFaultDB(
+            id=sample_fault["id"],
+            name="测试故障",
+            fault_type=sample_fault["fault_type"],
+            description="测试描述",
+            target=sample_fault["target"],
+            parameters=sample_fault["parameters"],
+            severity=sample_fault["severity"],
+            status=sample_fault["status"],
+        )
+        db_session.add(fault)
+        db_session.commit()
+
+        response = client.get(f"/api/v1/chaos/faults/{sample_fault['id']}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["id"] == sample_fault["id"]
+
+    def test_get_fault_not_found(self, client):
+        """Test getting a non-existent fault"""
+        response = client.get("/api/v1/chaos/faults/NONEXISTENT")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+
+    def test_update_fault_success(self, client, db_session, sample_fault):
+        """Test updating a fault"""
+        # Use a unique ID to avoid conflicts
+        unique_id = _generate_id("FLT")
+        sample_fault["id"] = unique_id
+
+        # Create fault in database with new schema
+        fault = ChaosFaultDB(
+            id=sample_fault["id"],
+            name="测试故障",
+            fault_type=sample_fault["fault_type"],
+            description="测试描述",
+            target=sample_fault["target"],
+            parameters=sample_fault["parameters"],
+            severity=sample_fault["severity"],
+            status=sample_fault["status"],
+        )
+        db_session.add(fault)
+        db_session.commit()
+
+        update_data = {
+            "name": "更新后的故障名称",
+            "description": "更新后的描述",
+            "fault_type": "cpu_overload",
+            "parameters": {"target": "api-service", "limit": 0.8},
+            "severity": "high",
+            "recovery_strategy": "auto_restart",
+        }
+        response = client.patch(
+            f"/api/v1/chaos/faults/{sample_fault['id']}", json=update_data
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["name"] == update_data["name"]
+
+    def test_delete_fault_success(self, client, db_session, sample_fault):
+        """Test deleting a fault"""
+        # Use a unique ID to avoid conflicts
+        unique_id = _generate_id("FLT")
+        sample_fault["id"] = unique_id
+
+        # Create fault in database with new schema
+        fault = ChaosFaultDB(
+            id=sample_fault["id"],
+            name="测试故障",
+            fault_type=sample_fault["fault_type"],
+            description="测试描述",
+            target=sample_fault["target"],
+            parameters=sample_fault["parameters"],
+            severity=sample_fault["severity"],
+            status=sample_fault["status"],
+        )
+        db_session.add(fault)
+        db_session.commit()
+
+        response = client.delete(f"/api/v1/chaos/faults/{sample_fault['id']}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+    def test_inject_fault_success(self, client, db_session, sample_fault, mock_chaos_engine):
+        """Test injecting a fault"""
+        # Use a unique ID to avoid conflicts
+        unique_id = _generate_id("FLT")
+        sample_fault["id"] = unique_id
+
+        # Create fault in database with new schema
+        fault = ChaosFaultDB(
+            id=sample_fault["id"],
+            name="测试故障",
+            fault_type=sample_fault["fault_type"],
+            description="测试描述",
+            target=sample_fault["target"],
+            parameters=sample_fault["parameters"],
+            severity=sample_fault["severity"],
+            status="pending",
+        )
+        db_session.add(fault)
+        db_session.commit()
+
+        with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
+            response = client.post(f"/api/v1/chaos/faults/{sample_fault['id']}/inject")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
 
 
 # Safety check endpoint tests
@@ -651,7 +903,7 @@ class TestSafetyCheckEndpoint:
         # Use a unique ID to avoid conflicts
         unique_id = _generate_id("EXP")
         sample_experiment["id"] = unique_id
-        
+
         # Create experiment in database
         experiment = ChaosExperimentDB(
             id=sample_experiment["id"],
@@ -668,26 +920,150 @@ class TestSafetyCheckEndpoint:
 
         request_data = {
             "experiment_id": sample_experiment["id"],
-            "check_type": "pre_run",
+            "check_type": "pre_execution",
+            "parameters": {"check_dependencies": True, "check_resources": True},
         }
 
-        response = client.post("/api/v1/chaos/safety-check", json=request_data)
-        # API might return 404 for safety check endpoint
-        # Just verify the response is valid
-        assert response.status_code in [200, 404]
-        if response.status_code == 200:
-            data = response.json()
-            assert data["success"] is True
+        response = client.post("/api/v1/chaos/safety-checks", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "data" in data
+        assert "checks" in data["data"]
 
     def test_safety_check_experiment_not_found(self, client):
         """Test safety check with non-existent experiment"""
         request_data = {
             "experiment_id": "NONEXISTENT",
-            "check_type": "pre_run",
+            "check_type": "pre_execution",
         }
 
-        response = client.post("/api/v1/chaos/safety-check", json=request_data)
-        assert response.status_code == 404
+        response = client.post("/api/v1/chaos/safety-checks", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+
+
+# Batch operations tests
+class TestBatchOperations:
+    """Test batch operation endpoints"""
+
+    def test_batch_create_experiments_success(self, client, db_session):
+        """Test batch creating experiments"""
+        request_data = [
+            {
+                "name": "批量实验1",
+                "experiment_type": "latency_injection",
+                "parameters": {"delay_ms": 100},
+                "severity": "low",
+            },
+            {
+                "name": "批量实验2",
+                "experiment_type": "fault_injection",
+                "parameters": {"fault_type": "database_error"},
+                "severity": "medium",
+            },
+        ]
+
+        response = client.post("/api/v1/chaos/experiments/batch", json=request_data)
+        assert response.status_code in [200, 201]
+        data = response.json()
+        assert data["success"] is True
+        assert "data" in data
+        assert data["data"]["total"] == 2
+        assert data["data"]["successful"] > 0
+
+    def test_batch_create_experiments_with_invalid(self, client, db_session):
+        """Test batch creating experiments with invalid type"""
+        request_data = [
+            {
+                "name": "有效实验",
+                "experiment_type": "latency_injection",
+                "parameters": {},
+                "severity": "low",
+            },
+            {
+                "name": "无效实验",
+                "experiment_type": "invalid_type",
+                "parameters": {},
+                "severity": "low",
+            },
+        ]
+
+        response = client.post("/api/v1/chaos/experiments/batch", json=request_data)
+        assert response.status_code in [200, 201]
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["failed"] > 0
+
+    def test_batch_delete_experiments_success(self, client, db_session, sample_experiment):
+        """Test batch deleting experiments"""
+        # Create multiple experiments
+        ids = []
+        for i in range(3):
+            unique_id = _generate_id("EXP")
+            ids.append(unique_id)
+            experiment = ChaosExperimentDB(
+                id=unique_id,
+                name=f"批量删除实验{i}",
+                description="测试",
+                experiment_type="latency_injection",
+                parameters={},
+                severity="low",
+                tags=[],
+                status="pending",
+            )
+            db_session.add(experiment)
+        db_session.commit()
+
+        request_data = {"experiment_ids": ids}
+        response = client.post("/api/v1/chaos/experiments/batch-delete", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["total"] == 3
+
+    def test_batch_run_scenarios_success(self, client, db_session, sample_scenario, sample_experiment, mock_chaos_engine):
+        """Test batch running scenarios"""
+        # Create experiment
+        unique_exp_id = _generate_id("EXP")
+        sample_experiment["id"] = unique_exp_id
+        experiment = ChaosExperimentDB(
+            id=unique_exp_id,
+            name=sample_experiment["name"],
+            description=sample_experiment["description"],
+            experiment_type=sample_experiment["experiment_type"],
+            parameters=sample_experiment["parameters"],
+            severity=sample_experiment["severity"],
+            tags=sample_experiment["tags"],
+            status=sample_experiment["status"],
+        )
+        db_session.add(experiment)
+        db_session.commit()
+
+        # Create multiple scenarios
+        ids = []
+        for i in range(2):
+            unique_id = _generate_id("SCN")
+            ids.append(unique_id)
+            scenario = ChaosScenarioDB(
+                id=unique_id,
+                name=f"批量运行场景{i}",
+                description="测试",
+                experiments=[unique_exp_id],
+                enabled=True,
+                schedule=None,
+            )
+            db_session.add(scenario)
+        db_session.commit()
+
+        request_data = {"scenario_ids": ids}
+        with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
+            response = client.post("/api/v1/chaos/scenarios/batch-run", json=request_data)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["data"]["total"] == 2
 
 
 # Metrics endpoint tests
@@ -823,24 +1199,22 @@ class TestIntegration:
         assert exp_response.status_code in [200, 201]
         experiment_id = exp_response.json()["data"]["id"]
 
-        # Create scenario
+        # Create scenario with new schema
         scenario_data = {
             "name": "测试场景",
-            "fault_types": ["network_latency"],
-            "target_services": ["api-service"],
-            "duration_seconds": 60,
-            "auto_rollback": True,
+            "description": "测试场景描述",
+            "experiments": [experiment_id],
+            "enabled": True,
+            "schedule": None,
         }
         scenario_response = client.post("/api/v1/chaos/scenarios", json=scenario_data)
-        # Scenario creation might fail due to validation, just verify response
-        assert scenario_response.status_code in [200, 201, 422]
-        
-        if scenario_response.status_code in [200, 201]:
-            scenario_id = scenario_response.json()["data"]["id"]
-            # Verify scenario exists
-            get_scenario = client.get(f"/api/v1/chaos/scenarios/{scenario_id}")
-            assert get_scenario.status_code == 200
-            assert get_scenario.json()["data"]["id"] == scenario_id
+        assert scenario_response.status_code in [200, 201]
+
+        scenario_id = scenario_response.json()["data"]["id"]
+        # Verify scenario exists
+        get_scenario = client.get(f"/api/v1/chaos/scenarios/{scenario_id}")
+        assert get_scenario.status_code == 200
+        assert get_scenario.json()["data"]["id"] == scenario_id
 
 
 if __name__ == "__main__":

@@ -1,0 +1,443 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AIOps SRE Agent 7-Layer Architecture",
+    "output": "aiops-sre-agent-7layer-architecture.html",
+    "quality_profile": "standard"
+  },
+  "components": [
+    {
+      "id": "ui-layer",
+      "type": "frontend",
+      "label": "User Interface Layer",
+      "sublabel": "React/Vue Dashboard",
+      "pos": [
+        100,
+        50
+      ],
+      "size": [
+        200,
+        80
+      ],
+      "tag": "Layer 1"
+    },
+    {
+      "id": "api-gateway",
+      "type": "backend",
+      "label": "API Gateway Layer",
+      "sublabel": "FastAPI Router",
+      "pos": [
+        100,
+        180
+      ],
+      "size": [
+        200,
+        80
+      ],
+      "tag": "Layer 2"
+    },
+    {
+      "id": "business-logic",
+      "type": "backend",
+      "label": "Business Logic Layer",
+      "sublabel": "Core Services",
+      "pos": [
+        100,
+        310
+      ],
+      "size": [
+        200,
+        80
+      ],
+      "tag": "Layer 3"
+    },
+    {
+      "id": "ai-processing",
+      "type": "backend",
+      "label": "AI Processing Layer",
+      "sublabel": "ML Models & Agents",
+      "pos": [
+        100,
+        440
+      ],
+      "size": [
+        200,
+        80
+      ],
+      "tag": "Layer 4"
+    },
+    {
+      "id": "data-processing",
+      "type": "backend",
+      "label": "Data Processing Layer",
+      "sublabel": "ETL & Pipeline",
+      "pos": [
+        100,
+        570
+      ],
+      "size": [
+        200,
+        80
+      ],
+      "tag": "Layer 5"
+    },
+    {
+      "id": "storage-layer",
+      "type": "database",
+      "label": "Storage Layer",
+      "sublabel": "DB & Cache",
+      "pos": [
+        100,
+        700
+      ],
+      "size": [
+        200,
+        80
+      ],
+      "tag": "Layer 6"
+    },
+    {
+      "id": "infrastructure",
+      "type": "cloud",
+      "label": "Infrastructure Layer",
+      "sublabel": "Cloud & K8s",
+      "pos": [
+        100,
+        830
+      ],
+      "size": [
+        200,
+        80
+      ],
+      "tag": "Layer 7"
+    },
+    {
+      "id": "auth-service",
+      "type": "security",
+      "label": "Auth Service",
+      "sublabel": "JWT/OAuth",
+      "pos": [
+        400,
+        180
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "monitoring",
+      "type": "backend",
+      "label": "Monitoring",
+      "sublabel": "Prometheus",
+      "pos": [
+        400,
+        310
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "alerting",
+      "type": "backend",
+      "label": "Alerting",
+      "sublabel": "PagerDuty",
+      "pos": [
+        400,
+        440
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "ml-models",
+      "type": "backend",
+      "label": "ML Models",
+      "sublabel": "LLM/ML",
+      "pos": [
+        400,
+        570
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "message-queue",
+      "type": "messagebus",
+      "label": "Message Queue",
+      "sublabel": "Kafka/RabbitMQ",
+      "pos": [
+        400,
+        700
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "kubernetes",
+      "type": "cloud",
+      "label": "Kubernetes",
+      "sublabel": "K8s Cluster",
+      "pos": [
+        400,
+        830
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "postgresql",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Primary DB",
+      "pos": [
+        650,
+        700
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis",
+      "sublabel": "Cache",
+      "pos": [
+        650,
+        830
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "elasticsearch",
+      "type": "database",
+      "label": "Elasticsearch",
+      "sublabel": "Logs & Search",
+      "pos": [
+        650,
+        570
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "vector-db",
+      "type": "database",
+      "label": "Vector DB",
+      "sublabel": "Embeddings",
+      "pos": [
+        650,
+        440
+      ],
+      "size": [
+        130,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Application Stack",
+      "wraps": [
+        "ui-layer",
+        "api-gateway",
+        "business-logic",
+        "ai-processing"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Data Stack",
+      "wraps": [
+        "data-processing",
+        "storage-layer"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Infrastructure Stack",
+      "wraps": [
+        "infrastructure"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Security Boundary",
+      "wraps": [
+        "auth-service",
+        "api-gateway"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ui-to-api",
+      "from": "ui-layer",
+      "to": "api-gateway"
+    },
+    {
+      "id": "api-to-auth",
+      "from": "api-gateway",
+      "to": "auth-service",
+      "variant": "security"
+    },
+    {
+      "id": "api-to-business",
+      "from": "api-gateway",
+      "to": "business-logic"
+    },
+    {
+      "id": "business-to-monitoring",
+      "from": "business-logic",
+      "to": "monitoring"
+    },
+    {
+      "id": "business-to-ai",
+      "from": "business-logic",
+      "to": "ai-processing"
+    },
+    {
+      "id": "ai-to-alerting",
+      "from": "ai-processing",
+      "to": "alerting"
+    },
+    {
+      "id": "ai-to-data",
+      "from": "ai-processing",
+      "to": "data-processing"
+    },
+    {
+      "id": "data-to-ml",
+      "from": "data-processing",
+      "to": "ml-models"
+    },
+    {
+      "id": "data-to-queue",
+      "from": "data-processing",
+      "to": "message-queue"
+    },
+    {
+      "id": "data-to-storage",
+      "from": "data-processing",
+      "to": "storage-layer"
+    },
+    {
+      "id": "storage-to-pg",
+      "from": "storage-layer",
+      "to": "postgresql",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "storage-to-redis",
+      "from": "storage-layer",
+      "to": "redis",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "infra-to-k8s",
+      "from": "infrastructure",
+      "to": "kubernetes"
+    },
+    {
+      "id": "queue-to-infra",
+      "from": "message-queue",
+      "to": "infrastructure"
+    },
+    {
+      "id": "monitoring-to-es",
+      "from": "monitoring",
+      "to": "elasticsearch"
+    },
+    {
+      "id": "ml-to-vector",
+      "from": "ml-models",
+      "to": "vector-db"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Layer 1: User Interface",
+      "items": [
+        "React/Vue frontend dashboard",
+        "Real-time monitoring displays",
+        "User interaction and visualization"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Layer 2: API Gateway",
+      "items": [
+        "FastAPI routing and authentication",
+        "Rate limiting and request validation",
+        "API versioning and documentation"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Layer 3: Business Logic",
+      "items": [
+        "Core SRE automation services",
+        "Incident management workflows",
+        "Integration with external systems"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Layer 4: AI Processing",
+      "items": [
+        "LLM-based reasoning and analysis",
+        "Knowledge graph and RAG",
+        "Anomaly detection and prediction"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Layer 5: Data Processing",
+      "items": [
+        "ETL pipelines and data transformation",
+        "Real-time stream processing",
+        "Feature engineering for ML"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Layer 6: Storage",
+      "items": [
+        "PostgreSQL for structured data",
+        "Redis for caching and sessions",
+        "Elasticsearch for logs and search"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Layer 7: Infrastructure",
+      "items": [
+        "Kubernetes orchestration",
+        "Cloud services integration",
+        "Auto-scaling and resource management"
+      ]
+    }
+  ]
+}

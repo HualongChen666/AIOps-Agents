@@ -3910,20 +3910,25 @@ class ChaosScenarioDB(Base):
     id = Column(String(50), primary_key=True, nullable=False)
     name = Column(String(200), nullable=False, index=True)
     description = Column(Text, nullable=True)
-    fault_types = Column(JSON, nullable=False)
-    target_services = Column(JSON, nullable=False)
-    duration_seconds = Column(Integer, nullable=False)
-    auto_rollback = Column(Boolean, nullable=False, default=True)
+    experiments = Column(JSON, nullable=False)  # 包含的实验ID列表
+    enabled = Column(Boolean, nullable=False, default=True, index=True)  # 是否启用
+    schedule = Column(String(100), nullable=True)  # 调度配置（cron表达式）
+    # 保留原有字段以兼容旧数据
+    fault_types = Column(JSON, nullable=True)  # 废弃字段，保留用于兼容
+    target_services = Column(JSON, nullable=True)  # 废弃字段，保留用于兼容
+    duration_seconds = Column(Integer, nullable=True)  # 废弃字段，保留用于兼容
+    auto_rollback = Column(Boolean, nullable=True, default=True)  # 废弃字段，保留用于兼容
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     __table_args__ = (
         Index("idx_chaos_scenarios_name", "name"),
+        Index("idx_chaos_scenarios_enabled", "enabled"),
         Index("idx_chaos_scenarios_created_at", "created_at"),
     )
 
     def __repr__(self):
-        return f"<ChaosScenarioDB(id={self.id}, name='{self.name}')>"
+        return f"<ChaosScenarioDB(id={self.id}, name='{self.name}', enabled={self.enabled})>"
 
 
 class ChaosFaultDB(Base):
@@ -3932,23 +3937,27 @@ class ChaosFaultDB(Base):
     __tablename__ = "chaos_faults"
 
     id = Column(String(50), primary_key=True, nullable=False)
+    name = Column(String(200), nullable=False, index=True)  # 故障名称
     fault_type = Column(String(50), nullable=False, index=True)
+    description = Column(Text, nullable=True)  # 故障描述
     target = Column(String(200), nullable=False)
     parameters = Column(JSON, nullable=False)
     severity = Column(String(50), nullable=False, default="medium")
     status = Column(String(50), nullable=False, default="pending")
     result = Column(JSON, nullable=True)
+    recovery_strategy = Column(String(200), nullable=True)  # 恢复策略
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     __table_args__ = (
+        Index("idx_chaos_faults_name", "name"),
         Index("idx_chaos_faults_fault_type", "fault_type"),
         Index("idx_chaos_faults_status", "status"),
         Index("idx_chaos_faults_created_at", "created_at"),
     )
 
     def __repr__(self):
-        return f"<ChaosFaultDB(id={self.id}, fault_type='{self.fault_type}', target='{self.target}')>"
+        return f"<ChaosFaultDB(id={self.id}, name='{self.name}', fault_type='{self.fault_type}', target='{self.target}')>"
 
 
 # ==================== Service Monitoring Models ====================

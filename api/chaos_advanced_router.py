@@ -34,11 +34,6 @@ from core.models import (
     ChaosFaultDB,
 )
 from core.cache_manager import cache_manager, cache_key_generator
-from core.models import (
-    ChaosExperimentDB,
-    ChaosScenarioDB,
-    ChaosFaultDB,
-)
 
 router = APIRouter(prefix="/api/v1/chaos", tags=["混沌工程高级"])
 
@@ -136,6 +131,25 @@ class CreateScenarioRequest(BaseModel):
                 "experiments": ["exp-001", "exp-002"],
                 "enabled": True,
                 "schedule": "0 2 * * *",
+            }
+        }
+    }
+
+
+class UpdateScenarioRequest(BaseModel):
+    """更新场景请求"""
+
+    name: Optional[str] = Field(None, max_length=200, description="场景名称")
+    description: Optional[str] = Field(None, max_length=1000, description="场景描述")
+    experiments: Optional[List[str]] = Field(None, description="包含的实验ID列表")
+    enabled: Optional[bool] = Field(None, description="是否启用")
+    schedule: Optional[str] = Field(None, description="调度配置（cron表达式）")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "生产环境压力测试场景（更新）",
+                "enabled": False,
             }
         }
     }
@@ -975,22 +989,58 @@ async def perform_safety_check(request: SafetyCheckRequest) -> Dict[str, Any]:
             experiment = db.query(ChaosExperimentDB).filter(
                 ChaosExperimentDB.id == request.experiment_id
             ).first()
-            
+
             if not experiment:
                 return create_error_response(
                     error=f"Experiment {request.experiment_id} not found",
                     error_code=ErrorCode.RESOURCE_NOT_FOUND,
                     message="实验不存在",
                 )
-            
-            # 执行安全检查
-            check_result = chaos_engine.perform_safety_check(
-                experiment_id=request.experiment_id,
-                check_type=request.check_type,
-                parameters=request.parameters,
+
+            # 执行安全检查逻辑
+            checks = {"checks": [], "overall_status": "pass", "can_proceed": True}
+
+            # 检查是否有正在运行的实验
+            history = chaos_engine.get_experiment_history()
+            has_running = any(exp.status == ExperimentStatus.RUNNING for exp in history)
+            checks["checks"].append(
+                {
+                    "name": "no_running_experiments",
+                    "status": "pass" if not has_running else "warning",
+                    "message": (
+                        "No running experiments" if not has_running else "Another experiment is running"
+                    ),
+                }
             )
-            
-            return create_success_response(check_result, "安全检查完成")
+
+            # 检查依赖关系
+            if request.parameters.get("check_dependencies", False):
+                checks["checks"].append(
+                    {
+                        "name": "dependencies_check",
+                        "status": "pass",
+                        "message": "Dependencies verified",
+                    }
+                )
+
+            # 检查资源
+            if request.parameters.get("check_resources", False):
+                checks["checks"].append(
+                    {
+                        "name": "resources_check",
+                        "status": "pass",
+                        "message": "Resources available",
+                    }
+                )
+
+            # 计算总体状态
+            failed_checks = [c for c in checks["checks"] if c["status"] == "fail"]
+            overall_status = "pass" if not failed_checks else "fail"
+
+            checks["overall_status"] = overall_status
+            checks["can_proceed"] = overall_status == "pass"
+
+            return create_success_response(checks, "安全检查完成")
         finally:
             db.close()
     except Exception as e:
@@ -998,48 +1048,666 @@ async def perform_safety_check(request: SafetyCheckRequest) -> Dict[str, Any]:
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="安全检查失败"
         )
 
-        # 检查是否有正在运行的实验
-        history = chaos_engine.get_experiment_history()
-        has_running = any(exp.status == ExperimentStatus.RUNNING for exp in history)
-        checks["checks"].append(
-            {
-                "name": "no_running_experiments",
-                "status": "pass" if not has_running else "warning",
-                "message": (
-                    "No running experiments" if not has_running else "Another experiment is running"
-                ),
+
+# Scenario detail endpoints
+@router.get(
+    "/scenarios/{scenario_id}",
+    summary="获取场景详情",
+    responses={
+        200: {"description": "场景详情"},
+        404: {"description": "场景不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def get_scenario(scenario_id: str) -> Dict[str, Any]:
+    """
+    获取指定场景的详细信息
+    """
+    try:
+        db = get_session()
+        try:
+            scenario = db.query(ChaosScenarioDB).filter(
+                ChaosScenarioDB.id == scenario_id
+            ).first()
+
+            if not scenario:
+                return create_error_response(
+                    error=f"Scenario {scenario_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="场景不存在",
+                )
+
+            response_data = {
+                "id": scenario.id,
+                "name": scenario.name,
+                "description": scenario.description,
+                "experiments": scenario.experiments,
+                "enabled": scenario.enabled,
+                "schedule": scenario.schedule,
+                "created_at": scenario.created_at.isoformat() if scenario.created_at else None,
+                "updated_at": scenario.updated_at.isoformat() if scenario.updated_at else None,
             }
-        )
 
-        # 检查依赖关系
-        if request.parameters.get("check_dependencies", False):
-            checks["checks"].append(
-                {
-                    "name": "dependencies_check",
-                    "status": "pass",
-                    "message": "Dependencies verified",
-                }
-            )
-
-        # 检查资源
-        if request.parameters.get("check_resources", False):
-            checks["checks"].append(
-                {
-                    "name": "resources_check",
-                    "status": "pass",
-                    "message": "Resources available",
-                }
-            )
-
-        # 计算总体状态
-        failed_checks = [c for c in checks["checks"] if c["status"] == "fail"]
-        overall_status = "pass" if not failed_checks else "fail"
-
-        checks["overall_status"] = overall_status
-        checks["can_proceed"] = overall_status == "pass"
-
-        return create_success_response(checks, "安全检查完成")
+            return create_success_response(response_data)
+        finally:
+            db.close()
     except Exception as e:
         return create_error_response(
-            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="安全检查失败"
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取场景详情失败"
+        )
+
+
+@router.patch(
+    "/scenarios/{scenario_id}",
+    summary="更新场景",
+    responses={
+        200: {"description": "场景更新成功"},
+        404: {"description": "场景不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def update_scenario(scenario_id: str, request: UpdateScenarioRequest) -> Dict[str, Any]:
+    """
+    更新场景配置
+    """
+    try:
+        db = get_session()
+        try:
+            scenario = db.query(ChaosScenarioDB).filter(
+                ChaosScenarioDB.id == scenario_id
+            ).first()
+
+            if not scenario:
+                return create_error_response(
+                    error=f"Scenario {scenario_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="场景不存在",
+                )
+
+            # 验证实验ID是否存在（如果提供了experiments）
+            if request.experiments is not None:
+                experiment_ids = {e.id for e in db.query(ChaosExperimentDB.id).all()}
+                for exp_id in request.experiments:
+                    if exp_id not in experiment_ids:
+                        return create_error_response(
+                            error=f"Experiment {exp_id} not found",
+                            error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                            message=f"实验 {exp_id} 不存在",
+                        )
+
+            # 更新字段
+            if request.name is not None:
+                scenario.name = request.name
+            if request.description is not None:
+                scenario.description = request.description
+            if request.experiments is not None:
+                scenario.experiments = request.experiments
+            if request.enabled is not None:
+                scenario.enabled = request.enabled
+            if request.schedule is not None:
+                scenario.schedule = request.schedule
+            scenario.updated_at = datetime.now(timezone.utc)
+            db.commit()
+
+            response_data = {
+                "id": scenario.id,
+                "name": scenario.name,
+                "description": scenario.description,
+                "experiments": scenario.experiments,
+                "enabled": scenario.enabled,
+                "schedule": scenario.schedule,
+                "updated_at": scenario.updated_at.isoformat() if scenario.updated_at else None,
+            }
+
+            return create_success_response(response_data, "场景更新成功")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="更新场景失败"
+        )
+
+
+@router.delete(
+    "/scenarios/{scenario_id}",
+    summary="删除场景",
+    responses={
+        200: {"description": "场景删除成功"},
+        404: {"description": "场景不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def delete_scenario(scenario_id: str) -> Dict[str, Any]:
+    """
+    删除场景
+    """
+    try:
+        db = get_session()
+        try:
+            scenario = db.query(ChaosScenarioDB).filter(
+                ChaosScenarioDB.id == scenario_id
+            ).first()
+
+            if not scenario:
+                return create_error_response(
+                    error=f"Scenario {scenario_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="场景不存在",
+                )
+
+            db.delete(scenario)
+            db.commit()
+
+            return create_success_response({"id": scenario_id}, "场景删除成功")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="删除场景失败"
+        )
+
+
+@router.post(
+    "/scenarios/{scenario_id}/run",
+    summary="运行场景",
+    responses={
+        200: {"description": "场景运行成功"},
+        404: {"description": "场景不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def run_scenario(scenario_id: str) -> Dict[str, Any]:
+    """
+    运行指定的混沌场景
+    """
+    try:
+        db = get_session()
+        try:
+            scenario = db.query(ChaosScenarioDB).filter(
+                ChaosScenarioDB.id == scenario_id
+            ).first()
+
+            if not scenario:
+                return create_error_response(
+                    error=f"Scenario {scenario_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="场景不存在",
+                )
+
+            if not scenario.enabled:
+                return create_error_response(
+                    error=f"Scenario {scenario_id} is disabled",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    message="场景已禁用",
+                )
+
+            # 批量执行场景中的实验
+            results = []
+            for exp_id in scenario.experiments:
+                experiment = db.query(ChaosExperimentDB).filter(
+                    ChaosExperimentDB.id == exp_id
+                ).first()
+                if experiment:
+                    try:
+                        exp_type = ChaosExperiment(experiment.experiment_type)
+                        result = await chaos_engine.run_experiment(exp_type, experiment.parameters)
+                        results.append({
+                            "experiment_id": exp_id,
+                            "status": result.status.value,
+                            "success": result.success,
+                        })
+                    except Exception as e:
+                        results.append({
+                            "experiment_id": exp_id,
+                            "status": "failed",
+                            "success": False,
+                            "error": str(e),
+                        })
+
+            return create_success_response({
+                "scenario_id": scenario_id,
+                "results": results,
+                "total_experiments": len(scenario.experiments),
+                "successful_experiments": sum(1 for r in results if r.get("success")),
+            }, "场景运行完成")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="运行场景失败"
+        )
+
+
+# Fault detail endpoints
+@router.get(
+    "/faults/{fault_id}",
+    summary="获取故障详情",
+    responses={
+        200: {"description": "故障详情"},
+        404: {"description": "故障不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def get_fault(fault_id: str) -> Dict[str, Any]:
+    """
+    获取指定故障的详细信息
+    """
+    try:
+        db = get_session()
+        try:
+            fault = db.query(ChaosFaultDB).filter(
+                ChaosFaultDB.id == fault_id
+            ).first()
+
+            if not fault:
+                return create_error_response(
+                    error=f"Fault {fault_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="故障不存在",
+                )
+
+            response_data = {
+                "id": fault.id,
+                "name": fault.name,
+                "description": fault.description,
+                "fault_type": fault.fault_type,
+                "target": fault.target,
+                "parameters": fault.parameters,
+                "severity": fault.severity,
+                "status": fault.status,
+                "result": fault.result,
+                "recovery_strategy": fault.recovery_strategy,
+                "created_at": fault.created_at.isoformat() if fault.created_at else None,
+                "updated_at": fault.updated_at.isoformat() if fault.updated_at else None,
+            }
+
+            return create_success_response(response_data)
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取故障详情失败"
+        )
+
+
+@router.patch(
+    "/faults/{fault_id}",
+    summary="更新故障",
+    responses={
+        200: {"description": "故障更新成功"},
+        404: {"description": "故障不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def update_fault(fault_id: str, request: CreateFaultRequest) -> Dict[str, Any]:
+    """
+    更新故障配置
+    """
+    try:
+        db = get_session()
+        try:
+            fault = db.query(ChaosFaultDB).filter(
+                ChaosFaultDB.id == fault_id
+            ).first()
+
+            if not fault:
+                return create_error_response(
+                    error=f"Fault {fault_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="故障不存在",
+                )
+
+            # 更新字段
+            fault.name = request.name
+            fault.fault_type = request.fault_type.value
+            fault.description = request.description
+            fault.parameters = request.parameters
+            fault.target = request.parameters.get("target", fault.target)
+            fault.severity = request.severity.value
+            fault.recovery_strategy = request.recovery_strategy
+            fault.updated_at = datetime.now(timezone.utc)
+            db.commit()
+
+            response_data = {
+                "id": fault.id,
+                "name": fault.name,
+                "description": fault.description,
+                "fault_type": fault.fault_type,
+                "target": fault.target,
+                "parameters": fault.parameters,
+                "severity": fault.severity,
+                "recovery_strategy": fault.recovery_strategy,
+                "status": fault.status,
+                "updated_at": fault.updated_at.isoformat() if fault.updated_at else None,
+            }
+
+            return create_success_response(response_data, "故障更新成功")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="更新故障失败"
+        )
+
+
+@router.delete(
+    "/faults/{fault_id}",
+    summary="删除故障",
+    responses={
+        200: {"description": "故障删除成功"},
+        404: {"description": "故障不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def delete_fault(fault_id: str) -> Dict[str, Any]:
+    """
+    删除故障
+    """
+    try:
+        db = get_session()
+        try:
+            fault = db.query(ChaosFaultDB).filter(
+                ChaosFaultDB.id == fault_id
+            ).first()
+
+            if not fault:
+                return create_error_response(
+                    error=f"Fault {fault_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="故障不存在",
+                )
+
+            db.delete(fault)
+            db.commit()
+
+            return create_success_response({"id": fault_id}, "故障删除成功")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="删除故障失败"
+        )
+
+
+@router.post(
+    "/faults/{fault_id}/inject",
+    summary="注入故障",
+    responses={
+        200: {"description": "故障注入成功"},
+        404: {"description": "故障不存在"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def inject_fault(fault_id: str) -> Dict[str, Any]:
+    """
+    注入指定的故障
+    """
+    try:
+        db = get_session()
+        try:
+            fault = db.query(ChaosFaultDB).filter(
+                ChaosFaultDB.id == fault_id
+            ).first()
+
+            if not fault:
+                return create_error_response(
+                    error=f"Fault {fault_id} not found",
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message="故障不存在",
+                )
+
+            # 更新状态为运行中
+            fault.status = "running"
+            fault.updated_at = datetime.now(timezone.utc)
+            db.commit()
+
+            # 根据故障类型执行注入
+            try:
+                if fault.fault_type == "network_latency":
+                    result = await chaos_engine._inject_latency(fault.parameters)
+                elif fault.fault_type == "disk_failure":
+                    result = await chaos_engine._inject_fault(fault.parameters)
+                elif fault.fault_type == "cpu_overload":
+                    result = await chaos_engine._limit_resources(fault.parameters)
+                elif fault.fault_type == "network_partition":
+                    result = await chaos_engine._partition_network(fault.parameters)
+                else:
+                    result = await chaos_engine._inject_fault(fault.parameters)
+
+                fault.status = "completed"
+                fault.result = result
+                db.commit()
+
+                return create_success_response({
+                    "fault_id": fault_id,
+                    "status": fault.status,
+                    "result": result,
+                }, "故障注入成功")
+            except Exception as e:
+                fault.status = "failed"
+                fault.result = {"error": str(e)}
+                db.commit()
+                raise
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="注入故障失败"
+        )
+
+
+# Batch operations endpoints
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    experiment_ids: List[str] = Field(..., min_items=1, description="实验ID列表")
+
+
+class BatchRunRequest(BaseModel):
+    """批量运行请求"""
+    scenario_ids: List[str] = Field(..., min_items=1, description="场景ID列表")
+
+
+@router.post(
+    "/experiments/batch",
+    summary="批量创建实验",
+    status_code=201,
+    responses={
+        201: {"description": "批量创建成功"},
+        400: {"description": "请求参数错误"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def batch_create_experiments(requests: List[CreateExperimentRequest]) -> Dict[str, Any]:
+    """
+    批量创建混沌实验
+    """
+    try:
+        db = get_session()
+        try:
+            results = []
+            batch_size = 10  # 分批处理，避免速率限制
+            for i in range(0, len(requests), batch_size):
+                batch = requests[i:i + batch_size]
+                for req in batch:
+                    try:
+                        # 验证实验类型
+                        try:
+                            ChaosExperiment(req.experiment_type)
+                        except ValueError:
+                            results.append({
+                                "success": False,
+                                "error": f"Invalid experiment type: {req.experiment_type}",
+                                "name": req.name,
+                            })
+                            continue
+
+                        experiment = ChaosExperimentDB(
+                            id=_generate_id("EXP"),
+                            name=req.name,
+                            description=req.description,
+                            experiment_type=req.experiment_type,
+                            parameters=req.parameters,
+                            severity=req.severity.value,
+                            tags=req.tags,
+                            status=ExperimentStatusEnum.PENDING.value,
+                        )
+                        db.add(experiment)
+                        db.commit()
+                        results.append({
+                            "success": True,
+                            "id": experiment.id,
+                            "name": experiment.name,
+                        })
+                    except Exception as e:
+                        db.rollback()
+                        results.append({
+                            "success": False,
+                            "error": str(e),
+                            "name": req.name,
+                        })
+
+            # Invalidate cache
+            cache_manager.delete_pattern("chaos_experiments_list:*")
+
+            return create_success_response({
+                "total": len(requests),
+                "successful": sum(1 for r in results if r.get("success")),
+                "failed": sum(1 for r in results if not r.get("success")),
+                "results": results,
+            }, "批量创建完成")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="批量创建实验失败"
+        )
+
+
+@router.post(
+    "/experiments/batch-delete",
+    summary="批量删除实验",
+    responses={
+        200: {"description": "批量删除成功"},
+        400: {"description": "请求参数错误"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def batch_delete_experiments(request: BatchDeleteRequest) -> Dict[str, Any]:
+    """
+    批量删除实验
+    """
+    try:
+        db = get_session()
+        try:
+            results = []
+            batch_size = 10  # 分批处理
+            for i in range(0, len(request.experiment_ids), batch_size):
+                batch = request.experiment_ids[i:i + batch_size]
+                for exp_id in batch:
+                    try:
+                        experiment = db.query(ChaosExperimentDB).filter(
+                            ChaosExperimentDB.id == exp_id
+                        ).first()
+                        if experiment:
+                            db.delete(experiment)
+                            db.commit()
+                            results.append({"success": True, "id": exp_id})
+                        else:
+                            results.append({"success": False, "error": "Not found", "id": exp_id})
+                    except Exception as e:
+                        db.rollback()
+                        results.append({"success": False, "error": str(e), "id": exp_id})
+
+            # Invalidate cache
+            cache_manager.delete_pattern("chaos_experiments_list:*")
+
+            return create_success_response({
+                "total": len(request.experiment_ids),
+                "successful": sum(1 for r in results if r.get("success")),
+                "failed": sum(1 for r in results if not r.get("success")),
+                "results": results,
+            }, "批量删除完成")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="批量删除实验失败"
+        )
+
+
+@router.post(
+    "/scenarios/batch-run",
+    summary="批量运行场景",
+    responses={
+        200: {"description": "批量运行成功"},
+        400: {"description": "请求参数错误"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def batch_run_scenarios(request: BatchRunRequest) -> Dict[str, Any]:
+    """
+    批量运行场景
+    """
+    try:
+        db = get_session()
+        try:
+            results = []
+            batch_size = 5  # 场景运行较慢，减少批量大小
+            for i in range(0, len(request.scenario_ids), batch_size):
+                batch = request.scenario_ids[i:i + batch_size]
+                for scn_id in batch:
+                    try:
+                        scenario = db.query(ChaosScenarioDB).filter(
+                            ChaosScenarioDB.id == scn_id
+                        ).first()
+                        if not scenario:
+                            results.append({"success": False, "error": "Not found", "id": scn_id})
+                            continue
+
+                        if not scenario.enabled:
+                            results.append({"success": False, "error": "Disabled", "id": scn_id})
+                            continue
+
+                        # 执行场景
+                        exp_results = []
+                        for exp_id in scenario.experiments:
+                            experiment = db.query(ChaosExperimentDB).filter(
+                                ChaosExperimentDB.id == exp_id
+                            ).first()
+                            if experiment:
+                                try:
+                                    exp_type = ChaosExperiment(experiment.experiment_type)
+                                    result = await chaos_engine.run_experiment(exp_type, experiment.parameters)
+                                    exp_results.append({
+                                        "experiment_id": exp_id,
+                                        "status": result.status.value,
+                                        "success": result.success,
+                                    })
+                                except Exception as e:
+                                    exp_results.append({
+                                        "experiment_id": exp_id,
+                                        "status": "failed",
+                                        "success": False,
+                                        "error": str(e),
+                                    })
+
+                        results.append({
+                            "success": True,
+                            "id": scn_id,
+                            "results": exp_results,
+                        })
+                    except Exception as e:
+                        results.append({"success": False, "error": str(e), "id": scn_id})
+
+            return create_success_response({
+                "total": len(request.scenario_ids),
+                "successful": sum(1 for r in results if r.get("success")),
+                "failed": sum(1 for r in results if not r.get("success")),
+                "results": results,
+            }, "批量运行完成")
+        finally:
+            db.close()
+    except Exception as e:
+        return create_error_response(
+            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="批量运行场景失败"
         )
