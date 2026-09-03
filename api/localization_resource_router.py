@@ -5,8 +5,10 @@ Localization Resource API Router
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
+
+from core.authentication import get_current_active_user
 
 router = APIRouter(prefix="/api/localization", tags=["Localization"])
 
@@ -30,7 +32,7 @@ router = APIRouter(prefix="/api/localization", tags=["Localization"])
         500: {"description": "获取失败"},
     },
 )
-async def get_resource_status():
+async def get_resource_status(user=Depends(get_current_active_user)):
     """Get localization resource status"""
     try:
         from core.localization_resource_manager import get_resource_manager
@@ -68,7 +70,7 @@ async def get_resource_status():
         500: {"description": "获取失败"},
     },
 )
-async def get_translations(language: str, namespace: str):
+async def get_translations(language: str, namespace: str, user=Depends(get_current_active_user)):
     """Get translations for a language and namespace"""
     try:
         from core.localization_resource_manager import get_resource_manager
@@ -118,7 +120,7 @@ async def get_translations(language: str, namespace: str):
         500: {"description": "添加失败"},
     },
 )
-async def add_translation(language: str, namespace: str, key: str, value: str):
+async def add_translation(language: str, namespace: str, key: str, value: str, user=Depends(get_current_active_user)):
     """Add a translation entry"""
     try:
         from core.localization_resource_manager import get_resource_manager
@@ -157,7 +159,7 @@ async def add_translation(language: str, namespace: str, key: str, value: str):
         500: {"description": "导出失败"},
     },
 )
-async def export_translations(language: str, namespace: str, output_path: str):
+async def export_translations(language: str, namespace: str, output_path: str, user=Depends(get_current_active_user)):
     """Export translations to JSON file"""
     try:
         from core.localization_resource_manager import get_resource_manager
@@ -187,7 +189,7 @@ async def export_translations(language: str, namespace: str, output_path: str):
         500: {"description": "导入失败"},
     },
 )
-async def import_translations(language: str, namespace: str, input_path: str):
+async def import_translations(language: str, namespace: str, input_path: str, user=Depends(get_current_active_user)):
     """Import translations from JSON file"""
     try:
         from core.localization_resource_manager import get_resource_manager
@@ -217,7 +219,7 @@ async def import_translations(language: str, namespace: str, input_path: str):
         500: {"description": "获取失败"},
     },
 )
-async def get_missing_translations(source_language: str, target_language: str, namespace: str):
+async def get_missing_translations(source_language: str, target_language: str, namespace: str, user=Depends(get_current_active_user)):
     """Get missing translations for target language"""
     try:
         from core.localization_resource_manager import get_resource_manager

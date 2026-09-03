@@ -11,7 +11,7 @@ from loguru import logger
 
 from core.authentication import get_current_active_user
 
-router = APIRouter(prefix="/api/resources", tags=["System Resources"])
+router = APIRouter(prefix="/api/system-resources", tags=["System Resources"])
 
 
 @router.get(
