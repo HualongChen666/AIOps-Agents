@@ -22,10 +22,10 @@ def client():
     import os
     from unittest.mock import Mock, AsyncMock, patch
     from fastapi import FastAPI
-    
+
     # Set TEST_MODE environment variable
     os.environ["TEST_MODE"] = "true"
-    
+
     # Patch get_current_active_user at module level
     user = Mock()
     user.id = 1
@@ -34,15 +34,15 @@ def client():
     user.is_active = True
     user.disabled = False
     user.password_hash = "hashed_password"
-    
+
     async def mock_get_current_active_user():
         return user
-    
+
     # Patch in core.authentication
     import core.authentication
     original_auth_func = core.authentication.get_current_active_user
     core.authentication.get_current_active_user = mock_get_current_active_user
-    
+
     # Patch get_current_user in core.auth_service
     try:
         import core.auth_service
@@ -50,7 +50,7 @@ def client():
         async def mock_get_current_user(token):
             return user
         core.auth_service.get_current_user = mock_get_current_user
-        
+
         # Patch require_roles to bypass role checks
         original_require_roles = core.auth_service.require_roles
         def mock_require_roles(*roles):
@@ -61,7 +61,7 @@ def client():
     except ImportError:
         original_auth_service_func = None
         original_require_roles = None
-    
+
     # Patch core.auth_db.get_session
     try:
         import core.auth_db
@@ -74,7 +74,7 @@ def client():
         core.auth_db.get_session = mock_auth_db_get_session
     except ImportError:
         original_auth_db_get_session = None
-    
+
     try:
         from main import app
         with TestClient(app) as test_client:
@@ -102,7 +102,7 @@ def client():
             core.auth_service.require_roles = original_require_roles
         if original_auth_db_get_session:
             core.auth_db.get_session = original_auth_db_get_session
-    
+
         # Clean up
         if "TEST_MODE" in os.environ:
             del os.environ["TEST_MODE"]
