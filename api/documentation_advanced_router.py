@@ -15,9 +15,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from loguru import logger
 from pydantic import BaseModel, Field
+
+from core.authentication import get_current_active_user
 
 router = APIRouter(prefix="/api/v1/documentation", tags=["文档管理"])
 
@@ -719,4 +721,375 @@ async def create_review(request: ReviewCreate) -> Dict[str, Any]:
         return {"status": "success", "data": review, "timestamp": datetime.utcnow().isoformat()}
     except Exception as e:
         logger.error(f"Error creating review: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/templates/{template_id}",
+    summary="获取模板详情",
+    responses={
+        200: {"description": "模板详情"},
+        404: {"description": "模板未找到"},
+        500: {"description": "获取失败"},
+    },
+)
+async def get_template(template_id: str) -> Dict[str, Any]:
+    """
+    根据ID获取模板详情
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        manager = get_documentation_manager()
+        template = manager.templates.get(template_id)
+
+        if not template:
+            raise HTTPException(status_code=404, detail="模板未找到")
+
+        return {
+            "status": "success",
+            "data": {
+                "template_id": template.template_id,
+                "template_name": template.template_name,
+                "doc_type": template.doc_type.value,
+                "template_content": template.template_content,
+                "metadata": template.metadata,
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting template: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/templates/{template_id}",
+    summary="更新模板",
+    responses={
+        200: {"description": "模板更新成功"},
+        404: {"description": "模板未找到"},
+        400: {"description": "请求参数错误"},
+        500: {"description": "更新失败"},
+    },
+)
+async def update_template(
+    template_id: str,
+    template_name: Optional[str] = None,
+    template_content: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    更新模板内容或元数据
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        manager = get_documentation_manager()
+        template = manager.templates.get(template_id)
+
+        if not template:
+            raise HTTPException(status_code=404, detail="模板未找到")
+
+        # Update fields if provided
+        if template_name is not None:
+            template.template_name = template_name
+        if template_content is not None:
+            template.template_content = template_content
+        if metadata is not None:
+            template.metadata.update(metadata)
+
+        return {
+            "status": "success",
+            "data": {"template_id": template_id, "updated": True},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating template: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/templates/{template_id}",
+    summary="删除模板",
+    responses={
+        200: {"description": "模板删除成功"},
+        404: {"description": "模板未找到"},
+        500: {"description": "删除失败"},
+    },
+)
+async def delete_template(template_id: str) -> Dict[str, Any]:
+    """
+    删除模板
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        manager = get_documentation_manager()
+        template = manager.templates.get(template_id)
+
+        if not template:
+            raise HTTPException(status_code=404, detail="模板未找到")
+
+        # Delete template
+        del manager.templates[template_id]
+
+        return {
+            "status": "success",
+            "data": {"template_id": template_id, "deleted": True},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting template: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/documents/{doc_id}/versions",
+    summary="列出文档版本",
+    responses={
+        200: {"description": "版本列表"},
+        404: {"description": "文档未找到"},
+        500: {"description": "获取失败"},
+    },
+)
+async def list_document_versions_by_doc_id(doc_id: str) -> Dict[str, Any]:
+    """
+    获取文档的版本历史（按文档ID路径）
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        manager = get_documentation_manager()
+
+        # Check if document exists
+        document = manager.get_document(doc_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="文档未找到")
+
+        versions = document_versions.get(doc_id, [])
+
+        return {
+            "status": "success",
+            "data": {"doc_id": doc_id, "versions": versions, "count": len(versions)},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing document versions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/documents/{doc_id}/versions/{version_id}",
+    summary="获取版本详情",
+    responses={
+        200: {"description": "版本详情"},
+        404: {"description": "版本未找到"},
+        500: {"description": "获取失败"},
+    },
+)
+async def get_document_version(doc_id: str, version_id: str) -> Dict[str, Any]:
+    """
+    获取特定版本的文档详情
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        manager = get_documentation_manager()
+
+        # Check if document exists
+        document = manager.get_document(doc_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="文档未找到")
+
+        versions = document_versions.get(doc_id, [])
+
+        # Find version by version_id (could be version string or index)
+        version_data = None
+        for version in versions:
+            if version.get("version") == version_id or str(versions.index(version)) == version_id:
+                version_data = version
+                break
+
+        if not version_data:
+            raise HTTPException(status_code=404, detail="版本未找到")
+
+        return {
+            "status": "success",
+            "data": {"doc_id": doc_id, "version": version_data},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting document version: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/documents/{doc_id}/reviews",
+    summary="列出文档评审",
+    responses={
+        200: {"description": "评审列表"},
+        404: {"description": "文档未找到"},
+        500: {"description": "获取失败"},
+    },
+)
+async def list_document_reviews(
+    doc_id: str,
+    reviewer_id: Optional[str] = Query(None, description="按评审者ID过滤"),
+    status: Optional[str] = Query(None, description="按状态过滤"),
+) -> Dict[str, Any]:
+    """
+    获取文档的评审列表（按文档ID路径）
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        manager = get_documentation_manager()
+
+        # Check if document exists
+        document = manager.get_document(doc_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="文档未找到")
+
+        reviews = document_reviews.get(doc_id, [])
+
+        # Apply filters
+        if reviewer_id:
+            reviews = [r for r in reviews if r.get("reviewer_id") == reviewer_id]
+        if status:
+            reviews = [r for r in reviews if r.get("status") == status]
+
+        return {
+            "status": "success",
+            "data": {"doc_id": doc_id, "reviews": reviews, "count": len(reviews)},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing document reviews: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/documents/{doc_id}/reviews",
+    summary="创建文档评审",
+    responses={
+        201: {"description": "评审创建成功"},
+        400: {"description": "请求参数错误"},
+        404: {"description": "文档未找到"},
+        500: {"description": "创建失败"},
+    },
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_document_review(doc_id: str, request: ReviewCreate) -> Dict[str, Any]:
+    """
+    为指定文档创建评审（按文档ID路径）
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        manager = get_documentation_manager()
+
+        # Check if document exists
+        document = manager.get_document(doc_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="文档未找到")
+
+        # Initialize reviews list for document if not exists
+        if doc_id not in document_reviews:
+            document_reviews[doc_id] = []
+
+        # Create review with document_id from path
+        review = {
+            "review_id": f"rev-{uuid4().hex[:8]}",
+            "document_id": doc_id,
+            "reviewer_id": request.reviewer_id,
+            "comments": request.comments,
+            "status": request.status,
+            "rating": request.rating,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+
+        document_reviews[doc_id].append(review)
+
+        return {"status": "success", "data": review, "timestamp": datetime.utcnow().isoformat()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating document review: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/documents/{doc_id}/reviews/{review_id}",
+    summary="更新文档评审",
+    responses={
+        200: {"description": "评审更新成功"},
+        404: {"description": "评审未找到"},
+        400: {"description": "请求参数错误"},
+        500: {"description": "更新失败"},
+    },
+)
+async def update_document_review(
+    doc_id: str,
+    review_id: str,
+    comments: Optional[str] = None,
+    status: Optional[str] = None,
+    rating: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    更新文档评审
+    """
+    if not DOCUMENTATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="文档管理器不可用")
+
+    try:
+        # Check if document has reviews
+        if doc_id not in document_reviews:
+            raise HTTPException(status_code=404, detail="文档评审未找到")
+
+        # Find review
+        review = None
+        for r in document_reviews[doc_id]:
+            if r.get("review_id") == review_id:
+                review = r
+                break
+
+        if not review:
+            raise HTTPException(status_code=404, detail="评审未找到")
+
+        # Update fields if provided
+        if comments is not None:
+            review["comments"] = comments
+        if status is not None:
+            review["status"] = status
+        if rating is not None:
+            review["rating"] = rating
+
+        return {
+            "status": "success",
+            "data": {"review_id": review_id, "updated": True},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating document review: {e}")
         raise HTTPException(status_code=500, detail=str(e))

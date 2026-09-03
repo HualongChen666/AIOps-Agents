@@ -266,8 +266,11 @@ class TestReviewEndpoints:
     def test_create_review_success(self, client):
         """Test successful review creation"""
         request_data = {
-            "reviewer": "Jane Smith",
+            "document_id": "doc-001",
+            "reviewer_id": "user-001",
             "comments": "Please review this document",
+            "status": "pending",
+            "rating": 5,
         }
 
         response = client.post(
@@ -287,6 +290,170 @@ class TestReviewEndpoints:
         )
         # May return 404 if endpoint not implemented
         assert response.status_code in [200, 404, 503]
+
+
+# Template detail and management tests
+class TestTemplateDetailEndpoints:
+    """Test template detail and management endpoints"""
+
+    def test_get_template_by_id_success(self, client):
+        """Test successful template retrieval by ID"""
+        response = client.get("/api/v1/documentation/templates/user_manual")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+        if response.status_code == 200:
+            data = response.json()
+            assert "template_id" in data.get("data", {})
+
+    def test_get_template_by_id_not_found(self, client):
+        """Test getting non-existent template by ID"""
+        response = client.get("/api/v1/documentation/templates/nonexistent")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
+
+    def test_update_template_by_id_success(self, client):
+        """Test successful template update by ID"""
+        response = client.patch(
+            "/api/v1/documentation/templates/user_manual",
+            json={"template_name": "Updated Template Name"},
+        )
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+
+    def test_update_template_by_id_not_found(self, client):
+        """Test updating non-existent template"""
+        response = client.patch(
+            "/api/v1/documentation/templates/nonexistent",
+            json={"template_name": "Updated Template"},
+        )
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
+
+    def test_delete_template_by_id_success(self, client):
+        """Test successful template deletion by ID"""
+        response = client.delete("/api/v1/documentation/templates/user_manual")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+
+    def test_delete_template_by_id_not_found(self, client):
+        """Test deleting non-existent template"""
+        response = client.delete("/api/v1/documentation/templates/nonexistent")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
+
+
+# Document version detail tests
+class TestDocumentVersionDetailEndpoints:
+    """Test document version detail endpoints"""
+
+    def test_list_versions_by_doc_id_success(self, client):
+        """Test listing versions by document ID path"""
+        response = client.get("/api/v1/documentation/documents/doc-001/versions")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+        if response.status_code == 200:
+            data = response.json()
+            assert "versions" in data.get("data", {})
+
+    def test_list_versions_by_doc_id_not_found(self, client):
+        """Test listing versions for non-existent document"""
+        response = client.get("/api/v1/documentation/documents/nonexistent/versions")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
+
+    def test_get_version_by_id_success(self, client):
+        """Test successful version retrieval by ID"""
+        response = client.get("/api/v1/documentation/documents/doc-001/versions/1.0")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+        if response.status_code == 200:
+            data = response.json()
+            assert "version" in data.get("data", {})
+
+    def test_get_version_by_id_not_found(self, client):
+        """Test getting non-existent version"""
+        response = client.get("/api/v1/documentation/documents/doc-001/versions/nonexistent")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
+
+
+# Document review detail tests
+class TestDocumentReviewDetailEndpoints:
+    """Test document review detail endpoints"""
+
+    def test_list_reviews_by_doc_id_success(self, client):
+        """Test listing reviews by document ID path"""
+        response = client.get("/api/v1/documentation/documents/doc-001/reviews")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+        if response.status_code == 200:
+            data = response.json()
+            assert "reviews" in data.get("data", {})
+
+    def test_list_reviews_by_doc_id_not_found(self, client):
+        """Test listing reviews for non-existent document"""
+        response = client.get("/api/v1/documentation/documents/nonexistent/reviews")
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
+
+    def test_list_reviews_by_doc_id_with_filters(self, client):
+        """Test listing reviews with filters by document ID path"""
+        response = client.get(
+            "/api/v1/documentation/documents/doc-001/reviews?reviewer_id=user-001&status=pending"
+        )
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+
+    def test_create_review_by_doc_id_success(self, client):
+        """Test successful review creation by document ID path"""
+        request_data = {
+            "document_id": "doc-001",
+            "reviewer_id": "user-001",
+            "comments": "Please review this document",
+            "status": "pending",
+            "rating": 5,
+        }
+
+        response = client.post(
+            "/api/v1/documentation/documents/doc-001/reviews", json=request_data
+        )
+        # May return 503 if documentation manager not available
+        assert response.status_code in [201, 404, 503]
+        if response.status_code == 201:
+            data = response.json()
+            assert "review_id" in data.get("data", {})
+
+    def test_create_review_by_doc_id_not_found(self, client):
+        """Test creating review for non-existent document"""
+        request_data = {
+            "document_id": "nonexistent",
+            "reviewer_id": "user-001",
+            "comments": "Review",
+        }
+
+        response = client.post(
+            "/api/v1/documentation/documents/nonexistent/reviews", json=request_data
+        )
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
+
+    def test_update_review_by_id_success(self, client):
+        """Test successful review update by ID"""
+        response = client.patch(
+            "/api/v1/documentation/documents/doc-001/reviews/rev-001",
+            json={"status": "approved", "comments": "Approved after review"},
+        )
+        # May return 503 if documentation manager not available
+        assert response.status_code in [200, 404, 503]
+
+    def test_update_review_by_id_not_found(self, client):
+        """Test updating non-existent review"""
+        response = client.patch(
+            "/api/v1/documentation/documents/doc-001/reviews/nonexistent",
+            json={"status": "approved"},
+        )
+        # May return 503 if documentation manager not available
+        assert response.status_code in [404, 503]
 
 
 # Service unavailable tests
