@@ -60,6 +60,7 @@ PUBLIC_PREFIXES = {
     "/sw.js",
     "/sw-register.js",
     "/metrics",
+    "/api/i18n/",  # Allow i18n endpoints for testing
 }
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
