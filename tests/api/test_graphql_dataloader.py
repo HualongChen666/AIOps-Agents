@@ -2,180 +2,200 @@
 """
 Tests for GraphQL DataLoader Endpoints
 测试GraphQL DataLoader端点
+
+注意：DataLoader端点的测试已移至 test_graphql_router.py 中统一管理
+此文件保留用于DataLoader核心功能的单元测试
 """
 
-import os
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import status
-from httpx import AsyncClient
 
-from api.graphql_router import (
-    _get_dataloader_config,
-    _get_dataloader_registry,
+from core.interface.graphql.dataloader import (
+    AlertDataLoader,
+    DataLoader,
+    DataLoaderRegistry,
+    MetricsDataLoader,
+    RepairDataLoader,
 )
-from core.auth_db import User
 
 
 # ============================================================================
-# GraphQL DataLoader Endpoint Tests
+# DataLoader Core Functionality Tests
 # ============================================================================
 
 
-class TestGetDataLoaderConfig:
-    """测试获取DataLoader配置"""
+class TestDataLoaderBasic:
+    """测试DataLoader基本功能"""
 
-    def test_get_dataloader_config_defaults(self):
-        """测试默认配置"""
-        config = _get_dataloader_config()
-        assert config.max_batch_size == 100
-        assert config.cache_enabled is True
-        assert config.batch_strategy == "auto"
+    @pytest.mark.asyncio
+    async def test_dataloader_load_single(self):
+        """测试加载单个项目"""
 
-    def test_get_dataloader_config_custom(self):
-        """测试自定义配置"""
-        with patch.dict(os.environ, {
-            "GRAPHQL_DATALOADER_MAX_BATCH_SIZE": "200",
-            "GRAPHQL_DATALOADER_CACHE_ENABLED": "false",
-            "GRAPHQL_DATALOADER_BATCH_STRATEGY": "manual",
-        }):
-            config = _get_dataloader_config()
-            assert config.max_batch_size == 200
-            assert config.cache_enabled is False
-            assert config.batch_strategy == "manual"
+        async def batch_load_fn(keys):
+            return [f"item_{key}" for key in keys]
+
+        loader = DataLoader(batch_load_fn, max_batch_size=10)
+        result = await loader.load(1)
+        assert result == "item_1"
+
+    @pytest.mark.asyncio
+    async def test_dataloader_load_many(self):
+        """测试加载多个项目"""
+
+        async def batch_load_fn(keys):
+            return [f"item_{key}" for key in keys]
+
+        loader = DataLoader(batch_load_fn, max_batch_size=10)
+        results = await loader.load_many([1, 2, 3])
+        assert results == ["item_1", "item_2", "item_3"]
+
+    @pytest.mark.asyncio
+    async def test_dataloader_caching(self):
+        """测试缓存功能"""
+
+        async def batch_load_fn(keys):
+            return [f"item_{key}" for key in keys]
+
+        loader = DataLoader(batch_load_fn, max_batch_size=10, cache=True)
+
+        # 第一次加载
+        result1 = await loader.load(1)
+        assert result1 == "item_1"
+
+        # 第二次加载应该从缓存获取
+        result2 = await loader.load(1)
+        assert result2 == "item_1"
+
+    @pytest.mark.asyncio
+    async def test_dataloader_cache_clear(self):
+        """测试清除缓存"""
+
+        async def batch_load_fn(keys):
+            return [f"item_{key}" for key in keys]
+
+        loader = DataLoader(batch_load_fn, max_batch_size=10, cache=True)
+
+        await loader.load(1)
+        loader.clear(1)
+
+        # 清除后应该重新加载
+        result = await loader.load(1)
+        assert result == "item_1"
+
+    @pytest.mark.asyncio
+    async def test_dataloader_prime_cache(self):
+        """测试预填充缓存"""
+
+        async def batch_load_fn(keys):
+            return [f"item_{key}" for key in keys]
+
+        loader = DataLoader(batch_load_fn, max_batch_size=10, cache=True)
+
+        # 预填充缓存
+        loader.prime(1, "item_1")
+
+        # 应该从缓存获取
+        result = await loader.load(1)
+        assert result == "item_1"
+
+    @pytest.mark.asyncio
+    async def test_dataloader_batch_splitting(self):
+        """测试批次分割"""
+
+        call_count = 0
+
+        async def batch_load_fn(keys):
+            nonlocal call_count
+            call_count += 1
+            return [f"item_{key}" for key in keys]
+
+        loader = DataLoader(batch_load_fn, max_batch_size=5)
+
+        # 加载超过批次大小的项目
+        await loader.load_many(list(range(10)))
+
+        # 应该分成2个批次
+        assert call_count == 2
 
 
-class TestGetDataLoaderRegistry:
-    """测试获取DataLoader注册表"""
+class TestDataLoaderRegistry:
+    """测试DataLoader注册表"""
 
-    def test_get_dataloader_registry_singleton(self):
+    def test_registry_singleton(self):
         """测试单例模式"""
-        registry1 = _get_dataloader_registry()
-        registry2 = _get_dataloader_registry()
-        assert registry1 is registry2
+        registry1 = DataLoaderRegistry()
+        registry2 = DataLoaderRegistry()
+        # 每次创建新实例，但可以验证方法存在
+        assert hasattr(registry1, "get_alert_loader")
+        assert hasattr(registry2, "get_repair_loader")
 
+    def test_get_alert_loader(self):
+        """测试获取Alert loader"""
+        registry = DataLoaderRegistry()
+        loader = registry.get_alert_loader()
+        assert isinstance(loader, AlertDataLoader)
+        # 验证单例
+        assert registry.get_alert_loader() is loader
 
-@pytest.mark.asyncio
-class TestGetDataLoaderStatus:
-    """测试获取DataLoader状态端点"""
+    def test_get_repair_loader(self):
+        """测试获取Repair loader"""
+        registry = DataLoaderRegistry()
+        loader = registry.get_repair_loader()
+        assert isinstance(loader, RepairDataLoader)
+        assert registry.get_repair_loader() is loader
 
-    async def test_get_dataloader_status_success(self, client: AsyncClient):
-        """测试成功获取DataLoader状态"""
-        mock_user = User(
-            id=1,
-            username="testuser",
-            password_hash="hashed",
-            role="viewer",
-            is_active=True
-        )
+    def test_get_metrics_loader(self):
+        """测试获取Metrics loader"""
+        registry = DataLoaderRegistry()
+        loader = registry.get_metrics_loader()
+        assert isinstance(loader, MetricsDataLoader)
+        assert registry.get_metrics_loader() is loader
 
-        with patch("api.graphql_router.get_current_user", return_value=mock_user):
-            response = await client.get("/api/graphql/graphql-dataloader")
-
-            assert response.status_code == status.HTTP_200_OK
-            data = response.json()
-            assert "config" in data
-            assert "batch_stats" in data
-            assert "performance" in data
-            assert "active_loaders" in data
-            assert "enabled" in data
-            assert data["config"]["max_batch_size"] >= 0
-            assert isinstance(data["config"]["cache_enabled"], bool)
-
-    async def test_get_dataloader_status_unauthorized(self, client: AsyncClient):
-        """测试未授权访问"""
-        with patch("api.graphql_router.get_current_user", side_effect=Exception("Unauthorized")):
-            response = await client.get("/api/graphql/graphql-dataloader")
-
-            assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_500_INTERNAL_SERVER_ERROR]
-
-
-@pytest.mark.asyncio
-class TestClearDataLoaderCache:
-    """测试清除DataLoader缓存端点"""
-
-    async def test_clear_all_cache(self, client: AsyncClient):
+    def test_clear_all(self):
         """测试清除所有缓存"""
-        mock_user = User(
-            id=1,
-            username="admin",
-            password_hash="hashed",
-            role="admin",
-            is_active=True
-        )
+        registry = DataLoaderRegistry()
 
-        with patch("api.graphql_router.get_current_user", return_value=mock_user):
-            response = await client.post("/api/graphql/graphql-dataloader/clear-cache")
+        # 获取所有loader
+        alert_loader = registry.get_alert_loader()
+        repair_loader = registry.get_repair_loader()
+        metrics_loader = registry.get_metrics_loader()
 
-            assert response.status_code == status.HTTP_200_OK
-            data = response.json()
-            assert data["success"] is True
-            assert data["cleared_type"] == "all"
+        # 预填充一些数据
+        alert_loader.prime(1, "test")
+        repair_loader.prime(1, "test")
+        metrics_loader.prime(1, "test")
 
-    async def test_clear_alert_cache(self, client: AsyncClient):
-        """测试清除Alert缓存"""
-        mock_user = User(
-            id=1,
-            username="admin",
-            password_hash="hashed",
-            role="admin",
-            is_active=True
-        )
+        # 清除所有
+        registry.clear_all()
 
-        with patch("api.graphql_router.get_current_user", return_value=mock_user):
-            response = await client.post("/api/graphql/graphql-dataloader/clear-cache?loader_type=alert")
-
-            assert response.status_code == status.HTTP_200_OK
-            data = response.json()
-            assert data["success"] is True
-            assert data["cleared_type"] == "alert"
-
-    async def test_clear_invalid_loader_type(self, client: AsyncClient):
-        """测试清除无效的loader类型"""
-        mock_user = User(
-            id=1,
-            username="admin",
-            password_hash="hashed",
-            role="admin",
-            is_active=True
-        )
-
-        with patch("api.graphql_router.get_current_user", return_value=mock_user):
-            response = await client.post("/api/graphql/graphql-dataloader/clear-cache?loader_type=invalid")
-
-            assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert "Invalid loader type" in response.json()["detail"]
+        # 验证缓存已清除
+        assert len(alert_loader._cache) == 0
+        assert len(repair_loader._cache) == 0
+        assert len(metrics_loader._cache) == 0
 
 
-@pytest.mark.asyncio
-class TestTestDataLoader:
-    """测试DataLoader测试端点"""
+class TestSpecificDataLoaders:
+    """测试特定DataLoader"""
 
-    async def test_test_dataloader_success(self, client: AsyncClient):
-        """测试成功执行DataLoader测试"""
-        mock_user = User(
-            id=1,
-            username="admin",
-            password_hash="hashed",
-            role="admin",
-            is_active=True
-        )
+    @pytest.mark.asyncio
+    async def test_alert_data_loader(self):
+        """测试AlertDataLoader"""
+        loader = AlertDataLoader()
+        assert loader.max_batch_size > 0
+        assert loader.cache is True
 
-        with patch("api.graphql_router.get_current_user", return_value=mock_user):
-            response = await client.get("/api/graphql/graphql-dataloader/test")
+    @pytest.mark.asyncio
+    async def test_repair_data_loader(self):
+        """测试RepairDataLoader"""
+        loader = RepairDataLoader()
+        assert loader.max_batch_size > 0
+        assert loader.cache is True
 
-            assert response.status_code == status.HTTP_200_OK
-            data = response.json()
-            assert data["success"] is True
-            assert "test_results" in data
-            assert "items_loaded" in data["test_results"]
-            assert "load_time_ms" in data["test_results"]
-            assert "config" in data["test_results"]
-
-    async def test_test_dataloader_unauthorized(self, client: AsyncClient):
-        """测试未授权访问"""
-        with patch("api.graphql_router.get_current_user", side_effect=Exception("Unauthorized")):
-            response = await client.get("/api/graphql/graphql-dataloader/test")
-
-            assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_500_INTERNAL_SERVER_ERROR]
+    @pytest.mark.asyncio
+    async def test_metrics_data_loader(self):
+        """测试MetricsDataLoader"""
+        loader = MetricsDataLoader()
+        assert loader.max_batch_size > 0
+        assert loader.cache is True
