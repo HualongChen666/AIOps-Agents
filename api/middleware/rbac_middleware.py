@@ -183,6 +183,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         path = request.url.path
+        method = request.method
         logger.info(f"RBAC Middleware: Processing request {method} {path}")
         
         # Check if this is the register-admin endpoint specifically
