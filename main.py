@@ -1294,6 +1294,63 @@ ADDON_ROUTERS = [
     (frontend_advanced_router, DOC_GENERATION_ENABLED),
 ]
 
+# Add a special route for admin registration that bypasses all middleware
+# This must be registered BEFORE any other routes to ensure it takes precedence
+from fastapi import Request as FastAPIRequest
+from fastapi.responses import JSONResponse as FastAPIJSONResponse
+from core.auth_db import User, get_session
+from core.auth_service import hash_password, max_admin_check
+from pydantic import BaseModel
+
+class AdminRegisterRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/v1/auth/register-admin-bypass")
+async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIRequest):
+    """Bypass route for admin registration to avoid middleware issues."""
+    from sqlalchemy.orm import Session
+    db = next(get_session())
+    try:
+        # Check if username already exists
+        existing_user = db.query(User).filter(User.username == req.username).first()
+        if existing_user:
+            return FastAPIJSONResponse(
+                status_code=400,
+                content={"detail": "Username already exists"}
+            )
+        
+        # Allow creating additional admins (removed bootstrap restriction)
+        max_admin_check(db)
+        user = User(
+            username=req.username,
+            hashed_password=hash_password(req.password),
+            role="admin",
+            disabled=False,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return FastAPIJSONResponse(
+            content={
+                "id": user.id,
+                "username": user.username,
+                "role": user.role,
+                "is_active": not user.disabled,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+        )
+    except Exception as e:
+        db.rollback()
+        return FastAPIJSONResponse(
+            status_code=500,
+            content={"detail": f"Registration failed: {str(e)}"}
+        )
+    finally:
+        db.close()
+
 # Include the new GraphQL subscription router
 if graphql_router:
     app.include_router(graphql_router)
@@ -1369,62 +1426,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Internal-Key"],
     max_age=600,  # 预检请求缓存时间
 )
-
-# Add a special route for admin registration that bypasses all middleware
-from fastapi import Request as FastAPIRequest
-from fastapi.responses import JSONResponse as FastAPIJSONResponse
-from core.auth_db import User, get_session
-from core.auth_service import hash_password, max_admin_check
-from pydantic import BaseModel
-
-class AdminRegisterRequest(BaseModel):
-    username: str
-    password: str
-
-@app.post("/api/v1/auth/register-admin-bypass")
-async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIRequest):
-    """Bypass route for admin registration to avoid middleware issues."""
-    from sqlalchemy.orm import Session
-    db = next(get_session())
-    try:
-        # Check if username already exists
-        existing_user = db.query(User).filter(User.username == req.username).first()
-        if existing_user:
-            return FastAPIJSONResponse(
-                status_code=400,
-                content={"detail": "Username already exists"}
-            )
-        
-        # Allow creating additional admins (removed bootstrap restriction)
-        max_admin_check(db)
-        user = User(
-            username=req.username,
-            hashed_password=hash_password(req.password),
-            role="admin",
-            disabled=False,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return FastAPIJSONResponse(
-            content={
-                "id": user.id,
-                "username": user.username,
-                "role": user.role,
-                "is_active": not user.disabled,
-                "created_at": user.created_at.isoformat() if user.created_at else None
-            }
-        )
-    except Exception as e:
-        db.rollback()
-        return FastAPIJSONResponse(
-            status_code=500,
-            content={"detail": f"Registration failed: {str(e)}"}
-        )
-    finally:
-        db.close()
 
 # Add request tracking middleware (在CORS之后添加，最后执行)
 app.add_middleware(RequestTrackingMiddleware)
