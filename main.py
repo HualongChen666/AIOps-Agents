@@ -1387,11 +1387,15 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
     from sqlalchemy.orm import Session
     db = next(get_session())
     try:
-        if db.query(User).first():
+        # Check if username already exists
+        existing_user = db.query(User).filter(User.username == req.username).first()
+        if existing_user:
             return FastAPIJSONResponse(
                 status_code=400,
-                content={"detail": "Bootstrap registration only allowed when no users exist"}
+                content={"detail": "Username already exists"}
             )
+        
+        # Allow creating additional admins (removed bootstrap restriction)
         max_admin_check(db)
         user = User(
             username=req.username,
