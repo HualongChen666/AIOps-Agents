@@ -1404,9 +1404,11 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
         max_admin_check(db)
         user = User(
             username=req.username,
-            password_hash=hash_password(req.password),
+            hashed_password=hash_password(req.password),
             role="admin",
-            is_active=True,
+            disabled=False,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
         )
         db.add(user)
         db.commit()
@@ -1416,7 +1418,7 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
                 "id": user.id,
                 "username": user.username,
                 "role": user.role,
-                "is_active": user.is_active,
+                "is_active": not user.disabled,
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
         )

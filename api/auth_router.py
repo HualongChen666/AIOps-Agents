@@ -73,7 +73,7 @@ def login(
         HTTPException: If username or password is invalid (401)
     """
     user = db.query(User).filter(User.username == req.username).first()
-    if not user or not verify_password(req.password, user.password_hash):
+    if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
@@ -117,9 +117,11 @@ def register_admin(
     max_admin_check(db)
     user = User(
         username=req.username,
-        password_hash=hash_password(req.password),
+        hashed_password=hash_password(req.password),
         role="admin",
-        is_active=True,
+        disabled=False,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
     )
     db.add(user)
     db.commit()
@@ -169,13 +171,13 @@ def change_password(
     Raises:
         HTTPException: If old password is incorrect (401)
     """
-    if not verify_password(req.old_password, current_user.password_hash):
+    if not verify_password(req.old_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Old password is incorrect",
         )
     merged = db.merge(current_user)
-    merged.password_hash = hash_password(req.new_password)
+    merged.hashed_password = hash_password(req.new_password)
     db.commit()
     db.refresh(merged)
     return {"detail": "Password updated"}

@@ -129,9 +129,9 @@ def create_user(
         max_admin_check(db)
     user = User(
         username=req.username,
-        password_hash=hash_password(req.password),
+        hashed_password=hash_password(req.password),
         role=req.role,
-        is_active=req.is_active,
+        disabled=not req.is_active,
     )
     db.add(user)
     db.commit()
@@ -220,7 +220,7 @@ def update_user(
         if not (is_self or is_admin):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
         merged = db.merge(user)
-        merged.password_hash = hash_password(req.new_password)
+        merged.hashed_password = hash_password(req.new_password)
         user = merged
 
     admin_fields = (req.role is not None) or (req.is_active is not None)
@@ -248,7 +248,7 @@ def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot deactivate the last admin",
             )
-        user.is_active = req.is_active
+        user.disabled = not req.is_active
 
     db.commit()
     db.refresh(user)
@@ -364,11 +364,12 @@ def change_password(
         raise HTTPException(status_code=404, detail="User not found")
     
     # 验证旧密码
-    if not user.verify_password(old_password):
+    from core.auth_service import verify_password
+    if not verify_password(old_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid old password")
     
     # 更新密码
-    user.password_hash = hash_password(new_password)
+    user.hashed_password = hash_password(new_password)
     db.commit()
     
     return {"status": "success", "message": "Password changed successfully"}
