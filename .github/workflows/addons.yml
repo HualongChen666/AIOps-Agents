@@ -10,6 +10,8 @@ on:
 jobs:
   core:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       ENABLE_ADDONS: false
     steps:
@@ -25,12 +27,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-asyncio
           pip install -r requirements.txt || true
-          
+
       - name: Run core tests
         run: pytest -m core -v --tb=short
 
   addons-ai-plus:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       ENABLE_ADDONS: true
       RAG_ENABLED: true
@@ -48,6 +52,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-asyncio
           pip install -r requirements.txt || true
-          
+
       - name: Run AI Plus add-on tests
         run: pytest -m addons -k ai_plus -v --tb=short || pytest -m addons -v --tb=short
