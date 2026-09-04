@@ -720,7 +720,7 @@ async def get_maturity_trends(
         return create_success_response(data=result_data)
     except Exception as e:
         logger.error(f"获取成熟度趋势失败: {e}", exc_info=True)
-        return create_error_response(error=f"获取成熟度趋势失败: {str(e)[:200]}")
+        return create_error_response(error="获取成熟度趋势失败")
 
 
 @router.post(
@@ -837,7 +837,7 @@ async def get_assessment_stats(
         return create_success_response(data=result_data)
     except Exception as e:
         logger.error(f"获取评估统计失败: {e}", exc_info=True)
-        return create_error_response(error=f"获取评估统计失败: {str(e)[:200]}")
+        return create_error_response(error="获取评估统计失败")
 
 
 @router.post(
@@ -939,7 +939,7 @@ async def batch_create_assessments(
     except Exception as e:
         db.rollback()
         logger.error(f"批量创建评估失败: {e}", exc_info=True)
-        return create_error_response(error=f"批量创建评估失败: {str(e)[:200]}")
+        return create_error_response(error="批量创建评估失败")
 
 
 @router.post(
