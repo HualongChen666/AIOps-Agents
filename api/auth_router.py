@@ -106,6 +106,9 @@ def register_admin(
     Raises:
         HTTPException: If users already exist (400)
     """
+    # Mark this endpoint as public for middleware
+    register_admin.__public__ = True
+    
     if db.query(User).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

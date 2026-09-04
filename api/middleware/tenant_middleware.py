@@ -62,6 +62,11 @@ class TenantMiddleware(BaseHTTPMiddleware):
             request.state.tenant_id = "default"
             return await call_next(request)
         
+        # Explicitly skip for register-admin endpoint
+        if request.url.path == "/api/v1/auth/register-admin":
+            request.state.tenant_id = "default"
+            return await call_next(request)
+        
         tenant_id = await self._resolve_tenant_id(request)
         request.state.tenant_id = tenant_id
         return await call_next(request)

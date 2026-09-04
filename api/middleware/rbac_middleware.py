@@ -180,6 +180,11 @@ class RBACMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         path = request.url.path
+        
+        # Check if this is the register-admin endpoint specifically
+        if path == "/api/v1/auth/register-admin":
+            return await call_next(request)
+        
         if _is_public(path):
             return await call_next(request)
 
