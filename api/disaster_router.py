@@ -1514,6 +1514,22 @@ async def verify_backup(
 
         backup_path = Path(request.backup_file)
 
+        # Security: Validate path to prevent path traversal
+        # Normalize the path to remove any ".." segments
+        backup_path = backup_path.resolve()
+        
+        # Define safe backup directory
+        safe_backup_dir = Path("backups").resolve()
+        
+        # Ensure the path is within the safe directory
+        try:
+            backup_path.relative_to(safe_backup_dir)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid backup file path: path traversal detected"
+            )
+
         if not backup_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
