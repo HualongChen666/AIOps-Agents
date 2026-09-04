@@ -2,7 +2,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const instance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE || '/api', // 使用相对路径让Next.js代理处理
+  baseURL: process.env.NEXT_PUBLIC_API_BASE || '', // 使用空baseURL，让调用自己包含完整路径
   timeout: 15000,
 });
 
