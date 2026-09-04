@@ -11,7 +11,8 @@ import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useLoadingState, useToast } from '@/hooks/useEnhancements';
 import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
-import { FileText, Search, RefreshCw, Shield, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Search, RefreshCw, Shield, AlertTriangle, CheckCircle, XCircle, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface AuditLog {
   trace_id?: string;
@@ -103,6 +104,25 @@ export default function AuditPage() {
     return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
   };
 
+  // 🔧 Export to CSV/Excel
+  const exportToCSV = () => {
+    const csvData = filteredLogs.map(log => ({
+      '时间': log.timestamp ? new Date(log.timestamp).toLocaleString() : '-',
+      '执行者': log.who || log.executor || '-',
+      '主机': log.where || '-',
+      '命令': log.what || '-',
+      '风险等级': log.risk_level || '-',
+      '结果': log.result || '-',
+      '来源IP': log.source_ip || '-',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(csvData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '审计日志');
+    XLSX.writeFile(wb, `audit_logs_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showSuccess('导出成功');
+  };
+
   // 🔧 P1 Integration: Use enhanced loading and empty states
   if (pageLoading) {
     return (
@@ -144,6 +164,10 @@ export default function AuditPage() {
           <Button onClick={() => refetch()} variant="outline">
             <RefreshCw className="h-4 w-4 mr-2" />
             刷新
+          </Button>
+          <Button onClick={exportToCSV} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            导出Excel
           </Button>
         </div>
       </div>

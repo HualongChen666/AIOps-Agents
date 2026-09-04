@@ -31,32 +31,22 @@ export default function RAGHistoryPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load mock history data
-    const mockHistory: RAGHistoryRecord[] = [
-      {
-        id: '1',
-        query: '数据库连接超时',
-        results: [
-          { content: '检查数据库连接池配置', similarity: 0.95, source: 'kb-001' },
-          { content: '增加连接超时时间', similarity: 0.88, source: 'kb-002' }
-        ],
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        similarity_score: 0.95,
-        source: 'knowledge-base'
-      },
-      {
-        id: '2',
-        query: 'CPU使用率过高',
-        results: [
-          { content: '检查进程资源占用', similarity: 0.92, source: 'kb-003' },
-          { content: '优化应用程序代码', similarity: 0.85, source: 'kb-004' }
-        ],
-        timestamp: new Date(Date.now() - 7200000).toISOString(),
-        similarity_score: 0.92,
-        source: 'knowledge-base'
+    // Load history from API
+    const loadHistory = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/api/rag/history');
+        setHistory(response.data.history || []);
+      } catch (err: any) {
+        console.error('Failed to load RAG history:', err);
+        // If API fails, initialize empty history
+        setHistory([]);
+      } finally {
+        setLoading(false);
       }
-    ];
-    setHistory(mockHistory);
+    };
+
+    loadHistory();
   }, []);
 
   const handleSearch = async () => {
@@ -68,13 +58,13 @@ export default function RAGHistoryPage() {
     try {
       setSearching(true);
       setError(null);
-      
+
       // Call RAG search API
       const response = await api.post('/api/rag/search', {
         query: searchQuery,
         top_k: 5
       });
-      
+
       setSearchResults({
         query: searchQuery,
         results: response.data.results || [],
@@ -102,9 +92,14 @@ export default function RAGHistoryPage() {
     await handleSearch();
   };
 
-  const handleClearHistory = () => {
+  const handleClearHistory = async () => {
     if (confirm('确定要清空搜索历史吗？')) {
-      setHistory([]);
+      try {
+        await api.delete('/api/rag/history');
+        setHistory([]);
+      } catch (err: any) {
+        setError('清空历史失败: ' + (err.response?.data?.detail || err.message));
+      }
     }
   };
 

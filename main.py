@@ -96,6 +96,259 @@ from core.user_training_system import get_user_training_system
 from core.vulnerability_manager import get_vulnerability_manager
 from core.websocket_integrator import get_websocket_integrator
 
+# Core Engine Modules
+from core.alert_engine import AlertEngine  # noqa: F401
+from core.auto_heal import AutoHealEngine  # noqa: F401
+from core.collector import Collector  # noqa: F401
+from core.db_engine import DatabaseEngine  # noqa: F401
+from core.linux_collector import LinuxCollector  # noqa: F401
+from core.linux_repair import LinuxRepair  # noqa: F401
+from core.log_collector import LogCollector  # noqa: F401
+from core.metrics_history import MetricsHistory  # noqa: F401
+from core.repair_engine import RepairEngine  # noqa: F401
+from core.runbook_generator import RunbookGenerator  # noqa: F401
+from core.topology_engine import TopologyEngine  # noqa: F401
+from core.workflow_engine import WorkflowEngine  # noqa: F401
+
+# AI/Analysis Modules
+from core.ai_interface import AIInterface  # noqa: F401
+from core.ai_service import AIService  # noqa: F401
+from core.ai_enhancement import AIEnhancement  # noqa: F401
+from core.advanced_ai_capabilities import AdvancedAICapabilities  # noqa: F401
+from core.enhanced_ai_capabilities import EnhancedAICapabilities  # noqa: F401
+from core.analysis.l2.langgraph_engine import LangGraphEngine  # noqa: F401
+from core.analysis.l2.model_router import ModelRouter  # noqa: F401
+from core.analysis.l2.rag_engine import RAGEngine  # noqa: F401
+from core.root_cause_intelligence import RootCauseIntelligence  # noqa: F401
+from core.enhanced_root_cause_analyzer import EnhancedRootCauseAnalyzer  # noqa: F401
+
+# Security/Auth Modules
+from core.auth import Auth  # noqa: F401
+from core.auth_service import AuthService  # noqa: F401
+from core.authentication import Authentication  # noqa: F401
+from core.auth_interface import AuthInterface  # noqa: F401
+from core.rbac import RBAC  # noqa: F401
+from core.fine_rbac import FineRBAC  # noqa: F401
+from core.abac import ABAC  # noqa: F401
+from core.mfa_service import MFAService  # noqa: F401
+from core.crypto import Crypto  # noqa: F401
+from core.key_management import KeyManagement  # noqa: F401
+from core.token_blacklist import TokenBlacklist  # noqa: F401
+
+# Fault Tolerance/Recovery Modules
+from core.error_handler import ErrorHandler  # noqa: F401
+from core.error_handling import ErrorHandling  # noqa: F401
+from core.error_handling_logging import ErrorHandlingLogging  # noqa: F401
+from core.resilience import Resilience  # noqa: F401
+from core.retry_enhanced import RetryEnhanced  # noqa: F401
+from core.circuit_breaker import CircuitBreaker  # noqa: F401
+from core.idempotent import Idempotent  # noqa: F401
+
+# Monitoring/Observability Modules
+from core.anomaly_detection import AnomalyDetection  # noqa: F401
+from core.anomaly_engine import AnomalyEngine  # noqa: F401
+from core.health_check import HealthCheck  # noqa: F401
+from core.heartbeat import Heartbeat  # noqa: F401
+from core.observability_query import ObservabilityQuery  # noqa: F401
+from core.observability_schema import ObservabilitySchema  # noqa: F401
+from core.monitoring_system_integrator import MonitoringSystemIntegrator  # noqa: F401
+from core.prometheus_client import PrometheusClient  # noqa: F401
+from core.loki_client import LokiClient  # noqa: F401
+from core.tempo_client import TempoClient  # noqa: F401
+from core.elasticsearch_client import ElasticsearchClient  # noqa: F401
+
+# Performance Optimization Modules
+from core.api_response_time_optimizer import APIResponseTimeOptimizer  # noqa: F401
+from core.api_throughput_optimizer import APIThroughputOptimizer  # noqa: F401
+from core.api_resource_optimizer import APIResourceOptimizer  # noqa: F401
+from core.database_cache_optimizer import DatabaseCacheOptimizer  # noqa: F401
+from core.database_connection_optimizer import DatabaseConnectionOptimizer  # noqa: F401
+from core.connection_pool_optimization import ConnectionPoolOptimization  # noqa: F401
+from core.cpu_usage_optimizer import CPUUsageOptimizer  # noqa: F401
+from core.memory_usage_optimizer import MemoryUsageOptimizer  # noqa: F401
+from core.performance_regression_detector import PerformanceRegressionDetector  # noqa: F401
+from core.performance_data_collector import PerformanceDataCollector  # noqa: F401
+from core.performance_report_generator import PerformanceReportGenerator  # noqa: F401
+from core.performance_scheduler import PerformanceScheduler  # noqa: F401
+from core.performance_tuning import PerformanceTuning  # noqa: F401
+
+# Alert/Notification Modules
+from core.alert_service import AlertService  # noqa: F401
+from core.alert_intelligence import AlertIntelligence  # noqa: F401
+from core.alert_rules import AlertRules  # noqa: F401
+from core.intelligent_alert_analyzer import IntelligentAlertAnalyzer  # noqa: F401
+from core.oncall_adapter import OncallAdapter  # noqa: F401
+from core.escalation import Escalation  # noqa: F401
+
+# Integration/Collaboration Modules
+from core.integration_manager import IntegrationManager  # noqa: F401
+from core.integration_ecosystem import IntegrationEcosystem  # noqa: F401
+from core.integration_repository import IntegrationRepository  # noqa: F401
+from core.integration_helpers import IntegrationHelpers  # noqa: F401
+from core.real_integration import RealIntegration  # noqa: F401
+from core.collaboration_engine import CollaborationEngine  # noqa: F401
+from core.team_collaboration_engine import TeamCollaborationEngine  # noqa: F401
+from core.integration.l7.collaboration_integration import CollaborationIntegration  # noqa: F401
+from core.integration.l7.itSM_integration import ITSMIntegration  # noqa: F401
+
+# Storage/Database Modules
+from core.database import Database  # noqa: F401
+from core.db_replication import DBReplication  # noqa: F401
+from core.db_optimization import DBOptimization  # noqa: F401
+from core.database_query_optimizer import DatabaseQueryOptimizer  # noqa: F401
+from core.query_optimizer import QueryOptimizer  # noqa: F401
+from core.query_optimization import QueryOptimization  # noqa: F401
+from core.dual_write import DualWrite  # noqa: F401
+from core.redis_cluster import RedisCluster  # noqa: F401
+from core.redis_cluster_manager import RedisClusterManager  # noqa: F401
+from core.snapshot_store import SnapshotStore  # noqa: F401
+
+# Repository Modules
+from core.repositories.alert_repository import AlertRepository  # noqa: F401
+from core.repositories.database_monitoring_repository import DatabaseMonitoringRepository  # noqa: F401
+from core.repositories.frontend_repository import FrontendRepository  # noqa: F401
+from core.repositories.monitoring_repository import MonitoringRepository  # noqa: F401
+from core.repositories.security_repository import SecurityRepository  # noqa: F401
+from core.repositories.user_repository import UserRepository  # noqa: F401
+
+# Alert Providers
+from core.alert_providers.base import BaseAlertProvider  # noqa: F401
+from core.alert_providers.cloudwatch import CloudWatchProvider  # noqa: F401
+from core.alert_providers.datadog import DatadogProvider  # noqa: F401
+from core.alert_providers.grafana import GrafanaProvider  # noqa: F401
+from core.alert_providers.pagerduty import PagerDutyProvider  # noqa: F401
+from core.alert_providers.prometheus import PrometheusProvider  # noqa: F401
+from core.alert_providers.zabbix import ZabbixProvider  # noqa: F401
+
+# Agent Framework
+from core.agent.behavior_monitor import BehaviorMonitor  # noqa: F401
+from core.agent.coding_subagent import CodingSubagent  # noqa: F401
+from core.agent.coding_tools import CodingTools  # noqa: F401
+from core.agent.executor import Executor  # noqa: F401
+from core.agent.memory_bridge import MemoryBridge  # noqa: F401
+from core.agent.observability_client import ObservabilityClient  # noqa: F401
+from core.agent.planner import Planner  # noqa: F401
+from core.agent.state import AgentState  # noqa: F401
+from core.agent.subagent import Subagent  # noqa: F401
+from core.agent.tools import AgentTools  # noqa: F401
+
+# AI Submodules
+from core.ai.token_budget import TokenBudget  # noqa: F401
+from core.ai.langgraph.dsl import LangGraphDSL  # noqa: F401
+from core.ai.langgraph.executor import LangGraphExecutor  # noqa: F401
+from core.ai.langgraph.nodes import LangGraphNodes  # noqa: F401
+from core.ai.langgraph.visualizer import LangGraphVisualizer  # noqa: F401
+from core.ai.langgraph.workflow import LangGraphWorkflow  # noqa: F401
+from core.ai.langgraph._core import LangGraphCore  # noqa: F401
+from core.ai.llm_router.capability_evaluator import CapabilityEvaluator  # noqa: F401
+from core.ai.llm_router.cost_optimizer import CostOptimizer  # noqa: F401
+from core.ai.llm_router.enhanced_router import EnhancedRouter  # noqa: F401
+from core.ai.llm_router.load_balancer import LoadBalancer  # noqa: F401
+from core.ai.rag.fusion import RAGFusion  # noqa: F401
+from core.ai.rag.knowledge_base import KnowledgeBase  # noqa: F401
+from core.ai.rag.reranker import Reranker  # noqa: F401
+from core.ai.rag.retriever import Retriever  # noqa: F401
+from core.ai.rag.vectorizer import Vectorizer  # noqa: F401
+
+# Base Modules
+from core.base.analyzer import BaseAnalyzer  # noqa: F401
+from core.base.collector import BaseCollector  # noqa: F401
+from core.base.executor import BaseExecutor  # noqa: F401
+from core.base.storage import BaseStorage  # noqa: F401
+
+# Causal Analysis Modules
+from core.causal.algorithms import CausalAlgorithms  # noqa: F401
+from core.causal.graph import CausalGraph  # noqa: F401
+from core.causal.impact import CausalImpact  # noqa: F401
+from core.causal.inference import CausalInference  # noqa: F401
+from core.causal.prediction import CausalPrediction  # noqa: F401
+from core.causal.preprocessing import CausalPreprocessing  # noqa: F401
+
+# Error Codes
+from core.error_codes.definitions import ErrorCodesDefinitions  # noqa: F401
+from core.error_codes.manager import ErrorCodesManager  # noqa: F401
+
+# Error Logging
+from core.error_logging.alerting import ErrorLoggingAlerting  # noqa: F401
+from core.error_logging.fastapi_handlers import FastAPIHandlers  # noqa: F401
+from core.error_logging.handler import ErrorLoggingHandler  # noqa: F401
+from core.error_logging.logger import ErrorLoggingLogger  # noqa: F401
+
+# Exceptions
+from core.exceptions.base import BaseExceptions  # noqa: F401
+from core.exceptions.business import BusinessExceptions  # noqa: F401
+from core.exceptions.critical import CriticalExceptions  # noqa: F401
+from core.exceptions.security import SecurityExceptions  # noqa: F401
+from core.exceptions.system import SystemExceptions  # noqa: F401
+from core.exceptions.third_party import ThirdPartyExceptions  # noqa: F401
+
+# HITL Modules
+from core.hitl.approval import HITLApproval  # noqa: F401
+from core.hitl.conditional import HITLConditional  # noqa: F401
+from core.hitl.history import HITLHistory  # noqa: F401
+from core.hitl.multi_level import HITLMultiLevel  # noqa: F401
+from core.hitl.notification import HITLNotification  # noqa: F401
+from core.hitl.timeout import HITLTimeout  # noqa: F401
+
+# Interface Modules
+from core.interface.graphql.auth import GraphQLAuth  # noqa: F401
+from core.interface.graphql.dataloader import GraphQLDataloader  # noqa: F401
+from core.interface.graphql.resolvers import GraphQLResolvers  # noqa: F401
+from core.interface.graphql.schema import GraphQLSchema  # noqa: F401
+from core.interface.graphql.subscription import GraphQLSubscription  # noqa: F401
+from core.interface.grpc.client import GRPCClient  # noqa: F401
+from core.interface.grpc.interceptor import GRPCInterceptor  # noqa: F401
+from core.interface.grpc.server import GRPCServer  # noqa: F401
+from core.interface.l5.graphql_interface import GraphQLInterface  # noqa: F401
+from core.interface.l5.mcp_interface import MCPInterface  # noqa: F401
+from core.interface.mcp.client import MCPClient  # noqa: F401
+from core.interface.mcp.context import MCPContext  # noqa: F401
+from core.interface.mcp.protocol import MCPProtocol  # noqa: F401
+from core.interface.mcp.server import MCPServer  # noqa: F401
+from core.interface.mcp.tools import MCPTools  # noqa: F401
+
+# Logging Modules
+from core.logging.analysis.log_alerting import LogAlerting  # noqa: F401
+from core.logging.analysis.log_analyzer import LogAnalyzer  # noqa: F401
+from core.logging.context.context_manager import LoggingContextManager  # noqa: F401
+from core.logging.level.filter_strategy import FilterStrategy  # noqa: F401
+from core.logging.level.level_manager import LevelManager  # noqa: F401
+from core.logging.level.routing_strategy import RoutingStrategy  # noqa: F401
+from core.logging.level.sampling_strategy import SamplingStrategy  # noqa: F401
+
+# Middleware
+from core.middleware.auth_middleware import AuthMiddleware  # noqa: F401
+
+# Priority Modules
+from core.priority.assessor import PriorityAssessor  # noqa: F401
+from core.priority.dynamic import PriorityDynamic  # noqa: F401
+from core.priority.ranker import PriorityRanker  # noqa: F401
+from core.priority.resource_allocator import PriorityResourceAllocator  # noqa: F401
+from core.priority.sla_aware import PrioritySLAAware  # noqa: F401
+
+# Processing Modules
+from core.processing.l3.causal_graph import CausalGraphProcessor  # noqa: F401
+from core.processing.l3.workflow_engine import WorkflowEngineProcessor  # noqa: F401
+
+# Security Modules
+from core.security.subprocess_runner import SecuritySubprocessRunner  # noqa: F401
+
+# Storage Modules
+from core.storage.l4.loki import LokiStorage  # noqa: F401
+from core.storage.l4.retry import RetryStorage  # noqa: F401
+from core.storage.l4.storage_manager import StorageManager  # noqa: F401
+from core.storage.l4.tempo import TempoStorage  # noqa: F401
+from core.storage.l4.victoriametrics import VictoriaMetricsStorage  # noqa: F401
+
+# Telemetry Modules
+from core.telemetry.fastapi import FastAPITelemetry  # noqa: F401
+
+# Workflow Modules
+from core.workflow.engine.dag import WorkflowDAG  # noqa: F401
+from core.workflow.engine.dsl import WorkflowDSL  # noqa: F401
+from core.workflow.engine.executor import WorkflowExecutor  # noqa: F401
+from core.workflow.engine.state_machine import WorkflowStateMachine  # noqa: F401
+
 """
 FastAPI 主入口文件 – 已在原项目中实现多个路由注册。
 本次更新：
@@ -117,8 +370,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from loguru import logger as _logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -130,6 +382,7 @@ from api.alert_webhook_router import router as alert_webhook_router
 from api.anomaly_router import router as anomaly_router
 from api.api_performance_router import router as api_performance_router
 from api.assets_router import router as assets_router
+from api.assets_advanced_router import router as assets_advanced_router
 from api.audit_center_router import router as audit_center_router
 from api.audit_router import router as audit_router
 from api.auth_router import router as auth_router
@@ -140,20 +393,26 @@ from api.chart_aggregation_router import router as chart_aggregation_router
 from api.business_impact_advanced_router import router as business_impact_advanced_router
 from api.business_impact_router import router as business_impact_router
 from api.capacity_router import router as capacity_router
+from api.capacity_advanced_router import router as capacity_advanced_router
 from api.change_management_router import router as change_management_router
+from api.change_advanced_router import router as change_advanced_router
 from api.collaboration_advanced_router import router as collaboration_advanced_router
 from api.collaboration_router import router as collaboration_router
 from api.compliance_audit_router import router as compliance_audit_router
 from api.cost_advanced_router import router as cost_advanced_router
 from api.cost_router import router as cost_router
+from api.cost_management_router import router as cost_management_router
 from api.monitoring_config_router import router as monitoring_config_router
+from api.monitoring_advanced_router import router as monitoring_advanced_router
 from api.database_monitoring_router import router as database_monitoring_router
 from api.performance_optimization_router import router as performance_optimization_router
 from api.performance_router import router as performance_router
 from api.guard_router import router as guard_router
 from api.guard_router import security_router as security_router
+from api.security_advanced_router import router as security_advanced_router
 from api.health_router import router as health_router
 from api.hitl_approval_router import router as hitl_approval_router
+from api.incident_management_router import router as incident_management_router
 from api.linux_router import router as linux_router
 from api.macos_router import router as macos_router
 from api.maturity_router import router as maturity_router
@@ -164,9 +423,11 @@ from api.approvals_router import router as approvals_router
 from api.settings_router import router as settings_router
 from api.slack_router import router as slack_router
 from api.slo_router import router as slo_router
+from api.slo_advanced_router import router as slo_advanced_router
 from api.sse_router import router as sse_router
 from api.stats_router import router as stats_router
 from api.team_collaboration_router import router as team_collaboration_router
+from api.integration_providers_router import router as integration_providers_router
 from api.teams_router import router as teams_router
 from api.tenant_router import router as tenant_router
 from api.tenant_advanced_router import router as tenant_advanced_router
@@ -186,6 +447,8 @@ from api.unified_repair_advanced_router import (
     router_v1 as unified_repair_advanced_router_v1,
 )
 from api.unified_repair_router import router as unified_repair_router
+from api.user_router import router as user_router
+from api.users_advanced_router import router as users_advanced_router
 from api.users_unified_router import router as users_unified_router
 from api.vulnerability_router import router as vulnerability_router
 from api.websocket_router import router as websocket_router
@@ -685,12 +948,20 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Static files are now served by Next.js frontend (port 3000)
+# API requests are proxied from Next.js to FastAPI (port 8000)
+# See frontend/next.config.js for proxy configuration
 
 
 @app.get("/", include_in_schema=False)
-async def root() -> FileResponse:
-    return FileResponse("static/index.html")
+async def root():
+    """Root endpoint - redirect to frontend"""
+    return JSONResponse({
+        "message": "AIOps Agent API Server",
+        "frontend": "http://localhost:3000",
+        "api_docs": "/docs",
+        "health": "/api/v1/health/ping"
+    })
 
 
 app.add_exception_handler(
@@ -812,11 +1083,13 @@ CORE_ROUTERS = [
     builder_router,
     chart_aggregation_router,
     monitoring_config_router,
+    monitoring_advanced_router,
     database_monitoring_router,
     performance_optimization_router,
     performance_router,
     health_router,
     hitl_approval_router,
+    incident_management_router,
     linux_router,
     macos_router,
     docker_router,
@@ -831,13 +1104,18 @@ CORE_ROUTERS = [
     windows_repair_router,
     guard_router,
     security_router,
+    security_advanced_router,
     api_performance_router,
     cost_router,
     cost_advanced_router,
+    cost_management_router,
     auth_router,
     settings_router,
+    user_router,
+    users_advanced_router,
     users_unified_router,
     assets_router,
+    assets_advanced_router,
     sso_router,
     slack_router,
     teams_router,
@@ -846,18 +1124,22 @@ CORE_ROUTERS = [
     sse_router,
     stats_router,
     capacity_router,
+    capacity_advanced_router,
     anomaly_router,
     slo_router,
+    slo_advanced_router,
     chaos_simple_router,
     tenant_router,
     tenant_advanced_router,
     business_impact_router,
     business_impact_advanced_router,
     change_management_router,
+    change_advanced_router,
     maturity_router,
     collaboration_router,
     collaboration_advanced_router,
     team_collaboration_router,
+    integration_providers_router,
     topology_advanced_router_alt,
     topology_advanced_router_v1,
     tracing_advanced_router_alt,
