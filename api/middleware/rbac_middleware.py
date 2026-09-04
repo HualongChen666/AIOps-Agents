@@ -41,6 +41,7 @@ PUBLIC_PREFIXES = {
     "/static/",
     "/api/v1/auth/login",
     "/api/v1/auth/register",
+    "/api/v1/auth/register-admin",  # Allow admin registration for bootstrap
     "/api/v1/auth/refresh",
     "/api/v1/auth/me",  # Allow access to auth me endpoint for testing
     "/api/v1/users/me",  # Allow access to current user endpoint for testing
