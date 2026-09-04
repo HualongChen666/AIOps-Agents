@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-import logging
 from datetime import datetime
 
 from api.middleware.rbac_middleware import RBACMiddleware
 from api.middleware.tenant_middleware import TenantMiddleware
-from core.accessibility_support import setup_accessibility_support
-from core.ai_engine import _get_http_client as _ai_get_http_client
-from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
+# from core.accessibility_support import setup_accessibility_support
+# from core.ai_engine import _get_http_client as _ai_get_http_client
+# from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
 from core.api_error import (
     api_error_handler,
     general_exception_handler,
@@ -16,7 +15,6 @@ from core.api_governance import setup_api_governance
 from core.api_performance_optimizer import get_api_performance_optimizer
 from core.api_response_middleware import setup_api_response_middleware
 from core.middleware.rate_limit_middleware import rate_limit_middleware
-from core.audit_integration_manager import get_audit_integration_manager
 from core.business_metrics import setup_business_metrics
 from core.chaos_engineering import setup_chaos_engineering
 from core.cicd_integration_manager import get_cicd_integration_manager
@@ -1309,12 +1307,18 @@ class AdminRegisterRequest(BaseModel):
 @app.post("/api/v1/auth/register-admin-bypass")
 async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIRequest):
     """Bypass route for admin registration to avoid middleware issues."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"BYPASS ROUTE CALLED: {request.url.path}")
+    
     from sqlalchemy.orm import Session
     db = next(get_session())
     try:
+        logger.info(f"BYPASS ROUTE: Attempting to create user {req.username}")
         # Check if username already exists
         existing_user = db.query(User).filter(User.username == req.username).first()
         if existing_user:
+            logger.warning(f"BYPASS ROUTE: Username {req.username} already exists")
             return FastAPIJSONResponse(
                 status_code=400,
                 content={"detail": "Username already exists"}
@@ -1333,6 +1337,7 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
         db.add(user)
         db.commit()
         db.refresh(user)
+        logger.info(f"BYPASS ROUTE: Successfully created user {user.username} with id {user.id}")
         return FastAPIJSONResponse(
             content={
                 "id": user.id,
@@ -1344,6 +1349,7 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
         )
     except Exception as e:
         db.rollback()
+        logger.error(f"BYPASS ROUTE: Registration failed with error: {str(e)}")
         return FastAPIJSONResponse(
             status_code=500,
             content={"detail": f"Registration failed: {str(e)}"}

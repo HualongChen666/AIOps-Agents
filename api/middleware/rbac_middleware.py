@@ -5,6 +5,7 @@ Extended with ABAC support for fine-grained access control."""
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -14,6 +15,8 @@ from starlette.responses import JSONResponse, Response
 
 from core.auth_service import decode_token
 from core.abac import ABACEngine, ActionType, ResourceType, Subject, Resource, Environment
+
+logger = logging.getLogger(__name__)
 
 # Global ABAC engine instance (will be initialized during app startup)
 abac_engine: Optional[ABACEngine] = None
@@ -180,12 +183,15 @@ class RBACMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         path = request.url.path
+        logger.info(f"RBAC Middleware: Processing request {method} {path}")
         
         # Check if this is the register-admin endpoint specifically
         if path == "/api/v1/auth/register-admin":
+            logger.info(f"RBAC Middleware: Allowing register-admin endpoint")
             return await call_next(request)
         
         if _is_public(path):
+            logger.info(f"RBAC Middleware: Path {path} is public, allowing")
             return await call_next(request)
 
         auth = request.headers.get("Authorization", "")

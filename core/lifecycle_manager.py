@@ -1189,8 +1189,12 @@ async def lifespan(app: Any) -> AsyncGenerator[None, None]:
     # Initialize database
     try:
         from core.db_engine import async_init_db, init_db
+        from core.auth_db import init_db as auth_init_db
 
-        await _safe_init_core(lambda: init_db(), "auth database init")
+        # Use synchronous auth database initialization
+        auth_init_db()
+        _logger.info("Auth database initialized successfully")
+        
         await _safe_init_core(async_init_db, "async database init", timeout=15.0)
     except Exception as e:
         _logger.warning(f"Database init failed (continuing without it): {e}")

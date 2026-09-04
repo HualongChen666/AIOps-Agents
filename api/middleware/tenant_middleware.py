@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
 from core.auth_service import decode_token
+
+logger = logging.getLogger(__name__)
 
 # Public prefixes that don't require authentication
 PUBLIC_PREFIXES = {
@@ -57,18 +61,24 @@ class TenantMiddleware(BaseHTTPMiddleware):
     """Resolve tenant_id from JWT token or X-Tenant-ID header and store it on request.state."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        path = request.url.path
+        logger.info(f"Tenant Middleware: Processing request {path}")
+        
         # Skip tenant resolution for public endpoints
-        if _is_public(request.url.path):
+        if _is_public(path):
+            logger.info(f"Tenant Middleware: Path {path} is public, setting default tenant")
             request.state.tenant_id = "default"
             return await call_next(request)
         
         # Explicitly skip for register-admin endpoint
-        if request.url.path == "/api/v1/auth/register-admin":
+        if path == "/api/v1/auth/register-admin":
+            logger.info(f"Tenant Middleware: Allowing register-admin endpoint")
             request.state.tenant_id = "default"
             return await call_next(request)
         
         tenant_id = await self._resolve_tenant_id(request)
         request.state.tenant_id = tenant_id
+        logger.info(f"Tenant Middleware: Resolved tenant_id={tenant_id}")
         return await call_next(request)
 
     async def _resolve_tenant_id(self, request: Request) -> str:
