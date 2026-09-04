@@ -1372,11 +1372,12 @@ app.add_middleware(
 # Add request tracking middleware (在CORS之后添加，最后执行)
 app.add_middleware(RequestTrackingMiddleware)
 
+# Add global RBAC middleware (auth + write-method role checks)
+# 放在TenantMiddleware之前，让它最先检查公开端点
+app.add_middleware(RBACMiddleware)
+
 # Add tenant middleware (resolves tenant_id from JWT or header)
 app.add_middleware(TenantMiddleware)
-
-# Add global RBAC middleware (auth + write-method role checks)
-app.add_middleware(RBACMiddleware)
 
 
 # ------------------------
