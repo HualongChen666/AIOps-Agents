@@ -45,6 +45,7 @@ PUBLIC_PREFIXES = {
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/register-admin",  # Allow admin registration for bootstrap
+    "/api/v1/auth/register-admin-bypass",  # Allow bypass route for admin registration
     "/api/v1/auth/refresh",
     "/api/v1/auth/me",  # Allow access to auth me endpoint for testing
     "/api/v1/users/me",  # Allow access to current user endpoint for testing
@@ -189,6 +190,11 @@ class RBACMiddleware(BaseHTTPMiddleware):
         # Check if this is the register-admin endpoint specifically
         if path == "/api/v1/auth/register-admin":
             logger.info(f"RBAC Middleware: Allowing register-admin endpoint")
+            return await call_next(request)
+        
+        # Check if this is the register-admin-bypass endpoint
+        if path == "/api/v1/auth/register-admin-bypass":
+            logger.info(f"RBAC Middleware: Allowing register-admin-bypass endpoint")
             return await call_next(request)
         
         if _is_public(path):
