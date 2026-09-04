@@ -191,9 +191,14 @@ async def _initialize_l2_analysis_layer() -> None:
     from core.analysis.l2.rag_engine import init_rag_engine
 
     try:
+        # Make RAG engine initialization more tolerant with longer timeout
         await _safe_init(
-            lambda: init_rag_engine(L2_ANALYSIS_CONFIG.get("rag", {})), "RAG engine", timeout=5.0
+            lambda: init_rag_engine(L2_ANALYSIS_CONFIG.get("rag", {})), "RAG engine", timeout=10.0
         )
+    except Exception as e:
+        _logger.warning(f"RAG engine initialization failed (continuing without it): {e}")
+    
+    try:
         await _safe_init(
             lambda: init_model_router(L2_ANALYSIS_CONFIG.get("model_router", {})),
             "Model router",
@@ -201,7 +206,7 @@ async def _initialize_l2_analysis_layer() -> None:
         )
         _logger.info("L2 Analysis Layer initialized successfully")
     except Exception as e:
-        _logger.info(f"L2 Analysis Layer initialization failed (continuing without it): {e}")
+        _logger.warning(f"L2 Analysis Layer initialization failed (continuing without it): {e}")
 
 
 async def _initialize_l5_interface_layer(_grpc_server: Any) -> None:
@@ -1055,39 +1060,89 @@ async def lifespan(app: Any) -> AsyncGenerator[None, None]:
     await _initialize_pre_startup_components()
 
     # Initialize 7-Layer Architecture components
-    await _initialize_l4_storage_layer()
-    await _initialize_l2_analysis_layer()
-    await _initialize_l5_interface_layer(_grpc_server)
-    await _initialize_l7_integration_layer()
-    await _initialize_l3_processing_layer()
-    await _initialize_l6_execution_layer()
+    try:
+        await _initialize_l4_storage_layer()
+    except Exception as e:
+        _logger.warning(f"L4 Storage Layer initialization failed (continuing without it): {e}")
+    
+    try:
+        await _initialize_l2_analysis_layer()
+    except Exception as e:
+        _logger.warning(f"L2 Analysis Layer initialization failed (continuing without it): {e}")
+    
+    try:
+        await _initialize_l5_interface_layer(_grpc_server)
+    except Exception as e:
+        _logger.warning(f"L5 Interface Layer initialization failed (continuing without it): {e}")
+    
+    try:
+        await _initialize_l7_integration_layer()
+    except Exception as e:
+        _logger.warning(f"L7 Integration Layer initialization failed (continuing without it): {e}")
+    
+    try:
+        await _initialize_l3_processing_layer()
+    except Exception as e:
+        _logger.warning(f"L3 Processing Layer initialization failed (continuing without it): {e}")
+    
+    try:
+        await _initialize_l6_execution_layer()
+    except Exception as e:
+        _logger.warning(f"L6 Execution Layer initialization failed (continuing without it): {e}")
 
     # Initialize telemetry
-    await _initialize_telemetry(app)
+    try:
+        await _initialize_telemetry(app)
+    except Exception as e:
+        _logger.warning(f"Telemetry initialization failed (continuing without it): {e}")
 
     # Initialize database optimization
-    await _initialize_database_optimization()
+    try:
+        await _initialize_database_optimization()
+    except Exception as e:
+        _logger.warning(f"Database optimization initialization failed (continuing without it): {e}")
 
     # Initialize performance optimizers
-    await _initialize_performance_optimizers()
+    try:
+        await _initialize_performance_optimizers()
+    except Exception as e:
+        _logger.warning(f"Performance optimizers initialization failed (continuing without it): {e}")
 
     # Initialize enterprise enhancements
-    await _initialize_enterprise_enhancements()
+    try:
+        await _initialize_enterprise_enhancements()
+    except Exception as e:
+        _logger.warning(f"Enterprise enhancements initialization failed (continuing without it): {e}")
 
     # Initialize infrastructure enhancements
-    await _initialize_infrastructure_enhancements()
+    try:
+        await _initialize_infrastructure_enhancements()
+    except Exception as e:
+        _logger.warning(f"Infrastructure enhancements initialization failed (continuing without it): {e}")
 
     # Initialize core function enhancements
-    await _initialize_core_function_enhancements()
+    try:
+        await _initialize_core_function_enhancements()
+    except Exception as e:
+        _logger.warning(f"Core function enhancements initialization failed (continuing without it): {e}")
 
     # Initialize advanced functions
-    await _initialize_advanced_functions()
+    try:
+        await _initialize_advanced_functions()
+    except Exception as e:
+        _logger.warning(f"Advanced functions initialization failed (continuing without it): {e}")
 
     # Initialize security components
-    await _initialize_security_components()
+    try:
+        await _initialize_security_components()
+    except Exception as e:
+        _logger.warning(f"Security components initialization failed (continuing without it): {e}")
 
     # Initialize optimization components
-    await _initialize_optimization_components()
+    try:
+        await _initialize_optimization_components()
+    except Exception as e:
+        _logger.warning(f"Optimization components initialization failed (continuing without it): {e}")
 
     # Initialize AI enhancement
     try:
@@ -1097,7 +1152,7 @@ async def lifespan(app: Any) -> AsyncGenerator[None, None]:
         _ai_enhancer = await _safe_init(lambda: get_ai_enhancer(), "Ai Enhancer", timeout=2.0)
         _logger.info("AI enhancement module initialized (L2 Layer)")
     except Exception as e:
-        _logger.info(f"AI enhancement initialization failed: {e}")
+        _logger.warning(f"AI enhancement initialization failed (continuing without it): {e}")
 
     # Apply real integrations
     try:
@@ -1106,13 +1161,19 @@ async def lifespan(app: Any) -> AsyncGenerator[None, None]:
         apply_real_integrations()
         _logger.info("P0 Real enhancements applied to actual code")
     except Exception as e:
-        _logger.info(f"P0 Real enhancements application failed: {e}")
+        _logger.warning(f"P0 Real enhancements application failed (continuing without it): {e}")
 
     # Initialize core components
-    await _initialize_core_components()
+    try:
+        await _initialize_core_components()
+    except Exception as e:
+        _logger.warning(f"Core components initialization failed (continuing without it): {e}")
 
     # Initialize storage implementations
-    await _initialize_storage_implementations()
+    try:
+        await _initialize_storage_implementations()
+    except Exception as e:
+        _logger.warning(f"Storage implementations initialization failed (continuing without it): {e}")
 
     _logger.info("Application startup completed.")
 
@@ -1132,7 +1193,7 @@ async def lifespan(app: Any) -> AsyncGenerator[None, None]:
         await _safe_init_core(lambda: init_db(), "auth database init")
         await _safe_init_core(async_init_db, "async database init", timeout=15.0)
     except Exception as e:
-        _logger.warning(f"Database init failed: {e}")
+        _logger.warning(f"Database init failed (continuing without it): {e}")
 
     yield
 

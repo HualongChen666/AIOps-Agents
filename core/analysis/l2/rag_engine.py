@@ -65,25 +65,37 @@ class RAGEngine:
     def _initialize(self) -> None:
         """Initialize RAG engine components (embedding model is loaded lazily)."""
         try:
-            # Initialize Qdrant client
+            # Initialize Qdrant client - make it optional
             if QDRANT_AVAILABLE:
-                self.qdrant_client = QdrantClient(host=self.qdrant_host, port=self.qdrant_port)
-                logger.info(f"Qdrant client initialized: {self.qdrant_host}:{self.qdrant_port}")
+                try:
+                    self.qdrant_client = QdrantClient(host=self.qdrant_host, port=self.qdrant_port)
+                    logger.info(f"Qdrant client initialized: {self.qdrant_host}:{self.qdrant_port}")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize Qdrant client: {e}")
+                    self.qdrant_client = None
 
             # Embedding model is loaded on first use so that startup does not block
             # on network downloads when the model is not cached locally.
             if SENTENCE_TRANSFORMERS_AVAILABLE:
-                self._load_embedding_model()
+                try:
+                    self._load_embedding_model()
+                except Exception as e:
+                    logger.warning(f"Failed to load embedding model: {e}")
+                    self.embedding_model_instance = None
 
-            # Create collection if it doesn't exist
+            # Create collection if it doesn't exist - make it optional
             if self.qdrant_client:
-                self._ensure_collection()
+                try:
+                    self._ensure_collection()
+                except Exception as e:
+                    logger.warning(f"Failed to ensure Qdrant collection: {e}")
+                    self.qdrant_client = None
 
             self._is_initialized = True
             logger.info("RAG engine initialized successfully")
 
         except Exception as e:
-            logger.error(f"Failed to initialize RAG engine: {e}")
+            logger.warning(f"Failed to initialize RAG engine: {e}")
             self._is_initialized = False
 
     def _load_embedding_model(self) -> None:
@@ -128,7 +140,9 @@ class RAGEngine:
                 logger.info(f"Collection created: {self.collection_name}")
 
         except Exception as e:
-            logger.error(f"Failed to ensure collection: {e}")
+            logger.warning(f"Failed to ensure collection: {e}")
+            # Don't fail the entire initialization if Qdrant is not available
+            self._is_initialized = False
 
     def embed_text(self, text: str) -> List[float]:
         """

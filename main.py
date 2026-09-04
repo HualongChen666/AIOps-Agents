@@ -1377,3 +1377,30 @@ app.add_middleware(TenantMiddleware)
 
 # Add global RBAC middleware (auth + write-method role checks)
 app.add_middleware(RBACMiddleware)
+
+
+# ------------------------
+# 启动服务器
+# ------------------------
+if __name__ == "__main__":
+    import uvicorn
+    
+    # 从环境变量获取配置，或使用默认值
+    host = os.getenv("API_HOST", "127.0.0.1")
+    port = int(os.getenv("API_PORT", "8000"))
+    
+    _logger.info(f"Starting FastAPI server on {host}:{port}")
+    
+    try:
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            log_level="info",
+            access_log=True,
+        )
+    except KeyboardInterrupt:
+        _logger.info("Server stopped by user")
+    except Exception as e:
+        _logger.error(f"Server error: {e}")
+        raise
