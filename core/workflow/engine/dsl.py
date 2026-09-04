@@ -5,12 +5,23 @@ Parse workflow definitions from YAML and JSON
 """
 
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yaml
 from loguru import logger
 
 from .dag import DAG, DAGNode, Edge
+
+# Try to import intelligent task decomposer
+INTELLIGENT_DECOMPOSER_AVAILABLE = False
+_get_intelligent_decomposer = None
+try:
+    from core.intelligent_task_decomposer import get_intelligent_decomposer as _get_decomposer_impl
+    INTELLIGENT_DECOMPOSER_AVAILABLE = True
+    _get_intelligent_decomposer = _get_decomposer_impl
+    logger.info("Intelligent task decomposer available for workflow automation")
+except (ImportError, AttributeError):
+    logger.warning("Intelligent task decomposer not available, using manual workflow construction")
 
 
 class WorkflowDSL:
@@ -203,3 +214,109 @@ def parse_json_workflow(json_content: str) -> DAG:
     """Parse workflow from JSON"""
     dsl = WorkflowDSL()
     return dsl.parse_json(json_content)
+
+
+async def decompose_workflow_from_description(
+    task_description: str,
+    context: Optional[Dict[str, Any]] = None
+) -> DAG:
+    """
+    Decompose a task description into a workflow DAG using intelligent decomposition.
+    
+    Args:
+        task_description: Natural language description of the task
+        context: Additional context for decomposition
+        
+    Returns:
+        DAG object with decomposed tasks
+    """
+    if not INTELLIGENT_DECOMPOSER_AVAILABLE or not _get_intelligent_decomposer:
+        logger.warning("Intelligent decomposer not available, creating fallback workflow")
+        return _create_fallback_workflow(task_description)
+    
+    try:
+        decomposer = _get_intelligent_decomposer()
+        decomposition_result = await decomposer.decompose_task(task_description, context)
+        
+        # Convert decomposition result to DAG
+        dag = DAG(f"auto_decomposed_{task_description[:20]}")
+        
+        # Add nodes from decomposition result
+        for task in decomposition_result.tasks:
+            node = DAGNode(
+                id=task.id,
+                name=task.name,
+                type="task",
+                config={
+                    "description": task.description,
+                    "estimated_duration": task.estimated_duration,
+                    "risk_level": task.risk_level,
+                    **task.parameters
+                },
+                dependencies=task.dependencies
+            )
+            dag.add_node(node)
+        
+        # Add edges based on dependencies
+        for task in decomposition_result.tasks:
+            for dep in task.dependencies:
+                if dep in dag.nodes:
+                    edge = Edge(from_node=dep, to_node=task.id)
+                    dag.add_edge(edge)
+        
+        logger.info(f"Created workflow from decomposition with {len(dag.nodes)} nodes")
+        return dag
+        
+    except Exception as e:
+        logger.warning(f"Intelligent decomposition failed: {e}, creating fallback workflow")
+        return _create_fallback_workflow(task_description)
+
+
+def _create_fallback_workflow(task_description: str) -> DAG:
+    """Create a simple fallback workflow when intelligent decomposition is unavailable"""
+    dag = DAG(f"fallback_{task_description[:20]}")
+    
+    # Create simple three-step workflow
+    task1 = DAGNode(
+        id="analyze",
+        name="Task Analysis",
+        type="task",
+        config={"description": f"Analyze: {task_description}"},
+        dependencies=[]
+    )
+    dag.add_node(task1)
+    
+    task2 = DAGNode(
+        id="execute",
+        name="Task Execution",
+        type="task",
+        config={"description": f"Execute: {task_description}"},
+        dependencies=["analyze"]
+    )
+    dag.add_node(task2)
+    
+    task3 = DAGNode(
+        id="verify",
+        name="Task Verification",
+        type="task",
+        config={"description": f"Verify: {task_description}"},
+        dependencies=["execute"]
+    )
+    dag.add_node(task3)
+    
+    # Add edges
+    dag.add_edge(Edge(from_node="analyze", to_node="execute"))
+    dag.add_edge(Edge(from_node="execute", to_node="verify"))
+    
+    logger.info("Created fallback workflow with 3 nodes")
+    return dag
+
+
+# Export availability flag
+__all__ = [
+    "WorkflowDSL",
+    "parse_yaml_workflow",
+    "parse_json_workflow",
+    "decompose_workflow_from_description",
+    "INTELLIGENT_DECOMPOSER_AVAILABLE",
+]

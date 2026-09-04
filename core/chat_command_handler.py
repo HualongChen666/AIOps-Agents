@@ -22,6 +22,15 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# Try to import enhanced NLP for deep semantic understanding
+try:
+    from core.enhanced_nlp import get_enhanced_nlp_processor
+    ENHANCED_NLP_AVAILABLE = True
+    logger.info("Enhanced NLP available for deep semantic understanding")
+except ImportError:
+    ENHANCED_NLP_AVAILABLE = False
+    logger.warning("Enhanced NLP not available, using basic keyword matching")
+
 
 class ActionType(str, Enum):
     PAUSE = "pause"  # 暂停自动操作
@@ -127,6 +136,71 @@ def _contains_any(text: str, *keywords: str) -> bool:
 
 def _classify_action(text: str) -> tuple[ActionType, dict[str, Any]]:
     """Classify the user intent into a structured action."""
+    lowered = text.lower()
+
+    # Try enhanced NLP first if available
+    if ENHANCED_NLP_AVAILABLE:
+        try:
+            # Apply rate limiting
+            from core.enhanced_nlp import get_nlp_rate_limiter
+            rate_limiter = get_nlp_rate_limiter()
+            
+            # For synchronous context, we'll use a simpler check
+            # In production, this should be async
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                allowed = loop.run_until_complete(rate_limiter.acquire())
+                if not allowed:
+                    logger.warning("Rate limit exceeded for chat command processing")
+                    return _keyword_classify_action(text)
+            except RuntimeError:
+                # No event loop, skip rate limiting for now
+                pass
+            
+            nlp_processor = get_enhanced_nlp_processor()
+            intent_analysis = nlp_processor.analyze_intent(text)
+            
+            # Map NLP result to ActionType
+            action_mapping = {
+                "pause": ActionType.PAUSE,
+                "investigate": ActionType.INVESTIGATE,
+                "approve": ActionType.APPROVE,
+                "reject": ActionType.REJECT,
+                "ignore": ActionType.IGNORE,
+                "assign": ActionType.ASSIGN,
+                "status": ActionType.STATUS,
+                "unknown": ActionType.UNKNOWN
+            }
+            
+            action = action_mapping.get(intent_analysis["action"], ActionType.UNKNOWN)
+            params = {
+                "confidence": intent_analysis["confidence"],
+                "entities": intent_analysis["entities"],
+                "method": intent_analysis["metadata"].get("method", "enhanced_nlp")
+            }
+            
+            # Add specific parameters based on action
+            if action == ActionType.APPROVE or action == ActionType.REJECT:
+                params["target"] = _extract_target(text)
+            if action == ActionType.IGNORE:
+                params["target"] = _extract_target(text)
+            
+            # If confidence is too low, fall back to keyword matching
+            if intent_analysis["confidence"] < 0.5:
+                return _keyword_classify_action(text)
+            
+            return action, params
+            
+        except Exception as e:
+            logger.warning(f"Enhanced NLP classification failed: {e}, falling back to keyword matching")
+            return _keyword_classify_action(text)
+    else:
+        return _keyword_classify_action(text)
+
+
+def _keyword_classify_action(text: str) -> tuple[ActionType, dict[str, Any]]:
+    """Fallback keyword-based action classification"""
     lowered = text.lower()
 
     # 暂停 / 不要自动执行

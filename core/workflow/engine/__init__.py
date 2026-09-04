@@ -5,7 +5,13 @@ Implements DAG-based workflow execution engine for complex business process orch
 """
 
 from .dag import DAG, DAGNode, Edge
-from .dsl import WorkflowDSL, parse_json_workflow, parse_yaml_workflow
+from .dsl import (
+    WorkflowDSL,
+    parse_json_workflow,
+    parse_yaml_workflow,
+    decompose_workflow_from_description,
+    INTELLIGENT_DECOMPOSER_AVAILABLE
+)
 from .executor import ExecutionContext, WorkflowExecutor
 from .state_machine import WorkflowState, WorkflowStateMachine
 
@@ -20,4 +26,6 @@ __all__ = [
     "WorkflowDSL",
     "parse_yaml_workflow",
     "parse_json_workflow",
+    "decompose_workflow_from_description",
+    "INTELLIGENT_DECOMPOSER_AVAILABLE",
 ]
