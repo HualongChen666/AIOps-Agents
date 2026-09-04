@@ -349,6 +349,52 @@ from core.workflow.engine.dsl import WorkflowDSL  # noqa: F401
 from core.workflow.engine.executor import WorkflowExecutor  # noqa: F401
 from core.workflow.engine.state_machine import WorkflowStateMachine  # noqa: F401
 
+# Modules imports
+from modules.analyze.anomaly.data_preprocessing import DataPreprocessor  # noqa: F401
+from modules.analyze.anomaly.ensemble import AnomalyEnsemble  # noqa: F401
+from modules.analyze.anomaly.isolation_forest import IsolationForestDetector  # noqa: F401
+from modules.analyze.anomaly.prophet_model import ProphetModel  # noqa: F401
+from modules.analyze.anomaly.train_transformer import TransformerTrainer  # noqa: F401
+from modules.analyze.anomaly.transformer_model import TransformerModel  # noqa: F401
+from modules.analyze.anomaly.transformer_service import TransformerService  # noqa: F401
+from modules.analyze.capacity.forecast import CapacityForecaster  # noqa: F401
+from modules.analyze.cost.forecast import CostForecaster  # noqa: F401
+from modules.analyze.root_cause.causal_graph_builder import CausalGraphBuilder  # noqa: F401
+from modules.analyze.root_cause.causal_inference import CausalInference  # noqa: F401
+from modules.analyze.root_cause.causal_service import CausalService  # noqa: F401
+from modules.analyze.root_cause.gnn import GNNModel  # noqa: F401
+from modules.analyze.root_cause.graph_builder import GraphBuilder  # noqa: F401
+from modules.analyze.root_cause.inference import InferenceEngine  # noqa: F401
+from modules.analyze.runbook.generator import RunbookGenerator  # noqa: F401
+from modules.analyze.runbook.vector_store import RunbookVectorStore  # noqa: F401
+from modules.apm.code_profiler import CodeProfiler  # noqa: F401
+from modules.apm.dependency_analyzer import DependencyAnalyzer  # noqa: F401
+from modules.compliance.gdpr_compliance import GDPRCompliance  # noqa: F401
+from modules.compliance.soc2_compliance import SOC2Compliance  # noqa: F401
+from modules.execute.autoscaler.custom_hpa import CustomHPA  # noqa: F401
+from modules.execute.autoscaler.custom_hpa_controller import CustomHPAController  # noqa: F401
+from modules.execute.auto_heal.operator import AutoHealOperator  # noqa: F401
+from modules.execute.auto_heal.playbook_manager import PlaybookManager  # noqa: F401
+from modules.execute.saga.coordinator import SagaCoordinator  # noqa: F401
+from modules.execute.saga.participants import SagaParticipants  # noqa: F401
+from modules.execute.scheduler.temporal_worker import TemporalWorker  # noqa: F401
+from modules.high_availability.multi_region import MultiRegion  # noqa: F401
+from modules.high_availability.self_healing import SelfHealing  # noqa: F401
+from modules.multi_tenant.tenant_isolation import TenantIsolation  # noqa: F401
+from modules.multi_tenant.tenant_manager import TenantManager  # noqa: F401
+from modules.observability.auto_discovery import AutoDiscovery  # noqa: F401
+from modules.observability.smart_alerting import SmartAlerting  # noqa: F401
+from modules.observability.smart_analysis import SmartAnalysis  # noqa: F401
+from modules.optimization.cache_optimizer import CacheOptimizer  # noqa: F401
+from modules.optimization.concurrency_optimizer import ConcurrencyOptimizer  # noqa: F401
+from modules.optimization.query_optimizer import QueryOptimizer  # noqa: F401
+from modules.optimization.resource_optimizer import ResourceOptimizer  # noqa: F401
+from modules.optimization.storage_optimizer import StorageOptimizer  # noqa: F401
+from modules.rum.data_collector import RUMDataCollector  # noqa: F401
+from modules.rum.sdk import RUMSDK  # noqa: F401
+from modules.storage.clickhouse.storage import ClickHouseStorage  # noqa: F401
+from modules.storage.postgres.storage import PostgresStorage  # noqa: F401
+
 """
 FastAPI 主入口文件 – 已在原项目中实现多个路由注册。
 本次更新：

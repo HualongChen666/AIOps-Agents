@@ -1,0 +1,47 @@
+name: Branch Protection
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  branch-protection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          echo "PR Title: $PR_TITLE"
+          # 检查PR标题格式
+          if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?:.+ ]]; then
+            echo "PR title must follow conventional commits format"
+            echo "Examples: feat: add new feature, fix: resolve bug, docs: update readme"
+            exit 1
+          fi
+
+      - name: Check for changes to critical files
+        run: |
+          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} > changed_files.txt
+          cat changed_files.txt
+          
+          # 检查是否修改了关键配置文件
+          if grep -q "main.py\|config.py\|.env" changed_files.txt; then
+            echo "Warning: Changes to critical configuration files detected"
+            echo "Please ensure these changes are reviewed carefully"
+          fi
+
+      - name: Check commit messages
+        run: |
+          # 获取PR的所有commit
+          COMMITS=$(git log --format=%s ${{ github.event.pull_request.base.sha }}..${{ github.sha }})
+          echo "Commits:"
+          echo "$COMMITS"
+          
+          # 检查每个commit message
+          while IFS= read -r commit; do
+            if [[ ! "$commit" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?:.+ ]]; then
+              echo "Invalid commit message: $commit"
+              echo "Commit messages must follow conventional commits format"
+              exit 1
+            fi
+          done <<< "$COMMITS"
