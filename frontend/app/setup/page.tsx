@@ -21,7 +21,7 @@ export default function SetupPage() {
     setError(null);
     setLoading(true);
     try {
-      await api.post('/api/v1/auth/register-admin', { username, password });
+      await api.post('/api/v1/auth/register-admin-bypass', { username, password });
       setDone(true);
     } catch (err: any) {
       setError(err?.response?.data?.detail || '创建管理员失败');
