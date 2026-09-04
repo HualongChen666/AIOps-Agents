@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from datetime import datetime
 
 from api.middleware.rbac_middleware import RBACMiddleware
 from api.middleware.tenant_middleware import TenantMiddleware
@@ -1369,16 +1370,6 @@ app.add_middleware(
     max_age=600,  # 预检请求缓存时间
 )
 
-# Add request tracking middleware (在CORS之后添加，最后执行)
-app.add_middleware(RequestTrackingMiddleware)
-
-# Add global RBAC middleware (auth + write-method role checks)
-# 放在TenantMiddleware之前，让它最先检查公开端点
-app.add_middleware(RBACMiddleware)
-
-# Add tenant middleware (resolves tenant_id from JWT or header)
-app.add_middleware(TenantMiddleware)
-
 # Add a special route for admin registration that bypasses all middleware
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import JSONResponse as FastAPIJSONResponse
@@ -1430,6 +1421,16 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
         )
     finally:
         db.close()
+
+# Add request tracking middleware (在CORS之后添加，最后执行)
+app.add_middleware(RequestTrackingMiddleware)
+
+# Add global RBAC middleware (auth + write-method role checks)
+# 放在TenantMiddleware之前，让它最先检查公开端点
+app.add_middleware(RBACMiddleware)
+
+# Add tenant middleware (resolves tenant_id from JWT or header)
+app.add_middleware(TenantMiddleware)
 
 
 # ------------------------
