@@ -399,8 +399,14 @@ def add_access_control_middleware(
         if request.method == "OPTIONS":
             return await call_next(request)
         
-        # Skip for bypass route and health check
-        if request.url.path == "/api/v1/auth/register-admin-bypass" or request.url.path.startswith("/api/v1/health"):
+        # Skip for bypass route, health check, and auth endpoints
+        skip_paths = [
+            "/api/v1/auth/register-admin-bypass",
+            "/api/v1/health",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+        ]
+        if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
 
         if enforce:
