@@ -19,6 +19,7 @@ PUBLIC_PREFIXES = {
     "/redoc",
     "/openapi.json",
     "/health",
+    "/api/v1/health",
     "/static/",
     "/api/v1/auth/login",
     "/api/v1/auth/register",

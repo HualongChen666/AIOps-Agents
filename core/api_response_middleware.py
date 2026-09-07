@@ -36,6 +36,7 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
             "/redoc",
             "/openapi.json",
             "/health",
+            "/api/v1/health",
             "/metrics",
             "/api/v1/auth/register-admin-bypass",
         ]
