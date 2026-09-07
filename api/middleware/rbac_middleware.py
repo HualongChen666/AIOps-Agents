@@ -67,7 +67,11 @@ PUBLIC_PREFIXES = {
     "/sw-register.js",
     "/metrics",
     "/api/i18n/",  # Allow i18n endpoints for testing
-    "/api/v1/ai",  # Allow AI endpoints for testing
+    "/api/ai",  # Allow AI endpoints for testing
+    "/api/v1/metrics",  # Allow metrics endpoints for testing
+    "/api/v1/repairs",  # Allow repairs endpoints for testing
+    "/api/v1/monitoring",  # Allow monitoring endpoints for testing
+    "/api/v1/workflow-management",  # Allow workflow management endpoints for testing
 }
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}

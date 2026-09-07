@@ -405,7 +405,6 @@ def add_access_control_middleware(
             "/api/v1/health",
             "/api/v1/auth/login",
             "/api/v1/auth/register",
-            "/api/v1/ai",
             "/api/ai",
         ]
         if any(request.url.path.startswith(path) for path in skip_paths):

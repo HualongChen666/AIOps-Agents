@@ -41,7 +41,6 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
             "/api/v1/auth/register-admin-bypass",
             "/api/v1/auth/login",
             "/api/v1/auth/register",
-            "/api/v1/ai",
             "/api/ai",
         ]
 

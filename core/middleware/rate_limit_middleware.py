@@ -59,7 +59,15 @@ class RateLimiter:
         """
         # 优先使用用户ID（如果已认证）
         if hasattr(request.state, "user") and request.state.user:
-            return f"user:{request.state.user.id}"
+            user = request.state.user
+            # Handle both object and dict types
+            if isinstance(user, dict):
+                user_id = user.get("id")
+            else:
+                user_id = getattr(user, "id", None)
+            
+            if user_id:
+                return f"user:{user_id}"
         
         # 否则使用IP地址
         forwarded = request.headers.get("X-Forwarded-For")
