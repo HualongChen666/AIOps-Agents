@@ -398,6 +398,10 @@ def add_access_control_middleware(
         # Skip CORS preflight requests (OPTIONS method)
         if request.method == "OPTIONS":
             return await call_next(request)
+        
+        # Skip for bypass route
+        if request.url.path == "/api/v1/auth/register-admin-bypass":
+            return await call_next(request)
 
         if enforce:
             user = getattr(request.state, "user", None)

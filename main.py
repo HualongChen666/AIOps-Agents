@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 
-from api.middleware.rbac_middleware import RBACMiddleware
-from api.middleware.tenant_middleware import TenantMiddleware
+# noinspection PyUnresolvedReferences
+from api.middleware.rbac_middleware import RBACMiddleware  # noqa: F401
+from api.middleware.tenant_middleware import TenantMiddleware  # noqa: F401
 # from core.accessibility_support import setup_accessibility_support
 # from core.ai_engine import _get_http_client as _ai_get_http_client
 # from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
@@ -1296,7 +1297,7 @@ ADDON_ROUTERS = [
 # This must be registered BEFORE any other routes to ensure it takes precedence
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import JSONResponse as FastAPIJSONResponse
-from core.auth_db import User, get_session
+from core.auth_db import User, SessionLocal
 from core.auth_service import hash_password, max_admin_check
 from pydantic import BaseModel
 
@@ -1311,8 +1312,7 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
     logger = logging.getLogger(__name__)
     logger.info(f"BYPASS ROUTE CALLED: {request.url.path}")
     
-    from sqlalchemy.orm import Session
-    db = next(get_session())
+    db = SessionLocal()
     try:
         logger.info(f"BYPASS ROUTE: Attempting to create user {req.username}")
         # Check if username already exists

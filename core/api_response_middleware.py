@@ -37,6 +37,7 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/health",
             "/metrics",
+            "/api/v1/auth/register-admin-bypass",
         ]
 
     async def dispatch(self, request: Request, call_next):
