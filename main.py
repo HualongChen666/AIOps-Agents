@@ -1347,6 +1347,13 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
         )
+    except HTTPException as e:
+        db.rollback()
+        logger.error(f"BYPASS ROUTE: Registration failed with HTTP error: {str(e)}")
+        return FastAPIJSONResponse(
+            status_code=e.status_code,
+            content={"detail": e.detail}
+        )
     except Exception as e:
         db.rollback()
         logger.error(f"BYPASS ROUTE: Registration failed with error: {str(e)}")
