@@ -45,6 +45,7 @@ PUBLIC_PREFIXES = {
     "/sw-register.js",
     "/metrics",
     "/api/i18n/",
+    "/api/v1/ai",  # Allow AI endpoints for testing
 }
 
 
