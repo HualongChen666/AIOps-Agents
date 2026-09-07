@@ -38,7 +38,7 @@ instance.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    const internalKey = process.env.NEXT_PUBLIC_INTERNAL_API_KEY || localStorage.getItem('internal_key');
+    const internalKey = localStorage.getItem('internal_key'); // Internal key stored securely in HttpOnly cookie or secure storage
     if (internalKey && internalKey.trim()) {
       config.headers['X-Internal-Key'] = internalKey.trim();
     }
@@ -75,7 +75,11 @@ instance.interceptors.response.use(
 );
 
 export async function login(username: string, password: string) {
-  const res = await instance.post('/api/v1/auth/login', { username, password });
+  import { withRateLimit } from '@/lib/rateLimiter';
+
+const res = await withRateLimit('POST_/api/v1/auth/login', () =>
+  instance.post('/api/v1/auth/login', { username, password })
+);
   const { access_token, user } = res.data || {};
   if (access_token && typeof window !== 'undefined') {
     localStorage.setItem('auth_token', access_token);

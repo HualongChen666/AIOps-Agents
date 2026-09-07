@@ -47,7 +47,7 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">用户名</label>
+              <label htmlFor="username" className="mb-1 block text-sm font-medium text-gray-700">用户名</label>
               <Input
                 required
                 value={username}
@@ -67,7 +67,7 @@ export default function LoginPage() {
                 disabled={loading}
               />
             </div>
-            {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+            {error && <p role="alert" className="rounded-md bg-red-50 p-2 text-sm text-red-600">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '登录中...' : '登录'}
             </Button>
