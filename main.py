@@ -1324,8 +1324,7 @@ async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIReque
                 content={"detail": "Username already exists"}
             )
         
-        # Allow creating additional admins (removed bootstrap restriction)
-        max_admin_check(db)
+        # Bypass route allows creating additional admins without max_admin_check
         user = User(
             username=req.username,
             hashed_password=hash_password(req.password),
