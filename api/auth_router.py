@@ -56,7 +56,8 @@ def _user_dict(user: User) -> _UserOut:
         id=user.id,
         username=user.username,
         role=user.role,
-        is_active=not user.disabled
+        is_active=not user.disabled,
+        created_at=user.created_at
     )
 
 
