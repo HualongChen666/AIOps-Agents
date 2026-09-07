@@ -171,7 +171,7 @@ class EnhancedCausalAnalyzer:
             # Initialize root cause inference
             try:
                 from core.causal.graph import CausalGraph
-                causal_graph = CausalGraph()
+                causal_graph = CausalGraph(name="default_causal_graph")
                 self.root_cause_inference = RootCauseInference(  # type: ignore
                     causal_graph=causal_graph,
                     method=self.config.get("inference_method", "pc"),
@@ -180,28 +180,38 @@ class EnhancedCausalAnalyzer:
             except TypeError:
                 # Fallback to default constructor if arguments not accepted
                 from core.causal.graph import CausalGraph
-                causal_graph = CausalGraph()
+                causal_graph = CausalGraph(name="default_causal_graph")
                 self.root_cause_inference = RootCauseInference(causal_graph=causal_graph)  # type: ignore
 
             # Initialize impact analyzer
             try:
+                from core.causal.graph import CausalGraph
+                causal_graph = CausalGraph(name="default_causal_graph")
                 self.impact_analyzer = ImpactAnalyzer(  # type: ignore
+                    causal_graph=causal_graph,
                     time_horizon=self.config.get("impact_horizon", 3600),
                     method=self.config.get("impact_method", "intervention"),
                 )
             except TypeError:
                 # Fallback to default constructor if arguments not accepted
-                self.impact_analyzer = ImpactAnalyzer()  # type: ignore
+                from core.causal.graph import CausalGraph
+                causal_graph = CausalGraph(name="default_causal_graph")
+                self.impact_analyzer = ImpactAnalyzer(causal_graph=causal_graph)  # type: ignore
 
             # Initialize predictor
             try:
+                from core.causal.graph import CausalGraph
+                causal_graph = CausalGraph(name="default_causal_graph")
                 self.predictor = CausalPredictor(  # type: ignore
+                    causal_graph=causal_graph,
                     prediction_horizon=self.config.get("prediction_horizon", 300),
                     method=self.config.get("prediction_method", "linear"),
                 )
             except TypeError:
                 # Fallback to default constructor if arguments not accepted
-                self.predictor = CausalPredictor()  # type: ignore
+                from core.causal.graph import CausalGraph
+                causal_graph = CausalGraph(name="default_causal_graph")
+                self.predictor = CausalPredictor(causal_graph=causal_graph)  # type: ignore
 
             logger.info("Enhanced causal analyzer components initialized successfully")
 
