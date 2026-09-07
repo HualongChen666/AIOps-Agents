@@ -170,13 +170,18 @@ class EnhancedCausalAnalyzer:
 
             # Initialize root cause inference
             try:
+                from core.causal.graph import CausalGraph
+                causal_graph = CausalGraph()
                 self.root_cause_inference = RootCauseInference(  # type: ignore
+                    causal_graph=causal_graph,
                     method=self.config.get("inference_method", "pc"),
                     confidence_threshold=self.config.get("confidence_threshold", 0.8),
                 )
             except TypeError:
                 # Fallback to default constructor if arguments not accepted
-                self.root_cause_inference = RootCauseInference()  # type: ignore
+                from core.causal.graph import CausalGraph
+                causal_graph = CausalGraph()
+                self.root_cause_inference = RootCauseInference(causal_graph=causal_graph)  # type: ignore
 
             # Initialize impact analyzer
             try:

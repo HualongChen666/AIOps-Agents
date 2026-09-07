@@ -408,23 +408,90 @@ async def _initialize_database_optimization() -> None:
 
 async def _initialize_performance_optimizers() -> None:
     """Initialize various performance optimizer components."""
-    from core.api_performance_optimizer import get_api_performance_optimizer
-    from core.automation_manager import get_automation_manager
-    from core.coverage_manager import get_coverage_manager
-    from core.documentation_generator import get_documentation_generator
-    from core.documentation_manager import get_documentation_manager
-    from core.ecosystem_manager import get_ecosystem_manager
-    from core.i18n_manager import get_i18n_manager
-    from core.localization_adapter import get_localization_adapter
-    from core.marketplace_manager import get_marketplace_manager
-    from core.plugin_sdk import get_plugin_sdk
-    from core.plugin_system_manager import get_plugin_system_manager
-    from core.resource_manager import get_resource_manager
-    from core.service_discovery_manager import get_service_discovery_manager
-    from core.service_mesh_manager import get_service_mesh_manager
-    from core.service_monitoring_manager import get_service_monitoring_manager
-    from core.system_resource_optimizer import get_system_resource_optimizer
-    from core.test_framework_manager import get_test_framework_manager
+    try:
+        from core.api_performance_optimizer import get_api_performance_optimizer
+    except ImportError:
+        _logger.warning("API performance optimizer not available, skipping")
+    
+    try:
+        from core.automation_manager import get_automation_manager
+    except ImportError:
+        _logger.warning("Automation manager not available, skipping")
+    
+    try:
+        from core.coverage_manager import get_coverage_manager
+    except ImportError:
+        _logger.warning("Coverage manager not available, skipping")
+    
+    try:
+        from core.documentation_generator import get_documentation_generator
+    except ImportError:
+        _logger.warning("Documentation generator not available, skipping")
+    
+    try:
+        from core.documentation_manager import get_documentation_manager
+    except ImportError:
+        _logger.warning("Documentation manager not available, skipping")
+    
+    try:
+        from core.ecosystem_manager import get_ecosystem_manager
+    except ImportError:
+        _logger.warning("Ecosystem manager not available, skipping")
+    
+    try:
+        from core.i18n_manager import get_i18n_manager
+    except ImportError:
+        _logger.warning("I18n manager not available, skipping")
+    
+    try:
+        from core.localization_adapter import get_localization_adapter
+    except ImportError:
+        _logger.warning("Localization adapter not available, skipping")
+    
+    try:
+        from core.marketplace_manager import get_marketplace_manager
+    except ImportError:
+        _logger.warning("Marketplace manager not available, skipping")
+    
+    try:
+        from core.plugin_sdk import get_plugin_sdk
+    except ImportError:
+        _logger.warning("Plugin SDK not available, skipping")
+    
+    try:
+        from core.plugin_system_manager import get_plugin_system_manager
+    except ImportError:
+        _logger.warning("Plugin system manager not available, skipping")
+    
+    try:
+        from core.resource_manager import get_resource_manager
+    except ImportError:
+        _logger.warning("Resource manager not available, skipping")
+    
+    try:
+        from core.service_discovery_manager import get_service_discovery_manager
+    except ImportError:
+        _logger.warning("Service discovery manager not available, skipping")
+    
+    try:
+        from core.service_mesh_manager import get_service_mesh_manager
+    except ImportError:
+        _logger.warning("Service mesh manager not available, skipping")
+    
+    try:
+        from core.service_monitoring_manager import get_service_monitoring_manager
+    except ImportError:
+        _logger.warning("Service monitoring manager not available, skipping")
+    
+    try:
+        from core.system_resource_optimizer import get_system_resource_optimizer
+    except ImportError:
+        _logger.warning("System resource optimizer not available, skipping")
+    
+    try:
+        from core.test_framework_manager import get_test_framework_manager
+    except ImportError:
+        _logger.warning("Test framework manager not available, skipping")
 
     optimizers = [
         ("Api Performance Optimizer", lambda: get_api_performance_optimizer()),
@@ -456,36 +523,115 @@ async def _initialize_performance_optimizers() -> None:
 
 async def _initialize_enterprise_enhancements() -> None:
     """Initialize P0/P1/P2 Enterprise Enhancements."""
-    from core.accessibility_support import setup_accessibility_support
-    from core.api_governance import setup_api_governance
-    from core.business_metrics import setup_business_metrics
-    from core.chaos_engineering import setup_chaos_engineering
-    from core.data_lifecycle_manager import setup_data_lifecycle
-    from core.dependency_injection import setup_dependency_injection
-    from core.disaster_recovery_drill import setup_disaster_recovery
-    from core.error_recovery import setup_error_recovery
-    from core.frontend_cache_strategy import setup_cache_headers_middleware
-    from core.memory_monitoring import setup_memory_monitoring
-    from core.module_validation import check_all_modules_health, validate_initialization_order
+    setup_accessibility_support = None
+    setup_api_governance = None
+    setup_business_metrics = None
+    setup_chaos_engineering = None
+    setup_data_lifecycle = None
+    setup_dependency_injection = None
+    setup_disaster_recovery = None
+    setup_error_recovery = None
+    setup_cache_headers_middleware = None
+    setup_memory_monitoring = None
+    check_all_modules_health = None
+    validate_initialization_order = None
+    
+    try:
+        from core.accessibility_support import setup_accessibility_support
+    except ImportError:
+        _logger.warning("Accessibility support not available, skipping")
+    
+    try:
+        from core.api_governance import setup_api_governance
+    except ImportError:
+        _logger.warning("API governance not available, skipping")
+    
+    try:
+        from core.business_metrics import setup_business_metrics
+    except ImportError:
+        _logger.warning("Business metrics not available, skipping")
+    
+    try:
+        from core.chaos_engineering import setup_chaos_engineering
+    except ImportError:
+        _logger.warning("Chaos engineering not available, skipping")
+    
+    try:
+        from core.data_lifecycle_manager import setup_data_lifecycle
+    except ImportError:
+        _logger.warning("Data lifecycle manager not available, skipping")
+    
+    try:
+        from core.dependency_injection import setup_dependency_injection
+    except ImportError:
+        _logger.warning("Dependency injection not available, skipping")
+    
+    try:
+        from core.disaster_recovery_drill import setup_disaster_recovery
+    except ImportError:
+        _logger.warning("Disaster recovery not available, skipping")
+    
+    try:
+        from core.error_recovery import setup_error_recovery
+    except ImportError:
+        _logger.warning("Error recovery not available, skipping")
+    
+    try:
+        from core.frontend_cache_strategy import setup_cache_headers_middleware
+    except ImportError:
+        _logger.warning("Frontend cache strategy not available, skipping")
+    
+    try:
+        from core.memory_monitoring import setup_memory_monitoring
+    except ImportError:
+        _logger.warning("Memory monitoring not available, skipping")
+    
+    try:
+        from core.module_validation import check_all_modules_health, validate_initialization_order
+    except ImportError:
+        _logger.warning("Module validation not available, skipping")
 
-    enhancements = [
-        ("Memory monitoring", lambda: setup_memory_monitoring(), "P0-4"),
-        ("Error recovery", lambda: setup_error_recovery(), "P0-5"),
-        ("Dependency injection", lambda: setup_dependency_injection(), "P1-1"),
-        ("Business metrics", lambda: setup_business_metrics(), "P1-3"),
-        ("Cache headers middleware", lambda: setup_cache_headers_middleware(), "P1-4"),
-        ("Data lifecycle", lambda: setup_data_lifecycle(), "P2-1"),
-        ("API governance", lambda: setup_api_governance(), "P2-2"),
-        (
+    enhancements = []
+    
+    if setup_memory_monitoring:
+        enhancements.append(("Memory monitoring", lambda: setup_memory_monitoring(), "P0-4"))
+    
+    if setup_error_recovery:
+        enhancements.append(("Error recovery", lambda: setup_error_recovery(), "P0-5"))
+    
+    if setup_dependency_injection:
+        enhancements.append(("Dependency injection", lambda: setup_dependency_injection(), "P1-1"))
+    
+    if setup_business_metrics:
+        enhancements.append(("Business metrics", lambda: setup_business_metrics(), "P1-3"))
+    
+    if setup_cache_headers_middleware:
+        enhancements.append(("Cache headers middleware", lambda: setup_cache_headers_middleware(), "P1-4"))
+    
+    if setup_data_lifecycle:
+        enhancements.append(("Data lifecycle", lambda: setup_data_lifecycle(), "P2-1"))
+    
+    if setup_api_governance:
+        enhancements.append(("API governance", lambda: setup_api_governance(), "P2-2"))
+    
+    if validate_initialization_order:
+        enhancements.append((
             "Module initialization order validation",
             lambda: validate_initialization_order(),
             "Phase 1",
-        ),
-        ("Module health check", lambda: check_all_modules_health(), "Phase 1"),
-        ("Disaster recovery", lambda: setup_disaster_recovery(), "P2-3"),
-        ("Accessibility support", lambda: setup_accessibility_support(), "P2-4"),
-        ("Chaos engineering", lambda: setup_chaos_engineering(), "P2-5"),
-    ]
+        ))
+    
+    if check_all_modules_health:
+        enhancements.append(("Module health check", lambda: check_all_modules_health(), "Phase 1"))
+    
+    if setup_disaster_recovery:
+        enhancements.append(("Disaster recovery", lambda: setup_disaster_recovery(), "P2-3"))
+    
+    if setup_accessibility_support:
+        enhancements.append(("Accessibility support", lambda: setup_accessibility_support(), "P2-4"))
+    
+    if setup_chaos_engineering:
+        enhancements.append(("Chaos engineering", lambda: setup_chaos_engineering(), "P2-5"))
 
     for name, getter, phase in enhancements:
         try:

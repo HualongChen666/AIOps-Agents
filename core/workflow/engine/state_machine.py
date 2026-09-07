@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class WorkflowState(Enum):
     """Workflow execution states"""
 
+    PENDING = "pending"
     IDLE = "idle"
     RUNNING = "running"
     PAUSED = "paused"

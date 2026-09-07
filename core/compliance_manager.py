@@ -481,4 +481,18 @@ class ComplianceManager:
 
 
 # Global compliance manager instance
+_compliance_manager_instance: Optional[ComplianceManager] = None
+
+
+def get_compliance_manager() -> ComplianceManager:
+    """
+    Get the global compliance manager instance
+    
+    Returns:
+        ComplianceManager: Global compliance manager instance
+    """
+    global _compliance_manager_instance
+    if _compliance_manager_instance is None:
+        _compliance_manager_instance = ComplianceManager()
+    return _compliance_manager_instance
 compliance_manager = ComplianceManager()
