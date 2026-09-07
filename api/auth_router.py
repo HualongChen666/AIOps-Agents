@@ -52,7 +52,12 @@ def _user_dict(user: User) -> _UserOut:
     Returns:
         UserOut: Pydantic model for API response
     """
-    return _UserOut.model_validate(user)
+    return _UserOut(
+        id=user.id,
+        username=user.username,
+        role=user.role,
+        is_active=not user.disabled
+    )
 
 
 @router.post("/login")
