@@ -40,9 +40,9 @@ export function Form({ initialValues, onSubmit, validation, children }: FormProp
 
   const validate = useCallback(() => {
     if (!validation) return {};
-    const validationErrors = validation(values);
-    setErrors(validationErrors);
-    return validationErrors;
+    const validationResult = validation(values) || {};
+    setErrors(validationResult);
+    return validationResult;
   }, [validation, values]);
 
   const handleSubmit = useCallback(

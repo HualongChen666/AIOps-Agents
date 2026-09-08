@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { withRateLimit } from '@/lib/rateLimiter';
 
 const instance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE || '', // 使用空baseURL，让调用自己包含完整路径
@@ -74,19 +75,21 @@ instance.interceptors.response.use(
   }
 );
 
-export async function login(username: string, password: string) {
-  import { withRateLimit } from '@/lib/rateLimiter';
+// Generic request wrapper applying rate limiting per endpoint
+async function requestWithRateLimit<T>(method: string, url: string, data?: any): Promise<T> {
+  const key = `${method.toUpperCase()}_${url}`;
+  return withRateLimit(key, () => instance.request<T>({ method, url, data }));
+}
 
-const res = await withRateLimit('POST_/api/v1/auth/login', () =>
-  instance.post('/api/v1/auth/login', { username, password })
-);
-  const { access_token, user } = res.data || {};
+export async function login(username: string, password: string) {
+  const response = await requestWithRateLimit<any>('POST', '/api/v1/auth/login', { username, password });
+  const { access_token, user } = response.data || {};
   if (access_token && typeof window !== 'undefined') {
     localStorage.setItem('auth_token', access_token);
     localStorage.setItem('user', JSON.stringify(user || {}));
     setCookie('auth_token', access_token);
   }
-  return res.data;
+  return response.data;
 }
 
 export async function logout() {
