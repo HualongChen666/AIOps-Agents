@@ -2,52 +2,46 @@ import { renderHook, act } from '@testing-library/react';
 import { useAlertStore } from '@/stores/alertStore';
 
 // Mock the store to avoid circular dependency
-jest.mock('@/stores/alertStore', () => {
-  let storeState = {
-    alerts: [],
-    selectedAlerts: new Set(),
-    filters: {
-      severity: 'all',
-      status: 'all',
-      service: '',
-    },
-  };
+let mockStoreState = {
+  alerts: [],
+  selectedAlerts: new Set(),
+  filters: {
+    severity: 'all',
+    status: 'all',
+    service: '',
+  },
+};
 
-  return {
-    useAlertStore: jest.fn(() => ({
-      alerts: storeState.alerts,
-      selectedAlerts: storeState.selectedAlerts,
-      filters: storeState.filters,
-      setAlerts: (alerts: any[]) => { storeState.alerts = alerts; },
-      addAlert: (alert: any) => { storeState.alerts = [alert, ...storeState.alerts]; },
-      updateAlert: (id: string, updates: any) => {
-        storeState.alerts = storeState.alerts.map((alert: any) =>
-          alert.id === id ? { ...alert, ...updates } : alert
-        );
-      },
-      deleteAlert: (id: string) => {
-        storeState.alerts = storeState.alerts.filter((alert: any) => alert.id !== id);
-      },
-      toggleAlertSelection: (id: string) => {
-        const newSelection = new Set(storeState.selectedAlerts);
-        if (newSelection.has(id)) {
-          newSelection.delete(id);
-        } else {
-          newSelection.add(id);
-        }
-        storeState.selectedAlerts = newSelection;
-      },
-      clearSelection: () => { storeState.selectedAlerts = new Set(); },
-      setFilters: (filters: any) => {
-        storeState.filters = { ...storeState.filters, ...filters };
-      },
-    })),
-    useAlertStore: {
-      setState: (state: any) => {
-        storeState = { ...storeState, ...state };
-      },
+jest.mock('@/stores/alertStore', () => ({
+  useAlertStore: jest.fn(() => ({
+    alerts: mockStoreState.alerts,
+    selectedAlerts: mockStoreState.selectedAlerts,
+    filters: mockStoreState.filters,
+    setAlerts: (alerts: any[]) => { mockStoreState.alerts = alerts; },
+    addAlert: (alert: any) => { mockStoreState.alerts = [alert, ...mockStoreState.alerts]; },
+    updateAlert: (id: string, updates: any) => {
+      mockStoreState.alerts = mockStoreState.alerts.map((alert: any) =>
+        alert.id === id ? { ...alert, ...updates } : alert
+      );
     },
-  };
+    deleteAlert: (id: string) => {
+      mockStoreState.alerts = mockStoreState.alerts.filter((alert: any) => alert.id !== id);
+    },
+    toggleAlertSelection: (id: string) => {
+      const newSelection = new Set(mockStoreState.selectedAlerts);
+      if (newSelection.has(id)) {
+        newSelection.delete(id);
+      } else {
+        newSelection.add(id);
+      }
+      mockStoreState.selectedAlerts = newSelection;
+    },
+    clearSelection: () => { mockStoreState.selectedAlerts = new Set(); },
+    setFilters: (filters: any) => {
+      mockStoreState.filters = { ...mockStoreState.filters, ...filters };
+    },
+  })),
+
 });
 
 describe('useAlertStore', () => {
