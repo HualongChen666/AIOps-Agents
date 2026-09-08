@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIOps SRE Agent - 完整架构图</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+      color: #333;
+      padding: 6px;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .container {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c5282;
+      margin-bottom: 4px;
+      font-size: 1.1em;
+      text-shadow: 0 0 10px rgba(44, 82, 130, 0.1);
+    }
+
+    .architecture {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow: hidden;
+    }
+
+    .layer {
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 3px;
+      padding: 3px 8px 0 8px;
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .layer-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 1px;
+    }
+
+    .layer-title {
+      background: linear-gradient(90deg, #4a9eff 0%, #2d7dd2 100%);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-weight: bold;
+      font-size: 0.8em;
+      white-space: nowrap;
+    }
+
+    .layer-description {
+      color: #666;
+      font-size: 0.75em;
+      font-style: italic;
+    }
+
+    .layer.l1 .layer-title {
+      background: linear-gradient(90deg, #00d4aa 0%, #00a085 100%);
+    }
+
+    .layer.l2 .layer-title {
+      background: linear-gradient(90deg, #4a9eff 0%, #2d7dd2 100%);
+    }
+
+    .layer.l3 .layer-title {
+      background: linear-gradient(90deg, #6c5ce7 0%, #5b4cdb 100%);
+    }
+
+    .layer.l4 .layer-title {
+      background: linear-gradient(90deg, #a29bfe 0%, #8e7cc3 100%);
+    }
+
+    .layer.l5 .layer-title {
+      background: linear-gradient(90deg, #fd79a8 0%, #e84393 100%);
+    }
+
+    .layer.l6 .layer-title {
+      background: linear-gradient(90deg, #00b894 0%, #00a085 100%);
+    }
+
+    .layer.l7 .layer-title {
+      background: linear-gradient(90deg, #74b9ff 0%, #0984e3 100%);
+    }
+
+    .components-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      align-items: center;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .component {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      padding: 2px 5px;
+      border-radius: 2px;
+      font-size: 0.7em;
+      display: inline-block;
+      transition: all 0.2s ease;
+    }
+
+    .component:hover {
+      background: rgba(255, 255, 255, 1);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .component.middleware {
+      background: rgba(74, 158, 255, 0.15);
+      border-color: rgba(74, 158, 255, 0.4);
+    }
+
+    .component.security {
+      background: rgba(253, 121, 168, 0.15);
+      border-color: rgba(253, 121, 168, 0.4);
+    }
+
+    .component.plugin {
+      background: rgba(162, 155, 254, 0.15);
+      border-color: rgba(162, 155, 254, 0.4);
+    }
+
+    .component-name {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .component-detail {
+      color: #666;
+      font-size: 0.85em;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 4px;
+      flex-wrap: wrap;
+      padding: 4px 8px;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75em;
+      font-weight: 500;
+    }
+
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      border: 2px solid rgba(0, 0, 0, 0.2);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .legend-color.normal {
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .legend-color.middleware {
+      background: rgba(74, 158, 255, 0.25);
+      border-color: rgba(74, 158, 255, 0.6);
+    }
+
+    .legend-color.security {
+      background: rgba(253, 121, 168, 0.25);
+      border-color: rgba(253, 121, 168, 0.6);
+    }
+
+    .legend-color.plugin {
+      background: rgba(162, 155, 254, 0.25);
+      border-color: rgba(162, 155, 254, 0.6);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>AIOps SRE Agent - 完整架构图</h1>
+
+    <div class="architecture">
+      <!-- L1: Stream Processing -->
+      <div class="layer l1">
+        <div class="layer-header">
+          <div class="layer-title">L1: 实时流处理层</div>
+          <div class="layer-description">告警摄入与事件分发</div>
+        </div>
+        <div class="components-container">
+          <div class="component"><span class="component-name">Kafka</span> <span class="component-detail">告警摄入</span>
+          </div>
+          <div class="component"><span class="component-name">Flink</span> <span class="component-detail">流分析</span>
+          </div>
+          <div class="component"><span class="component-name">Event Bus</span> <span
+              class="component-detail">事件分发</span></div>
+          <div class="component"><span class="component-name">Stream Processor</span> <span
+              class="component-detail">实时处理</span></div>
+          <div class="component"><span class="component-name">Message Queue</span> <span
+              class="component-detail">消息队列</span></div>
+          <div class="component middleware"><span class="component-name">Rate Limiter</span> <span
+              class="component-detail">速率限制</span></div>
+          <div class="component middleware"><span class="component-name">Circuit Breaker</span> <span
+              class="component-detail">熔断器</span></div>
+        </div>
+      </div>
+
+      <!-- L2: Analysis Layer -->
+      <div class="layer l2">
+        <div class="layer-header">
+          <div class="layer-title">L2: 分析层</div>
+          <div class="layer-description">监控分析与智能诊断</div>
+        </div>
+        <div class="components-container">
+          <div class="component"><span class="component-name">Monitoring</span> <span class="component-detail">metrics,
+              tracing, APM</span></div>
+          <div class="component"><span class="component-name">Alerting</span> <span class="component-detail">alerts,
+              incidents</span></div>
+          <div class="component"><span class="component-name">Root Cause</span> <span
+              class="component-detail">因果分析</span></div>
+          <div class="component"><span class="component-name">Capacity</span> <span
+              class="component-detail">规划、预测</span></div>
+          <div class="component"><span class="component-name">Cost</span> <span class="component-detail">管理、优化</span>
+          </div>
+          <div class="component"><span class="component-name">Performance</span> <span
+              class="component-detail">性能分析</span></div>
+          <div class="component"><span class="component-name">Anomaly Detection</span> <span
+              class="component-detail">异常检测</span></div>
+          <div class="component"><span class="component-name">Trend Analysis</span> <span
+              class="component-detail">趋势分析</span></div>
+          <div class="component security"><span class="component-name">Security Middleware</span> <span
+              class="component-detail">认证、验证</span></div>
+        </div>
+      </div>
+
+      <!-- L3: Processing Layer -->
+      <div class="layer l3">
+        <div class="layer-header">
+          <div class="layer-title">L3: 处理层</div>
+          <div class="layer-description">自动化处理与工作流</div>
+        </div>
+        <div class="components-container">
+          <div class="component"><span class="component-name">Workflow</span> <span
+              class="component-detail">自动化、可视化</span></div>
+          <div class="component"><span class="component-name">Automation</span> <span class="component-detail">repair,
+              unified repair</span></div>
+          <div class="component"><span class="component-name">Change Management</span> <span
+              class="component-detail">变更控制</span></div>
+          <div class="component"><span class="component-name">Chaos</span> <span class="component-detail">混沌实验</span>
+          </div>
+          <div class="component"><span class="component-name">Scheduling</span> <span
+              class="component-detail">任务调度</span></div>
+          <div class="component"><span class="component-name">Orchestration</span> <span
+              class="component-detail">编排引擎</span></div>
+          <div class="component middleware"><span class="component-name">RBAC Middleware</span> <span
+              class="component-detail">角色权限控制</span></div>
+          <div class="component middleware"><span class="component-name">Audit Middleware</span> <span
+              class="component-detail">审计日志</span></div>
+        </div>
+      </div>
+
+      <!-- L4: Storage Layer -->
+      <div class="layer l4">
+        <div class="layer-header">
+          <div class="layer-title">L4: 存储层</div>
+          <div class="layer-description">数据持久化与缓存</div>
+        </div>
+        <div class="components-container">
+          <div class="component"><span class="component-name">PostgreSQL</span> <span
+              class="component-detail">多数据库、读写分离</span></div>
+          <div class="component"><span class="component-name">Redis</span> <span class="component-detail">多缓存策略</span>
+          </div>
+          <div class="component"><span class="component-name">Qdrant</span> <span class="component-detail">向量存储</span>
+          </div>
+          <div class="component"><span class="component-name">Neo4j</span> <span class="component-detail">知识图谱</span>
+          </div>
+          <div class="component"><span class="component-name">Elasticsearch</span> <span
+              class="component-detail">全文检索</span></div>
+          <div class="component"><span class="component-name">S3</span> <span class="component-detail">对象存储</span></div>
+          <div class="component middleware"><span class="component-name">Migration Middleware</span> <span
+              class="component-detail">数据一致性</span></div>
+          <div class="component middleware"><span class="component-name">Backup Middleware</span> <span
+              class="component-detail">备份恢复</span></div>
+        </div>
+      </div>
+
+      <!-- L5: Knowledge Layer -->
+      <div class="layer l5">
+        <div class="layer-header">
+          <div class="layer-title">L5: 知识层</div>
+          <div class="layer-description">AI智能与知识管理</div>
+        </div>
+        <div class="components-container">
+          <div class="component"><span class="component-name">RAG</span> <span class="component-detail">检索、历史</span>
+          </div>
+          <div class="component"><span class="component-name">LLM</span> <span class="component-detail">AI服务</span>
+          </div>
+          <div class="component"><span class="component-name">Knowledge Base</span> <span
+              class="component-detail">知识库</span></div>
+          <div class="component"><span class="component-name">Vector Store</span> <span
+              class="component-detail">向量检索</span></div>
+          <div class="component"><span class="component-name">Embedding</span> <span class="component-detail">向量化</span>
+          </div>
+          <div class="component"><span class="component-name">Prompt Engine</span> <span
+              class="component-detail">提示工程</span></div>
+          <div class="component security"><span class="component-name">AI Security</span> <span
+              class="component-detail">模型保护</span></div>
+        </div>
+      </div>
+
+      <!-- L6: Execution Layer -->
+      <div class="layer l6">
+        <div class="layer-header">
+          <div class="layer-title">L6: 执行层</div>
+          <div class="layer-description">命令执行与审批</div>
+        </div>
+        <div class="components-container">
+          <div class="component"><span class="component-name">Execution</span> <span class="component-detail">repair,
+              scripts</span></div>
+          <div class="component"><span class="component-name">Approval</span> <span
+              class="component-detail">HITL、自动审批</span></div>
+          <div class="component"><span class="component-name">Saga Coordinator</span> <span
+              class="component-detail">事务协调</span></div>
+          <div class="component"><span class="component-name">Command Runner</span> <span
+              class="component-detail">命令执行器</span></div>
+          <div class="component"><span class="component-name">Script Executor</span> <span
+              class="component-detail">脚本执行</span></div>
+          <div class="component security"><span class="component-name">Execution Security</span> <span
+              class="component-detail">命令守卫、风险检查</span></div>
+        </div>
+      </div>
+
+      <!-- L7: Integration Layer -->
+      <div class="layer l7">
+        <div class="layer-header">
+          <div class="layer-title">L7: 集成层</div>
+          <div class="layer-description">API网关与外部集成</div>
+        </div>
+        <div class="components-container">
+          <div class="component"><span class="component-name">Frontend UI</span> <span class="component-detail">Next.js
+              + React</span></div>
+          <div class="component"><span class="component-name">API Gateway</span> <span
+              class="component-detail">8个功能域</span></div>
+          <div class="component"><span class="component-name">GraphQL</span> <span class="component-detail">GraphQL
+              API</span></div>
+          <div class="component"><span class="component-name">gRPC</span> <span class="component-detail">gRPC服务</span>
+          </div>
+          <div class="component"><span class="component-name">Integration</span> <span
+              class="component-detail">集成提供商</span></div>
+          <div class="component"><span class="component-name">Service Mesh</span> <span
+              class="component-detail">服务网格</span></div>
+          <div class="component"><span class="component-name">Cloud</span> <span class="component-detail">云服务集成</span>
+          </div>
+          <div class="component"><span class="component-name">Webhook</span> <span
+              class="component-detail">Webhook集成</span></div>
+          <div class="component plugin"><span class="component-name">Plugin</span> <span
+              class="component-detail">插件扩展</span></div>
+          <div class="component plugin"><span class="component-name">Plugin Marketplace</span> <span
+              class="component-detail">插件市场</span></div>
+          <div class="component plugin"><span class="component-name">Plugin SDK</span> <span
+              class="component-detail">插件开发工具包</span></div>
+          <div class="component middleware"><span class="component-name">API Governance</span> <span
+              class="component-detail">速率限制、文档</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-color normal"></div>
+        <span>普通组件</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color middleware"></div>
+        <span>中间件</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color security"></div>
+        <span>安全组件</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color plugin"></div>
+        <span>插件组件</span>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
