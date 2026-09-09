@@ -133,8 +133,12 @@ class WorkflowEngine:
             # Security Fix: Replace unsafe eval() with safe condition evaluation
             # Only allow simple boolean comparisons and context variable access
             value = self._safe_eval_condition(condition, context)
-        except Exception:
-            value = False
+        except ValueError as e:
+            # Condition parsing / evaluation failed; surface the error so callers
+            # can decide policy. Previously this was `except Exception: value=False`
+            # which silently swallowed malformed conditions and bypassed gating.
+            logger.error("workflow condition eval failed: %s", e)
+            raise
         branch = step.get("true" if value else "false", None)
         return {"decision": value, "branch": branch}
 
@@ -142,6 +146,11 @@ class WorkflowEngine:
         """
         Safely evaluate a condition string without using eval().
         Supports simple boolean operations and context variable access.
+
+        Strict AST whitelist: only Constant / Name / Compare / BoolOp / UnaryOp.
+        Explicitly rejects Attribute / Subscript / Call / Dict / List / Tuple
+        to prevent chained attribute escape (e.g. ctx['x'].__class__.__init__
+        .__globals__['os'].system('id')).
         """
         import ast
         import operator
@@ -158,6 +167,33 @@ class WorkflowEngine:
             ast.Or: lambda a, b: a or b,
             ast.Not: lambda a: not a,
         }
+
+        # Strict whitelist of allowed AST node types.
+        # Includes Compare operator nodes (Eq/NotEq/Lt/LtE/Gt/GtE),
+        # BoolOp operator nodes (And/Or), and UnaryOp operator nodes (Not).
+        _ALLOWED_NODES = (
+            ast.Expression,
+            ast.Constant,
+            ast.Name,
+            ast.Compare,
+            ast.BoolOp,
+            ast.UnaryOp,
+            ast.Load,  # context marker for Name access
+            # Compare operators
+            ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
+            # BoolOp operators
+            ast.And, ast.Or,
+            # UnaryOp operators
+            ast.Not,
+        )
+
+        def _check_whitelist(tree: ast.AST) -> None:
+            """Walk the AST and reject any node outside the whitelist."""
+            for node in ast.walk(tree):
+                if not isinstance(node, _ALLOWED_NODES):
+                    raise ValueError(
+                        f"forbidden expression node type: {type(node).__name__}"
+                    )
 
         def _eval(node: ast.AST) -> Any:
             if isinstance(node, ast.Constant):
@@ -191,11 +227,22 @@ class WorkflowEngine:
             else:
                 raise ValueError(f"Unsupported expression type: {type(node).__name__}")
 
+        # Parse first (catches SyntaxError early)
         try:
             tree = ast.parse(condition, mode="eval")
+        except SyntaxError as e:
+            raise ValueError(f"invalid syntax in condition '{condition}': {e}") from e
+
+        # Whitelist check before evaluation
+        _check_whitelist(tree)
+
+        # Evaluate
+        try:
             return bool(_eval(tree.body))
-        except Exception as e:
-            raise ValueError(f"Failed to evaluate condition '{condition}': {e}")
+        except (ValueError, KeyError, TypeError) as e:
+            raise ValueError(f"Failed to evaluate condition '{condition}': {e}") from e
+        # NOTE: do NOT catch bare Exception; that would hide unexpected errors
+        # (e.g. AttributeError from a future code path) and mask security issues.
 
     def _execute_memory(self, step: Dict[str, Any]) -> Any:
         return self.get_scenario_memory(step.get("query", ""))
