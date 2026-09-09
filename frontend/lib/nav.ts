@@ -78,7 +78,11 @@ export function getNavGroups(locale: Locale): NavGroup[] {
     },
     {
       title: t('nav.aiAssistant'),
-      items: [{ href: '/ai-copilot', label: t('nav.aiCopilot') }],
+      items: [
+        { href: '/ai-copilot', label: t('nav.aiCopilot') },
+        { href: '/chat', label: t('nav.chat') },
+        { href: '/chat/history', label: t('nav.chatHistory') },
+      ],
     },
     {
       title: t('nav.assets'),
