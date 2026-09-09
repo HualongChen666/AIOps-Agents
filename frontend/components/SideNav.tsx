@@ -12,26 +12,55 @@ interface UserInfo {
   role: string;
 }
 
+export function isPathActive(currentPath: string, href: string) {
+  try {
+    const normalize = (p: string) => (p || '').replace(/\/+$, '') || '/';
+    const cur = normalize(currentPath);
+    const target = normalize(href);
+    if (target === '/') return cur === '/';
+    if (cur === target) return true;
+    return cur.startsWith(target + '/');
+  } catch {
+    return currentPath === href;
+  }
+}
+
 export function SideNav() {
   const pathname = usePathname();
   const { locale } = useLocale();
   const t = useI18n();
-  // 使用渐进式导航配置（只展示核心功能）
   const navGroups = useMemo(() => getNavGroups(locale), [locale]);
+
   const [user, setUser] = useState<UserInfo | null>(null);
+
+  // 初始化 expanded：优先恢复 localStorage；无历史则只展开第一个分组
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('sidenav_expanded') : null;
+      if (raw) return JSON.parse(raw);
+    } catch {}
     const initial: Record<string, boolean> = {};
-    navGroups.forEach((g) => (initial[g.title] = true));
+    navGroups.forEach((g, i) => (initial[g.title] = i === 0));
     return initial;
   });
 
+  // 当 navGroups 更新时确保 expanded 包含新组键（保留已有值）
   useEffect(() => {
-    const next: Record<string, boolean> = {};
-    navGroups.forEach((g) => {
-      next[g.title] = expanded[g.title] ?? true;
+    setExpanded((prev) => {
+      const next: Record<string, boolean> = {};
+      navGroups.forEach((g, i) => {
+        next[g.title] = typeof prev[g.title] === 'boolean' ? prev[g.title] : i === 0;
+      });
+      return next;
     });
-    setExpanded(next);
   }, [navGroups]);
+
+  // 将折叠状态保存在 localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('sidenav_expanded', JSON.stringify(expanded));
+    } catch {}
+  }, [expanded]);
 
   useEffect(() => {
     try {
@@ -45,10 +74,7 @@ export function SideNav() {
     }
   }, []);
 
-  const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
-    return pathname.startsWith(href);
-  };
+  const isActive = (href: string) => isPathActive(pathname || '/', href);
 
   const toggle = (title: string) =>
     setExpanded((prev) => ({ ...prev, [title]: !prev[title] }));
@@ -60,7 +86,7 @@ export function SideNav() {
           <div key={group.title}>
             <button
               onClick={() => toggle(group.title)}
-              className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--dds-slate-30)] hover:text-white transition-colors rounded-md hover:bg-[var(--dds-slate-70)]"
+              className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--dds-slate-30)] hover:text-white transition-colors rounded"
             >
               <span>{group.title}</span>
               <span className="text-[10px] opacity-80">{expanded[group.title] ? '▾' : '▸'}</span>
