@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { getNavGroups, getCompleteNavGroups } from '@/lib/nav';
+import { getNavGroups } from '@/lib/nav';
 import { logout } from '@/lib/api';
 import { useI18n, useLocale } from '@/lib/i18n';
 
@@ -16,8 +16,8 @@ export function SideNav() {
   const pathname = usePathname();
   const { locale } = useLocale();
   const t = useI18n();
-  // 使用完整导航配置（覆盖500+功能）
-  const navGroups = useMemo(() => getCompleteNavGroups(locale), [locale]);
+  // 使用渐进式导航配置（只展示核心功能）
+  const navGroups = useMemo(() => getNavGroups(locale), [locale]);
   const [user, setUser] = useState<UserInfo | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};

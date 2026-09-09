@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useI18n, useLocale, type Locale } from '@/lib/i18n';
+import { NavSearch } from '@/components/NavSearch';
 
 export function TopBar() {
   const { locale, setLocale } = useLocale();
@@ -17,11 +18,14 @@ export function TopBar() {
 
   return (
     <header className="h-14 shrink-0 flex items-center justify-between px-6 bg-[var(--dds-slate-90)] border-b border-[var(--dds-slate-70)]">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4">
         <div className="w-7 h-7 rounded-md bg-[var(--dds-blue-60)] flex items-center justify-center text-white font-bold text-sm">
           A
         </div>
         <span className="text-white font-semibold text-sm">{t('app.name')}</span>
+        <div className="w-64">
+          <NavSearch />
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -35,11 +39,10 @@ export function TopBar() {
               <button
                 key={key}
                 onClick={() => setLocale(key)}
-                className={`px-3 py-1 text-xs font-medium transition-colors ${
-                  active
+                className={`px-3 py-1 text-xs font-medium transition-colors ${active
                     ? 'bg-[var(--dds-blue-60)] text-white'
                     : 'bg-[var(--dds-slate-80)] text-[var(--dds-slate-30)] hover:bg-[var(--dds-slate-70)] hover:text-white'
-                }`}
+                  }`}
                 aria-pressed={active}
                 type="button"
               >
