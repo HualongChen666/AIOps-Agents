@@ -327,6 +327,7 @@ async def _initialize_telemetry(app: Any) -> None:
         LOKI_ENABLED,
         LOKI_URL,
         OTEL_COLLECTOR_ENDPOINT,
+        OTEL_ENABLED,
         TEMPO_ENABLED,
         TEMPO_URL,
     )
@@ -336,6 +337,11 @@ async def _initialize_telemetry(app: Any) -> None:
         setup_tracing_middleware,
     )
     from core.telemetry.fastapi import setup_fastapi_telemetry
+
+    # Skip OpenTelemetry initialization if disabled
+    if not OTEL_ENABLED:
+        _logger.info("OpenTelemetry is disabled via OTEL_ENABLED=false, skipping initialization")
+        return
 
     otlp_endpoint = TEMPO_URL if TEMPO_ENABLED and TEMPO_URL else OTEL_COLLECTOR_ENDPOINT
 

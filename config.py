@@ -205,6 +205,7 @@ TRUST_PROXY_HEADER: str = os.getenv("TRUST_PROXY_HEADER", "X-Forwarded-For").str
 # ============================================================
 # OpenTelemetry Collector endpoint
 # ============================================================
+OTEL_ENABLED: bool = _safe_bool("OTEL_ENABLED", default=False)
 OTEL_COLLECTOR_ENDPOINT: str = os.getenv("OTEL_COLLECTOR_ENDPOINT", "http://localhost:4318").strip()
 
 # ============================================================
