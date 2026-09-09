@@ -8,6 +8,7 @@ import { SideNav } from '@/components/SideNav';
 import { TopBar } from '@/components/TopBar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { isAuthenticated } from '@/lib/api';
+import { Menu, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 const PUBLIC_PATHS = ['/login', '/setup'];
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isPublic = PUBLIC_PATHS.includes(pathname);
   const authed = useAuthGuard();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (authed === null) {
     return <LoadingShell />;
@@ -82,11 +84,25 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               </div>
             ) : (
               <div className="flex flex-col h-full">
-                <TopBar />
-                <div className="flex flex-1 overflow-hidden">
-                  <SideNav />
+                <TopBar onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} />
+                <div className="flex flex-1 overflow-hidden relative">
+                  {/* Mobile sidebar overlay */}
+                  {mobileMenuOpen && (
+                    <div
+                      className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                      onClick={() => setMobileMenuOpen(false)}
+                    />
+                  )}
+                  {/* Sidebar */}
+                  <div
+                    className={`fixed lg:relative z-50 lg:z-auto transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                      }`}
+                  >
+                    <SideNav />
+                  </div>
+                  {/* Main content */}
                   <main className="flex-1 h-full overflow-y-auto main-scroll bg-gray-50">
-                    <div className="min-h-full p-8">
+                    <div className="min-h-full p-4 lg:p-8">
                       {children}
                     </div>
                   </main>

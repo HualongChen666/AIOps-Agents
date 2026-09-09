@@ -46,6 +46,7 @@ export default function TopologyPage() {
   const [showControls, setShowControls] = useState(true);
   const [layoutMode, setLayoutMode] = useState<'force' | 'circular' | 'grid'>('force');
   const [showLabels, setShowLabels] = useState(true);
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('1h');
 
   const [showTraffic, setShowTraffic] = useState(true);
   const [showHotPaths, setShowHotPaths] = useState(false);
@@ -146,6 +147,15 @@ export default function TopologyPage() {
               <CardTitle className="text-sm">控制面板</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">时间范围</label>
+                <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value as any)}>
+                  <option value="1h">最近1小时</option>
+                  <option value="6h">最近6小时</option>
+                  <option value="24h">最近24小时</option>
+                  <option value="7d">最近7天</option>
+                </Select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">布局模式</label>
                 <Select value={layoutMode} onChange={(e) => setLayoutMode(e.target.value as any)}>
