@@ -107,7 +107,9 @@ class DatabaseMonitoringRollback:
         try:
             for table in tables:
                 try:
-                    await db.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+                    from core.security.sql_identifier_validator import validate_pg_identifier
+                    safe_table = validate_pg_identifier(table, kind="table")
+                    await db.execute(text(f"DROP TABLE IF EXISTS {safe_table} CASCADE"))
                     logger.info(f"Dropped table: {table}")
                 except Exception as e:
                     logger.warning(f"Failed to drop table {table}: {e}")

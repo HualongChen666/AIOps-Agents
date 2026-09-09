@@ -165,7 +165,9 @@ class InfrastructureDataMigrator:
                     # New tables, skip
                     continue
 
-                cursor.execute(f"SELECT COUNT(*) FROM {table_name};")
+                from core.security.sql_identifier_validator import validate_pg_identifier
+                safe_table = validate_pg_identifier(table_name, kind="table")
+                cursor.execute(f"SELECT COUNT(*) FROM {safe_table};")
                 count = cursor.fetchone()[0]
                 _logger.info(f"Table {table_name}: {count} rows")
 

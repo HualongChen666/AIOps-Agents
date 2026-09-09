@@ -59,7 +59,9 @@ class FrontendMigrationRollback:
                 exists = result.scalar()
 
                 if exists:
-                    drop_sql = text(f"DROP TABLE IF EXISTS {table_name} CASCADE")
+                    from core.security.sql_identifier_validator import validate_pg_identifier
+                    safe_table = validate_pg_identifier(table_name, kind="table")
+                    drop_sql = text(f"DROP TABLE IF EXISTS {safe_table} CASCADE")
                     await db.execute(drop_sql)
                     await db.commit()
                     self.rollback_stats["tables_dropped"] += 1

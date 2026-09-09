@@ -50,7 +50,9 @@ def rollback_migration():
 
                 if table_name in existing_tables:
                     logger.info(f"Dropping table: {table_name}")
-                    db.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+                    from core.security.sql_identifier_validator import validate_pg_identifier
+                    safe_table = validate_pg_identifier(table_name, kind="table")
+                    db.execute(text(f"DROP TABLE IF EXISTS {safe_table}"))
                     db.commit()
                     logger.info(f"✓ Dropped table: {table_name}")
                 else:

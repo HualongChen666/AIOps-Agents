@@ -57,10 +57,12 @@ class UserMigration:
                 
                 # 创建备份表
                 await session.execute(
-                    text("""
-                        CREATE TABLE IF NOT EXISTS users_backup_{} AS 
-                        SELECT * FROM users
-                    """.format(self.migration_start.strftime("%Y%m%d_%H%M%S"))
+                    text(
+                        "CREATE TABLE IF NOT EXISTS users_backup_{} AS "
+                        "SELECT * FROM users".format(
+                            self.migration_start.strftime("%Y%m%d_%H%M%S")
+                        )
+                    )
                 )
                 await session.commit()
                 
@@ -273,8 +275,10 @@ class UserMigration:
                 await session.execute(text("DELETE FROM users"))
                 
                 # 从备份恢复
+                from core.security.sql_identifier_validator import validate_pg_identifier
+                safe_table = validate_pg_identifier(backup_table, kind="backup_table")
                 await session.execute(
-                    text(f"INSERT INTO users SELECT * FROM {backup_table}")
+                    text(f"INSERT INTO users SELECT * FROM {safe_table}")
                 )
                 
                 await session.commit()

@@ -99,7 +99,7 @@ class UserRollback:
                 
                 # 检查表是否有数据
                 result = await session.execute(
-                    text(f"SELECT COUNT(*) FROM {backup_table}")
+                    text(f"SELECT COUNT(*) FROM {validate_pg_identifier(backup_table, kind='backup_table')}")
                 )
                 count = result.scalar()
                 
@@ -127,8 +127,10 @@ class UserRollback:
             pre_rollback_backup = f"users_pre_rollback_{timestamp}"
             
             async with AsyncSessionLocal() as session:
+                from core.security.sql_identifier_validator import validate_pg_identifier
+                safe_pre = validate_pg_identifier(pre_rollback_backup, kind="backup_table")
                 await session.execute(
-                    text(f"CREATE TABLE {pre_rollback_backup} AS SELECT * FROM users")
+                    text(f"CREATE TABLE {safe_pre} AS SELECT * FROM users")
                 )
                 await session.commit()
                 
@@ -162,7 +164,7 @@ class UserRollback:
                 
                 # 从备份恢复
                 await session.execute(
-                    text(f"INSERT INTO users SELECT * FROM {backup_table}")
+                    text(f"INSERT INTO users SELECT * FROM {validate_pg_identifier(backup_table, kind='backup_table')}")
                 )
                 await session.commit()
                 
