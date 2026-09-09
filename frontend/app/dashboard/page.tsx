@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DashboardCards } from '@/components/DashboardCards';
-import { InspirationCards } from '@/components/InspirationCards';
 import { AlertStream } from '@/components/AlertStream';
 import { ResourceTrendChart } from '@/components/charts/ResourceTrendChart';
 import { HealTimeline } from '@/components/charts/HealTimeline';
@@ -177,9 +176,6 @@ export default function DashboardPage() {
       ) : (
         <DashboardCards />
       )}
-
-      {/* 灵感卡片 */}
-      <InspirationCards />
 
       {/* 系统健康状态 */}
       {systemHealth && (

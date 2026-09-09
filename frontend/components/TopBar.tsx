@@ -2,13 +2,8 @@
 
 import { useMemo } from 'react';
 import { useI18n, useLocale, type Locale } from '@/lib/i18n';
-import { Menu } from 'lucide-react';
 
-interface TopBarProps {
-  onMobileMenuToggle?: () => void;
-}
-
-export function TopBar({ onMobileMenuToggle }: TopBarProps) {
+export function TopBar() {
   const { locale, setLocale } = useLocale();
   const t = useI18n();
 
@@ -21,15 +16,8 @@ export function TopBar({ onMobileMenuToggle }: TopBarProps) {
   );
 
   return (
-    <header className="h-14 shrink-0 flex items-center justify-between px-4 lg:px-6 bg-[var(--dds-slate-90)] border-b border-[var(--dds-slate-70)]">
+    <header className="h-14 shrink-0 flex items-center justify-between px-6 bg-[var(--dds-slate-90)] border-b border-[var(--dds-slate-70)]">
       <div className="flex items-center gap-2">
-        <button
-          onClick={onMobileMenuToggle}
-          className="lg:hidden p-2 rounded-md hover:bg-[var(--dds-slate-70)] text-white"
-          aria-label="Toggle menu"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
         <div className="w-7 h-7 rounded-md bg-[var(--dds-blue-60)] flex items-center justify-center text-white font-bold text-sm">
           A
         </div>
@@ -37,7 +25,7 @@ export function TopBar({ onMobileMenuToggle }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="text-xs text-[var(--dds-slate-30)] hidden sm:block" aria-hidden>
+        <span className="text-xs text-[var(--dds-slate-30)]" aria-hidden>
           {t('topbar.language')}
         </span>
         <div className="flex rounded-md overflow-hidden border border-[var(--dds-slate-60)]">
@@ -47,10 +35,11 @@ export function TopBar({ onMobileMenuToggle }: TopBarProps) {
               <button
                 key={key}
                 onClick={() => setLocale(key)}
-                className={`px-3 py-1 text-xs font-medium transition-colors ${active
+                className={`px-3 py-1 text-xs font-medium transition-colors ${
+                  active
                     ? 'bg-[var(--dds-blue-60)] text-white'
                     : 'bg-[var(--dds-slate-80)] text-[var(--dds-slate-30)] hover:bg-[var(--dds-slate-70)] hover:text-white'
-                  }`}
+                }`}
                 aria-pressed={active}
                 type="button"
               >
