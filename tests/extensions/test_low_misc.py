@@ -339,7 +339,7 @@ def test_operations_workflow_service_scheduler_app(monkeypatch):
 
 
 def test_ai_plus_knowledge_graph_service_cache(monkeypatch):
-    path = ADDONS / "ai-plus/knowledge_graph_service/cache.py"
+    path = ADDONS / "ai_plus/knowledge_graph_service/cache.py"
     module = _load(path, "_low_misc_7", monkeypatch)
     cm = module.CacheManager()
     asyncio.run(cm.set("k", {"x": 1}))

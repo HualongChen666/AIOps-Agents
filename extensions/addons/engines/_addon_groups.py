@@ -148,6 +148,10 @@ ADDON_GROUPS = {
             ("incident_runbook_service", "extensions/addons/operations/incident_runbook_service"),
             ("capacity_planning_service", "extensions/addons/operations/capacity_planning_service"),
             ("scenario_memory_service", "extensions/addons/operations/scenario_memory_service"),
+            (
+                "incident_response_service",
+                "extensions/addons/operations/incident_response_service",
+            ),
         ],
     },
     "governance": {

@@ -5,7 +5,10 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List
 
-from extensions.addons.engines.doc_policy_engine import DocEngine
+from extensions.addons.engines.doc_policy_engine import (
+    DocEngine,
+    base_method_handlers,
+)
 
 BASE_METHODS: List[str] = [
     "get_state",
@@ -23,6 +26,7 @@ OPERATIONS: List[str] = [
 ]
 
 _OP_MAP: Dict[str, Callable[[DocEngine, Dict[str, Any]], Any]] = {
+    **base_method_handlers(),
     "build_docs": lambda engine, params: engine.build_docs(
         params.get("source", "docs"), params.get("output", "_build")
     ),
@@ -50,14 +54,10 @@ class SphinxDocumentationService:
             raise ValueError(f"Unknown operation: {name}")
 
         handler = _OP_MAP.get(name)
-        if handler is None:
-            return {
-                "success": True,
-                "operation": name,
-                "dry_run": self._engine.dry_run,
-                "result": {"message": "not implemented"},
-            }
+        if handler is None:  # pragma: no cover - guarded by the OPERATIONS check above
+            raise NotImplementedError(f"{type(self).__name__}: no handler for operation {name!r}")
 
+        self._engine.record(name)
         return {
             "success": True,
             "operation": name,

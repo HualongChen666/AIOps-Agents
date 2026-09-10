@@ -20,6 +20,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.sql import func
 
@@ -466,6 +467,60 @@ class WorkflowExecution(Base):
         return (
             f"<WorkflowExecution(id='{self.id}', workflow_id='{self.workflow_id}', "
             f"status='{self.status}')>"
+        )
+
+
+class WorkflowVersionRecord(Base):
+    """工作流版本快照表"""
+
+    __tablename__ = "workflow_versions"
+
+    id = Column(String(120), primary_key=True)
+    workflow_id = Column(String(100), nullable=False, index=True)
+    version = Column(String(64), nullable=False, index=True)
+    commit_hash = Column(String(128), nullable=False)
+    message = Column(Text, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+
+    # 索引
+    __table_args__ = (
+        Index("idx_workflow_versions_workflow_id", "workflow_id"),
+        UniqueConstraint(
+            "workflow_id", "version", name="uq_workflow_versions_workflow_version"
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<WorkflowVersionRecord(workflow_id='{self.workflow_id}', "
+            f"version='{self.version}')>"
+        )
+
+
+class WorkflowScheduleRecord(Base):
+    """工作流定时任务表"""
+
+    __tablename__ = "workflow_schedules"
+
+    id = Column(String(120), primary_key=True)
+    workflow_id = Column(String(100), nullable=False, index=True)
+    cron = Column(String(128), nullable=False)
+    next_run = Column(DateTime(), nullable=True)
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    params = Column(JSON, nullable=True)
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+
+    # 索引
+    __table_args__ = (
+        Index("idx_workflow_schedules_workflow_id", "workflow_id"),
+        Index("idx_workflow_schedules_next_run", "next_run"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<WorkflowScheduleRecord(id='{self.id}', "
+            f"workflow_id='{self.workflow_id}')>"
         )
 
 

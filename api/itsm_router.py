@@ -5,11 +5,6 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 
-# from core.itsm_engine import (
-#     create_incident as itsm_create_incident,
-#     resolve_incident as itsm_resolve_incident  # Not implemented
-# )
-
 router = APIRouter(prefix="/api/itsm", tags=["ITSM"])
 logger = logging.getLogger(__name__)
 
@@ -31,8 +26,10 @@ JIRA_TOKEN = os.getenv("JIRA_TOKEN")
             "content": {
                 "application/json": {
                     "example": {
-                        "status": "pending",
-                        "message": "itsm_create_incident not implemented",
+                        "status": "created",
+                        "provider": "servicenow",
+                        "incident_id": "INC0012345",
+                        "message": "工单创建成功",
                     }
                 }
             },
@@ -142,8 +139,10 @@ async def create_incident(data: Dict, provider: str = "servicenow") -> Dict[str,
             "content": {
                 "application/json": {
                     "example": {
-                        "status": "pending",
-                        "message": "itsm_resolve_incident not implemented",
+                        "status": "resolved",
+                        "provider": "servicenow",
+                        "incident_id": "INC0012345",
+                        "message": "工单已关闭",
                     }
                 }
             },

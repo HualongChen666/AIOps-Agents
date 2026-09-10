@@ -7,7 +7,7 @@
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -544,29 +544,31 @@ async def create_certificate(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     repo = _get_repository(db)
-    # In production, generate real certificate
-    import os
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    from cryptography.hazmat.backends import default_backend
-    
-    # Generate placeholder certificate data
-    cert_pem = f"-----BEGIN CERTIFICATE-----\nPLACEHOLDER CERTIFICATE FOR {req.domain}\n-----END CERTIFICATE-----"
-    
-    # Encrypt private key
-    encryption_key = os.getenv("ENCRYPTION_KEY", "default-encryption-key-32-bytes-long!!")
-    iv = os.urandom(16)
-    cipher = Cipher(algorithms.AES(encryption_key[:32].encode()), modes.CFB(iv), backend=default_backend())
-    encryptor = cipher.encryptor()
-    private_key_encrypted = encryptor.update(b"placeholder_private_key") + encryptor.finalize()
-    
+    # Generate a real self-signed X.509 certificate and seal its private key.
+    from core.certificate_manager import (
+        CertificateError,
+        generate_self_signed_certificate,
+        seal_private_key,
+    )
+
+    try:
+        material = generate_self_signed_certificate(req.domain, req.algorithm)
+    except CertificateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    sealed = seal_private_key(material["private_key_pem"])
+
     cert = repo.create_https_certificate(
         domain=req.domain,
-        certificate_pem=cert_pem,
-        private_key_encrypted=private_key_encrypted.hex(),
-        private_key_iv=iv.hex(),
+        certificate_pem=material["certificate_pem"],
+        private_key_encrypted=sealed["ciphertext"],
+        private_key_iv=sealed["iv"],
         algorithm=req.algorithm,
+        issued_at=material["issued_at"].astimezone(timezone.utc).replace(tzinfo=None),
+        expires_at=material["expires_at"].astimezone(timezone.utc).replace(tzinfo=None),
+        issuer=material["issuer"],
     )
-    logger.info(f"创建SSL证书: {req.domain}")
+    logger.info("创建SSL证书: %s", req.domain)
     return {
         "id": cert.id,
         "domain": cert.domain,

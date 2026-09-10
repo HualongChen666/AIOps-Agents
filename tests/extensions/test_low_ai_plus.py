@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Smoke tests for low-coverage ai-plus extension modules."""
+"""Smoke tests for low-coverage ai_plus extension modules."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def _run(coro):
 
 @pytest.fixture(autouse=True)
 def _low_ai_plus_stubs(monkeypatch):
-    """Stub external dependencies that the low ai-plus modules import."""
+    """Stub external dependencies that the low ai_plus modules import."""
     # httpx -> fake async client so provider calls never hit the network.
     httpx_mod = types.ModuleType("httpx")
 
@@ -1042,25 +1042,25 @@ def _exercise_rag_main_app(mod):
 
 
 _EXERCISES = {
-    "ai-plus/knowledge_graph_service/reasoning.py": _exercise_kg_reasoning,
-    "ai-plus/knowledge_graph_service/query.py": _exercise_kg_query,
-    "ai-plus/knowledge_graph_service/infrastructure_graph.py": _exercise_kg_infrastructure,
-    "ai-plus/knowledge_graph_service/dependency_graph.py": _exercise_kg_dependency,
-    "ai-plus/knowledge_graph_service/fault_graph.py": _exercise_kg_fault,
-    "ai-plus/knowledge_graph_service/visualizer.py": _exercise_kg_visualizer,
-    "ai-plus/knowledge_graph_service/graph_store.py": _exercise_kg_graph_store,
-    "ai-plus/knowledge_graph_service/orchestrator.py": _exercise_kg_orchestrator,
-    "ai-plus/knowledge_graph_service/retry.py": _exercise_kg_retry,
-    "ai-plus/knowledge_graph_service/cache.py": _exercise_kg_cache,
-    "ai-plus/knowledge_graph_service/main_app.py": _exercise_kg_main_app,
-    "ai-plus/llm_router_service/orchestrator.py": _exercise_llm_orchestrator,
-    "ai-plus/llm_router_service/providers.py": _exercise_llm_providers,
-    "ai-plus/llm_router_service/retry.py": _exercise_llm_retry,
-    "ai-plus/llm_router_service/main_app.py": _exercise_llm_main_app,
-    "ai-plus/llm_router_service/main.py": _exercise_llm_main,
-    "ai-plus/rag_service/orchestrator.py": _exercise_rag_orchestrator,
-    "ai-plus/rag_service/retry.py": _exercise_rag_retry,
-    "ai-plus/rag_service/main_app.py": _exercise_rag_main_app,
+    "ai_plus/knowledge_graph_service/reasoning.py": _exercise_kg_reasoning,
+    "ai_plus/knowledge_graph_service/query.py": _exercise_kg_query,
+    "ai_plus/knowledge_graph_service/infrastructure_graph.py": _exercise_kg_infrastructure,
+    "ai_plus/knowledge_graph_service/dependency_graph.py": _exercise_kg_dependency,
+    "ai_plus/knowledge_graph_service/fault_graph.py": _exercise_kg_fault,
+    "ai_plus/knowledge_graph_service/visualizer.py": _exercise_kg_visualizer,
+    "ai_plus/knowledge_graph_service/graph_store.py": _exercise_kg_graph_store,
+    "ai_plus/knowledge_graph_service/orchestrator.py": _exercise_kg_orchestrator,
+    "ai_plus/knowledge_graph_service/retry.py": _exercise_kg_retry,
+    "ai_plus/knowledge_graph_service/cache.py": _exercise_kg_cache,
+    "ai_plus/knowledge_graph_service/main_app.py": _exercise_kg_main_app,
+    "ai_plus/llm_router_service/orchestrator.py": _exercise_llm_orchestrator,
+    "ai_plus/llm_router_service/providers.py": _exercise_llm_providers,
+    "ai_plus/llm_router_service/retry.py": _exercise_llm_retry,
+    "ai_plus/llm_router_service/main_app.py": _exercise_llm_main_app,
+    "ai_plus/llm_router_service/main.py": _exercise_llm_main,
+    "ai_plus/rag_service/orchestrator.py": _exercise_rag_orchestrator,
+    "ai_plus/rag_service/retry.py": _exercise_rag_retry,
+    "ai_plus/rag_service/main_app.py": _exercise_rag_main_app,
 }
 
 TARGETS = list(_EXERCISES.keys())
@@ -1217,25 +1217,25 @@ def test_low_ai_plus_module(rel_path):
 
 
 _EXERCISES = {
-    "ai-plus/knowledge_graph_service/reasoning.py": _exercise_kg_reasoning,
-    "ai-plus/knowledge_graph_service/query.py": _exercise_kg_query,
-    "ai-plus/knowledge_graph_service/infrastructure_graph.py": _exercise_kg_infrastructure,
-    "ai-plus/knowledge_graph_service/dependency_graph.py": _exercise_kg_dependency,
-    "ai-plus/knowledge_graph_service/fault_graph.py": _exercise_kg_fault,
-    "ai-plus/knowledge_graph_service/visualizer.py": _exercise_kg_visualizer,
-    "ai-plus/knowledge_graph_service/graph_store.py": _exercise_kg_graph_store,
-    "ai-plus/knowledge_graph_service/orchestrator.py": _exercise_kg_orchestrator,
-    "ai-plus/knowledge_graph_service/retry.py": _exercise_kg_retry,
-    "ai-plus/knowledge_graph_service/cache.py": _exercise_kg_cache,
-    "ai-plus/knowledge_graph_service/main_app.py": _exercise_kg_main_app,
-    "ai-plus/llm_router_service/orchestrator.py": _exercise_llm_orchestrator,
-    "ai-plus/llm_router_service/providers.py": _exercise_llm_providers,
-    "ai-plus/llm_router_service/retry.py": _exercise_llm_retry,
-    "ai-plus/llm_router_service/main_app.py": _exercise_llm_main_app,
-    "ai-plus/llm_router_service/main.py": _exercise_llm_main,
-    "ai-plus/rag_service/orchestrator.py": _exercise_rag_orchestrator,
-    "ai-plus/rag_service/retry.py": _exercise_rag_retry,
-    "ai-plus/rag_service/main_app.py": _exercise_rag_main_app,
+    "ai_plus/knowledge_graph_service/reasoning.py": _exercise_kg_reasoning,
+    "ai_plus/knowledge_graph_service/query.py": _exercise_kg_query,
+    "ai_plus/knowledge_graph_service/infrastructure_graph.py": _exercise_kg_infrastructure,
+    "ai_plus/knowledge_graph_service/dependency_graph.py": _exercise_kg_dependency,
+    "ai_plus/knowledge_graph_service/fault_graph.py": _exercise_kg_fault,
+    "ai_plus/knowledge_graph_service/visualizer.py": _exercise_kg_visualizer,
+    "ai_plus/knowledge_graph_service/graph_store.py": _exercise_kg_graph_store,
+    "ai_plus/knowledge_graph_service/orchestrator.py": _exercise_kg_orchestrator,
+    "ai_plus/knowledge_graph_service/retry.py": _exercise_kg_retry,
+    "ai_plus/knowledge_graph_service/cache.py": _exercise_kg_cache,
+    "ai_plus/knowledge_graph_service/main_app.py": _exercise_kg_main_app,
+    "ai_plus/llm_router_service/orchestrator.py": _exercise_llm_orchestrator,
+    "ai_plus/llm_router_service/providers.py": _exercise_llm_providers,
+    "ai_plus/llm_router_service/retry.py": _exercise_llm_retry,
+    "ai_plus/llm_router_service/main_app.py": _exercise_llm_main_app,
+    "ai_plus/llm_router_service/main.py": _exercise_llm_main,
+    "ai_plus/rag_service/orchestrator.py": _exercise_rag_orchestrator,
+    "ai_plus/rag_service/retry.py": _exercise_rag_retry,
+    "ai_plus/rag_service/main_app.py": _exercise_rag_main_app,
 }
 
 TARGETS = list(_EXERCISES.keys())

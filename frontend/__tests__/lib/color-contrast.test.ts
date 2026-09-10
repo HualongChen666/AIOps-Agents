@@ -112,12 +112,16 @@ describe('lib/color-contrast', () => {
       expect(adjusted).toMatch(/^#[0-9a-f]{6}$/);
     });
 
-    it('does not reach the requested ratio when starting below it (known defect)', () => {
-      // KNOWN ISSUE: the lighten/darken direction is inverted, so the loop runs
-      // to maxIterations and the requested ratio is never reached. Tracked as a
-      // task; this assertion documents the current behaviour so a fix flips it.
+    it('reaches the requested ratio when starting below it', () => {
+      // Regression guard for the inverted lighten/darken direction (task #5):
+      // '#cccccc' against white must be darkened until the 4.5 ratio is met.
       const adjusted = adjustColorForContrast('#cccccc', '#ffffff', 4.5);
-      expect(calculateContrastRatio(adjusted, '#ffffff')).toBeLessThan(4.5);
+      expect(calculateContrastRatio(adjusted, '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('lightens a colour that is darker than the target to raise contrast', () => {
+      const adjusted = adjustColorForContrast('#333333', '#000000', 4.5);
+      expect(calculateContrastRatio(adjusted, '#000000')).toBeGreaterThanOrEqual(4.5);
     });
   });
 

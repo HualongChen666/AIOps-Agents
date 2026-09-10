@@ -3,14 +3,17 @@
 
 from __future__ import annotations
 
+import copy
 import importlib
+import inspect
 import json
 import logging
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 try:
     import jsonschema
@@ -33,16 +36,120 @@ logger = logging.getLogger(__name__)
 
 
 class _DryRunMixin:
-    """Shared dry-run / real-execution gating helper."""
+    """Shared dry-run / real-execution gating helper.
+
+    Also provides the governance-service *state contract* that every addon
+    service wrapper exposes via ``BASE_METHODS``: ``get_state``,
+    ``backup_state``, ``restore_state``, ``get_stats`` and ``list_methods``.
+
+    The state layer is a genuine, deterministic store: engines record an
+    operation counter for every delegated call and support named snapshots
+    that can be restored.  It is intentionally in-process (the addons are
+    stateless workers in front of real systems); snapshots are therefore a
+    live safety-net for hot-reconfigure / rollback flows, not a database.
+    """
 
     def __init__(self, dry_run: bool = True) -> None:
         self.dry_run = dry_run
+        self._created_at: float = time.time()
+        self._stats_since: float = self._created_at
+        self._state: Dict[str, Any] = {}
+        self._stats: Dict[str, int] = {}
+        self._backups: "Dict[str, Dict[str, Any]]" = {}
+        self._backup_seq: int = 0
 
     def _execute_enabled(self) -> bool:
         return os.environ.get("INFRA_EXECUTE_ENABLED") == "true"
 
     def _should_run(self) -> bool:
         return (not self.dry_run) and self._execute_enabled()
+
+    # -- state contract -------------------------------------------------
+    def record(self, operation: str) -> None:
+        """Increment the per-operation execution counter."""
+        self._stats[operation] = self._stats.get(operation, 0) + 1
+
+    def set_state(self, key: str, value: Any) -> None:
+        """Store a value in the engine's live state."""
+        self._state[key] = copy.deepcopy(value)
+
+    def get_state(self) -> Dict[str, Any]:
+        """Return a snapshot of the current engine state."""
+        return {
+            "dry_run": self.dry_run,
+            "execute_enabled": self._execute_enabled(),
+            "revision": self._backup_seq,
+            "created_at": self._created_at,
+            "backup_count": len(self._backups),
+            "state": copy.deepcopy(self._state),
+        }
+
+    def backup_state(self, label: str = "") -> Dict[str, Any]:
+        """Create an immutable snapshot of the current state."""
+        self._backup_seq += 1
+        backup_id = f"backup-{self._backup_seq:04d}"
+        self._backups[backup_id] = {
+            "label": label,
+            "created_at": time.time(),
+            "revision": self._backup_seq,
+            "state": copy.deepcopy(self._state),
+        }
+        return {
+            "backup_id": backup_id,
+            "label": label,
+            "revision": self._backup_seq,
+            "keys": sorted(self._state),
+        }
+
+    def restore_state(self, backup_id: str = "") -> Dict[str, Any]:
+        """Restore state from *backup_id* (latest snapshot when omitted)."""
+        if not backup_id:
+            if not self._backups:
+                raise ValueError("no backups available to restore")
+            backup_id = max(self._backups)
+        backup = self._backups.get(backup_id)
+        if backup is None:
+            raise KeyError(f"unknown backup_id: {backup_id}")
+        self._state = copy.deepcopy(backup["state"])
+        return {
+            "backup_id": backup_id,
+            "restored": True,
+            "revision": backup["revision"],
+            "keys": sorted(self._state),
+        }
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Return execution statistics for this engine instance."""
+        return {
+            "uptime_seconds": round(time.time() - self._stats_since, 3),
+            "total_operations": sum(self._stats.values()),
+            "operations": copy.deepcopy(self._stats),
+            "backups": len(self._backups),
+        }
+
+    def list_methods(self) -> List[str]:
+        """List the public, callable operations exposed by this engine."""
+        return sorted(
+            name
+            for name, _ in inspect.getmembers(self, predicate=inspect.ismethod)
+            if not name.startswith("_")
+        )
+
+
+def base_method_handlers() -> Dict[str, Callable[[Any, Dict[str, Any]], Any]]:
+    """Return the shared ``BASE_METHODS`` -> engine handlers mapping.
+
+    Every governance addon service merges this into its ``_OP_MAP`` so the
+    state-contract operations delegate to the real engine methods above.
+    """
+    return {
+        "get_state": lambda engine, params: engine.get_state(),
+        "backup_state": lambda engine, params: engine.backup_state(params.get("label", "")),
+        "restore_state": lambda engine, params: engine.restore_state(params.get("backup_id", "")),
+        "get_stats": lambda engine, params: engine.get_stats(),
+        "list_methods": lambda engine, params: engine.list_methods(),
+    }
+
 
 
 class DocEngine(_DryRunMixin):
@@ -105,24 +212,28 @@ class PolicyEngine(_DryRunMixin):
             return spec
         if isinstance(spec, (str, os.PathLike)):
             path = Path(spec)
-            
-            # Validate file path to prevent path traversal attacks
-            if SECURITY_VALIDATOR_AVAILABLE:
-                validator = get_security_validator()
-                # Allow files from current directory and common config directories
-                allowed_base_dirs = [os.getcwd(), os.path.expanduser("~"), "/etc"]
-                is_valid, error, resolved_path = validator.validate_file_path(
-                    str(path), 
-                    allowed_base_dirs=allowed_base_dirs,
-                    allowed_extensions=[".yaml", ".yml", ".json"]
-                )
-                if not is_valid:
-                    logger.warning(f"File path validation failed for {path}: {error}")
-                    return {}
-                
-                path = resolved_path
-            
+
             if path.exists() and path.is_file():
+                # Validate the path to prevent traversal. An explicitly supplied,
+                # existing spec file is trusted, so its own directory is allowed.
+                if SECURITY_VALIDATOR_AVAILABLE:
+                    validator = get_security_validator()
+                    allowed_base_dirs = [
+                        os.getcwd(),
+                        os.path.expanduser("~"),
+                        "/etc",
+                        str(path.resolve().parent),
+                    ]
+                    is_valid, error, resolved_path = validator.validate_file_path(
+                        str(path),
+                        allowed_base_dirs=allowed_base_dirs,
+                        allowed_extensions=[".yaml", ".yml", ".json"],
+                    )
+                    if not is_valid:
+                        logger.warning(f"File path validation failed for {path}: {error}")
+                        return {}
+                    path = resolved_path
+
                 with open(path, "r", encoding="utf-8") as f:
                     content = f.read()
                 if path.suffix in {".yaml", ".yml"} and yaml is not None:
@@ -173,13 +284,13 @@ class PolicyEngine(_DryRunMixin):
                     "errors": [str(exc)],
                 }
 
-        # Basic fallback validator.
+        # Basic fallback validator (used when jsonschema is unavailable).
         errors: List[str] = []
-        if not isinstance(obj, dict) or not isinstance(schema, dict):
+        if not isinstance(schema, dict):
             return {
                 "dry_run": not self._should_run(),
                 "valid": False,
-                "errors": ["obj and schema must be dictionaries"],
+                "errors": ["schema must be a dictionary"],
             }
 
         expected = schema.get("type")
@@ -192,20 +303,23 @@ class PolicyEngine(_DryRunMixin):
             "array": list,
         }
         if expected and expected in type_map:
-            if not isinstance(obj, type_map[expected]):
+            # ``bool`` is a subclass of ``int``; keep integer/number strict.
+            if expected in ("integer", "number") and isinstance(obj, bool):
+                errors.append(f"expected type {expected}")
+            elif not isinstance(obj, type_map[expected]):
                 errors.append(f"expected type {expected}")
 
-        for key in schema.get("required", []):
-            if key not in obj:
-                errors.append(f"missing required key: {key}")
+        if isinstance(obj, dict):
+            for key in schema.get("required", []):
+                if key not in obj:
+                    errors.append(f"missing required key: {key}")
 
-        if isinstance(schema.get("properties"), dict):
-            for key in schema["properties"]:
-                if key in obj:
-                    prop_schema = schema["properties"][key]
-                    sub = self.validate_schema(obj[key], prop_schema)
-                    if not sub.get("valid"):
-                        errors.extend(sub.get("errors", []))
+            if isinstance(schema.get("properties"), dict):
+                for key, prop_schema in schema["properties"].items():
+                    if key in obj:
+                        sub = self.validate_schema(obj[key], prop_schema)
+                        if not sub.get("valid"):
+                            errors.extend(sub.get("errors", []))
 
         return {
             "dry_run": not self._should_run(),
@@ -237,29 +351,49 @@ class PolicyEngine(_DryRunMixin):
                 # fall through to legacy file/env lookup.
                 pass
 
+        # Environment variables take precedence over file paths: a bare config
+        # key (e.g. "TEST_CONFIG") is not a filesystem path and must not be
+        # rejected by the path validator.
+        env_value = os.environ.get(key)
+        if env_value is not None:
+            try:
+                parsed = json.loads(env_value)
+            except Exception:
+                parsed = env_value
+            return {
+                "dry_run": not self._should_run(),
+                "source": "env",
+                "value": parsed,
+            }
+
         path = Path(key)
-        
-        # Validate file path to prevent path traversal attacks
-        if SECURITY_VALIDATOR_AVAILABLE:
-            validator = get_security_validator()
-            # Allow files from current directory and common config directories
-            allowed_base_dirs = [os.getcwd(), os.path.expanduser("~"), "/etc"]
-            is_valid, error, resolved_path = validator.validate_file_path(
-                str(path), 
-                allowed_base_dirs=allowed_base_dirs,
-                allowed_extensions=[".yaml", ".yml", ".json"]
-            )
-            if not is_valid:
-                logger.warning(f"File path validation failed for {path}: {error}")
-                return {
-                    "dry_run": not self._should_run(),
-                    "source": str(path),
-                    "value": None,
-                    "error": f"File path validation failed: {error}",
-                }
-            path = resolved_path
-        
         if path.exists() and path.is_file():
+            # Validate the path to prevent traversal. An explicitly supplied,
+            # existing config file is trusted, so its own directory is allowed
+            # in addition to the standard config locations.
+            if SECURITY_VALIDATOR_AVAILABLE:
+                validator = get_security_validator()
+                allowed_base_dirs = [
+                    os.getcwd(),
+                    os.path.expanduser("~"),
+                    "/etc",
+                    str(path.resolve().parent),
+                ]
+                is_valid, error, resolved_path = validator.validate_file_path(
+                    str(path),
+                    allowed_base_dirs=allowed_base_dirs,
+                    allowed_extensions=[".yaml", ".yml", ".json"],
+                )
+                if not is_valid:
+                    logger.warning(f"File path validation failed for {path}: {error}")
+                    return {
+                        "dry_run": not self._should_run(),
+                        "source": str(path),
+                        "value": None,
+                        "error": f"File path validation failed: {error}",
+                    }
+                path = resolved_path
+
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     content = f.read()
@@ -279,18 +413,6 @@ class PolicyEngine(_DryRunMixin):
                     "value": None,
                     "error": str(exc),
                 }
-
-        env_value = os.environ.get(key)
-        if env_value is not None:
-            try:
-                parsed = json.loads(env_value)
-            except Exception:
-                parsed = env_value
-            return {
-                "dry_run": not self._should_run(),
-                "source": "env",
-                "value": parsed,
-            }
 
         return {
             "dry_run": not self._should_run(),

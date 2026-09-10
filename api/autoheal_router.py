@@ -57,6 +57,12 @@ except Exception as e:
     logging.exception("Unexpected exception: %s", e)
     async_update_approval_status_by_alert = None  # type: ignore[assignment]
 
+try:
+    from core.db_engine import async_query_repairs
+except Exception as e:  # pragma: no cover - defensive
+    logging.exception("Unexpected exception: %s", e)
+    async_query_repairs = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/v1/approvals",
@@ -612,6 +618,31 @@ async def ai_propose_repair(payload: AIProposeRequest, request: Request) -> dict
     return await _execute_ai_propose_workflow(target_alert, alert_id, operator_ip)
 
 
+async def _compute_average_execution_time() -> float:
+    """Mean repair duration (seconds) from persisted ``RepairRecord`` history.
+
+    Uses the real execution history written by the repair pipeline instead of
+    a hard-coded constant. Returns ``0.0`` when no execution has been recorded
+    yet (an honest "no data" signal rather than a fabricated baseline).
+    """
+    if async_query_repairs is None:  # pragma: no cover - defensive
+        return 0.0
+    try:
+        records = await async_query_repairs(today_only=False, limit=1000)
+    except Exception as exc:
+        logger.warning("Failed to query repair records for statistics: %s", exc)
+        return 0.0
+
+    durations = [
+        float(record["repair_duration_sec"])
+        for record in records
+        if record.get("repair_duration_sec") is not None
+    ]
+    if not durations:
+        return 0.0
+    return round(sum(durations) / len(durations), 2)
+
+
 @router.get(
     "/statistics",
     summary="获取自动修复统计信息",
@@ -668,8 +699,8 @@ async def get_statistics(request: Request) -> dict:
         total_completed = completed_tasks + failed_tasks
         success_rate = completed_tasks / total_completed if total_completed > 0 else 0.0
 
-        # Calculate average execution time (placeholder - would need actual execution time data)
-        avg_execution_time = 120.5  # Default placeholder value
+        # Average execution time computed from real RepairRecord history.
+        avg_execution_time = await _compute_average_execution_time()
 
         statistics = {
             "total_tasks": total_tasks,

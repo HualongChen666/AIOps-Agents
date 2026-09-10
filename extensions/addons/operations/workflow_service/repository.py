@@ -11,7 +11,12 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from core.database import SessionLocal
-from core.models import Workflow, WorkflowExecution
+from core.models import (
+    Workflow,
+    WorkflowExecution,
+    WorkflowScheduleRecord,
+    WorkflowVersionRecord,
+)
 
 from extensions.addons.operations.workflow_service.schemas import (
     ScheduledTask,
@@ -285,28 +290,126 @@ class DatabaseWorkflowRepository(WorkflowRepository):
             db.close()
 
     async def save_version(self, workflow_id: str, version: WorkflowVersion) -> str:
-        """Save workflow version (not implemented in DB yet)."""
-        # For now, versions are stored in workflow definition metadata
-        logger.warning("save_version not fully implemented in database repository")
-        return version.version
+        """Persist a workflow version snapshot.
+
+        Idempotent on ``(workflow_id, version)``: re-saving the same version
+        updates its commit hash / message instead of raising a unique
+        constraint error.
+        """
+        db = SessionLocal()
+        try:
+            record = (
+                db.query(WorkflowVersionRecord)
+                .filter(
+                    WorkflowVersionRecord.workflow_id == workflow_id,
+                    WorkflowVersionRecord.version == version.version,
+                )
+                .first()
+            )
+            if record is None:
+                record = WorkflowVersionRecord(
+                    id=f"{workflow_id}:{version.version}",
+                    workflow_id=workflow_id,
+                    version=version.version,
+                    commit_hash=version.commit_hash,
+                    message=version.message,
+                    created_at=version.created_at,
+                )
+                db.add(record)
+            else:
+                record.commit_hash = version.commit_hash
+                record.message = version.message
+            db.commit()
+            logger.debug(
+                f"Repository saved workflow version {workflow_id}@{version.version} to database"
+            )
+            return version.version
+        finally:
+            db.close()
 
     async def list_versions(self, workflow_id: str, limit: int = 100) -> List[WorkflowVersion]:
-        """List workflow versions (not implemented in DB yet)."""
-        # For now, return empty list
-        logger.warning("list_versions not fully implemented in database repository")
-        return []
+        """List persisted version snapshots for *workflow_id*, newest first."""
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(WorkflowVersionRecord)
+                .filter(WorkflowVersionRecord.workflow_id == workflow_id)
+                .order_by(WorkflowVersionRecord.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+            return [
+                WorkflowVersion(
+                    version=row.version,
+                    workflow_id=row.workflow_id,
+                    commit_hash=row.commit_hash,
+                    message=row.message or "",
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ]
+        finally:
+            db.close()
 
     async def save_schedule(self, schedule: ScheduledTask) -> str:
-        """Save scheduled task (not implemented in DB yet)."""
-        # For now, schedules are stored in workflow definition metadata
-        logger.warning("save_schedule not fully implemented in database repository")
-        return schedule.schedule_id
+        """Persist (upsert) a scheduled workflow task."""
+        db = SessionLocal()
+        try:
+            record = (
+                db.query(WorkflowScheduleRecord)
+                .filter(WorkflowScheduleRecord.id == schedule.schedule_id)
+                .first()
+            )
+            if record is None:
+                record = WorkflowScheduleRecord(
+                    id=schedule.schedule_id,
+                    workflow_id=schedule.workflow_id,
+                    cron=schedule.cron,
+                    next_run=schedule.next_run,
+                    enabled=schedule.enabled,
+                    params=schedule.params,
+                )
+                db.add(record)
+            else:
+                record.workflow_id = schedule.workflow_id
+                record.cron = schedule.cron
+                record.next_run = schedule.next_run
+                record.enabled = schedule.enabled
+                record.params = schedule.params
+            db.commit()
+            logger.debug(
+                f"Repository saved workflow schedule {schedule.schedule_id} to database"
+            )
+            return schedule.schedule_id
+        finally:
+            db.close()
 
     async def list_schedules(self, limit: int = 100) -> List[ScheduledTask]:
-        """List scheduled tasks (not implemented in DB yet)."""
-        # For now, return empty list
-        logger.warning("list_schedules not fully implemented in database repository")
-        return []
+        """List persisted workflow schedules, soonest ``next_run`` first."""
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(WorkflowScheduleRecord)
+                .order_by(
+                    WorkflowScheduleRecord.next_run.is_(None),
+                    WorkflowScheduleRecord.next_run.asc(),
+                )
+                .limit(limit)
+                .all()
+            )
+            return [
+                ScheduledTask(
+                    schedule_id=row.id,
+                    workflow_id=row.workflow_id,
+                    cron=row.cron,
+                    next_run=row.next_run,
+                    enabled=row.enabled,
+                    params=row.params or {},
+                )
+                for row in rows
+            ]
+        finally:
+            db.close()
 
 
 async def get_repository(use_in_memory: bool = False) -> WorkflowRepository:

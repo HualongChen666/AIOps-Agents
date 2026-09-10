@@ -5,7 +5,10 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List
 
-from extensions.addons.engines.doc_policy_engine import PolicyEngine
+from extensions.addons.engines.doc_policy_engine import (
+    PolicyEngine,
+    base_method_handlers,
+)
 
 BASE_METHODS: List[str] = [
     "get_state",
@@ -23,6 +26,7 @@ OPERATIONS: List[str] = [
 ]
 
 _OP_MAP: Dict[str, Callable[[PolicyEngine, Dict[str, Any]], Any]] = {
+    **base_method_handlers(),
     "validate_schema": lambda engine, params: engine.validate_schema(
         params.get("obj"), params.get("schema")
     ),
@@ -53,14 +57,10 @@ class DataStandardsService:
             raise ValueError(f"Unknown operation: {name}")
 
         handler = _OP_MAP.get(name)
-        if handler is None:
-            return {
-                "success": True,
-                "operation": name,
-                "dry_run": True,
-                "result": {"message": "not implemented"},
-            }
+        if handler is None:  # pragma: no cover - guarded by the OPERATIONS check above
+            raise NotImplementedError(f"{cls.__name__}: no handler for operation {name!r}")
 
+        cls._engine.record(name)
         return {
             "success": True,
             "operation": name,

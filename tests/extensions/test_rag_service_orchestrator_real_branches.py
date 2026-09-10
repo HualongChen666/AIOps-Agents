@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Real-execution branch coverage for the ai-plus RAG orchestrator."""
+"""Real-execution branch coverage for the ai_plus RAG orchestrator."""
 
 from __future__ import annotations
 

@@ -26,7 +26,7 @@ SELECTED = [
     r"extensions\addons\observability\topology_service\repository.py",
     r"extensions\addons\observability\topology_service\orchestrator.py",
     r"extensions\addons\engines\doc_policy_engine.py",
-    r"extensions\addons\ai-plus\knowledge_graph_service\graph_store.py",
+    r"extensions\addons\ai_plus\knowledge_graph_service\graph_store.py",
     r"extensions\addons\operations\incident_response_service\service.py",
     r"extensions\addons\operations\scenario_memory_service\orchestrator.py",
     r"extensions\hardware_remediation\ticket_integration.py",
@@ -34,15 +34,15 @@ SELECTED = [
     r"extensions\addons\observability\topology_service\discovery.py",
     r"extensions\hardware_remediation\redfish_actions.py",
     r"extensions\addons\engines\infra_executor.py",
-    r"extensions\addons\ai-plus\knowledge_graph_service\modeler.py",
-    r"extensions\addons\ai-plus\rag_service\orchestrator.py",
+    r"extensions\addons\ai_plus\knowledge_graph_service\modeler.py",
+    r"extensions\addons\ai_plus\rag_service\orchestrator.py",
     r"extensions\addons\operations\workflow_service\orchestrator.py",
-    r"extensions\addons\ai-plus\llm_router_service\grpc\client.py",
+    r"extensions\addons\ai_plus\llm_router_service\grpc\client.py",
     r"extensions\addons\infrastructure\config_service\grpc\client.py",
     r"extensions\addons\infrastructure\user_service\grpc\client.py",
     r"extensions\addons\observability\topology_service\grpc\client.py",
     r"extensions\addons\operations\workflow_service\grpc\client.py",
-    r"extensions\addons\ai-plus\llm_router_service\orchestrator.py",
+    r"extensions\addons\ai_plus\llm_router_service\orchestrator.py",
 ]
 
 

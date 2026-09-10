@@ -409,6 +409,7 @@ class SecurityRepository:
         algorithm: str = "RSA",
         issued_at: Optional[datetime] = None,
         expires_at: Optional[datetime] = None,
+        issuer: Optional[str] = None,
     ) -> HttpsCertificate:
         """创建HTTPS证书"""
         cert = HttpsCertificate(
@@ -417,6 +418,7 @@ class SecurityRepository:
             certificate_pem=certificate_pem,
             private_key_encrypted=private_key_encrypted,
             private_key_iv=private_key_iv,
+            issuer=issuer,
             algorithm=algorithm,
             issued_at=issued_at or datetime.now(),
             expires_at=expires_at or (datetime.now() + timedelta(days=365)),

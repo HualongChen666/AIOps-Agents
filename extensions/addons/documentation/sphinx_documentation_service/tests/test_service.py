@@ -74,49 +74,57 @@ class TestSphinxDocumentationService:
         assert result["dry_run"] is True
 
     def test_execute_operation_get_state(self):
-        """Test execute_operation with get_state (BASE_METHOD)."""
+        """get_state returns a real engine state snapshot."""
         service = SphinxDocumentationService()
         result = service.execute_operation("get_state")
         assert result["success"] is True
         assert result["operation"] == "get_state"
         assert result["dry_run"] is True
-        assert result["result"]["message"] == "not implemented"
+        assert "state" in result["result"]
+        assert "revision" in result["result"]
 
     def test_execute_operation_backup_state(self):
-        """Test execute_operation with backup_state (BASE_METHOD)."""
+        """backup_state creates a real, addressable snapshot."""
         service = SphinxDocumentationService()
-        result = service.execute_operation("backup_state")
+        result = service.execute_operation("backup_state", {"label": "pre-build"})
         assert result["success"] is True
         assert result["operation"] == "backup_state"
         assert result["dry_run"] is True
-        assert result["result"]["message"] == "not implemented"
+        assert result["result"]["backup_id"].startswith("backup-")
+        assert result["result"]["label"] == "pre-build"
 
     def test_execute_operation_restore_state(self):
-        """Test execute_operation with restore_state (BASE_METHOD)."""
+        """restore_state round-trips a snapshot taken from the same engine."""
         service = SphinxDocumentationService()
-        result = service.execute_operation("restore_state")
+        backup = service.execute_operation("backup_state", {"label": "snap"})
+        backup_id = backup["result"]["backup_id"]
+        result = service.execute_operation("restore_state", {"backup_id": backup_id})
         assert result["success"] is True
         assert result["operation"] == "restore_state"
         assert result["dry_run"] is True
-        assert result["result"]["message"] == "not implemented"
+        assert result["result"]["restored"] is True
+        assert result["result"]["backup_id"] == backup_id
 
     def test_execute_operation_get_stats(self):
-        """Test execute_operation with get_stats (BASE_METHOD)."""
+        """get_stats returns real counters for executed operations."""
         service = SphinxDocumentationService()
+        service.execute_operation("get_state")
         result = service.execute_operation("get_stats")
         assert result["success"] is True
         assert result["operation"] == "get_stats"
         assert result["dry_run"] is True
-        assert result["result"]["message"] == "not implemented"
+        assert result["result"]["total_operations"] >= 1
+        assert "operations" in result["result"]
 
     def test_execute_operation_list_methods(self):
-        """Test execute_operation with list_methods (BASE_METHOD)."""
+        """list_methods enumerates the engine's public operations."""
         service = SphinxDocumentationService()
         result = service.execute_operation("list_methods")
         assert result["success"] is True
         assert result["operation"] == "list_methods"
         assert result["dry_run"] is True
-        assert result["result"]["message"] == "not implemented"
+        assert isinstance(result["result"], list)
+        assert "build_docs" in result["result"]
 
     def test_execute_operation_unknown_operation(self):
         """Test execute_operation with unknown operation raises ValueError."""

@@ -122,16 +122,19 @@ export function adjustColorForContrast(
     const rgb = hexToRgb(adjustedColor);
     const targetRgb = hexToRgb(targetColor);
     
-    // Move color towards black or white depending on target
+    // Move the colour *away* from the target's luminance: the further apart the
+    // two luminances are, the higher the contrast ratio. Going brighter when the
+    // colour is already brighter than the target (and darker when it is darker)
+    // therefore monotonically increases contrast towards the goal.
     const targetLuminance = rgbToLuminance(targetRgb.r, targetRgb.g, targetRgb.b);
     const currentLuminance = rgbToLuminance(rgb.r, rgb.g, rgb.b);
-    
+
     if (currentLuminance > targetLuminance) {
-      // Darken the color
-      adjustedColor = darkenColor(adjustedColor, 0.1);
-    } else {
-      // Lighten the color
+      // Already lighter than the target -> keep lightening to widen the gap.
       adjustedColor = lightenColor(adjustedColor, 0.1);
+    } else {
+      // Already darker than the target -> keep darkening to widen the gap.
+      adjustedColor = darkenColor(adjustedColor, 0.1);
     }
     
     currentRatio = calculateContrastRatio(adjustedColor, targetColor);
