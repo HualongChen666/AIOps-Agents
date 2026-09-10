@@ -29,6 +29,7 @@ from core.auto_heal import (
     RepairScriptLibrary,
     RiskAssessmentEngine,
 )
+from core.persistent_store import PersistentStore
 from core.platform_strategies import get_platform_strategy
 from core.repair_engine import execute_repair, get_repair_history
 
@@ -82,11 +83,11 @@ def validate_path_param(param_value: str, param_name: str = "parameter") -> str:
 
 
 # ============================================================
-# In-memory data stores (in production, use database)
+# Durable data stores (backed by the ``persistent_records`` table)
 # ============================================================
-_repair_strategies: Dict[str, Dict[str, Any]] = {}
-_repair_executions: Dict[str, Dict[str, Any]] = {}
-_platforms: Dict[str, Dict[str, Any]] = {}
+_repair_strategies: PersistentStore = PersistentStore("unified_repair", "strategies")
+_repair_executions: PersistentStore = PersistentStore("unified_repair", "executions")
+_platforms: PersistentStore = PersistentStore("unified_repair", "platforms")
 
 # Initialize core components
 _script_library = RepairScriptLibrary()
@@ -282,8 +283,9 @@ async def get_strategy(strategy_id: str) -> Dict[str, Any]:
         if strategy_id not in _repair_strategies:
             raise HTTPException(status_code=404, detail="Strategy not found")
 
-        strategy = _repair_strategies[strategy_id]
-        # Add execution statistics
+        # Return a copy enriched with live execution statistics so the stored
+        # strategy record stays canonical.
+        strategy = dict(_repair_strategies[strategy_id])
         executions = [e for e in _repair_executions.values() if e.get("strategy_id") == strategy_id]
         strategy["execution_count"] = len(executions)
         strategy["success_count"] = sum(1 for e in executions if e.get("status") == "completed")
@@ -474,6 +476,9 @@ async def create_execution(execution: RepairExecutionCreate, request: Request) -
                 new_execution["error_message"] = str(e)
                 new_execution["completed_at"] = _get_current_timestamp()
                 new_execution["updated_at"] = _get_current_timestamp()
+
+            # Persist the outcome of the auto-executed repair.
+            _repair_executions[execution_id] = new_execution
 
         logger.info(f"Repair execution created: {execution_id}")
         return new_execution
@@ -903,7 +908,7 @@ class RepairTemplateUpdate(BaseModel):
     status: Optional[str] = Field(None, description="Template status: active, inactive")
 
 
-_templates: Dict[str, Dict[str, Any]] = {}
+_templates: PersistentStore = PersistentStore("unified_repair", "templates")
 
 
 @router.get("/templates", summary="List repair templates")
@@ -1342,6 +1347,7 @@ async def cancel_script_execution_alt(execution_id: str) -> Dict[str, Any]:
 
     execution["status"] = "cancelled"
     execution["updated_at"] = _get_current_timestamp()
+    _repair_executions[execution_id] = execution
 
     return {"message": "Execution cancelled", "id": execution_id}
 
@@ -1448,6 +1454,7 @@ async def approve_hitl_request_alt(request_id: str, approval: Dict[str, Any]) ->
     execution["status"] = "approved"
     execution["approval_comment"] = approval.get("comment", "")
     execution["updated_at"] = _get_current_timestamp()
+    _repair_executions[request_id] = execution
 
     return {"message": "Request approved", "id": request_id}
 
@@ -1462,6 +1469,7 @@ async def reject_hitl_request_alt(request_id: str, rejection: Dict[str, Any]) ->
     execution["status"] = "rejected"
     execution["rejection_reason"] = rejection.get("reason", "")
     execution["updated_at"] = _get_current_timestamp()
+    _repair_executions[request_id] = execution
 
     return {"message": "Request rejected", "id": request_id}
 

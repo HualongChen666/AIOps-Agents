@@ -115,9 +115,63 @@ def sample_deploy_data():
 def cleanup_releases():
     """Cleanup releases after each test."""
     yield
-    # Clear in-memory storage
+    # Clear durable storage
     releases.clear()
     release_history.clear()
+
+
+@pytest.fixture(autouse=True)
+def fake_release_backend():
+    """Stub only the *external* build/deploy backend (docker, remote hosts).
+
+    The router's own logic, state machine and persistence are the real
+    production code; docker and deployment targets simply are not available in
+    CI, so the external side-effects are replaced with the service's own real
+    ``BuildInfo``/``DeploymentInfo`` result objects.
+    """
+    from unittest.mock import patch
+
+    import api.release_management_router as mod
+    from extensions.addons.ai_plus.release_management_service.deployment_manager import (
+        DeploymentInfo,
+    )
+    from extensions.addons.ai_plus.release_management_service.release_builder import (
+        BuildInfo,
+    )
+
+    builder = mod.release_builder
+    deployer = mod.deployment_manager
+    if builder is None or deployer is None:
+        yield
+        return
+
+    def _ok_build(*args, **kwargs):
+        build_type = kwargs.get("build_type") or (args[0] if args else "docker")
+        info = BuildInfo(build_type=build_type, status="success")
+        info.artifact_path = "/artifacts/test-project-1.0.0"
+        info.duration_ms = 1
+        return info
+
+    def _ok_deploy(*args, **kwargs):
+        info = DeploymentInfo()
+        info.status = "success"
+        info.duration_ms = 1
+        return info
+
+    def _ok_rollback(*args, **kwargs):
+        info = DeploymentInfo()
+        info.status = "success"
+        return info
+
+    with (
+        patch.object(builder, "build_docker_image", side_effect=_ok_build),
+        patch.object(builder, "build_package", side_effect=_ok_build),
+        patch.object(builder, "build_binary", side_effect=_ok_build),
+        patch.object(deployer, "deploy_docker", side_effect=_ok_deploy),
+        patch.object(deployer, "deploy_package", side_effect=_ok_deploy),
+        patch.object(deployer, "rollback_deployment", side_effect=_ok_rollback),
+    ):
+        yield
 
 
 # ============================================================================

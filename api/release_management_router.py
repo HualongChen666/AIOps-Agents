@@ -35,6 +35,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
 
 from core.auth import get_current_user
+from core.persistent_store import PersistentStore
 from core.security_middleware import SecurityHeaders
 
 # Configure logging
@@ -43,12 +44,36 @@ logger = logging.getLogger(__name__)
 # Initialize security
 security = HTTPBearer(auto_error=False)
 
-# Import release management service components
-# Note: Using standalone implementation to avoid dependency issues
-Config = None
-DeploymentManager = None
-ReleaseBuilder = None
-VersionManager = None
+# Import release management service components (real implementations).
+try:
+    from extensions.addons.ai_plus.release_management_service.config import (
+        Config as _ReleaseConfig,
+    )
+    from extensions.addons.ai_plus.release_management_service.deployment_manager import (
+        DeploymentManager,
+    )
+    from extensions.addons.ai_plus.release_management_service.release_builder import (
+        ReleaseBuilder,
+    )
+    from extensions.addons.ai_plus.release_management_service.version_manager import (
+        VersionManager,
+    )
+
+    Config = _ReleaseConfig
+    version_manager = VersionManager()
+    release_builder = ReleaseBuilder()
+    deployment_manager = DeploymentManager()
+    _RELEASE_BACKEND_ERROR = None
+except Exception as _exc:  # pragma: no cover - depends on optional addon deps
+    Config = None
+    DeploymentManager = None
+    ReleaseBuilder = None
+    VersionManager = None
+    version_manager = None
+    release_builder = None
+    deployment_manager = None
+    _RELEASE_BACKEND_ERROR = str(_exc)
+    logger.warning("Release management backend unavailable: %s", _exc)
 
 # Initialize router
 router = APIRouter(
@@ -62,14 +87,10 @@ router = APIRouter(
     },
 )
 
-# In-memory storage (will be replaced with proper database in production)
-releases: Dict[str, Dict[str, Any]] = {}
-release_history: Dict[str, List[Dict[str, Any]]] = {}
-
-# Service components are not initialized to avoid dependency issues
-version_manager = None
-release_builder = None
-deployment_manager = None
+# Durable storage backed by the ``persistent_records`` table: releases and
+# their audit history now survive process restarts.
+releases: PersistentStore = PersistentStore("release_management", "releases")
+release_history: PersistentStore = PersistentStore("release_management", "release_history")
 
 
 # Pydantic models for request/response validation
@@ -236,9 +257,6 @@ def _add_release_event(
     metadata: Dict[str, Any] = None,
 ) -> None:
     """Add an event to release history with audit logging."""
-    if release_id not in release_history:
-        release_history[release_id] = []
-
     event = {
         "event_type": event_type,
         "description": description,
@@ -247,12 +265,17 @@ def _add_release_event(
         "metadata": metadata or {},
     }
 
-    release_history[release_id].append(event)
+    # Reassign (rather than append) so the change is written through to the
+    # persistent store; ``PersistentStore`` only persists on ``__setitem__``.
+    history = list(release_history.get(release_id, []))
+    history.append(event)
 
     # Limit history size
     max_history = Config.MAX_RELEASE_HISTORY if Config else 1000
-    if len(release_history[release_id]) > max_history:
-        release_history[release_id] = release_history[release_id][-max_history:]
+    if len(history) > max_history:
+        history = history[-max_history:]
+
+    release_history[release_id] = history
 
     # Audit logging
     logger.info(
@@ -706,10 +729,11 @@ async def build_release(
             {"build_type": request.build_type},
         )
 
-        # Simulate build process (in production, this would call the actual build service)
         build_id = str(uuid4())
 
-        # Add background task for actual build
+        # Dispatch to the real build service. When the backend is not
+        # importable we record an honest failure instead of pretending the
+        # build succeeded.
         if release_builder:
             background_tasks.add_task(
                 _execute_build,
@@ -723,13 +747,12 @@ async def build_release(
                 user_id,
             )
         else:
-            # Fallback for development
             background_tasks.add_task(
-                _simulate_build,
+                _record_backend_unavailable,
                 release_id,
-                build_id,
-                request.build_type,
+                "build",
                 user_id,
+                _RELEASE_BACKEND_ERROR,
             )
 
         logger.info(
@@ -832,42 +855,39 @@ async def _execute_build(
     except Exception as e:
         logger.error(f"Build execution failed: {e}", exc_info=True)
         if release_id in releases:
-            releases[release_id]["status"] = "failed"
-            releases[release_id]["updated_at"] = int(datetime.now().timestamp() * 1000)
+            failed_release = releases[release_id]
+            failed_release["status"] = "failed"
+            failed_release["updated_at"] = int(datetime.now().timestamp() * 1000)
+            releases[release_id] = failed_release
 
 
-async def _simulate_build(
+async def _record_backend_unavailable(
     release_id: str,
-    build_id: str,
-    build_type: str,
+    operation: str,
     user_id: str,
+    error: Optional[str] = None,
 ) -> None:
-    """Simulate build process for development/testing."""
-    import asyncio
+    """Record that a lifecycle operation could not run for lack of a backend.
 
-    await asyncio.sleep(2)  # Simulate build time
-
+    This is the honest counterpart to the old ``_simulate_*`` helpers: rather
+    than fabricating a successful build/deployment, the release is marked
+    failed and the reason is captured in its audit history.
+    """
     if release_id not in releases:
         return
 
     release = releases[release_id]
-    release["build_info"] = {
-        "build_id": build_id,
-        "build_type": build_type,
-        "status": "success",
-        "artifact_path": f"/artifacts/{release['project_name']}-{release['version']}.{build_type}",
-        "duration_ms": 2000,
-    }
-    release["status"] = "built"
+    reason = error or "release management backend is not available in this deployment"
+    release["status"] = f"{operation}_failed"
     release["updated_at"] = int(datetime.now().timestamp() * 1000)
     releases[release_id] = release
 
     _add_release_event(
         release_id,
-        "build_completed",
-        f"Build completed: {build_id}",
+        f"{operation}_failed",
+        f"{operation.capitalize()} could not run: {reason}",
         user_id,
-        {"build_id": build_id, "artifact_path": release["build_info"]["artifact_path"]},
+        {"error": reason},
     )
 
 
@@ -946,11 +966,11 @@ async def deploy_release(
             )
         else:
             background_tasks.add_task(
-                _simulate_deployment,
+                _record_backend_unavailable,
                 release_id,
-                deployment_id,
-                request.target_environment,
+                "deployment",
                 user_id,
+                _RELEASE_BACKEND_ERROR,
             )
 
         logger.info(
@@ -1054,43 +1074,10 @@ async def _execute_deployment(
     except Exception as e:
         logger.error(f"Deployment execution failed: {e}", exc_info=True)
         if release_id in releases:
-            releases[release_id]["status"] = "failed"
-            releases[release_id]["updated_at"] = int(datetime.now().timestamp() * 1000)
-
-
-async def _simulate_deployment(
-    release_id: str,
-    deployment_id: str,
-    target_environment: str,
-    user_id: str,
-) -> None:
-    """Simulate deployment process for development/testing."""
-    import asyncio
-
-    await asyncio.sleep(3)  # Simulate deployment time
-
-    if release_id not in releases:
-        return
-
-    release = releases[release_id]
-    release["deployment_info"] = {
-        "deployment_id": deployment_id,
-        "status": "success",
-        "duration_ms": 3000,
-        "results": [{"host": "localhost", "status": "success"}],
-    }
-    release["status"] = "deployed"
-    release["environment"] = target_environment
-    release["updated_at"] = int(datetime.now().timestamp() * 1000)
-    releases[release_id] = release
-
-    _add_release_event(
-        release_id,
-        "deployment_completed",
-        f"Deployed to {target_environment}",
-        user_id,
-        {"deployment_id": deployment_id, "environment": target_environment},
-    )
+            failed_release = releases[release_id]
+            failed_release["status"] = "failed"
+            failed_release["updated_at"] = int(datetime.now().timestamp() * 1000)
+            releases[release_id] = failed_release
 
 
 @router.post("/{release_id}/rollback")
@@ -1155,11 +1142,11 @@ async def rollback_release(
             )
         else:
             background_tasks.add_task(
-                _simulate_rollback,
+                _record_backend_unavailable,
                 release_id,
-                rollback_id,
-                request.rollback_to_version,
+                "rollback",
                 user_id,
+                _RELEASE_BACKEND_ERROR,
             )
 
         logger.info(
@@ -1238,36 +1225,10 @@ async def _execute_rollback(
     except Exception as e:
         logger.error(f"Rollback execution failed: {e}", exc_info=True)
         if release_id in releases:
-            releases[release_id]["status"] = "rollback_failed"
-            releases[release_id]["updated_at"] = int(datetime.now().timestamp() * 1000)
-
-
-async def _simulate_rollback(
-    release_id: str,
-    rollback_id: str,
-    rollback_to_version: str,
-    user_id: str,
-) -> None:
-    """Simulate rollback process for development/testing."""
-    import asyncio
-
-    await asyncio.sleep(2)  # Simulate rollback time
-
-    if release_id not in releases:
-        return
-
-    release = releases[release_id]
-    release["status"] = "rolled_back"
-    release["updated_at"] = int(datetime.now().timestamp() * 1000)
-    releases[release_id] = release
-
-    _add_release_event(
-        release_id,
-        "rollback_completed",
-        f"Rolled back to {rollback_to_version}",
-        user_id,
-        {"rollback_id": rollback_id},
-    )
+            failed_release = releases[release_id]
+            failed_release["status"] = "rollback_failed"
+            failed_release["updated_at"] = int(datetime.now().timestamp() * 1000)
+            releases[release_id] = failed_release
 
 
 @router.post("/{release_id}/approve")

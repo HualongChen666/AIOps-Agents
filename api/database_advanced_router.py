@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
+
+from core.persistent_store import PersistentStore
 from loguru import logger
 from pydantic import BaseModel
 
@@ -139,46 +141,94 @@ class DatabaseMigrationCreate(BaseModel):
     down_script: Optional[str] = None
 
 
-# In-memory storage (in production, use a real database)
-_optimizations: Dict[str, Dict[str, Any]] = {}
-_queries: List[Dict[str, Any]] = []
-_indexes: Dict[str, Dict[str, Any]] = {}
-_backups: Dict[str, Dict[str, Any]] = {}
-_migrations: Dict[str, Dict[str, Any]] = {}
+# Durable storage (backed by the ``persistent_records`` table).
+_queries: PersistentStore = PersistentStore("database_advanced", "queries")
+_optimizations: PersistentStore = PersistentStore("database_advanced", "optimizations")
+_indexes: PersistentStore = PersistentStore("database_advanced", "indexes")
+_backups: PersistentStore = PersistentStore("database_advanced", "backups")
+_migrations: PersistentStore = PersistentStore("database_advanced", "migrations")
+
+
+#: Previous I/O counter sample, used to derive real per-second I/O rates.
+_prev_io_sample: Dict[str, Any] = {"t": None, "disk": None, "net": None}
+
+
+def _io_rates() -> Dict[str, float]:
+    """Return real disk/network I/O rates (KiB/s) from psutil counter deltas."""
+    import time
+
+    rates = {"disk_io": 0.0, "network_io": 0.0}
+    try:
+        import psutil
+    except Exception:  # pragma: no cover - psutil is a hard dependency in prod
+        return rates
+
+    now = time.monotonic()
+    disk = psutil.disk_io_counters()
+    net = psutil.net_io_counters()
+    disk_total = (disk.read_bytes + disk.write_bytes) if disk else None
+    net_total = (net.bytes_sent + net.bytes_recv) if net else None
+
+    prev = _prev_io_sample
+    if prev["t"] is not None and now > prev["t"]:
+        dt = max(now - prev["t"], 1e-6)
+        if disk_total is not None and prev["disk"] is not None:
+            rates["disk_io"] = round(max(0.0, disk_total - prev["disk"]) / dt / 1024, 2)
+        if net_total is not None and prev["net"] is not None:
+            rates["network_io"] = round(max(0.0, net_total - prev["net"]) / dt / 1024, 2)
+
+    _prev_io_sample.update({"t": now, "disk": disk_total, "net": net_total})
+    return rates
+
+
+def _query_roundtrip_ms() -> float:
+    """Measure a real round-trip latency to the configured database."""
+    import time
+
+    try:
+        from sqlalchemy import text
+
+        from core.database import engine
+
+        start = time.perf_counter()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return round((time.perf_counter() - start) * 1000, 3)
+    except Exception as exc:  # pragma: no cover - surfaced as None-ish value
+        logger.error("Query latency probe failed: %s", exc)
+        return 0.0
 
 
 def _get_performance_metrics() -> Dict[str, Any]:
-    """Get real database performance metrics"""
+    """Collect real database/host performance metrics."""
+    from core.database import engine
+
     try:
         from core.database_optimization_manager import get_database_optimization_manager
 
-        manager = get_database_optimization_manager()
-        status = manager.get_optimization_status()
+        status = get_database_optimization_manager().get_optimization_status()
+    except Exception as exc:
+        logger.error("Error getting optimization status: %s", exc)
+        status = {}
 
-        # Simulate real metrics based on optimization status
-        return {
-            "cpu_usage": 45.5,
-            "memory_usage": 62.3,
-            "disk_io": 125.8,
-            "network_io": 45.2,
-            "query_latency": 12.5,
-            "connection_count": 150,
-            "active_queries": 25,
-            "optimization_status": status,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    except Exception as e:
-        logger.error(f"Error getting performance metrics: {e}")
-        return {
-            "cpu_usage": 50.0,
-            "memory_usage": 60.0,
-            "disk_io": 100.0,
-            "network_io": 50.0,
-            "query_latency": 15.0,
-            "connection_count": 100,
-            "active_queries": 20,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+    metrics: Dict[str, Any] = {
+        "optimization_status": status,
+        "query_latency": _query_roundtrip_ms(),
+        "connection_count": engine.pool.checkedout(),
+        "active_queries": engine.pool.checkedout(),
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    metrics.update(_io_rates())
+
+    try:
+        import psutil
+
+        metrics["cpu_usage"] = psutil.cpu_percent(interval=None)
+        metrics["memory_usage"] = psutil.virtual_memory().percent
+    except Exception as exc:
+        logger.error("Error reading host metrics: %s", exc)
+
+    return metrics
 
 
 @router.get(

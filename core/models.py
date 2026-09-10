@@ -7350,3 +7350,38 @@ class PluginConfig(Base):
     
     def __repr__(self):
         return f"<PluginConfig(id='{self.id}', plugin_name='{self.plugin_name}', active={self.is_active})>"
+
+
+class PersistentRecordDB(Base):
+    """Durable document store backing the advanced API routers.
+
+    Historically many ``api/*_advanced_router.py`` modules kept their entities
+    (releases, optimization tasks, repair executions, …) in module-level dicts,
+    so the data vanished on restart.  Each row here is a single entity
+    serialised as JSON and namespaced by ``(domain, kind, tenant_id)``.
+    """
+
+    __tablename__ = "persistent_records"
+
+    #: Composite key ``f"{domain}:{kind}:{tenant_id}:{record_key}"``.
+    id = Column(String(512), primary_key=True)
+    domain = Column(String(64), nullable=False, index=True)
+    kind = Column(String(64), nullable=False, index=True)
+    record_key = Column(String(255), nullable=False)
+    tenant_id = Column(String(64), nullable=False, default="default", index=True)
+
+    #: JSON document holding the serialised entity.
+    payload = Column(JSON, nullable=False, default=dict)
+
+    created_at = Column(DateTime(), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "domain", "kind", "record_key", "tenant_id", name="uq_persistent_records_scope"
+        ),
+        Index("idx_persistent_records_scope", "domain", "kind", "tenant_id"),
+    )
+
+    def __repr__(self):
+        return f"<PersistentRecordDB(id='{self.id}', domain='{self.domain}', kind='{self.kind}')>"

@@ -278,202 +278,192 @@ class RollbackPlanResponse(BaseModel):
 # In-Memory Data Storage (fallback)
 # ============================================================================
 
-_approvals: Dict[str, ApprovalResponse] = {}
-_schedules: Dict[str, ScheduleResponse] = {}
-_rollback_plans: Dict[str, RollbackPlanResponse] = {}
-
-
 # ============================================================================
-# Database Helper Functions (with fallback to memory storage)
+# Database Helper Functions
 # ============================================================================
 
 
-def _get_approvals(db: Optional[Session] = None) -> Dict[str, ApprovalResponse]:
-    """Get approvals from database with fallback to memory."""
-    try:
-        if db:
-            db_approvals = db.query(ChangeApprovalDB).all()
-            return {
-                approval.id: ApprovalResponse(
-                    id=approval.id,
-                    request_id=approval.request_id,
-                    approver=approval.approver,
-                    status=approval.status,
-                    comments=approval.comments,
-                    approved_at=approval.approved_at,
-                )
-                for approval in db_approvals
-            }
-        # Fallback to memory storage
-        return _approvals
-    except Exception as e:
-        logger.error(f"Failed to get approvals from database, using fallback: {e}", exc_info=True)
-        # Fallback to memory storage
-        return _approvals
+def _approval_from_row(approval: ChangeApprovalDB) -> ApprovalResponse:
+    meta = approval.approval_metadata or {}
+    return ApprovalResponse(
+        id=approval.id,
+        change_request_id=approval.request_id,
+        approver=approval.approver,
+        decision=approval.status,
+        comments=approval.comments or "",
+        conditions=meta.get("conditions", []),
+        approved_at=approval.approved_at or datetime.utcnow(),
+        valid_until=meta.get("valid_until"),
+    )
 
 
-def _set_approval(approval: ApprovalResponse, db: Optional[Session] = None) -> None:
-    """Set approval in database with fallback to memory."""
-    try:
-        if db:
-            existing_approval = db.query(ChangeApprovalDB).filter(
-                ChangeApprovalDB.id == approval.id
-            ).first()
-            if existing_approval:
-                existing_approval.approver = approval.approver
-                existing_approval.status = approval.status
-                existing_approval.comments = approval.comments
-                existing_approval.approved_at = approval.approved_at
-                existing_approval.approval_metadata = None
-            else:
-                db_approval = ChangeApprovalDB(
-                    id=approval.id,
-                    request_id=approval.request_id,
-                    approver=approval.approver,
-                    status=approval.status,
-                    comments=approval.comments,
-                    approved_at=approval.approved_at,
-                    approval_metadata=None,
-                )
-                db.add(db_approval)
-            db.commit()
-        else:
-            # Fallback to memory storage
-            _approvals[approval.id] = approval
-    except Exception as e:
-        db.rollback() if db else None
-        logger.error(f"Failed to set approval in database, using fallback: {e}", exc_info=True)
-        # Fallback to memory storage
-        _approvals[approval.id] = approval
+def _get_approvals(db: Session) -> Dict[str, ApprovalResponse]:
+    """Get approvals from the database."""
+    return {
+        approval.id: _approval_from_row(approval)
+        for approval in db.query(ChangeApprovalDB).all()
+    }
 
 
-def _get_schedules(db: Optional[Session] = None) -> Dict[str, ScheduleResponse]:
-    """Get schedules from database with fallback to memory."""
-    try:
-        if db:
-            db_schedules = db.query(ChangeScheduleDB).all()
-            return {
-                schedule.id: ScheduleResponse(
-                    id=schedule.id,
-                    request_id=schedule.request_id,
-                    scheduled_start=schedule.scheduled_start,
-                    scheduled_end=schedule.scheduled_end,
-                    maintenance_window=schedule.maintenance_window,
-                    timezone=schedule.timezone,
-                    status=schedule.status,
-                )
-                for schedule in db_schedules
-            }
-        # Fallback to memory storage
-        return _schedules
-    except Exception as e:
-        logger.error(f"Failed to get schedules from database, using fallback: {e}", exc_info=True)
-        # Fallback to memory storage
-        return _schedules
+def _enum_value(value: Any) -> Any:
+    return value.value if hasattr(value, "value") else value
 
 
-def _set_schedule(schedule: ScheduleResponse, db: Optional[Session] = None) -> None:
-    """Set schedule in database with fallback to memory."""
-    try:
-        if db:
-            existing_schedule = db.query(ChangeScheduleDB).filter(
-                ChangeScheduleDB.id == schedule.id
-            ).first()
-            if existing_schedule:
-                existing_schedule.request_id = schedule.request_id
-                existing_schedule.scheduled_start = schedule.scheduled_start
-                existing_schedule.scheduled_end = schedule.scheduled_end
-                existing_schedule.maintenance_window = schedule.maintenance_window
-                existing_schedule.timezone = schedule.timezone
-                existing_schedule.status = schedule.status
-                existing_schedule.schedule_metadata = None
-            else:
-                db_schedule = ChangeScheduleDB(
-                    id=schedule.id,
-                    request_id=schedule.request_id,
-                    scheduled_start=schedule.scheduled_start,
-                    scheduled_end=schedule.scheduled_end,
-                    maintenance_window=schedule.maintenance_window,
-                    timezone=schedule.timezone,
-                    status=schedule.status,
-                    schedule_metadata=None,
-                )
-                db.add(db_schedule)
-            db.commit()
-        else:
-            # Fallback to memory storage
-            _schedules[schedule.id] = schedule
-    except Exception as e:
-        db.rollback() if db else None
-        logger.error(f"Failed to set schedule in database, using fallback: {e}", exc_info=True)
-        # Fallback to memory storage
-        _schedules[schedule.id] = schedule
+def _set_approval(approval: ApprovalResponse, db: Session) -> None:
+    """Persist an approval (decision stored as its string value)."""
+    metadata = {
+        "conditions": approval.conditions,
+        "valid_until": approval.valid_until.isoformat() if approval.valid_until else None,
+    }
+    metadata = {k: v for k, v in metadata.items() if v is not None}
+
+    existing_approval = db.query(ChangeApprovalDB).filter(
+        ChangeApprovalDB.id == approval.id
+    ).first()
+    if existing_approval:
+        existing_approval.approver = approval.approver
+        existing_approval.status = _enum_value(approval.decision)
+        existing_approval.comments = approval.comments
+        existing_approval.approved_at = approval.approved_at
+        existing_approval.approval_metadata = metadata
+    else:
+        db.add(
+            ChangeApprovalDB(
+                id=approval.id,
+                request_id=approval.change_request_id,
+                approver=approval.approver,
+                status=_enum_value(approval.decision),
+                comments=approval.comments,
+                approved_at=approval.approved_at,
+                approval_metadata=metadata,
+            )
+        )
+    db.commit()
 
 
-def _get_rollback_plans(db: Optional[Session] = None) -> Dict[str, RollbackPlanResponse]:
-    """Get rollback plans from database with fallback to memory."""
-    try:
-        if db:
-            db_plans = db.query(ChangeRollbackPlanDB).all()
-            return {
-                plan.id: RollbackPlanResponse(
-                    id=plan.id,
-                    request_id=plan.request_id,
-                    rollback_steps=plan.rollback_steps,
-                    data_consistency_checks=plan.data_consistency_checks,
-                    rollback_triggers=plan.rollback_triggers,
-                    validation_after_rollback=plan.validation_after_rollback,
-                    estimated_rollback_time=plan.estimated_rollback_time,
-                    status=plan.status,
-                )
-                for plan in db_plans
-            }
-        # Fallback to memory storage
-        return _rollback_plans
-    except Exception as e:
-        logger.error(f"Failed to get rollback plans from database, using fallback: {e}", exc_info=True)
-        # Fallback to memory storage
-        return _rollback_plans
+def _schedule_from_row(schedule: ChangeScheduleDB) -> ScheduleResponse:
+    meta = schedule.schedule_metadata or {}
+    return ScheduleResponse(
+        id=schedule.id,
+        change_request_id=schedule.request_id,
+        scheduled_start=schedule.scheduled_start,
+        scheduled_end=schedule.scheduled_end,
+        maintenance_window=schedule.maintenance_window or "",
+        timezone=schedule.timezone or "UTC",
+        status=schedule.status,
+        assigned_team=meta.get("assigned_team", []),
+        prerequisites=meta.get("prerequisites", []),
+        dependencies=meta.get("dependencies", []),
+        actual_start=meta.get("actual_start"),
+        actual_end=meta.get("actual_end"),
+    )
 
 
-def _set_rollback_plan(plan: RollbackPlanResponse, db: Optional[Session] = None) -> None:
-    """Set rollback plan in database with fallback to memory."""
-    try:
-        if db:
-            existing_plan = db.query(ChangeRollbackPlanDB).filter(
-                ChangeRollbackPlanDB.id == plan.id
-            ).first()
-            if existing_plan:
-                existing_plan.request_id = plan.request_id
-                existing_plan.rollback_steps = plan.rollback_steps
-                existing_plan.data_consistency_checks = plan.data_consistency_checks
-                existing_plan.rollback_triggers = plan.rollback_triggers
-                existing_plan.validation_after_rollback = plan.validation_after_rollback
-                existing_plan.estimated_rollback_time = plan.estimated_rollback_time
-                existing_plan.status = plan.status
-                existing_plan.rollback_metadata = None
-            else:
-                db_plan = ChangeRollbackPlanDB(
-                    id=plan.id,
-                    request_id=plan.request_id,
-                    rollback_steps=plan.rollback_steps,
-                    data_consistency_checks=plan.data_consistency_checks,
-                    rollback_triggers=plan.rollback_triggers,
-                    validation_after_rollback=plan.validation_after_rollback,
-                    estimated_rollback_time=plan.estimated_rollback_time,
-                    status=plan.status,
-                    rollback_metadata=None,
-                )
-                db.add(db_plan)
-            db.commit()
-        else:
-            # Fallback to memory storage
-            _rollback_plans[plan.id] = plan
-    except Exception as e:
-        db.rollback() if db else None
-        logger.error(f"Failed to set rollback plan in database, using fallback: {e}", exc_info=True)
-        # Fallback to memory storage
-        _rollback_plans[plan.id] = plan
+def _get_schedules(db: Session) -> Dict[str, ScheduleResponse]:
+    """Get schedules from the database."""
+    return {
+        schedule.id: _schedule_from_row(schedule)
+        for schedule in db.query(ChangeScheduleDB).all()
+    }
+
+
+def _set_schedule(schedule: ScheduleResponse, db: Session) -> None:
+    """Persist a schedule (extra fields kept in ``schedule_metadata``)."""
+    metadata = {
+        "assigned_team": schedule.assigned_team,
+        "prerequisites": schedule.prerequisites,
+        "dependencies": schedule.dependencies,
+        "actual_start": schedule.actual_start.isoformat() if schedule.actual_start else None,
+        "actual_end": schedule.actual_end.isoformat() if schedule.actual_end else None,
+    }
+    metadata = {k: v for k, v in metadata.items() if v is not None}
+
+    existing_schedule = db.query(ChangeScheduleDB).filter(
+        ChangeScheduleDB.id == schedule.id
+    ).first()
+    if existing_schedule:
+        existing_schedule.request_id = schedule.change_request_id
+        existing_schedule.scheduled_start = schedule.scheduled_start
+        existing_schedule.scheduled_end = schedule.scheduled_end
+        existing_schedule.maintenance_window = schedule.maintenance_window
+        existing_schedule.timezone = schedule.timezone
+        existing_schedule.status = _enum_value(schedule.status)
+        existing_schedule.schedule_metadata = metadata
+    else:
+        db.add(
+            ChangeScheduleDB(
+                id=schedule.id,
+                request_id=schedule.change_request_id,
+                scheduled_start=schedule.scheduled_start,
+                scheduled_end=schedule.scheduled_end,
+                maintenance_window=schedule.maintenance_window,
+                timezone=schedule.timezone,
+                status=_enum_value(schedule.status),
+                schedule_metadata=metadata,
+            )
+        )
+    db.commit()
+
+
+def _get_rollback_plans(db: Session) -> Dict[str, RollbackPlanResponse]:
+    """Get rollback plans from the database."""
+    db_plans = db.query(ChangeRollbackPlanDB).all()
+    return {plan.id: _rollback_plan_from_row(plan) for plan in db_plans}
+
+
+def _rollback_plan_from_row(plan: ChangeRollbackPlanDB) -> RollbackPlanResponse:
+    meta = plan.rollback_metadata or {}
+    return RollbackPlanResponse(
+        id=plan.id,
+        change_request_id=plan.request_id,
+        rollback_steps=plan.rollback_steps or [],
+        data_consistency_checks=plan.data_consistency_checks or [],
+        rollback_triggers=plan.rollback_triggers or [],
+        validation_after_rollback=plan.validation_after_rollback or [],
+        estimated_rollback_time=plan.estimated_rollback_time,
+        complexity=meta.get("complexity", "medium"),
+        success_probability=float(meta.get("success_probability", 0.5)),
+        created_at=meta.get("created_at") or datetime.utcnow(),
+        created_by=meta.get("created_by", "system"),
+    )
+
+
+def _set_rollback_plan(plan: RollbackPlanResponse, db: Session) -> None:
+    """Persist a rollback plan (extra fields kept in ``rollback_metadata``)."""
+    metadata = {
+        "complexity": plan.complexity,
+        "success_probability": plan.success_probability,
+        "created_at": plan.created_at.isoformat() if plan.created_at else None,
+        "created_by": plan.created_by,
+    }
+    metadata = {k: v for k, v in metadata.items() if v is not None}
+
+    existing_plan = db.query(ChangeRollbackPlanDB).filter(
+        ChangeRollbackPlanDB.id == plan.id
+    ).first()
+    if existing_plan:
+        existing_plan.request_id = plan.change_request_id
+        existing_plan.rollback_steps = plan.rollback_steps
+        existing_plan.data_consistency_checks = plan.data_consistency_checks
+        existing_plan.rollback_triggers = plan.rollback_triggers
+        existing_plan.validation_after_rollback = plan.validation_after_rollback
+        existing_plan.estimated_rollback_time = plan.estimated_rollback_time
+        existing_plan.rollback_metadata = metadata
+    else:
+        db.add(
+            ChangeRollbackPlanDB(
+                id=plan.id,
+                request_id=plan.change_request_id,
+                rollback_steps=plan.rollback_steps,
+                data_consistency_checks=plan.data_consistency_checks,
+                rollback_triggers=plan.rollback_triggers,
+                validation_after_rollback=plan.validation_after_rollback,
+                estimated_rollback_time=plan.estimated_rollback_time,
+                status="ready",
+                rollback_metadata=metadata,
+            )
+        )
+    db.commit()
 
 
 def _generate_approval_id() -> str:
@@ -748,6 +738,7 @@ async def delete_change_request(
 async def list_approvals(
     change_request_id: Optional[str] = Query(None, description="Filter by change request ID"),
     decision: Optional[ApprovalStatus] = Query(None, description="Filter by decision"),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -756,7 +747,7 @@ async def list_approvals(
     Returns approval records showing who approved what and when.
     """
     try:
-        approvals = list(_approvals.values())
+        approvals = list(_get_approvals(db_core).values())
 
         if change_request_id:
             approvals = [a for a in approvals if a.change_request_id == change_request_id]
@@ -844,6 +835,7 @@ async def create_approval(
 async def list_schedules(
     change_request_id: Optional[str] = Query(None, description="Filter by change request ID"),
     status: Optional[ScheduleStatus] = Query(None, description="Filter by status"),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -853,7 +845,7 @@ async def list_schedules(
     maintenance windows and assigned teams.
     """
     try:
-        schedules = list(_schedules.values())
+        schedules = list(_get_schedules(db_core).values())
 
         if change_request_id:
             schedules = [s for s in schedules if s.change_request_id == change_request_id]
@@ -1108,6 +1100,7 @@ async def perform_impact_analysis(
 @router.get("/rollback-plans", response_model=List[RollbackPlanResponse])
 async def list_rollback_plans(
     change_request_id: Optional[str] = Query(None, description="Filter by change request ID"),
+    db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -1117,7 +1110,7 @@ async def list_rollback_plans(
     triggers, and validation procedures.
     """
     try:
-        plans = list(_rollback_plans.values())
+        plans = list(_get_rollback_plans(db_core).values())
 
         if change_request_id:
             plans = [p for p in plans if p.change_request_id == change_request_id]

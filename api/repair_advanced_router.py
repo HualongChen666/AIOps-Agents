@@ -21,6 +21,7 @@ All endpoints integrate with core business logic from:
 """
 
 import logging
+import socket
 import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -34,31 +35,32 @@ from core.auto_heal import (
     RiskAssessmentEngine,
 )
 from core.hitl.approval import ApprovalStatus, ApprovalWorkflow
+from core.persistent_store import PersistentStore
 from core.repair_engine import get_repair_history
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/repair", tags=["高级修复管理"])
 
 # ============================================================
-# In-memory data stores (in production, use database)
+# Durable data stores (backed by the ``persistent_records`` table)
 # ============================================================
-_repair_configurations: Dict[str, Dict[str, Any]] = {}
-_hitl_approvals: Dict[str, Dict[str, Any]] = {}
-_repair_effectiveness: Dict[str, Dict[str, Any]] = {}
-_repair_verifications: Dict[str, Dict[str, Any]] = {}
-_hardware_repairs: Dict[str, Dict[str, Any]] = {}
-_cloud_repairs: Dict[str, Dict[str, Any]] = {}
-_cluster_repairs: Dict[str, Dict[str, Any]] = {}
-_pod_repairs: Dict[str, Dict[str, Any]] = {}
-_k8s_repairs: Dict[str, Dict[str, Any]] = {}
-_docker_repairs: Dict[str, Dict[str, Any]] = {}
-_macos_repairs: Dict[str, Dict[str, Any]] = {}
-_windows_repairs: Dict[str, Dict[str, Any]] = {}
-_linux_repairs: Dict[str, Dict[str, Any]] = {}
-_cross_platform_repairs: Dict[str, Dict[str, Any]] = {}
-_unified_repairs: Dict[str, Dict[str, Any]] = {}
-_repair_scripts_store: Dict[str, Dict[str, Any]] = {}
-_intelligent_repairs: Dict[str, Dict[str, Any]] = {}
+_repair_configurations: PersistentStore = PersistentStore("repair", "configurations")
+_hitl_approvals: PersistentStore = PersistentStore("repair", "hitl_approvals")
+_repair_effectiveness: PersistentStore = PersistentStore("repair", "effectiveness")
+_repair_verifications: PersistentStore = PersistentStore("repair", "verifications")
+_hardware_repairs: PersistentStore = PersistentStore("repair", "hardware_repairs")
+_cloud_repairs: PersistentStore = PersistentStore("repair", "cloud_repairs")
+_cluster_repairs: PersistentStore = PersistentStore("repair", "cluster_repairs")
+_pod_repairs: PersistentStore = PersistentStore("repair", "pod_repairs")
+_k8s_repairs: PersistentStore = PersistentStore("repair", "k8s_repairs")
+_docker_repairs: PersistentStore = PersistentStore("repair", "docker_repairs")
+_macos_repairs: PersistentStore = PersistentStore("repair", "macos_repairs")
+_windows_repairs: PersistentStore = PersistentStore("repair", "windows_repairs")
+_linux_repairs: PersistentStore = PersistentStore("repair", "linux_repairs")
+_cross_platform_repairs: PersistentStore = PersistentStore("repair", "cross_platform_repairs")
+_unified_repairs: PersistentStore = PersistentStore("repair", "unified_repairs")
+_repair_scripts_store: PersistentStore = PersistentStore("repair", "scripts")
+_intelligent_repairs: PersistentStore = PersistentStore("repair", "intelligent_repairs")
 
 # Initialize approval workflow
 _approval_workflow = ApprovalWorkflow()
@@ -204,6 +206,125 @@ def _generate_id() -> str:
 def _get_current_timestamp() -> str:
     """Get current ISO timestamp"""
     return datetime.utcnow().isoformat()
+
+
+#: Maps an ``issue_type`` keyword to a script key in the cross-platform
+#: :class:`RepairScriptLibrary`.
+_ISSUE_LIBRARY_SCRIPTS = {
+    "cpu": "cpu_high_script",
+    "memory": "memory_high_script",
+    "mem": "memory_high_script",
+    "disk": "disk_high_script",
+    "service": "service_restart_script",
+}
+
+
+def _resolve_issue_library_script(issue_type: str) -> str:
+    issue = str(issue_type or "").lower()
+    for keyword, key in _ISSUE_LIBRARY_SCRIPTS.items():
+        if keyword in issue:
+            return key
+    return "service_restart_script"
+
+
+def _probe_tcp(host: str, port: int, timeout: float = 1.0) -> bool:
+    """Return True when a TCP connection to ``host:port`` succeeds."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _evaluate_verification_checks(verification: Dict[str, Any]) -> list:
+    """Run the real verification checks for a repair.
+
+    Each check is evaluated against live data (the repair engine's execution
+    history and — when the target is a ``host:port`` — an actual TCP probe),
+    never against a hard coded verdict.
+    """
+    repair_id = str(verification.get("repair_id", ""))
+    target = str(verification.get("target_resource", ""))
+
+    history = get_repair_history(limit=50)
+    matched = next((r for r in history if str(r.get("id")) == repair_id), None)
+
+    checks = []
+
+    repair_recorded = matched is not None
+    checks.append(
+        {
+            "name": "repair_recorded",
+            "passed": repair_recorded,
+            "applicable": True,
+            "detail": (
+                f"repair {repair_id} found in execution history"
+                if repair_recorded
+                else f"repair {repair_id} not present in execution history"
+            ),
+        }
+    )
+
+    succeeded = bool(matched and matched.get("success"))
+    checks.append(
+        {
+            "name": "repair_succeeded",
+            "passed": succeeded,
+            "applicable": True,
+            "detail": (
+                "repair reported success"
+                if succeeded
+                else "repair did not report success"
+            ),
+        }
+    )
+
+    has_output = bool(matched and str(matched.get("output") or "").strip())
+    checks.append(
+        {
+            "name": "output_captured",
+            "passed": has_output,
+            "applicable": True,
+            "detail": "repair produced output" if has_output else "no repair output captured",
+        }
+    )
+
+    target_valid = bool(target)
+    checks.append(
+        {
+            "name": "target_identified",
+            "passed": target_valid,
+            "applicable": True,
+            "detail": f"target={target}" if target_valid else "no target resource identified",
+        }
+    )
+
+    # Reachability probe when the target looks like host[:port]; otherwise the
+    # check is not applicable (a bare resource name cannot be probed).
+    host, _, port_str = target.partition(":")
+    if host and port_str.isdigit():
+        reachable = _probe_tcp(host, int(port_str))
+        checks.append(
+            {
+                "name": "resource_reachable",
+                "passed": reachable,
+                "applicable": True,
+                "detail": (
+                    f"{host}:{port_str} reachable" if reachable else f"{host}:{port_str} unreachable"
+                ),
+            }
+        )
+    else:
+        checks.append(
+            {
+                "name": "resource_reachable",
+                "passed": True,
+                "applicable": False,
+                "detail": f"target '{target}' is not an addressable host:port (skipped)",
+            }
+        )
+
+    return checks
 
 
 # ============================================================
@@ -395,6 +516,7 @@ async def approve_hitl_request(
         approval["approver"] = operator_ip
         approval["approved_at"] = _get_current_timestamp()
         approval["comment"] = action.comment
+        _hitl_approvals[approval_id] = approval
 
         logger.info(f"HITL request approved: {approval_id}")
         return approval
@@ -427,6 +549,7 @@ async def reject_hitl_request(
         approval["approver"] = operator_ip
         approval["approved_at"] = _get_current_timestamp()
         approval["rejection_reason"] = action.reason or action.comment
+        _hitl_approvals[approval_id] = approval
 
         logger.info(f"HITL request rejected: {approval_id}")
         return approval
@@ -610,18 +733,30 @@ async def execute_verification(verification_id: str) -> Dict[str, Any]:
         if verification["status"] != "pending":
             raise HTTPException(status_code=400, detail="Verification is not in pending state")
 
-        # Simulate verification execution
         verification["status"] = "running"
+        _repair_verifications[verification_id] = verification
 
-        # In production, this would run actual verification checks
-        # For now, simulate a successful verification
-        verification["status"] = "passed"
+        started = datetime.utcnow()
+        checks = _evaluate_verification_checks(verification)
+        applicable = [c for c in checks if c.get("applicable", True)]
+        passed = [c for c in applicable if c["passed"]]
+
+        verification["checks"] = checks
+        verification["checks_total"] = len(applicable)
+        verification["checks_passed"] = len(passed)
+        verification["status"] = "passed" if len(passed) == len(applicable) else "failed"
         verification["end_time"] = _get_current_timestamp()
-        verification["duration"] = 30.0  # 30 seconds
-        verification["checks_passed"] = verification["checks_total"]
-        verification["details"] = "All verification checks passed successfully"
+        verification["duration"] = round((datetime.utcnow() - started).total_seconds(), 3)
+        verification["details"] = "; ".join(f"{c['name']}: {c['detail']}" for c in checks)
+        _repair_verifications[verification_id] = verification
 
-        logger.info(f"Verification executed: {verification_id}")
+        logger.info(
+            "Verification executed: %s (%s, %d/%d checks)",
+            verification_id,
+            verification["status"],
+            len(passed),
+            len(checks),
+        )
         return verification
     except HTTPException:
         raise
@@ -648,6 +783,9 @@ async def rerun_verification(verification_id: str) -> Dict[str, Any]:
         verification["end_time"] = None
         verification["duration"] = None
         verification["checks_passed"] = 0
+        verification["checks"] = []
+        verification["details"] = ""
+        _repair_verifications[verification_id] = verification
 
         logger.info(f"Verification reset for rerun: {verification_id}")
         return verification
@@ -661,6 +799,118 @@ async def rerun_verification(verification_id: str) -> Dict[str, Any]:
 # ============================================================
 # 5-14. Platform-Specific Repairs
 # ============================================================
+
+
+#: Maps an ``issue_type`` keyword to the concrete repair script key exposed by
+#: each platform's real backend.
+_ISSUE_SCRIPT_KEYS = {
+    "linux": {
+        "cpu": "kill_high_cpu",
+        "memory": "free_cache",
+        "disk": "clear_temp",
+        "dns": "flush_dns",
+        "service": "restart_service",
+        "log": "clear_logs",
+    },
+    "windows": {
+        "cpu": "kill_high_cpu",
+        "memory": "free_memory",
+        "disk": "clear_temp",
+        "dns": "flush_dns",
+        "service": "restart_service",
+        "log": "clear_event_log",
+    },
+    "k8s": {
+        "pod": "delete_pod",
+        "restart": "restart_deployment",
+        "scale": "scale_deployment",
+        "cpu": "restart_deployment",
+        "memory": "restart_deployment",
+    },
+    "docker": {
+        "restart": "restart_container",
+        "inspect": "inspect_container",
+        "cpu": "container_stats",
+        "disk": "prune_images",
+    },
+}
+
+#: Platforms served by the Kubernetes backend.
+_K8S_PLATFORMS = {"k8s", "cluster", "pod"}
+
+
+def _resolve_platform_script_key(platform_name: str, repair: Dict[str, Any]) -> str:
+    """Pick a real script key for the platform from the repair's issue type."""
+    issue = str(repair.get("issue_type", "")).lower()
+    action = str(repair.get("repair_action", "")).lower()
+    table = _ISSUE_SCRIPT_KEYS.get("k8s" if platform_name in _K8S_PLATFORMS else platform_name, {})
+    for keyword, key in table.items():
+        if keyword in issue or keyword in action:
+            return key
+    # Fall back to the platform's first known key (deterministic order).
+    return next(iter(table.values()), "restart_service")
+
+
+async def _dispatch_platform_repair(platform_name: str, repair: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute the *real* repair backend for ``platform_name``.
+
+    Returns a normalised ``{"success": bool, "output"|"error": str}`` mapping.
+    When no backend is wired for the platform — or the backend is unavailable
+    in this deployment — an honest failure is returned instead of a fabricated
+    success.
+    """
+    target = str(repair.get("target_resource", ""))
+    action = str(repair.get("repair_action", ""))
+    script_key = _resolve_platform_script_key(platform_name, repair)
+
+    try:
+        if platform_name == "linux":
+            from core.linux_repair import execute_linux_repair
+
+            outcome = await execute_linux_repair(
+                host_name=target, script_key=script_key, params={"service": action}
+            )
+        elif platform_name == "windows":
+            from core.repair_engine import execute_repair
+
+            outcome = await execute_repair(script_key, {"service": action})
+        elif platform_name in _K8S_PLATFORMS:
+            from core.k8s_repair import execute_repair as execute_k8s_repair
+
+            outcome = await execute_k8s_repair(
+                {"host": target}, script_key, {"namespace": "default", "pod": target}
+            )
+        elif platform_name == "docker":
+            from core.docker_repair import execute_repair_sync
+
+            outcome = await execute_repair_sync(
+                host_name=target, script_key=script_key, params={"force": "false"}
+            )
+        elif platform_name == "macos":
+            from core.macos_repair import execute_macos_repair
+
+            outcome = await execute_macos_repair(host=target, script_name=script_key, args={})
+        elif platform_name == "cloud":
+            from core.cloud_repair import execute_cloud_repair
+
+            provider = str(repair.get("provider") or "aws").lower()
+            outcome = await execute_cloud_repair({"provider": provider}, action or script_key)
+        else:
+            return {
+                "success": False,
+                "error": f"No repair backend is wired for platform '{platform_name}'",
+            }
+    except Exception as exc:  # noqa: BLE001 - surfaced in the repair record
+        logger.error("Platform repair backend error (%s): %s", platform_name, exc)
+        return {"success": False, "error": f"{platform_name} repair backend error: {exc}"}
+
+    if not isinstance(outcome, dict):
+        return {"success": False, "error": f"Unexpected result from {platform_name} backend"}
+    if outcome.get("success") is None and "error" not in outcome:
+        # Some backends return a bare payload; treat non-error as success only
+        # when an explicit success flag is present.
+        return {"success": False, "error": f"{platform_name} backend returned no status"}
+    return outcome
 
 
 def _create_platform_repair_endpoint(store: Dict[str, Dict[str, Any]], platform_name: str):
@@ -722,13 +972,19 @@ def _create_platform_repair_endpoint(store: Dict[str, Dict[str, Any]], platform_
 
             repair = store[repair_id]
             repair["status"] = "repairing"
+            store[repair_id] = repair
 
-            # In production, this would call actual repair logic
-            # For now, simulate successful repair
-            repair["status"] = "completed"
-            repair["result"] = f"{platform_name} repair completed successfully"
+            outcome = await _dispatch_platform_repair(platform_name, repair)
 
-            logger.info(f"{platform_name} repair executed: {repair_id}")
+            repair["status"] = "completed" if outcome.get("success") else "failed"
+            repair["result"] = outcome.get("output") if outcome.get("success") else None
+            repair["error"] = None if outcome.get("success") else outcome.get("error")
+            repair["completed_at"] = _get_current_timestamp()
+            store[repair_id] = repair
+
+            logger.info(
+                f"{platform_name} repair executed: {repair_id} success={outcome.get('success')}"
+            )
             return repair
         except HTTPException:
             raise
@@ -1022,6 +1278,7 @@ async def update_script(script_id: str, script_update: RepairScriptUpdate) -> Di
             script[key] = value
 
         script["updated_at"] = _get_current_timestamp()
+        _repair_scripts_store[script_id] = script
 
         logger.info(f"Script updated: {script_id}")
         return script
@@ -1091,27 +1348,47 @@ async def create_intelligent_repair(
             request.client.host if request.client else "unknown"
         )  # noqa: F841 - Reserved for audit logging
 
-        # Use risk assessment engine
-        script = _script_library.get_script("cpu_high_script")  # Example script
-        context = {
-            "environment": "production",
-            "severity": repair.severity,
-        }
+        # Analyse with the real script library + risk assessment engine.
+        script_key = _resolve_issue_library_script(repair.issue_type)
+        script = _script_library.get_script(script_key)
+        if script is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No repair script is available for issue '{repair.issue_type}'",
+            )
 
-        risk_assessment = _risk_engine.assess_repair_risk(script, context) if script else None
+        context = {"environment": "production", "severity": repair.severity}
+        risk_assessment = _risk_engine.assess_repair_risk(script, context)
 
+        confidence = round(float(getattr(risk_assessment, "confidence_score", 0.0)), 3)
+        mitigations = getattr(risk_assessment, "mitigation_strategies", []) or []
         new_repair = {
             "id": repair_id,
             "issue_type": repair.issue_type,
             "severity": repair.severity,
             "detected_at": _get_current_timestamp(),
-            "ai_recommendation": f"AI suggests: {repair.issue_type} repair strategy",
-            "confidence": 0.85 if risk_assessment else 0.5,
+            "script_key": script_key,
+            "ai_recommendation": (
+                f"Apply '{script.name}' ({script_key}) for {repair.issue_type}; "
+                f"risk={risk_assessment.risk_level.value}, "
+                f"mitigations={'; '.join(mitigations) if mitigations else 'none required'}"
+            ),
+            "confidence": confidence,
             "auto_applied": repair.auto_apply,
-            "status": "ready" if not repair.auto_apply else "applied",
+            "status": "ready",
             "result": None,
-            "risk_assessment": risk_assessment.__dict__ if risk_assessment else None,
+            "risk_assessment": (
+                risk_assessment.__dict__ if hasattr(risk_assessment, "__dict__") else None
+            ),
         }
+
+        # ``auto_apply`` performs the repair immediately through the real
+        # platform backend; the outcome is recorded honestly.
+        if repair.auto_apply:
+            outcome = await _dispatch_platform_repair("linux", new_repair)
+            new_repair["status"] = "applied" if outcome.get("success") else "failed"
+            new_repair["result"] = outcome.get("output") if outcome.get("success") else None
+            new_repair["error"] = None if outcome.get("success") else outcome.get("error")
 
         _intelligent_repairs[repair_id] = new_repair
         logger.info(f"Intelligent repair created: {repair_id}")
@@ -1135,11 +1412,30 @@ async def analyze_intelligent_repair(repair_id: str) -> Dict[str, Any]:
 
         repair = _intelligent_repairs[repair_id]
         repair["status"] = "analyzing"
+        _intelligent_repairs[repair_id] = repair
 
-        # Simulate AI analysis
+        # Re-run the real risk assessment against the current script library.
+        script_key = _resolve_issue_library_script(repair.get("issue_type", ""))
+        script = _script_library.get_script(script_key)
+        if script is None:
+            repair["status"] = "failed"
+            repair["error"] = f"No repair script for issue '{repair.get('issue_type')}'"
+            _intelligent_repairs[repair_id] = repair
+            return repair
+
+        risk_assessment = _risk_engine.assess_repair_risk(
+            script, {"environment": "production", "severity": repair.get("severity", "medium")}
+        )
+        mitigations = getattr(risk_assessment, "mitigation_strategies", []) or []
         repair["status"] = "ready"
-        repair["ai_recommendation"] = f"Updated AI recommendation for {repair['issue_type']}"
-        repair["confidence"] = min(1.0, repair["confidence"] + 0.1)
+        repair["script_key"] = script_key
+        repair["ai_recommendation"] = (
+            f"Apply '{script.name}' ({script_key}); risk={risk_assessment.risk_level.value}, "
+            f"mitigations={'; '.join(mitigations) if mitigations else 'none required'}"
+        )
+        repair["confidence"] = round(float(getattr(risk_assessment, "confidence_score", 0.0)), 3)
+        repair["error"] = None
+        _intelligent_repairs[repair_id] = repair
 
         logger.info(f"Intelligent repair analyzed: {repair_id}")
         return repair
@@ -1163,10 +1459,16 @@ async def apply_intelligent_repair(repair_id: str) -> Dict[str, Any]:
             raise HTTPException(status_code=404, detail="Intelligent repair not found")
 
         repair = _intelligent_repairs[repair_id]
-        repair["status"] = "applied"
-        repair["result"] = "Intelligent repair applied successfully"
+        outcome = await _dispatch_platform_repair("linux", repair)
 
-        logger.info(f"Intelligent repair applied: {repair_id}")
+        repair["status"] = "applied" if outcome.get("success") else "failed"
+        repair["result"] = outcome.get("output") if outcome.get("success") else None
+        repair["error"] = None if outcome.get("success") else outcome.get("error")
+        _intelligent_repairs[repair_id] = repair
+
+        logger.info(
+            "Intelligent repair applied: %s success=%s", repair_id, outcome.get("success")
+        )
         return repair
     except HTTPException:
         raise

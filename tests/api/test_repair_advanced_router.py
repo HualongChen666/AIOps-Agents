@@ -381,10 +381,45 @@ class TestRepairVerification:
             assert data["status"] == "pending"
 
     def test_execute_verification_success(self, client):
-        """测试执行验证 - 成功"""
-        # 先创建验证记录
+        """测试执行验证 - 成功（存在真实修复执行记录时通过）"""
+        from core.repair_engine import repair_history
+
+        record = {
+            "id": "repair-123",
+            "script_key": "restart_service",
+            "script_name": "Restart Service",
+            "success": True,
+            "output": "service restarted",
+            "error": "",
+            "return_code": 0,
+            "time": "2026-09-10 00:00:00",
+            "params": {},
+        }
+        repair_history.appendleft(record)
+        try:
+            create_payload = {
+                "repair_id": "repair-123",
+                "repair_type": "auto_heal",
+                "target_resource": "server-01",
+            }
+            create_response = client.post("/api/v1/repair/verification", json=create_payload)
+            verification_id = create_response.json()["id"]
+
+            response = client.post(f"/api/v1/repair/verification/{verification_id}/verify")
+            assert response.status_code != 404, response.text
+            data = response.json()
+            assert data["status"] == "passed"
+            assert data["checks_passed"] == data["checks_total"]
+        finally:
+            try:
+                repair_history.remove(record)
+            except ValueError:
+                pass
+
+    def test_execute_verification_fails_without_repair_record(self, client):
+        """测试执行验证 - 无对应修复记录时如实判定为失败"""
         create_payload = {
-            "repair_id": "repair-123",
+            "repair_id": "repair-does-not-exist",
             "repair_type": "auto_heal",
             "target_resource": "server-01",
         }
@@ -392,10 +427,10 @@ class TestRepairVerification:
         verification_id = create_response.json()["id"]
 
         response = client.post(f"/api/v1/repair/verification/{verification_id}/verify")
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert data["status"] == "passed"
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "failed"
+        assert data["checks_passed"] < data["checks_total"]
 
     def test_execute_verification_not_found(self, client):
         """测试执行验证 - 记录不存在"""

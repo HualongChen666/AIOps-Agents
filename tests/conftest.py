@@ -35,6 +35,27 @@ def event_loop():
     loop.close()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_database_schema():
+    """Ensure the test database schema exists before DB-backed tests run.
+
+    Several API test suites (change/repair/database advanced routers, …) talk
+    to the real SQLAlchemy metadata; without this the first ``DELETE FROM`` in
+    their setup fixtures fails with ``no such table``.  Creating the schema is
+    idempotent and mirrors what ``alembic upgrade head`` does in production.
+    """
+    try:
+        from core.database import Base, engine
+        import core.models  # noqa: F401  (register all mapped tables)
+
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+    except Exception as exc:  # pragma: no cover - schema problems surface in tests
+        import logging
+
+        logging.getLogger(__name__).warning("Could not pre-create test schema: %s", exc)
+    yield
+
+
 # 配置pytest标记
 def pytest_configure(config):
     """配置pytest自定义标记"""
