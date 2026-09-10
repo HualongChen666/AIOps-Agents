@@ -90,20 +90,42 @@ def get_current_user(
     return user
 
 
-def require_role(required_role: str):
+def require_role(required_role):
     """
-    Dependency factory to require specific role
+    Dependency factory to require specific role(s).
 
     Args:
-        required_role: Required role (admin, user, operator)
+        required_role: A single role (``"admin"``) or an iterable of allowed
+            roles (``["admin", "incident_manager"]``).  ``"admin"`` is always
+            implicitly allowed.
 
     Returns:
         Dependency function
     """
+    if isinstance(required_role, str):
+        required = [required_role]
+    else:
+        required = list(required_role)
+    allowed = set(required) | {"admin"}
+
+    def _user_roles(current_user: User) -> set:
+        """Collect the role names carried by *current_user*.
+
+        Handles both the singular ``role`` attribute and the plural ``roles``
+        collection so routers may model either.
+        """
+        roles = set()
+        single = getattr(current_user, "role", None)
+        if isinstance(single, str):
+            roles.add(single)
+        plural = getattr(current_user, "roles", None)
+        if isinstance(plural, (list, tuple, set, frozenset)):
+            roles.update(r for r in plural if isinstance(r, str))
+        return roles
 
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        """Check if user has required role"""
-        if current_user.role != required_role and current_user.role != "admin":
+        """Check if user has one of the required roles"""
+        if not (_user_roles(current_user) & allowed):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Insufficient permissions. Required role: {required_role}",

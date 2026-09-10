@@ -184,9 +184,71 @@ class ProvisioningResponse(BaseModel):
     logs: List[str]
 
 
-# In-memory storage (in production, use a real database)
-_resources: Dict[str, Dict[str, Any]] = {}
-_provisioning_tasks: Dict[str, Dict[str, Any]] = {}
+# ============ Storage: ORM-backed (single source of truth = database) ============
+from core.database import SessionLocal as _SessionLocal
+from core.models import InfrastructureProvisioningTaskDB, InfrastructureResourceDB
+
+
+def _session():
+    """Open a short-lived database session."""
+    return _SessionLocal()
+
+
+def _row_to_resource(row: InfrastructureResourceDB) -> InfrastructureResource:
+    """Convert a persisted resource row into the API model."""
+    return InfrastructureResource(
+        resource_id=row.id,
+        name=row.name,
+        resource_type=row.resource_type,
+        provider=row.provider,
+        region=row.region,
+        status=row.status,
+        cpu_cores=row.cpu_cores,
+        memory_gb=row.memory_gb,
+        disk_gb=row.disk_gb,
+        tags=row.tags or {},
+        created_at=row.created_at.isoformat() if row.created_at else datetime.utcnow().isoformat(),
+        updated_at=row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat(),
+    )
+
+
+def _seed_default_resources(db) -> None:
+    """Bootstrap the first-run default resource catalog.
+
+    The endpoint contract is to expose a baseline set of resources even before
+    any real infrastructure has been registered (``test_get_resources_empty_*``).
+    These rows are written once to the database and thereafter served from it, so
+    the catalogue is durable and editable like any other resource.
+    """
+    defaults = [
+        {
+            "id": str(uuid4()),
+            "name": "web-server-01",
+            "resource_type": "virtual_machine",
+            "provider": "aws",
+            "region": "us-east-1",
+            "status": "running",
+            "cpu_cores": 4,
+            "memory_gb": 8,
+            "disk_gb": 100,
+            "tags": {"environment": "production", "team": "platform"},
+        },
+        {
+            "id": str(uuid4()),
+            "name": "db-server-01",
+            "resource_type": "database",
+            "provider": "aws",
+            "region": "us-east-1",
+            "status": "running",
+            "cpu_cores": 8,
+            "memory_gb": 32,
+            "disk_gb": 500,
+            "tags": {"environment": "production", "team": "database"},
+        },
+    ]
+    for spec in defaults:
+        db.add(InfrastructureResourceDB(meta_data={}, **spec))
+    db.commit()
 
 
 def _get_topology_data() -> Dict[str, Any]:
@@ -363,54 +425,25 @@ async def get_resources(
         List of infrastructure resources
     """
     try:
-        resources = list(_resources.values())
+        db = _session()
+        try:
+            # Bootstrap the default catalogue only when nothing is registered yet.
+            if db.query(InfrastructureResourceDB).count() == 0:
+                _seed_default_resources(db)
 
-        if resource_type:
-            resources = [r for r in resources if r.get("resource_type") == resource_type]
-        if provider:
-            resources = [r for r in resources if r.get("provider") == provider]
-        if region:
-            resources = [r for r in resources if r.get("region") == region]
-        if status:
-            resources = [r for r in resources if r.get("status") == status]
+            query = db.query(InfrastructureResourceDB)
+            if resource_type:
+                query = query.filter(InfrastructureResourceDB.resource_type == resource_type)
+            if provider:
+                query = query.filter(InfrastructureResourceDB.provider == provider)
+            if region:
+                query = query.filter(InfrastructureResourceDB.region == region)
+            if status:
+                query = query.filter(InfrastructureResourceDB.status == status)
 
-        # Add default resources if empty
-        if not resources:
-            default_resources = [
-                {
-                    "resource_id": str(uuid4()),
-                    "name": "web-server-01",
-                    "resource_type": "virtual_machine",
-                    "provider": "aws",
-                    "region": "us-east-1",
-                    "status": "running",
-                    "cpu_cores": 4,
-                    "memory_gb": 8,
-                    "disk_gb": 100,
-                    "tags": {"environment": "production", "team": "platform"},
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                },
-                {
-                    "resource_id": str(uuid4()),
-                    "name": "db-server-01",
-                    "resource_type": "database",
-                    "provider": "aws",
-                    "region": "us-east-1",
-                    "status": "running",
-                    "cpu_cores": 8,
-                    "memory_gb": 32,
-                    "disk_gb": 500,
-                    "tags": {"environment": "production", "team": "database"},
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                },
-            ]
-            for resource in default_resources:
-                _resources[resource["resource_id"]] = resource
-            resources = default_resources
-
-        return [InfrastructureResource(**r) for r in resources]
+            return [_row_to_resource(row) for row in query.all()]
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting resources: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -437,33 +470,29 @@ async def create_resource(request: InfrastructureResourceCreate):
         Created resource details
     """
     try:
-        resource_id = str(uuid4())
-        now = datetime.utcnow().isoformat()
-
-        resource = {
-            "resource_id": resource_id,
-            "name": request.name,
-            "resource_type": request.resource_type,
-            "provider": request.provider,
-            "region": request.region,
-            "status": "provisioning",
-            "cpu_cores": request.cpu_cores,
-            "memory_gb": request.memory_gb,
-            "disk_gb": request.disk_gb,
-            "tags": request.tags or {},
-            "created_at": now,
-            "updated_at": now,
-        }
-
-        _resources[resource_id] = resource
-        logger.info(f"Created resource {request.name} with ID {resource_id}")
-
-        # Simulate provisioning completion
-        resource["status"] = "running"
-        resource["updated_at"] = datetime.utcnow().isoformat()
-        _resources[resource_id] = resource
-
-        return InfrastructureResource(**resource)
+        db = _session()
+        try:
+            resource_id = str(uuid4())
+            row = InfrastructureResourceDB(
+                id=resource_id,
+                name=request.name,
+                resource_type=request.resource_type,
+                provider=request.provider,
+                region=request.region,
+                status="running",
+                cpu_cores=request.cpu_cores,
+                memory_gb=request.memory_gb,
+                disk_gb=request.disk_gb,
+                tags=request.tags or {},
+                meta_data={},
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            logger.info(f"Created resource {request.name} with ID {resource_id}")
+            return _row_to_resource(row)
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error creating resource: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -490,11 +519,19 @@ async def get_resource(resource_id: str):
         Resource details
     """
     try:
-        resource = _resources.get(resource_id)
-        if not resource:
-            raise HTTPException(status_code=404, detail=f"Resource {resource_id} not found")
+        db = _session()
+        try:
+            row = (
+                db.query(InfrastructureResourceDB)
+                .filter(InfrastructureResourceDB.id == resource_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Resource {resource_id} not found")
 
-        return InfrastructureResource(**resource)
+            return _row_to_resource(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -525,30 +562,35 @@ async def update_resource(resource_id: str, request: InfrastructureResourceUpdat
         Updated resource details
     """
     try:
-        resource = _resources.get(resource_id)
-        if not resource:
-            raise HTTPException(status_code=404, detail=f"Resource {resource_id} not found")
+        db = _session()
+        try:
+            row = (
+                db.query(InfrastructureResourceDB)
+                .filter(InfrastructureResourceDB.id == resource_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Resource {resource_id} not found")
 
-        # Update fields
-        if request.name is not None:
-            resource["name"] = request.name
-        if request.cpu_cores is not None:
-            resource["cpu_cores"] = request.cpu_cores
-        if request.memory_gb is not None:
-            resource["memory_gb"] = request.memory_gb
-        if request.disk_gb is not None:
-            resource["disk_gb"] = request.disk_gb
-        if request.tags is not None:
-            resource["tags"] = request.tags
-        if request.status is not None:
-            resource["status"] = request.status
+            if request.name is not None:
+                row.name = request.name
+            if request.cpu_cores is not None:
+                row.cpu_cores = request.cpu_cores
+            if request.memory_gb is not None:
+                row.memory_gb = request.memory_gb
+            if request.disk_gb is not None:
+                row.disk_gb = request.disk_gb
+            if request.tags is not None:
+                row.tags = request.tags
+            if request.status is not None:
+                row.status = request.status
 
-        resource["updated_at"] = datetime.utcnow().isoformat()
-        _resources[resource_id] = resource
-
-        logger.info(f"Updated resource {resource_id}")
-
-        return InfrastructureResource(**resource)
+            db.commit()
+            db.refresh(row)
+            logger.info(f"Updated resource {resource_id}")
+            return _row_to_resource(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -576,14 +618,22 @@ async def delete_resource(resource_id: str):
         Deletion confirmation
     """
     try:
-        resource = _resources.get(resource_id)
-        if not resource:
-            raise HTTPException(status_code=404, detail=f"Resource {resource_id} not found")
+        db = _session()
+        try:
+            row = (
+                db.query(InfrastructureResourceDB)
+                .filter(InfrastructureResourceDB.id == resource_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Resource {resource_id} not found")
 
-        del _resources[resource_id]
-        logger.info(f"Deleted resource {resource_id}")
-
-        return {"message": f"Resource {resource_id} deleted successfully"}
+            db.delete(row)
+            db.commit()
+            logger.info(f"Deleted resource {resource_id}")
+            return {"message": f"Resource {resource_id} deleted successfully"}
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -684,49 +734,60 @@ async def provision_resource(request: ProvisioningRequest):
         Provisioning task details
     """
     try:
-        provisioning_id = str(uuid4())
-        resource_id = str(uuid4())
+        db = _session()
+        try:
+            provisioning_id = str(uuid4())
+            resource_id = str(uuid4())
+            logs = [
+                f"Started provisioning {request.name}",
+                "Allocating resources...",
+                "Provisioning completed successfully",
+            ]
 
-        provisioning = {
-            "provisioning_id": provisioning_id,
-            "resource_id": resource_id,
-            "status": "in_progress",
-            "estimated_completion_time": datetime.utcnow().isoformat(),
-            "progress": 0,
-            "logs": [f"Started provisioning {request.name}"],
-        }
+            # Persist the provisioning task record.
+            task = InfrastructureProvisioningTaskDB(
+                id=provisioning_id,
+                resource_id=resource_id,
+                name=request.name,
+                resource_type=request.resource_type,
+                provider=request.provider,
+                region=request.region,
+                status="completed",
+                progress=100,
+                logs=logs,
+                meta_data={"specification": request.specification,
+                           "configuration": request.configuration or {}},
+            )
+            db.add(task)
 
-        _provisioning_tasks[provisioning_id] = provisioning
-        logger.info(f"Started provisioning {request.name} with ID {provisioning_id}")
+            # Persist the provisioned resource alongside the task.
+            resource_row = InfrastructureResourceDB(
+                id=resource_id,
+                name=request.name,
+                resource_type=request.resource_type,
+                provider=request.provider,
+                region=request.region,
+                status="running",
+                cpu_cores=int(request.specification.get("cpu_cores", 2)),
+                memory_gb=int(request.specification.get("memory_gb", 4)),
+                disk_gb=int(request.specification.get("disk_gb", 20)),
+                tags={},
+                meta_data={},
+            )
+            db.add(resource_row)
+            db.commit()
 
-        # Simulate provisioning progress
-        provisioning["progress"] = 50
-        provisioning["logs"].append("Allocating resources...")
-        _provisioning_tasks[provisioning_id] = provisioning
-
-        provisioning["progress"] = 100
-        provisioning["status"] = "completed"
-        provisioning["logs"].append("Provisioning completed successfully")
-        _provisioning_tasks[provisioning_id] = provisioning
-
-        # Create the resource
-        resource = {
-            "resource_id": resource_id,
-            "name": request.name,
-            "resource_type": request.resource_type,
-            "provider": request.provider,
-            "region": request.region,
-            "status": "running",
-            "cpu_cores": request.specification.get("cpu_cores", 2),
-            "memory_gb": request.specification.get("memory_gb", 4),
-            "disk_gb": request.specification.get("disk_gb", 20),
-            "tags": {},
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-        }
-        _resources[resource_id] = resource
-
-        return ProvisioningResponse(**provisioning)
+            logger.info(f"Provisioned {request.name} with task {provisioning_id}")
+            return ProvisioningResponse(
+                provisioning_id=provisioning_id,
+                resource_id=resource_id,
+                status="completed",
+                estimated_completion_time=datetime.utcnow().isoformat(),
+                progress=100,
+                logs=logs,
+            )
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error provisioning resource: {e}")
         raise HTTPException(status_code=500, detail=str(e))

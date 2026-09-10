@@ -12,6 +12,8 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from core.persistent_store import PersistentStore
+
 router = APIRouter(prefix="/api/v1/service-discovery", tags=["Service Discovery Advanced"])
 
 
@@ -68,9 +70,9 @@ class ServiceDeregistration(BaseModel):
     instance_id: str = Field(..., description="Instance ID")
 
 
-# In-memory storage (in production, use a database)
-_services_db: Dict[str, Dict[str, Any]] = {}
-_health_checks_db: Dict[str, Dict[str, Any]] = {}
+# Durable storage (``persistent_records``) — survives process restarts.
+_services_db: PersistentStore = PersistentStore("service_discovery", "services")
+_health_checks_db: PersistentStore = PersistentStore("service_discovery", "health_checks")
 
 
 def _generate_service_id() -> str:
@@ -453,6 +455,67 @@ async def create_health_check(health_check: HealthCheckCreate):
         raise
     except Exception as e:
         logger.error(f"Error creating health check: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/health-checks/{check_id}",
+    summary="Get a health check by ID",
+    responses={
+        200: {"description": "Health check details"},
+        404: {"description": "Health check not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def get_health_check(check_id: str):
+    """Return a single health check definition by id."""
+    try:
+        if check_id not in _health_checks_db:
+            raise HTTPException(
+                status_code=404, detail=f"Health check {check_id} not found"
+            )
+
+        return {
+            "status": "success",
+            "data": {"id": check_id, **_health_checks_db[check_id]},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting health check: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/health-checks/{check_id}",
+    summary="Delete a health check",
+    responses={
+        200: {"description": "Health check deleted successfully"},
+        404: {"description": "Health check not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def delete_health_check(check_id: str):
+    """Delete a health check definition by id."""
+    try:
+        if check_id not in _health_checks_db:
+            raise HTTPException(
+                status_code=404, detail=f"Health check {check_id} not found"
+            )
+
+        del _health_checks_db[check_id]
+        logger.info(f"Deleted health check: {check_id}")
+
+        return {
+            "status": "success",
+            "data": {"id": check_id, "message": "Health check deleted successfully"},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting health check: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

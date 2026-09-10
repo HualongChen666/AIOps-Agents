@@ -12,6 +12,8 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
+from core.persistent_store import PersistentList, PersistentStore
+
 router = APIRouter(prefix="/api/v1/notify", tags=["Notification Advanced"])
 
 
@@ -169,107 +171,17 @@ class NotificationSettings(BaseModel):
 
 
 # In-memory storage (in production, use a database)
-_channels: Dict[str, Dict[str, Any]] = {}
-_templates: Dict[str, Dict[str, Any]] = {}
-_rules: Dict[str, Dict[str, Any]] = {}
-_history: List[Dict[str, Any]] = []
-_settings: Dict[str, Any] = {
-    "enabled": True,
-    "min_level": "info",
-    "rate_limit_enabled": True,
-    "rate_limit_per_minute": 10,
-    "batch_enabled": False,
-    "batch_interval": 60,
-    "metadata": {},
-}
-
-
-def _initialize_default_data():
-    """Initialize default data"""
-    # Default channels
-    if not _channels:
-        default_channels = [
-            {
-                "id": str(uuid4()),
-                "name": "Email Channel",
-                "type": "email",
-                "enabled": True,
-                "config": {
-                    "smtp_host": "smtp.example.com",
-                    "smtp_port": 587,
-                    "from_address": "alerts@example.com",
-                },
-                "priority": 10,
-                "retry_count": 3,
-                "timeout": 30,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-            {
-                "id": str(uuid4()),
-                "name": "Slack Channel",
-                "type": "slack",
-                "enabled": True,
-                "config": {
-                    "webhook_url": "https://hooks.slack.com/services/xxx",
-                    "channel": "#alerts",
-                },
-                "priority": 5,
-                "retry_count": 3,
-                "timeout": 30,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-        ]
-        for channel in default_channels:
-            _channels[channel["id"]] = channel
-
-    # Default templates
-    if not _templates:
-        default_templates = [
-            {
-                "id": str(uuid4()),
-                "name": "Alert Template",
-                "subject": "Alert: {{alert_title}}",
-                "body": (
-                    "Alert Details:\n\nTitle: {{alert_title}}\nLevel: {{alert_level}}\n"
-                    "Description: {{alert_description}}\nTime: {{alert_time}}"
-                ),
-                "type": "email",
-                "variables": ["alert_title", "alert_level", "alert_description", "alert_time"],
-                "enabled": True,
-                "metadata": {},
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-        ]
-        for template in default_templates:
-            _templates[template["id"]] = template
-
-    # Default rules
-    if not _rules:
-        template_id = list(_templates.keys())[0] if _templates else str(uuid4())
-        channel_id = list(_channels.keys())[0] if _channels else str(uuid4())
-
-        default_rules = [
-            {
-                "id": str(uuid4()),
-                "name": "Critical Alert Rule",
-                "condition": "alert_level == 'critical'",
-                "channels": [channel_id],
-                "template_id": template_id,
-                "enabled": True,
-                "priority": 10,
-                "metadata": {},
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-        ]
-        for rule in default_rules:
-            _rules[rule["id"]] = rule
-
-
-_initialize_default_data()
+# Durable storage (``persistent_records``) — survives process restarts.
+#
+# NOTE: the router previously fabricated a couple of "default" channels with
+# placeholder credentials (``smtp.example.com`` / ``hooks.slack.com/.../xxx``)
+# at import time.  That is placeholder data, so it has been removed: channels,
+# templates and rules are now created through the API and persisted verbatim.
+_channels: PersistentStore = PersistentStore("notify", "channels")
+_templates: PersistentStore = PersistentStore("notify", "templates")
+_rules: PersistentStore = PersistentStore("notify", "rules")
+_history: PersistentList = PersistentList("notify", "history")
+_settings: PersistentStore = PersistentStore("notify", "settings")
 
 
 # Channel Endpoints

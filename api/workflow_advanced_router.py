@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
 
+from core.persistent_store import PersistentList, PersistentStore
 from extensions.addons.operations.workflow_service.orchestrator import WorkflowOrchestrator
 from extensions.addons.operations.workflow_service.repository import (
     WorkflowRepository,
@@ -193,10 +194,12 @@ class StatisticsResponse(BaseModel):
 # ============================================================
 # 内存存储（用于演示，生产环境应使用数据库）
 # ============================================================
-_schedules: Dict[str, ScheduledTask] = {}
-_triggers: Dict[str, Dict[str, Any]] = {}
-_variables: Dict[str, Dict[str, Any]] = {}
-_audit_logs: List[Dict[str, Any]] = []
+_schedules: PersistentStore = PersistentStore(
+    "workflow", "schedules", decoder=ScheduledTask.model_validate
+)
+_triggers: PersistentStore = PersistentStore("workflow", "triggers")
+_variables: PersistentStore = PersistentStore("workflow", "variables")
+_audit_logs: PersistentList = PersistentList("workflow", "audit_logs")
 
 
 def _add_audit_log(

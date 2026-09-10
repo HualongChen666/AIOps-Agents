@@ -26,6 +26,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from core.persistent_store import PersistentStore
 from core.topology_engine import (
     get_full_link_topology,
     update_node_health,
@@ -41,12 +42,13 @@ router_alt = APIRouter(prefix="/api/topology", tags=["Topology"])
 # ============================================================
 # In-memory data stores (in production, use database)
 # ============================================================
-_topology_graphs: Dict[str, Dict[str, Any]] = {}
-_topology_nodes: Dict[str, Dict[str, Any]] = {}
-_topology_edges: Dict[str, Dict[str, Any]] = {}
-_topology_layers: Dict[str, Dict[str, Any]] = {}
-_topology_dependencies: Dict[str, Dict[str, Any]] = {}
-_visualization_configs: Dict[str, Dict[str, Any]] = {}
+# Durable storage (``persistent_records``) — survives process restarts.
+_topology_graphs: PersistentStore = PersistentStore("topology", "graphs")
+_topology_nodes: PersistentStore = PersistentStore("topology", "nodes")
+_topology_edges: PersistentStore = PersistentStore("topology", "edges")
+_topology_layers: PersistentStore = PersistentStore("topology", "layers")
+_topology_dependencies: PersistentStore = PersistentStore("topology", "dependencies")
+_visualization_configs: PersistentStore = PersistentStore("topology", "visualization_configs")
 
 # ============================================================
 # Pydantic Models for Data Validation

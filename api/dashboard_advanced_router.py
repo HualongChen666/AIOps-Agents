@@ -14,6 +14,7 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from core.authentication import UserInDB, get_user, verify_token
+from core.persistent_store import PersistentStore
 
 logger = logging.getLogger(__name__)
 
@@ -147,9 +148,13 @@ class DashboardLayoutUpdate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-# ============ In-memory data storage ============
-_dashboard_widgets: Dict[str, DashboardWidget] = {}
-_dashboard_layouts: Dict[str, DashboardLayout] = {}
+# Durable storage (``persistent_records``) — survives process restarts.
+_dashboard_widgets: PersistentStore = PersistentStore(
+    "dashboard", "widgets", decoder=DashboardWidget.model_validate
+)
+_dashboard_layouts: PersistentStore = PersistentStore(
+    "dashboard", "layouts", decoder=DashboardLayout.model_validate
+)
 
 
 def _init_dashboard_widgets():
@@ -393,6 +398,8 @@ async def delete_dashboard_widget(
         if id in layout.widgets:
             layout.widgets = [w for w in layout.widgets if w != id]
             layout.updated_at = datetime.now()
+    # 就地修改 Pydantic 布局对象后写回持久层
+    _dashboard_layouts.flush()
 
     logger.info(
         f"Dashboard widget deleted | widget_id={id} | user={current_user.username} "

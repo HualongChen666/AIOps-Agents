@@ -40,6 +40,7 @@ from sqlalchemy.orm import Session
 from loguru import logger
 
 from core.database import get_db
+from core.persistent_store import PersistentStore
 from core.auth import (
     check_rate_limit,
     get_current_user,
@@ -255,74 +256,35 @@ class PostMortem(BaseModel):
 
 
 # ============================================================================
-# In-Memory Storage (Production: migrate to database)
+# Durable storage (``persistent_records``) — survives process restarts.
 # ============================================================================
-_incidents: Dict[str, Dict[str, Any]] = {}
-_incident_comments: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-_incident_attachments: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-_incident_timeline: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-_incident_links: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-_incident_templates: Dict[str, Dict[str, Any]] = {}
-_incident_workflows: Dict[str, Dict[str, Any]] = {}
-_sla_records: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+_incidents: PersistentStore = PersistentStore("incident_management", "incidents")
+_incident_comments: PersistentStore = PersistentStore(
+    "incident_management", "comments", default_factory=list
+)
+_incident_attachments: PersistentStore = PersistentStore(
+    "incident_management", "attachments", default_factory=list
+)
+_incident_timeline: PersistentStore = PersistentStore(
+    "incident_management", "timeline", default_factory=list
+)
+_incident_links: PersistentStore = PersistentStore(
+    "incident_management", "links", default_factory=list
+)
+_incident_templates: PersistentStore = PersistentStore("incident_management", "templates")
+_incident_workflows: PersistentStore = PersistentStore("incident_management", "workflows")
+_sla_records: PersistentStore = PersistentStore(
+    "incident_management", "sla_records", default_factory=list
+)
 
 
 def _initialize_default_data():
-    """Initialize default incident data"""
-    if not _incidents:
-        default_incidents = [
-            {
-                "incident_id": str(uuid.uuid4()),
-                "title": "Database connection pool exhausted",
-                "description": "Application database connection pool reached maximum capacity",
-                "severity": "high",
-                "category": "database",
-                "priority": "high",
-                "impact": "high",
-                "urgency": "high",
-                "status": "open",
-                "assigned_to": "user_001",
-                "tags": ["database", "performance", "critical"],
-                "environment": "production",
-                "source": "alert",
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
-                "resolved_at": None,
-                "resolution_notes": None,
-                "root_cause": None,
-                "metadata": {"alert_id": "alert_12345", "service": "api-service"},
-            },
-            {
-                "incident_id": str(uuid.uuid4()),
-                "title": "API latency spike",
-                "description": "API response times increased beyond acceptable thresholds",
-                "severity": "medium",
-                "category": "performance",
-                "priority": "medium",
-                "impact": "medium",
-                "urgency": "medium",
-                "status": "in_progress",
-                "assigned_to": "user_002",
-                "tags": ["api", "latency", "performance"],
-                "environment": "production",
-                "source": "monitoring",
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
-                "resolved_at": None,
-                "resolution_notes": None,
-                "root_cause": None,
-                "metadata": {"threshold": "500ms", "current": "1200ms"},
-            },
-        ]
-        for incident in default_incidents:
-            _incidents[incident["incident_id"]] = incident
-            _incident_timeline[incident["incident_id"]].append({
-                "event": "created",
-                "timestamp": incident["created_at"],
-                "user": "system",
-                "details": {"message": "Incident created"}
-            })
-    
+    """Seed first-run reference data.
+
+    Incidents, comments, links … are real operational records and are never
+    fabricated.  Only the incident *template* catalogue is seeded (it is
+    reference data used to pre-fill new incidents).
+    """
     if not _incident_templates:
         default_templates = [
             {
@@ -2808,3 +2770,20 @@ async def submit_post_mortem(
     except Exception as e:
         logger.error(f"Error submitting post-mortem: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Route ordering
+# ============================================================================
+# ``/incidents/{incident_id}`` is declared before the literal sibling routes
+# (``/incidents/statistics``, ``/incidents/trends``, ``/incidents/bulk`` …).
+# FastAPI matches routes in declaration order, so a GET/PUT/DELETE to those
+# literal paths was being captured by the ``{incident_id}`` route and returned
+# a spurious 404.  Re-order so literal paths are matched first (stable sort
+# preserves the relative order of everything else).
+def _static_route_first(route):
+    path = getattr(route, "path", "")
+    return 0 if "{" not in path else 1
+
+
+router.routes.sort(key=_static_route_first)

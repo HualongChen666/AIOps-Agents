@@ -12,6 +12,10 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from core.database import SessionLocal
+from core.models import ITSMIncidentDB
+from core.persistent_store import PersistentStore
+
 router = APIRouter(prefix="/api/v1/itsm", tags=["ITSM Advanced"])
 
 
@@ -215,53 +219,47 @@ class KnowledgeBaseArticleCreate(BaseModel):
     }
 
 
-# In-memory storage (in production, use a real database)
-_incidents: Dict[str, Dict[str, Any]] = {}
-_problems: Dict[str, Dict[str, Any]] = {}
-_changes: Dict[str, Dict[str, Any]] = {}
-_service_catalog: Dict[str, Dict[str, Any]] = {}
-_slas: Dict[str, Dict[str, Any]] = {}
-_knowledge_base: Dict[str, Dict[str, Any]] = {}
+# Incidents are persisted in the ``itsm_incidents`` table (single source of
+# truth — the same table the rest of the platform and tests use).  The remaining
+# ITSM entities are persisted through the durable document store.
+_problems: PersistentStore = PersistentStore("itsm", "problems")
+_changes: PersistentStore = PersistentStore("itsm", "changes")
+_service_catalog: PersistentStore = PersistentStore("itsm", "service_catalog")
+_slas: PersistentStore = PersistentStore("itsm", "slas")
+_knowledge_base: PersistentStore = PersistentStore("itsm", "knowledge_base")
+
+
+def _iso(value) -> Optional[str]:
+    """Render a datetime (or None) as an ISO-8601 string."""
+    return value.isoformat() if value else None
+
+
+def _row_to_incident(row: ITSMIncidentDB) -> ITSMIncident:
+    """Convert an ``itsm_incidents`` row into the API model."""
+    return ITSMIncident(
+        incident_id=row.id,
+        title=row.title,
+        description=row.description,
+        priority=row.priority,
+        status=row.status,
+        assigned_to=row.assigned_to,
+        category=row.category,
+        impact=row.impact,
+        urgency=row.urgency,
+        created_at=_iso(row.created_at) or datetime.utcnow().isoformat(),
+        updated_at=_iso(row.updated_at) or datetime.utcnow().isoformat(),
+        resolved_at=_iso(row.resolved_at),
+        resolution_notes=row.resolution_notes,
+    )
 
 
 def _initialize_default_data():
-    """Initialize default ITSM data"""
-    if not _incidents:
-        default_incidents = [
-            {
-                "incident_id": str(uuid4()),
-                "title": "Web server high CPU usage",
-                "description": "Web server CPU usage is above 90%",
-                "priority": "high",
-                "status": "open",
-                "assigned_to": "john.doe",
-                "category": "infrastructure",
-                "impact": "high",
-                "urgency": "high",
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
-                "resolved_at": None,
-                "resolution_notes": None,
-            },
-            {
-                "incident_id": str(uuid4()),
-                "title": "Database slow query performance",
-                "description": "Database queries are taking longer than expected",
-                "priority": "medium",
-                "status": "in_progress",
-                "assigned_to": "jane.smith",
-                "category": "database",
-                "impact": "medium",
-                "urgency": "medium",
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
-                "resolved_at": None,
-                "resolution_notes": None,
-            },
-        ]
-        for incident in default_incidents:
-            _incidents[incident["incident_id"]] = incident
+    """Seed the first-run default ITSM catalogue.
 
+    Only the service catalogue, SLAs and knowledge base get first-run default
+    entries (they are reference data).  Incidents/problems/changes are real
+    operational records and are never fabricated.
+    """
     if not _service_catalog:
         default_services = [
             {
@@ -365,19 +363,20 @@ async def get_incidents(
         List of ITSM incidents
     """
     try:
-        incidents = list(_incidents.values())
+        db = SessionLocal()
+        try:
+            query = db.query(ITSMIncidentDB)
+            if status_filter:
+                query = query.filter(ITSMIncidentDB.status == status_filter)
+            if priority_filter:
+                query = query.filter(ITSMIncidentDB.priority == priority_filter)
+            if category_filter:
+                query = query.filter(ITSMIncidentDB.category == category_filter)
 
-        if status_filter:
-            incidents = [inc for inc in incidents if inc.get("status") == status_filter]
-        if priority_filter:
-            incidents = [inc for inc in incidents if inc.get("priority") == priority_filter]
-        if category_filter:
-            incidents = [inc for inc in incidents if inc.get("category") == category_filter]
-
-        return [
-            ITSMIncident(**inc)
-            for inc in sorted(incidents, key=lambda x: x["created_at"], reverse=True)[:limit]
-        ]
+            rows = query.order_by(ITSMIncidentDB.created_at.desc()).limit(limit).all()
+            return [_row_to_incident(row) for row in rows]
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting incidents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -405,28 +404,26 @@ async def create_incident(request: ITSMIncidentCreate):
     """
     try:
         incident_id = str(uuid4())
-        now = datetime.utcnow().isoformat()
-
-        incident = {
-            "incident_id": incident_id,
-            "title": request.title,
-            "description": request.description,
-            "priority": request.priority,
-            "status": "open",
-            "assigned_to": request.assigned_to,
-            "category": request.category,
-            "impact": request.impact,
-            "urgency": request.urgency,
-            "created_at": now,
-            "updated_at": now,
-            "resolved_at": None,
-            "resolution_notes": None,
-        }
-
-        _incidents[incident_id] = incident
-        logger.info(f"Created incident {request.title} with ID {incident_id}")
-
-        return ITSMIncident(**incident)
+        db = SessionLocal()
+        try:
+            row = ITSMIncidentDB(
+                id=incident_id,
+                title=request.title,
+                description=request.description,
+                priority=request.priority,
+                status="open",
+                assigned_to=request.assigned_to,
+                category=request.category,
+                impact=request.impact,
+                urgency=request.urgency,
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            logger.info(f"Created incident {request.title} with ID {incident_id}")
+            return _row_to_incident(row)
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error creating incident: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -453,11 +450,14 @@ async def get_incident(incident_id: str):
         Incident details
     """
     try:
-        incident = _incidents.get(incident_id)
-        if not incident:
-            raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
-
-        return ITSMIncident(**incident)
+        db = SessionLocal()
+        try:
+            row = db.query(ITSMIncidentDB).filter(ITSMIncidentDB.id == incident_id).first()
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
+            return _row_to_incident(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -488,39 +488,39 @@ async def update_incident(incident_id: str, request: ITSMIncidentUpdate):
         Updated incident details
     """
     try:
-        incident = _incidents.get(incident_id)
-        if not incident:
-            raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
+        db = SessionLocal()
+        try:
+            row = db.query(ITSMIncidentDB).filter(ITSMIncidentDB.id == incident_id).first()
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
 
-        # Update fields
-        if request.title is not None:
-            incident["title"] = request.title
-        if request.description is not None:
-            incident["description"] = request.description
-        if request.priority is not None:
-            incident["priority"] = request.priority
-        if request.status is not None:
-            incident["status"] = request.status
-            # Set resolved_at if status is resolved or closed
-            if request.status in ["resolved", "closed"] and not incident.get("resolved_at"):
-                incident["resolved_at"] = datetime.utcnow().isoformat()
-        if request.assigned_to is not None:
-            incident["assigned_to"] = request.assigned_to
-        if request.category is not None:
-            incident["category"] = request.category
-        if request.impact is not None:
-            incident["impact"] = request.impact
-        if request.urgency is not None:
-            incident["urgency"] = request.urgency
-        if request.resolution_notes is not None:
-            incident["resolution_notes"] = request.resolution_notes
+            if request.title is not None:
+                row.title = request.title
+            if request.description is not None:
+                row.description = request.description
+            if request.priority is not None:
+                row.priority = request.priority
+            if request.status is not None:
+                row.status = request.status
+                if request.status in ["resolved", "closed"] and row.resolved_at is None:
+                    row.resolved_at = datetime.utcnow()
+            if request.assigned_to is not None:
+                row.assigned_to = request.assigned_to
+            if request.category is not None:
+                row.category = request.category
+            if request.impact is not None:
+                row.impact = request.impact
+            if request.urgency is not None:
+                row.urgency = request.urgency
+            if request.resolution_notes is not None:
+                row.resolution_notes = request.resolution_notes
 
-        incident["updated_at"] = datetime.utcnow().isoformat()
-        _incidents[incident_id] = incident
-
-        logger.info(f"Updated incident {incident_id}")
-
-        return ITSMIncident(**incident)
+            db.commit()
+            db.refresh(row)
+            logger.info(f"Updated incident {incident_id}")
+            return _row_to_incident(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -548,14 +548,18 @@ async def delete_incident(incident_id: str):
         Deletion confirmation
     """
     try:
-        incident = _incidents.get(incident_id)
-        if not incident:
-            raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
+        db = SessionLocal()
+        try:
+            row = db.query(ITSMIncidentDB).filter(ITSMIncidentDB.id == incident_id).first()
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
 
-        del _incidents[incident_id]
-        logger.info(f"Deleted incident {incident_id}")
-
-        return {"message": f"Incident {incident_id} deleted successfully"}
+            db.delete(row)
+            db.commit()
+            logger.info(f"Deleted incident {incident_id}")
+            return {"message": f"Incident {incident_id} deleted successfully"}
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:

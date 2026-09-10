@@ -25,6 +25,8 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from core.persistent_store import PersistentStore
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/tracing", tags=["Advanced Tracing"])
 
@@ -73,11 +75,11 @@ def validate_path_param(param_value: str, param_name: str = "parameter") -> str:
 # ============================================================
 # In-memory data stores (in production, use database)
 # ============================================================
-_traces: Dict[str, Dict[str, Any]] = {}
-_spans: Dict[str, Dict[str, Any]] = {}
-_services: Dict[str, Dict[str, Any]] = {}
-_operations: Dict[str, Dict[str, Any]] = {}
-_analytics: Dict[str, Dict[str, Any]] = {}
+_traces: PersistentStore = PersistentStore("tracing", "traces")
+_spans: PersistentStore = PersistentStore("tracing", "spans")
+_services: PersistentStore = PersistentStore("tracing", "services")
+_operations: PersistentStore = PersistentStore("tracing", "operations")
+_analytics: PersistentStore = PersistentStore("tracing", "analytics")
 
 # ============================================================
 # Pydantic Models for Data Validation

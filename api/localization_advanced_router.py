@@ -12,6 +12,10 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
+from core.database import SessionLocal
+from core.models import LocalizationLanguageDB, LocalizationResourceDB
+from core.persistent_store import PersistentStore
+
 router = APIRouter(prefix="/api/v1/localization", tags=["Localization Advanced"])
 
 
@@ -144,44 +148,72 @@ class AdapterResponse(BaseModel):
 
 
 # In-memory storage (in production, use a database)
-_languages: Dict[str, Dict[str, Any]] = {}
-_resources: Dict[str, Dict[str, Any]] = {}
-_translations: Dict[str, Dict[str, Any]] = {}
-_adapters: Dict[str, Dict[str, Any]] = {}
+# Languages and resources are persisted in their dedicated ORM tables (the
+# single source of truth used by the rest of the platform).  Translations and
+# adapters use the durable document store.
+_translations: PersistentStore = PersistentStore("localization", "translations")
+_adapters: PersistentStore = PersistentStore("localization", "adapters")
+
+
+def _row_to_language(row: LocalizationLanguageDB) -> LanguageResponse:
+    """Convert a ``localization_languages`` row into the API model."""
+    return LanguageResponse(
+        id=row.id,
+        code=row.code,
+        name=row.name,
+        native_name=row.native_name,
+        enabled=row.enabled,
+        is_default=row.is_default,
+        metadata=row.meta_data or {},
+        created_at=row.created_at or datetime.utcnow(),
+        updated_at=row.updated_at or datetime.utcnow(),
+    )
+
+
+def _row_to_resource(row: LocalizationResourceDB) -> ResourceResponse:
+    """Convert a ``localization_resources`` row into the API model."""
+    return ResourceResponse(
+        id=row.id,
+        language_code=row.language_code,
+        namespace=row.namespace,
+        key=row.key,
+        value=row.value,
+        context=row.context,
+        metadata=row.meta_data or {},
+        created_at=row.created_at or datetime.utcnow(),
+        updated_at=row.updated_at or datetime.utcnow(),
+    )
+
+
+def _seed_default_languages(db) -> None:
+    """Bootstrap the first-run default language set (durable)."""
+    defaults = [
+        {
+            "id": str(uuid4()),
+            "code": "zh-CN",
+            "name": "Chinese (Simplified)",
+            "native_name": "简体中文",
+            "enabled": True,
+            "is_default": True,
+            "meta_data": {"region": "CN", "locale": "zh_CN.UTF-8"},
+        },
+        {
+            "id": str(uuid4()),
+            "code": "en-US",
+            "name": "English (United States)",
+            "native_name": "English",
+            "enabled": True,
+            "is_default": False,
+            "meta_data": {"region": "US", "locale": "en_US.UTF-8"},
+        },
+    ]
+    for spec in defaults:
+        db.add(LocalizationLanguageDB(**spec))
+    db.commit()
 
 
 def _initialize_default_data():
-    """Initialize default data"""
-    # Default languages
-    if not _languages:
-        default_languages = [
-            {
-                "id": str(uuid4()),
-                "code": "zh-CN",
-                "name": "Chinese (Simplified)",
-                "native_name": "简体中文",
-                "enabled": True,
-                "is_default": True,
-                "metadata": {"region": "CN", "locale": "zh_CN.UTF-8"},
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-            {
-                "id": str(uuid4()),
-                "code": "en-US",
-                "name": "English (United States)",
-                "native_name": "English",
-                "enabled": True,
-                "is_default": False,
-                "metadata": {"region": "US", "locale": "en_US.UTF-8"},
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-        ]
-        for lang in default_languages:
-            _languages[lang["id"]] = lang
-
-    # Default adapters
+    """Initialize first-run adapter defaults (real localisation adapters)."""
     if not _adapters:
         default_adapters = [
             {
@@ -191,8 +223,8 @@ def _initialize_default_data():
                 "config": {"format": "YYYY-MM-DD"},
                 "enabled": True,
                 "priority": 10,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
             },
             {
                 "id": str(uuid4()),
@@ -201,8 +233,8 @@ def _initialize_default_data():
                 "config": {"decimal_separator": ".", "thousands_separator": ","},
                 "enabled": True,
                 "priority": 10,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
             },
         ]
         for adapter in default_adapters:
@@ -229,20 +261,28 @@ async def get_languages(
         List of languages
     """
     try:
-        languages = list(_languages.values())
+        db = SessionLocal()
+        try:
+            if db.query(LocalizationLanguageDB).count() == 0:
+                _seed_default_languages(db)
 
-        if enabled is not None:
-            languages = [lang for lang in languages if lang["enabled"] == enabled]
+            query = db.query(LocalizationLanguageDB)
+            if enabled is not None:
+                query = query.filter(LocalizationLanguageDB.enabled == enabled)
 
-        if search:
-            search_lower = search.lower()
-            languages = [
-                lang
-                for lang in languages
-                if search_lower in lang["name"].lower() or search_lower in lang["code"].lower()
-            ]
+            results = [_row_to_language(row) for row in query.all()]
 
-        return [LanguageResponse(**lang) for lang in languages]
+            if search:
+                search_lower = search.lower()
+                results = [
+                    lang
+                    for lang in results
+                    if search_lower in lang.name.lower() or search_lower in lang.code.lower()
+                ]
+
+            return results
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting languages: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -260,34 +300,39 @@ async def create_language(language: LanguageCreate):
         Created language
     """
     try:
-        # Check if language code already exists
-        for lang in _languages.values():
-            if lang["code"] == language.code:
+        db = SessionLocal()
+        try:
+            # Check if language code already exists
+            if (
+                db.query(LocalizationLanguageDB)
+                .filter(LocalizationLanguageDB.code == language.code)
+                .first()
+            ):
                 raise HTTPException(
                     status_code=400, detail=f"Language code '{language.code}' already exists"
                 )
 
-        # If setting as default, remove default from others
-        if language.is_default:
-            for lang in _languages.values():
-                lang["is_default"] = False
-                lang["updated_at"] = datetime.utcnow()
+            # If setting as default, remove default from others
+            if language.is_default:
+                db.query(LocalizationLanguageDB).update({LocalizationLanguageDB.is_default: False})
 
-        new_language = {
-            "id": str(uuid4()),
-            "code": language.code,
-            "name": language.name,
-            "native_name": language.native_name,
-            "enabled": language.enabled,
-            "is_default": language.is_default,
-            "metadata": language.metadata,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        }
-        _languages[new_language["id"]] = new_language
+            row = LocalizationLanguageDB(
+                id=str(uuid4()),
+                code=language.code,
+                name=language.name,
+                native_name=language.native_name,
+                enabled=language.enabled,
+                is_default=language.is_default,
+                meta_data=language.metadata,
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
 
-        logger.info(f"Created language: {language.code}")
-        return LanguageResponse(**new_language)
+            logger.info(f"Created language: {language.code}")
+            return _row_to_language(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -309,10 +354,18 @@ async def get_language(language_id: str):
         Language data
     """
     try:
-        if language_id not in _languages:
-            raise HTTPException(status_code=404, detail="Language not found")
-
-        return LanguageResponse(**_languages[language_id])
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(LocalizationLanguageDB)
+                .filter(LocalizationLanguageDB.id == language_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Language not found")
+            return _row_to_language(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -335,31 +388,37 @@ async def update_language(language_id: str, language: LanguageUpdate):
         Updated language
     """
     try:
-        if language_id not in _languages:
-            raise HTTPException(status_code=404, detail="Language not found")
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(LocalizationLanguageDB)
+                .filter(LocalizationLanguageDB.id == language_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Language not found")
 
-        existing = _languages[language_id]
+            if language.name is not None:
+                row.name = language.name
+            if language.native_name is not None:
+                row.native_name = language.native_name
+            if language.enabled is not None:
+                row.enabled = language.enabled
+            if language.is_default is not None:
+                if language.is_default:
+                    db.query(LocalizationLanguageDB).filter(
+                        LocalizationLanguageDB.id != language_id
+                    ).update({LocalizationLanguageDB.is_default: False})
+                row.is_default = language.is_default
+            if language.metadata is not None:
+                row.meta_data = language.metadata
 
-        # Update fields
-        if language.name is not None:
-            existing["name"] = language.name
-        if language.native_name is not None:
-            existing["native_name"] = language.native_name
-        if language.enabled is not None:
-            existing["enabled"] = language.enabled
-        if language.is_default is not None:
-            if language.is_default:
-                # Remove default from others
-                for lang in _languages.values():
-                    lang["is_default"] = False
-            existing["is_default"] = language.is_default
-        if language.metadata is not None:
-            existing["metadata"] = language.metadata
-
-        existing["updated_at"] = datetime.utcnow()
-
-        logger.info(f"Updated language: {language_id}")
-        return LanguageResponse(**existing)
+            db.commit()
+            db.refresh(row)
+            logger.info(f"Updated language: {language_id}")
+            return _row_to_language(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -379,17 +438,26 @@ async def delete_language(language_id: str):
         Deletion result
     """
     try:
-        if language_id not in _languages:
-            raise HTTPException(status_code=404, detail="Language not found")
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(LocalizationLanguageDB)
+                .filter(LocalizationLanguageDB.id == language_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Language not found")
 
-        # Check if it's the default language
-        if _languages[language_id]["is_default"]:
-            raise HTTPException(status_code=400, detail="Cannot delete default language")
+            # Check if it's the default language
+            if row.is_default:
+                raise HTTPException(status_code=400, detail="Cannot delete default language")
 
-        del _languages[language_id]
-
-        logger.info(f"Deleted language: {language_id}")
-        return {"status": "success", "message": "Language deleted successfully"}
+            db.delete(row)
+            db.commit()
+            logger.info(f"Deleted language: {language_id}")
+            return {"status": "success", "message": "Language deleted successfully"}
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -414,15 +482,16 @@ async def get_resources(
         List of resources
     """
     try:
-        resources = list(_resources.values())
-
-        if language_code:
-            resources = [res for res in resources if res["language_code"] == language_code]
-
-        if namespace:
-            resources = [res for res in resources if res["namespace"] == namespace]
-
-        return [ResourceResponse(**res) for res in resources]
+        db = SessionLocal()
+        try:
+            query = db.query(LocalizationResourceDB)
+            if language_code:
+                query = query.filter(LocalizationResourceDB.language_code == language_code)
+            if namespace:
+                query = query.filter(LocalizationResourceDB.namespace == namespace)
+            return [_row_to_resource(row) for row in query.all()]
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting resources: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -440,13 +509,19 @@ async def create_resource(resource: ResourceCreate):
         Created resource
     """
     try:
-        # Check if resource key already exists for this language/namespace
-        for res in _resources.values():
-            if (
-                res["language_code"] == resource.language_code
-                and res["namespace"] == resource.namespace
-                and res["key"] == resource.key
-            ):
+        db = SessionLocal()
+        try:
+            # Check if resource key already exists for this language/namespace
+            duplicate = (
+                db.query(LocalizationResourceDB)
+                .filter(
+                    LocalizationResourceDB.language_code == resource.language_code,
+                    LocalizationResourceDB.namespace == resource.namespace,
+                    LocalizationResourceDB.key == resource.key,
+                )
+                .first()
+            )
+            if duplicate:
                 raise HTTPException(
                     status_code=400,
                     detail=(
@@ -455,21 +530,23 @@ async def create_resource(resource: ResourceCreate):
                     ),
                 )
 
-        new_resource = {
-            "id": str(uuid4()),
-            "language_code": resource.language_code,
-            "namespace": resource.namespace,
-            "key": resource.key,
-            "value": resource.value,
-            "context": resource.context,
-            "metadata": resource.metadata,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        }
-        _resources[new_resource["id"]] = new_resource
+            row = LocalizationResourceDB(
+                id=str(uuid4()),
+                language_code=resource.language_code,
+                namespace=resource.namespace,
+                key=resource.key,
+                value=resource.value,
+                context=resource.context,
+                meta_data=resource.metadata,
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
 
-        logger.info(f"Created resource: {resource.key}")
-        return ResourceResponse(**new_resource)
+            logger.info(f"Created resource: {resource.key}")
+            return _row_to_resource(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -491,10 +568,18 @@ async def get_resource(resource_id: str):
         Resource data
     """
     try:
-        if resource_id not in _resources:
-            raise HTTPException(status_code=404, detail="Resource not found")
-
-        return ResourceResponse(**_resources[resource_id])
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(LocalizationResourceDB)
+                .filter(LocalizationResourceDB.id == resource_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Resource not found")
+            return _row_to_resource(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -517,22 +602,29 @@ async def update_resource(resource_id: str, resource: ResourceUpdate):
         Updated resource
     """
     try:
-        if resource_id not in _resources:
-            raise HTTPException(status_code=404, detail="Resource not found")
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(LocalizationResourceDB)
+                .filter(LocalizationResourceDB.id == resource_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Resource not found")
 
-        existing = _resources[resource_id]
+            if resource.value is not None:
+                row.value = resource.value
+            if resource.context is not None:
+                row.context = resource.context
+            if resource.metadata is not None:
+                row.meta_data = resource.metadata
 
-        if resource.value is not None:
-            existing["value"] = resource.value
-        if resource.context is not None:
-            existing["context"] = resource.context
-        if resource.metadata is not None:
-            existing["metadata"] = resource.metadata
-
-        existing["updated_at"] = datetime.utcnow()
-
-        logger.info(f"Updated resource: {resource_id}")
-        return ResourceResponse(**existing)
+            db.commit()
+            db.refresh(row)
+            logger.info(f"Updated resource: {resource_id}")
+            return _row_to_resource(row)
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -552,13 +644,22 @@ async def delete_resource(resource_id: str):
         Deletion result
     """
     try:
-        if resource_id not in _resources:
-            raise HTTPException(status_code=404, detail="Resource not found")
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(LocalizationResourceDB)
+                .filter(LocalizationResourceDB.id == resource_id)
+                .first()
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Resource not found")
 
-        del _resources[resource_id]
-
-        logger.info(f"Deleted resource: {resource_id}")
-        return {"status": "success", "message": "Resource deleted successfully"}
+            db.delete(row)
+            db.commit()
+            logger.info(f"Deleted resource: {resource_id}")
+            return {"status": "success", "message": "Resource deleted successfully"}
+        finally:
+            db.close()
     except HTTPException:
         raise
     except Exception as e:

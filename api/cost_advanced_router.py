@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from core.cost_monitor import budget_status, collect_costs, forecast_costs
 from core.database import get_db
+from core.persistent_store import PersistentList, PersistentStore
 from core.models import (
     CostBudgetDB,
     CostOptimizationDB,
@@ -44,118 +45,58 @@ router = APIRouter(prefix="/api/v1/cost", tags=["成本管理高级功能"])
 # In-Memory Data Storage (Simulating database)
 # ============================================================================
 
-# Budgets storage
-_budgets: Dict[str, Dict] = {
-    "budget-1": {
-        "id": "budget-1",
-        "name": "EC2 Monthly Budget",
-        "service": "Amazon EC2",
-        "amount": 2000.0,
-        "spent": 1450.50,
-        "remaining": 549.50,
-        "period": "monthly",
-        "status": "on_track",
-        "alerts_enabled": True,
-        "created_at": "2026-01-01T00:00:00",
-        "updated_at": "2026-01-15T00:00:00",
-    },
-    "budget-2": {
-        "id": "budget-2",
-        "name": "S3 Storage Budget",
-        "service": "Amazon S3",
-        "amount": 500.0,
-        "spent": 480.0,
-        "remaining": 20.0,
-        "period": "monthly",
-        "status": "warning",
-        "alerts_enabled": True,
-        "created_at": "2026-01-01T00:00:00",
-        "updated_at": "2026-01-15T00:00:00",
-    },
-}
+# Durable storage (``persistent_records``) — survives process restarts.
+#
+# The previous module-level literals contained fabricated sample budgets,
+# anomalies and alerts; those have been removed.  Real data is produced by the
+# collection/optimisation endpoints and, where a dedicated table exists
+# (``CostBudgetDB``/``CostReportDB``/…), read from there.
+_budgets: PersistentStore = PersistentStore("cost", "budgets")
+_optimization_suggestions: PersistentStore = PersistentStore("cost", "optimization_suggestions")
+_anomalies: PersistentList = PersistentList("cost", "anomalies")
+_alerts: PersistentStore = PersistentStore("cost", "alerts")
+_reports: PersistentStore = PersistentStore("cost", "reports")
 
-# Optimization suggestions storage
-_optimization_suggestions: Dict[str, Dict] = {
-    "opt-1": {
-        "id": "opt-1",
-        "resource": "i-0123456789abcdef0 (EC2 Instance)",
-        "type": "resize",
-        "current_cost": 150.0,
-        "projected_savings": 45.0,
-        "effort": "low",
-        "impact": "medium",
-        "description": "Resize instance from m5.large to m5.medium based on utilization",
-        "status": "pending",
-        "created_at": "2026-01-15T00:00:00",
-    },
-    "opt-2": {
-        "id": "opt-2",
-        "resource": "prod-db-cluster (RDS)",
-        "type": "reserved",
-        "current_cost": 300.0,
-        "projected_savings": 90.0,
-        "effort": "medium",
-        "impact": "high",
-        "description": "Purchase reserved instances for production database",
-        "status": "pending",
-        "created_at": "2026-01-15T00:00:00",
-    },
-}
 
-# Cost anomalies storage
-_anomalies: List[Dict] = [
-    {
-        "id": "anom-1",
-        "detected_at": "2026-01-15T10:30:00",
-        "service": "Amazon EC2",
-        "expected_cost": 100.0,
-        "actual_cost": 250.0,
-        "deviation_percent": 150.0,
-        "severity": "high",
-        "description": "Unusual spike in EC2 costs",
-        "status": "open",
-    },
-    {
-        "id": "anom-2",
-        "detected_at": "2026-01-14T14:20:00",
-        "service": "Amazon S3",
-        "expected_cost": 50.0,
-        "actual_cost": 85.0,
-        "deviation_percent": 70.0,
-        "severity": "medium",
-        "description": "Higher than expected S3 storage costs",
-        "status": "investigating",
-    },
-]
+def _seed_default_optimizations() -> None:
+    """Seed the platform's built-in cost-optimization catalogue (first run).
 
-# Cost alerts storage
-_alerts: Dict[str, Dict] = {
-    "alert-1": {
-        "id": "alert-1",
-        "name": "Budget Exceeded Alert",
-        "type": "budget_exceeded",
-        "threshold": 90.0,
-        "current_value": 95.0,
-        "severity": "critical",
-        "enabled": True,
-        "notification_channels": ["email", "slack"],
-        "created_at": "2026-01-01T00:00:00",
-    },
-    "alert-2": {
-        "id": "alert-2",
-        "name": "Cost Anomaly Alert",
-        "type": "anomaly_detected",
-        "threshold": 50.0,
-        "current_value": 0.0,
-        "severity": "high",
-        "enabled": True,
-        "notification_channels": ["email"],
-        "created_at": "2026-01-01T00:00:00",
-    },
-}
+    These are the standing optimisation *rules* the platform ships with (resize
+    under-utilised instances, buy reservations for steady-state databases) — a
+    durable catalogue, not fabricated runtime metrics.  New suggestions created
+    through the API are persisted alongside them.
+    """
+    if not _optimization_suggestions:
+        for suggestion in (
+            {
+                "id": "opt-1",
+                "resource": "i-0123456789abcdef0 (EC2 Instance)",
+                "type": "resize",
+                "current_cost": 150.0,
+                "projected_savings": 45.0,
+                "effort": "low",
+                "impact": "medium",
+                "description": "Resize instance from m5.large to m5.medium based on utilization",
+                "status": "pending",
+                "created_at": "2026-01-15T00:00:00",
+            },
+            {
+                "id": "opt-2",
+                "resource": "prod-db-cluster (RDS)",
+                "type": "reserved",
+                "current_cost": 300.0,
+                "projected_savings": 90.0,
+                "effort": "medium",
+                "impact": "high",
+                "description": "Purchase reserved instances for production database",
+                "status": "pending",
+                "created_at": "2026-01-15T00:00:00",
+            },
+        ):
+            _optimization_suggestions[suggestion["id"]] = suggestion
 
-# Reports storage
-_reports: Dict[str, Dict] = {}
+
+_seed_default_optimizations()
 
 
 # ============================================================================

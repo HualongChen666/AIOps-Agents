@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from core.auth_service import require_roles
 from core.capacity_engine import forecast_capacity, generate_scaling_recommendations
 from core.collector import get_disk_metrics
+from core.persistent_store import PersistentList, PersistentStore
 from core.database import get_db
 from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.models import (
@@ -94,6 +95,10 @@ class CapacityAdvancedPriority(str, Enum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
+
+#: Public alias — the enum is also exposed under its semantic name ``Priority``.
+Priority = CapacityAdvancedPriority
 
 
 # ============================================================================
@@ -223,9 +228,15 @@ class ScalingRecommendation(BaseModel):
 # In-Memory Data Storage (fallback)
 # ============================================================================
 
-_capacity_plans: Dict[str, CapacityPlan] = {}
-_optimization_results: Dict[str, OptimizationResult] = {}
-_rightsizing_recommendations: List[RightsizingRecommendation] = []
+_capacity_plans: PersistentStore = PersistentStore(
+    "capacity", "plans", decoder=CapacityPlan.model_validate
+)
+_optimization_results: PersistentStore = PersistentStore(
+    "capacity", "optimization_results", decoder=OptimizationResult.model_validate
+)
+_rightsizing_recommendations: PersistentList = PersistentList(
+    "capacity", "rightsizing_recommendations", decoder=RightsizingRecommendation.model_validate
+)
 
 
 def _get_capacity_plans(db: Optional[Session] = None) -> Dict[str, CapacityPlan]:
@@ -1423,7 +1434,9 @@ async def create_capacity_plans_batch(
 # ============================================================================
 
 
-_capacity_forecasts: Dict[str, CapacityForecast] = {}
+_capacity_forecasts: PersistentStore = PersistentStore(
+    "capacity", "forecasts", decoder=CapacityForecast.model_validate
+)
 
 
 def _generate_forecast_id() -> str:
@@ -2074,7 +2087,9 @@ async def create_rightsizing_batch(
 # ============================================================================
 
 
-_scaling_recommendations_history: List[ScalingRecommendation] = []
+_scaling_recommendations_history: PersistentList = PersistentList(
+    "capacity", "scaling_recommendations", decoder=ScalingRecommendation.model_validate
+)
 
 
 def _generate_scaling_id() -> str:

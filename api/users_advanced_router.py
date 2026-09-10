@@ -12,6 +12,7 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from core.authentication import UserInDB, get_user, hash_password, verify_token
+from core.persistent_store import PersistentList, PersistentStore
 from core.user_service import user_service
 
 logger = logging.getLogger(__name__)
@@ -224,13 +225,25 @@ class UserGroupCreate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-# ============ In-memory data storage (for demo) ============
-_user_preferences: Dict[int, UsersAdvancedUserPreferences] = {}
-_activity_logs: List[ActivityLog] = []
-_user_sessions: Dict[int, List[Session]] = {}
-_user_notifications: Dict[int, List[Notification]] = {}
-_user_permissions: Dict[int, List[UserPermission]] = {}
-_user_groups: List[UserGroup] = []
+# ============ Durable data storage (persistent_records) ============
+_user_preferences: PersistentStore = PersistentStore(
+    "users", "preferences", key_type=int, decoder=UsersAdvancedUserPreferences.model_validate
+)
+_activity_logs: PersistentList = PersistentList(
+    "users", "activity_logs", decoder=ActivityLog.model_validate
+)
+_user_sessions: PersistentStore = PersistentStore(
+    "users", "sessions", key_type=int, default_factory=list
+)
+_user_notifications: PersistentStore = PersistentStore(
+    "users", "notifications", key_type=int, default_factory=list
+)
+_user_permissions: PersistentStore = PersistentStore(
+    "users", "permissions", key_type=int, default_factory=list
+)
+_user_groups: PersistentList = PersistentList(
+    "users", "groups", decoder=UserGroup.model_validate
+)
 
 
 def _get_user_preferences(user_id: int) -> UsersAdvancedUserPreferences:
@@ -250,7 +263,6 @@ def _add_activity_log(
     ip_address: Optional[str] = None,
 ) -> ActivityLog:
     """添加活动日志"""
-    global _activity_logs
     log = ActivityLog(
         id=f"act-{len(_activity_logs) + 1}",
         user_id=user_id,
@@ -263,11 +275,9 @@ def _add_activity_log(
         created_at=datetime.now(),
     )
     _activity_logs.append(log)
-    # 只保留最近1000条
+    # 只保留最近1000条（就地裁剪，保证持久化视图与磁盘一致）
     if len(_activity_logs) > 1000:
-        _activity_logs = _activity_logs[
-            -1000:
-        ]  # noqa: F841 - Intentionally filtering to maintain data consistency
+        del _activity_logs[:-1000]
     return log
 
 

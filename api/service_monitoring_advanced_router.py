@@ -12,6 +12,8 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from core.persistent_store import PersistentStore
+
 router = APIRouter(prefix="/api/v1/service-monitoring", tags=["Service Monitoring Advanced"])
 
 
@@ -70,10 +72,12 @@ class DashboardUpdate(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(None, description="Dashboard metadata")
 
 
-# In-memory storage (in production, use a database)
-_alerts_db: Dict[str, Dict[str, Any]] = {}
-_dashboards_db: Dict[str, Dict[str, Any]] = {}
-_alert_history_db: Dict[str, List[Dict[str, Any]]] = {}
+# Durable storage (``persistent_records``) — survives process restarts.
+_alerts_db: PersistentStore = PersistentStore("service_monitoring", "alerts")
+_dashboards_db: PersistentStore = PersistentStore("service_monitoring", "dashboards")
+_alert_history_db: PersistentStore = PersistentStore(
+    "service_monitoring", "alert_history", default_factory=list
+)
 
 
 def _generate_alert_id() -> str:

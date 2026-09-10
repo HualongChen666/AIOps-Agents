@@ -616,7 +616,7 @@ class CrossPlatformScriptExecutor:
 
         # Execute script
         try:
-            result = self._execute_script_content(script.script_content)
+            result = self._execute_script_content(script.script_content, script.script_key)
             return {
                 "success": True,
                 "output": result,
@@ -633,11 +633,71 @@ class CrossPlatformScriptExecutor:
                 "rollback_available": script.rollback_script is not None,
             }
 
-    def _execute_script_content(self, script_content: str) -> str:
-        """Execute script content safely"""
-        # In production, this would execute in a sandboxed environment
-        # For now, we'll just return a simulated result
-        return f"Executed script successfully on {self.current_platform.value}"
+    def _execute_script_content(self, script_content: str, script_key: str = "") -> str:
+        """Execute a repair script in a real, timeout-bounded subprocess.
+
+        The script is run with the current interpreter.  Bundled scripts only
+        *define* their ``repair_*`` entry point, so a small driver invokes every
+        ``repair_*`` function after import — i.e. the remediation actually runs.
+        The combined stdout/stderr is returned; a non-zero exit raises so that
+        :meth:`execute_script` reports the failure instead of a fake success.
+
+        A kill-switch (``AUTO_HEAL_EXECUTE_ENABLED=false``) turns the call into
+        an explicit dry-run: the script is staged but not run.
+        """
+        import subprocess
+        import sys
+        import tempfile
+
+        platform_name = self.current_platform.value
+        if os.getenv("AUTO_HEAL_EXECUTE_ENABLED", "true").lower() != "true":
+            line_count = len([ln for ln in script_content.splitlines() if ln.strip()])
+            return (
+                f"Executed script '{script_key}' on {platform_name}: dry-run "
+                f"(AUTO_HEAL_EXECUTE_ENABLED is not true); {line_count} line(s) staged, not run"
+            )
+
+        driver = (
+            script_content
+            + "\n\n"
+            + "if __name__ == '__main__':\n"
+            + "    for _name in sorted(list(globals())):\n"
+            + "        _obj = globals()[_name]\n"
+            + "        if _name.startswith('repair_') and callable(_obj):\n"
+            + "            _obj()\n"
+        )
+
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env = dict(os.environ)
+        env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
+
+        with tempfile.NamedTemporaryFile(
+            "w", suffix="_repair.py", delete=False, encoding="utf-8"
+        ) as handle:
+            handle.write(driver)
+            script_path = handle.name
+
+        try:
+            proc = subprocess.run(
+                [sys.executable, script_path],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                cwd=project_root,
+                env=env,
+            )
+            output = ((proc.stdout or "") + (proc.stderr or "")).strip()
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"repair script exited with code {proc.returncode}: {output[:500]}"
+                )
+            summary = output if output else "no output"
+            return f"Executed script '{script_key}' on {platform_name}: {summary}"
+        finally:
+            try:
+                os.unlink(script_path)
+            except OSError:
+                pass
 
     def get_available_scripts(self) -> List[Dict[str, Any]]:
         """Get list of available scripts for current platform"""

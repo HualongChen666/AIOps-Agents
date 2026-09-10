@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from core.auth_db import Asset, get_session
 from core.auth_service import require_roles
 from core.database import get_db
+from core.persistent_store import PersistentList, PersistentStore
 from core.models import (
     AssetInventoryMetadata,
     AssetRelationshipDB,
@@ -202,11 +203,19 @@ class AssetDependency(BaseModel):
 # ============================================================================
 
 # Store additional asset metadata that extends the base Asset model
-# This serves as fallback when database is unavailable
-_asset_inventory_metadata: Dict[int, Dict[str, Any]] = {}
-_asset_relationships: List[AssetRelationship] = []
-_asset_lifecycle_data: Dict[int, AssetLifecycle] = {}
-_asset_dependencies: Dict[int, AssetDependency] = {}
+# Durable storage (``persistent_records``) — survives process restarts.
+_asset_inventory_metadata: PersistentStore = PersistentStore(
+    "assets", "inventory_metadata", key_type=int
+)
+_asset_relationships: PersistentList = PersistentList(
+    "assets", "relationships", decoder=AssetRelationship.model_validate
+)
+_asset_lifecycle_data: PersistentStore = PersistentStore(
+    "assets", "lifecycle", key_type=int, decoder=AssetLifecycle.model_validate
+)
+_asset_dependencies: PersistentStore = PersistentStore(
+    "assets", "dependencies", key_type=int, decoder=AssetDependency.model_validate
+)
 
 
 def _get_inventory_metadata(asset_id: int, db: Optional[Session] = None) -> Dict[str, Any]:
@@ -286,11 +295,11 @@ def _get_asset_relationships(db: Optional[Session] = None) -> List[AssetRelation
                 for rel in db_relationships
             ]
         # Fallback to memory storage
-        return _asset_relationships
+        return list(_asset_relationships)
     except Exception as e:
         logger.error(f"Failed to get asset relationships from database, using fallback: {e}", exc_info=True)
         # Fallback to memory storage
-        return _asset_relationships
+        return list(_asset_relationships)
 
 
 def _add_asset_relationship(relationship: AssetRelationship, db: Optional[Session] = None) -> None:
@@ -317,7 +326,6 @@ def _add_asset_relationship(relationship: AssetRelationship, db: Optional[Sessio
 
 def _delete_asset_relationships(asset_id: int, db: Optional[Session] = None) -> None:
     """Delete asset relationships from database with fallback to memory."""
-    global _asset_relationships
     try:
         if db:
             db.query(AssetRelationshipDB).filter(
@@ -326,16 +334,20 @@ def _delete_asset_relationships(asset_id: int, db: Optional[Session] = None) -> 
             db.commit()
         else:
             # Fallback to memory storage
-            _asset_relationships = [
+            remaining = [
                 r for r in _asset_relationships if r.source_id != asset_id and r.target_id != asset_id
             ]
+            del _asset_relationships[:]
+            _asset_relationships.extend(remaining)
     except Exception as e:
         db.rollback() if db else None
         logger.error(f"Failed to delete asset relationships from database, using fallback: {e}", exc_info=True)
         # Fallback to memory storage
-        _asset_relationships = [
+        remaining = [
             r for r in _asset_relationships if r.source_id != asset_id and r.target_id != asset_id
         ]
+        del _asset_relationships[:]
+        _asset_relationships.extend(remaining)
 
 
 def _get_asset_lifecycle(asset_id: int, db: Optional[Session] = None) -> Optional[AssetLifecycle]:
